@@ -4,6 +4,9 @@ public enum TokenType {
     litInt,
     litString,
     litFloat,
+    word,
+    dotWord,
+    atWord,
     comment,
     curlyBraces,
     statement,
@@ -37,13 +40,16 @@ public class LexResult {
     LexChunk currChunk;
     public int i; // current index inside input byte array
     int nextInd = 0;
-    int totalTokens = 0;
-    bool wasError = false;
-    string errMsg = "";
+    public int totalTokens {get; private set; }
+    public bool wasError {get; private set; }
+    public string errMsg {get; private set; }
 
     public LexResult() {
         firstChunk = new LexChunk();
         currChunk = firstChunk;
+        totalTokens = 0;
+        wasError = false;
+        errMsg = "";
     }
 
     public void addToken(Token newToken) {
@@ -82,6 +88,16 @@ public class LexResult {
             currB = currB.next;
         }
         return true;
+    }
+
+    public Token getToken(int i) {
+        LexChunk curr = firstChunk;
+        int ind = i;
+        while (ind >= LexChunk.CHUNK_SZ) {
+            curr = curr.next;
+            ind -= LexChunk.CHUNK_SZ;
+        }
+        return curr.tokens[ind];
     }
 
     public void errorOut(String errMsg) {
