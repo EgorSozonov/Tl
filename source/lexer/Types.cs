@@ -1,7 +1,82 @@
-namespace Tl {
+namespace Tl.Lexer {
 
+public enum TokenType {
+    litInt,
+    litString,
+    litFloat,
+    comment,
+    curlyBraces,
+    statement,
+    parens,
+    brackets,
+    dotBrackets,
+}
 
-public enum ASCII {
+public struct Token {
+    public TokenType ttype;
+    public long payload;
+    public int startChar;
+    public int lenChars;
+    public int lenTokens;
+}
+
+public class LexChunk {
+    public static readonly int CHUNK_SZ = 10000;
+    
+    public Token[] tokens;
+    public LexChunk next;
+
+    public LexChunk() {
+        tokens = new Token[CHUNK_SZ];
+        next = null;
+    }
+}
+
+public class LexResult {
+    LexChunk firstChunk;
+    LexChunk currChunk;
+    int nextInd = 0;
+    int totalTokens = 0;
+    bool wasError = false;
+    string errMsg = "";
+
+    public LexResult() {
+        firstChunk = new LexChunk();
+        currChunk = firstChunk;
+    }
+
+    public static bool equality(LexResult a, LexResult b) {
+        if (a.wasError != b.wasError  || a.totalTokens != b.totalTokens 
+            || a.nextInd != b.nextInd || a.errMsg != b.errMsg) {
+            return false;
+        }
+        var currA = a.firstChunk;
+        var currB = b.firstChunk;
+        while (currA != null) {
+            if (currB == null) return false;
+            int len = currA == a.currChunk ? a.nextInd : LexChunk.CHUNK_SZ;
+            for (int i = 0; i < len; ++i) {
+                var tokA = currA.tokens[i];
+                var tokB = currB.tokens[i];
+                if (tokA.ttype != tokB.ttype || tokA.startChar != tokB.startChar
+                    || tokA.lenChars != tokB.lenChars || tokA.lenTokens != tokB.lenTokens
+                    || tokA.payload != tokB.payload) {
+                    return false;
+                }
+            }
+            currA = currA.next;
+            currB = currB.next;
+        }
+        return true;
+    }
+
+    public void errorOut(String errMsg) {
+        this.wasError = true;
+        this.errMsg = errMsg;
+    }
+}
+
+public enum ASCII: byte {
     emptyNULL = 0,             // NULL
     emptySOH = 1,              // Start of Heading
     emptySTX = 2,              // Start of Text
@@ -69,7 +144,7 @@ public enum ASCII {
     equalTo = 61,              // =
     greaterThan = 62,          // >
     questionMark = 63,         // ?
-    singAt = 64,               // @
+    atSign = 64,               // @
 
     //upper case alphabet
 
