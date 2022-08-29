@@ -1,41 +1,30 @@
-# Compiled Lua sources
-luac.out
+.vs/*
+.vscode/*
+.git/*
+.idea/*
+target/*
+build/*
+.packages
 
-# luarocks build files
-*.src.rock
+doc/api/*
+src/.DS_Store
+.DS_Store
+Src/.DS_Store?
 *.zip
-*.tar.gz
 
-# Object files
-*.o
-*.os
-*.ko
-*.obj
-*.elf
+*.cache
+*.props
+*.targets
+*.dgspec.json
+*assets.json
+obj/*
 
-# Precompiled Headers
-*.gch
-*.pch
 
-# Libraries
-*.lib
-*.a
-*.la
-*.lo
-*.def
-*.exp
-
-# Shared objects (inc. Windows DLLs)
-*.dll
-*.so
-*.so.*
-*.dylib
-
-# Executables
-*.exe
-*.out
-*.app
-*.i*86
-*.x86_64
-*.hex
-
+# Ignore Gradle build output directory
+build/*
+.gradle/*
+_bin/*
+_temp/*
+*.bat
+gradlew
+gradle/*
