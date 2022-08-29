@@ -35,6 +35,7 @@ public class LexChunk {
 public class LexResult {
     LexChunk firstChunk;
     LexChunk currChunk;
+    public int i; // current index inside input byte array
     int nextInd = 0;
     int totalTokens = 0;
     bool wasError = false;
@@ -43,6 +44,19 @@ public class LexResult {
     public LexResult() {
         firstChunk = new LexChunk();
         currChunk = firstChunk;
+    }
+
+    public void addToken(Token newToken) {
+        if (nextInd < (LexChunk.CHUNK_SZ - 1)) {
+            currChunk.tokens[nextInd] = newToken;
+            nextInd++;
+        } else {
+            var newChunk = new LexChunk();
+            newChunk.tokens[0] = newToken;
+            currChunk.next = newChunk;
+            nextInd = 0;
+        }
+        totalTokens++;
     }
 
     public static bool equality(LexResult a, LexResult b) {
