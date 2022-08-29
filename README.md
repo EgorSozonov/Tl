@@ -1,2 +1,2 @@
 # Tl
-Progamming language on the JVM
+Progamming language on the Dotnet platform
