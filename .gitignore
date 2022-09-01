@@ -21,10 +21,7 @@ obj/*
 
 
 # Ignore Gradle build output directory
-build/*
-.gradle/*
 _bin/*
 _temp/*
 *.bat
-gradlew
-gradle/*
+zig-out/*
