@@ -1,7 +1,10 @@
 const std = @import("std");
+const Ar = @import("utils/Arena.zig");
 
 pub fn main() anyerror!void {
     std.log.info("All your codebase are belong to us.", .{});
+    var arena: *Ar.Arena = try Ar.mkArena();
+    arena.delete();
 }
 
 

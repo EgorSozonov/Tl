@@ -7,18 +7,19 @@ pub fn lexicallyAnalyze(inp: *[]u8, ar: *Arena) *LexResult {
 fn lexWord(inp: *[]u8, lr: *LexResult) void {
     const startInd = lr.i;
     var metUncapitalized = lexWordChunk(inp, lr);
-    while (lr.i < (inp.len - 1) && inp[lr.i] == ASCII.dot && !lr.wasError) {
-        lr.i++;
+    while (lr.i < (inp.len - 1) && (inp[lr.i] == @bitCast(u8, ASCII.dot)) && !lr.wasError) {
+        lr.i += 1;
         const wasCurrUncapitalized = lexWordChunk(input, lr);
         if (metUncapitalized && !wasCurrUncapitalized) {
             lr.errorOut("An identifier may not contain a capitalized piece after an uncapitalized one!");
             return;
 
         }
+
         metUncapitalized = wasCurrUncapitalized;
     }
     if (lr.i > startInd) {
-        lr.addToken(Token{lenChars = lr.i - startInd, lenTokens =0, payload = 0,startChar=startInd,ttype=TokenType.word});
+        lr.addToken(Token{.lenChars = lr.i - startInd, .lenTokens = 0, .payload = 0, .startChar=startInd, .ttype=TokenType.word});
     } else {
         lr.errorOut("Could not lex a word at position " + startInd);
     }

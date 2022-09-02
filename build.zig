@@ -12,10 +12,11 @@ pub fn build(b: *std.build.Builder) void {
     b.setPreferredReleaseMode(.Debug);
     const mode = b.standardReleaseOptions();
 
-    const exe = b.addExecutable("tlco", "source/main.zig");    
+    const exe = b.addExecutable("tlco", "main.zig");    
     exe.setOutputDir("_bin");
     exe.setTarget(target);
     exe.setBuildMode(mode);
+    exe.linkLibC();
     exe.install();
 
     const runCmd = exe.run();
@@ -27,7 +28,7 @@ pub fn build(b: *std.build.Builder) void {
     const runStep = b.step("run", "Run the app");
     runStep.dependOn(&runCmd.step);
 
-    const exeTests = b.addTest("compiler/main.zig");
+    const exeTests = b.addTest("main.zig");
     exeTests.setTarget(target);
     exeTests.setBuildMode(mode);
 
