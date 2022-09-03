@@ -21,8 +21,11 @@ obj/*
 
 
 # Ignore Gradle build output directory
-zig-cache/*
 _bin/*
 _temp/*
 *.bat
-zig-out/*
+**/CMakeFiles/*
+CMakeCache.txt
+*.cmake
+*.cbp
+*.user
