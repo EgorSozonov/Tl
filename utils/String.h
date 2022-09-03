@@ -2,13 +2,16 @@
 #define STRING_H
 #include "Arena.h"
 
-
+/**
+ * \0-terminated C-string carrying its own length with it.
+ */
 typedef struct {
     int length;
     char content[];
 } String;
 
-String* allocateString(Arena* ar, int length, char* content);
+String* allocateLiteral(Arena* ar, char* content);
+String* allocateScratchSpace(Arena* ar, uint64_t len);
 String* allocateFromSubstring(Arena* ar, char* content, int start, int length);
 
 #endif

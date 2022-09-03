@@ -1,60 +1,54 @@
 ﻿#ifndef INSTRUCTION_H
 #define INSTRUCTION_H
-#include "../utils/StackHeader.h"
-#include "../utils/Arena.h"
-#include "../utils/Casts.h"
-#include "../utils/String.h"
+#include "../../utils/StackHeader.h"
+#include "../../utils/Arena.h"
+#include "../../utils/Casts.h"
+#include "../../utils/String.h"
 #include <stdint.h>
 
 typedef enum {
-    OP_ADD,       // integer arithmetic
+    OP_ADD,       // R[A] = R[B] + R[C}
     OP_SUB,
     OP_MUL,
     OP_DIV,
-    OP_FLADD,     // floating-point arithmetic
-    OP_FLSUB,
-    OP_FLMUL,
-    OP_FLDIV,
+    OP_ADDFL,     // floating-point arithmetic
+    OP_SUBFL,
+    OP_MULFL,
+    OP_DIVFL,
     OP_LOADI,     // Load int B into the stack at R[A]
     OP_PRINT,
     OP_READGLOB,
     OP_WRITEGLOB,
-    OP_CALLPROLOGUE, // Preparation for a function call. A = index of first fixed arg, Bx = number of locals + fixed args
     OP_CALLRETADRESS, // Sets an additional return address for the future function call
     OP_CALLARG,       // Sets an argument (vararg or fixed) for the future function call    
-    OP_CALL,      // R[A] is function id (in the constants list), B = number of locals + fixed args,
-                  // C = index of first fixed arg, D = main return address as offset from new frame base, 
-                  // E = whether we even need extra ret addresses, F = its lower 8 bits are the number of extra ret addresses
+    OP_CALL,      // A is function index (in the constants list), B = index of first fixed arg, C = main return address as offset from new frame base,
+                  // D = whether we need extra ret addresses (its lower 8 bits are the number of extra ret addresses)
+    OP_RETURN,    // Return from function call
     OP_COPY,      // R[A] <- R[B]
     OP_NOOP,      // Does nothing
     OP_EXTRAARG,  // Indicates that is a double-length instruction; actual opcode will be in the second 32 bits
 } OpCode;
 
-// ======= Calling functions =======
-// 8 index of first fixed arg
-// 8 number of (locals + normal args)
-// 8 function id
-// 8 main return address (as offset)
-// 1 need extra ret addresses?
-// 8 return addresses
+// Register/constant addresses are distinguished by the highest bit (1 means constant).
+// If it's a register address, then 0 value is ignored by most instructions, since position 0 in the stack frame
+// is for a specific purpose (number of extra return addresses).
 
-// Example call of function f x y = {z = x + 2*y; return z*x}:
-// OP_CALLPROLOGUE 1 (3) # First fixed arg is at index 1 because index 0 is taken by the count extra ret addresses (0 in this case)
-//                       # Bx = 3 because 2 fixed args plus one local
-// OP_CALL         1 -3 0b0..0 # Index 1 for function id location is arbitrary, -1 means return value will be (childFrameBase - 3), and 0 extra ret values
 
 typedef uint64_t OInstr;
 
 typedef enum {
     intt,
     strr,
+    funcc,
 } ConstType;
 
+struct OFunction;
 typedef struct {
     ConstType tag;
     union {
-        int num;
+        int64_t num;
         String* str;
+        struct OFunction* func;
     } value;
 } OConstant;
 DEFINE_STACK_HEADER(OConstant)
@@ -105,16 +99,22 @@ enum InstructionMode {modeABC, modeABx, modeAx};
 #define MASK_DZ   0b0000000000000000000000000000000000000001111111110000000000000000
 #define MASK_EZ   0b0000000000000000000000000000000000000000000000000000001111111111
 
-#define decodeOpcode(i)	 (cast(OpCode, ((i) & MASK_OPC)))
-#define decodeOpcodeY(i)  cast(OpCode, ((i) & 0b0000000000000000000000000000000001111100000000000000000000000000)))
-#define decodeOpcodeZ2(i) cast(OpCode, ((i) & 0b0000000000000000000000000000000001111110000000000000000000000000)))
-#define decodeOpcodeZ3(i) cast(OpCode, ((i) & 0b0000000000000000000000000000000000000000000000001111110000000000)))
-void decodeSlotArgA(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
-void decodeSlotArgB(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
-void decodeSlotArgC(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
-void decodeSlotArgD(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
-void decodeSlotArgE(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
-void decodeSlotArgF(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
+#define decodeOpcode(i)	 (cast(OpCode, (((i) & MASK_OPC) >> 58)))
+#define decodeOpcodeY(i)  cast(OpCode, (((i) & MASK_OPY) >> 27))
+#define decodeOpcodeZ2(i) cast(OpCode, (((i) & MASK_OPZ2) >> 25))
+#define decodeOpcodeZ3(i) cast(OpCode, (((i) & MASK_OPZ3) >> 10)))
+void decodeDerefArgA(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
+void decodeDerefArgB(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
+void decodeDerefArgC(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
+void decodeDerefArgD(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
+void decodeDerefArgE(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
+void decodeDerefArgF(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
+void decodeIntArgB(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result);
+void decodeIntArgC(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result);
+void decodePlainArgA(uint64_t instr, /* output: */ int64_t* result);
+void decodePlainArgB(uint64_t instr, /* output: */ int64_t* result);
+void decodePlainArgC(uint64_t instr, /* output: */ int64_t* result);
+void decodePlainArgD(uint64_t instr, /* output: */ int64_t* result);
 
 int decodeSignedArgBx(uint64_t instr);
 
@@ -123,6 +123,8 @@ int decodeSignedArgBx(uint64_t instr);
 //void decodeSlotArgC(uint64_t instr, int64_t* callFrame, OConstant (*constants)[], /* output: */ int64_t* result, bool* isConstant);
 
 uint64_t mkInstructionABC(OpCode opCode, unsigned int a, unsigned int b, unsigned int c);
+uint64_t mkInstructionABCD(OpCode opCode, unsigned int a, unsigned int b, unsigned int c, unsigned int d);
+uint64_t mkInstructionABCDEF(OpCode opCode, unsigned int a, unsigned int b, unsigned int c, unsigned int d, unsigned int e, unsigned int f);
 uint64_t mkInstructionABx(OpCode opCode, unsigned int a, short bx);
 
 #endif

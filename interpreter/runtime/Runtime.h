@@ -1,17 +1,18 @@
 ﻿#ifndef RUNTIME_H
 #define RUNTIME_H
-#include "../utils/String.h"
-#include "../utils/StackHeader.h"
+#include "../../utils/String.h"
+#include "../../utils/StackHeader.h"
 #include "../types/Instruction.h"
 #include <stdint.h>
 
-#define CALL_STACK_SIZE 256000    // 2MB of stack space per interpreter
-#define CALLINFO_STACK_SIZE 1000  // Up to 1000 function calls in the stack
+#define FRAME_SIZE 256                                      // 256 slots in a stack frame. This includes args, varargs, return addresses, and local variables
+#define CALLINFO_STACK_SIZE 1000                            // Up to 1000 function calls in the stack
+#define CALL_STACK_SIZE (FRAME_SIZE*CALLINFO_STACK_SIZE)    // 2MB of stack space per interpreter
+#define ERR_MSG_SIZE 200
+
 
 
 DEFINE_STACK_HEADER(int)
-
-
 
 typedef struct {
     size_t length;
@@ -43,39 +44,29 @@ DEFINE_STACK_HEADER(OPackage)
  * 3. Space for varargs (optional)
  * 4. Space for normal args                       <--- CallInfo.indFixedArg points here
  * 5. Locals
- * 6. End                                         <--- CallInfo.frameTop points here (to last occupied element)
  */
 typedef struct {
-    int32_t frameTop; // Index of the top element in the stack for this call frame
-    int32_t frameBase; // Index of the bottom element in the stack for this call frame
-    int32_t indFixedArg; // Index of the first fixed argument for this call frame
-    int32_t returnAddress; // Address for the first return value, which is always on the parent frame
     OFunction* func;
-    bool needReturnAddresses;  // If true, there are return addresses in the call frame
+    int32_t indFixedArg; // Index of the first fixed argument for this call frame
+    int32_t returnAddress; // Index for the first return value, which is always on the parent frame
+    bool needReturnAddresses;  // If true, there are return addresses in the call frame. If false, returns are written continuously onto the parent frame
+    int pc; // Program counter
 } CallInfo;
-
-// Function 8 bit
-// Length 16 bit
-// return values 8 bit
-// number of varargs 8 bit
-// First return address (offset) 9 bit
-// needReturnAddresses? 1 bit
-//
-// Prologue: 8 + 9 Length + needReturnAddresses, 9 Return values
-// Call: 8 Function, 9 Varargs, 9 First return address
 
 typedef struct {
     StackOPackage* packages;
     CallInfo* currCallInfo; // CallInfo
     CallInfo callInfoStack[CALLINFO_STACK_SIZE]; // Array CallInfo
     int64_t callStack[CALL_STACK_SIZE];
+    bool wasError;
+    char errMsg[ERR_MSG_SIZE];
 } OVM;
 
 
+OPackage makeForTestCall(Arena* ar);
+OPackage makeForTestBasic(Arena* ar);
 
-OPackage makeForTest(Arena* ar);
-
-int runPackage(OPackage package, Arena* ar);
+void runPackage(OPackage package, OVM* vm, Arena* ar);
 
 
 #endif

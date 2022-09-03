@@ -14,13 +14,33 @@
 /// \param content
 /// \return
 ///
-String* allocateString(Arena* ar, int length, char* content) {
-    String* result = arenaAllocate(ar, length + 1 + sizeof(String));
-    result->length = length;
-    memcpy(result->content, content, length + 1);
+String* allocateLiteral(Arena* ar, char* content) {
+    if (content == NULL) return NULL;
+    char* ind = content;
+    int len = 0;
+    for (; *ind != '\0'; ind++)
+        len++;
+
+    String* result = arenaAllocate(ar, len + 1 + sizeof(String));
+    result->length = len;
+    memcpy(result->content, content, len + 1);
     return result;
 }
 
+///
+/// \brief allocateScratchSpace allocates a C string of set length to use as scratch space.
+/// WARNING: does not zero out its contents.
+///
+String* allocateScratchSpace(Arena* ar, uint64_t len) {
+    String* result = arenaAllocate(ar, len + 1 + sizeof(String));
+    result->length = len;
+    return result;
+}
+
+
+///
+/// \brief allocateFromSubstring allocates a C string literal into an arena from a piece of another string.
+///
 String* allocateFromSubstring(Arena* ar, char* content, int start, int length) {
     if (length <= 0 || start < 0) return NULL;
     int i = 0;
