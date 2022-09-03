@@ -1,0 +1,47 @@
+﻿1. Tokens in unboxed form. Token = {tag, startChar, length in chars, length in tokens, payload (64 bit)}
+2. Tokens get created and allocated right away by the lexer, then mutated on later stages. Easy depth-first and breadth-first traversal of tree.
+3. Payload is just the value for numbers and booleans, but a pointer for scopes and subexprs.
+For scopes it points to the list of bindings, for subexprs it points to its type
+4. Bindings have 3 forms: just a name, a resolved name (i.e. a concrete overload of name), a resolved name with concrete type.
+Probably do a hierarchical storage (name -> overloads -> monomorphized overloads).
+5. Parse just UTF-8 and ignore the grapheme cluster bullshit. Store all positions in codepoints. Also allow only ASCII outside of comments & string literals.
+
+
+LEXER
+_________
+
+List of token types:
+1. Word (a sequence of dot-separated chunks, each chunk may start with an underscore or a letter, and chunks whose first letter is uppercase must precede chunks whose first letter is lowercase)
+2. DotWord (same as a word but starts with a dot)
+3. @Word (same as a word but starts with an '@' sign)
+4. LexerPunctuation: {} denote syntactic scope, () denote subexpressions within a line, [] denote a subexpression within a line that is a data initializer,
+                     .[] denote a subexpression within a line that is a data accessor
+
+5. CoreOperator (a small fixed set of operators, each no more than 3 symbols in length)
+6. Operator (a fixed but large set of operators built from a finite set of symbols, excluding any combination that is a CoreOperator)
+
+7. StringLiteral ('asdf')
+8. UTF8StringLiteral (u'asdf')
+9. MultilineStringLiteral ("""asdf""")
+10. Comment (# comment till end of line, or # comment with .# an end)
+
+11. IntLiteral (A sequence of digits that fits into a signed 64-bit integer, "-" is NOT allowed)
+12. HexLiteral (0xdeadbeef or 0xDEAD_BEEF, mixing cases within one literal is not allowed, underscores may be anywhere after "0x" except in last position)
+13. BinLiteral  (0b0011_0100, underscores may be anywhere after "0b" except in last position)
+14. FloatingLiteral (0.349_845_98234, underscores may be anywhere after first symbol which must be a decimal digit, i.e. leading zero is required)
+
+
+Precedence for correct unambiguous lexing:
+(3) > (1)
+(2) > (1)
+(4) requires 1-symbol lookahead from (1), (2), (3)
+
+(5) > (6)
+
+(8) > (7)
+
+(12) > (11)
+(13) > (11)
+(14) > (11)
+
+
