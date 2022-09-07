@@ -1,7 +1,7 @@
 ﻿#include "Lexer.h"
-#include "../utils/Arena.h"
-#include "../utils/String.h"
-#include "../utils/Stack.h"
+#include "../../utils/Arena.h"
+#include "../../utils/String.h"
+#include "../../utils/Stack.h"
 #include <string.h>
 
 /**

@@ -1,39 +1,53 @@
 # Usage: make build
 
-.PHONY = all clean
 CC=gcc                        # compiler to use
 COMPFLAGS=-std=c11
 LINKERFLAGS = -lm # Link the math library
-ODIR = _temp
+TMPDIR = _temp
+SRCDIR = source
+SRCUTILS = utils
+SRCTESTS = test
+INC = -Iinc
+EXETEST=_bin/tlTest
+EXE=_bin/tlco
 
-SOURCES_COMMON=$(wildcard utils/*.c)
-SOURCES_COMPILER=$(wildcard interpreter/*.c)
-OBJECTS_COMPILER=$(SOURCES_COMPILER:%.c=%)
+# Main app
 
-SOURCES_INTERPRETER=$(wildcard interpreter/*.c)
-OBJECTS_INTERPRETER=$(SOURCES_INTERPRETER:%.c=%)
+compiler: main.o lexer.o arena.o string.o
+	$(CC) $(COMPFLAGS) -o $(EXE) $(TMPDIR)/main.o $(TMPDIR)/lexer.o $(TMPDIR)/arena.o $(TMPDIR)/string.o
+
+main.o: $(SRCDIR)/Main.c
+	$(CC) $(COMPFLAGS) -o $(TMPDIR)/main.o -c $<
+
+lexer.o: $(SRCDIR)/lexer/Lexer.c
+	$(CC) $(COMPFLAGS) -o $(TMPDIR)/lexer.o -c $<
+
+#parser.o: $(SRCDIR)/parser/Parser.c
+#	$(CC) $(COMPFLAGS) -o $(TMPDIR)/parser.o -c $<
+
+#typechecker.o: $(SRCDIR)/typechecker/Typechecker.c
+#	$(CC) $(COMPFLAGS) -o $(TMPDIR)/typechecker.o -c $<
+
+#codegen.o: $(SRCCODEGEN)/Codegen.c
+#	$(CC) $(COMPFLAGS) -o $(TMPDIR)/codegen.o -c $(SRCCODEGEN)/Codegen.c
 
 
-EXE_COMPILER = tlco
-EXE_INTERPRETER = tlvm
+# Utils
 
-all: ${BINS}
-%: %.o
-	@echo "Checking.."
-	${CC} ${LINKERFLAG} $< -o $@
-# $< is patterned to match prerequisites and $@ matches the target
-# So the last line expands to: gcc -lm foo.o -o foo
+arena.o: $(SRCUTILS)/Arena.c
+	$(CC) $(COMPFLAGS) -o $(TMPDIR)/arena.o -c $<
 
-%.o: %.c
-	@echo "Creating object.."
-	${CC} ${COMPFLAGS} -c $<
+string.o: $(SRCUTILS)/String.c
+	$(CC) $(COMPFLAGS) -o $(TMPDIR)/string.o -c $<
 
-# patsubst % substitutes the whole argument (3rd expression) with the 2nd expression
-OBJS = $(patsubst %,$(ODIR)/%,$(OBJECTS_COMPILER)) # Move all .o files to temp dir.
 
-$(EXE_COMPILER): $(OBJECTS)
-	$(CC) $(LINKERFLAGS) $(COMPFLAGS) $(OBJECTS) -o _bin/$@
+# Tests
 
-$(EXE_INTERPRETER): $(OBJECTS)
-	$(CC) $(LINKERFLAGS) $(COMPFLAGS) $(OBJECTS) -o _bin/$@
+tests: test.o
+	$(CC) $(COMPFLAGS) -o $(EXETEST) $(TMPDIR)/test.o
 
+test.o: $(SRCTESTS)/Test.c
+	$(CC) $(COMPFLAGS) -o $(TMPDIR)/test.o -c $<
+
+clean:
+	rm -f $(TMPDIR)/*.o $(EXE) $(EXETEST)

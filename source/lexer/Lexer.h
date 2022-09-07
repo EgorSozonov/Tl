@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../utils/String.h"
-#include "../utils/StackHeader.h"
+#include "../../utils/String.h"
+#include "../../utils/StackHeader.h"
 
 #define LEX_CHUNK_SIZE 5000
 
