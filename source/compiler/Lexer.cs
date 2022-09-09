@@ -4,10 +4,6 @@ namespace Tl.Compiler {
 public static class Lexer {
 
 
-public static void foo() {
-    Console.WriteLine("foo");
-}
-
 /// Main lexer function. Produces a stream of tokens.
 /// Input: must be in UTF-8, but strictly ASCII outside of comments and string literals.
 /// Output: contains all the parsed tokens with a flag for error and error msg.
@@ -33,7 +29,6 @@ public static LexResult lexicallyAnalyze(byte[] input) {
 
 /// Lexer's worker function. Loops over input and generates the tokens
 private static void lexLoop(byte[] input, LexResult result) {
-
     int walkLen = input.Length - 1;
     while (result.i < walkLen) {
         byte cByte = input[result.i];
@@ -48,6 +43,8 @@ private static void lexLoop(byte[] input, LexResult result) {
             lexDotWord(input, result);
         } else if (cByte == (byte)ASCII.atSign && (isLetter(nByte) || nByte == (byte)ASCII.underscore)) {
             lexAtWord(input, result);
+        } else {
+            result.i += 1;
         }
     }
 }

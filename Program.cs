@@ -6,7 +6,9 @@ static class Program {
 
 public static void Main() {
     Console.WriteLine("Hw");
-    Lexer.foo();
+    var testSuite = Tl.Test.Compiler.LexerTest.lexerTests();
+    testSuite.run();
+    
 }
 
 
