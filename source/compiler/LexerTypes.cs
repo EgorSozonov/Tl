@@ -1,7 +1,114 @@
-﻿#ifndef ASCII_H
-#define ASCII_H
+namespace Tl.Compiler {
 
-typedef enum {
+public enum TokenType {
+    litInt,
+    litString,
+    litFloat,
+    word,
+    dotWord,
+    atWord,
+    comment,
+    curlyBraces,
+    statement,
+    parens,
+    brackets,
+    dotBrackets,
+}
+
+public struct Token {
+    public TokenType ttype;
+    public long payload;
+    public int startChar;
+    public int lenChars;
+    public int lenTokens;
+}
+
+public class LexChunk {
+    public static readonly int CHUNK_SZ = 10000;
+    
+    public Token[] tokens;
+    public LexChunk? next;
+
+    public LexChunk() {
+        tokens = new Token[CHUNK_SZ];
+        next = null;
+    }
+}
+
+public class LexResult {
+    LexChunk firstChunk;
+    LexChunk currChunk;
+    public int i; // current index inside input byte array
+    int nextInd = 0;
+    public int totalTokens {get; private set; }
+    public bool wasError {get; private set; }
+    public string errMsg {get; private set; }
+
+    public LexResult() {
+        firstChunk = new LexChunk();
+        currChunk = firstChunk;
+        totalTokens = 0;
+        wasError = false;
+        errMsg = "";
+    }
+
+    public void addToken(Token newToken) {
+        if (nextInd < (LexChunk.CHUNK_SZ - 1)) {
+            currChunk.tokens[nextInd] = newToken;
+            nextInd++;
+        } else {
+            var newChunk = new LexChunk();
+            newChunk.tokens[0] = newToken;
+            currChunk.next = newChunk;
+            nextInd = 0;
+        }
+        totalTokens++;
+    }
+
+    public static bool equality(LexResult a, LexResult b) {
+        if (a.wasError != b.wasError  || a.totalTokens != b.totalTokens 
+            || a.nextInd != b.nextInd || a.errMsg != b.errMsg) {
+            return false;
+        }
+        var currA = a.firstChunk;
+        var currB = b.firstChunk;
+        while (currA != null) {
+            if (currB == null) return false;
+            int len = currA == a.currChunk ? a.nextInd : LexChunk.CHUNK_SZ;
+            for (int i = 0; i < len; ++i) {
+                var tokA = currA.tokens[i];
+                var tokB = currB.tokens[i];
+                if (tokA.ttype != tokB.ttype || tokA.startChar != tokB.startChar
+                    || tokA.lenChars != tokB.lenChars || tokA.lenTokens != tokB.lenTokens
+                    || tokA.payload != tokB.payload) {
+                    return false;
+                }
+            }
+            currA = currA.next;
+            currB = currB.next;
+        }
+        return true;
+    }
+
+    public Token getToken(int i) {
+        LexChunk? curr = firstChunk;
+        int ind = i;
+        while (ind >= LexChunk.CHUNK_SZ) {
+            if (curr == null) throw new Exception("Out of bounds access");
+            curr = curr.next;
+            ind -= LexChunk.CHUNK_SZ;
+        }
+        if (curr == null) throw new Exception("Out of bounds access");
+        return curr.tokens[ind];
+    }
+
+    public void errorOut(String errMsg) {
+        this.wasError = true;
+        this.errMsg = errMsg;
+    }
+}
+
+public enum ASCII: byte {
     emptyNULL = 0,             // NULL
     emptySOH = 1,              // Start of Heading
     emptySTX = 2,              // Start of Text
@@ -45,8 +152,8 @@ typedef enum {
     percent = 37,              // %
     ampersand = 38,            // &
     quotationMarkSingle = 39,  // '
-    parenthesisOpen = 40,      // (
-    parenthesisClose = 41,     // )
+    parenthesisOpen = 40,      //  = 
+    parenthesisClose = 41,     // ,
     asterisk = 42,             // *
     plus = 43,                 // +
     comma = 44,                //  = ,
@@ -69,7 +176,7 @@ typedef enum {
     equalTo = 61,              // =
     greaterThan = 62,          // >
     questionMark = 63,         // ?
-    singAt = 64,               // @
+    atSign = 64,               // @
 
     //upper case alphabet
 
@@ -100,16 +207,12 @@ typedef enum {
     yUpper = 89,               // Y
     zUpper = 90,               // Z
 
-    //misc characters
-
     bracketOpen = 91,          // [
     slashBackward = 92,        // '\'
     bracketClose = 93,         // ]
     caret = 94,                // ^
     underscore = 95,           // _
     graveAccent = 96,          // `
-
-    //lower case alphabet
 
     aLower = 97,               // a
     bLower = 98,               // b
@@ -138,14 +241,12 @@ typedef enum {
     yLower = 121,              // y
     zLower = 122,              // z
 
-    //misc characters
-
     curlyOpen = 123,           // {
     verticalBar = 124,         // |
     curlyClose = 125,          // }
     tilde = 126,               // ~
     emptyDel = 127,            // Delete
-} ASCII;
+}
 
 
-#endif
+}
