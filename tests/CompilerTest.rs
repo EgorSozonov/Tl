@@ -1,7 +1,12 @@
+#![allow(non_snake_case)]
+#![allow(non_upper_case_globals)]
+#![allow(non_camel_case_types)]
+#![allow(nonstandard_style)]
+
+
 #[cfg(test)]
 mod tests {
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use super::*;
+    use tl::compiler::Lexer::*;
 
 
     #[test]

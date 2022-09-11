@@ -1,3 +1,5 @@
+use std::borrow::BorrowMut;
+use std::cell::RefCell;
 use std::rc::Rc;
 
 const CHUNK_SZ: usize = 10000;
@@ -38,17 +40,24 @@ pub struct TokenSlab {
 }
 
 pub struct LexResult {
-    firstChunk: Rc<Box<TokenSlab>>,
-    currChunk: Rc<Box<TokenSlab>>,
-    currInd: usize,
+    firstChunk: Rc<RefCell<TokenSlab>>,
+    currChunk: Rc<RefCell<TokenSlab>>,
+    nextInd: usize,
     wasError: bool,
     errMsg: Option<String>,
 }
 
 impl LexResult {
     pub fn new() -> Self {
-        let firstChunk = Rc::new(Box::new(TokenSlab{nextSlab: None, content: [Default::default(); CHUNK_SZ], }));
+        let firstChunk = Rc::new(RefCell::new(TokenSlab{nextSlab: None, content: [Default::default(); CHUNK_SZ], }));
         Self { firstChunk: firstChunk.clone(),
-               currChunk: firstChunk.clone(), currInd: 0, wasError: false, errMsg: None }
+               currChunk: firstChunk.clone(), nextInd: 0, wasError: false, errMsg: None }
+    }
+
+    pub fn addToken(&mut self, newToken: Token) {
+        let mut value = self.borrow_mut();
+        if value.nextInd < (CHUNK_SZ - 1) {
+            value.currChunk.borrow_mut().content[value.nextInd] = newToken
+        }
     }
 }
