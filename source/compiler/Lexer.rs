@@ -1,9 +1,17 @@
-
+use crate::compiler::LexerTypes::*;
 
 pub fn lexicallyFoo() {
     println!("Lexer");
 }
 
+
+pub fn lexicallyAnalyze(inp: &[u8]) -> LexResult {
+    LexResult::new()
+}
+
+pub fn add(a: i32, b: i32) -> i32 {
+    a + b
+}
 
 const asciiALower: u8 = 97;
 const asciiZLower: u8 = 122;
@@ -47,7 +55,3 @@ const asciiEquals: u8 = 61;
 const asciiLessThan: u8 = 60;
 const asciiGreaterThan: u8 = 62;
 
-
-pub fn lexicallyAnalyze(inp: &[u8]) {
-
-}

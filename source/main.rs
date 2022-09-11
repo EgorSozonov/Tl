@@ -1,13 +1,14 @@
 #![allow(non_snake_case)]
-mod compiler {
-    pub mod Lexer;
-    pub mod LexerTypes;
-}
+#[allow(non_upper_case_globals)]
+
 
 
 fn main() {
-    use compiler::Lexer::*;
+    use tl::compiler::Lexer::*;
 
     println!("Hello, world!");
     lexicallyFoo();
+    //let inp = Box::new([21 as u8; 5]);
+    let inp = "asdf bcjk".as_bytes();
+    let lexResult = lexicallyAnalyze(inp);
 }

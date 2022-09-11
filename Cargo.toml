@@ -10,6 +10,10 @@ target-dir = "./_bin"
 name = "tlco"
 path = "source/main.rs"
 
+[lib]
+name = "tl"
+path = "source/lib.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
