@@ -7,9 +7,9 @@ build/*
 .packages
 
 doc/api/*
-src/.DS_Store
+source/.DS_Store
 .DS_Store
-Src/.DS_Store?
+source/.DS_Store?
 *.zip
 
 *.cache
@@ -29,7 +29,8 @@ CMakeCache.txt
 *.cmake
 *.cbp
 *.user
+target/*
 
-
+*.iml
 _temp/*
 _bin/*

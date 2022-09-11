@@ -1,0 +1,15 @@
+[package]
+name = "Tl"
+version = "0.1.0"
+edition = "2021"
+
+[build]
+target-dir = "./_bin"
+
+[[bin]]
+name = "tlco"
+path = "source/main.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]

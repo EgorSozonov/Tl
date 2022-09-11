@@ -1,3 +1,0 @@
-namespace Tl.Test.Codegen {
-
-}
