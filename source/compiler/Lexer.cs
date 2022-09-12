@@ -1,5 +1,5 @@
 namespace Tl.Compiler {
-
+using System.Text;
 
 public static class Lexer {
 
@@ -43,6 +43,8 @@ private static void lexLoop(byte[] input, LexResult result) {
             lexDotWord(input, result);
         } else if (cByte == (byte)ASCII.atSign && (isLetter(nByte) || nByte == (byte)ASCII.underscore)) {
             lexAtWord(input, result);
+        } else if (isDigit(cByte)) {
+            lexNumber(input, result);
         } else {
             result.i += 1;
         }
@@ -115,15 +117,84 @@ private static void lexAtWord(byte[] input, LexResult lr) {
     lexWord(input, lr, TokenType.atWord);
 }
 
+/// Lexes an integer literal, a hex integer literal, a binary integer literal, or a floating literal.
+/// This function can handle being called on the last byte of input.
 private static void lexNumber(byte[] input, LexResult lr) {
-    // "0x"
-    // "0b"
-    // otherwise, walk looking for digits, underscores and dots, writing down the digits
-    
+    if (lr.i == input.Length - 1) {
+        lr.addToken(new Token { ttype = TokenType.litInt, startChar = lr.i, lenChars = 1, lenTokens = 0, 
+                                   payload = (long)(input[lr.i] - ASCII.digit0), });
+        return;
+
+    }
+    byte cByte = input[lr.i];
+    byte nByte = input[lr.i + 1];
+    if (nByte == (byte)ASCII.xLower) {
+        lexHexNumber(input, lr);
+    } else if (nByte == (byte)ASCII.bLower) {
+        lexBinNumber(input, lr);
+    } else {
+        lexDecNumber(input, lr);
+    }
+}
+
+/// Lexes a decimal numeric literal (integer or floating-point).
+private static void lexDecNumber(byte[] input, LexResult lr) {
+    // write 
+    int indDot = 0; // relative index of the dot symbol in literal
+    int i = lr.i + 1;
+    while (i < input.Length) {
+        byte cByte = input[i];
+        if (isDigit(cByte)) {
+            i++;
+        } else if (cByte == (byte)ASCII.underscore) {
+            if (i == input.Length - 1) {
+                lr.errorOut("Numeric literal cannot end with an underscore!");
+                return;
+            }
+            cByte = input[i + 1];
+            if (!isDigit(cByte)) {
+                lr.errorOut("In a numeric literal, underscores must be followed by digits!");
+                return;
+            }
+            i += 2;
+        } else if (cByte == (byte)ASCII.dot) {
+            if (i == input.Length - 1) {
+                lr.errorOut("Numeric literal must not end with a dot!");
+                return;
+            } else if (indDot > 0) {
+                lr.errorOut("A floating point literal can contain only one dot!");
+                return;
+            }            
+            indDot = i - lr.i;
+            cByte = input[i + 1];
+            if (!isDigit(cByte)) {
+                lr.errorOut("In a floating point literal, a dot must be followed by a digit!");
+                return;
+            }
+            i += 2;            
+        } else {
+            break;
+        }           
+    }
+    var byteSubstring = new byte[i - lr.i];
+    for (int j = lr.i; j < i; j++) {
+
+    }
+    string substr = Encoding.ASCII.GetString(byteSubstring);
+    lr.i = i;
+}
+
+/// Lexes a hexadecimal numeric literal. 
+/// Checks it for fitting into a signed 64-bit fixnum.
+private static void lexHexNumber(byte[] input, LexResult lr) {
 
 }
 
-
+/// Lexes a hexadecimal numeric literal. 
+/// Checks it for fitting into a signed 64-bit fixnum.
+private static void lexBinNumber(byte[] input, LexResult lr) {
+    
+}
 
 private static bool isLetter(byte a) {
     return (a >= (byte)ASCII.aLower && a <= (byte)ASCII.zLower) || ((a >= (byte)ASCII.aUpper && a <= (byte)ASCII.zUpper));

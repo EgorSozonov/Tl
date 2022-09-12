@@ -17,19 +17,20 @@ public static class CompilerTest {
         var result = new List<Test<string, LexResult>>();
         result.Add(new Test<string, LexResult>(){
             input="asdf Abc", 
+            name = "Simple word tokens",
             expected=new LexResult(new List<Token>() {
                 new Token {startChar=0, lenChars=4, lenTokens=0, payload=0, ttype=TokenType.word},
                 new Token {startChar=5, lenChars=3, lenTokens=0, payload=0, ttype=TokenType.word}
-            }), 
-            name = "Simple word tokens"
+            }),             
         });
         result.Add(new Test<string, LexResult>(){
             input="@a123 .Abc ", 
+            name = "Dot word and @-word",
             expected=new LexResult(new List<Token>() {
                 new Token {startChar=0, lenChars=5, lenTokens=0, payload=0, ttype=TokenType.atWord},
                 new Token {startChar=6, lenChars=4, lenTokens=0, payload=0, ttype=TokenType.dotWord},
             }), 
-            name = "Dot word and @-word"
+            
         });
         // result.Add(new Test<string, LexResult>(){
         //     input="asdf 123 Abc", 

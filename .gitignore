@@ -2,8 +2,6 @@
 .vscode/*
 .git/*
 .idea/*
-target/*
-build/*
 .packages
 
 doc/api/*
