@@ -1,22 +1,13 @@
-.vs/*
-.vscode/*
 .git/*
 .idea/*
-.packages
 
-doc/api/*
 source/.DS_Store
 .DS_Store
 source/.DS_Store?
 *.zip
-
 *.cache
-*.props
-*.targets
-*.dgspec.json
-*assets.json
-obj/*
-
+*.bat
+gradlew
 
 # Ignore Gradle build output directory
 _bin/*
@@ -28,7 +19,7 @@ CMakeCache.txt
 *.cbp
 *.user
 target/*
+.gradle/*
+gradle/*
 
 *.iml
-_temp/*
-_bin/*
