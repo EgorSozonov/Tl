@@ -1,5 +1,7 @@
 package compiler
 
+import utils.ByteBuffer
+
 object Lexer {
 
 
@@ -10,6 +12,7 @@ fun lexicallyAnalyze(inp: ByteArray): LexResult {
         result.errorOut("Empty input")
         return result
     }
+
     // Check for UTF-8 BOM at start of file
     if (inp.size >= 3 && inp[0] == 0xEF.toByte() && inp[1] == 0xBB.toByte() && inp[2] == 0xBF.toByte()) {
         result.i = 3
@@ -22,6 +25,7 @@ fun lexicallyAnalyze(inp: ByteArray): LexResult {
 
 private fun lexLoop(inp: ByteArray, lr: LexResult) {
     val walkLen = inp.size - 1
+    val byteBuffer = ByteBuffer(20)
     while (lr.i < walkLen) {
         val cByte = inp[lr.i]
         val nByte = inp[lr.i + 1]
@@ -36,9 +40,9 @@ private fun lexLoop(inp: ByteArray, lr: LexResult) {
         } else if (cByte == asciiAt && (isLetter(nByte) || nByte == asciiUnderscore)) {
             lexAtWord(inp, lr)
         } else if (isDigit(cByte)) {
-            lexNumber(inp, lr)
+            lexNumber(inp, lr, byteBuffer)
         } else {
-            lr.errorOut("Unrecognized byte ${cByte} at index ${lr.i}")
+            lr.errorOut(errorUnrecognizedByte)
             return
         }
     }
@@ -56,16 +60,16 @@ private fun lexWord(inp: ByteArray, lr: LexResult, wordType: TokenType) {
         lr.i += 1
         val isCurrUncapitalized = lexWordChunk(inp, lr)
         if (metUncapitalized && !isCurrUncapitalized) {
-            lr.errorOut("An identifier may not contain a capitalized piece after an uncapitalized one!")
+            lr.errorOut(errorWordCapitalizationOrder)
             return
         }
         metUncapitalized = isCurrUncapitalized
     }
     if (lr.i > startInd) {
         val realStartChar = if (wordType == TokenType.word) { startInd } else {startInd - 1}
-        lr.addToken(0, startInd, lr.i - realStartChar, wordType, 0)
+        lr.addToken(0, realStartChar, lr.i - realStartChar, wordType, 0)
     } else {
-        lr.errorOut("Could not lex a word at position $startInd")
+        lr.errorOut(errorWordEmpty)
     }
 }
 
@@ -79,14 +83,14 @@ private fun lexWordChunk(inp: ByteArray, lr: LexResult): Boolean {
     if (inp[lr.i] == asciiUnderscore) {
         lr.i += 1
         if (lr.i == inp.size) {
-            lr.errorOut("Identifier cannot end with underscore!")
+            lr.errorOut(errorWordEndUnderscore)
             return result
         }
     }
     if (isLowercaseLetter(inp[lr.i])) {
         result = true
     } else if (!isCapitalLetter(inp[lr.i])) {
-        lr.errorOut("In an identifier, each word chunk must start with a letter!")
+        lr.errorOut(errorWordChunkStart)
         return result
     }
     lr.i += 1
@@ -112,17 +116,25 @@ private fun lexAtWord(inp: ByteArray, lr: LexResult) {
  * Lexes an integer literal, a hex integer literal, a binary integer literal, or a floating literal.
  * This function can handle being called on the last byte of input.
  */
-private fun lexNumber(inp: ByteArray, lr: LexResult) {
+private fun lexNumber(inp: ByteArray, lr: LexResult, byteBuf: ByteBuffer) {
+    val cByte = inp[lr.i]
     if (lr.i == inp.size - 1) {
-        lr.addToken((inp[lr.i] - asciiDigit0).toLong(), lr.i, 1, TokenType.litInt, 0)
+        lr.addToken((cByte - asciiDigit0).toLong(), lr.i, 1, TokenType.litInt, 0)
         return
+    }
+
+    val nByte = inp[lr.i + 1]
+    when (nByte) {
+        asciiXLower -> { lexHexNumber(inp, lr, byteBuf) }
+        asciiBLower -> { lexBinNumber(inp, lr, byteBuf) }
+        else ->        { lexDecNumber(inp, lr, byteBuf) }
     }
 }
 
 /**
  * Lexes a decimal numeric literal (integer or floating-point).
  */
-private fun lexDecNumber(inp: ByteArray, lr: LexResult) {
+private fun lexDecNumber(inp: ByteArray, lr: LexResult, byteBuf: ByteBuffer) {
 
 }
 
@@ -146,15 +158,61 @@ private fun calcFloating(inp: ByteArray, exponent: Int): Double {
  * Examples of NOT accepted expressions: 0xCAFE_babe, 0x_deadbeef, 0x123_
  * Checks that the input fits into a signed 64-bit fixnum.
  */
-private fun lexHexNumber(inp: ByteArray, lr: LexResult) {
-
+private fun lexHexNumber(inp: ByteArray, lr: LexResult, byteBuf: ByteBuffer) {
+    lr.i += 2
 }
 
 /**
  * Lexes a decimal numeric literal (integer or floating-point).
  */
-private fun lexBinNumber(inp: ByteArray, lr: LexResult) {
+private fun lexBinNumber(inp: ByteArray, lr: LexResult, byteBuf: ByteBuffer) {
+    byteBuf.clear()
 
+    var j = lr.i + 2
+    while (j < inp.size) {
+        val cByte = inp[j]
+        if (cByte == asciiDigit0) {
+            byteBuf.add(0)
+        } else if (cByte == asciiDigit1) {
+            byteBuf.add(1)
+        } else if (cByte == asciiUnderscore
+                    && (j == inp.size - 1 || (inp[j + 1] != asciiDigit0 && inp[j + 1] != asciiDigit1))) {
+            lr.errorOut(errorNumericEndUnderscore)
+            return
+        } else {
+            break
+        }
+        if (byteBuf.ind > 64) {
+            lr.errorOut(errorNumericIntWidthExceeded)
+        }
+        j++
+    }
+    if (j == lr.i + 2) {
+        lr.errorOut(errorNumericEmpty)
+        return
+    }
+
+    val resultValue = calcBinNumber(byteBuf)
+    lr.addToken(resultValue, lr.i, j - lr.i, TokenType.litInt, 0)
+    lr.i = j
+}
+
+private fun calcBinNumber(byteBuf: ByteBuffer): Long {
+    var result: Long = 0
+    var powerOfTwo: Long = 1
+    var i = byteBuf.ind - 1
+
+    while (i > 0) {
+        if (byteBuf.buffer[i] > 0) {
+            result += powerOfTwo
+        }
+        powerOfTwo = powerOfTwo shl 1
+        i--
+    }
+    if (byteBuf.buffer[0] > 0) {
+        result += Long.MIN_VALUE
+    }
+    return result
 }
 
 private fun isLetter(a: Byte): Boolean {
@@ -179,10 +237,15 @@ private fun isDigit(a: Byte): Boolean {
 
 
 private const val asciiALower: Byte = 97;
+private const val asciiBLower: Byte = 98;
+private const val asciiFLower: Byte = 102;
+private const val asciiXLower: Byte = 120;
 private const val asciiZLower: Byte = 122;
 private const val asciiAUpper: Byte = 65;
+private const val asciiFUpper: Byte = 70;
 private const val asciiZUpper: Byte = 90;
 private const val asciiDigit0: Byte = 48;
+private const val asciiDigit1: Byte = 49;
 private const val asciiDigit9: Byte = 57;
 
 private const val asciiPlus: Byte = 43;
@@ -222,6 +285,15 @@ private const val asciiEquals: Byte = 61;
 
 private const val asciiLessThan: Byte = 60;
 private const val asciiGreaterThan: Byte = 62;
-    
+
+private const val errorUnrecognizedByte = "Unrecognized byte in source code!"
+private const val errorWordChunkStart = "In an identifier, each word chunk must start with a letter!"
+private const val errorWordEndUnderscore = "Identifier cannot end with underscore!"
+private const val errorWordCapitalizationOrder = "An identifier may not contain a capitalized piece after an uncapitalized one!"
+private const val errorWordEmpty = "Could not lex a word, empty sequence!"
+private const val errorNumericEndUnderscore = "Numeric literal cannot end with underscore!"
+private const val errorNumericIntWidthExceeded = "Integer literals cannot exceed 64 bit!"
+private const val errorNumericEmpty = "Could not lex a numeric literal, empty sequence!"
+
     
 }

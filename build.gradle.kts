@@ -14,8 +14,13 @@ repositories {
 
 buildDir = File("./_bin")
 
+dependencies {
+    testImplementation(kotlin("test"))
+    testImplementation("org.testng:testng:7.1.0")
+}
+
 application {
-    mainClass.set("io.ktor.server.netty.EngineMain")
+    //mainClass.set("io.ktor.server.netty.EngineMain")
 }
 
 sourceSets {
@@ -32,4 +37,8 @@ sourceSets {
             this.setSrcDirs(mutableListOf("test"))
         }
     }
+}
+
+tasks.test {
+    useJUnitPlatform()
 }

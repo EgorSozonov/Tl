@@ -65,7 +65,7 @@ class LexResult {
         if (nextInd < (CHUNKSZ - 5)) {
             setNextToken(payload, startChar, lenChars, tType, lenTokens)
         } else {
-            var newChunk = LexChunk()
+            val newChunk = LexChunk()
             currChunk.next = newChunk
             currChunk = newChunk
             nextInd = 0
@@ -74,15 +74,35 @@ class LexResult {
         totalTokens += 1
     }
 
+    fun add(payload: Long, startChar: Int, lenChars: Int, tType: TokenType, lenTokens: Int): LexResult {
+        if (nextInd < (CHUNKSZ - 5)) {
+            setNextToken(payload, startChar, lenChars, tType, lenTokens)
+        } else {
+            val newChunk = LexChunk()
+            currChunk.next = newChunk
+            currChunk = newChunk
+            nextInd = 0
+            setNextToken(payload, startChar, lenChars, tType, lenTokens)
+        }
+        totalTokens += 1
+        return this
+    }
+
     fun addTokens(newTokens: IntArray /* Length must be divisible by 5 */) {
         val spaceInCurrChunk = CHUNKSZ - nextInd
-        var intoCurrChunk = Math.min(spaceInCurrChunk, newTokens.size)
-        // move
-        var ind = intoCurrChunk
-        while (ind < newTokens.size) {
-           intoCurrChunk = Math.min(CHUNKSZ, newTokens.size - ind)
-            // move
-            ind += intoCurrChunk
+        var intoCurrChunk = spaceInCurrChunk.coerceAtMost(newTokens.size)
+        newTokens.copyInto(currChunk.tokens, nextInd, 0, intoCurrChunk)
+
+        var indSource = intoCurrChunk
+        while (indSource < newTokens.size) {
+            val newChunk = LexChunk()
+            currChunk.next = newChunk
+            currChunk = newChunk
+            nextInd = 0
+
+            intoCurrChunk = CHUNKSZ.coerceAtMost(newTokens.size - indSource)
+            newTokens.copyInto(currChunk.tokens, nextInd, indSource, indSource + intoCurrChunk)
+            indSource += intoCurrChunk
         }
     }
 
