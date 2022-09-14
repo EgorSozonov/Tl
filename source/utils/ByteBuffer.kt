@@ -16,11 +16,13 @@ class ByteBuffer(initSize: Int) {
             buffer[ind] = b
             ind += 1
         } else {
+
             val newBuffer = ByteArray(buffer.size * 2)
             buffer.copyInto(newBuffer, 0, 0, buffer.size)
             newBuffer[buffer.size] = b
-            buffer = newBuffer
             ind = buffer.size + 1
+            buffer = newBuffer
+
         }
     }
 

@@ -28,5 +28,33 @@ internal class LexerTest {
                                    .add(0, 6, 4, TokenType.dotWord, 0)
             )
         }
+
+        @Test
+        fun `Binary numeric 64-bit zero`() {
+            testInpOutp("0b0",
+                LexResult().add(0, 0, 3, TokenType.litInt, 0)
+            )
+        }
+
+        @Test
+        fun `Binary numeric basic`() {
+            testInpOutp("0b101",
+                LexResult().add(5, 0, 5, TokenType.litInt, 0)
+            )
+        }
+
+        @Test
+        fun `Binary numeric 64-bit positive`() {
+            testInpOutp("0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0111",
+                LexResult().add(7, 0, 81, TokenType.litInt, 0)
+            )
+        }
+
+        @Test
+        fun `Binary numeric 64-bit negative`() {
+            testInpOutp("0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1001",
+                LexResult().add(-7, 0, 81, TokenType.litInt, 0)
+            )
+        }
     }
 }

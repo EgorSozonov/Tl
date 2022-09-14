@@ -175,15 +175,17 @@ private fun lexBinNumber(inp: ByteArray, lr: LexResult, byteBuf: ByteBuffer) {
             byteBuf.add(0)
         } else if (cByte == asciiDigit1) {
             byteBuf.add(1)
-        } else if (cByte == asciiUnderscore
-                    && (j == inp.size - 1 || (inp[j + 1] != asciiDigit0 && inp[j + 1] != asciiDigit1))) {
-            lr.errorOut(errorNumericEndUnderscore)
-            return
+        } else if (cByte == asciiUnderscore) {
+            if ((j == inp.size - 1 || (inp[j + 1] != asciiDigit0 && inp[j + 1] != asciiDigit1))) {
+                lr.errorOut(errorNumericEndUnderscore)
+                return
+            }
         } else {
             break
         }
         if (byteBuf.ind > 64) {
             lr.errorOut(errorNumericIntWidthExceeded)
+            return
         }
         j++
     }
@@ -202,14 +204,16 @@ private fun calcBinNumber(byteBuf: ByteBuffer): Long {
     var powerOfTwo: Long = 1
     var i = byteBuf.ind - 1
 
-    while (i > 0) {
+    // If the literal is full 64 bits long, then its upper bit is the sign bit, so we don't read it
+    val loopLimit = if (byteBuf.ind == 64) { 0 } else { -1 }
+    while (i > loopLimit) {
         if (byteBuf.buffer[i] > 0) {
             result += powerOfTwo
         }
         powerOfTwo = powerOfTwo shl 1
         i--
     }
-    if (byteBuf.buffer[0] > 0) {
+    if (byteBuf.ind == 64 && byteBuf.buffer[0] > 0) {
         result += Long.MIN_VALUE
     }
     return result
