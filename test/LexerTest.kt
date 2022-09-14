@@ -22,6 +22,69 @@ internal class LexerTest {
         }
 
         @Test
+        fun `Word snake case`() {
+            testInpOutp("asdf_abc",
+                LexResult().error(Lexer.errorWordUnderscoresOnlyAtStart)
+            )
+        }
+
+        @Test
+        fun `Word correct capitalization 1`() {
+            testInpOutp("Asdf.abc",
+                LexResult().add(0, 0, 8, TokenType.word, 0)
+            )
+        }
+
+        @Test
+        fun `Word correct capitalization 2`() {
+            testInpOutp("asdf.abcd.zyui",
+                LexResult().add(0, 0, 14, TokenType.word, 0)
+            )
+        }
+
+        @Test
+        fun `Word correct capitalization 3`() {
+            testInpOutp("Asdf.Abcd",
+                LexResult().add(0, 0, 9, TokenType.word, 0)
+            )
+        }
+
+        @Test
+        fun `Word incorrect capitalization`() {
+            testInpOutp("asdf.Abcd",
+                LexResult().error(Lexer.errorWordCapitalizationOrder)
+            )
+        }
+
+        @Test
+        fun `Word starts with underscore and lowercase letter`() {
+            testInpOutp("_abc",
+                LexResult().add(0, 0, 4, TokenType.word, 0)
+            )
+        }
+
+        @Test
+        fun `Word starts with underscore and capital letter`() {
+            testInpOutp("_Abc",
+                LexResult().add(0, 0, 4, TokenType.word, 0)
+            )
+        }
+
+        @Test
+        fun `Word starts with 2 underscores`() {
+            testInpOutp("__abc",
+                LexResult().error(Lexer.errorWordChunkStart)
+            )
+        }
+
+        @Test
+        fun `Word starts with underscore and digit`() {
+            testInpOutp("_1abc",
+                LexResult().error(Lexer.errorWordChunkStart)
+            )
+        }
+
+        @Test
         fun `Dotword & @-word`() {
             testInpOutp("@a123 .Abc ",
                         LexResult().add(0, 0, 5, TokenType.atWord, 0)

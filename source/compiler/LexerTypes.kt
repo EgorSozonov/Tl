@@ -51,17 +51,6 @@ class LexResult {
         errMsg = ""
     }
 
-    constructor(newTokens: IntArray /* Length must be divisible by 5 */) {
-        firstChunk = LexChunk()
-        currChunk = firstChunk
-        i = 0
-        nextInd = 0
-        totalTokens = 0
-        wasError = false
-        errMsg = ""
-        addTokens(newTokens)
-    }
-
     fun addToken(payload: Long, startChar: Int, lenChars: Int, tType: TokenType, lenTokens: Int) {
         if (nextInd < (CHUNKSZ - 5)) {
             setNextToken(payload, startChar, lenChars, tType, lenTokens)
@@ -148,4 +137,35 @@ class LexResult {
         }
     }
 
+}
+
+enum class OperatorType {
+    plusSign,
+    minusSign,
+    mulSign,
+    divSign,
+
+}
+
+/**
+ * There is a closed set of operators in the language.
+ *
+ * For added flexibility, most operators are extended into two more planes,
+ * for example + is extended into +. and +:, / to /. and to /:.
+ * These extended operators are not defined by the language, but may be defined
+ * for any type by the user.
+ * For example, the type of 3D vectors may have 3 multiplication
+ * operators: * for vector product, *. for multiplication by a scalar, *: for scalar product.
+ *
+ * Plus, all the extensible operators (and only them) may have '=' appended to them for use
+ * in assignment operators. For example, 'a &&:= b' means 'a = a &&: b' for whatever '&&:' means.
+ *
+ * This OperatorToken class records the base type of operator, its extension (0, 1 or 2),
+ * and whether it is the assignment version of itself.
+ * In the token stream, both of these values are stored inside the 64-bit payload of the Token.
+ */
+data class OperatorToken(val opType: OperatorType, val extended: Int, val isAssignment: Boolean) {
+    fun toLong(): Long {
+        return 0
+    }
 }
