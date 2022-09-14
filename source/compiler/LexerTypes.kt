@@ -7,24 +7,25 @@ const val UPPER32BITS: Long = (0x00000000FFFFFFFF shl 32)
 
 enum class TokenType(val internalVal: Byte) {
     litInt(0),
-    litString(1),
-    litFloat(2),
-    word(3),
-    dotWord(4),
-    atWord(5),
-    comment(6),
-    curlyBraces(7),
-    statement(8),
-    parens(9),
-    brackets(10),
-    dotBrackets(11),
-    operatorTok(12),
+    litFloat(1),
+    litString(2),
+    verbatimString(3),
+    word(4),
+    dotWord(5),
+    atWord(6),
+    comment(7),
+    curlyBraces(8),
+    statement(9),
+    parens(10),
+    brackets(11),
+    dotBrackets(12),
+    operatorTok(13),
 }
 
 // struct Token - modeled as 5 32-bit ints
 // payload i64
-// startChar i32
-// lenChars i32
+// startByte i32
+// lenBytes i32
 // tType u8
 // lenTokens u24
 

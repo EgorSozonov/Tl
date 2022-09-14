@@ -119,5 +119,49 @@ internal class LexerTest {
                 LexResult().add(-7, 0, 81, TokenType.litInt, 0)
             )
         }
+
+        @Test
+        fun `Binary numeric 65-bit error`() {
+            testInpOutp("0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_01110",
+                LexResult().error(Lexer.errorNumericBinWidthExceeded)
+            )
+        }
+
+        @Test
+        fun `String simple literal`() {
+            testInpOutp("'asdf'",
+                LexResult().add(0, 1, 4, TokenType.litString, 0)
+            )
+        }
+
+        @Test
+        fun `String literal with escaped apostrophe inside`() {
+            testInpOutp("""'wasn\'t' so sure""",
+                LexResult().add(0, 1, 7, TokenType.litString, 0)
+                           .add(0, 10, 2, TokenType.word, 0)
+                           .add(0, 13, 4, TokenType.word, 0)
+            )
+        }
+
+        @Test
+        fun `String literal with non-ASCII inside`() {
+            testInpOutp("""'hello мир'""",
+                LexResult().add(0, 1, 12, TokenType.litString, 0) // 12 because each Cyrillic letter = 2 bytes
+            )
+        }
+
+        @Test
+        fun `String literal unclosed`() {
+            testInpOutp("'asdf",
+                LexResult().error(Lexer.errorPrematureEndOfInput)
+            )
+        }
+
+        @Test
+        fun `Verbatim string literal`() {
+            testInpOutp("\"asdf foo\"\"\"",
+                LexResult().add(0, 1, 8, TokenType.verbatimString, 0)
+            )
+        }
     }
 }

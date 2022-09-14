@@ -153,14 +153,34 @@ private fun lexNumber(inp: ByteArray, lr: LexResult) {
 
 /**
  * Lexes a decimal numeric literal (integer or floating-point).
+ * TODO: add support for the '1.23E4' format
  */
 private fun lexDecNumber(inp: ByteArray, lr: LexResult) {
+    var i = lr.i
 
+    while (i < inp.size && byteBuf.ind < 20) {
+        val cByte = inp[i]
+        if (isDigit(cByte)) {
+            byteBuf.add(cByte)
+        } else if (cByte == asciiUnderscore) {
+            if (i == (inp.size - 1) || !isDigit(inp[i + 1])) {
+                lr.errorOut(errorNumericEndUnderscore)
+                return
+            }
+        } else {
+            break
+        }
+        i++
+    }
+    if (i < inp.size && isDigit(inp[i])) {
+        lr.errorOut(errorNumericIntWidthExceeded)
+        return
+    }
 }
 
 /**
  * Lexes a floating-point literal.
- * TODO: add support for the '1.23E4' format
+
  */
 private fun lexFloatLiteral(inp: ByteArray, lr: LexResult) {
 
@@ -222,7 +242,7 @@ private fun lexBinNumber(inp: ByteArray, lr: LexResult) {
             break
         }
         if (byteBuf.ind > 64) {
-            lr.errorOut(errorNumericIntWidthExceeded)
+            lr.errorOut(errorNumericBinWidthExceeded)
             return
         }
         j++
@@ -259,7 +279,7 @@ private fun calcBinNumber(byteBuf: ByteBuffer): Long {
 }
 
 private fun lexOperator(inp: ByteArray, lr: LexResult) {
-
+    lr.i += 1
 }
 
 private fun lexParenLeft(inp: ByteArray, lr: LexResult) {
@@ -306,18 +326,69 @@ private fun lexStatementTerminator(inp: ByteArray, lr: LexResult) {
     lr.i += 1
 }
 
+
+/**
+ * String literals look like 'wasn\'t' and may contain arbitrary UTF-8.
+ * The insides of the string have escape sequences and variable interpolation with
+ * the 'x = ${x}' syntax.
+ * TODO probably need to count UTF-8 codepoints, or worse - grapheme clusters - in order to correctly report to LSP
+ */
+private fun lexStringLiteral(inp: ByteArray, lr: LexResult) {
+    var i = lr.i + 1
+    val szMinusOne = inp.size - 1
+    while (i < inp.size) {
+        val cByte = inp[i]
+        if (cByte == asciiBackslash && i < szMinusOne && inp[i + 1] == asciiApostrophe) {
+            i += 2
+        } else if (cByte == asciiApostrophe) {
+            lr.addToken(0, lr.i + 1, i - lr.i - 1, TokenType.litString, 0)
+            lr.i = i + 1
+            return
+        } else {
+            i += 1
+        }
+    }
+    lr.errorOut(errorPrematureEndOfInput)
+}
+
+/**
+ * Verbatim strings look like "asdf""" or "\nasdf""".
+ * In the second variety (i.e. if the opening " is followed by the newline symbol),
+ * the lexer ignores the newline symbol. Also, the minimal number of leading spaces among
+ * the lines of text are also ignored. Combined, this means that the following:
+ *     myStringVar = "
+ *         A
+ *          big
+ *         grey wolf
+ *     """
+ * is equivalent to myStringVar = 'A\n big \ngrey wolf'
+ * The inside of the string has variables interpolated into it like the common string literal:
+ *     "x = ${x}"""
+ * but is otherwise unaltered (no symbols are escaped).
+ * The literal may not contain the '"""' combination. In the rare cases that string literals with
+ * this sequence are needed, it's possible to use string concatenation or txt file inclusion.
+ */
+private fun lexVerbatimStringLiteral(inp: ByteArray, lr: LexResult) {
+    var i = lr.i + 1
+    while (i < inp.size) {
+        val cByte = inp[i]
+        if (cByte == asciiQuote) {
+            if (i < (inp.size - 2) && inp[i + 1] == asciiQuote && inp[i + 2] == asciiQuote) {
+                lr.addToken(0, lr.i + 1, i - lr.i - 1, TokenType.verbatimString, 0)
+                lr.i = i + 3
+                return
+            }
+        } else {
+            i += 1
+        }
+    }
+    lr.errorOut(errorPrematureEndOfInput)
+    lr.i += 1
+}
+
+
 private fun lexUnrecognizedSymbol(inp: ByteArray, lr: LexResult) {
     lr.errorOut(errorUnrecognizedByte)
-    return
-}
-
-
-private fun lexStringLiteral(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
-}
-    
-private fun lexVerbatimStringLiteral(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
 }
 
 private fun lexComment(inp: ByteArray, lr: LexResult) {
@@ -344,13 +415,6 @@ private fun isDigit(a: Byte): Boolean {
     return a >= asciiDigit0 && a <= asciiDigit9
 }
 
-private fun isOperator(a: Byte): Boolean {
-    for (opSym in operatorSymbols) {
-        if (opSym == a) return true
-    }
-    return false
-}
-
 /**
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
@@ -369,10 +433,10 @@ const val errorUnrecognizedByte = "Unrecognized byte in source code!"
 const val errorWordChunkStart = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!"
 const val errorWordCapitalizationOrder = "An identifier may not contain a capitalized piece after an uncapitalized one!"
 const val errorWordUnderscoresOnlyAtStart = "Underscores are only allowed at start of word (snake case is forbidden)!"
-const val errorWordEmpty = "Could not lex a word, empty sequence!"
 const val errorNumericEndUnderscore = "Numeric literal cannot end with underscore!"
-const val errorNumericIntWidthExceeded = "Integer literals cannot exceed 64 bit!"
+const val errorNumericBinWidthExceeded = "Integer literals cannot exceed 64 bit!"
 const val errorNumericEmpty = "Could not lex a numeric literal, empty sequence!"
+const val errorNumericIntWidthExceeded = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!"
 
 
 /**
