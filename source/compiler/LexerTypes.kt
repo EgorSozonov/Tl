@@ -18,6 +18,7 @@ enum class TokenType(val internalVal: Byte) {
     parens(9),
     brackets(10),
     dotBrackets(11),
+    operatorTok(12),
 }
 
 // struct Token - modeled as 5 32-bit ints
@@ -109,6 +110,11 @@ class LexResult {
     fun errorOut(msg: String) {
         this.wasError = true
         this.errMsg = msg
+    }
+
+    fun error(msg: String): LexResult {
+        errorOut(msg)
+        return this
     }
 
     private fun setNextToken(payload: Long, startChar: Int, lenChars: Int, tType: TokenType, lenTokens: Int) {
