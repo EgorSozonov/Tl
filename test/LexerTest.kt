@@ -1,15 +1,19 @@
 import compiler.LexResult
 import compiler.Lexer
+import compiler.PunctuationToken
 import compiler.RegularToken
 import org.junit.jupiter.api.Nested
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 internal class LexerTest {
+
+
     private fun testInpOutp(inp: String, expected: LexResult) {
         val result = Lexer.lexicallyAnalyze(inp.toByteArray())
         assertEquals(LexResult.equality(result, expected), true)
     }
+
 
     @Nested
     inner class LexWordTest {
@@ -194,6 +198,19 @@ internal class LexerTest {
                            .add(0, 38, 3, RegularToken.word)
                            .add(0, 42, 3, RegularToken.word)
                            .add(0, 46, 4, RegularToken.word)
+            )
+        }
+    }
+
+    @Nested
+    inner class LexPunctuationTest {
+        @Test
+        fun `Parens simple`() {
+            testInpOutp(
+                "(car cdr)",
+                LexResult().addPunctuation(1, 7, PunctuationToken.parens, 2)
+                           .add(0, 1, 3, RegularToken.word)
+                           .add(0, 5, 3, RegularToken.word)
             )
         }
     }

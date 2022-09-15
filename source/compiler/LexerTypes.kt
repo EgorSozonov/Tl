@@ -5,10 +5,9 @@ import java.util.Stack
 
 const val CHUNKSZ: Int = 10000 // Must be divisible by 4
 const val LOWER32BITS: Long =  0x00000000FFFFFFFF
-const val UPPER32BITS: Long = (0x00000000FFFFFFFF shl 32)
 const val LOWER27BITS: Int = 0x07FFFFFF
-const val UPPER5BITS: Int = (0x0000001F shl 32)
 const val MAXTOKENLEN = 134217728 // 2**27
+
 
 enum class RegularToken(val internalVal: Byte) {
     litInt(0),
@@ -82,7 +81,6 @@ class LexResult {
         ensureSpaceForToken()
         setNextToken(tType)
 
-        totalTokens += 1
         i += 1
     }
 
@@ -127,15 +125,16 @@ class LexResult {
 
         // find the opening token and update it with its length which we now know
         var currChunk = firstChunk
-        var i = top.second
-        while (i >= CHUNKSZ) {
+        var j = top.second
+        while (j >= CHUNKSZ) {
             currChunk = currChunk.next!!
-            i -= CHUNKSZ
+            j -= CHUNKSZ
         }
-        val lenBytes = i - currChunk.tokens[i + 2]
+        val lenBytes = i - currChunk.tokens[j + 2]
         checkLenOverflow(lenBytes)
-        currChunk.tokens[i    ] = totalTokens - top.second  // lenTokens
-        currChunk.tokens[i + 3] = lenBytes                  // lenBytes
+        currChunk.tokens[j    ] = totalTokens - top.second - 1 // lenTokens
+        currChunk.tokens[j + 3] += (lenBytes and LOWER27BITS)  // lenBytes
+        i += 1
     }
 
 
@@ -161,9 +160,9 @@ class LexResult {
     }
 
 
-    fun addPunctuation(payload: Long, startChar: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int): LexResult {
+    fun addPunctuation(startChar: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int): LexResult {
         ensureSpaceForToken()
-        setNextToken(payload, startChar, lenBytes, tType)
+        setNextToken(startChar, lenBytes, tType, lenTokens)
         return this
     }
 
@@ -186,25 +185,27 @@ class LexResult {
         currChunk.tokens[nextInd + 1] = (payload and LOWER32BITS).toInt()
         currChunk.tokens[nextInd + 2] = startBytes
         currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + lenBytes
-        nextInd += 4
-        totalTokens += 1
+        bump()
     }
 
 
     private fun setNextToken(tType: PunctuationToken) {
         currChunk.tokens[nextInd + 2] = i + 1
         currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27)
-        nextInd += 4
-        totalTokens += 1
+        bump()
     }
 
 
-    private fun setNextToken(payload: Long, startByte: Int, lenBytes: Int, tType: PunctuationToken) {
+    private fun setNextToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
         checkLenOverflow(lenBytes)
-        currChunk.tokens[nextInd    ] = ((payload and UPPER32BITS) shr 32).toInt()
-        currChunk.tokens[nextInd + 1] = (payload and LOWER32BITS).toInt()
+        currChunk.tokens[nextInd    ] = lenTokens
         currChunk.tokens[nextInd + 2] = startByte
-        currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27 + (lenBytes and LOWER27BITS))
+        currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + (lenBytes and LOWER27BITS)
+        bump()
+    }
+
+
+    private fun bump() {
         nextInd += 4
         totalTokens += 1
     }
@@ -261,7 +262,7 @@ enum class OperatorType {
  * In the token stream, both of these values are stored inside the 64-bit payload of the Token.
  */
 data class OperatorToken(val opType: OperatorType, val extended: Int, val isAssignment: Boolean) {
-    fun toLong(): Long {
+    fun toInt(): Long {
         return 0
     }
 }

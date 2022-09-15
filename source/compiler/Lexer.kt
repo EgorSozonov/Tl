@@ -444,20 +444,20 @@ private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray, lr: LexResul
 
 
 
-const val errorLengthOverflow = "Token length overflow"
-const val errorNonASCII = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!"
-const val errorPrematureEndOfInput = "Premature end of input"
-const val errorUnrecognizedByte = "Unrecognized byte in source code!"
-const val errorWordChunkStart = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!"
-const val errorWordCapitalizationOrder = "An identifier may not contain a capitalized piece after an uncapitalized one!"
+const val errorLengthOverflow             = "Token length overflow"
+const val errorNonASCII                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!"
+const val errorPrematureEndOfInput        = "Premature end of input"
+const val errorUnrecognizedByte           = "Unrecognized byte in source code!"
+const val errorWordChunkStart             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!"
+const val errorWordCapitalizationOrder    = "An identifier may not contain a capitalized piece after an uncapitalized one!"
 const val errorWordUnderscoresOnlyAtStart = "Underscores are only allowed at start of word (snake case is forbidden)!"
-const val errorNumericEndUnderscore = "Numeric literal cannot end with underscore!"
-const val errorNumericBinWidthExceeded = "Integer literals cannot exceed 64 bit!"
-const val errorNumericEmpty = "Could not lex a numeric literal, empty sequence!"
-const val errorNumericIntWidthExceeded = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!"
-const val errorPunctuationExtraOpening = "Extra opening punctuation"
-const val errorPunctuationUnmatched = "Unmatched closing punctuation"
-const val errorPunctuationExtraClosing = "Extra closing punctuation"
+const val errorNumericEndUnderscore       = "Numeric literal cannot end with underscore!"
+const val errorNumericBinWidthExceeded    = "Integer literals cannot exceed 64 bit!"
+const val errorNumericEmpty               = "Could not lex a numeric literal, empty sequence!"
+const val errorNumericIntWidthExceeded    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!"
+const val errorPunctuationExtraOpening    = "Extra opening punctuation"
+const val errorPunctuationUnmatched       = "Unmatched closing punctuation"
+const val errorPunctuationExtraClosing    = "Extra closing punctuation"
 
 
 /**
@@ -497,10 +497,10 @@ private const val asciiPercent: Byte = 37
 
 private const val asciiParenLeft: Byte = 40
 private const val asciiParenRight: Byte = 41
-private const val asciiCurlyLeft: Byte = 91
-private const val asciiCurlyRight: Byte = 93
-private const val asciiBracketLeft: Byte = 40
-private const val asciiBracketRight: Byte = 41
+private const val asciiCurlyLeft: Byte = 123
+private const val asciiCurlyRight: Byte = 125
+private const val asciiBracketLeft: Byte = 91
+private const val asciiBracketRight: Byte = 93
 private const val asciiPipe: Byte = 124
 private const val asciiAmpersand: Byte = 38
 private const val asciiTilde: Byte = 126
@@ -543,29 +543,29 @@ init {
     for (i in asciiAUpper..asciiZUpper) {
         dispatchTable[i] = ::lexWord
     }
-    dispatchTable[asciiUnderscore.toInt()] = ::lexWord
-    dispatchTable[asciiDot.toInt()] = ::lexDotSomething
-    dispatchTable[asciiAt.toInt()] = ::lexAtWord
+    dispatchTable[asciiUnderscore.toInt()    ] = ::lexWord
+    dispatchTable[asciiDot.toInt()           ] = ::lexDotSomething
+    dispatchTable[asciiAt.toInt()            ] = ::lexAtWord
 
     for (i in operatorSymbols) {
         dispatchTable[i.toInt()] = ::lexOperator
     }
-    dispatchTable[asciiParenLeft.toInt()] = ::lexParenLeft
-    dispatchTable[asciiParenRight.toInt()] = ::lexParenRight
-    dispatchTable[asciiDollar.toInt()] = ::lexDollar
-    dispatchTable[asciiCurlyLeft.toInt()] = ::lexCurlyLeft
-    dispatchTable[asciiCurlyRight.toInt()] = ::lexCurlyRight
-    dispatchTable[asciiBracketLeft.toInt()] = ::lexBracketLeft
-    dispatchTable[asciiBracketRight.toInt()] = ::lexBracketRight
+    dispatchTable[asciiParenLeft.toInt()     ] = ::lexParenLeft
+    dispatchTable[asciiParenRight.toInt()    ] = ::lexParenRight
+    dispatchTable[asciiDollar.toInt()        ] = ::lexDollar
+    dispatchTable[asciiCurlyLeft.toInt()     ] = ::lexCurlyLeft
+    dispatchTable[asciiCurlyRight.toInt()    ] = ::lexCurlyRight
+    dispatchTable[asciiBracketLeft.toInt()   ] = ::lexBracketLeft
+    dispatchTable[asciiBracketRight.toInt()  ] = ::lexBracketRight
 
-    dispatchTable[asciiSpace.toInt()] = ::lexSpace
+    dispatchTable[asciiSpace.toInt()         ] = ::lexSpace
     dispatchTable[asciiCarriageReturn.toInt()] = ::lexSpace
-    dispatchTable[asciiNewline.toInt()] = ::lexNewline
-    dispatchTable[asciiSemicolon.toInt()] = ::lexStatementTerminator
+    dispatchTable[asciiNewline.toInt()       ] = ::lexNewline
+    dispatchTable[asciiSemicolon.toInt()     ] = ::lexStatementTerminator
 
-    dispatchTable[asciiApostrophe.toInt()] = ::lexStringLiteral
-    dispatchTable[asciiQuote.toInt()] = ::lexVerbatimStringLiteral
-    dispatchTable[asciiSharp.toInt()] = ::lexComment
+    dispatchTable[asciiApostrophe.toInt()    ] = ::lexStringLiteral
+    dispatchTable[asciiQuote.toInt()         ] = ::lexVerbatimStringLiteral
+    dispatchTable[asciiSharp.toInt()         ] = ::lexComment
 }
 
 
