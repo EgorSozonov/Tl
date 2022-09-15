@@ -39,7 +39,7 @@ fun lexicallyAnalyze(inp: ByteArray): LexResult {
 
 
 private fun lexWord(inp: ByteArray, lr: LexResult) {
-    lexWordInternal(inp, lr, TokenType.word)
+    lexWordInternal(inp, lr, RegularToken.word)
 }
 
 
@@ -48,7 +48,7 @@ private fun lexWord(inp: ByteArray, lr: LexResult) {
  * Examples of accepted expressions: A.B.c.d, asdf123, ab._cd45
  * Examples of NOT accepted expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
-private fun lexWordInternal(inp: ByteArray, lr: LexResult, wordType: TokenType) {
+private fun lexWordInternal(inp: ByteArray, lr: LexResult, wordType: RegularToken) {
     val startInd = lr.i
     var metUncapitalized = lexWordChunk(inp, lr)
     while (lr.i < (inp.size - 1) && inp[lr.i] == asciiDot && !lr.wasError) {
@@ -61,8 +61,8 @@ private fun lexWordInternal(inp: ByteArray, lr: LexResult, wordType: TokenType) 
         metUncapitalized = isCurrUncapitalized
     }
     if (!lr.wasError) {
-        val realStartChar = if (wordType == TokenType.word) { startInd } else {startInd - 1}
-        lr.addToken(0, realStartChar, lr.i - realStartChar, wordType, 0)
+        val realStartChar = if (wordType == RegularToken.word) { startInd } else {startInd - 1}
+        lr.addToken(0, realStartChar, lr.i - realStartChar, wordType)
     }
 }
 
@@ -116,7 +116,7 @@ private fun lexDotSomething(inp: ByteArray, lr: LexResult) {
         lexDotBracket(inp, lr)
     } else if (nByte == asciiUnderscore || isLetter(nByte)) {
         lr.i += 1
-        lexWordInternal(inp, lr, TokenType.dotWord)
+        lexWordInternal(inp, lr, RegularToken.dotWord)
     } else {
         lr.errorOut(errorUnrecognizedByte)
     }
@@ -128,7 +128,7 @@ private fun lexAtWord(inp: ByteArray, lr: LexResult) {
     if (lr.wasError) return
 
     lr.i += 1
-    lexWordInternal(inp, lr, TokenType.atWord)
+    lexWordInternal(inp, lr, RegularToken.atWord)
 }
 
 
@@ -139,7 +139,7 @@ private fun lexAtWord(inp: ByteArray, lr: LexResult) {
 private fun lexNumber(inp: ByteArray, lr: LexResult) {
     val cByte = inp[lr.i]
     if (lr.i == inp.size - 1 && isDigit(cByte)) {
-        lr.addToken((cByte - asciiDigit0).toLong(), lr.i, 1, TokenType.litInt, 0)
+        lr.addToken((cByte - asciiDigit0).toLong(), lr.i, 1, RegularToken.litInt)
         return
     }
 
@@ -252,13 +252,13 @@ private fun lexBinNumber(inp: ByteArray, lr: LexResult) {
         return
     }
 
-    val resultValue = calcBinNumber(byteBuf)
-    lr.addToken(resultValue, lr.i, j - lr.i, TokenType.litInt, 0)
+    val resultValue = calcBinNumber()
+    lr.addToken(resultValue, lr.i, j - lr.i, RegularToken.litInt)
     lr.i = j
 }
 
 
-private fun calcBinNumber(byteBuf: ByteBuffer): Long {
+private fun calcBinNumber(): Long {
     var result: Long = 0
     var powerOfTwo: Long = 1
     var i = byteBuf.ind - 1
@@ -283,35 +283,35 @@ private fun lexOperator(inp: ByteArray, lr: LexResult) {
 }
 
 private fun lexParenLeft(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.openPunctuation(PunctuationToken.parens)
 }
 
 private fun lexParenRight(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.closePunctuation(PunctuationToken.parens)
 }
 
 private fun lexDollar(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.openPunctuation(PunctuationToken.dollar)
 }
 
 private fun lexCurlyLeft(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.openPunctuation(PunctuationToken.curlyBraces)
 }
 
 private fun lexCurlyRight(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.closePunctuation(PunctuationToken.parens)
 }
 
 private fun lexBracketLeft(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.openPunctuation(PunctuationToken.curlyBraces)
 }
 
 private fun lexBracketRight(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.closePunctuation(PunctuationToken.brackets)
 }
 
 private fun lexDotBracket(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.openPunctuation(PunctuationToken.dotBrackets)
 }
 
 private fun lexSpace(inp: ByteArray, lr: LexResult) {
@@ -319,11 +319,11 @@ private fun lexSpace(inp: ByteArray, lr: LexResult) {
 }
 
 private fun lexNewline(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.openPunctuation(PunctuationToken.statement)
 }
 
 private fun lexStatementTerminator(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    lr.closePunctuation(PunctuationToken.statement)
 }
 
 
@@ -341,7 +341,7 @@ private fun lexStringLiteral(inp: ByteArray, lr: LexResult) {
         if (cByte == asciiBackslash && i < szMinusOne && inp[i + 1] == asciiApostrophe) {
             i += 2
         } else if (cByte == asciiApostrophe) {
-            lr.addToken(0, lr.i + 1, i - lr.i - 1, TokenType.litString, 0)
+            lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.litString)
             lr.i = i + 1
             return
         } else {
@@ -374,7 +374,7 @@ private fun lexVerbatimStringLiteral(inp: ByteArray, lr: LexResult) {
         val cByte = inp[i]
         if (cByte == asciiQuote) {
             if (i < (inp.size - 2) && inp[i + 1] == asciiQuote && inp[i + 2] == asciiQuote) {
-                lr.addToken(0, lr.i + 1, i - lr.i - 1, TokenType.verbatimString, 0)
+                lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.verbatimString)
                 lr.i = i + 3
                 return
             }
@@ -392,7 +392,24 @@ private fun lexUnrecognizedSymbol(inp: ByteArray, lr: LexResult) {
 }
 
 private fun lexComment(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+    var i = lr.i + 1
+    val szMinusOne = inp.size - 1
+    while (i < inp.size) {
+        val cByte = inp[i]
+        if (cByte == asciiDot && i < szMinusOne && inp[i + 1] == asciiSharp) {
+            lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.comment)
+            lr.i = i + 2
+            return
+        } else if (cByte == asciiNewline) {
+            lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.comment)
+            lr.i = i + 1
+            return
+        } else {
+            i += 1
+        }
+    }
+    lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.comment)
+    lr.i = inp.size
 }
 
 private fun isLetter(a: Byte): Boolean {
@@ -427,6 +444,7 @@ private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray, lr: LexResul
 
 
 
+const val errorLengthOverflow = "Token length overflow"
 const val errorNonASCII = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!"
 const val errorPrematureEndOfInput = "Premature end of input"
 const val errorUnrecognizedByte = "Unrecognized byte in source code!"
@@ -437,6 +455,9 @@ const val errorNumericEndUnderscore = "Numeric literal cannot end with underscor
 const val errorNumericBinWidthExceeded = "Integer literals cannot exceed 64 bit!"
 const val errorNumericEmpty = "Could not lex a numeric literal, empty sequence!"
 const val errorNumericIntWidthExceeded = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!"
+const val errorPunctuationExtraOpening = "Extra opening punctuation"
+const val errorPunctuationUnmatched = "Unmatched closing punctuation"
+const val errorPunctuationExtraClosing = "Extra closing punctuation"
 
 
 /**

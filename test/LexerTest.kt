@@ -1,6 +1,6 @@
 import compiler.LexResult
 import compiler.Lexer
-import compiler.TokenType
+import compiler.RegularToken
 import org.junit.jupiter.api.Nested
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -16,8 +16,8 @@ internal class LexerTest {
         @Test
         fun `Simple word lexing`() {
             testInpOutp("asdf Abc",
-                        LexResult().add(0, 0, 4, TokenType.word, 0)
-                                   .add(0, 5, 3, TokenType.word, 0)
+                        LexResult().add(0, 0, 4, RegularToken.word)
+                                   .add(0, 5, 3, RegularToken.word)
             )
         }
 
@@ -31,21 +31,21 @@ internal class LexerTest {
         @Test
         fun `Word correct capitalization 1`() {
             testInpOutp("Asdf.abc",
-                LexResult().add(0, 0, 8, TokenType.word, 0)
+                LexResult().add(0, 0, 8, RegularToken.word)
             )
         }
 
         @Test
         fun `Word correct capitalization 2`() {
             testInpOutp("asdf.abcd.zyui",
-                LexResult().add(0, 0, 14, TokenType.word, 0)
+                LexResult().add(0, 0, 14, RegularToken.word)
             )
         }
 
         @Test
         fun `Word correct capitalization 3`() {
             testInpOutp("Asdf.Abcd",
-                LexResult().add(0, 0, 9, TokenType.word, 0)
+                LexResult().add(0, 0, 9, RegularToken.word)
             )
         }
 
@@ -59,14 +59,14 @@ internal class LexerTest {
         @Test
         fun `Word starts with underscore and lowercase letter`() {
             testInpOutp("_abc",
-                LexResult().add(0, 0, 4, TokenType.word, 0)
+                LexResult().add(0, 0, 4, RegularToken.word)
             )
         }
 
         @Test
         fun `Word starts with underscore and capital letter`() {
             testInpOutp("_Abc",
-                LexResult().add(0, 0, 4, TokenType.word, 0)
+                LexResult().add(0, 0, 4, RegularToken.word)
             )
         }
 
@@ -87,36 +87,43 @@ internal class LexerTest {
         @Test
         fun `Dotword & @-word`() {
             testInpOutp("@a123 .Abc ",
-                        LexResult().add(0, 0, 5, TokenType.atWord, 0)
-                                   .add(0, 6, 4, TokenType.dotWord, 0)
+                        LexResult().add(0, 0, 5, RegularToken.atWord)
+                                   .add(0, 6, 4, RegularToken.dotWord)
             )
         }
+
+
+
+    }
+
+    @Nested
+    inner class LexNumericTest {
 
         @Test
         fun `Binary numeric 64-bit zero`() {
             testInpOutp("0b0",
-                LexResult().add(0, 0, 3, TokenType.litInt, 0)
+                LexResult().add(0, 0, 3, RegularToken.litInt)
             )
         }
 
         @Test
         fun `Binary numeric basic`() {
             testInpOutp("0b101",
-                LexResult().add(5, 0, 5, TokenType.litInt, 0)
+                LexResult().add(5, 0, 5, RegularToken.litInt)
             )
         }
 
         @Test
         fun `Binary numeric 64-bit positive`() {
             testInpOutp("0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0111",
-                LexResult().add(7, 0, 81, TokenType.litInt, 0)
+                LexResult().add(7, 0, 81, RegularToken.litInt)
             )
         }
 
         @Test
         fun `Binary numeric 64-bit negative`() {
             testInpOutp("0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1001",
-                LexResult().add(-7, 0, 81, TokenType.litInt, 0)
+                LexResult().add(-7, 0, 81, RegularToken.litInt)
             )
         }
 
@@ -127,26 +134,30 @@ internal class LexerTest {
             )
         }
 
+    }
+
+    @Nested
+    inner class LexStringTest {
         @Test
         fun `String simple literal`() {
             testInpOutp("'asdf'",
-                LexResult().add(0, 1, 4, TokenType.litString, 0)
+                LexResult().add(0, 1, 4, RegularToken.litString)
             )
         }
 
         @Test
         fun `String literal with escaped apostrophe inside`() {
             testInpOutp("""'wasn\'t' so sure""",
-                LexResult().add(0, 1, 7, TokenType.litString, 0)
-                           .add(0, 10, 2, TokenType.word, 0)
-                           .add(0, 13, 4, TokenType.word, 0)
+                LexResult().add(0, 1, 7, RegularToken.litString)
+                    .add(0, 10, 2, RegularToken.word)
+                    .add(0, 13, 4, RegularToken.word)
             )
         }
 
         @Test
         fun `String literal with non-ASCII inside`() {
             testInpOutp("""'hello мир'""",
-                LexResult().add(0, 1, 12, TokenType.litString, 0) // 12 because each Cyrillic letter = 2 bytes
+                LexResult().add(0, 1, 12, RegularToken.litString) // 12 because each Cyrillic letter = 2 bytes
             )
         }
 
@@ -160,7 +171,29 @@ internal class LexerTest {
         @Test
         fun `Verbatim string literal`() {
             testInpOutp("\"asdf foo\"\"\"",
-                LexResult().add(0, 1, 8, TokenType.verbatimString, 0)
+                LexResult().add(0, 1, 8, RegularToken.verbatimString)
+            )
+        }
+    }
+
+    @Nested
+    inner class LexCommentTest {
+        @Test
+        fun `Comment simple`() {
+            testInpOutp("# this is a comment",
+                LexResult().add(0, 1, 18, RegularToken.comment)
+            )
+        }
+
+        @Test
+        fun `Comment inline`() {
+            testInpOutp("# this is a comment.# and #this too.# but not this",
+                LexResult().add(0, 1, 18, RegularToken.comment)
+                           .add(0, 22, 3, RegularToken.word)
+                           .add(0, 27, 8, RegularToken.comment)
+                           .add(0, 38, 3, RegularToken.word)
+                           .add(0, 42, 3, RegularToken.word)
+                           .add(0, 46, 4, RegularToken.word)
             )
         }
     }
