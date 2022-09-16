@@ -34,6 +34,8 @@ fun lexicallyAnalyze(inp: ByteArray): LexResult {
         }
     }
 
+    result.finalize()
+
     return result
 }
 
@@ -319,7 +321,7 @@ private fun lexSpace(inp: ByteArray, lr: LexResult) {
 }
 
 private fun lexNewline(inp: ByteArray, lr: LexResult) {
-    lr.openPunctuation(PunctuationToken.statement)
+    lr.closePunctuation(PunctuationToken.statement)
 }
 
 private fun lexStatementTerminator(inp: ByteArray, lr: LexResult) {
