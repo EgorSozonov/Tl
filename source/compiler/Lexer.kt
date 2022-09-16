@@ -299,11 +299,11 @@ private fun lexCurlyLeft(inp: ByteArray, lr: LexResult) {
 }
 
 private fun lexCurlyRight(inp: ByteArray, lr: LexResult) {
-    lr.closePunctuation(PunctuationToken.parens)
+    lr.closePunctuation(PunctuationToken.curlyBraces)
 }
 
 private fun lexBracketLeft(inp: ByteArray, lr: LexResult) {
-    lr.openPunctuation(PunctuationToken.curlyBraces)
+    lr.openPunctuation(PunctuationToken.brackets)
 }
 
 private fun lexBracketRight(inp: ByteArray, lr: LexResult) {

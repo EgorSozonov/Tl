@@ -77,7 +77,7 @@ class LexResult {
      * scope.
      */
     fun openPunctuation(tType: PunctuationToken) {
-        backtrack.add(Pair(tType, nextInd))
+        backtrack.add(Pair(tType, totalTokens))
         ensureSpaceForToken()
         setNextToken(tType)
 
@@ -125,7 +125,7 @@ class LexResult {
 
         // find the opening token and update it with its length which we now know
         var currChunk = firstChunk
-        var j = top.second
+        var j = top.second * 4
         while (j >= CHUNKSZ) {
             currChunk = currChunk.next!!
             j -= CHUNKSZ
@@ -235,11 +235,11 @@ class LexResult {
 }
 
 
-enum class OperatorType {
-    plusSign,
-    minusSign,
-    mulSign,
-    divSign,
+enum class OperatorType(val value: Int) {
+    plusSign(0),
+    minusSign(1),
+    mulSign(2),
+    divSign(3),
 
 }
 
@@ -262,7 +262,21 @@ enum class OperatorType {
  * In the token stream, both of these values are stored inside the 64-bit payload of the Token.
  */
 data class OperatorToken(val opType: OperatorType, val extended: Int, val isAssignment: Boolean) {
-    fun toInt(): Long {
-        return 0
+    /**
+     * The lowest bit encodes isAssignment, the adjacent 2 bits encode 'extended', and the
+     * next higher bits encode 'operatorType'
+     */
+    fun toInt(): Int {
+
+        return (opType.value shl 3) + ((extended and 4) shl 1) + (if (isAssignment) { 1 } else { 0 })
+    }
+
+    companion object {
+        fun fromInt(i: Int): OperatorToken {
+            val isAssignment = (i and 1) == 1
+            val extendedInt = (i and 6) shr 1
+            val opType = OperatorType.values().getOrNull(i shr 3)!!
+            return OperatorToken(opType, extendedInt, isAssignment)
+        }
     }
 }

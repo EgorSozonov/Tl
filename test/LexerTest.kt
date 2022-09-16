@@ -213,5 +213,43 @@ internal class LexerTest {
                            .add(0, 5, 3, RegularToken.word)
             )
         }
+
+        @Test
+        fun `Parens nested`() {
+            testInpOutp(
+                "(car (other car) cdr)",
+                LexResult()
+                    .addPunctuation(1, 19, PunctuationToken.parens, 5)
+                    .add(0, 1, 3, RegularToken.word)
+                    .addPunctuation(6, 9, PunctuationToken.parens, 2)
+                    .add(0, 6, 5, RegularToken.word)
+                    .add(0, 12, 3, RegularToken.word)
+                    .add(0, 17, 3, RegularToken.word)
+            )
+        }
+
+        @Test
+        fun `Brackets simple`() {
+            testInpOutp(
+                "[car cdr]",
+                LexResult().addPunctuation(1, 7, PunctuationToken.brackets, 2)
+                    .add(0, 1, 3, RegularToken.word)
+                    .add(0, 5, 3, RegularToken.word)
+            )
+        }
+
+        @Test
+        fun `Brackets nested`() {
+            testInpOutp(
+                "[car [other car] cdr]",
+                LexResult()
+                    .addPunctuation(1, 19, PunctuationToken.brackets, 5)
+                    .add(0, 1, 3, RegularToken.word)
+                    .addPunctuation(6, 9, PunctuationToken.brackets, 2)
+                    .add(0, 6, 5, RegularToken.word)
+                    .add(0, 12, 3, RegularToken.word)
+                    .add(0, 17, 3, RegularToken.word)
+            )
+        }
     }
 }
