@@ -63,15 +63,19 @@ class LexResult {
      * Adds a regular, non-punctuation token
      */
     fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) {
-        ensureSpaceForToken()
+        maybeInsertStatement(startByte)
         appendToken(payload, startByte, lenBytes, tType)
     }
 
     /**
-     * When we are in curlyBraces, we need to insert a statement
+     * Regular tokens may not exist directly at the top level, or inside curlyBraces.
+     * So this function inserts an implicit statement scope to prevent this.
      */
-    private fun maybeInsertStatement() {
-
+    private fun maybeInsertStatement(startByte: Int) {
+        if (backtrack.empty() || backtrack.peek().first == PunctuationToken.curlyBraces) {
+            backtrack.add(Pair(PunctuationToken.statement, totalTokens))
+            appendToken(startByte, PunctuationToken.statement)
+        }
     }
 
     /**
@@ -86,12 +90,7 @@ class LexResult {
      */
     fun openPunctuation(tType: PunctuationToken) {
         backtrack.add(Pair(tType, totalTokens))
-        ensureSpaceForToken()
-        appendToken(tType)
-        if (tType == PunctuationToken.curlyBraces) {
-            appendToken(PunctuationToken.statement)
-        }
-
+        appendToken(i + 1, tType)
         i += 1
     }
 
@@ -103,11 +102,9 @@ class LexResult {
     fun closePunctuation(tType: PunctuationToken) {
         if (tType == PunctuationToken.statement) {
             closeStatement()
-
         } else {
             closeRegularPunctuation(tType)
         }
-
         i += 1
     }
 
@@ -119,12 +116,9 @@ class LexResult {
      */
     private fun closeStatement() {
         var top = backtrack.peek()
-        if (top.first == PunctuationToken.statement && top.second < (totalTokens - 1)) {
+        if (top.first == PunctuationToken.statement) {
             top = backtrack.pop()
-            if (wasError) return
-
             setPunctuationLengths(top.second)
-            openPunctuation(PunctuationToken.statement)
         }
     }
 
@@ -140,16 +134,13 @@ class LexResult {
         if (tType == PunctuationToken.curlyBraces && top.first == PunctuationToken.statement) {
             // Since statements always are immediate children of curlyBraces, the '}' symbol closes
             // not just the statement but the parent curlyBraces scope, too.
-            // If the last statement is empty, it is deleted. This is because when we added it, we
-            // didn't know if it would contain any tokens or just be an empty line.
-            if (top.second == totalTokens - 1) {
-                deleteLastToken()
-            }
+
             val parentCurlyBraces = backtrack.pop()
             assert(parentCurlyBraces.first == PunctuationToken.curlyBraces)
 
             setPunctuationLengths(parentCurlyBraces.second)
         }
+
     }
 
 
@@ -199,7 +190,6 @@ class LexResult {
 
 
     fun add(payload: Long, startChar: Int, lenChars: Int, tType: RegularToken): LexResult {
-        ensureSpaceForToken()
         appendToken(payload, startChar, lenChars, tType)
         return this
     }
@@ -244,9 +234,8 @@ class LexResult {
     }
 
 
-    fun addPunctuation(startChar: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int): LexResult {
-        ensureSpaceForToken()
-        appendToken(startChar, lenBytes, tType, lenTokens)
+    fun addPunctuation(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int): LexResult {
+        appendToken(startByte, lenBytes, tType, lenTokens)
         return this
     }
 
@@ -267,12 +256,13 @@ class LexResult {
      */
     fun finalize() {
         if (!backtrack.empty()) {
-            errorOut(Lexer.errorPunctuationExtraOpening)
+            errorOut(Lexer.errorPunctuationExtraClosing)
         }
     }
 
 
     private fun appendToken(payload: Long, startBytes: Int, lenBytes: Int, tType: RegularToken) {
+        ensureSpaceForToken()
         checkLenOverflow(lenBytes)
         currChunk.tokens[nextInd    ] = (payload shr 32).toInt()
         currChunk.tokens[nextInd + 1] = (payload and LOWER32BITS).toInt()
@@ -282,18 +272,20 @@ class LexResult {
     }
 
 
-    private fun appendToken(tType: PunctuationToken) {
-        currChunk.tokens[nextInd + 2] = i + 1
+    private fun appendToken(startByte: Int, tType: PunctuationToken) {
+        ensureSpaceForToken()
+        currChunk.tokens[nextInd + 2] = startByte
         currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27)
         bump()
     }
 
 
     private fun appendToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
+        ensureSpaceForToken()
         checkLenOverflow(lenBytes)
         currChunk.tokens[nextInd    ] = lenTokens
         currChunk.tokens[nextInd + 2] = startByte
-        currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + (lenBytes and LOWER27BITS)
+        currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + lenBytes
         bump()
     }
 
