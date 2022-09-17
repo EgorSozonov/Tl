@@ -11,7 +11,12 @@ internal class LexerTest {
 
     private fun testInpOutp(inp: String, expected: LexResult) {
         val result = Lexer.lexicallyAnalyze(inp.toByteArray())
-        assertEquals(LexResult.equality(result, expected), true)
+        val doEqual = LexResult.equality(result, expected)
+        if (!doEqual) {
+            val printOut = LexResult.printSideBySide(result, expected)
+            println(printOut)
+        }
+        assertEquals(doEqual, true)
     }
 
 //
@@ -179,69 +184,69 @@ internal class LexerTest {
 //            )
 //        }
 //    }
-//
-//    @Nested
-//    inner class LexCommentTest {
-//        @Test
-//        fun `Comment simple`() {
-//            testInpOutp("# this is a comment",
-//                LexResult().add(0, 1, 18, RegularToken.comment)
-//            )
-//        }
-//
-//        @Test
-//        fun `Comment inline`() {
-//            testInpOutp("# this is a comment.# and #this too.# but not this",
-//                LexResult().add(0, 1, 18, RegularToken.comment)
-//                           .add(0, 22, 3, RegularToken.word)
-//                           .add(0, 27, 8, RegularToken.comment)
-//                           .add(0, 38, 3, RegularToken.word)
-//                           .add(0, 42, 3, RegularToken.word)
-//                           .add(0, 46, 4, RegularToken.word)
-//            )
-//        }
-//    }
+
+    @Nested
+    inner class LexCommentTest {
+        @Test
+        fun `Comment simple`() {
+            testInpOutp("# this is a comment",
+                LexResult().add(0, 1, 18, RegularToken.comment)
+            )
+        }
+
+        @Test
+        fun `Comment inline`() {
+            testInpOutp("# this is a comment.# and #this too.# but not this",
+                LexResult().add(0, 1, 18, RegularToken.comment)
+                           .add(0, 22, 3, RegularToken.word)
+                           .add(0, 27, 8, RegularToken.comment)
+                           .add(0, 38, 3, RegularToken.word)
+                           .add(0, 42, 3, RegularToken.word)
+                           .add(0, 46, 4, RegularToken.word)
+            )
+        }
+    }
 
     @Nested
     inner class LexPunctuationTest {
-//        @Test
-//        fun `Parens simple`() {
-//            testInpOutp(
-//                "(car cdr)",
-//                LexResult().addPunctuation(1, 7, PunctuationToken.parens, 2)
-//                           .add(0, 1, 3, RegularToken.word)
-//                           .add(0, 5, 3, RegularToken.word)
-//            )
-//        }
-//
-//        @Test
-//        fun `Parens nested`() {
-//            testInpOutp(
-//                "(car (other car) cdr)",
-//                LexResult()
-//                    .addPunctuation(1, 19, PunctuationToken.parens, 5)
-//                    .add(0, 1, 3, RegularToken.word)
-//                    .addPunctuation(6, 9, PunctuationToken.parens, 2)
-//                    .add(0, 6, 5, RegularToken.word)
-//                    .add(0, 12, 3, RegularToken.word)
-//                    .add(0, 17, 3, RegularToken.word)
-//            )
-//        }
-//
-//        @Test
-//        fun `Parens unclosed`() {
-//            testInpOutp(
-//                "(car (other car) cdr",
-//                LexResult()
-//                    .addPunctuation(1, 0, PunctuationToken.parens, 0)
-//                    .add(0, 1, 3, RegularToken.word)
-//                    .addPunctuation(6, 9, PunctuationToken.parens, 2)
-//                    .add(0, 6, 5, RegularToken.word)
-//                    .add(0, 12, 3, RegularToken.word)
-//                    .add(0, 17, 3, RegularToken.word)
-//                    .error(Lexer.errorPunctuationExtraOpening)
-//            )
-//        }
+        @Test
+        fun `Parens simple`() {
+            testInpOutp(
+                "(car cdr)",
+                LexResult().addPunctuation(1, 7, PunctuationToken.parens, 2)
+                           .add(0, 1, 3, RegularToken.word)
+                           .add(0, 5, 3, RegularToken.word)
+            )
+        }
+
+        @Test
+        fun `Parens nested`() {
+            testInpOutp(
+                "(car (other car) cdr)",
+                LexResult()
+                    .addPunctuation(1, 19, PunctuationToken.parens, 5)
+                    .add(0, 1, 3, RegularToken.word)
+                    .addPunctuation(6, 9, PunctuationToken.parens, 2)
+                    .add(0, 6, 5, RegularToken.word)
+                    .add(0, 12, 3, RegularToken.word)
+                    .add(0, 17, 3, RegularToken.word)
+            )
+        }
+
+        @Test
+        fun `Parens unclosed`() {
+            testInpOutp(
+                "(car (other car) cdr",
+                LexResult()
+                    .addPunctuation(1, 0, PunctuationToken.parens, 0)
+                    .add(0, 1, 3, RegularToken.word)
+                    .addPunctuation(6, 9, PunctuationToken.parens, 2)
+                    .add(0, 6, 5, RegularToken.word)
+                    .add(0, 12, 3, RegularToken.word)
+                    .add(0, 17, 3, RegularToken.word)
+                    .error(Lexer.errorPunctuationExtraOpening)
+            )
+        }
 //
 //        @Test
 //        fun `Brackets simple`() {
@@ -266,21 +271,21 @@ internal class LexerTest {
 //                    .add(0, 17, 3, RegularToken.word)
 //            )
 //        }
-
-        @Test
-        fun `Curly brace with statements`() {
-            testInpOutp(
-                """{
-    asdf
-    
-    bcjk
-}""",
-                LexResult().addPunctuation(1, 24, PunctuationToken.brackets, 4)
-                           .addPunctuation(6, 4, PunctuationToken.statement, 1)
-                           .add(0, 6, 4, RegularToken.word)
-                           .addPunctuation(20, 4, PunctuationToken.statement, 1)
-                           .add(0, 20, 4, RegularToken.word)
-            )
-        }
+//
+//        @Test
+//        fun `Curly brace with statements`() {
+//            testInpOutp(
+//                """{
+//    asdf
+//
+//    bcjk
+//}""",
+//                LexResult().addPunctuation(1, 24, PunctuationToken.curlyBraces, 4)
+//                           .addPunctuation(6, 4, PunctuationToken.statement, 1)
+//                           .add(0, 6, 4, RegularToken.word)
+//                           .addPunctuation(20, 4, PunctuationToken.statement, 1)
+//                           .add(0, 20, 4, RegularToken.word)
+//            )
+//        }
     }
 }

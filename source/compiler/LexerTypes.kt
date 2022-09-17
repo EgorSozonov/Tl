@@ -1,9 +1,8 @@
 package compiler
 
-import java.util.Stack
-
 
 const val CHUNKSZ: Int = 10000 // Must be divisible by 4
+const val COMMENTSZ: Int = 100 // Must be divisible by 2
 const val LOWER32BITS: Long =  0x00000000FFFFFFFF
 const val LOWER27BITS: Int = 0x07FFFFFF
 const val MAXTOKENLEN = 134217728 // 2**27
@@ -31,291 +30,63 @@ enum class PunctuationToken(val internalVal: Byte) {
 }
 
 
-// struct Token - modeled as 4 32-bit ints
-// payload (for regular tokens) or lenTokens (for punctuation tokens) | i64
-// startByte                                                          | i32
-// tType                                                              | u5
-// lenBytes                                                           | u27
-
-
+/**
+ * The real element of this array is struct Token - modeled as 4 32-bit ints
+ * payload (for regular tokens) or lenTokens (for punctuation tokens) | i64
+ * startByte                                                          | i32
+ * tType                                                              | u5
+ * lenBytes                                                           | u27
+ */
 data class LexChunk(val tokens: IntArray = IntArray(CHUNKSZ), var next: LexChunk? = null)
 
-class LexResult {
-    var firstChunk: LexChunk = LexChunk()
-    var currChunk: LexChunk
-    var i: Int // current index inside input byte array
-    var nextInd: Int
-    var totalTokens: Int
-    var wasError: Boolean
-    var errMsg: String
-    private val backtrack = Stack<Pair<PunctuationToken, Int>>()
 
+
+/**
+ * The real element of this array is struct CommentToken - modeled as 2 32-bit ints
+ * startByte                                                          | i32
+ * lenBytes                                                           | i32
+ */
+data class CommentChunk(val tokens: IntArray = IntArray(COMMENTSZ), var next: CommentChunk? = null)
+
+
+/**
+ * Separate object just for comments
+ */
+class CommentStorage {
+    private var firstChunk: CommentChunk = CommentChunk()
+    private var currChunk: CommentChunk
+    private var i: Int // current index inside input byte array
+    private var nextInd: Int // next ind inside the current token chunk
+    private var totalTokens: Int
     init {
+        currChunk = firstChunk
         currChunk = firstChunk
         i = 0
         nextInd = 0
         totalTokens = 0
-        wasError = false
-        errMsg = ""
     }
 
-    /**
-     * Adds a regular, non-punctuation token
-     */
-    fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) {
-        maybeInsertStatement(startByte)
-        appendToken(payload, startByte, lenBytes, tType)
-    }
-
-    /**
-     * Regular tokens may not exist directly at the top level, or inside curlyBraces.
-     * So this function inserts an implicit statement scope to prevent this.
-     */
-    private fun maybeInsertStatement(startByte: Int) {
-        if (backtrack.empty() || backtrack.peek().first == PunctuationToken.curlyBraces) {
-            backtrack.add(Pair(PunctuationToken.statement, totalTokens))
-            appendToken(startByte, PunctuationToken.statement)
-        }
-    }
-
-    /**
-     * Adds a token which serves punctuation purposes, i.e. either a (, a {, a [, a .[ or a $
-     * These tokens are used to define the structure, that is, nesting within the AST.
-     * Upon addition, they are saved to the backtracking stack to be updated with their length
-     * once it is known.
-     * The startByte & lengthBytes don't include the opening and closing delimiters, and
-     * the lenTokens also doesn't include the punctuation token itself - only the insides of the
-     * scope. Thus, for '(asdf)', the opening paren token will have a byte length of 4 and a
-     * token length of 1.
-     */
-    fun openPunctuation(tType: PunctuationToken) {
-        backtrack.add(Pair(tType, totalTokens))
-        appendToken(i + 1, tType)
-        i += 1
-    }
-
-    /**
-     * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a }, a ], a ; or a newline.
-     * This doesn't actually add a token to the array, just performs validation and updates the opener token
-     * with its token length.
-     */
-    fun closePunctuation(tType: PunctuationToken) {
-        if (tType == PunctuationToken.statement) {
-            closeStatement()
-        } else {
-            closeRegularPunctuation(tType)
-        }
-        i += 1
-    }
-
-    /**
-     * The statement closer function - i.e. called for a newline or a semi-colon.
-     * 1) Only close the current scope if it's a statement and non-empty. This protects against
-     * newlines that aren't inside curly braces, multiple newlines and sequences like ';;;;'.
-     * 2) If it closes a statement, then it also opens up a new statement scope
-     */
-    private fun closeStatement() {
-        var top = backtrack.peek()
-        if (top.first == PunctuationToken.statement) {
-            top = backtrack.pop()
-            setPunctuationLengths(top.second)
-        }
-    }
-
-    private fun closeRegularPunctuation(tType: PunctuationToken) {
-        if (backtrack.empty()) {
-            errorOut(Lexer.errorPunctuationExtraClosing)
-            return
-        }
-        val top = backtrack.pop()
-        validateClosingPunct(tType, top.first)
-        if (wasError) return
-        setPunctuationLengths(top.second)
-        if (tType == PunctuationToken.curlyBraces && top.first == PunctuationToken.statement) {
-            // Since statements always are immediate children of curlyBraces, the '}' symbol closes
-            // not just the statement but the parent curlyBraces scope, too.
-
-            val parentCurlyBraces = backtrack.pop()
-            assert(parentCurlyBraces.first == PunctuationToken.curlyBraces)
-
-            setPunctuationLengths(parentCurlyBraces.second)
-        }
-
-    }
-
-
-    private fun deleteLastToken() {
-        if (nextInd > 0) {
-            nextInd -= 4
-        } else {
-            var curr = firstChunk
-            while (curr.next != currChunk) {
-                curr = curr.next!!
-            }
-            currChunk = curr
-            nextInd = CHUNKSZ - 4
-        }
-    }
-
-
-    private fun validateClosingPunct(closingType: PunctuationToken, openType: PunctuationToken) {
-        when (closingType) {
-            PunctuationToken.curlyBraces -> {
-                if (openType != PunctuationToken.curlyBraces && openType != PunctuationToken.statement) {
-                    errorOut(Lexer.errorPunctuationUnmatched)
-                    return
-                }
-            }
-            PunctuationToken.brackets -> {
-                if (openType != PunctuationToken.brackets && openType != PunctuationToken.dotBrackets) {
-                    errorOut(Lexer.errorPunctuationUnmatched)
-                    return
-                }
-            }
-            PunctuationToken.parens -> {
-                if (openType != PunctuationToken.parens) {
-                    errorOut(Lexer.errorPunctuationUnmatched)
-                    return
-                }
-            }
-            PunctuationToken.statement -> {
-                if (openType != PunctuationToken.statement && openType != PunctuationToken.curlyBraces) {
-                    errorOut(Lexer.errorPunctuationUnmatched)
-                    return
-                }
-            }
-            else -> {}
-        }
-    }
-
-
-    fun add(payload: Long, startChar: Int, lenChars: Int, tType: RegularToken): LexResult {
-        appendToken(payload, startChar, lenChars, tType)
-        return this
-    }
-
-
-    /**
-     * Finds the top-level punctuation opener by its index, and sets its lengths.
-     * Called when the matching closer is lexed.
-     */
-    private fun setPunctuationLengths(tokenInd: Int) {
-        var curr = firstChunk
-        var j = tokenInd * 4
-        while (j >= CHUNKSZ) {
-            curr = curr.next!!
-            j -= CHUNKSZ
-        }
-        val lenBytes = i - curr.tokens[j + 2]
-        checkLenOverflow(lenBytes)
-        curr.tokens[j    ] = totalTokens - tokenInd - 1  // lenTokens
-        curr.tokens[j + 3] += (lenBytes and LOWER27BITS) // lenBytes
+    fun add(startBytes: Int, lenBytes: Int) {
+        ensureSpaceForToken()
+        currChunk.tokens[nextInd    ] = startBytes
+        currChunk.tokens[nextInd + 1] = lenBytes
+        bump()
     }
 
 
     private fun ensureSpaceForToken() {
-        if (nextInd < (CHUNKSZ - 4)) return
-        if (currChunk.next == null) {
-            val newChunk = LexChunk()
-            currChunk.next = newChunk
-            currChunk = newChunk
-            nextInd = 0
-        } else {
-            // this is a rare case, it happens when we've had to delete a token that was the last in its chunk
-            currChunk = currChunk.next!!
-            nextInd = 0
-        }
-    }
+        if (nextInd < (COMMENTSZ - 2)) return
 
-    private fun checkLenOverflow(lenBytes: Int) {
-        if (lenBytes > MAXTOKENLEN) {
-            errorOut(Lexer.errorLengthOverflow)
-        }
-    }
-
-
-    fun addPunctuation(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int): LexResult {
-        appendToken(startByte, lenBytes, tType, lenTokens)
-        return this
-    }
-
-
-    fun errorOut(msg: String) {
-        this.wasError = true
-        this.errMsg = msg
-    }
-
-
-    fun error(msg: String): LexResult {
-        errorOut(msg)
-        return this
-    }
-
-    /**
-     * Finalizes the lexing of a single input: checks for unclosed scopes etc.
-     */
-    fun finalize() {
-        if (!backtrack.empty()) {
-            errorOut(Lexer.errorPunctuationExtraClosing)
-        }
-    }
-
-
-    private fun appendToken(payload: Long, startBytes: Int, lenBytes: Int, tType: RegularToken) {
-        ensureSpaceForToken()
-        checkLenOverflow(lenBytes)
-        currChunk.tokens[nextInd    ] = (payload shr 32).toInt()
-        currChunk.tokens[nextInd + 1] = (payload and LOWER32BITS).toInt()
-        currChunk.tokens[nextInd + 2] = startBytes
-        currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + lenBytes
-        bump()
-    }
-
-
-    private fun appendToken(startByte: Int, tType: PunctuationToken) {
-        ensureSpaceForToken()
-        currChunk.tokens[nextInd + 2] = startByte
-        currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27)
-        bump()
-    }
-
-
-    private fun appendToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
-        ensureSpaceForToken()
-        checkLenOverflow(lenBytes)
-        currChunk.tokens[nextInd    ] = lenTokens
-        currChunk.tokens[nextInd + 2] = startByte
-        currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + lenBytes
-        bump()
+        val newChunk = CommentChunk()
+        currChunk.next = newChunk
+        currChunk = newChunk
+        nextInd = 0
     }
 
 
     private fun bump() {
-        nextInd += 4
+        nextInd += 2
         totalTokens += 1
-    }
-
-
-    companion object {
-        fun equality(a: LexResult, b: LexResult): Boolean {
-            if (a.wasError != b.wasError || a.totalTokens != b.totalTokens || a.nextInd != b.nextInd
-                || a.errMsg != b.errMsg) {
-                return false
-            }
-            var currA: LexChunk? = a.firstChunk
-            var currB: LexChunk? = b.firstChunk
-            while (currA != null) {
-                if (currB == null) return false
-                val len = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ };
-                for (i in 0 until len) {
-                    if (currA.tokens[i] != currB.tokens[i]) { return false }
-                }
-                currA = currA.next
-                currB = currB.next
-            }
-            return true
-
-        }
     }
 }
 
