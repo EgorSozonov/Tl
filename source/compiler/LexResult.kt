@@ -36,7 +36,7 @@ class LexResult {
         if (tType == RegularToken.comment) {
             comments.add(startByte, lenBytes)
         } else {
-            wrapTokenInStatement(startByte)
+            wrapTokenInStatement(startByte, tType)
             appendToken(payload, startByte, lenBytes, tType)
         }
     }
@@ -66,9 +66,11 @@ class LexResult {
      * Regular tokens may not exist directly at the top level, or inside curlyBraces.
      * So this function inserts an implicit statement scope to prevent this.
      */
-    private fun wrapTokenInStatement(startByte: Int) {
+    private fun wrapTokenInStatement(startByte: Int, tType: RegularToken) {
         if (backtrack.empty() || backtrack.peek().first == curlyBraces) {
-            addStatement(startByte)
+            var realStartByte = startByte
+            if (tType == RegularToken.litString || tType == RegularToken.verbatimString) realStartByte -= 1
+            addStatement(realStartByte)
         }
     }
 
@@ -278,7 +280,7 @@ class LexResult {
      * Finalizes the lexing of a single input: checks for unclosed scopes, and closes an open statement, if any.
      */
     fun finalize() {
-        if (!backtrack.empty()) {
+        if (!wasError && !backtrack.empty()) {
             closeStatement()
 
             if (!backtrack.empty()) {
@@ -403,7 +405,7 @@ class LexResult {
                     currA = currA.next
                 } else if (currB != null) {
                     val len = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
-                    for (i in 0 until len) {
+                    for (i in 0 until len step 4) {
                         result.append(" | ")
                         printToken(currB, i, result)
                         result.appendLine("")
@@ -417,6 +419,7 @@ class LexResult {
             }
             return result.toString()
         }
+
 
         private fun printToken(chunk: LexChunk, ind: Int, wr: StringBuilder) {
             val startByte = chunk.tokens[ind + 2]

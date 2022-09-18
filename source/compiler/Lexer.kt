@@ -53,7 +53,7 @@ private fun lexWord(inp: ByteArray, lr: LexResult) {
 private fun lexWordInternal(inp: ByteArray, lr: LexResult, wordType: RegularToken) {
     val startInd = lr.i
     var metUncapitalized = lexWordChunk(inp, lr)
-    while (lr.i < (inp.size - 1) && inp[lr.i] == asciiDot && !lr.wasError) {
+    while (lr.i < (inp.size - 1) && inp[lr.i] == asciiDot && inp[lr.i + 1] != asciiBracketLeft && !lr.wasError) {
         lr.i += 1
         val isCurrUncapitalized = lexWordChunk(inp, lr)
         if (metUncapitalized && !isCurrUncapitalized) {
