@@ -460,6 +460,7 @@ const val errorNumericIntWidthExceeded    = "Integer literals must be within the
 const val errorPunctuationExtraOpening    = "Extra opening punctuation"
 const val errorPunctuationUnmatched       = "Unmatched closing punctuation"
 const val errorPunctuationExtraClosing    = "Extra closing punctuation"
+const val errorPunctuationWrongOpen       = "Wrong opening punctuation"
 
 
 /**

@@ -1,12 +1,14 @@
 package compiler
 import java.lang.StringBuilder
 import java.util.*
-
+import compiler.PunctuationToken.*;
 
 /**
  * The object with the result of lexical analysis of a source code file
  */
 class LexResult {
+
+
     var firstChunk: LexChunk = LexChunk()
     var currChunk: LexChunk
     var i: Int // current index inside input byte array
@@ -34,21 +36,11 @@ class LexResult {
         if (tType == RegularToken.comment) {
             comments.add(startByte, lenBytes)
         } else {
-            maybeInsertStatement(startByte)
+            wrapTokenInStatement(startByte)
             appendToken(payload, startByte, lenBytes, tType)
         }
     }
 
-    /**
-     * Regular tokens may not exist directly at the top level, or inside curlyBraces.
-     * So this function inserts an implicit statement scope to prevent this.
-     */
-    private fun maybeInsertStatement(startByte: Int) {
-        if (backtrack.empty() || backtrack.peek().first == PunctuationToken.curlyBraces) {
-            backtrack.add(Pair(PunctuationToken.statement, totalTokens))
-            appendToken(startByte, PunctuationToken.statement)
-        }
-    }
 
     /**
      * Adds a token which serves punctuation purposes, i.e. either a (, a {, a [, a .[ or a $
@@ -61,10 +53,55 @@ class LexResult {
      * token length of 1.
      */
     fun openPunctuation(tType: PunctuationToken) {
+        validateOpeningPunct(tType)
+
         backtrack.add(Pair(tType, totalTokens))
-        appendToken(i + 1, tType)
-        i += 1
+        val insidesStart = if (tType == dotBrackets) { i + 2 } else { i + 1 }
+        appendToken(insidesStart, tType)
+        i = insidesStart
     }
+
+
+    /**
+     * Regular tokens may not exist directly at the top level, or inside curlyBraces.
+     * So this function inserts an implicit statement scope to prevent this.
+     */
+    private fun wrapTokenInStatement(startByte: Int) {
+        if (backtrack.empty() || backtrack.peek().first == curlyBraces) {
+            addStatement(startByte)
+        }
+    }
+
+
+    /**
+     * Regular tokens may not exist directly at the top level, or inside curlyBraces.
+     * So this function inserts an implicit statement scope to prevent this.
+     */
+    private fun addStatement(startByte: Int) {
+        backtrack.add(Pair(statement, totalTokens))
+        appendToken(startByte, statement)
+    }
+
+
+    /**
+     * Validates that opening punctuation obeys the rules
+     * and inserts an implicit Statement if immediately inside curlyBraces.
+     */
+    private fun validateOpeningPunct(openingType: PunctuationToken) {
+        if (openingType == curlyBraces) {
+            if (backtrack.isEmpty()) return
+            if (backtrack.peek().first == parens && getPrevTokenType() == parens.internalVal.toInt()) return
+
+            errorOut(Lexer.errorPunctuationWrongOpen)
+        } else if (openingType == dotBrackets && getPrevTokenType() != RegularToken.word.internalVal.toInt()) {
+            errorOut(Lexer.errorPunctuationWrongOpen)
+        } else {
+            if (backtrack.isEmpty() || backtrack.peek().first == curlyBraces) {
+                addStatement(i)
+            }
+        }
+    }
+
 
     /**
      * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a }, a ], a ; or a newline.
@@ -72,7 +109,7 @@ class LexResult {
      * with its token length.
      */
     fun closePunctuation(tType: PunctuationToken) {
-        if (tType == PunctuationToken.statement) {
+        if (tType == statement) {
             closeStatement()
         } else {
             closeRegularPunctuation(tType)
@@ -88,7 +125,7 @@ class LexResult {
      */
     private fun closeStatement() {
         var top = backtrack.peek()
-        if (top.first == PunctuationToken.statement) {
+        if (top.first == statement) {
             top = backtrack.pop()
             setPunctuationLengths(top.second)
         }
@@ -103,41 +140,59 @@ class LexResult {
         validateClosingPunct(tType, top.first)
         if (wasError) return
         setPunctuationLengths(top.second)
-        if (tType == PunctuationToken.curlyBraces && top.first == PunctuationToken.statement) {
+        if (tType == curlyBraces && top.first == statement) {
             // Since statements always are immediate children of curlyBraces, the '}' symbol closes
             // not just the statement but the parent curlyBraces scope, too.
 
-            val parentCurlyBraces = backtrack.pop()
-            assert(parentCurlyBraces.first == PunctuationToken.curlyBraces)
+            val parentScope = backtrack.pop()
+            assert(parentScope.first == curlyBraces)
 
-            setPunctuationLengths(parentCurlyBraces.second)
+            setPunctuationLengths(parentScope.second)
         }
 
     }
 
 
+    private fun getPrevTokenType(): Int {
+        if (totalTokens == 0) return 0
+
+        if (nextInd > 0) {
+            return currChunk.tokens[nextInd - 1] shr 27
+        } else {
+            var curr: LexChunk? = firstChunk
+            while (curr!!.next != currChunk) {
+                curr = curr.next!!
+            }
+            return curr.tokens[CHUNKSZ - 1] shr 27
+        }
+
+    }
+
+    /**
+     * Validation to catch unmatched closing punctuation
+     */
     private fun validateClosingPunct(closingType: PunctuationToken, openType: PunctuationToken) {
         when (closingType) {
-            PunctuationToken.curlyBraces -> {
-                if (openType != PunctuationToken.curlyBraces && openType != PunctuationToken.statement) {
+            curlyBraces -> {
+                if (openType != curlyBraces && openType != statement) {
                     errorOut(Lexer.errorPunctuationUnmatched)
                     return
                 }
             }
-            PunctuationToken.brackets -> {
-                if (openType != PunctuationToken.brackets && openType != PunctuationToken.dotBrackets) {
+            brackets -> {
+                if (openType != brackets && openType != dotBrackets) {
                     errorOut(Lexer.errorPunctuationUnmatched)
                     return
                 }
             }
-            PunctuationToken.parens -> {
-                if (openType != PunctuationToken.parens) {
+            parens -> {
+                if (openType != parens) {
                     errorOut(Lexer.errorPunctuationUnmatched)
                     return
                 }
             }
-            PunctuationToken.statement -> {
-                if (openType != PunctuationToken.statement && openType != PunctuationToken.curlyBraces) {
+            statement -> {
+                if (openType != statement && openType != curlyBraces) {
                     errorOut(Lexer.errorPunctuationUnmatched)
                     return
                 }
@@ -150,7 +205,7 @@ class LexResult {
     /**
      * For programmatic LexResult construction (builder pattern)
      */
-    fun add(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken): LexResult {
+    fun build(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken): LexResult {
         if (tType == RegularToken.comment) {
             comments.add(startByte, lenBytes)
         } else {
@@ -171,6 +226,7 @@ class LexResult {
             curr = curr.next!!
             j -= CHUNKSZ
         }
+
         val lenBytes = i - curr.tokens[j + 2]
         checkLenOverflow(lenBytes)
         curr.tokens[j    ] = totalTokens - tokenInd - 1  // lenTokens
@@ -187,6 +243,7 @@ class LexResult {
         nextInd = 0
     }
 
+
     private fun checkLenOverflow(lenBytes: Int) {
         if (lenBytes > MAXTOKENLEN) {
             errorOut(Lexer.errorLengthOverflow)
@@ -197,7 +254,7 @@ class LexResult {
     /**
      * For programmatic LexResult construction (builder pattern)
      */
-    fun addPunctuation(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int): LexResult {
+    fun buildPunct(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int): LexResult {
         appendToken(startByte, lenBytes, tType, lenTokens)
         return this
     }
@@ -218,11 +275,15 @@ class LexResult {
     }
 
     /**
-     * Finalizes the lexing of a single input: checks for unclosed scopes etc.
+     * Finalizes the lexing of a single input: checks for unclosed scopes, and closes an open statement, if any.
      */
     fun finalize() {
         if (!backtrack.empty()) {
-            errorOut(Lexer.errorPunctuationExtraOpening)
+            closeStatement()
+
+            if (!backtrack.empty()) {
+                errorOut(Lexer.errorPunctuationExtraOpening)
+            }
         }
     }
 
@@ -283,14 +344,30 @@ class LexResult {
                 currA = currA.next
                 currB = currB.next
             }
-            return true
 
+            if (a.comments.totalTokens != b.comments.totalTokens) return false
+            var commA: CommentChunk? = a.comments.firstChunk
+            var commB: CommentChunk? = b.comments.firstChunk
+            while (commA != null) {
+                if (commB == null) {
+                    return false
+                }
+                val len = if (commA == a.comments.currChunk) { a.comments.nextInd } else { COMMENTSZ }
+                for (i in 0 until len) {
+                    if (commA.tokens[i] != commB.tokens[i]) {
+                        return false
+                    }
+                }
+                commA = commA.next
+                commB = commB.next
+            }
+            return true
         }
 
         fun printSideBySide(a: LexResult, b: LexResult): String {
             val result = StringBuilder()
             result.appendLine("Result | Expected")
-            result.appendLine("${if (a.wasError) {"Error"} else { "OK" }} | ${if (b.wasError) {"Error"} else { "OK" }}")
+            result.appendLine("${if (a.wasError) {a.errMsg} else { "OK" }} | ${if (b.wasError) {b.errMsg} else { "OK" }}")
             result.appendLine("tokenType [startByte lenBytes] (payload/lenTokens)")
             var currA: LexChunk? = a.firstChunk
             var currB: LexChunk? = b.firstChunk

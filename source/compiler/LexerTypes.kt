@@ -53,11 +53,11 @@ data class CommentChunk(val tokens: IntArray = IntArray(COMMENTSZ), var next: Co
  * Separate object just for comments
  */
 class CommentStorage {
-    private var firstChunk: CommentChunk = CommentChunk()
-    private var currChunk: CommentChunk
-    private var i: Int // current index inside input byte array
-    private var nextInd: Int // next ind inside the current token chunk
-    private var totalTokens: Int
+    var firstChunk: CommentChunk = CommentChunk()
+    var currChunk: CommentChunk
+    var i: Int // current index inside input byte array
+    var nextInd: Int // next ind inside the current token chunk
+    var totalTokens: Int
     init {
         currChunk = firstChunk
         currChunk = firstChunk
