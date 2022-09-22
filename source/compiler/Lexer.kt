@@ -13,7 +13,6 @@ var nextInd: Int // next ind inside the current token chunk
 var totalTokens: Int
 var wasError: Boolean
 var errMsg: String
-
 private var i: Int // current index inside input byte array
 private var comments: CommentStorage = CommentStorage()
 private val backtrack = Stack<Pair<PunctuationToken, Int>>()
@@ -22,7 +21,7 @@ private val byteBuf: ByteBuffer = ByteBuffer(50)
 
 
 /**
- * Main lexer function
+ * Main lexer method
  */
 fun lexicallyAnalyze(inp: ByteArray) {
     if (inp.isEmpty()) {
@@ -86,28 +85,27 @@ private fun lexWordInternal(inp: ByteArray, wordType: RegularToken) {
  */
 private fun lexWordChunk(inp: ByteArray): Boolean {
     var result = false
-    var j = i
 
-    if (inp[j] == asciiUnderscore) {
+    if (inp[i] == asciiUnderscore) {
         checkPrematureEnd(2, inp)
-        j += 1
+        i += 1
     } else {
         checkPrematureEnd(1, inp)
     }
     if (wasError) return false
 
-    if (isLowercaseLetter(inp[j])) {
+    if (isLowercaseLetter(inp[i])) {
         result = true
-    } else if (!isCapitalLetter(inp[j])) {
+    } else if (!isCapitalLetter(inp[i])) {
         errorOut(errorWordChunkStart)
         return result
     }
-    j += 1
+    i += 1
 
-    while (j < inp.size && isAlphanumeric(inp[j])) {
-        j += 1
+    while (i < inp.size && isAlphanumeric(inp[i])) {
+        i += 1
     }
-    if (j < inp.size && inp[j] == asciiUnderscore) {
+    if (i < inp.size && inp[i] == asciiUnderscore) {
         errorOut(errorWordUnderscoresOnlyAtStart)
         return result
     }
@@ -204,7 +202,8 @@ private fun lexFloatLiteral(inp: ByteArray) {
 private fun lexIntegerLiteral(inp: ByteArray) {
 
 }
-    
+
+
 /**
  * Parses the floating-point numbers using just the "fast path" of David Gay's "strtod" function,
  * extended to 16 digits.
@@ -363,6 +362,7 @@ private fun lexStringLiteral(inp: ByteArray) {
     errorOut(errorPrematureEndOfInput)
 }
 
+
 /**
  * Verbatim strings look like "asdf""" or "\nasdf""".
  * In the second variety (i.e. if the opening " is followed by the newline symbol),
@@ -403,6 +403,7 @@ private fun lexUnrecognizedSymbol(inp: ByteArray) {
     errorOut(errorUnrecognizedByte)
 }
 
+
 private fun lexComment(inp: ByteArray) {
     var j = i + 1
     val szMinusOne = inp.size - 1
@@ -424,25 +425,6 @@ private fun lexComment(inp: ByteArray) {
     i = inp.size
 }
 
-private fun isLetter(a: Byte): Boolean {
-    return ((a >= asciiALower && a <= asciiZLower) || (a >= asciiAUpper && a <= asciiZUpper))
-}
-
-private fun isCapitalLetter(a: Byte): Boolean {
-    return a >= asciiAUpper && a <= asciiZUpper
-}
-
-private fun isLowercaseLetter(a: Byte): Boolean {
-    return a >= asciiALower && a <= asciiZLower
-}
-
-private fun isAlphanumeric(a: Byte): Boolean {
-    return isLetter(a) || isDigit(a)
-}
-
-private fun isDigit(a: Byte): Boolean {
-    return a >= asciiDigit0 && a <= asciiDigit9
-}
 
 
 
@@ -467,14 +449,10 @@ init {
 }
 
 
-
-
-
-
 /**
  * Adds a regular, non-punctuation token
  */
-fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) {
+private fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) {
     if (tType == RegularToken.comment) {
         comments.add(startByte, lenBytes)
     } else {
@@ -494,7 +472,7 @@ fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) 
  * scope. Thus, for '(asdf)', the opening paren token will have a byte length of 4 and a
  * token length of 1.
  */
-fun openPunctuation(tType: PunctuationToken) {
+private fun openPunctuation(tType: PunctuationToken) {
     validateOpeningPunct(tType)
 
     backtrack.add(Pair(tType, totalTokens))
@@ -552,7 +530,7 @@ private fun validateOpeningPunct(openingType: PunctuationToken) {
  * This doesn't actually add a token to the array, just performs validation and updates the opener token
  * with its token length.
  */
-fun closePunctuation(tType: PunctuationToken) {
+private fun closePunctuation(tType: PunctuationToken) {
     if (tType == PunctuationToken.statement) {
         closeStatement()
     } else {
@@ -593,24 +571,23 @@ private fun closeRegularPunctuation(tType: PunctuationToken) {
 
         setPunctuationLengths(parentScope.second)
     }
-
 }
 
 
 private fun getPrevTokenType(): Int {
     if (totalTokens == 0) return 0
 
-    if (nextInd > 0) {
-        return currChunk.tokens[nextInd - 1] shr 27
+    return if (nextInd > 0) {
+        currChunk.tokens[nextInd - 1] shr 27
     } else {
         var curr: LexChunk? = firstChunk
         while (curr!!.next != currChunk) {
             curr = curr.next!!
         }
-        return curr.tokens[CHUNKSZ - 1] shr 27
+        curr.tokens[CHUNKSZ - 1] shr 27
     }
-
 }
+
 
 /**
  * Validation to catch unmatched closing punctuation
@@ -704,7 +681,7 @@ fun buildPunct(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens
 }
 
 
-fun errorOut(msg: String) {
+private fun errorOut(msg: String) {
     this.wasError = true
     this.errMsg = msg
 }
@@ -806,6 +783,31 @@ companion object {
         dispatchTable[asciiSharp.toInt()] = Lexer::lexComment
     }
 
+
+    private fun isLetter(a: Byte): Boolean {
+        return ((a >= asciiALower && a <= asciiZLower) || (a >= asciiAUpper && a <= asciiZUpper))
+    }
+
+    private fun isCapitalLetter(a: Byte): Boolean {
+        return a >= asciiAUpper && a <= asciiZUpper
+    }
+
+    private fun isLowercaseLetter(a: Byte): Boolean {
+        return a >= asciiALower && a <= asciiZLower
+    }
+
+    private fun isAlphanumeric(a: Byte): Boolean {
+        return isLetter(a) || isDigit(a)
+    }
+
+    private fun isDigit(a: Byte): Boolean {
+        return a >= asciiDigit0 && a <= asciiDigit9
+    }
+
+
+    /**
+     * Equality comparison for lexers.
+     */
     fun equality(a: Lexer, b: Lexer): Boolean {
         if (a.wasError != b.wasError || a.totalTokens != b.totalTokens || a.nextInd != b.nextInd
             || a.errMsg != b.errMsg) {
@@ -846,6 +848,10 @@ companion object {
         return true
     }
 
+
+    /**
+     * Pretty printer function for debugging purposes
+     */
     fun printSideBySide(a: Lexer, b: Lexer): String {
         val result = StringBuilder()
         result.appendLine("Result | Expected")
