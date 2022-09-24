@@ -347,7 +347,7 @@ private fun lexStatementTerminator(inp: ByteArray) {
 private fun lexStringLiteral(inp: ByteArray) {
     var j = i + 1
     val szMinusOne = inp.size - 1
-    while (i < inp.size) {
+    while (j < inp.size) {
         val cByte = inp[j]
         if (cByte == asciiBackslash && j < szMinusOne && inp[j + 1] == asciiApostrophe) {
             j += 2
