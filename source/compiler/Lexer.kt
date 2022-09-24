@@ -1,47 +1,56 @@
 package compiler
 import utils.ByteBuffer
+import compiler.lexer.*
+import java.lang.StringBuilder
+import java.util.*
 
-object Lexer {
+class Lexer {
 
 
-private val dispatchTable: Array<(inp: ByteArray, lr: LexResult) -> Unit>
-private val byteBuf: ByteBuffer = ByteBuffer(50) // Thread-unsafe
+var firstChunk: LexChunk = LexChunk()
+var currChunk: LexChunk
+var nextInd: Int // next ind inside the current token chunk
+var totalTokens: Int
+var wasError: Boolean
+var errMsg: String
+private var i: Int // current index inside input byte array
+private var comments: CommentStorage = CommentStorage()
+private val backtrack = Stack<Pair<PunctuationToken, Int>>()
+private val byteBuf: ByteBuffer = ByteBuffer(50)
+
 
 
 /**
- * Main lexer function
+ * Main lexer method
  */
-fun lexicallyAnalyze(inp: ByteArray): LexResult {
-    val result = LexResult()
+fun lexicallyAnalyze(inp: ByteArray) {
     if (inp.isEmpty()) {
-        result.errorOut("Empty input")
-        return result
+        errorOut("Empty input")
+        return
     }
 
     // Check for UTF-8 BOM at start of file
     if (inp.size >= 3 && inp[0] == 0xEF.toByte() && inp[1] == 0xBB.toByte() && inp[2] == 0xBF.toByte()) {
-        result.i = 3
+        i = 3
     }
 
     // Main loop over the input
-    while (result.i < inp.size && !result.wasError) {
-        val cByte = inp[result.i]
+    while (i < inp.size && !wasError) {
+        val cByte = inp[i]
         if (cByte >= 0) {
-            dispatchTable[cByte.toInt()](inp, result)
+            dispatchTable[cByte.toInt()](inp)
         } else {
-            result.errorOut(errorNonASCII)
+            errorOut(errorNonASCII)
             break
         }
     }
 
-    result.finalize()
-
-    return result
+    finalize()
 }
 
 
-private fun lexWord(inp: ByteArray, lr: LexResult) {
-    lexWordInternal(inp, lr, RegularToken.word)
+private fun lexWord(inp: ByteArray) {
+    lexWordInternal(inp, RegularToken.word)
 }
 
 
@@ -50,21 +59,21 @@ private fun lexWord(inp: ByteArray, lr: LexResult) {
  * Examples of accepted expressions: A.B.c.d, asdf123, ab._cd45
  * Examples of NOT accepted expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
-private fun lexWordInternal(inp: ByteArray, lr: LexResult, wordType: RegularToken) {
-    val startInd = lr.i
-    var metUncapitalized = lexWordChunk(inp, lr)
-    while (lr.i < (inp.size - 1) && inp[lr.i] == asciiDot && inp[lr.i + 1] != asciiBracketLeft && !lr.wasError) {
-        lr.i += 1
-        val isCurrUncapitalized = lexWordChunk(inp, lr)
+private fun lexWordInternal(inp: ByteArray, wordType: RegularToken) {
+    val startInd = i
+    var metUncapitalized = lexWordChunk(inp)
+    while (i < (inp.size - 1) && inp[i] == asciiDot && inp[i + 1] != asciiBracketLeft && !wasError) {
+        i += 1
+        val isCurrUncapitalized = lexWordChunk(inp)
         if (metUncapitalized && !isCurrUncapitalized) {
-            lr.errorOut(errorWordCapitalizationOrder)
+            errorOut(errorWordCapitalizationOrder)
             return
         }
         metUncapitalized = isCurrUncapitalized
     }
-    if (!lr.wasError) {
+    if (!wasError) {
         val realStartChar = if (wordType == RegularToken.word) { startInd } else {startInd - 1}
-        lr.addToken(0, realStartChar, lr.i - realStartChar, wordType)
+        addToken(0, realStartChar, i - realStartChar, wordType)
     }
 }
 
@@ -74,31 +83,30 @@ private fun lexWordInternal(inp: ByteArray, lr: LexResult, wordType: RegularToke
  * (or the whole word if there are no dots).
  * Returns True if the lexed chunk was uncapitalized
  */
-private fun lexWordChunk(inp: ByteArray, lr: LexResult): Boolean {
+private fun lexWordChunk(inp: ByteArray): Boolean {
     var result = false
-    var i = lr.i
 
-    if (inp[lr.i] == asciiUnderscore) {
-        checkPrematureEnd(2, inp, lr)
+    if (inp[i] == asciiUnderscore) {
+        checkPrematureEnd(2, inp)
         i += 1
     } else {
-        checkPrematureEnd(1, inp, lr)
+        checkPrematureEnd(1, inp)
     }
-    if (lr.wasError) return false
+    if (wasError) return false
 
     if (isLowercaseLetter(inp[i])) {
         result = true
     } else if (!isCapitalLetter(inp[i])) {
-        lr.errorOut(errorWordChunkStart)
+        errorOut(errorWordChunkStart)
         return result
     }
-    lr.i = i + 1
+    i += 1
 
-    while (lr.i < inp.size && isAlphanumeric(inp[lr.i])) {
-        lr.i += 1
+    while (i < inp.size && isAlphanumeric(inp[i])) {
+        i += 1
     }
-    if (lr.i < inp.size && inp[lr.i] == asciiUnderscore) {
-        lr.errorOut(errorWordUnderscoresOnlyAtStart)
+    if (i < inp.size && inp[i] == asciiUnderscore) {
+        errorOut(errorWordUnderscoresOnlyAtStart)
         return result
     }
 
@@ -109,28 +117,28 @@ private fun lexWordChunk(inp: ByteArray, lr: LexResult): Boolean {
 /**
  * Lexes either a dot-word (like '.asdf') or a dot-bracket (like '.[1 2 3]')
  */
-private fun lexDotSomething(inp: ByteArray, lr: LexResult) {
-    checkPrematureEnd(2, inp, lr)
-    if (lr.wasError) return
+private fun lexDotSomething(inp: ByteArray) {
+    checkPrematureEnd(2, inp)
+    if (wasError) return
 
-    val nByte = inp[lr.i + 1]
+    val nByte = inp[i + 1]
     if (nByte == asciiBracketLeft) {
-        lexDotBracket(inp, lr)
+        lexDotBracket(inp)
     } else if (nByte == asciiUnderscore || isLetter(nByte)) {
-        lr.i += 1
-        lexWordInternal(inp, lr, RegularToken.dotWord)
+        i += 1
+        lexWordInternal(inp, RegularToken.dotWord)
     } else {
-        lr.errorOut(errorUnrecognizedByte)
+        errorOut(errorUnrecognizedByte)
     }
 }
 
 
-private fun lexAtWord(inp: ByteArray, lr: LexResult) {
-    checkPrematureEnd(2, inp, lr)
-    if (lr.wasError) return
+private fun lexAtWord(inp: ByteArray) {
+    checkPrematureEnd(2, inp)
+    if (wasError) return
 
-    lr.i += 1
-    lexWordInternal(inp, lr, RegularToken.atWord)
+    i += 1
+    lexWordInternal(inp, RegularToken.atWord)
 }
 
 
@@ -138,17 +146,17 @@ private fun lexAtWord(inp: ByteArray, lr: LexResult) {
  * Lexes an integer literal, a hex integer literal, a binary integer literal, or a floating literal.
  * This function can handle being called on the last byte of input.
  */
-private fun lexNumber(inp: ByteArray, lr: LexResult) {
-    val cByte = inp[lr.i]
-    if (lr.i == inp.size - 1 && isDigit(cByte)) {
-        lr.addToken((cByte - asciiDigit0).toLong(), lr.i, 1, RegularToken.litInt)
+private fun lexNumber(inp: ByteArray) {
+    val cByte = inp[i]
+    if (i == inp.size - 1 && isDigit(cByte)) {
+        addToken((cByte - asciiDigit0).toLong(), i, 1, RegularToken.litInt)
         return
     }
 
-    when (inp[lr.i + 1]) {
-        asciiXLower -> { lexHexNumber(inp, lr) }
-        asciiBLower -> { lexBinNumber(inp, lr) }
-        else ->        { lexDecNumber(inp, lr) }
+    when (inp[i + 1]) {
+        asciiXLower -> { lexHexNumber(inp) }
+        asciiBLower -> { lexBinNumber(inp) }
+        else ->        { lexDecNumber(inp) }
     }
 }
 
@@ -157,25 +165,25 @@ private fun lexNumber(inp: ByteArray, lr: LexResult) {
  * Lexes a decimal numeric literal (integer or floating-point).
  * TODO: add support for the '1.23E4' format
  */
-private fun lexDecNumber(inp: ByteArray, lr: LexResult) {
-    var i = lr.i
+private fun lexDecNumber(inp: ByteArray) {
+    var j = i
 
-    while (i < inp.size && byteBuf.ind < 20) {
-        val cByte = inp[i]
+    while (j < inp.size && byteBuf.ind < 20) {
+        val cByte = inp[j]
         if (isDigit(cByte)) {
             byteBuf.add(cByte)
         } else if (cByte == asciiUnderscore) {
-            if (i == (inp.size - 1) || !isDigit(inp[i + 1])) {
-                lr.errorOut(errorNumericEndUnderscore)
+            if (j == (inp.size - 1) || !isDigit(inp[j + 1])) {
+                errorOut(errorNumericEndUnderscore)
                 return
             }
         } else {
             break
         }
-        i++
+        j++
     }
-    if (i < inp.size && isDigit(inp[i])) {
-        lr.errorOut(errorNumericIntWidthExceeded)
+    if (j < inp.size && isDigit(inp[j])) {
+        errorOut(errorNumericIntWidthExceeded)
         return
     }
 }
@@ -184,17 +192,18 @@ private fun lexDecNumber(inp: ByteArray, lr: LexResult) {
  * Lexes a floating-point literal.
 
  */
-private fun lexFloatLiteral(inp: ByteArray, lr: LexResult) {
+private fun lexFloatLiteral(inp: ByteArray) {
 
 }
 
 /**
  * Lexes a 64-bit signed integer literal.
  */
-private fun lexIntegerLiteral(inp: ByteArray, lr: LexResult) {
+private fun lexIntegerLiteral(inp: ByteArray) {
 
 }
-    
+
+
 /**
  * Parses the floating-point numbers using just the "fast path" of David Gay's "strtod" function,
  * extended to 16 digits.
@@ -216,19 +225,19 @@ private fun calcFloating(inp: ByteArray, exponent: Int): Double {
  * Examples of NOT accepted expressions: 0xCAFE_babe, 0x_deadbeef, 0x123_
  * Checks that the input fits into a signed 64-bit fixnum.
  */
-private fun lexHexNumber(inp: ByteArray, lr: LexResult) {
+private fun lexHexNumber(inp: ByteArray) {
     byteBuf.clear()
-    var j = lr.i + 2
+    var j = i + 2
 }
 
 
 /**
  * Lexes a decimal numeric literal (integer or floating-point).
  */
-private fun lexBinNumber(inp: ByteArray, lr: LexResult) {
+private fun lexBinNumber(inp: ByteArray) {
     byteBuf.clear()
 
-    var j = lr.i + 2
+    var j = i + 2
     while (j < inp.size) {
         val cByte = inp[j]
         if (cByte == asciiDigit0) {
@@ -237,26 +246,26 @@ private fun lexBinNumber(inp: ByteArray, lr: LexResult) {
             byteBuf.add(1)
         } else if (cByte == asciiUnderscore) {
             if ((j == inp.size - 1 || (inp[j + 1] != asciiDigit0 && inp[j + 1] != asciiDigit1))) {
-                lr.errorOut(errorNumericEndUnderscore)
+                errorOut(errorNumericEndUnderscore)
                 return
             }
         } else {
             break
         }
         if (byteBuf.ind > 64) {
-            lr.errorOut(errorNumericBinWidthExceeded)
+            errorOut(errorNumericBinWidthExceeded)
             return
         }
         j++
     }
-    if (j == lr.i + 2) {
-        lr.errorOut(errorNumericEmpty)
+    if (j == i + 2) {
+        errorOut(errorNumericEmpty)
         return
     }
 
     val resultValue = calcBinNumber()
-    lr.addToken(resultValue, lr.i, j - lr.i, RegularToken.litInt)
-    lr.i = j
+    addToken(resultValue, i, j - i, RegularToken.litInt)
+    i = j
 }
 
 
@@ -280,52 +289,52 @@ private fun calcBinNumber(): Long {
     return result
 }
 
-private fun lexOperator(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+private fun lexOperator(inp: ByteArray) {
+    i += 1
 }
 
-private fun lexParenLeft(inp: ByteArray, lr: LexResult) {
-    lr.openPunctuation(PunctuationToken.parens)
+private fun lexParenLeft(inp: ByteArray) {
+    openPunctuation(PunctuationToken.parens)
 }
 
-private fun lexParenRight(inp: ByteArray, lr: LexResult) {
-    lr.closePunctuation(PunctuationToken.parens)
+private fun lexParenRight(inp: ByteArray) {
+    closePunctuation(PunctuationToken.parens)
 }
 
-private fun lexDollar(inp: ByteArray, lr: LexResult) {
-    lr.openPunctuation(PunctuationToken.dollar)
+private fun lexDollar(inp: ByteArray) {
+    openPunctuation(PunctuationToken.dollar)
 }
 
-private fun lexCurlyLeft(inp: ByteArray, lr: LexResult) {
-    lr.openPunctuation(PunctuationToken.curlyBraces)
+private fun lexCurlyLeft(inp: ByteArray) {
+    openPunctuation(PunctuationToken.curlyBraces)
 }
 
-private fun lexCurlyRight(inp: ByteArray, lr: LexResult) {
-    lr.closePunctuation(PunctuationToken.curlyBraces)
+private fun lexCurlyRight(inp: ByteArray) {
+    closePunctuation(PunctuationToken.curlyBraces)
 }
 
-private fun lexBracketLeft(inp: ByteArray, lr: LexResult) {
-    lr.openPunctuation(PunctuationToken.brackets)
+private fun lexBracketLeft(inp: ByteArray) {
+    openPunctuation(PunctuationToken.brackets)
 }
 
-private fun lexBracketRight(inp: ByteArray, lr: LexResult) {
-    lr.closePunctuation(PunctuationToken.brackets)
+private fun lexBracketRight(inp: ByteArray) {
+    closePunctuation(PunctuationToken.brackets)
 }
 
-private fun lexDotBracket(inp: ByteArray, lr: LexResult) {
-    lr.openPunctuation(PunctuationToken.dotBrackets)
+private fun lexDotBracket(inp: ByteArray) {
+    openPunctuation(PunctuationToken.dotBrackets)
 }
 
-private fun lexSpace(inp: ByteArray, lr: LexResult) {
-    lr.i += 1
+private fun lexSpace(inp: ByteArray) {
+    i += 1
 }
 
-private fun lexNewline(inp: ByteArray, lr: LexResult) {
-    lr.closePunctuation(PunctuationToken.statement)
+private fun lexNewline(inp: ByteArray) {
+    closePunctuation(PunctuationToken.statement)
 }
 
-private fun lexStatementTerminator(inp: ByteArray, lr: LexResult) {
-    lr.closePunctuation(PunctuationToken.statement)
+private fun lexStatementTerminator(inp: ByteArray) {
+    closePunctuation(PunctuationToken.statement)
 }
 
 
@@ -335,23 +344,24 @@ private fun lexStatementTerminator(inp: ByteArray, lr: LexResult) {
  * the 'x = ${x}' syntax.
  * TODO probably need to count UTF-8 codepoints, or worse - grapheme clusters - in order to correctly report to LSP
  */
-private fun lexStringLiteral(inp: ByteArray, lr: LexResult) {
-    var i = lr.i + 1
+private fun lexStringLiteral(inp: ByteArray) {
+    var j = i + 1
     val szMinusOne = inp.size - 1
-    while (i < inp.size) {
-        val cByte = inp[i]
-        if (cByte == asciiBackslash && i < szMinusOne && inp[i + 1] == asciiApostrophe) {
-            i += 2
+    while (j < inp.size) {
+        val cByte = inp[j]
+        if (cByte == asciiBackslash && j < szMinusOne && inp[j + 1] == asciiApostrophe) {
+            j += 2
         } else if (cByte == asciiApostrophe) {
-            lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.litString)
-            lr.i = i + 1
+            addToken(0, i + 1, j - i - 1, RegularToken.litString)
+            i = j + 1
             return
         } else {
-            i += 1
+            j += 1
         }
     }
-    lr.errorOut(errorPrematureEndOfInput)
+    errorOut(errorPrematureEndOfInput)
 }
+
 
 /**
  * Verbatim strings look like "asdf""" or "\nasdf""".
@@ -370,206 +380,547 @@ private fun lexStringLiteral(inp: ByteArray, lr: LexResult) {
  * The literal may not contain the '"""' combination. In the rare cases that string literals with
  * this sequence are needed, it's possible to use string concatenation or txt file inclusion.
  */
-private fun lexVerbatimStringLiteral(inp: ByteArray, lr: LexResult) {
-    var i = lr.i + 1
+private fun lexVerbatimStringLiteral(inp: ByteArray) {
+    var j = i + 1
     while (i < inp.size) {
-        val cByte = inp[i]
+        val cByte = inp[j]
         if (cByte == asciiQuote) {
-            if (i < (inp.size - 2) && inp[i + 1] == asciiQuote && inp[i + 2] == asciiQuote) {
-                lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.verbatimString)
-                lr.i = i + 3
+            if (j < (inp.size - 2) && inp[j + 1] == asciiQuote && inp[j + 2] == asciiQuote) {
+                addToken(0, i + 1, j - i - 1, RegularToken.verbatimString)
+                i = j + 3
                 return
             }
         } else {
-            i += 1
+            j += 1
         }
     }
-    lr.errorOut(errorPrematureEndOfInput)
-    lr.i += 1
+    errorOut(errorPrematureEndOfInput)
+    i += 1
 }
 
 
-private fun lexUnrecognizedSymbol(inp: ByteArray, lr: LexResult) {
-    lr.errorOut(errorUnrecognizedByte)
+private fun lexUnrecognizedSymbol(inp: ByteArray) {
+    errorOut(errorUnrecognizedByte)
 }
 
-private fun lexComment(inp: ByteArray, lr: LexResult) {
-    var i = lr.i + 1
+
+private fun lexComment(inp: ByteArray) {
+    var j = i + 1
     val szMinusOne = inp.size - 1
-    while (i < inp.size) {
-        val cByte = inp[i]
-        if (cByte == asciiDot && i < szMinusOne && inp[i + 1] == asciiSharp) {
-            lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.comment)
-            lr.i = i + 2
+    while (j < inp.size) {
+        val cByte = inp[j]
+        if (cByte == asciiDot && j < szMinusOne && inp[j + 1] == asciiSharp) {
+            addToken(0, i + 1, j - i - 1, RegularToken.comment)
+            i = j + 2
             return
         } else if (cByte == asciiNewline) {
-            lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.comment)
-            lr.i = i + 1
+            addToken(0, i + 1, j - i - 1, RegularToken.comment)
+            i = j + 1
             return
         } else {
-            i += 1
+            j += 1
         }
     }
-    lr.addToken(0, lr.i + 1, i - lr.i - 1, RegularToken.comment)
-    lr.i = inp.size
+    addToken(0, i + 1, j - i - 1, RegularToken.comment)
+    i = inp.size
 }
 
-private fun isLetter(a: Byte): Boolean {
-    return ((a >= asciiALower && a <= asciiZLower) || (a >= asciiAUpper && a <= asciiZUpper))
-}
 
-private fun isCapitalLetter(a: Byte): Boolean {
-    return a >= asciiAUpper && a <= asciiZUpper
-}
 
-private fun isLowercaseLetter(a: Byte): Boolean {
-    return a >= asciiALower && a <= asciiZLower
-}
-
-private fun isAlphanumeric(a: Byte): Boolean {
-    return isLetter(a) || isDigit(a)
-}
-
-private fun isDigit(a: Byte): Boolean {
-    return a >= asciiDigit0 && a <= asciiDigit9
-}
 
 /**
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
-private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray, lr: LexResult) {
-    if (lr.i > inp.size - requiredSymbols) {
-        lr.errorOut(errorPrematureEndOfInput)
+private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray) {
+    if (i > inp.size - requiredSymbols) {
+        errorOut(errorPrematureEndOfInput)
         return
     }
 }
 
 
-
-const val errorLengthOverflow             = "Token length overflow"
-const val errorNonASCII                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!"
-const val errorPrematureEndOfInput        = "Premature end of input"
-const val errorUnrecognizedByte           = "Unrecognized byte in source code!"
-const val errorWordChunkStart             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!"
-const val errorWordCapitalizationOrder    = "An identifier may not contain a capitalized piece after an uncapitalized one!"
-const val errorWordUnderscoresOnlyAtStart = "Underscores are only allowed at start of word (snake case is forbidden)!"
-const val errorNumericEndUnderscore       = "Numeric literal cannot end with underscore!"
-const val errorNumericBinWidthExceeded    = "Integer literals cannot exceed 64 bit!"
-const val errorNumericEmpty               = "Could not lex a numeric literal, empty sequence!"
-const val errorNumericIntWidthExceeded    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!"
-const val errorPunctuationExtraOpening    = "Extra opening punctuation"
-const val errorPunctuationUnmatched       = "Unmatched closing punctuation"
-const val errorPunctuationExtraClosing    = "Extra closing punctuation"
-const val errorPunctuationWrongOpen       = "Wrong opening punctuation"
-
-
-/**
- * The ASCII notation for the lowest 64-bit integer, -9_223_372_036_854_775_808
- */
-private val minInt = byteArrayOf(
-    57, 50, 50, 51, 51, 55, 50, 48, 51, 54,
-    56, 53, 52, 55, 55, 53, 56, 48, 56
-)
-
-/**
- * The ASCII notation for the highest 64-bit integer, 9_223_372_036_854_775_807
- */
-private val maxInt = byteArrayOf(
-    57, 50, 50, 51, 51, 55, 50, 48, 51, 54,
-    56, 53, 52, 55, 55, 53, 56, 48, 55
-)
-
-private const val asciiALower: Byte = 97
-private const val asciiBLower: Byte = 98
-private const val asciiFLower: Byte = 102
-private const val asciiXLower: Byte = 120
-private const val asciiZLower: Byte = 122
-private const val asciiAUpper: Byte = 65
-private const val asciiFUpper: Byte = 70
-private const val asciiZUpper: Byte = 90
-private const val asciiDigit0: Byte = 48
-private const val asciiDigit1: Byte = 49
-private const val asciiDigit9: Byte = 57
-
-private const val asciiPlus: Byte = 43
-private const val asciiMinus: Byte = 45
-private const val asciiTimes: Byte = 42
-private const val asciiDivBy: Byte = 47
-private const val asciiDot: Byte = 46
-private const val asciiPercent: Byte = 37
-
-private const val asciiParenLeft: Byte = 40
-private const val asciiParenRight: Byte = 41
-private const val asciiCurlyLeft: Byte = 123
-private const val asciiCurlyRight: Byte = 125
-private const val asciiBracketLeft: Byte = 91
-private const val asciiBracketRight: Byte = 93
-private const val asciiPipe: Byte = 124
-private const val asciiAmpersand: Byte = 38
-private const val asciiTilde: Byte = 126
-private const val asciiBackslash: Byte = 92
-
-private const val asciiSpace: Byte = 32
-private const val asciiNewline: Byte = 10
-private const val asciiCarriageReturn: Byte = 13
-
-private const val asciiApostrophe: Byte = 39
-private const val asciiQuote: Byte = 34
-private const val asciiSharp: Byte = 35
-private const val asciiDollar: Byte = 36
-private const val asciiUnderscore: Byte = 95
-private const val asciiCaret: Byte = 94
-private const val asciiAt: Byte = 64
-private const val asciiColon: Byte = 58
-private const val asciiSemicolon: Byte = 59
-private const val asciiExclamation: Byte = 33
-private const val asciiQuestion: Byte = 63
-private const val asciiEquals: Byte = 61
-
-private const val asciiLessThan: Byte = 60
-private const val asciiGreaterThan: Byte = 62
-
-private val operatorSymbols = byteArrayOf(
-    asciiColon, asciiAmpersand, asciiPlus, asciiMinus, asciiDivBy, asciiTimes, asciiExclamation, asciiTilde,
-    asciiPercent, asciiCaret, asciiPipe, asciiGreaterThan, asciiLessThan, asciiQuestion, asciiEquals,
-)
-
 init {
-    dispatchTable = Array(127) { ::lexUnrecognizedSymbol }
-    for (i in asciiDigit0..asciiDigit9) {
-        dispatchTable[i] = ::lexNumber
-    }
-
-    for (i in asciiALower..asciiZLower) {
-        dispatchTable[i] = ::lexWord
-    }
-    for (i in asciiAUpper..asciiZUpper) {
-        dispatchTable[i] = ::lexWord
-    }
-    dispatchTable[asciiUnderscore.toInt()    ] = ::lexWord
-    dispatchTable[asciiDot.toInt()           ] = ::lexDotSomething
-    dispatchTable[asciiAt.toInt()            ] = ::lexAtWord
-
-    for (i in operatorSymbols) {
-        dispatchTable[i.toInt()] = ::lexOperator
-    }
-    dispatchTable[asciiParenLeft.toInt()     ] = ::lexParenLeft
-    dispatchTable[asciiParenRight.toInt()    ] = ::lexParenRight
-    dispatchTable[asciiDollar.toInt()        ] = ::lexDollar
-    dispatchTable[asciiCurlyLeft.toInt()     ] = ::lexCurlyLeft
-    dispatchTable[asciiCurlyRight.toInt()    ] = ::lexCurlyRight
-    dispatchTable[asciiBracketLeft.toInt()   ] = ::lexBracketLeft
-    dispatchTable[asciiBracketRight.toInt()  ] = ::lexBracketRight
-
-    dispatchTable[asciiSpace.toInt()         ] = ::lexSpace
-    dispatchTable[asciiCarriageReturn.toInt()] = ::lexSpace
-    dispatchTable[asciiNewline.toInt()       ] = ::lexNewline
-    dispatchTable[asciiSemicolon.toInt()     ] = ::lexStatementTerminator
-
-    dispatchTable[asciiApostrophe.toInt()    ] = ::lexStringLiteral
-    dispatchTable[asciiQuote.toInt()         ] = ::lexVerbatimStringLiteral
-    dispatchTable[asciiSharp.toInt()         ] = ::lexComment
+    currChunk = firstChunk
+    i = 0
+    nextInd = 0
+    totalTokens = 0
+    wasError = false
+    errMsg = ""
 }
 
+
+/**
+ * Adds a regular, non-punctuation token
+ */
+private fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) {
+    if (tType == RegularToken.comment) {
+        comments.add(startByte, lenBytes)
+    } else {
+        wrapTokenInStatement(startByte, tType)
+        appendToken(payload, startByte, lenBytes, tType)
+    }
+}
+
+
+/**
+ * Adds a token which serves punctuation purposes, i.e. either a (, a {, a [, a .[ or a $
+ * These tokens are used to define the structure, that is, nesting within the AST.
+ * Upon addition, they are saved to the backtracking stack to be updated with their length
+ * once it is known.
+ * The startByte & lengthBytes don't include the opening and closing delimiters, and
+ * the lenTokens also doesn't include the punctuation token itself - only the insides of the
+ * scope. Thus, for '(asdf)', the opening paren token will have a byte length of 4 and a
+ * token length of 1.
+ */
+private fun openPunctuation(tType: PunctuationToken) {
+    validateOpeningPunct(tType)
+
+    backtrack.add(Pair(tType, totalTokens))
+    val insidesStart = if (tType == PunctuationToken.dotBrackets) { i + 2 } else { i + 1 }
+    appendToken(insidesStart, tType)
+    i = insidesStart
+}
+
+
+/**
+ * Regular tokens may not exist directly at the top level, or inside curlyBraces.
+ * So this function inserts an implicit statement scope to prevent this.
+ */
+private fun wrapTokenInStatement(startByte: Int, tType: RegularToken) {
+    if (backtrack.empty() || backtrack.peek().first == PunctuationToken.curlyBraces) {
+        var realStartByte = startByte
+        if (tType == RegularToken.litString || tType == RegularToken.verbatimString) realStartByte -= 1
+        addStatement(realStartByte)
+    }
+}
+
+
+/**
+ * Regular tokens may not exist directly at the top level, or inside curlyBraces.
+ * So this function inserts an implicit statement scope to prevent this.
+ */
+private fun addStatement(startByte: Int) {
+    backtrack.add(Pair(PunctuationToken.statement, totalTokens))
+    appendToken(startByte, PunctuationToken.statement)
+}
+
+
+/**
+ * Validates that opening punctuation obeys the rules
+ * and inserts an implicit Statement if immediately inside curlyBraces.
+ */
+private fun validateOpeningPunct(openingType: PunctuationToken) {
+    if (openingType == PunctuationToken.curlyBraces) {
+        if (backtrack.isEmpty()) return
+        if (backtrack.peek().first == PunctuationToken.parens && getPrevTokenType() == PunctuationToken.parens.internalVal.toInt()) return
+
+        errorOut(errorPunctuationWrongOpen)
+    } else if (openingType == PunctuationToken.dotBrackets && getPrevTokenType() != RegularToken.word.internalVal.toInt()) {
+        errorOut(errorPunctuationWrongOpen)
+    } else {
+        if (backtrack.isEmpty() || backtrack.peek().first == PunctuationToken.curlyBraces) {
+            addStatement(i)
+        }
+    }
+}
+
+
+/**
+ * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a }, a ], a ; or a newline.
+ * This doesn't actually add a token to the array, just performs validation and updates the opener token
+ * with its token length.
+ */
+private fun closePunctuation(tType: PunctuationToken) {
+    if (tType == PunctuationToken.statement) {
+        closeStatement()
+    } else {
+        closeRegularPunctuation(tType)
+    }
+    i += 1
+}
+
+/**
+ * The statement closer function - i.e. called for a newline or a semi-colon.
+ * 1) Only close the current scope if it's a statement and non-empty. This protects against
+ * newlines that aren't inside curly braces, multiple newlines and sequences like ';;;;'.
+ * 2) If it closes a statement, then it also opens up a new statement scope
+ */
+private fun closeStatement() {
+    var top = backtrack.peek()
+    if (top.first == PunctuationToken.statement) {
+        top = backtrack.pop()
+        setPunctuationLengths(top.second)
+    }
+}
+
+private fun closeRegularPunctuation(tType: PunctuationToken) {
+    if (backtrack.empty()) {
+        errorOut(errorPunctuationExtraClosing)
+        return
+    }
+    val top = backtrack.pop()
+    validateClosingPunct(tType, top.first)
+    if (wasError) return
+    setPunctuationLengths(top.second)
+    if (tType == PunctuationToken.curlyBraces && top.first == PunctuationToken.statement) {
+        // Since statements always are immediate children of curlyBraces, the '}' symbol closes
+        // not just the statement but the parent curlyBraces scope, too.
+
+        val parentScope = backtrack.pop()
+        assert(parentScope.first == PunctuationToken.curlyBraces)
+
+        setPunctuationLengths(parentScope.second)
+    }
+}
+
+
+private fun getPrevTokenType(): Int {
+    if (totalTokens == 0) return 0
+
+    return if (nextInd > 0) {
+        currChunk.tokens[nextInd - 1] shr 27
+    } else {
+        var curr: LexChunk? = firstChunk
+        while (curr!!.next != currChunk) {
+            curr = curr.next!!
+        }
+        curr.tokens[CHUNKSZ - 1] shr 27
+    }
+}
+
+
+/**
+ * Validation to catch unmatched closing punctuation
+ */
+private fun validateClosingPunct(closingType: PunctuationToken, openType: PunctuationToken) {
+    when (closingType) {
+        PunctuationToken.curlyBraces -> {
+            if (openType != PunctuationToken.curlyBraces && openType != PunctuationToken.statement) {
+                errorOut(errorPunctuationUnmatched)
+                return
+            }
+        }
+        PunctuationToken.brackets -> {
+            if (openType != PunctuationToken.brackets && openType != PunctuationToken.dotBrackets) {
+                errorOut(errorPunctuationUnmatched)
+                return
+            }
+        }
+        PunctuationToken.parens -> {
+            if (openType != PunctuationToken.parens) {
+                errorOut(errorPunctuationUnmatched)
+                return
+            }
+        }
+        PunctuationToken.statement -> {
+            if (openType != PunctuationToken.statement && openType != PunctuationToken.curlyBraces) {
+                errorOut(errorPunctuationUnmatched)
+                return
+            }
+        }
+        else -> {}
+    }
+}
+
+
+/**
+ * For programmatic LexResult construction (builder pattern)
+ */
+fun build(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken): Lexer {
+    if (tType == RegularToken.comment) {
+        comments.add(startByte, lenBytes)
+    } else {
+        appendToken(payload, startByte, lenBytes, tType)
+    }
+    return this
+}
+
+
+/**
+ * Finds the top-level punctuation opener by its index, and sets its lengths.
+ * Called when the matching closer is lexed.
+ */
+private fun setPunctuationLengths(tokenInd: Int) {
+    var curr = firstChunk
+    var j = tokenInd * 4
+    while (j >= CHUNKSZ) {
+        curr = curr.next!!
+        j -= CHUNKSZ
+    }
+
+    val lenBytes = i - curr.tokens[j + 2]
+    checkLenOverflow(lenBytes)
+    curr.tokens[j    ] = totalTokens - tokenInd - 1  // lenTokens
+    curr.tokens[j + 3] += (lenBytes and LOWER27BITS) // lenBytes
+}
+
+
+private fun ensureSpaceForToken() {
+    if (nextInd < (CHUNKSZ - 4)) return
+
+    val newChunk = LexChunk()
+    currChunk.next = newChunk
+    currChunk = newChunk
+    nextInd = 0
+}
+
+
+private fun checkLenOverflow(lenBytes: Int) {
+    if (lenBytes > MAXTOKENLEN) {
+        errorOut(errorLengthOverflow)
+    }
+}
+
+
+/**
+ * For programmatic LexResult construction (builder pattern)
+ */
+fun buildPunct(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int): Lexer {
+    appendToken(startByte, lenBytes, tType, lenTokens)
+    return this
+}
+
+
+private fun errorOut(msg: String) {
+    this.wasError = true
+    this.errMsg = msg
+}
+
+
+/**
+ * For programmatic LexResult construction (builder pattern)
+ */
+fun error(msg: String): Lexer {
+    errorOut(msg)
+    return this
+}
+
+/**
+ * Finalizes the lexing of a single input: checks for unclosed scopes, and closes an open statement, if any.
+ */
+private fun finalize() {
+    if (!wasError && !backtrack.empty()) {
+        closeStatement()
+
+        if (!backtrack.empty()) {
+            errorOut(errorPunctuationExtraOpening)
+        }
+    }
+}
+
+
+private fun appendToken(payload: Long, startBytes: Int, lenBytes: Int, tType: RegularToken) {
+    ensureSpaceForToken()
+    checkLenOverflow(lenBytes)
+    currChunk.tokens[nextInd    ] = (payload shr 32).toInt()
+    currChunk.tokens[nextInd + 1] = (payload and LOWER32BITS).toInt()
+    currChunk.tokens[nextInd + 2] = startBytes
+    currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + lenBytes
+    bump()
+}
+
+
+private fun appendToken(startByte: Int, tType: PunctuationToken) {
+    ensureSpaceForToken()
+    currChunk.tokens[nextInd + 2] = startByte
+    currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27)
+    bump()
+}
+
+
+private fun appendToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
+    ensureSpaceForToken()
+    checkLenOverflow(lenBytes)
+    currChunk.tokens[nextInd    ] = lenTokens
+    currChunk.tokens[nextInd + 2] = startByte
+    currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + lenBytes
+    bump()
+}
+
+
+private fun bump() {
+    nextInd += 4
+    totalTokens += 1
+}
+
+
+companion object {
+    private val dispatchTable: Array<Lexer.(inp: ByteArray) -> Unit> = Array(127) { Lexer::lexUnrecognizedSymbol }
+
+    init {
+        for (i in asciiDigit0..asciiDigit9) {
+            dispatchTable[i] = Lexer::lexNumber
+        }
+
+        for (i in asciiALower..asciiZLower) {
+            dispatchTable[i] = Lexer::lexWord
+        }
+        for (i in asciiAUpper..asciiZUpper) {
+            dispatchTable[i] = Lexer::lexWord
+        }
+        dispatchTable[asciiUnderscore.toInt()] = Lexer::lexWord
+        dispatchTable[asciiDot.toInt()] = Lexer::lexDotSomething
+        dispatchTable[asciiAt.toInt()] = Lexer::lexAtWord
+
+        for (i in operatorSymbols) {
+            dispatchTable[i.toInt()] = Lexer::lexOperator
+        }
+        dispatchTable[asciiParenLeft.toInt()] = Lexer::lexParenLeft
+        dispatchTable[asciiParenRight.toInt()] = Lexer::lexParenRight
+        dispatchTable[asciiDollar.toInt()] = Lexer::lexDollar
+        dispatchTable[asciiCurlyLeft.toInt()] = Lexer::lexCurlyLeft
+        dispatchTable[asciiCurlyRight.toInt()] = Lexer::lexCurlyRight
+        dispatchTable[asciiBracketLeft.toInt()] = Lexer::lexBracketLeft
+        dispatchTable[asciiBracketRight.toInt()] = Lexer::lexBracketRight
+
+        dispatchTable[asciiSpace.toInt()] = Lexer::lexSpace
+        dispatchTable[asciiCarriageReturn.toInt()] = Lexer::lexSpace
+        dispatchTable[asciiNewline.toInt()] = Lexer::lexNewline
+        dispatchTable[asciiSemicolon.toInt()] = Lexer::lexStatementTerminator
+
+        dispatchTable[asciiApostrophe.toInt()] = Lexer::lexStringLiteral
+        dispatchTable[asciiQuote.toInt()] = Lexer::lexVerbatimStringLiteral
+        dispatchTable[asciiSharp.toInt()] = Lexer::lexComment
+    }
+
+
+    private fun isLetter(a: Byte): Boolean {
+        return ((a >= asciiALower && a <= asciiZLower) || (a >= asciiAUpper && a <= asciiZUpper))
+    }
+
+    private fun isCapitalLetter(a: Byte): Boolean {
+        return a >= asciiAUpper && a <= asciiZUpper
+    }
+
+    private fun isLowercaseLetter(a: Byte): Boolean {
+        return a >= asciiALower && a <= asciiZLower
+    }
+
+    private fun isAlphanumeric(a: Byte): Boolean {
+        return isLetter(a) || isDigit(a)
+    }
+
+    private fun isDigit(a: Byte): Boolean {
+        return a >= asciiDigit0 && a <= asciiDigit9
+    }
+
+
+    /**
+     * Equality comparison for lexers.
+     */
+    fun equality(a: Lexer, b: Lexer): Boolean {
+        if (a.wasError != b.wasError || a.totalTokens != b.totalTokens || a.nextInd != b.nextInd
+            || a.errMsg != b.errMsg) {
+            return false
+        }
+        var currA: LexChunk? = a.firstChunk
+        var currB: LexChunk? = b.firstChunk
+        while (currA != null) {
+            if (currB == null) {
+                return false
+            }
+            val len = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
+            for (i in 0 until len) {
+                if (currA.tokens[i] != currB.tokens[i]) {
+                    return false
+                }
+            }
+            currA = currA.next
+            currB = currB.next
+        }
+
+        if (a.comments.totalTokens != b.comments.totalTokens) return false
+        var commA: CommentChunk? = a.comments.firstChunk
+        var commB: CommentChunk? = b.comments.firstChunk
+        while (commA != null) {
+            if (commB == null) {
+                return false
+            }
+            val len = if (commA == a.comments.currChunk) { a.comments.nextInd } else { COMMENTSZ }
+            for (i in 0 until len) {
+                if (commA.tokens[i] != commB.tokens[i]) {
+                    return false
+                }
+            }
+            commA = commA.next
+            commB = commB.next
+        }
+        return true
+    }
+
+
+    /**
+     * Pretty printer function for debugging purposes
+     */
+    fun printSideBySide(a: Lexer, b: Lexer): String {
+        val result = StringBuilder()
+        result.appendLine("Result | Expected")
+        result.appendLine("${if (a.wasError) {a.errMsg} else { "OK" }} | ${if (b.wasError) {b.errMsg} else { "OK" }}")
+        result.appendLine("tokenType [startByte lenBytes] (payload/lenTokens)")
+        var currA: LexChunk? = a.firstChunk
+        var currB: LexChunk? = b.firstChunk
+        while (true) {
+            if (currA != null) {
+                if (currB != null) {
+                    val lenA = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
+                    val lenB = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
+                    val len = lenA.coerceAtMost(lenB)
+                    for (i in 0 until len step 4) {
+                        printToken(currA, i, result)
+                        result.append(" | ")
+                        printToken(currB, i, result)
+                        result.appendLine("")
+                    }
+                    for (i in (len + 1) until lenA step 4) {
+                        printToken(currA, i, result)
+                        result.appendLine(" | ")
+                    }
+                    for (i in (len + 1) until lenB step 4) {
+                        result.append(" | ")
+                        printToken(currB, i, result)
+                        result.appendLine("")
+                    }
+                    currB = currB.next
+                } else {
+                    val len = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
+                    for (i in 0 until len step 4) {
+                        printToken(currA, i, result)
+                        result.appendLine(" | ")
+                    }
+                }
+                currA = currA.next
+            } else if (currB != null) {
+                val len = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
+                for (i in 0 until len step 4) {
+                    result.append(" | ")
+                    printToken(currB, i, result)
+                    result.appendLine("")
+                }
+                currB = currB.next
+            } else {
+                break
+            }
+
+
+        }
+        return result.toString()
+    }
+
+
+    private fun printToken(chunk: LexChunk, ind: Int, wr: StringBuilder) {
+        val startByte = chunk.tokens[ind + 2]
+        val lenBytes = chunk.tokens[ind + 3] and LOWER27BITS
+        val typeBits = (chunk.tokens[ind + 3] shr 27).toByte()
+        if (typeBits <= 8) {
+            val regType = RegularToken.values().firstOrNull { it.internalVal == typeBits }
+            val payload: Long = (chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1]
+            wr.append("$regType [${startByte} ${lenBytes}] $payload")
+        } else {
+            val punctType = PunctuationToken.values().firstOrNull { it.internalVal == typeBits }
+            val lenTokens = chunk.tokens[ind]
+            wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
+        }
+    }
+}
 
 }

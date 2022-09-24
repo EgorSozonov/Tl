@@ -1,11 +1,7 @@
 package compiler
+import compiler.lexer.*
 
 
-const val CHUNKSZ: Int = 10000 // Must be divisible by 4
-const val COMMENTSZ: Int = 100 // Must be divisible by 2
-const val LOWER32BITS: Long =  0x00000000FFFFFFFF
-const val LOWER27BITS: Int = 0x07FFFFFF
-const val MAXTOKENLEN = 134217728 // 2**27
 
 
 enum class RegularToken(val internalVal: Byte) {
