@@ -170,13 +170,20 @@ private fun lexDecNumber(inp: ByteArray) {
 
     while (j < inp.size && byteBuf.ind < 20) {
         val cByte = inp[j]
+        var indDot = 0
         if (isDigit(cByte)) {
-            byteBuf.add(cByte)
+            byteBuf.add(cByte - asciiDigit0)
         } else if (cByte == asciiUnderscore) {
             if (j == (inp.size - 1) || !isDigit(inp[j + 1])) {
                 errorOut(errorNumericEndUnderscore)
                 return
             }
+        } else if (cByte == asciiDot) {
+            if (indDot > 0) {
+                errorOut(errorNumericMultipleDots)
+                return
+            }
+            indDot = byteBuf.ind
         } else {
             break
         }
@@ -186,37 +193,18 @@ private fun lexDecNumber(inp: ByteArray) {
         errorOut(errorNumericIntWidthExceeded)
         return
     }
-}
-
-/**
- * Lexes a floating-point literal.
-
- */
-private fun lexFloatLiteral(inp: ByteArray) {
-
-}
-
-/**
- * Lexes a 64-bit signed integer literal.
- */
-private fun lexIntegerLiteral(inp: ByteArray) {
-
+    if (indDot > 0) {
+        val resultValue = calcFloating(0)
+        addToken(resultValue, i, j - i, RegularToken.litFloat)
+    } else {
+        val resultValue = calcInteger()
+        addToken(resultValue, i, j - i, RegularToken.litInt)
+    }
+    i = j
 }
 
 
-/**
- * Parses the floating-point numbers using just the "fast path" of David Gay's "strtod" function,
- * extended to 16 digits.
- * I.e. it handles only numbers with 15 digits or 16 digits with the first digit not 9,
- * and decimal powers up to 10^22.
- * Parsing the rest of numbers exactly is a huge and pretty useless effort. Nobody needs these
- * floating literals in text form.
- * Input: array of bytes that are digits (without leading zeroes), and the signed exponent base 10.
- * Example, for input text '1.23' this function would get the args: ([49 50 51] -2)
- */
-private fun calcFloating(inp: ByteArray, exponent: Int): Double {
-    return 0.0
-}
+
 
 
 /**
@@ -226,8 +214,34 @@ private fun calcFloating(inp: ByteArray, exponent: Int): Double {
  * Checks that the input fits into a signed 64-bit fixnum.
  */
 private fun lexHexNumber(inp: ByteArray) {
+    ensureSpaceForToken(2)
     byteBuf.clear()
     var j = i + 2
+    while (j < inp.size) {
+        val cByte = inp[j]
+        if (isDigit(cByte)) {
+            byteBuf.add(cByte - asciiDigit0)
+        } else if ((cByte >= asciiALower && cByte <= asciiFLower)) {
+            byteBuf.add(cByte - asciiALower + 10)
+        } else if ((cByte >= asciiAUpper && cByte <= asciiFUpper)) {
+            byteBuf.add(cByte - asciiAUpper + 10)
+        } else if (cByte == asciiUnderscore) {
+            if (j == inp.size - 1 || isHexDigit(inp[j + 1])) {
+                errorOut(errorNumericEndUnderscore)
+                return
+            }
+        } else {
+            break
+        }
+        if (byteBuf.ind > 16) {
+            errorOut(errorNumericBinWidthExceeded)
+            return
+        }
+        j++
+    }
+    val resultValue = calcHexNumber()
+    addToken(resultValue, i, j - i, RegularToken.litInt)
+    i = j
 }
 
 
@@ -268,6 +282,24 @@ private fun lexBinNumber(inp: ByteArray) {
     i = j
 }
 
+/**
+ * Parses the floating-point numbers using just the "fast path" of David Gay's "strtod" function,
+ * extended to 16 digits.
+ * I.e. it handles only numbers with 15 digits or 16 digits with the first digit not 9,
+ * and decimal powers up to 10^22.
+ * Parsing the rest of numbers exactly is a huge and pretty useless effort. Nobody needs these
+ * floating literals in text form.
+ * Input: array of bytes that are digits (without leading zeroes), and the signed exponent base 10.
+ * Example, for input text '1.23' this function would get the args: ([49 50 51] -2)
+ */
+private fun calcFloating(exponent: Int): Double {
+    return 0.0
+}
+
+
+private fun calcInteger(): Long {
+    return 0
+}
 
 private fun calcBinNumber(): Long {
     var result: Long = 0
@@ -285,6 +317,25 @@ private fun calcBinNumber(): Long {
     }
     if (byteBuf.ind == 64 && byteBuf.buffer[0] > 0) {
         result += Long.MIN_VALUE
+    }
+    return result
+}
+
+private fun calcBinNumber(): Long {
+    var result: Long = 0
+    var powerOfSixteen: Long = 1
+    var i = byteBuf.ind - 1
+
+    // If the literal is full 16 bits long, then its upper sign contains the sign bit
+    val loopLimit = if (byteBuf.ind == 64) { 0 } else { -1 }
+    while (i > loopLimit) {
+        result += powerOfTwo*byteBuf.buffer[i]
+        powerOfTwo = powerOfTwo shl 4
+        i--
+    }
+    if (byteBuf.ind == 16 && byteBuf.buffer[0] > 8) {
+        result += Long.MIN_VALUE
+        result += powerOfTwo*(byteBuf.buffer[0] - 8)
     }
     return result
 }
@@ -804,6 +855,9 @@ companion object {
         return a >= asciiDigit0 && a <= asciiDigit9
     }
 
+    private fun isHexDigit(a: Byte): Boolean {
+        return isDigit(a) || a >= asciiALower && a <= asciiFLower) || (a >= asciiAUpper && a <= asciiFUpper)
+    }
 
     /**
      * Equality comparison for lexers.
