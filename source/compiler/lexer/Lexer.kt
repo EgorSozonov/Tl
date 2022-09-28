@@ -1,6 +1,5 @@
-package compiler
+package compiler.lexer
 import utils.ByteBuffer
-import compiler.lexer.*
 import java.lang.StringBuilder
 import java.util.*
 
@@ -167,12 +166,12 @@ private fun lexNumber(inp: ByteArray) {
  */
 private fun lexDecNumber(inp: ByteArray) {
     var j = i
-
+    var indDot = 0
     while (j < inp.size && byteBuf.ind < 20) {
         val cByte = inp[j]
-        var indDot = 0
+
         if (isDigit(cByte)) {
-            byteBuf.add(cByte - asciiDigit0)
+            byteBuf.add((cByte - asciiDigit0).toByte())
         } else if (cByte == asciiUnderscore) {
             if (j == (inp.size - 1) || !isDigit(inp[j + 1])) {
                 errorOut(errorNumericEndUnderscore)
@@ -204,9 +203,6 @@ private fun lexDecNumber(inp: ByteArray) {
 }
 
 
-
-
-
 /**
  * Lexes a hexadecimal numeric literal (integer or floating-point).
  * Examples of accepted expressions: 0xCAFE_BABE, 0xdeadbeef, 0x123_45A
@@ -214,17 +210,18 @@ private fun lexDecNumber(inp: ByteArray) {
  * Checks that the input fits into a signed 64-bit fixnum.
  */
 private fun lexHexNumber(inp: ByteArray) {
-    ensureSpaceForToken(2)
+    checkPrematureEnd(2, inp)
     byteBuf.clear()
     var j = i + 2
     while (j < inp.size) {
         val cByte = inp[j]
         if (isDigit(cByte)) {
-            byteBuf.add(cByte - asciiDigit0)
+
+            byteBuf.add((cByte - asciiDigit0).toByte())
         } else if ((cByte >= asciiALower && cByte <= asciiFLower)) {
-            byteBuf.add(cByte - asciiALower + 10)
+            byteBuf.add((cByte - asciiALower + 10).toByte())
         } else if ((cByte >= asciiAUpper && cByte <= asciiFUpper)) {
-            byteBuf.add(cByte - asciiAUpper + 10)
+            byteBuf.add((cByte - asciiAUpper + 10).toByte())
         } else if (cByte == asciiUnderscore) {
             if (j == inp.size - 1 || isHexDigit(inp[j + 1])) {
                 errorOut(errorNumericEndUnderscore)
@@ -291,9 +288,10 @@ private fun lexBinNumber(inp: ByteArray) {
  * floating literals in text form.
  * Input: array of bytes that are digits (without leading zeroes), and the signed exponent base 10.
  * Example, for input text '1.23' this function would get the args: ([49 50 51] -2)
+ * Output: a 64-bit floating-point number, encoded as a long (same bits)
  */
-private fun calcFloating(exponent: Int): Double {
-    return 0.0
+private fun calcFloating(exponent: Int): Long {
+    return 0
 }
 
 
@@ -321,7 +319,7 @@ private fun calcBinNumber(): Long {
     return result
 }
 
-private fun calcBinNumber(): Long {
+private fun calcHexNumber(): Long {
     var result: Long = 0
     var powerOfSixteen: Long = 1
     var i = byteBuf.ind - 1
@@ -329,13 +327,13 @@ private fun calcBinNumber(): Long {
     // If the literal is full 16 bits long, then its upper sign contains the sign bit
     val loopLimit = if (byteBuf.ind == 64) { 0 } else { -1 }
     while (i > loopLimit) {
-        result += powerOfTwo*byteBuf.buffer[i]
-        powerOfTwo = powerOfTwo shl 4
+        result += powerOfSixteen*byteBuf.buffer[i]
+        powerOfSixteen = powerOfSixteen shl 4
         i--
     }
     if (byteBuf.ind == 16 && byteBuf.buffer[0] > 8) {
         result += Long.MIN_VALUE
-        result += powerOfTwo*(byteBuf.buffer[0] - 8)
+        result += powerOfSixteen*(byteBuf.buffer[0] - 8)
     }
     return result
 }
@@ -856,7 +854,7 @@ companion object {
     }
 
     private fun isHexDigit(a: Byte): Boolean {
-        return isDigit(a) || a >= asciiALower && a <= asciiFLower) || (a >= asciiAUpper && a <= asciiFUpper)
+        return isDigit(a) || (a >= asciiALower && a <= asciiFLower) || (a >= asciiAUpper && a <= asciiFUpper)
     }
 
     /**
