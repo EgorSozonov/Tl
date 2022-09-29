@@ -325,16 +325,16 @@ private fun calcHexNumber(): Long {
     var i = byteBuf.ind - 1
 
     // If the literal is full 16 bits long, then its upper sign contains the sign bit
-    val loopLimit = if (byteBuf.ind == 64) { 0 } else { -1 }
+    val loopLimit = -1 //if (byteBuf.ind == 16) { 0 } else { -1 }
     while (i > loopLimit) {
         result += powerOfSixteen*byteBuf.buffer[i]
         powerOfSixteen = powerOfSixteen shl 4
         i--
     }
-    if (byteBuf.ind == 16 && byteBuf.buffer[0] > 8) {
-        result += Long.MIN_VALUE
-        result += powerOfSixteen*(byteBuf.buffer[0] - 8)
-    }
+//    if (byteBuf.ind == 16 && byteBuf.buffer[0] > 8) {
+//        result += Long.MIN_VALUE
+//        result += 0xF000000000000000*(byteBuf.buffer[0] - 8)
+//    }
     return result
 }
 
@@ -684,6 +684,13 @@ fun build(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken): Le
     return this
 }
 
+/**
+ * For programmatic LexResult construction (builder pattern)
+ */
+fun build(payload: Double, startByte: Int, lenBytes: Int): Lexer {
+    appendToken(payload, startByte, lenBytes)
+    return this
+}
 
 /**
  * Finds the top-level punctuation opener by its index, and sets its lengths.
@@ -768,6 +775,16 @@ private fun appendToken(payload: Long, startBytes: Int, lenBytes: Int, tType: Re
     bump()
 }
 
+private fun appendToken(payload: Double, startBytes: Int, lenBytes: Int) {
+    ensureSpaceForToken()
+    checkLenOverflow(lenBytes)
+    val asLong: Long = payload.toBits()
+    currChunk.tokens[nextInd    ] = (asLong shr 32).toInt()
+    currChunk.tokens[nextInd + 1] = (asLong and LOWER32BITS).toInt()
+    currChunk.tokens[nextInd + 2] = startBytes
+    currChunk.tokens[nextInd + 3] = (RegularToken.litFloat.internalVal.toInt() shl 27) + lenBytes
+    bump()
+}
 
 private fun appendToken(startByte: Int, tType: PunctuationToken) {
     ensureSpaceForToken()
@@ -965,8 +982,14 @@ companion object {
         val typeBits = (chunk.tokens[ind + 3] shr 27).toByte()
         if (typeBits <= 8) {
             val regType = RegularToken.values().firstOrNull { it.internalVal == typeBits }
-            val payload: Long = (chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1]
-            wr.append("$regType [${startByte} ${lenBytes}] $payload")
+            if (regType != RegularToken.litFloat) {
+                val payload: Long = (chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong()
+                wr.append("$regType [${startByte} ${lenBytes}] $payload")
+            } else {
+                val payload: Double = ((chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong()).toBits()
+                wr.append("$regType [${startByte} ${lenBytes}] $payload")
+            }
+
         } else {
             val punctType = PunctuationToken.values().firstOrNull { it.internalVal == typeBits }
             val lenTokens = chunk.tokens[ind]

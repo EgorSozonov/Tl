@@ -151,6 +151,38 @@ inner class LexNumericTest {
             Lexer().error(errorNumericBinWidthExceeded)
         )
     }
+
+    @Test
+    fun `Hex numeric 1`() {
+        testInpOutp("0x15",
+            Lexer().buildPunct(0, 4, PunctuationToken.statement, 1)
+                .build(21, 0, 4, RegularToken.litInt)
+        )
+    }
+
+    @Test
+    fun `Hex numeric 2`() {
+        testInpOutp("0x05",
+            Lexer().buildPunct(0, 4, PunctuationToken.statement, 1)
+                .build(5, 0, 4, RegularToken.litInt)
+        )
+    }
+
+    @Test
+    fun `Hex numeric 3`() {
+        testInpOutp("0xFFFFFFFFFFFFFFFF",
+            Lexer().buildPunct(0, 18, PunctuationToken.statement, 1)
+                .build(-1L, 0, 18, RegularToken.litInt)
+        )
+    }
+
+    @Test
+    fun `Float numeric 1`() {
+        testInpOutp("1.234",
+            Lexer().buildPunct(0, 5, PunctuationToken.statement, 1)
+                   .build(1.234, 0, 5)
+        )
+    }
 }
 
 
