@@ -9,6 +9,7 @@ const val errorWordCapitalizationOrder    = "An identifier may not contain a cap
 const val errorWordUnderscoresOnlyAtStart = "Underscores are only allowed at start of word (snake case is forbidden)!"
 const val errorNumericEndUnderscore       = "Numeric literal cannot end with underscore!"
 const val errorNumericBinWidthExceeded    = "Integer literals cannot exceed 64 bit!"
+const val errorNumericFloatWidthExceeded  = "Floating-point literals cannot exceed 2**53 in the significant bits, and 22 in the decimal power!"
 const val errorNumericEmpty               = "Could not lex a numeric literal, empty sequence!"
 const val errorNumericMultipleDots        = "Multiple dots in numeric literals are not allowed!"
 const val errorNumericIntWidthExceeded    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!"

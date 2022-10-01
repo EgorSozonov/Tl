@@ -166,7 +166,7 @@ private fun lexNumber(inp: ByteArray) {
  */
 private fun lexDecNumber(inp: ByteArray) {
     var j = i
-    var indDot = 0
+    var decimalPower = 0
     while (j < inp.size && byteBuf.ind < 20) {
         val cByte = inp[j]
 
@@ -193,8 +193,12 @@ private fun lexDecNumber(inp: ByteArray) {
         return
     }
     if (indDot > 0) {
-        val resultValue = calcFloating(0)
-        addToken(resultValue, i, j - i, RegularToken.litFloat)
+        val resultValue = calcFloating(indDot)
+        if (resultValue == null) {
+            errorOut(errorNumericFloatWidthExceeded)
+            return
+        }
+        appendToken(resultValue, i, j - i)
     } else {
         val resultValue = calcInteger()
         addToken(resultValue, i, j - i, RegularToken.litInt)
@@ -286,17 +290,44 @@ private fun lexBinNumber(inp: ByteArray) {
  * and decimal powers up to 10^22.
  * Parsing the rest of numbers exactly is a huge and pretty useless effort. Nobody needs these
  * floating literals in text form.
- * Input: array of bytes that are digits (without leading zeroes), and the signed exponent base 10.
- * Example, for input text '1.23' this function would get the args: ([49 50 51] -2)
+ * Input: array of bytes that are digits (without leading zeroes), and the index of digit before which the dot was found.
+ * So for '0.5' the index would be 1.
+ * Example, for input text '1.23' this function would get the args: ([1 2 3] 1)
  * Output: a 64-bit floating-point number, encoded as a long (same bits)
  */
-private fun calcFloating(exponent: Int): Long {
-    return 0
+private fun calcFloating(powerOfTen: Int): Double? {
+
+    val maximumPreciselyRepresentedInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
+    if (!lessThanDecimalDigits(byteBuf, maximumPreciselyRepresentedInt)) { return null }
+
+    val significandLong: Double = calcInteger().toDouble()
+    return 0.0
+}
+
+/**
+ * Checks if a is less than b if they are regarded as arrays of decimal digits (0 to 9).
+ */
+private fun lessThanDecimalDigits(a: ByteBuffer, b: ByteArray): Boolean {
+    if (a.ind != b.size) return (a.ind < b.size)
+    for (i in 0 until a.ind) {
+        if (a.buffer[i] < b[i]) return true
+    }
+    return false
 }
 
 
 private fun calcInteger(): Long {
-    return 0
+    var powerOfTen = 1
+    var result: Long = 0
+    var i = byteBuf.ind - 1
+
+    val loopLimit = -1
+    while (i > loopLimit) {
+        result += powerOfTen*byteBuf.buffer[i]
+        powerOfTen *= 10
+        i--
+    }
+    return result
 }
 
 private fun calcBinNumber(): Long {
@@ -331,10 +362,6 @@ private fun calcHexNumber(): Long {
         powerOfSixteen = powerOfSixteen shl 4
         i--
     }
-//    if (byteBuf.ind == 16 && byteBuf.buffer[0] > 8) {
-//        result += Long.MIN_VALUE
-//        result += 0xF000000000000000*(byteBuf.buffer[0] - 8)
-//    }
     return result
 }
 
@@ -986,7 +1013,7 @@ companion object {
                 val payload: Long = (chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong()
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             } else {
-                val payload: Double = ((chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong()).toBits()
+                val payload: Double = Double.fromBits((chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong())
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             }
 
