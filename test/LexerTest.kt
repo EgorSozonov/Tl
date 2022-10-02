@@ -183,6 +183,38 @@ inner class LexNumericTest {
                    .build(1.234, 0, 5)
         )
     }
+
+    @Test
+    fun `Float numeric 2`() {
+        testInpOutp("00001.234",
+            Lexer().buildPunct(0, 9, PunctuationToken.statement, 1)
+                .build(1.234, 0, 9)
+        )
+    }
+
+    @Test
+    fun `Float numeric 3`() {
+        testInpOutp("10500.01",
+            Lexer().buildPunct(0, 8, PunctuationToken.statement, 1)
+                .build(10500.01, 0, 8)
+        )
+    }
+
+    @Test
+    fun `Float numeric 4`() {
+        testInpOutp("0.9",
+            Lexer().buildPunct(0, 3, PunctuationToken.statement, 1)
+                .build(0.9, 0, 3)
+        )
+    }
+
+    @Test
+    fun `Float numeric 5`() {
+        testInpOutp("100500.123456",
+            Lexer().buildPunct(0, 13, PunctuationToken.statement, 1)
+                .build(100500.123456, 0, 13)
+        )
+    }
 }
 
 

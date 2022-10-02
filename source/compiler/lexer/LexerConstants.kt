@@ -8,6 +8,7 @@ const val errorWordChunkStart             = "In an identifier, each word piece m
 const val errorWordCapitalizationOrder    = "An identifier may not contain a capitalized piece after an uncapitalized one!"
 const val errorWordUnderscoresOnlyAtStart = "Underscores are only allowed at start of word (snake case is forbidden)!"
 const val errorNumericEndUnderscore       = "Numeric literal cannot end with underscore!"
+const val errorNumericWidthExceeded       = "Numeric literal width is exceeded!"
 const val errorNumericBinWidthExceeded    = "Integer literals cannot exceed 64 bit!"
 const val errorNumericFloatWidthExceeded  = "Floating-point literals cannot exceed 2**53 in the significant bits, and 22 in the decimal power!"
 const val errorNumericEmpty               = "Could not lex a numeric literal, empty sequence!"
@@ -20,7 +21,7 @@ const val errorPunctuationWrongOpen       = "Wrong opening punctuation"
 
 
 /**
- * The ASCII notation for the lowest 64-bit integer, -9_223_372_036_854_775_808
+ * The ASCII notation for the absolute size of the lowest 64-bit integer, -9_223_372_036_854_775_808
  */
 val minInt = byteArrayOf(
     57, 50, 50, 51, 51, 55, 50, 48, 51, 54,

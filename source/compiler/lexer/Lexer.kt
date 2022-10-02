@@ -1,5 +1,4 @@
 package compiler.lexer
-import utils.ByteBuffer
 import java.lang.StringBuilder
 import java.util.*
 
@@ -15,8 +14,7 @@ var errMsg: String
 private var i: Int // current index inside input byte array
 private var comments: CommentStorage = CommentStorage()
 private val backtrack = Stack<Pair<PunctuationToken, Int>>()
-private val byteBuf: ByteBuffer = ByteBuffer(50)
-
+private val numeric: LexerNumerics = LexerNumerics()
 
 
 /**
@@ -166,41 +164,51 @@ private fun lexNumber(inp: ByteArray) {
  */
 private fun lexDecNumber(inp: ByteArray) {
     var j = i
-    var decimalPower = 0
-    while (j < inp.size && byteBuf.ind < 20) {
+    var digitsBeforeDot = 0 // this is relative to first digit, so it includes the leading zeroes
+    var metDot = false
+    var metNonzero = false
+    val maximumInd = (i + 40).coerceAtMost(inp.size)
+    while (j < maximumInd) {
         val cByte = inp[j]
 
         if (isDigit(cByte)) {
-            byteBuf.add((cByte - asciiDigit0).toByte())
+            if (metNonzero) {
+                numeric.add((cByte - asciiDigit0).toByte())
+                if (!metDot) { digitsBeforeDot++ }
+            } else if (cByte != asciiDigit0) {
+                metNonzero = true
+                numeric.add((cByte - asciiDigit0).toByte())
+                if (!metDot) { digitsBeforeDot++ }
+            }
         } else if (cByte == asciiUnderscore) {
             if (j == (inp.size - 1) || !isDigit(inp[j + 1])) {
                 errorOut(errorNumericEndUnderscore)
                 return
             }
         } else if (cByte == asciiDot) {
-            if (indDot > 0) {
+            if (metDot) {
                 errorOut(errorNumericMultipleDots)
                 return
             }
-            indDot = byteBuf.ind
+            metDot = true
         } else {
             break
         }
         j++
     }
     if (j < inp.size && isDigit(inp[j])) {
-        errorOut(errorNumericIntWidthExceeded)
+        errorOut(errorNumericWidthExceeded)
         return
     }
-    if (indDot > 0) {
-        val resultValue = calcFloating(indDot)
+    if (metDot) {
+        val resultValue = numeric.calcFloating(digitsBeforeDot - numeric.ind)
         if (resultValue == null) {
             errorOut(errorNumericFloatWidthExceeded)
             return
         }
-        appendToken(resultValue, i, j - i)
+        addToken(resultValue, i, j - i)
     } else {
-        val resultValue = calcInteger()
+        val resultValue = numeric.calcInteger()
         addToken(resultValue, i, j - i, RegularToken.litInt)
     }
     i = j
@@ -215,17 +223,17 @@ private fun lexDecNumber(inp: ByteArray) {
  */
 private fun lexHexNumber(inp: ByteArray) {
     checkPrematureEnd(2, inp)
-    byteBuf.clear()
+    numeric.clear()
     var j = i + 2
     while (j < inp.size) {
         val cByte = inp[j]
         if (isDigit(cByte)) {
 
-            byteBuf.add((cByte - asciiDigit0).toByte())
+            numeric.add((cByte - asciiDigit0).toByte())
         } else if ((cByte >= asciiALower && cByte <= asciiFLower)) {
-            byteBuf.add((cByte - asciiALower + 10).toByte())
+            numeric.add((cByte - asciiALower + 10).toByte())
         } else if ((cByte >= asciiAUpper && cByte <= asciiFUpper)) {
-            byteBuf.add((cByte - asciiAUpper + 10).toByte())
+            numeric.add((cByte - asciiAUpper + 10).toByte())
         } else if (cByte == asciiUnderscore) {
             if (j == inp.size - 1 || isHexDigit(inp[j + 1])) {
                 errorOut(errorNumericEndUnderscore)
@@ -234,13 +242,13 @@ private fun lexHexNumber(inp: ByteArray) {
         } else {
             break
         }
-        if (byteBuf.ind > 16) {
+        if (numeric.ind > 16) {
             errorOut(errorNumericBinWidthExceeded)
             return
         }
         j++
     }
-    val resultValue = calcHexNumber()
+    val resultValue = numeric.calcHexNumber()
     addToken(resultValue, i, j - i, RegularToken.litInt)
     i = j
 }
@@ -250,15 +258,15 @@ private fun lexHexNumber(inp: ByteArray) {
  * Lexes a decimal numeric literal (integer or floating-point).
  */
 private fun lexBinNumber(inp: ByteArray) {
-    byteBuf.clear()
+    numeric.clear()
 
     var j = i + 2
     while (j < inp.size) {
         val cByte = inp[j]
         if (cByte == asciiDigit0) {
-            byteBuf.add(0)
+            numeric.add(0)
         } else if (cByte == asciiDigit1) {
-            byteBuf.add(1)
+            numeric.add(1)
         } else if (cByte == asciiUnderscore) {
             if ((j == inp.size - 1 || (inp[j + 1] != asciiDigit0 && inp[j + 1] != asciiDigit1))) {
                 errorOut(errorNumericEndUnderscore)
@@ -267,7 +275,7 @@ private fun lexBinNumber(inp: ByteArray) {
         } else {
             break
         }
-        if (byteBuf.ind > 64) {
+        if (numeric.ind > 64) {
             errorOut(errorNumericBinWidthExceeded)
             return
         }
@@ -278,92 +286,12 @@ private fun lexBinNumber(inp: ByteArray) {
         return
     }
 
-    val resultValue = calcBinNumber()
+    val resultValue = numeric.calcBinNumber()
     addToken(resultValue, i, j - i, RegularToken.litInt)
     i = j
 }
 
-/**
- * Parses the floating-point numbers using just the "fast path" of David Gay's "strtod" function,
- * extended to 16 digits.
- * I.e. it handles only numbers with 15 digits or 16 digits with the first digit not 9,
- * and decimal powers up to 10^22.
- * Parsing the rest of numbers exactly is a huge and pretty useless effort. Nobody needs these
- * floating literals in text form.
- * Input: array of bytes that are digits (without leading zeroes), and the index of digit before which the dot was found.
- * So for '0.5' the index would be 1.
- * Example, for input text '1.23' this function would get the args: ([1 2 3] 1)
- * Output: a 64-bit floating-point number, encoded as a long (same bits)
- */
-private fun calcFloating(powerOfTen: Int): Double? {
 
-    val maximumPreciselyRepresentedInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
-    if (!lessThanDecimalDigits(byteBuf, maximumPreciselyRepresentedInt)) { return null }
-
-    val significandLong: Double = calcInteger().toDouble()
-    return 0.0
-}
-
-/**
- * Checks if a is less than b if they are regarded as arrays of decimal digits (0 to 9).
- */
-private fun lessThanDecimalDigits(a: ByteBuffer, b: ByteArray): Boolean {
-    if (a.ind != b.size) return (a.ind < b.size)
-    for (i in 0 until a.ind) {
-        if (a.buffer[i] < b[i]) return true
-    }
-    return false
-}
-
-
-private fun calcInteger(): Long {
-    var powerOfTen = 1
-    var result: Long = 0
-    var i = byteBuf.ind - 1
-
-    val loopLimit = -1
-    while (i > loopLimit) {
-        result += powerOfTen*byteBuf.buffer[i]
-        powerOfTen *= 10
-        i--
-    }
-    return result
-}
-
-private fun calcBinNumber(): Long {
-    var result: Long = 0
-    var powerOfTwo: Long = 1
-    var i = byteBuf.ind - 1
-
-    // If the literal is full 64 bits long, then its upper bit is the sign bit, so we don't read it
-    val loopLimit = if (byteBuf.ind == 64) { 0 } else { -1 }
-    while (i > loopLimit) {
-        if (byteBuf.buffer[i] > 0) {
-            result += powerOfTwo
-        }
-        powerOfTwo = powerOfTwo shl 1
-        i--
-    }
-    if (byteBuf.ind == 64 && byteBuf.buffer[0] > 0) {
-        result += Long.MIN_VALUE
-    }
-    return result
-}
-
-private fun calcHexNumber(): Long {
-    var result: Long = 0
-    var powerOfSixteen: Long = 1
-    var i = byteBuf.ind - 1
-
-    // If the literal is full 16 bits long, then its upper sign contains the sign bit
-    val loopLimit = -1 //if (byteBuf.ind == 16) { 0 } else { -1 }
-    while (i > loopLimit) {
-        result += powerOfSixteen*byteBuf.buffer[i]
-        powerOfSixteen = powerOfSixteen shl 4
-        i--
-    }
-    return result
-}
 
 private fun lexOperator(inp: ByteArray) {
     i += 1
@@ -502,8 +430,6 @@ private fun lexComment(inp: ByteArray) {
 }
 
 
-
-
 /**
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
@@ -515,14 +441,6 @@ private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray) {
 }
 
 
-init {
-    currChunk = firstChunk
-    i = 0
-    nextInd = 0
-    totalTokens = 0
-    wasError = false
-    errMsg = ""
-}
 
 
 /**
@@ -535,6 +453,14 @@ private fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: Regula
         wrapTokenInStatement(startByte, tType)
         appendToken(payload, startByte, lenBytes, tType)
     }
+}
+
+/**
+ * Adds a floating-point literal token
+ */
+private fun addToken(payload: Double, startByte: Int, lenBytes: Int) {
+    wrapTokenInStatement(startByte, RegularToken.litFloat)
+    appendToken(payload, startByte, lenBytes)
 }
 
 
@@ -834,6 +760,16 @@ private fun appendToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, 
 private fun bump() {
     nextInd += 4
     totalTokens += 1
+}
+
+
+init {
+    currChunk = firstChunk
+    i = 0
+    nextInd = 0
+    totalTokens = 0
+    wasError = false
+    errMsg = ""
 }
 
 
