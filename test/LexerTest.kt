@@ -531,6 +531,19 @@ bcjk
                 .build(3, 15, 1, RegularToken.litInt)
         )
     }
+    @Test
+    fun `Punctuation scope inside statement`() {
+        testInpOutp(
+            """foo bar { asdf }""",
+            Lexer().buildPunct(0, 8, PunctuationToken.statement, 2)
+                .build(0, 0, 3, RegularToken.word)
+                .build(0, 4, 3, RegularToken.word)
+                .buildPunct(9, 6, PunctuationToken.curlyBraces, 2)
+                .buildPunct(10, 5, PunctuationToken.statement, 1)
+                .build(0, 10, 4, RegularToken.word)
+        )
+
+    }
 
 
     @Test

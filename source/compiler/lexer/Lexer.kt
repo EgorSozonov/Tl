@@ -227,6 +227,7 @@ private fun lexDecNumber(inp: ByteArray) {
  * Examples of accepted expressions: 0xCAFE_BABE, 0xdeadbeef, 0x123_45A
  * Examples of NOT accepted expressions: 0xCAFE_babe, 0x_deadbeef, 0x123_
  * Checks that the input fits into a signed 64-bit fixnum.
+ * TODO add floating-point literals like 0x12FA.
  */
 private fun lexHexNumber(inp: ByteArray) {
     checkPrematureEnd(2, inp)
@@ -264,6 +265,7 @@ private fun lexHexNumber(inp: ByteArray) {
 
 /**
  * Lexes a decimal numeric literal (integer or floating-point).
+ * TODO add floating-point literals like 0b0101.
  */
 private fun lexBinNumber(inp: ByteArray) {
     numeric.clear()
@@ -302,6 +304,7 @@ private fun lexBinNumber(inp: ByteArray) {
 
 
 private fun lexOperator(inp: ByteArray) {
+
     i += 1
 }
 
@@ -522,7 +525,15 @@ private fun addStatement(startByte: Int) {
 private fun validateOpeningPunct(openingType: PunctuationToken) {
     if (openingType == PunctuationToken.curlyBraces) {
         if (backtrack.isEmpty()) return
-        if (backtrack.peek().first == PunctuationToken.parens && getPrevTokenType() == PunctuationToken.parens.internalVal.toInt()) return
+        val currScopeType = backtrack.peek().first
+        // the '({ stmt })' case
+        if (currScopeType == PunctuationToken.parens && getPrevTokenType() == PunctuationToken.parens.internalVal.toInt()) return
+        // the 'stmt { new scope }' case - the statement gets closed, and the new scope comes after it
+        if (currScopeType == PunctuationToken.statement) {
+            closeDollars()
+            closeStatement()
+            return
+        }
 
         errorOut(errorPunctuationWrongOpen)
     } else if (openingType == PunctuationToken.dotBrackets && getPrevTokenType() != RegularToken.word.internalVal.toInt()) {
