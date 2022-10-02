@@ -147,6 +147,7 @@ private fun lexNumber(inp: ByteArray) {
     val cByte = inp[i]
     if (i == inp.size - 1 && isDigit(cByte)) {
         addToken((cByte - asciiDigit0).toLong(), i, 1, RegularToken.litInt)
+        i++
         return
     }
 
@@ -164,7 +165,7 @@ private fun lexNumber(inp: ByteArray) {
  */
 private fun lexDecNumber(inp: ByteArray) {
     var j = i
-    var digitsBeforeDot = 0 // this is relative to first digit, so it includes the leading zeroes
+    var digitsAfterDot = 0 // this is relative to first digit, so it includes the leading zeroes
     var metDot = false
     var metNonzero = false
     val maximumInd = (i + 40).coerceAtMost(inp.size)
@@ -174,12 +175,11 @@ private fun lexDecNumber(inp: ByteArray) {
         if (isDigit(cByte)) {
             if (metNonzero) {
                 numeric.add((cByte - asciiDigit0).toByte())
-                if (!metDot) { digitsBeforeDot++ }
             } else if (cByte != asciiDigit0) {
                 metNonzero = true
                 numeric.add((cByte - asciiDigit0).toByte())
-                if (!metDot) { digitsBeforeDot++ }
             }
+            if (metDot) { digitsAfterDot++ }
         } else if (cByte == asciiUnderscore) {
             if (j == (inp.size - 1) || !isDigit(inp[j + 1])) {
                 errorOut(errorNumericEndUnderscore)
@@ -196,12 +196,14 @@ private fun lexDecNumber(inp: ByteArray) {
         }
         j++
     }
+
     if (j < inp.size && isDigit(inp[j])) {
         errorOut(errorNumericWidthExceeded)
         return
     }
+
     if (metDot) {
-        val resultValue = numeric.calcFloating(digitsBeforeDot - numeric.ind)
+        val resultValue = numeric.calcFloating(-digitsAfterDot)
         if (resultValue == null) {
             errorOut(errorNumericFloatWidthExceeded)
             return

@@ -177,6 +177,13 @@ inner class LexNumericTest {
     }
 
     @Test
+    fun `Hex numeric too long`() {
+        testInpOutp("0xFFFFFFFFFFFFFFFF0",
+            Lexer().error(errorNumericBinWidthExceeded)
+        )
+    }
+
+    @Test
     fun `Float numeric 1`() {
         testInpOutp("1.234",
             Lexer().buildPunct(0, 5, PunctuationToken.statement, 1)
@@ -213,6 +220,54 @@ inner class LexNumericTest {
         testInpOutp("100500.123456",
             Lexer().buildPunct(0, 13, PunctuationToken.statement, 1)
                 .build(100500.123456, 0, 13)
+        )
+    }
+
+    @Test
+    fun `Float numeric big`() {
+        testInpOutp("9007199254740992.0",
+            Lexer().buildPunct(0, 18, PunctuationToken.statement, 1)
+                .build(9007199254740992.0, 0, 18)
+        )
+    }
+
+    @Test
+    fun `Float numeric too big`() {
+        testInpOutp("9007199254740993.0",
+            Lexer().error(errorNumericFloatWidthExceeded)
+        )
+    }
+
+
+    @Test
+    fun `Float numeric big exponent`() {
+        testInpOutp("1005001234560000000000.0",
+            Lexer().buildPunct(0, 24, PunctuationToken.statement, 1)
+                .build(1005001234560000000000.0, 0, 24)
+        )
+    }
+
+    @Test
+    fun `Float numeric tiny`() {
+        testInpOutp("0.0000000000000000000003",
+            Lexer().buildPunct(0, 24, PunctuationToken.statement, 1)
+                .build(0.0000000000000000000003, 0, 24)
+        )
+    }
+
+    @Test
+    fun `Int numeric 1`() {
+        testInpOutp("3",
+            Lexer().buildPunct(0, 1, PunctuationToken.statement, 1)
+                .build(3, 0, 1, RegularToken.litInt)
+        )
+    }
+
+    @Test
+    fun `Int numeric 2`() {
+        testInpOutp("12",
+            Lexer().buildPunct(0, 2, PunctuationToken.statement, 1)
+                .build(12, 0, 2, RegularToken.litInt)
         )
     }
 }

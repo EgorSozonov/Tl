@@ -100,7 +100,7 @@ fun calcFloating(powerOfTen: Int): Double? {
     // Transfer of decimal powers from significand to exponent to make them both fit within their respective limits
     // (10000 -6) -> (1 -2); (10000 -3) -> (10 0)
     val transfer = if (significandNeeds >= exponentNeeds) {
-            if (ind - significandNeeds == 16 && significandNeeds + 1 <= exponentCanAccept) {
+            if (ind - significandNeeds == 16 && significandNeeds < significantCan && significandNeeds + 1 <= exponentCanAccept) {
                 significandNeeds + 1
             } else {
                 significandNeeds
@@ -112,7 +112,8 @@ fun calcFloating(powerOfTen: Int): Double? {
     val finalPowerTen = powerOfTen + transfer
 
     val maximumPreciselyRepresentedInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
-    if (!lessThanDecimalDigits(maximumPreciselyRepresentedInt)) { return null }
+    if (!integerWithinDigits(maximumPreciselyRepresentedInt)) {
+        return null }
 
     val significandInt = calcInteger()
     val significand: Double = significandInt.toDouble() // precise
@@ -123,14 +124,15 @@ fun calcFloating(powerOfTen: Int): Double? {
 
 
 /**
- * Checks if a is less than b if they are regarded as arrays of decimal digits (0 to 9).
+ * Checks if the current byteBuf <= b if they are regarded as arrays of decimal digits (0 to 9).
  */
-private fun lessThanDecimalDigits(b: ByteArray): Boolean {
+private fun integerWithinDigits(b: ByteArray): Boolean {
     if (ind != b.size) return (ind < b.size)
     for (i in 0 until ind) {
         if (buffer[i] < b[i]) return true
+        if (buffer[i] > b[i]) return false
     }
-    return false
+    return true
 }
 
 
