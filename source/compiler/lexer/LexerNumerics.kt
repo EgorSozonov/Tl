@@ -15,7 +15,13 @@ init {
 }
 
 
-fun calcInteger(): Long {
+fun calcInteger(): Long? {
+    if (ind > 19 || !integerWithinDigits(maxInt)) return null
+    return calcIntegerWithinLimits()
+}
+
+
+private fun calcIntegerWithinLimits(): Long {
     var powerOfTen = 1L
     var result = 0L
     var i = ind - 1
@@ -28,6 +34,7 @@ fun calcInteger(): Long {
     }
     return result
 }
+
 
 fun calcBinNumber(): Long {
     var result: Long = 0
@@ -48,6 +55,7 @@ fun calcBinNumber(): Long {
     }
     return result
 }
+
 
 fun calcHexNumber(): Long {
     var result: Long = 0
@@ -113,9 +121,10 @@ fun calcFloating(powerOfTen: Int): Double? {
 
     val maximumPreciselyRepresentedInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
     if (!integerWithinDigits(maximumPreciselyRepresentedInt)) {
-        return null }
+        return null
+    }
 
-    val significandInt = calcInteger()
+    val significandInt = calcIntegerWithinLimits()
     val significand: Double = significandInt.toDouble() // precise
     val exponent: Double = 10.0.pow(finalPowerTen.absoluteValue.toDouble())
 

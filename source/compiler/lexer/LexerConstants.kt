@@ -21,19 +21,11 @@ const val errorPunctuationWrongOpen       = "Wrong opening punctuation"
 
 
 /**
- * The ASCII notation for the absolute size of the lowest 64-bit integer, -9_223_372_036_854_775_808
- */
-val minInt = byteArrayOf(
-    57, 50, 50, 51, 51, 55, 50, 48, 51, 54,
-    56, 53, 52, 55, 55, 53, 56, 48, 56
-)
-
-/**
- * The ASCII notation for the highest 64-bit integer, 9_223_372_036_854_775_807
+ * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
  */
 val maxInt = byteArrayOf(
-    57, 50, 50, 51, 51, 55, 50, 48, 51, 54,
-    56, 53, 52, 55, 55, 53, 56, 48, 55
+    9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
+    8, 5, 4, 7, 7, 5, 8, 0, 7
 )
 
 const val asciiALower: Byte = 97

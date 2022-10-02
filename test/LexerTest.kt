@@ -270,6 +270,36 @@ inner class LexNumericTest {
                 .build(12, 0, 2, RegularToken.litInt)
         )
     }
+
+    @Test
+    fun `Int numeric 3`() {
+        testInpOutp("0987_12",
+            Lexer().buildPunct(0, 7, PunctuationToken.statement, 1)
+                .build(98712, 0, 7, RegularToken.litInt)
+        )
+    }
+
+    @Test
+    fun `Int numeric 4`() {
+        testInpOutp("9_223_372_036_854_775_807",
+            Lexer().buildPunct(0, 25, PunctuationToken.statement, 1)
+                .build(9_223_372_036_854_775_807L, 0, 25, RegularToken.litInt)
+        )
+    }
+
+    @Test
+    fun `Int numeric error 1`() {
+        testInpOutp("3_",
+            Lexer().error(errorNumericEndUnderscore)
+        )
+    }
+
+    @Test
+    fun `Int numeric error 2`() {
+        testInpOutp("9_223_372_036_854_775_808",
+            Lexer().error(errorNumericIntWidthExceeded)
+        )
+    }
 }
 
 
@@ -353,6 +383,7 @@ inner class LexPunctuationTest {
         )
     }
 
+
     @Test
     fun `Parens nested`() {
         testInpOutp(
@@ -367,6 +398,7 @@ inner class LexPunctuationTest {
                 .build(0, 17, 3, RegularToken.word)
         )
     }
+
 
     @Test
     fun `Parens unclosed`() {
@@ -384,6 +416,7 @@ inner class LexPunctuationTest {
         )
     }
 
+
     @Test
     fun `Brackets simple`() {
         testInpOutp(
@@ -395,6 +428,7 @@ inner class LexPunctuationTest {
                 .build(0, 5, 3, RegularToken.word)
         )
     }
+
 
     @Test
     fun `Brackets nested`() {
@@ -410,6 +444,7 @@ inner class LexPunctuationTest {
                 .build(0, 17, 3, RegularToken.word)
         )
     }
+
 
     @Test
     fun `Dot-brackets simple`() {
@@ -437,6 +472,7 @@ inner class LexPunctuationTest {
         )
     }
 
+
     @Test
     fun `Curly brace with statements`() {
         testInpOutp(
@@ -450,6 +486,49 @@ bcjk
                        .build(0, 2, 4, RegularToken.word)
                        .buildPunct(8, 4, PunctuationToken.statement, 1)
                        .build(0, 8, 4, RegularToken.word)
+        )
+    }
+
+
+    @Test
+    fun `Dollar 1`() {
+        testInpOutp(
+            """foo $ a b""",
+            Lexer().buildPunct(0, 9, PunctuationToken.statement, 4)
+                .build(0, 0, 3, RegularToken.word)
+                .buildPunct(5, 4, PunctuationToken.dollar, 2)
+                .build(0, 6, 1, RegularToken.word)
+                .build(0, 8, 1, RegularToken.word)
+        )
+    }
+
+    @Test
+    fun `Dollar 2`() {
+        testInpOutp(
+            """foo $ a b $ 6 5""",
+            Lexer().buildPunct(0, 15, PunctuationToken.statement, 7)
+                .build(0, 0, 3, RegularToken.word)
+                .buildPunct(5, 10, PunctuationToken.dollar, 5)
+                .build(0, 6, 1, RegularToken.word)
+                .build(0, 8, 1, RegularToken.word)
+                .buildPunct(11, 4, PunctuationToken.dollar, 2)
+                .build(6, 12, 1, RegularToken.litInt)
+                .build(5, 14, 1, RegularToken.litInt)
+        )
+    }
+
+    @Test
+    fun `Dollar 3`() {
+        testInpOutp(
+            """foo (bar $ 1 2 3)""",
+            Lexer().buildPunct(0, 17, PunctuationToken.statement, 7)
+                .build(0, 0, 3, RegularToken.word)
+                .buildPunct(5, 11, PunctuationToken.parens, 5)
+                .build(0, 5, 3, RegularToken.word)
+                .buildPunct(10, 6, PunctuationToken.dollar, 3)
+                .build(1, 11, 1, RegularToken.litInt)
+                .build(2, 13, 1, RegularToken.litInt)
+                .build(3, 15, 1, RegularToken.litInt)
         )
     }
 

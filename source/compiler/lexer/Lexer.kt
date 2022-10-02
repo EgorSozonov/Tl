@@ -156,6 +156,7 @@ private fun lexNumber(inp: ByteArray) {
         asciiBLower -> { lexBinNumber(inp) }
         else ->        { lexDecNumber(inp) }
     }
+    numeric.clear()
 }
 
 
@@ -211,6 +212,10 @@ private fun lexDecNumber(inp: ByteArray) {
         addToken(resultValue, i, j - i)
     } else {
         val resultValue = numeric.calcInteger()
+        if (resultValue == null) {
+            errorOut(errorNumericIntWidthExceeded)
+            return
+        }
         addToken(resultValue, i, j - i, RegularToken.litInt)
     }
     i = j
@@ -252,6 +257,7 @@ private fun lexHexNumber(inp: ByteArray) {
     }
     val resultValue = numeric.calcHexNumber()
     addToken(resultValue, i, j - i, RegularToken.litInt)
+    numeric.clear()
     i = j
 }
 
@@ -535,6 +541,7 @@ private fun validateOpeningPunct(openingType: PunctuationToken) {
  * with its token length.
  */
 private fun closePunctuation(tType: PunctuationToken) {
+    closeDollars()
     if (tType == PunctuationToken.statement) {
         closeStatement()
     } else {
@@ -543,6 +550,7 @@ private fun closePunctuation(tType: PunctuationToken) {
     i += 1
 }
 
+
 /**
  * The statement closer function - i.e. called for a newline or a semi-colon.
  * 1) Only close the current scope if it's a statement and non-empty. This protects against
@@ -550,12 +558,24 @@ private fun closePunctuation(tType: PunctuationToken) {
  * 2) If it closes a statement, then it also opens up a new statement scope
  */
 private fun closeStatement() {
+    if (backtrack.isEmpty()) return
+
     var top = backtrack.peek()
     if (top.first == PunctuationToken.statement) {
         top = backtrack.pop()
         setPunctuationLengths(top.second)
     }
 }
+
+
+private fun closeDollars() {
+    var top: Pair<PunctuationToken, Int>
+    while (!backtrack.empty() && backtrack.peek().first == PunctuationToken.dollar) {
+        top = backtrack.pop()
+        setPunctuationLengths(top.second)
+    }
+}
+
 
 private fun closeRegularPunctuation(tType: PunctuationToken) {
     if (backtrack.empty()) {
@@ -710,7 +730,8 @@ fun error(msg: String): Lexer {
  * Finalizes the lexing of a single input: checks for unclosed scopes, and closes an open statement, if any.
  */
 private fun finalize() {
-    if (!wasError && !backtrack.empty()) {
+    if (!wasError) {
+        closeDollars()
         closeStatement()
 
         if (!backtrack.empty()) {
