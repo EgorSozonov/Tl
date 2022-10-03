@@ -633,10 +633,32 @@ bcjk ({a; b})
 @Nested
 inner class LexOperatorTest {
     @Test
-    fun `Operator simple`() {
+    fun `Operator simple 1`() {
         testInpOutp("+",
         Lexer().buildPunct(0, 1, PunctuationToken.statement, 1)
             .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 0, 1, RegularToken.operatorTok))
+    }
+
+    @Test
+    fun `Operator simple 2`() {
+        testInpOutp("+ - / * ** && || ^ <- -> := => >=. <=.",
+            Lexer()
+                .buildPunct(0, 38, PunctuationToken.statement, 14)
+                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 0, 1, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.minus, 0, false).toInt(), 2, 1, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.divBy, 0, false).toInt(), 4, 1, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.times, 0, false).toInt(), 6, 1, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.exponentiation, 0, false).toInt(), 8, 2, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.boolAnd, 0, false).toInt(), 11, 2, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.boolOr, 0, false).toInt(), 14, 2, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.xor, 0, false).toInt(), 17, 1, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.arrowLeft, 0, false).toInt(), 19, 2, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.arrowRight, 0, false).toInt(), 22, 2, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.mutation, 0, false).toInt(), 25, 2, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.arrowFat, 0, false).toInt(), 28, 2, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.greaterThanEqInterv, 0, false).toInt(), 31, 3, RegularToken.operatorTok)
+                .build(OperatorToken(OperatorType.lessThanEqInterval, 0, false).toInt(), 35, 3, RegularToken.operatorTok)
+        )
     }
 
     @Test
@@ -657,14 +679,35 @@ inner class LexOperatorTest {
                 .build(0, 5, 1, RegularToken.word))
     }
 
+
     @Test
     fun `Operator assignment 2`() {
+        testInpOutp("a ||= b",
+            Lexer().buildPunct(0, 7, PunctuationToken.statement, 3)
+                .build(0, 0, 1, RegularToken.word)
+                .build(OperatorToken(OperatorType.boolOr, 0, true).toInt(), 2, 3, RegularToken.operatorTok)
+                .build(0, 6, 1, RegularToken.word))
+    }
+
+    @Test
+    fun `Operator assignment 3`() {
         testInpOutp("a ||=. b",
             Lexer().buildPunct(0, 8, PunctuationToken.statement, 3)
                 .build(0, 0, 1, RegularToken.word)
                 .build(OperatorToken(OperatorType.boolOr, 1, true).toInt(), 2, 4, RegularToken.operatorTok)
                 .build(0, 7, 1, RegularToken.word))
     }
+
+    @Test
+    fun `Operator assignment 4`() {
+        testInpOutp("a ||=: b",
+            Lexer().buildPunct(0, 8, PunctuationToken.statement, 3)
+                .build(0, 0, 1, RegularToken.word)
+                .build(OperatorToken(OperatorType.boolOr, 2, true).toInt(), 2, 4, RegularToken.operatorTok)
+                .build(0, 7, 1, RegularToken.word))
+    }
+
+
 }
 
 }

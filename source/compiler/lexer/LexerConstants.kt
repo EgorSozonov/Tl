@@ -91,19 +91,20 @@ val operatorStartSymbols = byteArrayOf(
  * It's used to lex operator symbols using left-to-right search.
  */
 val operatorSymbols = byteArrayOf(
-    aExclamation, aEquals, 0,      aExclamation, 0, 0,            aPercent, 0, 0,              aAmpersand, aAmpersand, 0,
-    aAmpersand, 0, 0,              aTimes, aTimes, 0,             aTimes, 0, 0,                aPlus, aPlus, 0,
-    aPlus, 0, 0,                   aMinus, aMinus, 0,             aMinus, aGreaterThan, 0,     aMinus, 0, 0,
-    aDot, aDot, aLessThan,         aDot, aDot, 0,                 aDivBy, 0, 0,                aColon, aGreaterThan, 0,
-    aColon, aEquals, 0,            aColon, 0, 0,                  aLessThan, aEquals, aDot,    aLessThan, aDot, 0,
-    aLessThan, aLessThan, 0,       aLessThan, aEquals, 0,         aLessThan, aMinus, 0,        aLessThan, 0, 0,
-    aEquals, aEquals, 0,           aEquals, 0, 0,                 aGreaterThan, aEquals, aDot, aGreaterThan, aDot, 0,
-    aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0, aGreaterThan, 0, 0,          aCaret, 0, 0,
-    aPipe, aPipe, 0,               aPipe, 0, 0,
+    aExclamation, aEquals, 0,   aExclamation, 0, 0,            aPercent, 0, 0,                aAmpersand, aAmpersand, 0,
+    aAmpersand, 0, 0,           aTimes, aTimes, 0,             aTimes, 0, 0,                  aPlus, aPlus, 0,
+    aPlus, 0, 0,                aMinus, aMinus, 0,             aMinus, aGreaterThan, 0,       aMinus, 0, 0,
+    aDot, aDot, aLessThan,      aDot, aDot, 0,                 aDivBy, 0, 0,                  aColon, aGreaterThan, 0,
+    aColon, aEquals, 0,         aColon, 0, 0,                  aLessThan, aEquals, aDot,      aLessThan, aDot, 0,
+    aLessThan, aLessThan, 0,    aLessThan, aEquals, 0,         aLessThan, aMinus, 0,          aLessThan, 0, 0,
+    aEquals, aEquals, 0,        aEquals, aGreaterThan, 0,      aEquals, 0, 0,                 aGreaterThan, aEquals, aDot,
+    aGreaterThan, aDot, 0,      aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0, aGreaterThan, 0, 0,
+    aCaret, 0, 0,               aPipe, aPipe, 0,               aPipe, 0, 0,
 )
 
 /**
- * Marks the 10 "equalable & extensible" operators, i.e. ones with 5 extra variations
+ * Marks the 10 "equalable & extensible" operators, i.e. the ones with 5 extra variations.
+ * Order must exactly agree with 'operatorSymbols'
  */
 val operatorExtensibility = byteArrayOf(
     0, 0, 1, 1,
@@ -113,42 +114,9 @@ val operatorExtensibility = byteArrayOf(
     0, 0, 0, 0,
     1, 0, 0, 0,
     0, 0, 0, 0,
-    0, 1, 0, 1,
-    1, 0,
+    0, 0, 1, 0,
+    1, 1, 0,
 )
-/*
-!  33 boolean & bitwise negation
-!= 33 boolean non-equality
-%  37 remainder of division
-& 38  function composition
-&& 38 boolean and
-* 42
-+ 43
-++ 43 increment
-- 45
--- 45 decrement
--> 45  syntax arrow
-.. 46  range operator
-..< 46 half-open range operator
-/ 47
-: 58  type declaration
-:> 58 arrow for the 'else' case
-< 60  LT
-<. 60 interval comparison operators
-<< 60 bitwise shift left
-<= 60 LTEQ
-<=. 60
-= 61  local immutable definition
-== 61 boolean equality
-> 62  GT
->. 62
->= 62 GTEQ
->=. 62
->> 62 bitwise shift right
-^ 94 exponentiation
-| 124  sum type definition
-|| 124 boolean or
- */
 
 const val CHUNKSZ: Int = 10000 // Must be divisible by 4
 const val COMMENTSZ: Int = 100 // Must be divisible by 2

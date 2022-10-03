@@ -84,19 +84,8 @@ class CommentStorage {
 }
 
 
-/*
-    aExclamation, aEquals, 0,      aExclamation, 0, 0,            aPercent, 0, 0,              aAmpersand, aAmpersand, 0,
-    aAmpersand, 0, 0,              aTimes, aTimes, 0,             aTimes, 0, 0,                aPlus, aPlus, 0,
-    aPlus, 0, 0,                   aMinus, aMinus, 0,             aMinus, aGreaterThan, 0,     aMinus, 0, 0,
-    aDot, aDot, aLessThan,         aDot, aDot, 0,                 aDivBy, 0, 0,                aColon, aGreaterThan, 0,
-    aColon, aEquals, 0,            aColon, 0, 0,                  aLessThan, aEquals, aDot,    aLessThan, aDot, 0,
-    aLessThan, aLessThan, 0,       aLessThan, aEquals, 0,         aLessThan, aMinus, 0,        aLessThan, 0, 0,
-    aEquals, aEquals, 0,           aEquals, 0, 0,                 aGreaterThan, aEquals, aDot, aGreaterThan, aDot, 0,
-    aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0, aGreaterThan, 0, 0,          aCaret, 0, 0,
-    aPipe, aPipe, 0,               aPipe, 0, 0,
- */
 /**
- * Values must agree with the LexerConstants.operatorSymbols array
+ * Values must exactly agree with the LexerConstants.operatorSymbols array. The order is the same.
  */
 enum class OperatorType(val value: Int) {
     notEqualTo(0),           boolNegation(1),        remainder(2),          boolAnd(3),
@@ -105,9 +94,9 @@ enum class OperatorType(val value: Int) {
     rangeHalf(12),           range(13),              divBy(14),             elseBranch(15),
     mutation(16),            colon(17),              lessThanEqInterval(18), lessThanInterval(19),
     bitshiftLeft(20),        lessThanEq(21),         arrowLeft(22),         lessThan(23),
-    equality(24),            immDefinition(25),      greaterThanEqInterv(26), greaterThanInterv(27),
-    greaterThanEq(28),       bitshiftRight(29),      greaterThan(30),         xor(31),
-    boolOr(32),              pipe(33),
+    equality(24),            arrowFat(25),            immDefinition(26),      greaterThanEqInterv(27),
+    greaterThanInterv(28),   greaterThanEq(29),       bitshiftRight(30),      greaterThan(31),
+    xor(32),                 boolOr(33),              pipe(34),
 }
 
 
