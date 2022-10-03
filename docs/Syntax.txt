@@ -49,31 +49,38 @@ Operators
 _____________________
 
 
-structural (6):
+structural (11):
 
 =   local immutable definition
+:=  mutable assignment
 :   type declaration
 ->  syntax arrow
+=>  # unused but probably will
+<-  # unused but probably will
 :>  arrow for the 'else' case
-|   sum type definition
+|   sum type definition + pattern match union
 ..  range operator
 ..< half-open range operator
+&   function composition
 
-equalable (11 * 6):
+
+equalable & extensible (11 * 6):
 
 +
 -
 *
 /
 %   remainder of division
+**  exponentiation
 &&  boolean and
 ||  boolean or
+^   boolean XOR
 <<  bitwise shift left
 >>  bitwise shift right
->>> unsigned bitwise right shift
-**  exponentiation
+    (including >>. unsigned bitwise right shift)
 
-# '* 6' means each has 5 variants: +, +., +:, +=, +.=, +:=
+
+# '* 6' means each has 5 variants: +, +., +:, +=, +=., +=:
 
 
 equality & comparison (10):
@@ -86,8 +93,8 @@ equality & comparison (10):
 <=  LTEQ
 <. interval comparison operators
 >. # example: 5 >. x >. 1 is equivalent to 5 > x && x > 1
-<.=
->.=
+<=.
+>=.
 
 
 
@@ -99,9 +106,7 @@ unary (4):
 -  numeric negation
 
 
-
-^   # unclaimed
-&   # unclaimed - function composition?
+~   # unclaimed
 ::  # unclaimed
 
 

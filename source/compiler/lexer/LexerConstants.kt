@@ -1,7 +1,7 @@
 package compiler.lexer
 
 const val errorLengthOverflow             = "Token length overflow"
-const val errorNonASCII                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!"
+const val errorNona                       = "Non-a symbols are not allowed in code - only inside comments & string literals!"
 const val errorPrematureEndOfInput        = "Premature end of input"
 const val errorUnrecognizedByte           = "Unrecognized byte in source code!"
 const val errorWordChunkStart             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!"
@@ -18,75 +18,141 @@ const val errorPunctuationExtraOpening    = "Extra opening punctuation"
 const val errorPunctuationUnmatched       = "Unmatched closing punctuation"
 const val errorPunctuationExtraClosing    = "Extra closing punctuation"
 const val errorPunctuationWrongOpen       = "Wrong opening punctuation"
+const val errorOperatorUnknown            = "Unknown operator"
 
 
 /**
- * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
+ * The a notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
  */
 val maxInt = byteArrayOf(
     9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
     8, 5, 4, 7, 7, 5, 8, 0, 7
 )
 
-const val asciiALower: Byte = 97
-const val asciiBLower: Byte = 98
-const val asciiFLower: Byte = 102
-const val asciiXLower: Byte = 120
-const val asciiZLower: Byte = 122
-const val asciiAUpper: Byte = 65
-const val asciiFUpper: Byte = 70
-const val asciiZUpper: Byte = 90
-const val asciiDigit0: Byte = 48
-const val asciiDigit1: Byte = 49
-const val asciiDigit9: Byte = 57
+const val aALower: Byte = 97
+const val aBLower: Byte = 98
+const val aFLower: Byte = 102
+const val aXLower: Byte = 120
+const val aZLower: Byte = 122
+const val aAUpper: Byte = 65
+const val aFUpper: Byte = 70
+const val aZUpper: Byte = 90
+const val aDigit0: Byte = 48
+const val aDigit1: Byte = 49
+const val aDigit9: Byte = 57
 
-const val asciiPlus: Byte = 43
-const val asciiMinus: Byte = 45
-const val asciiTimes: Byte = 42
-const val asciiDivBy: Byte = 47
-const val asciiDot: Byte = 46
-const val asciiPercent: Byte = 37
+const val aPlus: Byte = 43
+const val aMinus: Byte = 45
+const val aTimes: Byte = 42
+const val aDivBy: Byte = 47
+const val aDot: Byte = 46
+const val aPercent: Byte = 37
 
-const val asciiParenLeft: Byte = 40
-const val asciiParenRight: Byte = 41
-const val asciiCurlyLeft: Byte = 123
-const val asciiCurlyRight: Byte = 125
-const val asciiBracketLeft: Byte = 91
-const val asciiBracketRight: Byte = 93
-const val asciiPipe: Byte = 124
-const val asciiAmpersand: Byte = 38
-const val asciiTilde: Byte = 126
-const val asciiBackslash: Byte = 92
+const val aParenLeft: Byte = 40
+const val aParenRight: Byte = 41
+const val aCurlyLeft: Byte = 123
+const val aCurlyRight: Byte = 125
+const val aBracketLeft: Byte = 91
+const val aBracketRight: Byte = 93
+const val aPipe: Byte = 124
+const val aAmpersand: Byte = 38
+const val aTilde: Byte = 126
+const val aBackslash: Byte = 92
 
-const val asciiSpace: Byte = 32
-const val asciiNewline: Byte = 10
-const val asciiCarriageReturn: Byte = 13
+const val aSpace: Byte = 32
+const val aNewline: Byte = 10
+const val aCarriageReturn: Byte = 13
 
-const val asciiApostrophe: Byte = 39
-const val asciiQuote: Byte = 34
-const val asciiSharp: Byte = 35
-const val asciiDollar: Byte = 36
-const val asciiUnderscore: Byte = 95
-const val asciiCaret: Byte = 94
-const val asciiAt: Byte = 64
-const val asciiColon: Byte = 58
-const val asciiSemicolon: Byte = 59
-const val asciiExclamation: Byte = 33
-const val asciiQuestion: Byte = 63
-const val asciiEquals: Byte = 61
+const val aApostrophe: Byte = 39
+const val aQuote: Byte = 34
+const val aSharp: Byte = 35
+const val aDollar: Byte = 36
+const val aUnderscore: Byte = 95
+const val aCaret: Byte = 94
+const val aAt: Byte = 64
+const val aColon: Byte = 58
+const val aSemicolon: Byte = 59
+const val aExclamation: Byte = 33
+const val aQuestion: Byte = 63
+const val aEquals: Byte = 61
 
-const val asciiLessThan: Byte = 60
-const val asciiGreaterThan: Byte = 62
+const val aLessThan: Byte = 60
+const val aGreaterThan: Byte = 62
 
 
-val operatorSymbols = byteArrayOf(
-    asciiColon, asciiAmpersand, asciiPlus, asciiMinus, asciiDivBy, asciiTimes, asciiExclamation, asciiTilde,
-    asciiPercent, asciiCaret, asciiPipe, asciiGreaterThan, asciiLessThan, asciiQuestion, asciiEquals,
+val operatorStartSymbols = byteArrayOf(
+    aColon, aAmpersand, aPlus, aMinus, aDivBy, aTimes, aExclamation,
+    aPercent, aCaret, aPipe, aGreaterThan, aLessThan, aQuestion, aEquals,
 )
 
+/**
+ * This is an array of 3-byte arrays containing operator byte sequences.
+ * Sorted as follows: 1. by first byte ASC 2. by length DESC.
+ * It's used to lex operator symbols using left-to-right search.
+ */
+val operatorSymbols = byteArrayOf(
+    aExclamation, aEquals, 0,      aExclamation, 0, 0,            aPercent, 0, 0,              aAmpersand, aAmpersand, 0,
+    aAmpersand, 0, 0,              aTimes, aTimes, 0,             aTimes, 0, 0,                aPlus, aPlus, 0,
+    aPlus, 0, 0,                   aMinus, aMinus, 0,             aMinus, aGreaterThan, 0,     aMinus, 0, 0,
+    aDot, aDot, aLessThan,         aDot, aDot, 0,                 aDivBy, 0, 0,                aColon, aGreaterThan, 0,
+    aColon, aEquals, 0,            aColon, 0, 0,                  aLessThan, aEquals, aDot,    aLessThan, aDot, 0,
+    aLessThan, aLessThan, 0,       aLessThan, aEquals, 0,         aLessThan, aMinus, 0,        aLessThan, 0, 0,
+    aEquals, aEquals, 0,           aEquals, 0, 0,                 aGreaterThan, aEquals, aDot, aGreaterThan, aDot, 0,
+    aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0, aGreaterThan, 0, 0,          aCaret, 0, 0,
+    aPipe, aPipe, 0,               aPipe, 0, 0,
+)
+
+/**
+ * Marks the 10 "equalable & extensible" operators, i.e. ones with 5 extra variations
+ */
+val operatorExtensibility = byteArrayOf(
+    0, 0, 1, 1,
+    0, 1, 1, 0,
+    1, 0, 0, 1,
+    0, 0, 1, 0,
+    0, 0, 0, 0,
+    1, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 1, 0, 1,
+    1, 0,
+)
+/*
+!  33 boolean & bitwise negation
+!= 33 boolean non-equality
+%  37 remainder of division
+& 38  function composition
+&& 38 boolean and
+* 42
++ 43
+++ 43 increment
+- 45
+-- 45 decrement
+-> 45  syntax arrow
+.. 46  range operator
+..< 46 half-open range operator
+/ 47
+: 58  type declaration
+:> 58 arrow for the 'else' case
+< 60  LT
+<. 60 interval comparison operators
+<< 60 bitwise shift left
+<= 60 LTEQ
+<=. 60
+= 61  local immutable definition
+== 61 boolean equality
+> 62  GT
+>. 62
+>= 62 GTEQ
+>=. 62
+>> 62 bitwise shift right
+^ 94 exponentiation
+| 124  sum type definition
+|| 124 boolean or
+ */
 
 const val CHUNKSZ: Int = 10000 // Must be divisible by 4
 const val COMMENTSZ: Int = 100 // Must be divisible by 2
 const val LOWER32BITS: Long =  0x00000000FFFFFFFF
 const val LOWER27BITS: Int = 0x07FFFFFF
 const val MAXTOKENLEN = 134217728 // 2**27
+const val byte0: Byte = 0

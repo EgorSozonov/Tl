@@ -84,12 +84,30 @@ class CommentStorage {
 }
 
 
+/*
+    aExclamation, aEquals, 0,      aExclamation, 0, 0,            aPercent, 0, 0,              aAmpersand, aAmpersand, 0,
+    aAmpersand, 0, 0,              aTimes, aTimes, 0,             aTimes, 0, 0,                aPlus, aPlus, 0,
+    aPlus, 0, 0,                   aMinus, aMinus, 0,             aMinus, aGreaterThan, 0,     aMinus, 0, 0,
+    aDot, aDot, aLessThan,         aDot, aDot, 0,                 aDivBy, 0, 0,                aColon, aGreaterThan, 0,
+    aColon, aEquals, 0,            aColon, 0, 0,                  aLessThan, aEquals, aDot,    aLessThan, aDot, 0,
+    aLessThan, aLessThan, 0,       aLessThan, aEquals, 0,         aLessThan, aMinus, 0,        aLessThan, 0, 0,
+    aEquals, aEquals, 0,           aEquals, 0, 0,                 aGreaterThan, aEquals, aDot, aGreaterThan, aDot, 0,
+    aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0, aGreaterThan, 0, 0,          aCaret, 0, 0,
+    aPipe, aPipe, 0,               aPipe, 0, 0,
+ */
+/**
+ * Values must agree with the LexerConstants.operatorSymbols array
+ */
 enum class OperatorType(val value: Int) {
-    plusSign(0),
-    minusSign(1),
-    mulSign(2),
-    divSign(3),
-
+    notEqualTo(0),           boolNegation(1),        remainder(2),          boolAnd(3),
+    composition(4),          exponentiation(5),      times(6),              increment(7),
+    plus(8),                 decrement(9),           arrowRight(10),             minus(11),
+    rangeHalf(12),           range(13),              divBy(14),             elseBranch(15),
+    mutation(16),            colon(17),              lessThanEqInterval(18), lessThanInterval(19),
+    bitshiftLeft(20),        lessThanEq(21),         arrowLeft(22),         lessThan(23),
+    equality(24),            immDefinition(25),      greaterThanEqInterv(26), greaterThanInterv(27),
+    greaterThanEq(28),       bitshiftRight(29),      greaterThan(30),         xor(31),
+    boolOr(32),              pipe(33),
 }
 
 
@@ -115,9 +133,8 @@ data class OperatorToken(val opType: OperatorType, val extended: Int, val isAssi
      * The lowest bit encodes isAssignment, the adjacent 2 bits encode 'extended', and the
      * next higher bits encode 'operatorType'
      */
-    fun toInt(): Int {
-
-        return (opType.value shl 3) + ((extended and 4) shl 1) + (if (isAssignment) { 1 } else { 0 })
+    fun toInt(): Long {
+        return (opType.value shl 3).toLong() + ((extended and 4) shl 1) + (if (isAssignment) { 1 } else { 0 })
     }
 
     companion object {

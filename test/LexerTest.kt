@@ -11,7 +11,8 @@ internal class LexerTest {
 
 private fun testInpOutp(inp: String, expected: Lexer) {
     val lr = Lexer()
-    lr.lexicallyAnalyze(inp.toByteArray())
+    lr.setInput(inp.toByteArray())
+    lr.lexicallyAnalyze()
     val doEqual = Lexer.equality(lr, expected)
     if (!doEqual) {
         val printOut = Lexer.printSideBySide(lr, expected)
@@ -25,136 +26,154 @@ private fun testInpOutp(inp: String, expected: Lexer) {
 inner class LexWordTest {
     @Test
     fun `Simple word lexing`() {
-        testInpOutp("asdf Abc",
-                    Lexer().buildPunct(0, 8, PunctuationToken.statement, 2)
-                               .build(0, 0, 4, RegularToken.word)
-                               .build(0, 5, 3, RegularToken.word)
+        testInpOutp(
+            "asdf Abc",
+            Lexer().buildPunct(0, 8, PunctuationToken.statement, 2)
+                .build(0, 0, 4, RegularToken.word)
+                .build(0, 5, 3, RegularToken.word)
         )
     }
 
     @Test
     fun `Word snake case`() {
-        testInpOutp("asdf_abc",
+        testInpOutp(
+            "asdf_abc",
             Lexer().error(errorWordUnderscoresOnlyAtStart)
         )
     }
 
     @Test
     fun `Word correct capitalization 1`() {
-        testInpOutp("Asdf.abc",
+        testInpOutp(
+            "Asdf.abc",
             Lexer().buildPunct(0, 8, PunctuationToken.statement, 1)
-                       .build(0, 0, 8, RegularToken.word)
+                .build(0, 0, 8, RegularToken.word)
         )
     }
 
     @Test
     fun `Word correct capitalization 2`() {
-        testInpOutp("asdf.abcd.zyui",
+        testInpOutp(
+            "asdf.abcd.zyui",
             Lexer().buildPunct(0, 14, PunctuationToken.statement, 1)
-                       .build(0, 0, 14, RegularToken.word)
+                .build(0, 0, 14, RegularToken.word)
         )
     }
 
     @Test
     fun `Word correct capitalization 3`() {
-        testInpOutp("Asdf.Abcd",
+        testInpOutp(
+            "Asdf.Abcd",
             Lexer().buildPunct(0, 9, PunctuationToken.statement, 1)
-                       .build(0, 0, 9, RegularToken.word)
+                .build(0, 0, 9, RegularToken.word)
         )
     }
 
     @Test
     fun `Word incorrect capitalization`() {
-        testInpOutp("asdf.Abcd",
+        testInpOutp(
+            "asdf.Abcd",
             Lexer().error(errorWordCapitalizationOrder)
         )
     }
 
     @Test
     fun `Word starts with underscore and lowercase letter`() {
-        testInpOutp("_abc",
+        testInpOutp(
+            "_abc",
             Lexer().buildPunct(0, 4, PunctuationToken.statement, 1)
-                       .build(0, 0, 4, RegularToken.word)
+                .build(0, 0, 4, RegularToken.word)
         )
     }
 
     @Test
     fun `Word starts with underscore and capital letter`() {
-        testInpOutp("_Abc",
+        testInpOutp(
+            "_Abc",
             Lexer().buildPunct(0, 4, PunctuationToken.statement, 1)
-                       .build(0, 0, 4, RegularToken.word)
+                .build(0, 0, 4, RegularToken.word)
         )
     }
 
     @Test
     fun `Word starts with 2 underscores`() {
-        testInpOutp("__abc",
+        testInpOutp(
+            "__abc",
             Lexer().error(errorWordChunkStart)
         )
     }
 
     @Test
     fun `Word starts with underscore and digit`() {
-        testInpOutp("_1abc",
+        testInpOutp(
+            "_1abc",
             Lexer().error(errorWordChunkStart)
         )
     }
 
     @Test
     fun `Dotword & @-word`() {
-        testInpOutp("@a123 .Abc ",
-                    Lexer().buildPunct(0, 11, PunctuationToken.statement, 2)
-                               .build(0, 0, 5, RegularToken.atWord)
-                               .build(0, 6, 4, RegularToken.dotWord)
+        testInpOutp(
+            "@a123 .Abc ",
+            Lexer().buildPunct(0, 11, PunctuationToken.statement, 2)
+                .build(0, 0, 5, RegularToken.atWord)
+                .build(0, 6, 4, RegularToken.dotWord)
         )
     }
 }
+
 
 @Nested
 inner class LexNumericTest {
 
     @Test
     fun `Binary numeric 64-bit zero`() {
-        testInpOutp("0b0",
+        testInpOutp(
+            "0b0",
             Lexer().buildPunct(0, 3, PunctuationToken.statement, 1)
-                       .build(0, 0, 3, RegularToken.litInt)
+                .build(0, 0, 3, RegularToken.litInt)
         )
     }
 
     @Test
     fun `Binary numeric basic`() {
-        testInpOutp("0b101",
+        testInpOutp(
+            "0b101",
             Lexer().buildPunct(0, 5, PunctuationToken.statement, 1)
-                       .build(5, 0, 5, RegularToken.litInt)
+                .build(5, 0, 5, RegularToken.litInt)
         )
     }
 
     @Test
     fun `Binary numeric 64-bit positive`() {
-        testInpOutp("0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0111",
+        testInpOutp(
+            "0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0111",
             Lexer().buildPunct(0, 81, PunctuationToken.statement, 1)
-                       .build(7, 0, 81, RegularToken.litInt)
+                .build(7, 0, 81, RegularToken.litInt)
         )
     }
 
     @Test
     fun `Binary numeric 64-bit negative`() {
-        testInpOutp("0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1001",
+        testInpOutp(
+            "0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1001",
             Lexer().buildPunct(0, 81, PunctuationToken.statement, 1)
-                       .build(-7, 0, 81, RegularToken.litInt)
+                .build(-7, 0, 81, RegularToken.litInt)
         )
     }
 
     @Test
     fun `Binary numeric 65-bit error`() {
-        testInpOutp("0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_01110",
+        testInpOutp(
+            "0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_01110",
             Lexer().error(errorNumericBinWidthExceeded)
         )
     }
 
     @Test
     fun `Hex numeric 1`() {
-        testInpOutp("0x15",
+        testInpOutp(
+            "0x15",
             Lexer().buildPunct(0, 4, PunctuationToken.statement, 1)
                 .build(21, 0, 4, RegularToken.litInt)
         )
@@ -162,7 +181,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Hex numeric 2`() {
-        testInpOutp("0x05",
+        testInpOutp(
+            "0x05",
             Lexer().buildPunct(0, 4, PunctuationToken.statement, 1)
                 .build(5, 0, 4, RegularToken.litInt)
         )
@@ -170,7 +190,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Hex numeric 3`() {
-        testInpOutp("0xFFFFFFFFFFFFFFFF",
+        testInpOutp(
+            "0xFFFFFFFFFFFFFFFF",
             Lexer().buildPunct(0, 18, PunctuationToken.statement, 1)
                 .build(-1L, 0, 18, RegularToken.litInt)
         )
@@ -178,22 +199,25 @@ inner class LexNumericTest {
 
     @Test
     fun `Hex numeric too long`() {
-        testInpOutp("0xFFFFFFFFFFFFFFFF0",
+        testInpOutp(
+            "0xFFFFFFFFFFFFFFFF0",
             Lexer().error(errorNumericBinWidthExceeded)
         )
     }
 
     @Test
     fun `Float numeric 1`() {
-        testInpOutp("1.234",
+        testInpOutp(
+            "1.234",
             Lexer().buildPunct(0, 5, PunctuationToken.statement, 1)
-                   .build(1.234, 0, 5)
+                .build(1.234, 0, 5)
         )
     }
 
     @Test
     fun `Float numeric 2`() {
-        testInpOutp("00001.234",
+        testInpOutp(
+            "00001.234",
             Lexer().buildPunct(0, 9, PunctuationToken.statement, 1)
                 .build(1.234, 0, 9)
         )
@@ -201,7 +225,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Float numeric 3`() {
-        testInpOutp("10500.01",
+        testInpOutp(
+            "10500.01",
             Lexer().buildPunct(0, 8, PunctuationToken.statement, 1)
                 .build(10500.01, 0, 8)
         )
@@ -209,7 +234,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Float numeric 4`() {
-        testInpOutp("0.9",
+        testInpOutp(
+            "0.9",
             Lexer().buildPunct(0, 3, PunctuationToken.statement, 1)
                 .build(0.9, 0, 3)
         )
@@ -217,7 +243,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Float numeric 5`() {
-        testInpOutp("100500.123456",
+        testInpOutp(
+            "100500.123456",
             Lexer().buildPunct(0, 13, PunctuationToken.statement, 1)
                 .build(100500.123456, 0, 13)
         )
@@ -225,7 +252,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Float numeric big`() {
-        testInpOutp("9007199254740992.0",
+        testInpOutp(
+            "9007199254740992.0",
             Lexer().buildPunct(0, 18, PunctuationToken.statement, 1)
                 .build(9007199254740992.0, 0, 18)
         )
@@ -233,7 +261,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Float numeric too big`() {
-        testInpOutp("9007199254740993.0",
+        testInpOutp(
+            "9007199254740993.0",
             Lexer().error(errorNumericFloatWidthExceeded)
         )
     }
@@ -241,7 +270,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Float numeric big exponent`() {
-        testInpOutp("1005001234560000000000.0",
+        testInpOutp(
+            "1005001234560000000000.0",
             Lexer().buildPunct(0, 24, PunctuationToken.statement, 1)
                 .build(1005001234560000000000.0, 0, 24)
         )
@@ -249,7 +279,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Float numeric tiny`() {
-        testInpOutp("0.0000000000000000000003",
+        testInpOutp(
+            "0.0000000000000000000003",
             Lexer().buildPunct(0, 24, PunctuationToken.statement, 1)
                 .build(0.0000000000000000000003, 0, 24)
         )
@@ -257,7 +288,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Int numeric 1`() {
-        testInpOutp("3",
+        testInpOutp(
+            "3",
             Lexer().buildPunct(0, 1, PunctuationToken.statement, 1)
                 .build(3, 0, 1, RegularToken.litInt)
         )
@@ -265,7 +297,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Int numeric 2`() {
-        testInpOutp("12",
+        testInpOutp(
+            "12",
             Lexer().buildPunct(0, 2, PunctuationToken.statement, 1)
                 .build(12, 0, 2, RegularToken.litInt)
         )
@@ -273,7 +306,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Int numeric 3`() {
-        testInpOutp("0987_12",
+        testInpOutp(
+            "0987_12",
             Lexer().buildPunct(0, 7, PunctuationToken.statement, 1)
                 .build(98712, 0, 7, RegularToken.litInt)
         )
@@ -281,7 +315,8 @@ inner class LexNumericTest {
 
     @Test
     fun `Int numeric 4`() {
-        testInpOutp("9_223_372_036_854_775_807",
+        testInpOutp(
+            "9_223_372_036_854_775_807",
             Lexer().buildPunct(0, 25, PunctuationToken.statement, 1)
                 .build(9_223_372_036_854_775_807L, 0, 25, RegularToken.litInt)
         )
@@ -289,14 +324,16 @@ inner class LexNumericTest {
 
     @Test
     fun `Int numeric error 1`() {
-        testInpOutp("3_",
+        testInpOutp(
+            "3_",
             Lexer().error(errorNumericEndUnderscore)
         )
     }
 
     @Test
     fun `Int numeric error 2`() {
-        testInpOutp("9_223_372_036_854_775_808",
+        testInpOutp(
+            "9_223_372_036_854_775_808",
             Lexer().error(errorNumericIntWidthExceeded)
         )
     }
@@ -307,68 +344,77 @@ inner class LexNumericTest {
 inner class LexStringTest {
     @Test
     fun `String simple literal`() {
-        testInpOutp("'asdf'",
+        testInpOutp(
+            "'asdf'",
             Lexer().buildPunct(0, 6, PunctuationToken.statement, 1)
-                       .build(0, 1, 4, RegularToken.litString)
+                .build(0, 1, 4, RegularToken.litString)
         )
     }
 
     @Test
     fun `String literal with escaped apostrophe inside`() {
-        testInpOutp("""'wasn\'t' so sure""",
+        testInpOutp(
+            """'wasn\'t' so sure""",
             Lexer().buildPunct(0, 17, PunctuationToken.statement, 3)
-                       .build(0, 1, 7, RegularToken.litString)
-                       .build(0, 10, 2, RegularToken.word)
-                       .build(0, 13, 4, RegularToken.word)
+                .build(0, 1, 7, RegularToken.litString)
+                .build(0, 10, 2, RegularToken.word)
+                .build(0, 13, 4, RegularToken.word)
         )
     }
 
     @Test
     fun `String literal with non-ASCII inside`() {
-        testInpOutp("""'hello мир'""",
+        testInpOutp(
+            """'hello мир'""",
             Lexer().buildPunct(0, 14, PunctuationToken.statement, 1)
-                       .build(0, 1, 12, RegularToken.litString) // 12 because each Cyrillic letter = 2 bytes
+                .build(0, 1, 12, RegularToken.litString) // 12 because each Cyrillic letter = 2 bytes
         )
     }
 
     @Test
     fun `String literal unclosed`() {
-        testInpOutp("'asdf",
+        testInpOutp(
+            "'asdf",
             Lexer().error(errorPrematureEndOfInput)
         )
     }
 
     @Test
     fun `Verbatim string literal`() {
-        testInpOutp("\"asdf foo\"\"\"",
+        testInpOutp(
+            "\"asdf foo\"\"\"",
             Lexer().buildPunct(0, 12, PunctuationToken.statement, 1)
-                       .build(0, 1, 8, RegularToken.verbatimString)
+                .build(0, 1, 8, RegularToken.verbatimString)
         )
     }
 }
+
 
 @Nested
 inner class LexCommentTest {
     @Test
     fun `Comment simple`() {
-        testInpOutp("# this is a comment",
+        testInpOutp(
+            "# this is a comment",
             Lexer().build(0, 1, 18, RegularToken.comment)
         )
     }
 
     @Test
     fun `Comment inline`() {
-        testInpOutp("# this is a comment.# and #this too.# but not this",
+        testInpOutp(
+            "# this is a comment.# and #this too.# but not this",
             Lexer().buildPunct(22, 28, PunctuationToken.statement, 4)
-                       .build(0, 1, 18, RegularToken.comment)
-                       .build(0, 22, 3, RegularToken.word)
-                       .build(0, 27, 8, RegularToken.comment)
-                       .build(0, 38, 3, RegularToken.word)
-                       .build(0, 42, 3, RegularToken.word)
-                       .build(0, 46, 4, RegularToken.word)
+                .build(0, 1, 18, RegularToken.comment)
+                .build(0, 22, 3, RegularToken.word)
+                .build(0, 27, 8, RegularToken.comment)
+                .build(0, 38, 3, RegularToken.word)
+                .build(0, 42, 3, RegularToken.word)
+                .build(0, 46, 4, RegularToken.word)
         )
     }
 }
+
 
 @Nested
 inner class LexPunctuationTest {
@@ -377,9 +423,9 @@ inner class LexPunctuationTest {
         testInpOutp(
             "(car cdr)",
             Lexer().buildPunct(0, 9, PunctuationToken.statement, 3)
-                       .buildPunct(1, 7, PunctuationToken.parens, 2)
-                       .build(0, 1, 3, RegularToken.word)
-                       .build(0, 5, 3, RegularToken.word)
+                .buildPunct(1, 7, PunctuationToken.parens, 2)
+                .build(0, 1, 3, RegularToken.word)
+                .build(0, 5, 3, RegularToken.word)
         )
     }
 
@@ -419,6 +465,7 @@ inner class LexPunctuationTest {
 
     @Test
     fun `Brackets simple`() {
+
         testInpOutp(
             "[car cdr]",
             Lexer()
@@ -451,10 +498,10 @@ inner class LexPunctuationTest {
         testInpOutp(
             "x.[y z]",
             Lexer().buildPunct(0, 7, PunctuationToken.statement, 4)
-                       .build(0, 0, 1, RegularToken.word)
-                       .buildPunct(3, 3, PunctuationToken.dotBrackets, 2)
-                       .build(0, 3, 1, RegularToken.word)
-                       .build(0, 5, 1, RegularToken.word)
+                .build(0, 0, 1, RegularToken.word)
+                .buildPunct(3, 3, PunctuationToken.dotBrackets, 2)
+                .build(0, 3, 1, RegularToken.word)
+                .build(0, 5, 1, RegularToken.word)
         )
     }
 
@@ -482,10 +529,10 @@ asdf
 bcjk
 }""",
             Lexer().buildPunct(1, 12, PunctuationToken.curlyBraces, 4)
-                       .buildPunct(2, 4, PunctuationToken.statement, 1)
-                       .build(0, 2, 4, RegularToken.word)
-                       .buildPunct(8, 4, PunctuationToken.statement, 1)
-                       .build(0, 8, 4, RegularToken.word)
+                .buildPunct(2, 4, PunctuationToken.statement, 1)
+                .build(0, 2, 4, RegularToken.word)
+                .buildPunct(8, 4, PunctuationToken.statement, 1)
+                .build(0, 8, 4, RegularToken.word)
         )
     }
 
@@ -531,6 +578,7 @@ bcjk
                 .build(3, 15, 1, RegularToken.litInt)
         )
     }
+
     @Test
     fun `Punctuation scope inside statement`() {
         testInpOutp(
@@ -582,5 +630,41 @@ bcjk ({a; b})
     }
 }
 
+@Nested
+inner class LexOperatorTest {
+    @Test
+    fun `Operator simple`() {
+        testInpOutp("+",
+        Lexer().buildPunct(0, 1, PunctuationToken.statement, 1)
+            .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 0, 1, RegularToken.operatorTok))
+    }
+
+    @Test
+    fun `Operator expression`() {
+        testInpOutp("a - b",
+            Lexer().buildPunct(0, 5, PunctuationToken.statement, 3)
+                .build(0, 0, 1, RegularToken.word)
+                .build(OperatorToken(OperatorType.minus, 0, false).toInt(), 2, 1, RegularToken.operatorTok)
+                .build(0, 4, 1, RegularToken.word))
+    }
+
+    @Test
+    fun `Operator assignment 1`() {
+        testInpOutp("a += b",
+            Lexer().buildPunct(0, 6, PunctuationToken.statement, 3)
+                .build(0, 0, 1, RegularToken.word)
+                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, RegularToken.operatorTok)
+                .build(0, 5, 1, RegularToken.word))
+    }
+
+    @Test
+    fun `Operator assignment 2`() {
+        testInpOutp("a ||=. b",
+            Lexer().buildPunct(0, 8, PunctuationToken.statement, 3)
+                .build(0, 0, 1, RegularToken.word)
+                .build(OperatorToken(OperatorType.boolOr, 1, true).toInt(), 2, 4, RegularToken.operatorTok)
+                .build(0, 7, 1, RegularToken.word))
+    }
+}
 
 }
