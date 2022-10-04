@@ -580,10 +580,10 @@ bcjk
     }
 
     @Test
-    fun `Punctuation scope inside statement`() {
+    fun `Punctuation scope inside statement 1`() {
         testInpOutp(
             """foo bar { asdf }""",
-            Lexer().buildPunct(0, 8, PunctuationToken.statement, 2)
+            Lexer().buildPunct(0, 16, PunctuationToken.statement, 5)
                 .build(0, 0, 3, RegularToken.word)
                 .build(0, 4, 3, RegularToken.word)
                 .buildPunct(9, 6, PunctuationToken.curlyBraces, 2)
@@ -593,6 +593,24 @@ bcjk
 
     }
 
+    @Test
+    fun `Punctuation scope inside statement 2`() {
+        testInpOutp(
+            """foo bar { 
+asdf
+bcj
+}""".trimMargin(),
+            Lexer().buildPunct(0, 21, PunctuationToken.statement, 7)
+                .build(0, 0, 3, RegularToken.word)
+                .build(0, 4, 3, RegularToken.word)
+                .buildPunct(9, 11, PunctuationToken.curlyBraces, 4)
+                .buildPunct(11, 4, PunctuationToken.statement, 1)
+                .build(0, 11, 4, RegularToken.word)
+                .buildPunct(16, 3, PunctuationToken.statement, 1)
+                .build(0, 16, 3, RegularToken.word)
+        )
+
+    }
 
     @Test
     fun `Punctuation all types`() {

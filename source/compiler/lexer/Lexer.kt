@@ -582,18 +582,7 @@ private fun addStatement(startByte: Int) {
  */
 private fun validateOpeningPunct(openingType: PunctuationToken) {
     if (openingType == PunctuationToken.curlyBraces) {
-        if (backtrack.isEmpty()) return
-        val currScopeType = backtrack.peek().first
-        // the '({ stmt })' case
-        if (currScopeType == PunctuationToken.parens && getPrevTokenType() == PunctuationToken.parens.internalVal.toInt()) return
-        // the 'stmt { new scope }' case - the statement gets closed, and the new scope comes after it
-        if (currScopeType == PunctuationToken.statement) {
-            closeDollars()
-            closeStatement()
-            return
-        }
-
-        errorOut(errorPunctuationWrongOpen)
+        return
     } else if (openingType == PunctuationToken.dotBrackets && getPrevTokenType() != RegularToken.word.internalVal.toInt()) {
         errorOut(errorPunctuationWrongOpen)
     } else {
