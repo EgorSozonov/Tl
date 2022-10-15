@@ -15,20 +15,22 @@ enum class RegularToken(val internalVal: Byte) {
 
 enum class PunctuationToken(val internalVal: Byte) {
     curlyBraces(10),
-    statement(11),
-    parens(12),
-    brackets(13),
-    dotBrackets(14),
-    dollar(15),
+    parens(11),
+    brackets(12),
+    dotBrackets(13),
+    dollar(14),
+    statementFun(15),
+    statementAssignment(16),
+    statementTypeDecl(17),
 }
 
 
 /**
  * The real element of this array is struct Token - modeled as 4 32-bit ints
- * payload (for regular tokens) or lenTokens (for punctuation tokens) | i64
- * startByte                                                          | i32
- * tType                                                              | u5
- * lenBytes                                                           | u27
+ * payload (for regular tokens) or lenTokens + empty 32 bits (for punctuation tokens) | i64
+ * startByte                                                                          | i32
+ * tType                                                                              | u5
+ * lenBytes                                                                           | u27
  */
 data class LexChunk(val tokens: IntArray = IntArray(CHUNKSZ), var next: LexChunk? = null)
 

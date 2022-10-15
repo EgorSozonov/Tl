@@ -119,8 +119,7 @@ fun calcFloating(powerOfTen: Int): Double? {
     ind -= transfer
     val finalPowerTen = powerOfTen + transfer
 
-    val maximumPreciselyRepresentedInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
-    if (!integerWithinDigits(maximumPreciselyRepresentedInt)) {
+    if (!integerWithinDigits(maximumPreciselyRepresentedFloatingInt)) {
         return null
     }
 

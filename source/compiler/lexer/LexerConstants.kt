@@ -19,6 +19,8 @@ const val errorPunctuationUnmatched       = "Unmatched closing punctuation"
 const val errorPunctuationExtraClosing    = "Extra closing punctuation"
 const val errorPunctuationWrongOpen       = "Wrong opening punctuation"
 const val errorOperatorUnknown            = "Unknown operator"
+const val errorOperatorAssignmentPunct    = "Incorrect assignment / type declaration operator placement: must be directly inside statement or inside parens that envelop the whole statement!"
+const val errorOperatorMultipleAssignment = "Multiple assignment / type declaration operators within one statement are not allowed!"
 
 
 /**
@@ -79,6 +81,8 @@ const val aEquals: Byte = 61
 const val aLessThan: Byte = 60
 const val aGreaterThan: Byte = 62
 
+
+val maximumPreciselyRepresentedFloatingInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
 
 val operatorStartSymbols = byteArrayOf(
     aColon, aAmpersand, aPlus, aMinus, aDivBy, aTimes, aExclamation,

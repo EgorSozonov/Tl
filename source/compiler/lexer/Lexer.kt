@@ -1,25 +1,27 @@
 package compiler.lexer
 import java.lang.StringBuilder
 import java.util.*
+import compiler.lexer.RegularToken.*
+import compiler.lexer.PunctuationToken.*
 
 class Lexer {
 
 private var inp: ByteArray
-var firstChunk: LexChunk = LexChunk()
+var firstChunk: LexChunk = LexChunk()                        // First array of tokens
     private set
-var currChunk: LexChunk
+var currChunk: LexChunk                                      // Last array of tokens
     private set
-var nextInd: Int // next ind inside the current token chunk
+var nextInd: Int                                             // Next ind inside the current token array
     private set
 var totalTokens: Int
     private set
-var wasError: Boolean
+var wasError: Boolean                                        // The lexer's error flag
     private set
 var errMsg: String
     private set
-private var i: Int // current index inside input byte array
+private var i: Int                                           // current index inside input byte array
 private var comments: CommentStorage = CommentStorage()
-private val backtrack = Stack<Pair<PunctuationToken, Int>>()
+private val backtrack = Stack<Pair<PunctuationToken, Int>>() // The stack of punctuation scopes
 private val numeric: LexerNumerics = LexerNumerics()
 
 
@@ -53,14 +55,14 @@ fun lexicallyAnalyze() {
 
 
 private fun lexWord() {
-    lexWordInternal(RegularToken.word)
+    lexWordInternal(word)
 }
 
 
 /**
  * Lexes a word (both reserved and identifier) according to Tl's rules.
- * Examples of accepted expressions: A.B.c.d, asdf123, ab._cd45
- * Examples of NOT accepted expressions: A.b.C.d, 1asdf23, ab.cd_45
+ * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45
+ * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
 private fun lexWordInternal(wordType: RegularToken) {
     val startInd = i
@@ -75,7 +77,7 @@ private fun lexWordInternal(wordType: RegularToken) {
         metUncapitalized = isCurrUncapitalized
     }
     if (!wasError) {
-        val realStartChar = if (wordType == RegularToken.word) { startInd } else {startInd - 1}
+        val realStartChar = if (wordType == word) { startInd } else {startInd - 1}
         addToken(0, realStartChar, i - realStartChar, wordType)
     }
 }
@@ -129,7 +131,7 @@ private fun lexDotSomething() {
         lexDotBracket()
     } else if (nByte == aUnderscore || isLetter(nByte)) {
         i += 1
-        lexWordInternal(RegularToken.dotWord)
+        lexWordInternal(dotWord)
     } else {
         errorOut(errorUnrecognizedByte)
     }
@@ -141,7 +143,7 @@ private fun lexAtWord() {
     if (wasError) return
 
     i += 1
-    lexWordInternal(RegularToken.atWord)
+    lexWordInternal(atWord)
 }
 
 
@@ -152,7 +154,7 @@ private fun lexAtWord() {
 private fun lexNumber() {
     val cByte = inp[i]
     if (i == inp.size - 1 && isDigit(cByte)) {
-        addToken((cByte - aDigit0).toLong(), i, 1, RegularToken.litInt)
+        addToken((cByte - aDigit0).toLong(), i, 1, litInt)
         i++
         return
     }
@@ -222,7 +224,7 @@ private fun lexDecNumber() {
             errorOut(errorNumericIntWidthExceeded)
             return
         }
-        addToken(resultValue, i, j - i, RegularToken.litInt)
+        addToken(resultValue, i, j - i, litInt)
     }
     i = j
 }
@@ -263,7 +265,7 @@ private fun lexHexNumber() {
         j++
     }
     val resultValue = numeric.calcHexNumber()
-    addToken(resultValue, i, j - i, RegularToken.litInt)
+    addToken(resultValue, i, j - i, litInt)
     numeric.clear()
     i = j
 }
@@ -303,7 +305,7 @@ private fun lexBinNumber() {
     }
 
     val resultValue = numeric.calcBinNumber()
-    addToken(resultValue, i, j - i, RegularToken.litInt)
+    addToken(resultValue, i, j - i, litInt)
     i = j
 }
 
@@ -340,9 +342,11 @@ private fun lexOperator() {
     var isAssignment = false
     var extension = 0
 
-    val lengthOfOperator = if (operatorSymbols[foundInd + 1] == byte0) { 1 }
-        else if (operatorSymbols[foundInd + 2] == byte0) { 2 }
-        else { 3 }
+    val lengthOfOperator = when (byte0) {
+        operatorSymbols[foundInd + 1] -> { 1 }
+        operatorSymbols[foundInd + 2] -> { 2 }
+        else                          -> { 3 }
+    }
     var j = i + lengthOfOperator
     if (isExtensible > 0) {
         if (j < inp.size && inp[j] == aEquals) {
@@ -360,43 +364,81 @@ private fun lexOperator() {
             }
         }
     }
-    val newOperator = OperatorToken(OperatorType.values()[foundInd/3], extension, isAssignment)
-    addToken(newOperator.toInt(), i, j - i, RegularToken.operatorTok)
+    val opType = OperatorType.values()[foundInd/3]
+    val newOperator = OperatorToken(opType, extension, isAssignment)
+    if (isAssignment || opType == OperatorType.immDefinition || opType == OperatorType.mutation
+        || opType == OperatorType.colon) {
+        processAssignmentOperator(opType == OperatorType.colon)
+    }
+    addToken(newOperator.toInt(), i, j - i, operatorTok)
 
     i = j
 }
 
+/**
+ * There are 3 types of statements: function calls, assignments/mutations, and type declarations.
+ * At birth, statements are function calls, but when an assignment/typedecl operator is encountered,
+ * the type of the statement is mutated.
+ * To complicate the matter, it is OK for a statement to look like
+ *     ((x = y + 5))
+ * so this function unwraps any possible paren (but no other type of punctuation) layers.
+ * It also checks to see that all those layers (if any) are tight.
+ */
+private fun processAssignmentOperator(isTypeDecl: Boolean) {
+    var stackInd = backtrack.size - 1
+    while (stackInd >= 0 && backtrack[stackInd].first == parens) {
+        stackInd--
+    }
+    if (stackInd < 0) {
+        errorOut(errorOperatorAssignmentPunct)
+        return
+    }
+
+    val statement = backtrack[stackInd]
+    val numberParensAssignment = backtrack.size - stackInd - 1
+
+    if (statement.first == statementAssignment || statement.first == statementTypeDecl) {
+        errorOut(errorOperatorAssignmentPunct)
+        return
+    } else if (statement.first != statementFun) {
+        errorOut(errorOperatorMultipleAssignment)
+        return
+    }
+    val newType = if (isTypeDecl) {statementTypeDecl} else {statementAssignment}
+    backtrack[stackInd] = Pair(newType, statement.second)
+    setStatementType(statement.second, newType, numberParensAssignment)
+}
 
 private fun lexParenLeft() {
-    openPunctuation(PunctuationToken.parens)
+    openPunctuation(parens)
 }
 
 private fun lexParenRight() {
-    closePunctuation(PunctuationToken.parens)
+    closeRegularPunctuation(parens)
 }
 
 private fun lexDollar() {
-    openPunctuation(PunctuationToken.dollar)
+    openPunctuation(dollar)
 }
 
 private fun lexCurlyLeft() {
-    openPunctuation(PunctuationToken.curlyBraces)
+    openPunctuation(curlyBraces)
 }
 
 private fun lexCurlyRight() {
-    closePunctuation(PunctuationToken.curlyBraces)
+    closeRegularPunctuation(curlyBraces)
 }
 
 private fun lexBracketLeft() {
-    openPunctuation(PunctuationToken.brackets)
+    openPunctuation(brackets)
 }
 
 private fun lexBracketRight() {
-    closePunctuation(PunctuationToken.brackets)
+    closeRegularPunctuation(brackets)
 }
 
 private fun lexDotBracket() {
-    openPunctuation(PunctuationToken.dotBrackets)
+    openPunctuation(dotBrackets)
 }
 
 private fun lexSpace() {
@@ -404,11 +446,11 @@ private fun lexSpace() {
 }
 
 private fun lexNewline() {
-    closePunctuation(PunctuationToken.statement)
+    closeStatement()
 }
 
 private fun lexStatementTerminator() {
-    closePunctuation(PunctuationToken.statement)
+    closeStatement()
 }
 
 
@@ -426,7 +468,7 @@ private fun lexStringLiteral() {
         if (cByte == aBackslash && j < szMinusOne && inp[j + 1] == aApostrophe) {
             j += 2
         } else if (cByte == aApostrophe) {
-            addToken(0, i + 1, j - i - 1, RegularToken.litString)
+            addToken(0, i + 1, j - i - 1, litString)
             i = j + 1
             return
         } else {
@@ -460,7 +502,7 @@ private fun lexVerbatimStringLiteral() {
         val cByte = inp[j]
         if (cByte == aQuote) {
             if (j < (inp.size - 2) && inp[j + 1] == aQuote && inp[j + 2] == aQuote) {
-                addToken(0, i + 1, j - i - 1, RegularToken.verbatimString)
+                addToken(0, i + 1, j - i - 1, verbatimString)
                 i = j + 3
                 return
             }
@@ -484,18 +526,18 @@ private fun lexComment() {
     while (j < inp.size) {
         val cByte = inp[j]
         if (cByte == aDot && j < szMinusOne && inp[j + 1] == aSharp) {
-            addToken(0, i + 1, j - i - 1, RegularToken.comment)
+            addToken(0, i + 1, j - i - 1, comment)
             i = j + 2
             return
         } else if (cByte == aNewline) {
-            addToken(0, i + 1, j - i - 1, RegularToken.comment)
+            addToken(0, i + 1, j - i - 1, comment)
             i = j + 1
             return
         } else {
             j += 1
         }
     }
-    addToken(0, i + 1, j - i - 1, RegularToken.comment)
+    addToken(0, i + 1, j - i - 1, comment)
     i = inp.size
 }
 
@@ -510,13 +552,11 @@ private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray) {
 }
 
 
-
-
 /**
  * Adds a regular, non-punctuation token
  */
 private fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) {
-    if (tType == RegularToken.comment) {
+    if (tType == comment) {
         comments.add(startByte, lenBytes)
     } else {
         wrapTokenInStatement(startByte, tType)
@@ -524,11 +564,12 @@ private fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: Regula
     }
 }
 
+
 /**
  * Adds a floating-point literal token
  */
 private fun addToken(payload: Double, startByte: Int, lenBytes: Int) {
-    wrapTokenInStatement(startByte, RegularToken.litFloat)
+    wrapTokenInStatement(startByte, litFloat)
     appendToken(payload, startByte, lenBytes)
 }
 
@@ -547,7 +588,7 @@ private fun openPunctuation(tType: PunctuationToken) {
     validateOpeningPunct(tType)
 
     backtrack.add(Pair(tType, totalTokens))
-    val insidesStart = if (tType == PunctuationToken.dotBrackets) { i + 2 } else { i + 1 }
+    val insidesStart = if (tType == dotBrackets) { i + 2 } else { i + 1 }
     appendToken(insidesStart, tType)
     i = insidesStart
 }
@@ -558,9 +599,9 @@ private fun openPunctuation(tType: PunctuationToken) {
  * So this function inserts an implicit statement scope to prevent this.
  */
 private fun wrapTokenInStatement(startByte: Int, tType: RegularToken) {
-    if (backtrack.empty() || backtrack.peek().first == PunctuationToken.curlyBraces) {
+    if (backtrack.empty() || backtrack.peek().first == curlyBraces) {
         var realStartByte = startByte
-        if (tType == RegularToken.litString || tType == RegularToken.verbatimString) realStartByte -= 1
+        if (tType == litString || tType == verbatimString) realStartByte -= 1
         addStatement(realStartByte)
     }
 }
@@ -571,8 +612,8 @@ private fun wrapTokenInStatement(startByte: Int, tType: RegularToken) {
  * So this function inserts an implicit statement scope to prevent this.
  */
 private fun addStatement(startByte: Int) {
-    backtrack.add(Pair(PunctuationToken.statement, totalTokens))
-    appendToken(startByte, PunctuationToken.statement)
+    backtrack.add(Pair(statementFun, totalTokens))
+    appendToken(startByte, statementFun)
 }
 
 
@@ -581,12 +622,12 @@ private fun addStatement(startByte: Int) {
  * and inserts an implicit Statement if immediately inside curlyBraces.
  */
 private fun validateOpeningPunct(openingType: PunctuationToken) {
-    if (openingType == PunctuationToken.curlyBraces) {
+    if (openingType == curlyBraces) {
         return
-    } else if (openingType == PunctuationToken.dotBrackets && getPrevTokenType() != RegularToken.word.internalVal.toInt()) {
+    } else if (openingType == dotBrackets && getPrevTokenType() != word.internalVal.toInt()) {
         errorOut(errorPunctuationWrongOpen)
     } else {
-        if (backtrack.isEmpty() || backtrack.peek().first == PunctuationToken.curlyBraces) {
+        if (backtrack.isEmpty() || backtrack.peek().first == curlyBraces) {
             addStatement(i)
         }
     }
@@ -594,65 +635,104 @@ private fun validateOpeningPunct(openingType: PunctuationToken) {
 
 
 /**
- * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a }, a ], a ; or a newline.
- * This doesn't actually add a token to the array, just performs validation and updates the opener token
- * with its token length.
+ * The statement closer function. It is called for a newline or a semi-colon.
+ * Only closes the current scope if it's a statement and non-empty. This protects against
+ * newlines that aren't inside curly braces, multiple newlines and sequences like ';;;;'.
  */
-private fun closePunctuation(tType: PunctuationToken) {
+private fun closeStatement() {
     closeDollars()
-    if (tType == PunctuationToken.statement) {
-        closeStatement()
-    } else {
-        closeRegularPunctuation(tType)
+
+    if (backtrack.isEmpty()) return
+
+    val top = backtrack.peek()
+    if (isStatement(top.first)) {
+        val stmt = backtrack.pop()
+        setPunctuationLength(stmt.second)
+        if (stmt.first == statementTypeDecl || stmt.first == statementAssignment) {
+            validateAssignmentStmt(stmt.second)
+        }
     }
-    i += 1
+    i++
 }
 
 
 /**
- * The statement closer function - i.e. called for a newline or a semi-colon.
- * 1) Only close the current scope if it's a statement and non-empty. This protects against
- * newlines that aren't inside curly braces, multiple newlines and sequences like ';;;;'.
- * 2) If it closes a statement, then it also opens up a new statement scope
+ * Validates an assignment/type declaration with respect to its parentheses.
+ * These are OK:
+ *     x += y + 5
+ *     ((x += y + 5))
+ *     x += (y + 5)
+ *
+ * These are incorrect:
+ *     x (+=  y) + 5
+ *     ((x += y) + 5)
  */
-private fun closeStatement() {
-    if (backtrack.isEmpty()) return
+private fun validateAssignmentStmt(tokenInd: Int) {
+    var curr = firstChunk
+    var j = tokenInd * 4
+    while (j >= CHUNKSZ) {
+        curr = curr.next!!
+        j -= CHUNKSZ
+    }
 
-    var top = backtrack.peek()
-    if (top.first == PunctuationToken.statement) {
-        top = backtrack.pop()
-        setPunctuationLengths(top.second)
+    var numTokens = totalTokens - tokenInd - 1 // total tokens in this statement
+    val numParenthesesAssignment = curr.tokens[j + 1]
+    curr.tokens[j + 1] = 0 // clean up this number as it's not needed anymore
+    for (k in 1..numParenthesesAssignment) {
+        if (j < CHUNKSZ) {
+            j += 4
+        } else {
+            curr = curr.next!!
+            j = 0
+        }
+        numTokens--
+
+        val tokTypeInt = curr.tokens[j + 3] ushr 27
+        if (tokTypeInt != parens.internalVal.toInt() || curr.tokens[j] != numTokens) {
+            errorOut(errorOperatorAssignmentPunct)
+            return
+        }
     }
 }
 
 
 private fun closeDollars() {
     var top: Pair<PunctuationToken, Int>
-    while (!backtrack.empty() && backtrack.peek().first == PunctuationToken.dollar) {
+    while (!backtrack.empty() && backtrack.peek().first == dollar) {
         top = backtrack.pop()
-        setPunctuationLengths(top.second)
+        setPunctuationLength(top.second)
     }
 }
 
-
-private fun closeRegularPunctuation(tType: PunctuationToken) {
+/**
+ * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a }, a ], or a ;.
+ * This doesn't actually add any tokens to the array, just performs validation and sets the token length
+ * for the opener token.
+ */
+private fun closeRegularPunctuation(closingType: PunctuationToken) {
+    closeDollars()
     if (backtrack.empty()) {
         errorOut(errorPunctuationExtraClosing)
         return
     }
     val top = backtrack.pop()
-    validateClosingPunct(tType, top.first)
+    validateClosingPunct(closingType, top.first)
     if (wasError) return
     
-    setPunctuationLengths(top.second)
-    if (tType == PunctuationToken.curlyBraces && top.first == PunctuationToken.statement) {
-        // Since statements always are immediate children of curlyBraces, the '}' symbol closes
+    setPunctuationLength(top.second)
+    if (closingType == curlyBraces && isStatement(top.first)) {
+        // Since statements are always immediate children of curlyBraces, the '}' symbol closes
         // not just the statement but the parent curlyBraces scope, too.
         val parentScope = backtrack.pop()
-        assert(parentScope.first == PunctuationToken.curlyBraces)
+        assert(parentScope.first == curlyBraces)
 
-        setPunctuationLengths(parentScope.second)
+        setPunctuationLength(parentScope.second)
     }
+    i++
+}
+
+private fun isStatement(tType: PunctuationToken): Boolean {
+    return tType == statementTypeDecl || tType == statementFun || tType == statementAssignment
 }
 
 
@@ -660,13 +740,13 @@ private fun getPrevTokenType(): Int {
     if (totalTokens == 0) return 0
 
     return if (nextInd > 0) {
-        currChunk.tokens[nextInd - 1] shr 27
+        currChunk.tokens[nextInd - 1] ushr 27
     } else {
         var curr: LexChunk? = firstChunk
         while (curr!!.next != currChunk) {
             curr = curr.next!!
         }
-        curr.tokens[CHUNKSZ - 1] shr 27
+        curr.tokens[CHUNKSZ - 1] ushr 27
     }
 }
 
@@ -676,26 +756,26 @@ private fun getPrevTokenType(): Int {
  */
 private fun validateClosingPunct(closingType: PunctuationToken, openType: PunctuationToken) {
     when (closingType) {
-        PunctuationToken.curlyBraces -> {
-            if (openType != PunctuationToken.curlyBraces && openType != PunctuationToken.statement) {
+        curlyBraces -> {
+            if (openType != curlyBraces && !isStatement(openType)) {
                 errorOut(errorPunctuationUnmatched)
                 return
             }
         }
-        PunctuationToken.brackets -> {
-            if (openType != PunctuationToken.brackets && openType != PunctuationToken.dotBrackets) {
+        brackets -> {
+            if (openType != brackets && openType != dotBrackets) {
                 errorOut(errorPunctuationUnmatched)
                 return
             }
         }
-        PunctuationToken.parens -> {
-            if (openType != PunctuationToken.parens) {
+        parens -> {
+            if (openType != parens) {
                 errorOut(errorPunctuationUnmatched)
                 return
             }
         }
-        PunctuationToken.statement -> {
-            if (openType != PunctuationToken.statement && openType != PunctuationToken.curlyBraces) {
+        statementTypeDecl, statementFun, statementAssignment, -> {
+            if (!isStatement(openType)) {
                 errorOut(errorPunctuationUnmatched)
                 return
             }
@@ -709,7 +789,7 @@ private fun validateClosingPunct(closingType: PunctuationToken, openType: Punctu
  * For programmatic LexResult construction (builder pattern)
  */
 fun build(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken): Lexer {
-    if (tType == RegularToken.comment) {
+    if (tType == comment) {
         comments.add(startByte, lenBytes)
     } else {
         appendToken(payload, startByte, lenBytes, tType)
@@ -729,7 +809,7 @@ fun build(payload: Double, startByte: Int, lenBytes: Int): Lexer {
  * Finds the top-level punctuation opener by its index, and sets its lengths.
  * Called when the matching closer is lexed.
  */
-private fun setPunctuationLengths(tokenInd: Int) {
+private fun setPunctuationLength(tokenInd: Int) {
     var curr = firstChunk
     var j = tokenInd * 4
     while (j >= CHUNKSZ) {
@@ -741,6 +821,23 @@ private fun setPunctuationLengths(tokenInd: Int) {
     checkLenOverflow(lenBytes)
     curr.tokens[j    ] = totalTokens - tokenInd - 1  // lenTokens
     curr.tokens[j + 3] += (lenBytes and LOWER27BITS) // lenBytes
+}
+
+
+/**
+ * Mutates a statement to a more precise type of statement (assignment, type declaration).
+ * Also stores the number of parentheses wrapping the assignment operator in the unused 2nd
+ * byte, to be used for validation when the statement will be closed.
+ */
+private fun setStatementType(tokenInd: Int, tType: PunctuationToken, numParenthesesAssignment: Int) {
+    var curr = firstChunk
+    var j = tokenInd * 4
+    while (j >= CHUNKSZ) {
+        curr = curr.next!!
+        j -= CHUNKSZ
+    }
+    curr.tokens[j + 1] = numParenthesesAssignment
+    curr.tokens[j + 3] = tType.internalVal.toInt() shl 27
 }
 
 
@@ -798,6 +895,7 @@ private fun finalize() {
 }
 
 
+/** Append a regular (non-punctuation) token */
 private fun appendToken(payload: Long, startBytes: Int, lenBytes: Int, tType: RegularToken) {
     ensureSpaceForToken()
     checkLenOverflow(lenBytes)
@@ -808,6 +906,7 @@ private fun appendToken(payload: Long, startBytes: Int, lenBytes: Int, tType: Re
     bump()
 }
 
+/** Append a floating-point literal */
 private fun appendToken(payload: Double, startBytes: Int, lenBytes: Int) {
     ensureSpaceForToken()
     checkLenOverflow(lenBytes)
@@ -815,10 +914,11 @@ private fun appendToken(payload: Double, startBytes: Int, lenBytes: Int) {
     currChunk.tokens[nextInd    ] = (asLong shr 32).toInt()
     currChunk.tokens[nextInd + 1] = (asLong and LOWER32BITS).toInt()
     currChunk.tokens[nextInd + 2] = startBytes
-    currChunk.tokens[nextInd + 3] = (RegularToken.litFloat.internalVal.toInt() shl 27) + lenBytes
+    currChunk.tokens[nextInd + 3] = (litFloat.internalVal.toInt() shl 27) + lenBytes
     bump()
 }
 
+/** Append a punctuation token */
 private fun appendToken(startByte: Int, tType: PunctuationToken) {
     ensureSpaceForToken()
     currChunk.tokens[nextInd + 2] = startByte
@@ -827,6 +927,7 @@ private fun appendToken(startByte: Int, tType: PunctuationToken) {
 }
 
 
+/** The programmatic/builder method for appending a punctuation token */
 private fun appendToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
     ensureSpaceForToken()
     checkLenOverflow(lenBytes)
@@ -1027,17 +1128,16 @@ companion object {
     private fun printToken(chunk: LexChunk, ind: Int, wr: StringBuilder) {
         val startByte = chunk.tokens[ind + 2]
         val lenBytes = chunk.tokens[ind + 3] and LOWER27BITS
-        val typeBits = (chunk.tokens[ind + 3] shr 27).toByte()
+        val typeBits = (chunk.tokens[ind + 3] ushr 27).toByte()
         if (typeBits <= 8) {
             val regType = RegularToken.values().firstOrNull { it.internalVal == typeBits }
-            if (regType != RegularToken.litFloat) {
+            if (regType != litFloat) {
                 val payload: Long = (chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong()
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             } else {
                 val payload: Double = Double.fromBits((chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong())
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             }
-
         } else {
             val punctType = PunctuationToken.values().firstOrNull { it.internalVal == typeBits }
             val lenTokens = chunk.tokens[ind]
