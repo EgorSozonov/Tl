@@ -725,7 +725,94 @@ inner class LexOperatorTest {
                 .build(0, 7, 1, word))
     }
 
+    @Test
+    fun `Operator assignment in parens 1`() {
+        testInpOutp("x += y + 5",
+            Lexer().buildPunct(0, 10, statementAssignment, 5)
+                .build(0, 0, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, operatorTok)
+                .build(0, 5, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 7, 1, operatorTok)
+                .build(5, 9, 1, litInt))
+    }
 
+    @Test
+    fun `Operator assignment in parens 2`() {
+        testInpOutp("(x += y + 5)",
+            Lexer().buildPunct(0, 12, statementAssignment, 6)
+                .buildPunct(1, 10, parens, 5)
+                .build(0, 1, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 3, 2, operatorTok)
+                .build(0, 6, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 8, 1, operatorTok)
+                .build(5, 10, 1, litInt))
+    }
+
+    @Test
+    fun `Operator assignment in parens 3`() {
+        testInpOutp("((x += y + 5))",
+            Lexer().buildPunct(0, 14, statementAssignment, 7)
+                .buildPunct(1, 12, parens, 6)
+                .buildPunct(2, 10, parens, 5)
+                .build(0, 2, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 4, 2, operatorTok)
+                .build(0, 7, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 9, 1, operatorTok)
+                .build(5, 11, 1, litInt))
+    }
+
+    @Test
+    fun `Operator assignment in parens 4`() {
+        testInpOutp("x += (y + 5)",
+            Lexer().buildPunct(0, 12, statementAssignment, 6)
+                .build(0, 0, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, operatorTok)
+                .buildPunct(6, 5, parens, 3)
+                .build(0, 6, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 8, 1, operatorTok)
+                .build(5, 10, 1, litInt))
+    }
+
+    @Test
+    fun `Operator assignment in parens error 1`() {
+        testInpOutp("x (+= y) + 5",
+            Lexer().buildPunct(0, 12, statementAssignment, 6)
+                .build(0, 0, 1, word)
+                .buildPunct(3, 4, parens, 2)
+                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 3, 2, operatorTok)
+                .build(0, 6, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 9, 1, operatorTok)
+                .build(5, 11, 1, litInt)
+                .error(errorOperatorAssignmentPunct)
+        )
+    }
+
+    @Test
+    fun `Operator assignment in parens error 2`() {
+        testInpOutp("((x += y) + 5)",
+            Lexer().buildPunct(0, 14, statementAssignment, 7)
+                .buildPunct(1, 12, parens, 6)
+                .buildPunct(2, 6, parens, 3)
+                .build(0, 2, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 4, 2, operatorTok)
+                .build(0, 7, 1, word)
+                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 10, 1, operatorTok)
+                .build(5, 12, 1, litInt)
+                .error(errorOperatorAssignmentPunct)
+        )
+    }
+
+    @Test
+    fun `Operator assignment multiple error 1`() {
+        testInpOutp("x := y := 7",
+            Lexer().buildPunct(0, 0, statementAssignment, 0)
+                .build(0, 0, 1, word)
+                .build(OperatorToken(OperatorType.mutation, 0, false).toInt(), 2, 2, operatorTok)
+                .build(0, 5, 1, word)
+                .build(OperatorToken(OperatorType.mutation, 0, false).toInt(), 7, 2, operatorTok)
+                .error(errorOperatorMultipleAssignment)
+        )
+    }
 }
 
 }

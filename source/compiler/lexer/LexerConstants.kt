@@ -103,7 +103,7 @@ val operatorSymbols = byteArrayOf(
     aLessThan, aLessThan, 0,    aLessThan, aEquals, 0,         aLessThan, aMinus, 0,          aLessThan, 0, 0,
     aEquals, aEquals, 0,        aEquals, aGreaterThan, 0,      aEquals, 0, 0,                 aGreaterThan, aEquals, aDot,
     aGreaterThan, aDot, 0,      aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0, aGreaterThan, 0, 0,
-    aCaret, 0, 0,               aPipe, aPipe, 0,               aPipe, 0, 0,
+    aBackslash, 0, 0,           aCaret, 0, 0,                  aPipe, aPipe, 0,               aPipe, 0, 0,
 )
 
 /**
@@ -119,7 +119,7 @@ val operatorExtensibility = byteArrayOf(
     1, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, 1, 0,
-    1, 1, 0,
+    0, 1, 1, 0,
 )
 
 const val CHUNKSZ: Int = 10000 // Must be divisible by 4

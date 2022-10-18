@@ -398,10 +398,10 @@ private fun processAssignmentOperator(isTypeDecl: Boolean) {
     val numberParensAssignment = backtrack.size - stackInd - 1
 
     if (statement.first == statementAssignment || statement.first == statementTypeDecl) {
-        errorOut(errorOperatorAssignmentPunct)
+        errorOut(errorOperatorMultipleAssignment)
         return
     } else if (statement.first != statementFun) {
-        errorOut(errorOperatorMultipleAssignment)
+        errorOut(errorOperatorAssignmentPunct)
         return
     }
     val newType = if (isTypeDecl) {statementTypeDecl} else {statementAssignment}
@@ -458,6 +458,7 @@ private fun lexStatementTerminator() {
  * String literals look like 'wasn\'t' and may contain arbitrary UTF-8.
  * The insides of the string have escape sequences and variable interpolation with
  * the 'x = ${x}' syntax.
+ * TODO double quotes
  * TODO probably need to count UTF-8 codepoints, or worse - grapheme clusters - in order to correctly report to LSP
  */
 private fun lexStringLiteral() {
@@ -676,8 +677,8 @@ private fun validateAssignmentStmt(tokenInd: Int) {
     }
 
     var numTokens = totalTokens - tokenInd - 1 // total tokens in this statement
-    val numParenthesesAssignment = curr.tokens[j + 1]
-    curr.tokens[j + 1] = 0 // clean up this number as it's not needed anymore
+    val numParenthesesAssignment = curr.tokens[j + 3]
+    curr.tokens[j + 3] = 0 // clean up this number as it's not needed anymore
     for (k in 1..numParenthesesAssignment) {
         if (j < CHUNKSZ) {
             j += 4
@@ -687,8 +688,8 @@ private fun validateAssignmentStmt(tokenInd: Int) {
         }
         numTokens--
 
-        val tokTypeInt = curr.tokens[j + 3] ushr 27
-        if (tokTypeInt != parens.internalVal.toInt() || curr.tokens[j] != numTokens) {
+        val tokTypeInt = curr.tokens[j] ushr 27
+        if (tokTypeInt != parens.internalVal.toInt() || curr.tokens[j + 2] != numTokens) {
             errorOut(errorOperatorAssignmentPunct)
             return
         }
@@ -740,13 +741,13 @@ private fun getPrevTokenType(): Int {
     if (totalTokens == 0) return 0
 
     return if (nextInd > 0) {
-        currChunk.tokens[nextInd - 1] ushr 27
+        currChunk.tokens[nextInd - 4] ushr 27
     } else {
         var curr: LexChunk? = firstChunk
         while (curr!!.next != currChunk) {
             curr = curr.next!!
         }
-        curr.tokens[CHUNKSZ - 1] ushr 27
+        curr.tokens[CHUNKSZ - 4] ushr 27
     }
 }
 
@@ -817,10 +818,10 @@ private fun setPunctuationLength(tokenInd: Int) {
         j -= CHUNKSZ
     }
 
-    val lenBytes = i - curr.tokens[j + 2]
+    val lenBytes = i - curr.tokens[j + 1]
     checkLenOverflow(lenBytes)
-    curr.tokens[j    ] = totalTokens - tokenInd - 1  // lenTokens
-    curr.tokens[j + 3] += (lenBytes and LOWER27BITS) // lenBytes
+    curr.tokens[j + 2] = totalTokens - tokenInd - 1  // lenTokens
+    curr.tokens[j    ] += (lenBytes and LOWER27BITS) // lenBytes
 }
 
 
@@ -836,8 +837,8 @@ private fun setStatementType(tokenInd: Int, tType: PunctuationToken, numParenthe
         curr = curr.next!!
         j -= CHUNKSZ
     }
-    curr.tokens[j + 1] = numParenthesesAssignment
-    curr.tokens[j + 3] = tType.internalVal.toInt() shl 27
+    curr.tokens[j + 3] = numParenthesesAssignment
+    curr.tokens[j    ] = tType.internalVal.toInt() shl 27
 }
 
 
@@ -896,33 +897,33 @@ private fun finalize() {
 
 
 /** Append a regular (non-punctuation) token */
-private fun appendToken(payload: Long, startBytes: Int, lenBytes: Int, tType: RegularToken) {
+private fun appendToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) {
     ensureSpaceForToken()
     checkLenOverflow(lenBytes)
-    currChunk.tokens[nextInd    ] = (payload shr 32).toInt()
-    currChunk.tokens[nextInd + 1] = (payload and LOWER32BITS).toInt()
-    currChunk.tokens[nextInd + 2] = startBytes
-    currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.tokens[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.tokens[nextInd + 1] = startByte
+    currChunk.tokens[nextInd + 2] = (payload shr 32).toInt()
+    currChunk.tokens[nextInd + 3] = (payload and LOWER32BITS).toInt()
     bump()
 }
 
 /** Append a floating-point literal */
-private fun appendToken(payload: Double, startBytes: Int, lenBytes: Int) {
+private fun appendToken(payload: Double, startByte: Int, lenBytes: Int) {
     ensureSpaceForToken()
     checkLenOverflow(lenBytes)
     val asLong: Long = payload.toBits()
-    currChunk.tokens[nextInd    ] = (asLong shr 32).toInt()
-    currChunk.tokens[nextInd + 1] = (asLong and LOWER32BITS).toInt()
-    currChunk.tokens[nextInd + 2] = startBytes
-    currChunk.tokens[nextInd + 3] = (litFloat.internalVal.toInt() shl 27) + lenBytes
+    currChunk.tokens[nextInd    ] = (litFloat.internalVal.toInt() shl 27) + lenBytes
+    currChunk.tokens[nextInd + 1] = startByte
+    currChunk.tokens[nextInd + 2] = (asLong shr 32).toInt()
+    currChunk.tokens[nextInd + 3] = (asLong and LOWER32BITS).toInt()
     bump()
 }
 
 /** Append a punctuation token */
 private fun appendToken(startByte: Int, tType: PunctuationToken) {
     ensureSpaceForToken()
-    currChunk.tokens[nextInd + 2] = startByte
-    currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27)
+    currChunk.tokens[nextInd    ] = (tType.internalVal.toInt() shl 27)
+    currChunk.tokens[nextInd + 1] = startByte
     bump()
 }
 
@@ -931,9 +932,9 @@ private fun appendToken(startByte: Int, tType: PunctuationToken) {
 private fun appendToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
     ensureSpaceForToken()
     checkLenOverflow(lenBytes)
-    currChunk.tokens[nextInd    ] = lenTokens
-    currChunk.tokens[nextInd + 2] = startByte
-    currChunk.tokens[nextInd + 3] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.tokens[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.tokens[nextInd + 1] = startByte
+    currChunk.tokens[nextInd + 2] = lenTokens
     bump()
 }
 
@@ -947,6 +948,10 @@ fun setInput(inp: ByteArray) {
     this.inp = inp
 }
 
+
+fun nextToken(target: Token) {
+    // TODO
+}
 
 init {
     inp = byteArrayOf()
@@ -1126,21 +1131,23 @@ companion object {
 
 
     private fun printToken(chunk: LexChunk, ind: Int, wr: StringBuilder) {
-        val startByte = chunk.tokens[ind + 2]
-        val lenBytes = chunk.tokens[ind + 3] and LOWER27BITS
-        val typeBits = (chunk.tokens[ind + 3] ushr 27).toByte()
+        val startByte = chunk.tokens[ind + 1]
+        val lenBytes = chunk.tokens[ind] and LOWER27BITS
+        val typeBits = (chunk.tokens[ind] ushr 27).toByte()
         if (typeBits <= 8) {
             val regType = RegularToken.values().firstOrNull { it.internalVal == typeBits }
             if (regType != litFloat) {
-                val payload: Long = (chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong()
+                val payload: Long = (chunk.tokens[ind + 2].toLong() shl 32) + chunk.tokens[ind + 3].toLong()
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             } else {
-                val payload: Double = Double.fromBits((chunk.tokens[ind].toLong() shl 32) + chunk.tokens[ind + 1].toLong())
+                val payload: Double = Double.fromBits(
+                    (chunk.tokens[ind + 2].toLong() shl 32) + chunk.tokens[ind + 3].toLong()
+                )
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             }
         } else {
             val punctType = PunctuationToken.values().firstOrNull { it.internalVal == typeBits }
-            val lenTokens = chunk.tokens[ind]
+            val lenTokens = chunk.tokens[ind + 2]
             wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
         }
     }

@@ -27,10 +27,10 @@ enum class PunctuationToken(val internalVal: Byte) {
 
 /**
  * The real element of this array is struct Token - modeled as 4 32-bit ints
- * payload (for regular tokens) or lenTokens + empty 32 bits (for punctuation tokens) | i64
- * startByte                                                                          | i32
  * tType                                                                              | u5
  * lenBytes                                                                           | u27
+ * startByte                                                                          | i32
+ * payload (for regular tokens) or lenTokens + empty 32 bits (for punctuation tokens) | i64
  */
 data class LexChunk(val tokens: IntArray = IntArray(CHUNKSZ), var next: LexChunk? = null)
 
@@ -50,7 +50,7 @@ data class CommentChunk(val tokens: IntArray = IntArray(COMMENTSZ), var next: Co
 class CommentStorage {
     var firstChunk: CommentChunk = CommentChunk()
     var currChunk: CommentChunk
-    var i: Int // current index inside input byte array
+    private var i: Int // current index inside input byte array
     var nextInd: Int // next ind inside the current token chunk
     var totalTokens: Int
     init {
@@ -98,7 +98,7 @@ enum class OperatorType(val value: Int) {
     bitshiftLeft(20),        lessThanEq(21),         arrowLeft(22),         lessThan(23),
     equality(24),            arrowFat(25),            immDefinition(26),      greaterThanEqInterv(27),
     greaterThanInterv(28),   greaterThanEq(29),       bitshiftRight(30),      greaterThan(31),
-    xor(32),                 boolOr(33),              pipe(34),
+    backslash(32),           xor(33),                 boolOr(34),              pipe(35),
 }
 
 
@@ -137,3 +137,6 @@ data class OperatorToken(val opType: OperatorType, val extended: Int, val isAssi
         }
     }
 }
+
+
+data class Token(var tType: Int, var startByte: Int, var lenBytes: Int, var payload: Long)
