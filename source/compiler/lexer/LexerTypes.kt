@@ -18,10 +18,10 @@ enum class PunctuationToken(val internalVal: Byte) {
     parens(11),
     brackets(12),
     dotBrackets(13),
-    dollar(14),
-    statementFun(15),
-    statementAssignment(16),
-    statementTypeDecl(17),
+    statementFun(14),
+    statementAssignment(15),
+    statementTypeDecl(16),
+    dollar(17),
 }
 
 

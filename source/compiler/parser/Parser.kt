@@ -7,9 +7,10 @@ import kotlin.collections.ArrayList
 class Parser {
 
 
-var firstChunk: ParseChunk = ParseChunk()                        // First array of tokens
+private var inp: Lexer
+var firstChunk: ParseChunk = ParseChunk()                    // First array of tokens
     private set
-var currChunk: ParseChunk                                      // Last array of tokens
+var currChunk: ParseChunk                                    // Last array of tokens
     private set
 var nextInd: Int                                             // Next ind inside the current token array
     private set
@@ -20,8 +21,8 @@ var wasError: Boolean                                        // The lexer's erro
 var errMsg: String
     private set
 private var i: Int                                           // current index inside input byte array
-private val backtrack = Stack<Pair<PunctuationAST, Int>>() // The stack of punctuation scopes
-private val symbolBacktrack = Stack<Map<String, Binding>>() // The stack of symbol tables that form current lex env
+private val backtrack = Stack<Pair<PunctuationAST, Int>>()   // The stack of punctuation scopes
+private val symbolBacktrack = Stack<Map<String, Binding>>()  // The stack of symbol tables that form current lex env
 var bindings: List<Binding>
 var scopes: List<LexicalScope>
 
@@ -29,7 +30,22 @@ var scopes: List<LexicalScope>
  * Main parser method
  */
 fun parse(inp: Lexer) {
-    var currToken = Token(0, 0, 0, 0L)
+    var currChunk = inp.firstChunk
+    var currI = 0
+    while ((currChunk != inp.currChunk || currI < inp.nextInd) && !wasError) {
+        val tokType = currChunk.tokens[currI] shr 27
+        if (tokType < 10) {
+            parseUnexpectedToken()
+        } else {
+            dispatchTable[tokType - 10]()
+        }
+
+        currI++
+        if (currI == CHUNKSZ) {
+            currChunk = currChunk.next!!
+            currI = 0
+        }
+    }
     /**
      * fn foo x y {
      *     x + 2*y
@@ -46,6 +62,127 @@ fun parse(inp: Lexer) {
      */
 }
 
+
+private fun parseScope() {
+
+}
+
+
+private fun parseParens() {
+
+}
+
+
+private fun parseBrackets() {
+
+}
+
+
+private fun parseDotBrackets() {
+
+}
+
+
+private fun parseStatementFun() {
+
+}
+
+
+private fun parseStatementAssignment() {
+
+}
+
+
+private fun parseStatementTypeDecl() {
+
+}
+
+
+private fun parseUnexpectedToken() {
+    errorOut(errorUnexpectedToken)
+}
+
+
+/**
+ * Parse a funcall statement where the first word is possibly "catch"
+ */
+fun parseFromC() {
+
+}
+
+
+/**
+ * Parse a funcall statement where the first word is possibly "for" or "forRaw"
+ */
+fun parseFromF() {
+
+}
+
+
+/**
+ * Parse a funcall statement where the first word is possibly "if", "ifEq" or "ifPred"
+ */
+fun parseFromI() {
+
+}
+
+
+/**
+ * Parse a funcall statement where the first word is possibly "match"
+ */
+fun parseFromM() {
+
+}
+
+
+/**
+ * Parse a funcall statement where the first word is possibly "return"
+ */
+fun parseFromR() {
+
+}
+
+
+/**
+ * Parse a funcall statement where the first word is possibly "try"
+ */
+fun parseFromT() {
+
+}
+
+
+/**
+ * Parse a funcall statement where the first word is possibly "while"
+ */
+fun parseFromW() {
+
+}
+
+
+private fun parseFuncall() {
+    errorOut(errorUnrecognizedByte)
+}
+
+private fun errorOut(msg: String) {
+    this.wasError = true
+    this.errMsg = msg
+}
+
+
+/**
+ * For programmatic LexResult construction (builder pattern)
+ */
+fun error(msg: String): Parser {
+    errorOut(msg)
+    return this
+}
+
+
+fun setInput(inp: Lexer) {
+    this.inp = inp
+}
+
+
 init {
     currChunk = firstChunk
     i = 0
@@ -55,9 +192,21 @@ init {
     errMsg = ""
     bindings = ArrayList(10)
     scopes = ArrayList(10)
+    inp = Lexer()
 }
 
 companion object {
+    private val dispatchTable: Array<Parser.() -> Unit> = Array(7) {
+        i -> when(i) {
+            0 -> Parser::parseScope
+            1 -> Parser::parseParens
+            2 -> Parser::parseBrackets
+            3 -> Parser::parseDotBrackets
+            4 -> Parser:: parseStatementFun
+            5 ->  Parser:: parseStatementAssignment
+            else -> Parser::parseStatementTypeDecl
+        }
+    }
     /**
      * Equality comparison for parsers.
      */
