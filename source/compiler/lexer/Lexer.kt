@@ -6,13 +6,14 @@ import compiler.lexer.PunctuationToken.*
 
 class Lexer {
 
-private var inp: ByteArray
+var inp: ByteArray
+    private set
 var firstChunk: LexChunk = LexChunk()                        // First array of tokens
     private set
 var currChunk: LexChunk                                      // Last array of tokens
-    private set
 var nextInd: Int                                             // Next ind inside the current token array
     private set
+var currInd: Int
 var totalTokens: Int
     private set
 var wasError: Boolean                                        // The lexer's error flag
@@ -732,10 +733,6 @@ private fun closeRegularPunctuation(closingType: PunctuationToken) {
     i++
 }
 
-private fun isStatement(tType: PunctuationToken): Boolean {
-    return tType == statementTypeDecl || tType == statementFun || tType == statementAssignment
-}
-
 
 private fun getPrevTokenType(): Int {
     if (totalTokens == 0) return 0
@@ -949,8 +946,12 @@ fun setInput(inp: ByteArray) {
 }
 
 
-fun nextToken(target: Token) {
-    // TODO
+fun nextToken() {
+    currInd += 4
+    if (currInd == CHUNKSZ) {
+        currChunk = currChunk.next!!
+        currInd = 0
+    }
 }
 
 init {
@@ -958,6 +959,7 @@ init {
     currChunk = firstChunk
     i = 0
     nextInd = 0
+    currInd = 0
     totalTokens = 0
     wasError = false
     errMsg = ""
@@ -1027,6 +1029,18 @@ companion object {
     private fun isHexDigit(a: Byte): Boolean {
         return isDigit(a) || (a >= aALower && a <= aFLower) || (a >= aAUpper && a <= aFUpper)
     }
+
+    fun isStatement(tType: PunctuationToken): Boolean {
+        return tType == statementTypeDecl || tType == statementFun || tType == statementAssignment
+    }
+
+
+    fun isStatement(tType: Int): Boolean {
+        return tType == statementTypeDecl.internalVal.toInt()
+                || tType == statementFun.internalVal.toInt()
+                || tType == statementAssignment.internalVal.toInt()
+    }
+
 
     /**
      * Equality comparison for lexers.

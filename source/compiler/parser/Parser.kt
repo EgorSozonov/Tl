@@ -30,21 +30,19 @@ var scopes: List<LexicalScope>
  * Main parser method
  */
 fun parse(inp: Lexer) {
-    var currChunk = inp.firstChunk
-    var currI = 0
-    while ((currChunk != inp.currChunk || currI < inp.nextInd) && !wasError) {
-        val tokType = currChunk.tokens[currI] shr 27
-        if (tokType < 10) {
-            parseUnexpectedToken()
+    val lastChunk = inp.currChunk
+    val sentinelInd = inp.nextInd
+    inp.currChunk = inp.firstChunk
+    inp.currInd = 0
+    while ((inp.currChunk != lastChunk || inp.nextInd < sentinelInd) && !wasError) {
+        val tokType = currChunk.tokens[inp.nextInd] ushr 27
+        if (Lexer.isStatement(tokType)) {
+            parseTopLevelStatement()
         } else {
-            dispatchTable[tokType - 10]()
+            parseUnexpectedToken()
         }
 
-        currI++
-        if (currI == CHUNKSZ) {
-            currChunk = currChunk.next!!
-            currI = 0
-        }
+        inp.nextToken()
     }
     /**
      * fn foo x y {
@@ -62,6 +60,34 @@ fun parse(inp: Lexer) {
      */
 }
 
+
+private fun parseTopLevelStatement() {
+    inp.nextToken()
+    val typeAndLen = inp.currChunk.tokens[inp.currInd]
+    val tokType = typeAndLen ushr 27
+    if (tokType == RegularToken.word.internalVal.toInt()) {
+        val indDispatch = detWordParser(inp.currChunk.tokens[inp.currInd + 1], typeAndLen and LOWER27BITS)
+        statementDispatch[indDispatch]()
+    } else {
+        parseStatement()
+    }
+}
+
+
+/**
+ * Parses any kind of statement (fun, assignment, typedecl)
+ */
+private fun parseStatement() {
+
+}
+
+/**
+ * Parses a statement starting with the word "fn" which is a function definition.
+ *
+ */
+private fun parseFnDefinition() {
+
+}
 
 private fun parseScope() {
 
@@ -104,9 +130,9 @@ private fun parseUnexpectedToken() {
 
 
 /**
- * Parse a funcall statement where the first word is possibly "catch"
+ * Returns the index of the "catch" parser if the word starting with "c" under cursor is indeed "catch"
  */
-fun parseFromC() {
+fun determineCWord() {
 
 }
 
@@ -159,6 +185,17 @@ fun parseFromW() {
 }
 
 
+/**
+ * Checks if the word in question is a reserved word, and returns its index in the array, or 0 if not reserved.
+ */
+private fun detWordParser(startByte: Int, lenBytes: Int): Int {
+    val firstLetter = inp.inp[startByte]
+    if (firstLetter < aCLower || firstLetter > aWLower) return 0
+    return reservedWordDispatch[(firstLetter - aCLower)]()
+
+}
+
+
 private fun parseFuncall() {
     errorOut(errorUnrecognizedByte)
 }
@@ -207,6 +244,21 @@ companion object {
             else -> Parser::parseStatementTypeDecl
         }
     }
+
+    private val statementDispatch: Array<Parser.() -> Unit> = Array(2) {
+        i -> when(i) {
+            0 -> Parser::parseStatement
+            else -> Parser::parseFnDefinition
+        }
+    }
+
+    private val reservedWordDispatch: Array<Parser.() -> Int> = Array(21) {
+         i -> when(i) {
+            0 -> Parser::determineCWord
+            else -> Parser::parseFnDefinition
+        }
+    }
+
     /**
      * Equality comparison for parsers.
      */

@@ -33,8 +33,10 @@ val maxInt = byteArrayOf(
 
 const val aALower: Byte = 97
 const val aBLower: Byte = 98
+const val aCLower: Byte = 99
 const val aFLower: Byte = 102
 const val aXLower: Byte = 120
+const val aWLower: Byte = 119
 const val aZLower: Byte = 122
 const val aAUpper: Byte = 65
 const val aFUpper: Byte = 70
