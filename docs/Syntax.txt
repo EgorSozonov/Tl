@@ -117,16 +117,16 @@ Keywords
 _____________________
 init keywords (these are always at the start of a statement)
 
+catch
 if
 ifEq
 ifPred
-match
-while
 for
 forRaw
+match
 return
 try
-catch
+while
 
 
 non-init keywords

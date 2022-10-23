@@ -456,10 +456,9 @@ private fun lexStatementTerminator() {
 
 
 /**
- * String literals look like 'wasn\'t' and may contain arbitrary UTF-8.
+ * String literals look like "wasn't" and may contain arbitrary UTF-8.
  * The insides of the string have escape sequences and variable interpolation with
- * the 'x = ${x}' syntax.
- * TODO double quotes
+ * the "x = ${x}" syntax.
  * TODO probably need to count UTF-8 codepoints, or worse - grapheme clusters - in order to correctly report to LSP
  */
 private fun lexStringLiteral() {
@@ -467,9 +466,9 @@ private fun lexStringLiteral() {
     val szMinusOne = inp.size - 1
     while (j < inp.size) {
         val cByte = inp[j]
-        if (cByte == aBackslash && j < szMinusOne && inp[j + 1] == aApostrophe) {
+        if (cByte == aBackslash && j < szMinusOne && inp[j + 1] == aQuote) {
             j += 2
-        } else if (cByte == aApostrophe) {
+        } else if (cByte == aQuote) {
             addToken(0, i + 1, j - i - 1, litString)
             i = j + 1
             return
@@ -482,7 +481,7 @@ private fun lexStringLiteral() {
 
 
 /**
- * Verbatim strings look like "asdf""" or "\nasdf""".
+ * Verbatim strings look like @"asdf" or @"\nasdf" or @4"asdf"""asdf"""".
  * In the second variety (i.e. if the opening " is followed by the newline symbol),
  * the lexer ignores the newline symbol. Also, the minimal number of leading spaces among
  * the lines of text are also ignored. Combined, this means that the following:
@@ -495,8 +494,9 @@ private fun lexStringLiteral() {
  * The inside of the string has variables interpolated into it like the common string literal:
  *     "x = ${x}"""
  * but is otherwise unaltered (no symbols are escaped).
- * The literal may not contain the '"""' combination. In the rare cases that string literals with
- * this sequence are needed, it's possible to use string concatenation or txt file inclusion.
+ * The third variety is used to set the sufficient number of closing quotes in order to facilitate
+ * the string containing any necessary sequence.
+ * TODO implement this
  */
 private fun lexVerbatimStringLiteral() {
     var j = i + 1
@@ -954,6 +954,10 @@ fun nextToken() {
     }
 }
 
+fun currTokenType(): Int {
+    return currChunk.tokens[currInd] ushr 27
+}
+
 init {
     inp = byteArrayOf()
     currChunk = firstChunk
@@ -1000,8 +1004,7 @@ companion object {
         dispatchTable[aNewline.toInt()] = Lexer::lexNewline
         dispatchTable[aSemicolon.toInt()] = Lexer::lexStatementTerminator
 
-        dispatchTable[aApostrophe.toInt()] = Lexer::lexStringLiteral
-        dispatchTable[aQuote.toInt()] = Lexer::lexVerbatimStringLiteral
+        dispatchTable[aQuote.toInt()] = Lexer::lexStringLiteral
         dispatchTable[aSharp.toInt()] = Lexer::lexComment
     }
 

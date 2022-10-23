@@ -14,28 +14,33 @@ var currChunk: ParseChunk                                    // Last array of to
     private set
 var nextInd: Int                                             // Next ind inside the current token array
     private set
-var totalASTs: Int
-    private set
 var wasError: Boolean                                        // The lexer's error flag
     private set
 var errMsg: String
     private set
 private var i: Int                                           // current index inside input byte array
+private var totalNodes: Int
+    private set
 private val backtrack = Stack<Pair<PunctuationAST, Int>>()   // The stack of punctuation scopes
-private val symbolBacktrack = Stack<Map<String, Binding>>()  // The stack of symbol tables that form current lex env
-var bindings: List<Binding>
-var scopes: List<LexicalScope>
+private val scopeBacktrack = Stack<LexicalScope>()  // The stack of symbol tables that form current lex env
+private var bindings: MutableList<Binding>
+private var functionBindings: MutableList<FunctionBinding>
+private var scopes: MutableList<LexicalScope>
+private var strings: ArrayList<String>
 
 /**
  * Main parser method
  */
-fun parse(inp: Lexer) {
+fun parse(inp: Lexer, fileType: FileType) {
     val lastChunk = inp.currChunk
     val sentinelInd = inp.nextInd
     inp.currChunk = inp.firstChunk
     inp.currInd = 0
+    val rootScope = LexicalScope()
+    this.scopes.add(rootScope)
+    scopeBacktrack.push(rootScope)
     while ((inp.currChunk != lastChunk || inp.nextInd < sentinelInd) && !wasError) {
-        val tokType = currChunk.tokens[inp.nextInd] ushr 27
+        val tokType = currChunk.nodes[inp.nextInd] ushr 27
         if (Lexer.isStatement(tokType)) {
             parseTopLevelStatement()
         } else {
@@ -62,33 +67,162 @@ fun parse(inp: Lexer) {
 
 
 private fun parseTopLevelStatement() {
+    val lenTokens = inp.currChunk.tokens[inp.currInd + 2]
+    val stmtType = inp.currTokenType()
     inp.nextToken()
     val typeAndLen = inp.currChunk.tokens[inp.currInd]
     val tokType = typeAndLen ushr 27
     if (tokType == RegularToken.word.internalVal.toInt()) {
-        val indDispatch = detWordParser(inp.currChunk.tokens[inp.currInd + 1], typeAndLen and LOWER27BITS)
-        statementDispatch[indDispatch]()
+        val startByte = inp.currChunk.tokens[inp.currInd + 1]
+        val lenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+        val firstLetter = inp.inp[startByte]
+        if (firstLetter < aCLower || firstLetter > aWLower) {
+            parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+        } else {
+            statementDispatch[firstLetter - aCLower](stmtType, startByte, lenBytes, lenTokens)
+        }
     } else {
-        parseStatement()
+        parseNoncoreStatement(stmtType, 0, 0, lenTokens)
     }
 }
 
 
 /**
- * Parses any kind of statement (fun, assignment, typedecl)
+ * Parses any kind of statement (fun, assignment, typedecl) except core forms
+ * The @startByte and @lenBytes may both be 0, this means that the first token is not a word.
+ * Otherwise they are both nonzero.
  */
-private fun parseStatement() {
+private fun parseNoncoreStatement(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
 
+}
+
+private fun coreCatch(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (!wasError) return
 }
 
 /**
- * Parses a statement starting with the word "fn" which is a function definition.
+ * Parses a core form: function definition.
  *
  */
-private fun parseFnDefinition() {
+private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+
+    inp.nextToken()
+
+    val names = HashMap<String, Int>(4)
+    val wordType = RegularToken.word.internalVal.toInt()
+    var j = 0
+    var functionName = ""
+    if (inp.currTokenType() == wordType) {
+        functionName = String(inp.inp, inp.currChunk.tokens[inp.currInd + 1],
+                                 inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+        j++
+        names[functionName] = j
+        inp.nextToken()
+
+    }
+    while (j < lenTokens && inp.currTokenType() == wordType) {
+        val paramName = String(inp.inp, inp.currChunk.tokens[inp.currInd + 1],
+                                  inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+        if (names.containsKey(paramName)) {
+            errorOut(errorFnNameAndParams)
+            return
+        }
+        j++
+        names[paramName] = j
+        inp.nextToken()
+    }
+    if (j == 0 || j == lenTokens) {
+        errorOut(errorFnNameAndParams)
+        return
+    }
+    if (inp.currTokenType() != PunctuationToken.curlyBraces.internalVal.toInt()) {
+        errorOut(errorFnMissingBody)
+        return
+    }
+    val fnBinding = FunctionBinding(functionName, names.count() - 1)
+    appendNode(RegularAST.fnDef, 0, functionBindings.size, 0, 0)
+    functionBindings.add(fnBinding)
+
+    parseFnBody(names)
+}
+
+
+private fun coreFnValidateNames() {
 
 }
 
+private fun coreIf(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+private fun coreIfEq(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+private fun coreIfPred(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+private fun coreFor(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+private fun coreForRaw(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+private fun coreMatch(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+private fun coreReturn(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+private fun coreTry(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+private fun coreWhile(stmtType: Int, lenTokens: Int) {
+    validateCoreForm(stmtType, lenTokens)
+    if (wasError) return
+}
+
+
+private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
+    if (lenTokens < 3) {
+        errorOut(errorCoreFormTooShort)
+    }
+    if (stmtType != PunctuationToken.statementFun.internalVal.toInt()) {
+        errorOut(errorCoreFormAssignment)
+    }
+}
+
+
+
+/**
+ * Parses a function definition body (in which case the @params
+ * will be non-empty).
+ */
+private fun parseFnBody(params: HashMap<String, Int>) {
+
+}
+
+
+/**
+ * Parses a scope (curly braces)
+ */
 private fun parseScope() {
 
 }
@@ -132,73 +266,66 @@ private fun parseUnexpectedToken() {
 /**
  * Returns the index of the "catch" parser if the word starting with "c" under cursor is indeed "catch"
  */
-fun determineCWord() {
-
+fun parseFromC(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
 }
 
 
 /**
- * Parse a funcall statement where the first word is possibly "for" or "forRaw"
+ * Parse a statement where the first word is possibly "fn", "for" or "forRaw"
  */
-fun parseFromF() {
-
+fun parseFromF(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+    if (lenBytes == 2 && inp.inp[startByte + 1] == aNLower) {
+        coreFnDefinition(stmtType, lenTokens)
+    }
+    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
 }
 
 
 /**
- * Parse a funcall statement where the first word is possibly "if", "ifEq" or "ifPred"
+ * Parse a statement where the first word is possibly "if", "ifEq" or "ifPred"
  */
-fun parseFromI() {
-
+fun parseFromI(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
 }
 
 
 /**
- * Parse a funcall statement where the first word is possibly "match"
+ * Parse a statement where the first word is possibly "match"
  */
-fun parseFromM() {
-
+fun parseFromM(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
 }
 
 
 /**
- * Parse a funcall statement where the first word is possibly "return"
+ * Parse a statement where the first word is possibly "return"
  */
-fun parseFromR() {
-
+fun parseFromR(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
 }
 
 
 /**
  * Parse a funcall statement where the first word is possibly "try"
  */
-fun parseFromT() {
-
+fun parseFromT(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
 }
 
 
 /**
  * Parse a funcall statement where the first word is possibly "while"
  */
-fun parseFromW() {
-
-}
-
-
-/**
- * Checks if the word in question is a reserved word, and returns its index in the array, or 0 if not reserved.
- */
-private fun detWordParser(startByte: Int, lenBytes: Int): Int {
-    val firstLetter = inp.inp[startByte]
-    if (firstLetter < aCLower || firstLetter > aWLower) return 0
-    return reservedWordDispatch[(firstLetter - aCLower)]()
-
+fun parseFromW(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
 }
 
 
 private fun parseFuncall() {
     errorOut(errorUnrecognizedByte)
 }
+
 
 private fun errorOut(msg: String) {
     this.wasError = true
@@ -220,16 +347,64 @@ fun setInput(inp: Lexer) {
 }
 
 
+/** Append a regular AST node */
+private fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int) {
+    ensureSpaceForNode()
+    currChunk.nodes[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.nodes[nextInd + 1] = startByte
+    currChunk.nodes[nextInd + 2] = payload1
+    currChunk.nodes[nextInd + 3] = payload2
+    bump()
+}
+
+
+/** Append a punctuation AST node */
+private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationAST) {
+    ensureSpaceForNode()
+    currChunk.nodes[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.nodes[nextInd + 1] = startByte
+    bump()
+}
+
+
+/** The programmatic/builder method for appending a punctuation token */
+private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
+    ensureSpaceForNode()
+    currChunk.nodes[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.nodes[nextInd + 1] = startByte
+    currChunk.nodes[nextInd + 2] = lenTokens
+    bump()
+}
+
+
+private fun bump() {
+    nextInd += 4
+    totalNodes++
+}
+
+
+private fun ensureSpaceForNode() {
+    if (nextInd < (CHUNKSZ - 4)) return
+
+    val newChunk = ParseChunk()
+    currChunk.next = newChunk
+    currChunk = newChunk
+    nextInd = 0
+}
+
+
 init {
     currChunk = firstChunk
     i = 0
     nextInd = 0
-    totalASTs = 0
+    totalNodes = 0
     wasError = false
     errMsg = ""
-    bindings = ArrayList(10)
+    bindings = ArrayList(12)
+    functionBindings = ArrayList(12)
     scopes = ArrayList(10)
     inp = Lexer()
+    strings = ArrayList(100)
 }
 
 companion object {
@@ -245,25 +420,28 @@ companion object {
         }
     }
 
-    private val statementDispatch: Array<Parser.() -> Unit> = Array(2) {
+    /**
+     * Table for dispatch on the first letter of the first word of a statement
+     */
+    private val statementDispatch: Array<Parser.(Int, Int, Int, Int) -> Unit> = Array(21) {
         i -> when(i) {
-            0 -> Parser::parseStatement
-            else -> Parser::parseFnDefinition
+            0 -> Parser::parseFromC
+            3 -> Parser::parseFromF
+            6 -> Parser::parseFromI
+            10 -> Parser::parseFromM
+            15 -> Parser::parseFromR
+            17 -> Parser::parseFromT
+            20 -> Parser::parseFromW
+            else -> Parser::parseNoncoreStatement
         }
     }
 
-    private val reservedWordDispatch: Array<Parser.() -> Int> = Array(21) {
-         i -> when(i) {
-            0 -> Parser::determineCWord
-            else -> Parser::parseFnDefinition
-        }
-    }
 
     /**
      * Equality comparison for parsers.
      */
     fun equality(a: Parser, b: Parser): Boolean {
-        if (a.wasError != b.wasError || a.totalASTs != b.totalASTs || a.nextInd != b.nextInd
+        if (a.wasError != b.wasError || a.totalNodes != b.totalNodes || a.nextInd != b.nextInd
             || a.errMsg != b.errMsg) {
             return false
         }
@@ -275,7 +453,7 @@ companion object {
             }
             val len = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
             for (i in 0 until len) {
-                if (currA.tokens[i] != currB.tokens[i]) {
+                if (currA.nodes[i] != currB.nodes[i]) {
                     return false
                 }
             }
@@ -346,23 +524,23 @@ companion object {
 
 
     private fun printToken(chunk: ParseChunk, ind: Int, wr: StringBuilder) {
-        val startByte = chunk.tokens[ind + 1]
-        val lenBytes = chunk.tokens[ind] and LOWER27BITS
-        val typeBits = (chunk.tokens[ind] ushr 27).toByte()
+        val startByte = chunk.nodes[ind + 1]
+        val lenBytes = chunk.nodes[ind] and LOWER27BITS
+        val typeBits = (chunk.nodes[ind] ushr 27).toByte()
         if (typeBits <= 8) {
             val regType = RegularToken.values().firstOrNull { it.internalVal == typeBits }
             if (regType != RegularToken.litFloat) {
-                val payload: Long = (chunk.tokens[ind + 2].toLong() shl 32) + chunk.tokens[ind + 3].toLong()
+                val payload: Long = (chunk.nodes[ind + 2].toLong() shl 32) + chunk.nodes[ind + 3].toLong()
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             } else {
                 val payload: Double = Double.fromBits(
-                    (chunk.tokens[ind + 2].toLong() shl 32) + chunk.tokens[ind + 3].toLong()
+                    (chunk.nodes[ind + 2].toLong() shl 32) + chunk.nodes[ind + 3].toLong()
                 )
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             }
         } else {
             val punctType = PunctuationToken.values().firstOrNull { it.internalVal == typeBits }
-            val lenTokens = chunk.tokens[ind + 2]
+            val lenTokens = chunk.nodes[ind + 2]
             wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
         }
     }

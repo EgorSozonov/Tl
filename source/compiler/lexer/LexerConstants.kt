@@ -24,7 +24,7 @@ const val errorOperatorMultipleAssignment = "Multiple assignment / type declarat
 
 
 /**
- * The a notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
+ * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
  */
 val maxInt = byteArrayOf(
     9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
@@ -35,6 +35,7 @@ const val aALower: Byte = 97
 const val aBLower: Byte = 98
 const val aCLower: Byte = 99
 const val aFLower: Byte = 102
+const val aNLower: Byte = 110
 const val aXLower: Byte = 120
 const val aWLower: Byte = 119
 const val aZLower: Byte = 122
@@ -101,11 +102,12 @@ val operatorSymbols = byteArrayOf(
     aAmpersand, 0, 0,           aTimes, aTimes, 0,             aTimes, 0, 0,                  aPlus, aPlus, 0,
     aPlus, 0, 0,                aMinus, aMinus, 0,             aMinus, aGreaterThan, 0,       aMinus, 0, 0,
     aDot, aDot, aLessThan,      aDot, aDot, 0,                 aDivBy, 0, 0,                  aColon, aGreaterThan, 0,
-    aColon, aEquals, 0,         aColon, 0, 0,                  aLessThan, aEquals, aDot,      aLessThan, aDot, 0,
-    aLessThan, aLessThan, 0,    aLessThan, aEquals, 0,         aLessThan, aMinus, 0,          aLessThan, 0, 0,
-    aEquals, aEquals, 0,        aEquals, aGreaterThan, 0,      aEquals, 0, 0,                 aGreaterThan, aEquals, aDot,
-    aGreaterThan, aDot, 0,      aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0, aGreaterThan, 0, 0,
-    aBackslash, 0, 0,           aCaret, 0, 0,                  aPipe, aPipe, 0,               aPipe, 0, 0,
+    aColon, aEquals, 0,         aColon, aColon, 0,             aColon, 0, 0,                  aLessThan, aEquals, aDot,
+    aLessThan, aDot, 0,         aLessThan, aLessThan, 0,       aLessThan, aEquals, 0,         aLessThan, aMinus, 0,
+    aLessThan, 0, 0,            aEquals, aEquals, 0,           aEquals, aGreaterThan, 0,      aEquals, 0, 0,
+    aGreaterThan, aEquals, aDot,aGreaterThan, aDot, 0,         aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0,
+    aGreaterThan, 0, 0,         aBackslash, 0, 0,              aCaret, 0, 0,                  aPipe, aPipe, 0,
+    aPipe, 0, 0,
 )
 
 /**
@@ -118,10 +120,11 @@ val operatorExtensibility = byteArrayOf(
     1, 0, 0, 1,
     0, 0, 1, 0,
     0, 0, 0, 0,
-    1, 0, 0, 0,
+    0, 1, 0, 0,
     0, 0, 0, 0,
-    0, 0, 1, 0,
-    0, 1, 1, 0,
+    0, 0, 0, 1,
+    0, 0, 1, 1,
+    0,
 )
 
 const val CHUNKSZ: Int = 10000 // Must be divisible by 4

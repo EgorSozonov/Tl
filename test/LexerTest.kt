@@ -345,16 +345,16 @@ inner class LexStringTest {
     @Test
     fun `String simple literal`() {
         testInpOutp(
-            "'asdf'",
+            "\"asdf\"",
             Lexer().buildPunct(0, 6, statementFun, 1)
                 .build(0, 1, 4, litString)
         )
     }
 
     @Test
-    fun `String literal with escaped apostrophe inside`() {
+    fun `String literal with escaped quote inside`() {
         testInpOutp(
-            """'wasn\'t' so sure""",
+            "\"wasn\\\"t\" so sure",
             Lexer().buildPunct(0, 17, statementFun, 3)
                 .build(0, 1, 7, litString)
                 .build(0, 10, 2, word)
@@ -365,7 +365,7 @@ inner class LexStringTest {
     @Test
     fun `String literal with non-ASCII inside`() {
         testInpOutp(
-            """'hello мир'""",
+            "\"hello мир\"",
             Lexer().buildPunct(0, 14, statementFun, 1)
                 .build(0, 1, 12, litString) // 12 because each Cyrillic letter = 2 bytes
         )
@@ -374,19 +374,20 @@ inner class LexStringTest {
     @Test
     fun `String literal unclosed`() {
         testInpOutp(
-            "'asdf",
+            "\"asdf",
             Lexer().error(errorPrematureEndOfInput)
         )
     }
 
-    @Test
-    fun `Verbatim string literal`() {
-        testInpOutp(
-            "\"asdf foo\"\"\"",
-            Lexer().buildPunct(0, 12, statementFun, 1)
-                .build(0, 1, 8, verbatimString)
-        )
-    }
+//    @Test
+    // TODO bring this test back when verbatim strings are implemented
+//    fun `Verbatim string literal`() {
+//        testInpOutp(
+//            "\"asdf foo\"\"\"",
+//            Lexer().buildPunct(0, 12, statementFun, 1)
+//                .build(0, 1, 8, verbatimString)
+//        )
+//    }
 }
 
 

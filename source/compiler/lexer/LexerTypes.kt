@@ -94,11 +94,12 @@ enum class OperatorType(val value: Int) {
     composition(4),          exponentiation(5),      times(6),              increment(7),
     plus(8),                 decrement(9),           arrowRight(10),             minus(11),
     rangeHalf(12),           range(13),              divBy(14),             elseBranch(15),
-    mutation(16),            colon(17),              lessThanEqInterval(18), lessThanInterval(19),
-    bitshiftLeft(20),        lessThanEq(21),         arrowLeft(22),         lessThan(23),
-    equality(24),            arrowFat(25),            immDefinition(26),      greaterThanEqInterv(27),
-    greaterThanInterv(28),   greaterThanEq(29),       bitshiftRight(30),      greaterThan(31),
-    backslash(32),           xor(33),                 boolOr(34),              pipe(35),
+    mutation(16),            typeDecl(17),           colon(18),              lessThanEqInterval(19),
+    lessThanInterval(20),    bitshiftLeft(21),       lessThanEq(22),         arrowLeft(23),
+    lessThan(24),            equality(25),           arrowFat(26),            immDefinition(27),
+    greaterThanEqInterv(28), greaterThanInterv(29),  greaterThanEq(30),       bitshiftRight(31),
+    greaterThan(32),         backslash(33),          xor(34),                 boolOr(35),
+    pipe(36),
 }
 
 
