@@ -24,11 +24,12 @@ private var totalNodes: Int
     private set
 private val backtrack = Stack<Pair<PunctuationAST, Int>>()   // The stack of punctuation scopes
 private val scopeBacktrack = Stack<LexicalScope>()  // The stack of symbol tables that form current lex env
+private val unknownFunctions: HashMap<String, ArrayList<UnknownFunLocation>>
 private var bindings: MutableList<Binding>
 private var functionBindings: MutableList<FunctionBinding>
-private val unknownFunctions: HashMap<String, UnknownFunLocation>
 private var scopes: MutableList<LexicalScope>
 private var strings: ArrayList<String>
+
 
 /**
  * Main parser method
@@ -126,16 +127,14 @@ private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
     var j = 0
     var functionName = ""
     if (inp.currTokenType() == wordType) {
-        functionName = String(inp.inp, inp.currChunk.tokens[inp.currInd + 1],
-                                 inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+        functionName = readString()
         j++
         names[functionName] = j
         inp.nextToken()
 
     }
     while (j < lenTokens && inp.currTokenType() == wordType) {
-        val paramName = String(inp.inp, inp.currChunk.tokens[inp.currInd + 1],
-                                  inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+        val paramName = readString()
         if (names.containsKey(paramName)) {
             errorOut(errorFnNameAndParams)
             return
@@ -262,15 +261,37 @@ private fun parseDotBrackets() {
  * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
  */
 private fun parseStatementFun() {
-    val functionStack = ArrayList<Int>()
+    val functionNamesStack = ArrayList<String>()
+    val functionParamStack = ArrayList<Int>()
     var stackInd = 0
     val numTokensStmt = inp.currChunk.tokens[inp.currInd + 2]
+    inp.nextToken()
 
-    if (numTokensStmt >= 2 && inp.nextTokenType() == RegularToken.dotWord.internalVal.toInt()) {
-
+    val thisTok = inp.currTokenType()
+    if (numTokensStmt == 1) {
+        if (thisTok != RegularToken.word.internalVal.toInt()) {
+            errorOut(errorStatementFunError)
+            return
+        }
+        appendFnName(readString(), 0, inp.currChunk.tokens[inp.currInd + 1])
+        return
+    }
+    var firstTokenSkip = 1
+    if (thisTok == PunctuationToken.parens.internalVal.toInt()) {
+        firstTokenSkip = inp.currChunk.tokens[inp.currInd + 2]
     }
 
+    val nextTok = inp.nextTokenType(firstTokenSkip)
+    if (nextTok == RegularToken.dotWord.internalVal.toInt() || nextTok == RegularToken.operatorTok.internalVal.toInt()) {
+        // TODO parse a paren, a literal int or a word ident
+        if (thisTok != RegularToken.word.internalVal.toInt() && thisTok != RegularToken.litInt.internalVal.toInt()) {
+            errorOut(errorStatementFunError)
+            return
+        }
+    } else {
 
+    }
+    
     var jTok = 0
     while (jTok < numTokensStmt) {
 
@@ -281,11 +302,56 @@ private fun parseStatementFun() {
     // flattening of
 }
 
-/**
- *
-  */
-private fun findFunction(String name) {
+private fun readString(): String {
+    return String(inp.inp, inp.currChunk.tokens[inp.currInd + 1],
+        inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+}
 
+
+/**
+ * Appends a node that either points to a function binding, or is pointed to by an unknown function
+  */
+private fun appendFnName(name: String, arity: Int, startByte: Int) {
+    val mbId = searchForFunction(name, arity)
+    if (mbId != null) {
+        appendNode(RegularAST.identFunc, mbId, 0, startByte, name.length)
+    } else {
+        if (unknownFunctions.containsKey(name)) {
+            val lst: ArrayList<UnknownFunLocation> = unknownFunctions[name]!!
+            lst.add(UnknownFunLocation(totalNodes, arity))
+        } else {
+            unknownFunctions[name] = arrayListOf(UnknownFunLocation(totalNodes, arity))
+        }
+    }
+}
+
+
+private fun searchForBinding(name: String): Int? {
+    var j = scopeBacktrack.size - 1
+    while (j > -1) {
+        if (scopeBacktrack[j].bindings.containsKey(name)) {
+            return scopeBacktrack[j].bindings[name]
+        }
+        j--
+    }
+    return null
+}
+
+
+private fun searchForFunction(name: String, arity: Int): Int? {
+    var j = scopeBacktrack.size - 1
+    while (j > -1) {
+        if (scopeBacktrack[j].functions.containsKey(name)) {
+            val lst = scopeBacktrack[j].functions[name]!!
+            for (itm in lst) {
+                if (itm.first == arity) {
+                    return itm.second
+                }
+            }
+        }
+        j--
+    }
+    return null
 }
 
 
@@ -360,12 +426,6 @@ fun parseFromT(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
  */
 fun parseFromW(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
     parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
-}
-
-
-private fun parseFuncall() {
-
-    errorOut(errorUnrecognizedByte)
 }
 
 

@@ -6,6 +6,8 @@ const val errorCoreFormTooShort           = "Statement too short: core syntax fo
 const val errorCoreFormAssignment         = "A core form may not contain assignment!"
 const val errorFnNameAndParams            = "Function definition must start with more than one unique words: its name and parameters!"
 const val errorFnMissingBody              = "Function definition must contain a body which must be a Scope!"
+const val errorStatementFunError          = "Cannot parse function call statement!"
+
 
 val reservedCatch = byteArrayOf(99, 97, 116, 99, 104)
 val reservedFor = byteArrayOf(102, 111, 114)
