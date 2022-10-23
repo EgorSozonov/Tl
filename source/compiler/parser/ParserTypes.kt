@@ -15,7 +15,7 @@ class Binding(val name: String) {
 
 }
 
-class FunctionBinding(val name: String, val countParams: Int) {
+class FunctionBinding(val name: String, val precedence: Int, val countParams: Int) {
 
 }
 
@@ -26,7 +26,7 @@ enum class RegularAST(val internalVal: Byte) { // payload
     ident(3),                         // index in the bindings table of parser
     identFunc(4),                     // index in the functionBindings table of parser
     annot(5),                         // index in the annotations table of parser
-    fnDef(6),                         // number of nodes, index in the functionBindings table of parser,
+    fnDef(6),                         // index in the functionBindings table of parser,
 }
 
 enum class PunctuationAST(val internalVal: Byte) {
@@ -53,3 +53,8 @@ enum class FileType {
     library,
     testing,
 }
+
+/**
+ * A record about an unknown function binding that has been encountered when parsing
+ */
+data class UnknownFunLocation(val indNode: Int, val numParameters: Int)

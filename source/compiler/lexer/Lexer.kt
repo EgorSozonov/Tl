@@ -958,6 +958,15 @@ fun currTokenType(): Int {
     return currChunk.tokens[currInd] ushr 27
 }
 
+fun nextTokenType(): Int {
+    val nextInd = currInd + 4
+    return if (currInd + 4 >= CHUNKSZ) {
+        currChunk.next!!.tokens[0] ushr 27
+    } else {
+        currChunk.tokens[nextInd] ushr 27
+    }
+}
+
 init {
     inp = byteArrayOf()
     currChunk = firstChunk

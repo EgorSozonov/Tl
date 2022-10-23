@@ -86,47 +86,6 @@ const val aGreaterThan: Byte = 62
 
 
 val maximumPreciselyRepresentedFloatingInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
-
-val operatorStartSymbols = byteArrayOf(
-    aColon, aAmpersand, aPlus, aMinus, aDivBy, aTimes, aExclamation,
-    aPercent, aCaret, aPipe, aGreaterThan, aLessThan, aQuestion, aEquals,
-)
-
-/**
- * This is an array of 3-byte arrays containing operator byte sequences.
- * Sorted as follows: 1. by first byte ASC 2. by length DESC.
- * It's used to lex operator symbols using left-to-right search.
- */
-val operatorSymbols = byteArrayOf(
-    aExclamation, aEquals, 0,   aExclamation, 0, 0,            aPercent, 0, 0,                aAmpersand, aAmpersand, 0,
-    aAmpersand, 0, 0,           aTimes, aTimes, 0,             aTimes, 0, 0,                  aPlus, aPlus, 0,
-    aPlus, 0, 0,                aMinus, aMinus, 0,             aMinus, aGreaterThan, 0,       aMinus, 0, 0,
-    aDot, aDot, aLessThan,      aDot, aDot, 0,                 aDivBy, 0, 0,                  aColon, aGreaterThan, 0,
-    aColon, aEquals, 0,         aColon, aColon, 0,             aColon, 0, 0,                  aLessThan, aEquals, aDot,
-    aLessThan, aDot, 0,         aLessThan, aLessThan, 0,       aLessThan, aEquals, 0,         aLessThan, aMinus, 0,
-    aLessThan, 0, 0,            aEquals, aEquals, 0,           aEquals, aGreaterThan, 0,      aEquals, 0, 0,
-    aGreaterThan, aEquals, aDot,aGreaterThan, aDot, 0,         aGreaterThan, aEquals, 0,      aGreaterThan, aGreaterThan, 0,
-    aGreaterThan, 0, 0,         aBackslash, 0, 0,              aCaret, 0, 0,                  aPipe, aPipe, 0,
-    aPipe, 0, 0,
-)
-
-/**
- * Marks the 10 "equalable & extensible" operators, i.e. the ones with 5 extra variations.
- * Order must exactly agree with 'operatorSymbols'
- */
-val operatorExtensibility = byteArrayOf(
-    0, 0, 1, 1,
-    0, 1, 1, 0,
-    1, 0, 0, 1,
-    0, 0, 1, 0,
-    0, 0, 0, 0,
-    0, 1, 0, 0,
-    0, 0, 0, 0,
-    0, 0, 0, 1,
-    0, 0, 1, 1,
-    0,
-)
-
 const val CHUNKSZ: Int = 10000 // Must be divisible by 4
 const val COMMENTSZ: Int = 100 // Must be divisible by 2
 const val LOWER32BITS: Long =  0x00000000FFFFFFFF

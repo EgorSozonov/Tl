@@ -3,6 +3,7 @@ import compiler.lexer.*
 import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 
 class Parser {
 
@@ -25,6 +26,7 @@ private val backtrack = Stack<Pair<PunctuationAST, Int>>()   // The stack of pun
 private val scopeBacktrack = Stack<LexicalScope>()  // The stack of symbol tables that form current lex env
 private var bindings: MutableList<Binding>
 private var functionBindings: MutableList<FunctionBinding>
+private val unknownFunctions: HashMap<String, UnknownFunLocation>
 private var scopes: MutableList<LexicalScope>
 private var strings: ArrayList<String>
 
@@ -93,7 +95,13 @@ private fun parseTopLevelStatement() {
  * Otherwise they are both nonzero.
  */
 private fun parseNoncoreStatement(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
-
+    if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
+        parseStatementFun()
+    } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
+        parseStatementAssignment()
+    } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
+        parseStatementTypeDecl()
+    }
 }
 
 private fun coreCatch(stmtType: Int, lenTokens: Int) {
@@ -108,8 +116,10 @@ private fun coreCatch(stmtType: Int, lenTokens: Int) {
 private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
     validateCoreForm(stmtType, lenTokens)
     if (wasError) return
+    val stmtStartByte = inp.currChunk.tokens[inp.currInd + 1]
+    val stmtLenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
 
-    inp.nextToken()
+    inp.nextToken() // skipping the "fn" keyword
 
     val names = HashMap<String, Int>(4)
     val wordType = RegularToken.word.internalVal.toInt()
@@ -131,7 +141,7 @@ private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
             return
         }
         j++
-        names[paramName] = j
+        names[paramName] = j - 1
         inp.nextToken()
     }
     if (j == 0 || j == lenTokens) {
@@ -142,10 +152,11 @@ private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
         errorOut(errorFnMissingBody)
         return
     }
-    val fnBinding = FunctionBinding(functionName, names.count() - 1)
-    appendNode(RegularAST.fnDef, 0, functionBindings.size, 0, 0)
+    val fnBinding = FunctionBinding(functionName, 26, names.count() - 1)
+    appendNode(RegularAST.fnDef, 0, functionBindings.size, stmtStartByte, stmtLenBytes)
     functionBindings.add(fnBinding)
 
+    names.remove(functionName)
     parseFnBody(names)
 }
 
@@ -212,8 +223,8 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
 
 
 /**
- * Parses a function definition body (in which case the @params
- * will be non-empty).
+ * Parses a function definition body
+ * @params function parameter names and indices (indices are 1-based)
  */
 private fun parseFnBody(params: HashMap<String, Int>) {
 
@@ -243,7 +254,37 @@ private fun parseDotBrackets() {
 }
 
 
+/**
+ * Parses a statement that is a fun call. Uses the Shunting Yard algo from Dijkstra to
+ * flatten all internal parens into a single "Reverse Polish Notation" stream.
+ * I.e. into basically a post-order traversal of a function call tree. In the resulting AST nodes, function names are
+ * annotated with numbers of their arguments.
+ * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
+ */
 private fun parseStatementFun() {
+    val functionStack = ArrayList<Int>()
+    var stackInd = 0
+    val numTokensStmt = inp.currChunk.tokens[inp.currInd + 2]
+
+    if (numTokensStmt >= 2 && inp.nextTokenType() == RegularToken.dotWord.internalVal.toInt()) {
+
+    }
+
+
+    var jTok = 0
+    while (jTok < numTokensStmt) {
+
+        jTok++
+    }
+    // two stacks: stack of operators and
+    // flattening of internal structure
+    // flattening of
+}
+
+/**
+ *
+  */
+private fun findFunction(String name) {
 
 }
 
@@ -323,6 +364,7 @@ fun parseFromW(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
 
 
 private fun parseFuncall() {
+
     errorOut(errorUnrecognizedByte)
 }
 
@@ -394,6 +436,7 @@ private fun ensureSpaceForNode() {
 
 
 init {
+    inp = Lexer()
     currChunk = firstChunk
     i = 0
     nextInd = 0
@@ -401,9 +444,9 @@ init {
     wasError = false
     errMsg = ""
     bindings = ArrayList(12)
-    functionBindings = ArrayList(12)
+    functionBindings = ParserSyntax.builtInBindings()
     scopes = ArrayList(10)
-    inp = Lexer()
+    unknownFunctions = HashMap(8)
     strings = ArrayList(100)
 }
 
