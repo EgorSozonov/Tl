@@ -7,6 +7,7 @@ const val errorCoreFormAssignment         = "A core form may not contain assignm
 const val errorFnNameAndParams            = "Function definition must start with more than one unique words: its name and parameters!"
 const val errorFnMissingBody              = "Function definition must contain a body which must be a Scope!"
 const val errorStatementFunError          = "Cannot parse function call statement!"
+const val errorUnknownBinding             = "Unknown binding!"
 
 
 val reservedCatch = byteArrayOf(99, 97, 116, 99, 104)

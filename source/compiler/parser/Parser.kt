@@ -127,14 +127,14 @@ private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
     var j = 0
     var functionName = ""
     if (inp.currTokenType() == wordType) {
-        functionName = readString()
+        functionName = readString(RegularToken.word)
         j++
         names[functionName] = j
         inp.nextToken()
 
     }
     while (j < lenTokens && inp.currTokenType() == wordType) {
-        val paramName = readString()
+        val paramName = readString(RegularToken.word)
         if (names.containsKey(paramName)) {
             errorOut(errorFnNameAndParams)
             return
@@ -261,50 +261,50 @@ private fun parseDotBrackets() {
  * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
  */
 private fun parseStatementFun() {
-    val functionNamesStack = ArrayList<String>()
-    val functionParamStack = ArrayList<Int>()
+    val functionStack = ArrayList<FunInStack>()
     var stackInd = 0
     val numTokensStmt = inp.currChunk.tokens[inp.currInd + 2]
     inp.nextToken()
+    var j = 0
+    var indInParens = 0
+    while (j < numTokensStmt) {
+        val tokType = inp.currTokenType()
+        if (tokType == PunctuationToken.parens.internalVal.toInt()) {
+            indInParens = 0
+            functionStack.add(FunInStack("", 0, inp.currChunk.tokens[inp.currInd] and LOWER27BITS))
+            stackInd++
+        } else if (tokType == RegularToken.word.internalVal.toInt()) {
+            val theWord = readString(RegularToken.word)
+            if (indInParens == 1) {
+                functionStack[stackInd - 1].name = theWord
+            } else {
+                val binding = searchForBinding(theWord)
+                if (binding != null) {
+                    appendNode(RegularAST.ident, binding, 0,
+                        inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+                } else {
+                    errorOut(errorUnknownBinding)
+                    return
+                }
+            }
+        } else if (tokType == RegularToken.litInt.internalVal.toInt()) {
 
-    val thisTok = inp.currTokenType()
-    if (numTokensStmt == 1) {
-        if (thisTok != RegularToken.word.internalVal.toInt()) {
-            errorOut(errorStatementFunError)
-            return
         }
-        appendFnName(readString(), 0, inp.currChunk.tokens[inp.currInd + 1])
-        return
-    }
-    var firstTokenSkip = 1
-    if (thisTok == PunctuationToken.parens.internalVal.toInt()) {
-        firstTokenSkip = inp.currChunk.tokens[inp.currInd + 2]
+        inp.nextToken()
+        indInParens++
+        j++
     }
 
-    val nextTok = inp.nextTokenType(firstTokenSkip)
-    if (nextTok == RegularToken.dotWord.internalVal.toInt() || nextTok == RegularToken.operatorTok.internalVal.toInt()) {
-        // TODO parse a paren, a literal int or a word ident
-        if (thisTok != RegularToken.word.internalVal.toInt() && thisTok != RegularToken.litInt.internalVal.toInt()) {
-            errorOut(errorStatementFunError)
-            return
-        }
-    } else {
-
-    }
-    
-    var jTok = 0
-    while (jTok < numTokensStmt) {
-
-        jTok++
-    }
-    // two stacks: stack of operators and
-    // flattening of internal structure
-    // flattening of
 }
 
-private fun readString(): String {
-    return String(inp.inp, inp.currChunk.tokens[inp.currInd + 1],
-        inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+private fun readString(tType: RegularToken): String {
+    return if (tType == RegularToken.word) {
+        String(inp.inp, inp.currChunk.tokens[inp.currInd + 1],
+            inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+    } else {
+        String(inp.inp, inp.currChunk.tokens[inp.currInd + 1] + 1,
+            (inp.currChunk.tokens[inp.currInd] and LOWER27BITS) - 1)
+    }
 }
 
 

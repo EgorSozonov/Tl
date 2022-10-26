@@ -55,6 +55,8 @@ enum class FileType {
     testing,
 }
 
+data class FunInStack(var name: String, var arity: Int, val lenTokens: Int)
+
 /**
  * A record about an unknown function binding that has been encountered when parsing
  */
