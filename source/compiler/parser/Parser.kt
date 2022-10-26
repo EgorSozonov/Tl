@@ -278,7 +278,7 @@ private fun parseStatementFun() {
             if (indInParens == 1) {
                 functionStack[stackInd - 1].name = theWord
             } else {
-                val binding = searchForBinding(theWord)
+                val binding = lookupBinding(theWord)
                 if (binding != null) {
                     appendNode(RegularAST.ident, binding, 0,
                         inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
@@ -288,7 +288,8 @@ private fun parseStatementFun() {
                 }
             }
         } else if (tokType == RegularToken.litInt.internalVal.toInt()) {
-
+            appendNode(RegularAST.litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
+                       inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
         }
         inp.nextToken()
         indInParens++
@@ -312,7 +313,7 @@ private fun readString(tType: RegularToken): String {
  * Appends a node that either points to a function binding, or is pointed to by an unknown function
   */
 private fun appendFnName(name: String, arity: Int, startByte: Int) {
-    val mbId = searchForFunction(name, arity)
+    val mbId = lookupFunction(name, arity)
     if (mbId != null) {
         appendNode(RegularAST.identFunc, mbId, 0, startByte, name.length)
     } else {
@@ -326,7 +327,7 @@ private fun appendFnName(name: String, arity: Int, startByte: Int) {
 }
 
 
-private fun searchForBinding(name: String): Int? {
+private fun lookupBinding(name: String): Int? {
     var j = scopeBacktrack.size - 1
     while (j > -1) {
         if (scopeBacktrack[j].bindings.containsKey(name)) {
@@ -338,14 +339,14 @@ private fun searchForBinding(name: String): Int? {
 }
 
 
-private fun searchForFunction(name: String, arity: Int): Int? {
+private fun lookupFunction(name: String, arity: Int): Int? {
     var j = scopeBacktrack.size - 1
     while (j > -1) {
         if (scopeBacktrack[j].functions.containsKey(name)) {
             val lst = scopeBacktrack[j].functions[name]!!
             for (itm in lst) {
-                if (itm.first == arity) {
-                    return itm.second
+                if (functionBindings[itm].arity == arity) {
+                    return itm
                 }
             }
         }
@@ -450,7 +451,7 @@ fun setInput(inp: Lexer) {
 
 
 /** Append a regular AST node */
-private fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int) {
+fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int) {
     ensureSpaceForNode()
     currChunk.nodes[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
     currChunk.nodes[nextInd + 1] = startByte
@@ -459,6 +460,15 @@ private fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByt
     bump()
 }
 
+
+fun appendNode(tType: PunctuationAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    ensureSpaceForNode()
+    currChunk.nodes[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.nodes[nextInd + 1] = startByte
+    currChunk.nodes[nextInd + 2] = lenTokens
+    currChunk.nodes[nextInd + 3] = 0
+    bump()
+}
 
 /** Append a punctuation AST node */
 private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationAST) {
@@ -469,13 +479,38 @@ private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationAST) {
 }
 
 
-/** The programmatic/builder method for appending a punctuation token */
-private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
-    ensureSpaceForNode()
-    currChunk.nodes[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
-    currChunk.nodes[nextInd + 1] = startByte
-    currChunk.nodes[nextInd + 2] = lenTokens
-    bump()
+
+/** The programmatic/builder method for allocating a function binding */
+fun buildFBinding(fBinding: FunctionBinding): Parser {
+    this.functionBindings.add(fBinding)
+    return this
+}
+
+
+/** The programmatic/builder method for inserting a function binding into top scope */
+fun buildInsertFBindingIntoScope(name: String, bindingId: Int): Parser {
+    if (this.scopeBacktrack.isEmpty()) {
+        this.scopeBacktrack.add(LexicalScope())
+    }
+    val topScope = scopeBacktrack.peek()
+    if (topScope.functions.containsKey(name)) {
+        topScope.functions[name]!!.add(bindingId)
+    } else {
+        topScope.functions.put(name, arrayListOf(bindingId))
+    }
+    return this
+}
+
+
+fun buildNode(nType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int): Parser {
+    appendNode(nType, payload1, payload2, startByte, lenBytes)
+    return this
+}
+
+
+fun buildNode(nType: PunctuationAST, lenTokens: Int, startByte: Int, lenBytes: Int): Parser {
+    appendNode(nType, lenTokens, startByte, lenBytes)
+    return this
 }
 
 

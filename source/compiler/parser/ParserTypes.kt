@@ -4,8 +4,8 @@ import compiler.lexer.CHUNKSZ
 
 
 class LexicalScope {
-    val bindings: Map<String, Int>                   // bindingId
-    val functions: Map<String, List<Pair<Int, Int>>> // List (arity bindingId)
+    val bindings: HashMap<String, Int>        // bindingId
+    val functions: HashMap<String, ArrayList<Int>> // List (arity functionBindingId)
 
 
     init {
@@ -17,7 +17,7 @@ class LexicalScope {
 class Binding(val name: String) {
 }
 
-class FunctionBinding(val name: String, val precedence: Int, val countParams: Int) {
+class FunctionBinding(val name: String, val precedence: Int, val arity: Int) {
 }
 
 enum class RegularAST(val internalVal: Byte) { // payload
