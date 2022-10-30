@@ -9,33 +9,79 @@ class ParserTest {
 
 
 @Nested
-inner class LexWordTest {
+inner class ParseFuncallTest {
     @Test
-    fun `Simple word lexing`() {
-        testInpOutp(
-            "foo 1 2 3",
-            Parser().buildFBinding(FunctionBinding("foo", 26, 3))
-                .buildInsertFBindingIntoScope("foo", 0)
-                .buildNode(PunctuationAST.funcall, 4, 0, 9)
-                .buildNode(RegularAST.identFunc, 0, 0, 0, 3)
-                .buildNode(RegularAST.litInt, 0, 1, 4, 1)
-                .buildNode(RegularAST.litInt, 0, 2, 6, 1)
-                .buildNode(RegularAST.litInt, 0, 3, 8, 1)
+    fun `Simple function call`() {
+        testParseWithEnvironment(
+            "foo 1 2 3", { it.buildFBinding(FunctionBinding("foo", 26, 3))
+                .buildInsertBindingsIntoScope() },
+            {
+                it.buildNode(PunctuationAST.funcall, 4, 0, 9)
+                  .buildNode(RegularAST.litInt, 0, 1, 4, 1)
+                  .buildNode(RegularAST.litInt, 0, 2, 6, 1)
+                  .buildNode(RegularAST.litInt, 0, 3, 8, 1)
+                  .buildNode(RegularAST.identFunc, 0, 26, 0, 3)
+            }
+        )
+    }
+
+    @Test
+    fun `Double function call`() {
+        testParseWithEnvironment(
+            "foo a (bar b c d)", {
+                it.buildFBinding(FunctionBinding("foo", 26, 2))
+                  .buildFBinding(FunctionBinding("bar", 26, 3))
+                  .buildBinding(Binding("a"))
+                  .buildBinding(Binding("b"))
+                  .buildBinding(Binding("c"))
+                  .buildBinding(Binding("d"))
+                  .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(PunctuationAST.funcall, 7, 0, 17)
+                  .buildNode(RegularAST.ident, 0, 0, 4, 1)
+                  .buildNode(RegularAST.ident, 0, 1, 11, 1)
+                  .buildNode(RegularAST.ident, 0, 2, 13, 1)
+                  .buildNode(RegularAST.ident, 0, 3, 15, 1)
+                  .buildNode(RegularAST.identFunc, 0, it.indFirstFunction + 1, 7, 3)
+                  .buildNode(RegularAST.identFunc, 0, it.indFirstFunction, 0, 3)
+            }
         )
     }
 }
 
-private fun testInpOutp(inp: String, expected: Parser) {
+private fun testParseWithEnvironment(inp: String, environmentSetup: (Parser) -> Unit, resultBuilder: (Parser) -> Unit) {
     val lr = Lexer()
     lr.setInput(inp.toByteArray())
     lr.lexicallyAnalyze()
 
-    val pr = Parser()
-    pr.parse(lr, FileType.executable)
+    val runnerParser = Parser()
+    val controlParser = Parser()
 
-    val parseCorrect = Parser.equality(pr, expected)
+    environmentSetup(runnerParser)
+    runnerParser.parse(lr, FileType.executable)
+
+    environmentSetup(controlParser)
+    resultBuilder(controlParser)
+
+    val parseCorrect = Parser.equality(runnerParser, controlParser)
     if (!parseCorrect) {
-        val printOut = Parser.printSideBySide(pr, expected)
+        val printOut = Parser.printSideBySide(runnerParser, controlParser)
+        println(printOut)
+    }
+    assertEquals(parseCorrect, true)
+}
+
+private fun testParseResult(inp: String, parserWithEnvironment: Parser, expected: Parser) {
+    val lr = Lexer()
+    lr.setInput(inp.toByteArray())
+    lr.lexicallyAnalyze()
+
+    parserWithEnvironment.parse(lr, FileType.executable)
+
+    val parseCorrect = Parser.equality(parserWithEnvironment, expected)
+    if (!parseCorrect) {
+        val printOut = Parser.printSideBySide(parserWithEnvironment, expected)
         println(printOut)
     }
     assertEquals(parseCorrect, true)

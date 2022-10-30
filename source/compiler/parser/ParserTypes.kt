@@ -5,7 +5,7 @@ import compiler.lexer.CHUNKSZ
 
 class LexicalScope {
     val bindings: HashMap<String, Int>        // bindingId
-    val functions: HashMap<String, ArrayList<Int>> // List (arity functionBindingId)
+    val functions: HashMap<String, ArrayList<Int>> // List (functionBindingId)
 
 
     init {
@@ -55,7 +55,8 @@ enum class FileType {
     testing,
 }
 
-data class FunInStack(var name: String, var arity: Int, val lenTokens: Int)
+data class FunInStack(var name: String, var indToken: Int, val lenTokens: Int, var startByte: Int,
+                      var arity: Int = 0, var alreadyPushedFn: Boolean = false)
 
 /**
  * A record about an unknown function binding that has been encountered when parsing

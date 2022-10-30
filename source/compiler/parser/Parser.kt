@@ -27,6 +27,7 @@ private val scopeBacktrack = Stack<LexicalScope>()  // The stack of symbol table
 private val unknownFunctions: HashMap<String, ArrayList<UnknownFunLocation>>
 private var bindings: MutableList<Binding>
 private var functionBindings: MutableList<FunctionBinding>
+val indFirstFunction: Int
 private var scopes: MutableList<LexicalScope>
 private var strings: ArrayList<String>
 
@@ -34,16 +35,19 @@ private var strings: ArrayList<String>
 /**
  * Main parser method
  */
-fun parse(inp: Lexer, fileType: FileType) {
+fun parse(lexer: Lexer, fileType: FileType) {
+    this.inp = lexer
     val lastChunk = inp.currChunk
     val sentinelInd = inp.nextInd
     inp.currChunk = inp.firstChunk
     inp.currInd = 0
-    val rootScope = LexicalScope()
-    this.scopes.add(rootScope)
-    scopeBacktrack.push(rootScope)
-    while ((inp.currChunk != lastChunk || inp.nextInd < sentinelInd) && !wasError) {
-        val tokType = currChunk.nodes[inp.nextInd] ushr 27
+    if (this.scopes.isEmpty()) {
+        this.scopes.add(LexicalScope())
+    }
+
+    scopeBacktrack.push(this.scopes.last())
+    while ((inp.currChunk != lastChunk || inp.currInd < sentinelInd) && !wasError) {
+        val tokType = inp.currChunk.tokens[inp.currInd] ushr 27
         if (Lexer.isStatement(tokType)) {
             parseTopLevelStatement()
         } else {
@@ -70,22 +74,21 @@ fun parse(inp: Lexer, fileType: FileType) {
 
 
 private fun parseTopLevelStatement() {
-    val lenTokens = inp.currChunk.tokens[inp.currInd + 2]
+    val lenTokens = inp.currChunk.tokens[inp.currInd + 3]
     val stmtType = inp.currTokenType()
+    val startByte = inp.currChunk.tokens[inp.currInd + 1]
+    val lenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
     inp.nextToken()
-    val typeAndLen = inp.currChunk.tokens[inp.currInd]
-    val tokType = typeAndLen ushr 27
-    if (tokType == RegularToken.word.internalVal.toInt()) {
-        val startByte = inp.currChunk.tokens[inp.currInd + 1]
-        val lenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+    val nextTokType = inp.currTokenType()
+    if (nextTokType == RegularToken.word.internalVal.toInt()) {
         val firstLetter = inp.inp[startByte]
         if (firstLetter < aCLower || firstLetter > aWLower) {
-            parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+            parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
         } else {
-            statementDispatch[firstLetter - aCLower](stmtType, startByte, lenBytes, lenTokens)
+            statementDispatch[firstLetter - aCLower](stmtType, lenTokens, startByte, lenBytes)
         }
     } else {
-        parseNoncoreStatement(stmtType, 0, 0, lenTokens)
+        parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
     }
 }
 
@@ -95,13 +98,13 @@ private fun parseTopLevelStatement() {
  * The @startByte and @lenBytes may both be 0, this means that the first token is not a word.
  * Otherwise they are both nonzero.
  */
-private fun parseNoncoreStatement(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+private fun parseNoncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
-        parseStatementFun()
+        parseStatementFun(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
-        parseStatementAssignment()
+        parseStatementAssignment(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
-        parseStatementTypeDecl()
+        parseStatementTypeDecl(lenTokens, startByte, lenBytes)
     }
 }
 
@@ -220,7 +223,6 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
 }
 
 
-
 /**
  * Parses a function definition body
  * @params function parameter names and indices (indices are 1-based)
@@ -233,22 +235,22 @@ private fun parseFnBody(params: HashMap<String, Int>) {
 /**
  * Parses a scope (curly braces)
  */
-private fun parseScope() {
+private fun parseScope(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
 }
 
 
-private fun parseParens() {
+private fun parseParens(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
 }
 
 
-private fun parseBrackets() {
+private fun parseBrackets(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
 }
 
 
-private fun parseDotBrackets() {
+private fun parseDotBrackets(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
 }
 
@@ -260,28 +262,42 @@ private fun parseDotBrackets() {
  * annotated with numbers of their arguments.
  * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
  */
-private fun parseStatementFun() {
+private fun parseStatementFun(lenTokens: Int, startByte: Int, lenBytes: Int) {
+    appendNode(PunctuationAST.funcall, lenTokens, startByte, lenBytes)
+    backtrack.push(Pair(PunctuationAST.funcall, totalNodes))
+
     val functionStack = ArrayList<FunInStack>()
+    functionStack.add(FunInStack("", 0, lenTokens, startByte))
     var stackInd = 0
-    val numTokensStmt = inp.currChunk.tokens[inp.currInd + 2]
-    inp.nextToken()
+
     var j = 0
-    var indInParens = 0
-    while (j < numTokensStmt) {
+    while (j < lenTokens) {
         val tokType = inp.currTokenType()
+        for (k in stackInd downTo 0) {
+            val funInSt = functionStack[k]
+            if (funInSt.indToken == funInSt.lenTokens) {
+                appendFnName(funInSt)
+                stackInd--
+            } else {
+                break
+            }
+        }
+
         if (tokType == PunctuationToken.parens.internalVal.toInt()) {
-            indInParens = 0
-            functionStack.add(FunInStack("", 0, inp.currChunk.tokens[inp.currInd] and LOWER27BITS))
+            functionStack.add(FunInStack("", -1, inp.currChunk.tokens[inp.currInd + 3], 0))
+            functionStack[stackInd].arity++
             stackInd++
         } else if (tokType == RegularToken.word.internalVal.toInt()) {
             val theWord = readString(RegularToken.word)
-            if (indInParens == 1) {
-                functionStack[stackInd - 1].name = theWord
+            if (functionStack[stackInd].indToken == 0) {
+                functionStack[stackInd].name = theWord
+                functionStack[stackInd].startByte = inp.currChunk.tokens[inp.currInd + 1]
             } else {
                 val binding = lookupBinding(theWord)
                 if (binding != null) {
-                    appendNode(RegularAST.ident, binding, 0,
+                    appendNode(RegularAST.ident, 0, binding,
                         inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+                    functionStack[stackInd].arity++
                 } else {
                     errorOut(errorUnknownBinding)
                     return
@@ -290,12 +306,46 @@ private fun parseStatementFun() {
         } else if (tokType == RegularToken.litInt.internalVal.toInt()) {
             appendNode(RegularAST.litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
                        inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+            functionStack[stackInd].arity++
+        } else if (tokType == RegularToken.dotWord.internalVal.toInt()) {
+            val fnName = functionStack[stackInd].name
+            if (functionStack[stackInd].alreadyPushedFn) {
+                functionStack[stackInd].arity
+                appendFnName(functionStack[stackInd])
+                functionStack[stackInd].arity = 0
+            } else {
+                if (functionStack[stackInd].indToken != 1) {
+                    errorOut(errorStatementFunError)
+                    return
+                }
+                val binding = lookupBinding(fnName)
+                if (binding == null) {
+                    errorOut(errorUnknownBinding)
+                    return
+                }
+                appendNode(RegularAST.ident, 0, binding,
+                    inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+                functionStack[stackInd].arity++
+            }
+            functionStack[stackInd].name = readString(RegularToken.dotWord)
+            functionStack[stackInd].startByte = inp.currChunk.tokens[inp.currInd + 1]
         }
         inp.nextToken()
-        indInParens++
+        for (i in 0..stackInd) {
+            functionStack[i].indToken++
+        }
+
         j++
     }
 
+    for (i in stackInd downTo 0) {
+        val funInSt = functionStack[i]
+        if (funInSt.indToken == funInSt.lenTokens) {
+            appendFnName(funInSt)
+        } else {
+            break
+        }
+    }
 }
 
 private fun readString(tType: RegularToken): String {
@@ -312,56 +362,52 @@ private fun readString(tType: RegularToken): String {
 /**
  * Appends a node that either points to a function binding, or is pointed to by an unknown function
   */
-private fun appendFnName(name: String, arity: Int, startByte: Int) {
-    val mbId = lookupFunction(name, arity)
+private fun appendFnName(fn: FunInStack) {
+    val mbId = lookupFunction(fn.name, fn.arity)
     if (mbId != null) {
-        appendNode(RegularAST.identFunc, mbId, 0, startByte, name.length)
+        appendNode(RegularAST.identFunc, 0, mbId, fn.startByte, fn.name.length)
     } else {
-        if (unknownFunctions.containsKey(name)) {
-            val lst: ArrayList<UnknownFunLocation> = unknownFunctions[name]!!
-            lst.add(UnknownFunLocation(totalNodes, arity))
+        if (unknownFunctions.containsKey(fn.name)) {
+            val lst: ArrayList<UnknownFunLocation> = unknownFunctions[fn.name]!!
+            lst.add(UnknownFunLocation(totalNodes, fn.arity))
         } else {
-            unknownFunctions[name] = arrayListOf(UnknownFunLocation(totalNodes, arity))
+            unknownFunctions[fn.name] = arrayListOf(UnknownFunLocation(totalNodes, fn.arity))
         }
     }
 }
 
 
 private fun lookupBinding(name: String): Int? {
-    var j = scopeBacktrack.size - 1
-    while (j > -1) {
+    for (j in (scopeBacktrack.size - 1) downTo 0) {
         if (scopeBacktrack[j].bindings.containsKey(name)) {
             return scopeBacktrack[j].bindings[name]
         }
-        j--
     }
     return null
 }
 
 
 private fun lookupFunction(name: String, arity: Int): Int? {
-    var j = scopeBacktrack.size - 1
-    while (j > -1) {
+    for (j in (scopeBacktrack.size - 1) downTo  0) {
         if (scopeBacktrack[j].functions.containsKey(name)) {
             val lst = scopeBacktrack[j].functions[name]!!
-            for (itm in lst) {
-                if (functionBindings[itm].arity == arity) {
-                    return itm
+            for (funcId in lst) {
+                if (this.functionBindings[funcId].arity == arity) {
+                    return funcId
                 }
             }
         }
-        j--
     }
     return null
 }
 
 
-private fun parseStatementAssignment() {
+private fun parseStatementAssignment(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
 }
 
 
-private fun parseStatementTypeDecl() {
+private fun parseStatementTypeDecl(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
 }
 
@@ -374,59 +420,59 @@ private fun parseUnexpectedToken() {
 /**
  * Returns the index of the "catch" parser if the word starting with "c" under cursor is indeed "catch"
  */
-fun parseFromC(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
-    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+fun parseFromC(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 
 /**
  * Parse a statement where the first word is possibly "fn", "for" or "forRaw"
  */
-fun parseFromF(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
+fun parseFromF(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (lenBytes == 2 && inp.inp[startByte + 1] == aNLower) {
         coreFnDefinition(stmtType, lenTokens)
     }
-    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 
 /**
  * Parse a statement where the first word is possibly "if", "ifEq" or "ifPred"
  */
-fun parseFromI(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
-    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+fun parseFromI(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 
 /**
  * Parse a statement where the first word is possibly "match"
  */
-fun parseFromM(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
-    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+fun parseFromM(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 
 /**
  * Parse a statement where the first word is possibly "return"
  */
-fun parseFromR(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
-    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+fun parseFromR(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 
 /**
  * Parse a funcall statement where the first word is possibly "try"
  */
-fun parseFromT(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
-    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+fun parseFromT(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 
 /**
  * Parse a funcall statement where the first word is possibly "while"
  */
-fun parseFromW(stmtType: Int, startByte: Int, lenBytes: Int, lenTokens: Int) {
-    parseNoncoreStatement(stmtType, startByte, lenBytes, lenTokens)
+fun parseFromW(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 
@@ -461,14 +507,15 @@ fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, 
 }
 
 
-fun appendNode(tType: PunctuationAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
+fun appendNode(nType: PunctuationAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
     ensureSpaceForNode()
-    currChunk.nodes[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.nodes[nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
     currChunk.nodes[nextInd + 1] = startByte
-    currChunk.nodes[nextInd + 2] = lenTokens
-    currChunk.nodes[nextInd + 3] = 0
+    currChunk.nodes[nextInd + 2] = 0
+    currChunk.nodes[nextInd + 3] = lenTokens
     bump()
 }
+
 
 /** Append a punctuation AST node */
 private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationAST) {
@@ -479,6 +526,12 @@ private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationAST) {
 }
 
 
+/** The programmatic/builder method for allocating a function binding */
+fun buildBinding(binding: Binding): Parser {
+    this.bindings.add(binding)
+    return this
+}
+
 
 /** The programmatic/builder method for allocating a function binding */
 fun buildFBinding(fBinding: FunctionBinding): Parser {
@@ -487,16 +540,25 @@ fun buildFBinding(fBinding: FunctionBinding): Parser {
 }
 
 
-/** The programmatic/builder method for inserting a function binding into top scope */
-fun buildInsertFBindingIntoScope(name: String, bindingId: Int): Parser {
+/** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
+fun buildInsertBindingsIntoScope(): Parser {
     if (this.scopeBacktrack.isEmpty()) {
         this.scopeBacktrack.add(LexicalScope())
     }
     val topScope = scopeBacktrack.peek()
-    if (topScope.functions.containsKey(name)) {
-        topScope.functions[name]!!.add(bindingId)
-    } else {
-        topScope.functions.put(name, arrayListOf(bindingId))
+    for (id in 0 until this.bindings.size) {
+        val name = this.bindings[id].name
+        if (!topScope.bindings.containsKey(name)) {
+            topScope.bindings[name]  = id
+        }
+    }
+    for (id in this.indFirstFunction until this.functionBindings.size) {
+        val name = this.functionBindings[id].name
+        if (topScope.functions.containsKey(name)) {
+            topScope.functions[name]!!.add(id)
+        } else {
+            topScope.functions[name] = arrayListOf(id)
+        }
     }
     return this
 }
@@ -540,13 +602,14 @@ init {
     errMsg = ""
     bindings = ArrayList(12)
     functionBindings = ParserSyntax.builtInBindings()
+    indFirstFunction = functionBindings.size
     scopes = ArrayList(10)
     unknownFunctions = HashMap(8)
     strings = ArrayList(100)
 }
 
 companion object {
-    private val dispatchTable: Array<Parser.() -> Unit> = Array(7) {
+    private val dispatchTable: Array<Parser.(Int, Int, Int) -> Unit> = Array(7) {
         i -> when(i) {
             0 -> Parser::parseScope
             1 -> Parser::parseParens
@@ -620,25 +683,25 @@ companion object {
                     val lenB = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
                     val len = lenA.coerceAtMost(lenB)
                     for (i in 0 until len step 4) {
-                        printToken(currA, i, result)
+                        printNode(currA, i, result)
                         result.append(" | ")
-                        printToken(currB, i, result)
+                        printNode(currB, i, result)
                         result.appendLine("")
                     }
-                    for (i in (len + 1) until lenA step 4) {
-                        printToken(currA, i, result)
+                    for (i in len until lenA step 4) {
+                        printNode(currA, i, result)
                         result.appendLine(" | ")
                     }
-                    for (i in (len + 1) until lenB step 4) {
+                    for (i in len until lenB step 4) {
                         result.append(" | ")
-                        printToken(currB, i, result)
+                        printNode(currB, i, result)
                         result.appendLine("")
                     }
                     currB = currB.next
                 } else {
                     val len = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
                     for (i in 0 until len step 4) {
-                        printToken(currA, i, result)
+                        printNode(currA, i, result)
                         result.appendLine(" | ")
                     }
                 }
@@ -647,7 +710,7 @@ companion object {
                 val len = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
                 for (i in 0 until len step 4) {
                     result.append(" | ")
-                    printToken(currB, i, result)
+                    printNode(currB, i, result)
                     result.appendLine("")
                 }
                 currB = currB.next
@@ -661,13 +724,13 @@ companion object {
     }
 
 
-    private fun printToken(chunk: ParseChunk, ind: Int, wr: StringBuilder) {
+    private fun printNode(chunk: ParseChunk, ind: Int, wr: StringBuilder) {
         val startByte = chunk.nodes[ind + 1]
         val lenBytes = chunk.nodes[ind] and LOWER27BITS
         val typeBits = (chunk.nodes[ind] ushr 27).toByte()
-        if (typeBits <= 8) {
-            val regType = RegularToken.values().firstOrNull { it.internalVal == typeBits }
-            if (regType != RegularToken.litFloat) {
+        if (typeBits <= 6) {
+            val regType = RegularAST.values().firstOrNull { it.internalVal == typeBits }
+            if (regType != RegularAST.litFloat) {
                 val payload: Long = (chunk.nodes[ind + 2].toLong() shl 32) + chunk.nodes[ind + 3].toLong()
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             } else {
@@ -677,7 +740,7 @@ companion object {
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             }
         } else {
-            val punctType = PunctuationToken.values().firstOrNull { it.internalVal == typeBits }
+            val punctType = PunctuationAST.values().firstOrNull { it.internalVal == typeBits }
             val lenTokens = chunk.nodes[ind + 2]
             wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
         }

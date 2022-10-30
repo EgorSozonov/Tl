@@ -678,8 +678,8 @@ private fun validateAssignmentStmt(tokenInd: Int) {
     }
 
     var numTokens = totalTokens - tokenInd - 1 // total tokens in this statement
-    val numParenthesesAssignment = curr.tokens[j + 3]
-    curr.tokens[j + 3] = 0 // clean up this number as it's not needed anymore
+    val numParenthesesAssignment = curr.tokens[j + 2]
+    curr.tokens[j + 2] = 0 // clean up this number as it's not needed anymore
     for (k in 1..numParenthesesAssignment) {
         if (j < CHUNKSZ) {
             j += 4
@@ -690,7 +690,7 @@ private fun validateAssignmentStmt(tokenInd: Int) {
         numTokens--
 
         val tokTypeInt = curr.tokens[j] ushr 27
-        if (tokTypeInt != parens.internalVal.toInt() || curr.tokens[j + 2] != numTokens) {
+        if (tokTypeInt != parens.internalVal.toInt() || curr.tokens[j + 3] != numTokens) {
             errorOut(errorOperatorAssignmentPunct)
             return
         }
@@ -817,15 +817,15 @@ private fun setPunctuationLength(tokenInd: Int) {
 
     val lenBytes = i - curr.tokens[j + 1]
     checkLenOverflow(lenBytes)
-    curr.tokens[j + 2] = totalTokens - tokenInd - 1  // lenTokens
+    curr.tokens[j + 3] = totalTokens - tokenInd - 1  // lenTokens
     curr.tokens[j    ] += (lenBytes and LOWER27BITS) // lenBytes
 }
 
 
 /**
  * Mutates a statement to a more precise type of statement (assignment, type declaration).
- * Also stores the number of parentheses wrapping the assignment operator in the unused 2nd
- * byte, to be used for validation when the statement will be closed.
+ * Also stores the number of parentheses wrapping the assignment operator in the unused +2nd
+ * slot, to be used for validation when the statement will be closed.
  */
 private fun setStatementType(tokenInd: Int, tType: PunctuationToken, numParenthesesAssignment: Int) {
     var curr = firstChunk
@@ -834,7 +834,7 @@ private fun setStatementType(tokenInd: Int, tType: PunctuationToken, numParenthe
         curr = curr.next!!
         j -= CHUNKSZ
     }
-    curr.tokens[j + 3] = numParenthesesAssignment
+    curr.tokens[j + 2] = numParenthesesAssignment
     curr.tokens[j    ] = tType.internalVal.toInt() shl 27
 }
 
@@ -931,7 +931,7 @@ private fun appendToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, 
     checkLenOverflow(lenBytes)
     currChunk.tokens[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
     currChunk.tokens[nextInd + 1] = startByte
-    currChunk.tokens[nextInd + 2] = lenTokens
+    currChunk.tokens[nextInd + 3] = lenTokens
     bump()
 }
 
@@ -1122,11 +1122,11 @@ companion object {
                         printToken(currB, i, result)
                         result.appendLine("")
                     }
-                    for (i in (len + 1) until lenA step 4) {
+                    for (i in len until lenA step 4) {
                         printToken(currA, i, result)
                         result.appendLine(" | ")
                     }
-                    for (i in (len + 1) until lenB step 4) {
+                    for (i in len until lenB step 4) {
                         result.append(" | ")
                         printToken(currB, i, result)
                         result.appendLine("")
@@ -1175,7 +1175,7 @@ companion object {
             }
         } else {
             val punctType = PunctuationToken.values().firstOrNull { it.internalVal == typeBits }
-            val lenTokens = chunk.tokens[ind + 2]
+            val lenTokens = chunk.tokens[ind + 3]
             wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
         }
     }
