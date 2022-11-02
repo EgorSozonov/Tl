@@ -267,86 +267,139 @@ private fun parseStatementFun(lenTokens: Int, startByte: Int, lenBytes: Int) {
     backtrack.push(Pair(PunctuationAST.funcall, totalNodes))
 
     val functionStack = ArrayList<FunInStack>()
-    functionStack.add(FunInStack("", 0, lenTokens, startByte))
+    functionStack.add(FunInStack(arrayListOf(), 0, lenTokens))
     var stackInd = 0
 
     var j = 0
     while (j < lenTokens) {
         val tokType = inp.currTokenType()
-        for (k in stackInd downTo 0) {
-            val funInSt = functionStack[k]
-            if (funInSt.indToken == funInSt.lenTokens) {
-                appendFnName(funInSt)
-                stackInd--
-            } else {
-                break
-            }
-        }
+        parseStatementFunClosing(functionStack, stackInd)
+        stackInd = functionStack.size - 1
 
         if (tokType == PunctuationToken.parens.internalVal.toInt()) {
-            functionStack.add(FunInStack("", -1, inp.currChunk.tokens[inp.currInd + 3], 0))
-            functionStack[stackInd].arity++
+            statementFunOperand(functionStack, stackInd)
+            functionStack.add(FunInStack(arrayListOf(), -1,
+                                         inp.currChunk.tokens[inp.currInd + 3]))
             stackInd++
         } else if (tokType == RegularToken.word.internalVal.toInt()) {
-            val theWord = readString(RegularToken.word)
-            if (functionStack[stackInd].indToken == 0) {
-                functionStack[stackInd].name = theWord
-                functionStack[stackInd].startByte = inp.currChunk.tokens[inp.currInd + 1]
-            } else {
-                val binding = lookupBinding(theWord)
-                if (binding != null) {
-                    appendNode(RegularAST.ident, 0, binding,
-                        inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
-                    functionStack[stackInd].arity++
-                } else {
-                    errorOut(errorUnknownBinding)
-                    return
-                }
-            }
+            parseStatementFunWord(functionStack, stackInd)
         } else if (tokType == RegularToken.litInt.internalVal.toInt()) {
             appendNode(RegularAST.litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
                        inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
-            functionStack[stackInd].arity++
+            statementFunOperand(functionStack, stackInd)
         } else if (tokType == RegularToken.dotWord.internalVal.toInt()) {
-            val fnName = functionStack[stackInd].name
-            if (functionStack[stackInd].alreadyPushedFn) {
-                functionStack[stackInd].arity
-                appendFnName(functionStack[stackInd])
-                functionStack[stackInd].arity = 0
-            } else {
-                if (functionStack[stackInd].indToken != 1) {
-                    errorOut(errorStatementFunError)
-                    return
-                }
-                val binding = lookupBinding(fnName)
-                if (binding == null) {
-                    errorOut(errorUnknownBinding)
-                    return
-                }
-                appendNode(RegularAST.ident, 0, binding,
-                    inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
-                functionStack[stackInd].arity++
-            }
-            functionStack[stackInd].name = readString(RegularToken.dotWord)
-            functionStack[stackInd].startByte = inp.currChunk.tokens[inp.currInd + 1]
+            statementFunInfix(readString(RegularToken.dotWord), funcPrecedence, 0, functionStack, stackInd)
+        } else if (tokType == RegularToken.operatorTok.internalVal.toInt()) {
+            statementFunOperator(functionStack, stackInd)
         }
+
+        if (wasError) return
         inp.nextToken()
         for (i in 0..stackInd) {
             functionStack[i].indToken++
         }
-
         j++
     }
+    parseStatementFunClosing(functionStack, stackInd)
+}
 
-    for (i in stackInd downTo 0) {
-        val funInSt = functionStack[i]
+
+private fun parseStatementFunWord(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+    val theWord = readString(RegularToken.word)
+    if (functionStack[stackInd].indToken == 0) {
+        functionStack[stackInd].operators.add(FunctionParse(theWord, 26, 0, 0,
+                                                            inp.currChunk.tokens[inp.currInd + 1]))
+    } else {
+        val binding = lookupBinding(theWord)
+        if (binding != null) {
+            appendNode(RegularAST.ident, 0, binding,
+                inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+            statementFunOperand(functionStack, stackInd)
+        } else {
+            errorOut(errorUnknownBinding)
+        }
+    }
+}
+
+
+private fun statementFunInfix(fnName: String, precedence: Int, maxArity: Int, functionStack: ArrayList<FunInStack>, stackInd: Int) {
+    val startByte = inp.currChunk.tokens[inp.currInd + 1]
+    val topParen = functionStack[stackInd]
+
+    if (topParen.haventPushedFn) {
+        // it's the first dot-word we've encountered, so we need to juxtapose it with the first word, if any
+        if (topParen.operators.last().arity != 0) {
+            // There mustn't have yet been any operands for what we used to think was the function name
+            errorOut(errorStatementFunError)
+            return
+        }
+
+        val nonOperator = topParen.operators[0]
+        val newFun = FunctionParse(fnName, precedence, functionStack[stackInd].operators[0].arity, maxArity,
+            inp.currChunk.tokens[inp.currInd + 1])
+        if (nonOperator.name != "") {
+            val binding = lookupBinding(nonOperator.name)
+            if (binding == null) {
+                errorOut(errorUnknownBinding)
+                return
+            }
+            appendNode(RegularAST.ident, 0, binding,
+                nonOperator.startByte, nonOperator.name.length)
+        }
+        functionStack[stackInd].operators[0] = newFun
+        statementFunOperand(functionStack, stackInd)
+        topParen.haventPushedFn = false
+    } else {
+        while (topParen.operators.isNotEmpty() && topParen.operators.last().precedence >= funcPrecedence) {
+            appendFnName(topParen.operators.last())
+            topParen.operators.removeLast()
+        }
+        topParen.operators.add(FunctionParse(fnName, funcPrecedence, 1, maxArity, startByte))
+    }
+}
+
+
+/**
+ * State modifier that must be called whenever an operand is encountered in a statement parse
+ */
+private fun statementFunOperand(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+    if (functionStack[stackInd].operators.isEmpty()) {
+        // this is for the "(foo 5) .bar" case, i.e. a placeholder for the lack of function id in first position
+        functionStack[stackInd].operators.add(FunctionParse("", 0, 0, 0, 0))
+    } else {
+        val funBinding = functionStack[stackInd].operators.last()
+        funBinding.arity++
+        if (funBinding.maxArity > 0 && funBinding.maxArity < funBinding.arity) {
+            errorOut(errorStatementFunWrongArity)
+        }
+    }
+}
+
+
+private fun statementFunOperator(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+    val operatorVal = inp.currChunk.tokens[inp.currInd + 3]
+    val operInfo = operatorFunctionality[operatorVal]
+    if (operInfo.first == "") {
+        errorOut(errorOperatorUsedInappropriately)
+        return
+    }
+    statementFunInfix(operInfo.first, operInfo.second, operInfo.third, functionStack, stackInd)
+}
+
+private fun parseStatementFunClosing(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+    for (k in stackInd downTo 0) {
+        val funInSt = functionStack[k]
         if (funInSt.indToken == funInSt.lenTokens) {
-            appendFnName(funInSt)
+            for (m in funInSt.operators.size - 1 downTo 0) {
+                appendFnName(funInSt.operators[m])
+            }
+            functionStack.removeLast()
         } else {
             break
         }
     }
 }
+
 
 private fun readString(tType: RegularToken): String {
     return if (tType == RegularToken.word) {
@@ -362,16 +415,17 @@ private fun readString(tType: RegularToken): String {
 /**
  * Appends a node that either points to a function binding, or is pointed to by an unknown function
   */
-private fun appendFnName(fn: FunInStack) {
-    val mbId = lookupFunction(fn.name, fn.arity)
+private fun appendFnName(fnParse: FunctionParse) {
+    val fnName = fnParse.name
+    val mbId = lookupFunction(fnName, fnParse.arity)
     if (mbId != null) {
-        appendNode(RegularAST.identFunc, 0, mbId, fn.startByte, fn.name.length)
+        appendNode(RegularAST.idFunc, 0, mbId, fnParse.startByte, fnParse.name.length)
     } else {
-        if (unknownFunctions.containsKey(fn.name)) {
-            val lst: ArrayList<UnknownFunLocation> = unknownFunctions[fn.name]!!
-            lst.add(UnknownFunLocation(totalNodes, fn.arity))
+        if (unknownFunctions.containsKey(fnName)) {
+            val lst: ArrayList<UnknownFunLocation> = unknownFunctions[fnName]!!
+            lst.add(UnknownFunLocation(totalNodes, fnParse.arity))
         } else {
-            unknownFunctions[fn.name] = arrayListOf(UnknownFunLocation(totalNodes, fn.arity))
+            unknownFunctions[fnName] = arrayListOf(UnknownFunLocation(totalNodes, fnParse.arity))
         }
     }
 }

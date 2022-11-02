@@ -20,14 +20,18 @@ class Binding(val name: String) {
 class FunctionBinding(val name: String, val precedence: Int, val arity: Int) {
 }
 
+class FunctionParse(val name: String, val precedence: Int, var arity: Int, val maxArity: Int, val startByte: Int) {
+}
+
 enum class RegularAST(val internalVal: Byte) { // payload
     litInt(0),                        // int value
     litFloat(1),                      // floating-point value
     litString(2),                     // 0
     ident(3),                         // index in the bindings table of parser
-    identFunc(4),                     // index in the functionBindings table of parser
-    annot(5),                         // index in the annotations table of parser
-    fnDef(6),                         // index in the functionBindings table of parser,
+    idFunc(4),                        // index in the functionBindings table of parser
+    operatorr(5),                     // internal value of OperatorType enum
+    annot(6),                         // index in the annotations table of parser
+    fnDef(7),                         // index in the functionBindings table of parser,
 }
 
 enum class PunctuationAST(val internalVal: Byte) {
@@ -55,8 +59,9 @@ enum class FileType {
     testing,
 }
 
-data class FunInStack(var name: String, var indToken: Int, val lenTokens: Int, var startByte: Int,
-                      var arity: Int = 0, var alreadyPushedFn: Boolean = false)
+data class FunInStack(var operators: ArrayList<FunctionParse>,
+                      var indToken: Int,  val lenTokens: Int,
+                      var haventPushedFn: Boolean = true)
 
 /**
  * A record about an unknown function binding that has been encountered when parsing

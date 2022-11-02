@@ -2,7 +2,7 @@ package compiler.lexer
 
 
 /**
- * Values must exactly agree with the LexerConstants.operatorSymbols array. The order is the same.
+ * Values must exactly agree with the operatorSymbols array. The order is the same.
  */
 enum class OperatorType(val value: Int) {
     notEqualTo(0),           boolNegation(1),        remainder(2),          boolAnd(3),

@@ -20,7 +20,7 @@ inner class ParseFuncallTest {
                   .buildNode(RegularAST.litInt, 0, 1, 4, 1)
                   .buildNode(RegularAST.litInt, 0, 2, 6, 1)
                   .buildNode(RegularAST.litInt, 0, 3, 8, 1)
-                  .buildNode(RegularAST.identFunc, 0, 26, 0, 3)
+                  .buildNode(RegularAST.idFunc, 0, 26, 0, 3)
             }
         )
     }
@@ -43,8 +43,64 @@ inner class ParseFuncallTest {
                   .buildNode(RegularAST.ident, 0, 1, 11, 1)
                   .buildNode(RegularAST.ident, 0, 2, 13, 1)
                   .buildNode(RegularAST.ident, 0, 3, 15, 1)
-                  .buildNode(RegularAST.identFunc, 0, it.indFirstFunction + 1, 7, 3)
-                  .buildNode(RegularAST.identFunc, 0, it.indFirstFunction, 0, 3)
+                  .buildNode(RegularAST.idFunc, 0, it.indFirstFunction + 1, 7, 3)
+                  .buildNode(RegularAST.idFunc, 0, it.indFirstFunction, 0, 3)
+            }
+        )
+    }
+
+    @Test
+    fun `Infix function call`() {
+        testParseWithEnvironment(
+            "a .foo b", {
+                it.buildFBinding(FunctionBinding("foo", 26, 2))
+                    .buildBinding(Binding("a")).buildBinding(Binding("b"))
+                    .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(PunctuationAST.funcall, 3, 0, 8)
+                    .buildNode(RegularAST.ident, 0, 0, 0, 1)
+                    .buildNode(RegularAST.ident, 0, 1, 7, 1)
+                    .buildNode(RegularAST.idFunc, 0, it.indFirstFunction, 2, 3)
+            }
+        )
+    }
+
+    @Test
+    fun `Infix function calls`() {
+        testParseWithEnvironment(
+            "c .foo b a .bar", {
+                it.buildFBinding(FunctionBinding("foo", 26, 3))
+                    .buildFBinding(FunctionBinding("bar", 26, 1))
+                    .buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
+                    .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(PunctuationAST.funcall, 5, 0, 15)
+                    .buildNode(RegularAST.ident, 0, 2, 0, 1)
+                    .buildNode(RegularAST.ident, 0, 1, 7, 1)
+                    .buildNode(RegularAST.ident, 0, 0, 9, 1)
+                    .buildNode(RegularAST.idFunc, 0, it.indFirstFunction, 2, 3)
+                    .buildNode(RegularAST.idFunc, 0, it.indFirstFunction + 1, 11, 3)
+            }
+        )
+    }
+
+    @Test
+    fun `Parentheses then infix function call`() {
+        testParseWithEnvironment(
+            "(foo a) .bar b", {
+                it.buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
+                    .buildFBinding(FunctionBinding("bar", funcPrecedence, 2))
+                    .buildBinding(Binding("a")).buildBinding(Binding("b"))
+                    .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(PunctuationAST.funcall, 5, 0, 14)
+                    .buildNode(RegularAST.ident, 0, 0, 5, 1)
+                    .buildNode(RegularAST.idFunc, 0, it.indFirstFunction, 1, 3)
+                    .buildNode(RegularAST.ident, 0, 1, 13, 1)
+                    .buildNode(RegularAST.idFunc, 0, it.indFirstFunction + 1, 8, 3)
             }
         )
     }
