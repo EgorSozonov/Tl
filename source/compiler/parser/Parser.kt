@@ -4,6 +4,8 @@ import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
+import compiler.lexer.OperatorToken
+import java.lang.Exception
 
 class Parser {
 
@@ -100,7 +102,7 @@ private fun parseTopLevelStatement() {
  */
 private fun parseNoncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
-        parseStatementFun(lenTokens, startByte, lenBytes)
+        expr(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
         parseStatementAssignment(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
@@ -262,35 +264,38 @@ private fun parseDotBrackets(lenTokens: Int, startByte: Int, lenBytes: Int) {
  * annotated with numbers of their arguments.
  * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
  */
-private fun parseStatementFun(lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
     appendNode(PunctuationAST.funcall, lenTokens, startByte, lenBytes)
     backtrack.push(Pair(PunctuationAST.funcall, totalNodes))
 
     val functionStack = ArrayList<FunInStack>()
-    functionStack.add(FunInStack(arrayListOf(), 0, lenTokens))
     var stackInd = 0
+    functionStack.add(exprStartSubexpr(lenTokens, 0, 0))
 
     var j = 0
     while (j < lenTokens) {
         val tokType = inp.currTokenType()
-        parseStatementFunClosing(functionStack, stackInd)
+        exprClosing(functionStack, stackInd)
         stackInd = functionStack.size - 1
 
         if (tokType == PunctuationToken.parens.internalVal.toInt()) {
-            statementFunOperand(functionStack, stackInd)
-            functionStack.add(FunInStack(arrayListOf(), -1,
-                                         inp.currChunk.tokens[inp.currInd + 3]))
+            val subExprLenTokens = inp.currChunk.tokens[inp.currInd + 3]
+            if (functionStack[stackInd].operators.isEmpty()) {
+                functionStack[stackInd].operators.add(FunctionParse("", 0, 0, 0, 0))
+            }
+            exprIncrementArity(functionStack[stackInd])
+            functionStack.add(exprStartSubexpr(subExprLenTokens, -1, 1))
             stackInd++
         } else if (tokType == RegularToken.word.internalVal.toInt()) {
-            parseStatementFunWord(functionStack, stackInd)
+            exprWord(functionStack, stackInd)
         } else if (tokType == RegularToken.litInt.internalVal.toInt()) {
             appendNode(RegularAST.litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
                        inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
-            statementFunOperand(functionStack, stackInd)
+            exprOperand(functionStack, stackInd)
         } else if (tokType == RegularToken.dotWord.internalVal.toInt()) {
-            statementFunInfix(readString(RegularToken.dotWord), funcPrecedence, 0, functionStack, stackInd)
+            exprInfix(readString(RegularToken.dotWord), funcPrecedence, 0, functionStack, stackInd)
         } else if (tokType == RegularToken.operatorTok.internalVal.toInt()) {
-            statementFunOperator(functionStack, stackInd)
+            exprOperator(functionStack, stackInd)
         }
 
         if (wasError) return
@@ -300,21 +305,43 @@ private fun parseStatementFun(lenTokens: Int, startByte: Int, lenBytes: Int) {
         }
         j++
     }
-    parseStatementFunClosing(functionStack, stackInd)
+    exprClosing(functionStack, stackInd)
+}
+
+/**
+ * Adds a frame for the expression or subexpression by determining its structure: prefix, compound prefix or infix.
+ * Precondition: the current token must be past the opening paren / statement token
+ * Examples: "foo 5 a" is prefix
+ *           "((foo 5) a)" is compound prefix
+ *           "5 .foo a" is infix
+ *           "5 + a" is infix
+ */
+private fun exprStartSubexpr(lenTokens: Int, startInd: Int, startOffset: Int): FunInStack {
+    var isPrefix = true
+    if (lenTokens < 2) {
+        FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), startInd, lenTokens, isPrefix)
+    }
+    val firstType = inp.nextTokenType(startOffset)
+    val sndTok = inp.nextToken(startOffset + 1)
+    isPrefix = firstType == RegularToken.word.internalVal.toInt()
+            && sndTok.tType != RegularToken.dotWord.internalVal.toInt()
+            && (sndTok.tType != RegularToken.operatorTok.internalVal.toInt()
+                || functionalityOfOper(sndTok.payload).second == prefixPrecedence)
+    return FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), startInd, lenTokens, isPrefix)
 }
 
 
-private fun parseStatementFunWord(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+private fun exprWord(functionStack: ArrayList<FunInStack>, stackInd: Int) {
     val theWord = readString(RegularToken.word)
-    if (functionStack[stackInd].indToken == 0) {
-        functionStack[stackInd].operators.add(FunctionParse(theWord, 26, 0, 0,
-                                                            inp.currChunk.tokens[inp.currInd + 1]))
+    if (functionStack[stackInd].prefixMode && functionStack[stackInd].indToken == 0) {
+        functionStack[stackInd].operators[0] = FunctionParse(theWord, funcPrecedence, 0, 0,
+                                                            inp.currChunk.tokens[inp.currInd + 1])
     } else {
         val binding = lookupBinding(theWord)
         if (binding != null) {
             appendNode(RegularAST.ident, 0, binding,
                 inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
-            statementFunOperand(functionStack, stackInd)
+            exprOperand(functionStack, stackInd)
         } else {
             errorOut(errorUnknownBinding)
         }
@@ -322,39 +349,30 @@ private fun parseStatementFunWord(functionStack: ArrayList<FunInStack>, stackInd
 }
 
 
-private fun statementFunInfix(fnName: String, precedence: Int, maxArity: Int, functionStack: ArrayList<FunInStack>, stackInd: Int) {
+private fun exprInfix(fnName: String, precedence: Int, maxArity: Int, functionStack: ArrayList<FunInStack>, stackInd: Int) {
     val startByte = inp.currChunk.tokens[inp.currInd + 1]
     val topParen = functionStack[stackInd]
 
-    if (topParen.haventPushedFn) {
-        // it's the first dot-word we've encountered, so we need to juxtapose it with the first word, if any
-        if (topParen.operators.last().arity != 0) {
-            // There mustn't have yet been any operands for what we used to think was the function name
-            errorOut(errorStatementFunError)
-            return
-        }
-
-        val nonOperator = topParen.operators[0]
-        val newFun = FunctionParse(fnName, precedence, functionStack[stackInd].operators[0].arity, maxArity,
-            inp.currChunk.tokens[inp.currInd + 1])
-        if (nonOperator.name != "") {
-            val binding = lookupBinding(nonOperator.name)
-            if (binding == null) {
-                errorOut(errorUnknownBinding)
+    if (topParen.prefixMode) {
+        errorOut(errorExpressionError)
+        return
+    } else if (topParen.firstFun) {
+        val newFun = FunctionParse(
+            fnName, precedence, functionStack[stackInd].operators[0].arity, maxArity,
+            inp.currChunk.tokens[inp.currInd + 1]
+        )
+        topParen.firstFun = false
+        functionStack[stackInd].operators[0] = newFun
+    } else {
+        while (topParen.operators.isNotEmpty() && topParen.operators.last().precedence >= precedence) {
+            if (topParen.operators.last().precedence == prefixPrecedence) {
+                errorOut(errorOperatorUsedInappropriately)
                 return
             }
-            appendNode(RegularAST.ident, 0, binding,
-                nonOperator.startByte, nonOperator.name.length)
-        }
-        functionStack[stackInd].operators[0] = newFun
-        statementFunOperand(functionStack, stackInd)
-        topParen.haventPushedFn = false
-    } else {
-        while (topParen.operators.isNotEmpty() && topParen.operators.last().precedence >= funcPrecedence) {
             appendFnName(topParen.operators.last())
             topParen.operators.removeLast()
         }
-        topParen.operators.add(FunctionParse(fnName, funcPrecedence, 1, maxArity, startByte))
+        topParen.operators.add(FunctionParse(fnName, precedence, 1, maxArity, startByte))
     }
 }
 
@@ -362,31 +380,58 @@ private fun statementFunInfix(fnName: String, precedence: Int, maxArity: Int, fu
 /**
  * State modifier that must be called whenever an operand is encountered in a statement parse
  */
-private fun statementFunOperand(functionStack: ArrayList<FunInStack>, stackInd: Int) {
-    if (functionStack[stackInd].operators.isEmpty()) {
-        // this is for the "(foo 5) .bar" case, i.e. a placeholder for the lack of function id in first position
-        functionStack[stackInd].operators.add(FunctionParse("", 0, 0, 0, 0))
-    } else {
-        val funBinding = functionStack[stackInd].operators.last()
-        funBinding.arity++
-        if (funBinding.maxArity > 0 && funBinding.maxArity < funBinding.arity) {
-            errorOut(errorStatementFunWrongArity)
-        }
+private fun exprOperand(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+    if (functionStack[stackInd].operators.isEmpty()) return
+
+    // flush all unaries
+    val opers = functionStack[stackInd].operators
+    while (opers.last().precedence == prefixPrecedence) {
+        appendFnName(opers.last())
+        opers.removeLast()
+    }
+    exprIncrementArity(functionStack[stackInd])
+}
+
+/**
+ * Increments the arity of the top non-prefix operator. The prefix ones are ignored because there is no
+ * need to track their arity: they are flushed on first operand or on closing of the first subexpr after them.
+ */
+private fun exprIncrementArity(topFrame: FunInStack) {
+    var n = topFrame.operators.size - 1
+    while (n > -1 && topFrame.operators[n].precedence == prefixPrecedence) {
+        n--
+    }
+    if (n < 0) {
+        errorOut(errorExpressionError)
+        throw Exception()
+    }
+    val oper = topFrame.operators[n]
+    oper.arity++
+    if (oper.maxArity > 0 && oper.arity > oper.maxArity) {
+        errorOut(errorOperatorWrongArity)
     }
 }
 
 
-private fun statementFunOperator(functionStack: ArrayList<FunInStack>, stackInd: Int) {
-    val operatorVal = inp.currChunk.tokens[inp.currInd + 3]
-    val operInfo = operatorFunctionality[operatorVal]
+private fun exprOperator(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+    val operInfo = functionalityOfOper(inp.currChunk.tokens[inp.currInd + 3].toLong())
     if (operInfo.first == "") {
         errorOut(errorOperatorUsedInappropriately)
         return
     }
-    statementFunInfix(operInfo.first, operInfo.second, operInfo.third, functionStack, stackInd)
+    if (operInfo.first == "-") {
+
+    } else if (operInfo.second == prefixPrecedence) {
+        val startByte = inp.currChunk.tokens[inp.currInd + 1]
+        functionStack[stackInd].operators.add(FunctionParse(operInfo.first, prefixPrecedence, 1, 1, startByte))
+    } else {
+        exprInfix(operInfo.first, operInfo.second, operInfo.third, functionStack, stackInd)
+    }
+
 }
 
-private fun parseStatementFunClosing(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+
+private fun exprClosing(functionStack: ArrayList<FunInStack>, stackInd: Int) {
     for (k in stackInd downTo 0) {
         val funInSt = functionStack[k]
         if (funInSt.indToken == funInSt.lenTokens) {
@@ -394,6 +439,19 @@ private fun parseStatementFunClosing(functionStack: ArrayList<FunInStack>, stack
                 appendFnName(funInSt.operators[m])
             }
             functionStack.removeLast()
+
+            // flush parent's prefix opers, if any, because this subexp was their operand
+            if (functionStack.isNotEmpty()) {
+                val opersPrev = functionStack[k - 1].operators
+                for (n in (opersPrev.size - 1) downTo 0) {
+                    if (opersPrev[n].precedence == prefixPrecedence) {
+                        appendFnName(opersPrev[n])
+                        opersPrev.removeLast()
+                    } else {
+                        break
+                    }
+                }
+            }
         } else {
             break
         }
@@ -411,7 +469,6 @@ private fun readString(tType: RegularToken): String {
     }
 }
 
-
 /**
  * Appends a node that either points to a function binding, or is pointed to by an unknown function
   */
@@ -427,6 +484,7 @@ private fun appendFnName(fnParse: FunctionParse) {
         } else {
             unknownFunctions[fnName] = arrayListOf(UnknownFunLocation(totalNodes, fnParse.arity))
         }
+        appendNode(RegularAST.idFunc, 0, -1, fnParse.startByte, fnParse.name.length)
     }
 }
 
@@ -529,6 +587,13 @@ fun parseFromW(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
+/**
+ * Returns [name precedence arity] of an operator from the payload in the token
+ * TODO sort out Int vs Long silliness
+ */
+private fun functionalityOfOper(operPayload: Long): Triple<String, Int, Int> {
+    return operatorFunctionality[OperatorToken.fromInt(operPayload.toInt()).opType.internalVal]
+}
 
 private fun errorOut(msg: String) {
     this.wasError = true
@@ -539,7 +604,7 @@ private fun errorOut(msg: String) {
 /**
  * For programmatic LexResult construction (builder pattern)
  */
-fun error(msg: String): Parser {
+fun buildError(msg: String): Parser {
     errorOut(msg)
     return this
 }
@@ -606,7 +671,7 @@ fun buildInsertBindingsIntoScope(): Parser {
             topScope.bindings[name]  = id
         }
     }
-    for (id in this.indFirstFunction until this.functionBindings.size) {
+    for (id in 0 until this.functionBindings.size) {
         val name = this.functionBindings[id].name
         if (topScope.functions.containsKey(name)) {
             topScope.functions[name]!!.add(id)
@@ -629,6 +694,14 @@ fun buildNode(nType: PunctuationAST, lenTokens: Int, startByte: Int, lenBytes: I
     return this
 }
 
+fun buildUnknownFunc(name: String, arity: Int, startByte: Int) {
+    if (unknownFunctions.containsKey(name)) {
+        unknownFunctions[name]!!.add(UnknownFunLocation(totalNodes, arity))
+    } else {
+        unknownFunctions[name] = arrayListOf(UnknownFunLocation(totalNodes, arity))
+    }
+    appendNode(RegularAST.idFunc, 0, -1, startByte, name.length)
+}
 
 private fun bump() {
     nextInd += 4
@@ -669,7 +742,7 @@ companion object {
             1 -> Parser::parseParens
             2 -> Parser::parseBrackets
             3 -> Parser::parseDotBrackets
-            4 -> Parser:: parseStatementFun
+            4 -> Parser:: expr
             5 ->  Parser:: parseStatementAssignment
             else -> Parser::parseStatementTypeDecl
         }
@@ -714,6 +787,13 @@ companion object {
             }
             currA = currA.next
             currB = currB.next
+        }
+        if (a.unknownFunctions.size != b.unknownFunctions.size) return false
+        for ((key, v) in a.unknownFunctions.entries) {
+            if (!b.unknownFunctions.containsKey(key) || b.unknownFunctions[key]!!.size != v.size) return false
+            for (j in 0 until v.size) {
+                if (v[j] != b.unknownFunctions[key]!![j]) return false
+            }
         }
 
         return true
@@ -795,7 +875,7 @@ companion object {
             }
         } else {
             val punctType = PunctuationAST.values().firstOrNull { it.internalVal == typeBits }
-            val lenTokens = chunk.nodes[ind + 2]
+            val lenTokens = chunk.nodes[ind + 3]
             wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
         }
     }

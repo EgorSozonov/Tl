@@ -954,9 +954,11 @@ fun nextToken() {
     }
 }
 
+
 fun currTokenType(): Int {
     return currChunk.tokens[currInd] ushr 27
 }
+
 
 fun nextTokenType(skip: Int): Int {
     var nextInd = currInd + 4*skip
@@ -966,6 +968,18 @@ fun nextTokenType(skip: Int): Int {
         nextInd -= CHUNKSZ
     }
     return nextChunk.tokens[nextInd] ushr 27
+}
+
+
+fun nextToken(skip: Int): TokenLite {
+    var nextInd = currInd + 4*skip
+    var nextChunk = currChunk
+    while (nextInd >= CHUNKSZ) {
+        nextChunk = currChunk.next!!
+        nextInd -= CHUNKSZ
+    }
+    return TokenLite(nextChunk.tokens[nextInd] ushr 27,
+                     (nextChunk.tokens[nextInd + 2].toLong() shl 32) + nextChunk.tokens[nextInd + 3].toLong())
 }
 
 

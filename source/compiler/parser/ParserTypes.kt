@@ -20,7 +20,7 @@ class Binding(val name: String) {
 class FunctionBinding(val name: String, val precedence: Int, val arity: Int) {
 }
 
-class FunctionParse(val name: String, val precedence: Int, var arity: Int, val maxArity: Int, val startByte: Int) {
+class FunctionParse(var name: String, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int) {
 }
 
 enum class RegularAST(val internalVal: Byte) { // payload
@@ -49,7 +49,7 @@ enum class PunctuationAST(val internalVal: Byte) {
  * astType                                                                            | u5
  * lenBytes                                                                           | u27
  * startByte                                                                          | i32
- * payload (for regular tokens) or lenTokens + empty 32 bits (for punctuation tokens) | i64
+ * payload (for regular tokens) or empty 32 bits + lenTokens (for punctuation tokens) | i64
  */
 data class ParseChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ParseChunk? = null)
 
@@ -60,10 +60,12 @@ enum class FileType {
 }
 
 data class FunInStack(var operators: ArrayList<FunctionParse>,
-                      var indToken: Int,  val lenTokens: Int,
-                      var haventPushedFn: Boolean = true)
+                      var indToken: Int, val lenTokens: Int,
+                      val prefixMode: Boolean = true,
+                      var firstFun: Boolean = true)
 
 /**
- * A record about an unknown function binding that has been encountered when parsing
+ * A record about an unknown function binding that has been encountered when parsing.
+ * Is used at scope end to fill in the blanks, or signal unknown function bindings.
  */
-data class UnknownFunLocation(val indNode: Int, val numParameters: Int)
+data class UnknownFunLocation(val indNode: Int, val arity: Int)

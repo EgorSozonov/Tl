@@ -1,19 +1,23 @@
 package compiler.lexer
+import compiler.parser.funcPrecedence
+import compiler.parser.prefixPrecedence
 
 
 /**
  * Values must exactly agree with the operatorSymbols array. The order is the same.
+ * TODO a prefix operator for abs value
+ * TODO make incr an decr overloadable (but not extensible). Return type is Unit
  */
-enum class OperatorType(val value: Int) {
+enum class OperatorType(val internalVal: Int) {
     notEqualTo(0),           boolNegation(1),        remainder(2),          boolAnd(3),
     composition(4),          exponentiation(5),      times(6),              increment(7),
-    plus(8),                 decrement(9),           arrowRight(10),             minus(11),
+    plus(8),                 decrement(9),           arrowRight(10),        minus(11),
     rangeHalf(12),           range(13),              divBy(14),             elseBranch(15),
-    mutation(16),            typeDecl(17),           colon(18),              lessThanEqInterval(19),
-    lessThanInterval(20),    bitshiftLeft(21),       lessThanEq(22),         arrowLeft(23),
-    lessThan(24),            equality(25),           arrowFat(26),            immDefinition(27),
-    greaterThanEqInterv(28), greaterThanInterv(29),  greaterThanEq(30),       bitshiftRight(31),
-    greaterThan(32),         backslash(33),          xor(34),                 boolOr(35),
+    mutation(16),            typeDecl(17),           colon(18),             lessThanEqInterval(19),
+    lessThanInterval(20),    bitshiftLeft(21),       lessThanEq(22),        arrowLeft(23),
+    lessThan(24),            equality(25),           arrowFat(26),          immDefinition(27),
+    greaterThanEqInterv(28), greaterThanInterv(29),  greaterThanEq(30),     bitshiftRight(31),
+    greaterThan(32),         backslash(33),          xor(34),               boolOr(35),
     pipe(36),
 }
 
@@ -41,7 +45,7 @@ data class OperatorToken(val opType: OperatorType, val extended: Int, val isAssi
      * next higher bits encode 'operatorType'
      */
     fun toInt(): Long {
-        return (opType.value shl 3).toLong() + ((extended and 4) shl 1) + (if (isAssignment) { 1 } else { 0 })
+        return (opType.internalVal shl 3).toLong() + ((extended and 4) shl 1) + (if (isAssignment) { 1 } else { 0 })
     }
 
     companion object {
@@ -100,25 +104,26 @@ val nonFun = Triple("", 0, 0)
 
 /**
  * Information about the operators that act as functions. Triples of: name, precedence, arity.
- * Order must exactly agree with 'operatorSymbols'
+ * Order must exactly agree with 'operatorSymbols'.
+ * The "-" operator actually has two forms: prefix and infix, and is special-cased in the parser
  */
 val operatorFunctionality = arrayListOf(
-    Triple("__ne", 11, 2), Triple("__negate", 25, 1), Triple("__remainder", 20, 2), Triple("__boolAnd", 9, 2),
-    Triple("__compose", 0, 2), Triple("__power", 23, 2), Triple("__times", 20, 2), Triple("__increment", 25, 1),
-    Triple("__plus", 17, 2), Triple("__decrement", 25, 2), nonFun, Triple("__minus", 17, 2),
-    Triple("__rangeExcl", 1, 2), Triple("__range", 1, 2), Triple("__divide", 20, 2), nonFun,
-    nonFun, nonFun, nonFun, Triple("__leRange", 12, 2),
-    Triple("__ltRange", 12, 2), Triple("__shiftLeft", 14, 2), Triple("__le", 12, 2), nonFun,
-    Triple("__lt", 12, 2), Triple("__equals", 11, 2), nonFun, nonFun,
-    Triple("__geRange", 12, 2), Triple("__gtRange", 12, 2), Triple("__ge", 12, 2), Triple("__shiftRight", 14, 2),
-    nonFun, nonFun, Triple("__boolXor", 6, 2), Triple("__boolOr", 3, 2),
+    Triple("!=", 11, 2),  Triple("!", prefixPrecedence, 1), Triple("%", 20, 2),  Triple("&&", 9, 2),
+    Triple("&", 0, 2),    Triple("**", 23, 2),              Triple("*", 20, 2),  Triple("++", funcPrecedence, 1),
+    Triple("+", 17, 2),   Triple("--", funcPrecedence, 1),  nonFun,              Triple("-", 17, 2),
+    Triple("..<", 1, 2),  Triple("..", 1, 2),               Triple("/", 20, 2),  nonFun,
+    nonFun,               nonFun,                           nonFun,              Triple("<=.", 12, 2),
+    Triple("<.", 12, 2),  Triple("<<", 14, 2),              Triple("<=", 12, 2), nonFun,
+    Triple("<", 12, 2),   Triple("==", 11, 2),              nonFun,              nonFun,
+    Triple(">=.", 12, 2), Triple(">.", 12, 2),              Triple(">=", 12, 2), Triple(">>", 14, 2),
+    nonFun,               nonFun,                           Triple("^", 6, 2),   Triple("||", 3, 2),
     nonFun,
 )
 
 /**
  * Indices of operators that act as functions in the built-in bindings array. Contains -1 for non-functional
  * operators.
- * Order must exactly agree with 'operatorSymbols'
+ * Values must exactly agree with the indices in 'operatorSymbols'
  */
 val operatorBindingIndices = intArrayOf(
     0, 1, 2, 3,

@@ -6,8 +6,8 @@ const val errorCoreFormTooShort            = "Statement too short: core syntax f
 const val errorCoreFormAssignment          = "A core form may not contain assignment!"
 const val errorFnNameAndParams             = "Function definition must start with more than one unique words: its name and parameters!"
 const val errorFnMissingBody               = "Function definition must contain a body which must be a Scope!"
-const val errorStatementFunError           = "Cannot parse function call statement!"
-const val errorStatementFunWrongArity      = "Wrong number of arguments for operator!"
+const val errorExpressionError             = "Cannot parse expression!"
+const val errorOperatorWrongArity          = "Wrong number of arguments for operator!"
 const val errorUnknownBinding              = "Unknown binding!"
 const val errorOperatorUsedInappropriately = "Operator used in an inappropriate location!"
 
@@ -25,3 +25,4 @@ val reservedWhile = byteArrayOf(119, 104, 105, 108, 101)
 
 /** Function precedence must be higher than that of any operator */
 val funcPrecedence = 26
+val prefixPrecedence = 27
