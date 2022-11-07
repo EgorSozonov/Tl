@@ -163,7 +163,7 @@ private fun lexNumber() {
     when (inp[i + 1]) {
         aXLower -> { lexHexNumber() }
         aBLower -> { lexBinNumber() }
-        else ->        { lexDecNumber() }
+        else ->    { lexDecNumber() }
     }
     numeric.clear()
 }

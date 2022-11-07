@@ -27,11 +27,12 @@ enum class RegularAST(val internalVal: Byte) { // payload
     litInt(0),                        // int value
     litFloat(1),                      // floating-point value
     litString(2),                     // 0
-    ident(3),                         // index in the bindings table of parser
-    idFunc(4),                        // index in the functionBindings table of parser
-    operatorr(5),                     // internal value of OperatorType enum
-    annot(6),                         // index in the annotations table of parser
-    fnDef(7),                         // index in the functionBindings table of parser,
+    litBool(3),                       // 1 or 0
+    ident(4),                         // index in the bindings table of parser
+    idFunc(5),                        // index in the functionBindings table of parser
+    operatorr(6),                     // internal value of OperatorType enum
+    annot(7),                         // index in the annotations table of parser
+    fnDef(8),                         // index in the functionBindings table of parser,
 }
 
 enum class PunctuationAST(val internalVal: Byte) {

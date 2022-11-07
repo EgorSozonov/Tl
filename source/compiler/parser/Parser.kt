@@ -270,64 +270,151 @@ private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
     val functionStack = ArrayList<FunInStack>()
     var stackInd = 0
-    functionStack.add(exprStartSubexpr(lenTokens, 0, 0))
+    val initConsumedTokens = exprStartSubexpr(lenTokens, false, functionStack)
 
-    var j = 0
+    var j = initConsumedTokens - 1
     while (j < lenTokens) {
         val tokType = inp.currTokenType()
         exprClosing(functionStack, stackInd)
         stackInd = functionStack.size - 1
-
+        var consumedTokens = 1
         if (tokType == PunctuationToken.parens.internalVal.toInt()) {
             val subExprLenTokens = inp.currChunk.tokens[inp.currInd + 3]
-            if (functionStack[stackInd].operators.isEmpty()) {
-                functionStack[stackInd].operators.add(FunctionParse("", 0, 0, 0, 0))
-            }
             exprIncrementArity(functionStack[stackInd])
-            functionStack.add(exprStartSubexpr(subExprLenTokens, -1, 1))
-            stackInd++
-        } else if (tokType == RegularToken.word.internalVal.toInt()) {
-            exprWord(functionStack, stackInd)
-        } else if (tokType == RegularToken.litInt.internalVal.toInt()) {
-            appendNode(RegularAST.litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
-                       inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
-            exprOperand(functionStack, stackInd)
-        } else if (tokType == RegularToken.dotWord.internalVal.toInt()) {
-            exprInfix(readString(RegularToken.dotWord), funcPrecedence, 0, functionStack, stackInd)
-        } else if (tokType == RegularToken.operatorTok.internalVal.toInt()) {
-            exprOperator(functionStack, stackInd)
-        }
+            consumedTokens = exprStartSubexpr(subExprLenTokens, true, functionStack)
+            stackInd = functionStack.size - 1
+        } else {
+            if (tokType == RegularToken.word.internalVal.toInt()) {
+                exprWord(functionStack, stackInd)
+            } else if (tokType == RegularToken.litInt.internalVal.toInt()) {
+                appendNode(
+                    RegularAST.litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
+                    inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+                )
+                exprOperand(functionStack, stackInd)
+            } else if (tokType == RegularToken.dotWord.internalVal.toInt()) {
+                exprInfix(readString(RegularToken.dotWord), funcPrecedence, 0, functionStack, stackInd)
+            } else if (tokType == RegularToken.operatorTok.internalVal.toInt()) {
+                exprOperator(functionStack, stackInd)
+            }
 
-        if (wasError) return
-        inp.nextToken()
-        for (i in 0..stackInd) {
-            functionStack[i].indToken++
+            inp.nextToken()
         }
-        j++
+        if (wasError) return
+
+        for (i in 0..stackInd) {
+            functionStack[i].indToken += consumedTokens
+        }
+        j += consumedTokens
     }
     exprClosing(functionStack, stackInd)
 }
 
 /**
- * Adds a frame for the expression or subexpression by determining its structure: prefix, compound prefix or infix.
+ * Adds a frame for the expression or subexpression by determining its structure: prefix or infix.
+ * Also handles the negation operator "-" (since it can only ever be at the start of a subexpression).
  * Precondition: the current token must be past the opening paren / statement token
+ * Returns: number of consumed tokens
  * Examples: "foo 5 a" is prefix
- *           "((foo 5) a)" is compound prefix
  *           "5 .foo a" is infix
  *           "5 + a" is infix
  */
-private fun exprStartSubexpr(lenTokens: Int, startInd: Int, startOffset: Int): FunInStack {
-    var isPrefix = true
-    if (lenTokens < 2) {
-        FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), startInd, lenTokens, isPrefix)
+private fun exprStartSubexpr(lenTokens: Int, isBeforeFirstToken: Boolean, functionStack: ArrayList<FunInStack>): Int{
+    var consumedTokens = 0
+    if (isBeforeFirstToken) {
+        inp.nextToken()
+        consumedTokens++
     }
-    val firstType = inp.nextTokenType(startOffset)
-    val sndTok = inp.nextToken(startOffset + 1)
-    isPrefix = firstType == RegularToken.word.internalVal.toInt()
-            && sndTok.tType != RegularToken.dotWord.internalVal.toInt()
-            && (sndTok.tType != RegularToken.operatorTok.internalVal.toInt()
+    val firstTok = inp.nextToken(0)
+    if (lenTokens == 1) {
+        exprSingleItem(firstTok, functionStack)
+        return consumedTokens
+    } else if (firstTok.tType == RegularToken.operatorTok.internalVal.toInt()
+               && functionalityOfOper(firstTok.payload).first == "-"){
+        val sndTok = inp.nextToken(1)
+        return exprNegationOper(sndTok, lenTokens, functionStack)
+    } else {
+        val sndTok = inp.nextToken(1)
+        val isPrefix = firstTok.tType == RegularToken.word.internalVal.toInt()
+                && sndTok.tType != RegularToken.dotWord.internalVal.toInt()
+                && (sndTok.tType != RegularToken.operatorTok.internalVal.toInt()
                 || functionalityOfOper(sndTok.payload).second == prefixPrecedence)
-    return FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), startInd, lenTokens, isPrefix)
+        functionStack.add(FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), 0, lenTokens, isPrefix))
+        inp.nextToken()
+        return consumedTokens
+    }
+}
+
+/**
+ * A single-item subexpression, like "(5)" or "x". Cannot be a function call.
+ */
+private fun exprSingleItem(theTok: TokenLite, functionStack: ArrayList<FunInStack>) {
+    if (theTok.tType == RegularToken.litInt.internalVal.toInt()) {
+        appendNode(RegularAST.litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
+            inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+    } else if (theTok.tType == RegularToken.litFloat.internalVal.toInt()) {
+        appendNode(RegularAST.litFloat, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
+            inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+    } else if (theTok.tType == RegularToken.litString.internalVal.toInt()) {
+        appendNode(RegularAST.litString, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
+            inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+    } else if (theTok.tType == RegularToken.word.internalVal.toInt()) {
+        val theWord = readString(RegularToken.word)
+        if (theWord == "true") {
+            appendNode(RegularAST.litBool, 0, 1, inp.currChunk.tokens[inp.currInd + 1], 4)
+        } else if (theWord == "false") {
+            appendNode(RegularAST.litString, 0, 0, inp.currChunk.tokens[inp.currInd + 1], 5)
+        } else {
+            val mbBinding = lookupBinding(theWord)
+            if (mbBinding != null) {
+                appendNode(RegularAST.ident, 0, mbBinding,
+                    inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+            } else {
+                errorOut(errorUnknownBinding)
+                return
+            }
+        }
+    } else {
+        errorOut(errorUnexpectedToken)
+        return
+    }
+    inp.nextToken()
+    exprClosing(functionStack, functionStack.size - 1)
+}
+
+/**
+ * A subexpression that starts with "-". Can be either a negated numeric literal "(-5)", identifier "(-x)"
+ * or parentheses "(-(...))".
+ */
+private fun exprNegationOper(sndTok: TokenLite, lenTokens: Int, functionStack: ArrayList<FunInStack>): Int {
+    inp.nextToken()
+    if (sndTok.tType == RegularToken.litInt.internalVal.toInt() || sndTok.tType == RegularToken.litFloat.internalVal.toInt()) {
+        val payload =
+            (inp.currChunk.tokens[inp.currInd + 2].toLong() shl 32) + inp.currChunk.tokens[inp.currInd + 3].toLong() * (-1)
+        if (sndTok.tType == RegularToken.litInt.internalVal.toInt()) {
+            appendNode(RegularAST.litInt, (payload ushr 32).toInt(), (payload and LOWER32BITS).toInt(),
+                inp.currChunk.tokens[inp.currInd + 1],inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+        } else {
+            val payloadActual: Double = Double.fromBits(payload) * (-1.0)
+            val payloadAsLong = payloadActual.toBits()
+            appendNode(RegularAST.litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(),
+                        inp.currChunk.tokens[inp.currInd + 1],inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+        }
+        inp.nextToken()
+        if (lenTokens == 2) {
+            exprClosing(functionStack, functionStack.size - 1)
+        }
+        return 2
+    } else if (sndTok.tType == RegularToken.word.internalVal.toInt()) {
+        functionStack.last().operators.add(FunctionParse("-", prefixPrecedence, 0, 1, inp.currChunk.tokens[inp.currInd + 1]))
+    } else if (sndTok.tType == PunctuationToken.parens.internalVal.toInt()) {
+        functionStack.last().operators.add(FunctionParse("-", prefixPrecedence, 0, 1, inp.currChunk.tokens[inp.currInd + 1]))
+    } else {
+        errorOut(errorUnexpectedToken)
+        return 0
+    }
+    functionStack.add(FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), 1, lenTokens, false))
+    return 1
 }
 
 
