@@ -16,10 +16,10 @@ inner class ParseExprTest {
             "foo 10 2 3", { it.buildFBinding(FunctionBinding("foo", 26, 3))
                 .buildInsertBindingsIntoScope() },
             {
-                it.buildNode(PunctuationAST.funcall, 4, 0, 9)
-                  .buildNode(RegularAST.litInt, 0, 10, 4, 1)
-                  .buildNode(RegularAST.litInt, 0, 2, 6, 1)
-                  .buildNode(RegularAST.litInt, 0, 3, 8, 1)
+                it.buildNode(PunctuationAST.funcall, 4, 0, 10)
+                  .buildNode(RegularAST.litInt, 0, 10, 4, 2)
+                  .buildNode(RegularAST.litInt, 0, 2, 7, 1)
+                  .buildNode(RegularAST.litInt, 0, 3, 9, 1)
                   .buildNode(RegularAST.idFunc, 0, 26, 0, 3)
             }
         )

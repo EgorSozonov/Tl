@@ -272,7 +272,7 @@ private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
     var stackInd = 0
     val initConsumedTokens = exprStartSubexpr(lenTokens, false, functionStack)
 
-    var j = initConsumedTokens - 1
+    var j = initConsumedTokens
     while (j < lenTokens) {
         val tokType = inp.currTokenType()
         exprClosing(functionStack, stackInd)
@@ -335,12 +335,12 @@ private fun exprStartSubexpr(lenTokens: Int, isBeforeFirstToken: Boolean, functi
         return exprNegationOper(sndTok, lenTokens, functionStack)
     } else {
         val sndTok = inp.nextToken(1)
+        val startIndToken = if (isBeforeFirstToken) { -1 } else { 0 }
         val isPrefix = firstTok.tType == RegularToken.word.internalVal.toInt()
                 && sndTok.tType != RegularToken.dotWord.internalVal.toInt()
                 && (sndTok.tType != RegularToken.operatorTok.internalVal.toInt()
                 || functionalityOfOper(sndTok.payload).second == prefixPrecedence)
-        functionStack.add(FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), 0, lenTokens, isPrefix))
-        inp.nextToken()
+        functionStack.add(FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), startIndToken, lenTokens, isPrefix))
         return consumedTokens
     }
 }
@@ -379,7 +379,7 @@ private fun exprSingleItem(theTok: TokenLite, functionStack: ArrayList<FunInStac
         return
     }
     inp.nextToken()
-    exprClosing(functionStack, functionStack.size - 1)
+    exprOperand(functionStack, functionStack.size - 1)
 }
 
 /**
