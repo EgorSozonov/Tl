@@ -1,3 +1,4 @@
+import compiler.lexer.LOWER32BITS
 import compiler.lexer.Lexer
 import compiler.parser.*
 import org.junit.jupiter.api.Nested
@@ -219,6 +220,44 @@ inner class ParseExprTest {
                     .buildNode(RegularAST.idFunc, 0, 25, 8, 2)
                     .buildNode(RegularAST.idFunc, 0, 1, 4, 1)
                     .buildNode(RegularAST.idFunc, 0, it.indFirstFunction, 0, 3)
+            }
+        )
+    }
+
+    @Test
+    fun `Operator arithmetic 1`() {
+        testParseWithEnvironment(
+            "a + (b - c % 2)**11", {
+                it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
+                    .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(PunctuationAST.funcall, 10, 0, 19)
+                    .buildNode(RegularAST.ident, 0, 0, 0, 1)
+                    .buildNode(RegularAST.ident, 0, 1, 5, 1)
+                    .buildNode(RegularAST.ident, 0, 2, 9, 1)
+                    .buildNode(RegularAST.litInt, 0, 2, 13, 1)
+                    .buildNode(RegularAST.idFunc, 0, 2, 11, 1)
+                    .buildNode(RegularAST.idFunc, 0, 10, 7, 1)
+                    .buildNode(RegularAST.litInt, 0, 11, 17, 2)
+                    .buildNode(RegularAST.idFunc, 0, 5, 15, 2)
+                    .buildNode(RegularAST.idFunc, 0, 8, 2, 1)
+            }
+        )
+    }
+
+    @Test
+    fun `Operator arithmetic 2`() {
+        testParseWithEnvironment(
+            "a + (-5)", {
+                it.buildBinding(Binding("a"))
+                    .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(PunctuationAST.funcall, 4, 0, 8)
+                    .buildNode(RegularAST.ident, 0, 0, 0, 1)
+                    .buildNode(RegularAST.litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 5, 2)
+                    .buildNode(RegularAST.idFunc, 0, 8, 2, 1)
             }
         )
     }

@@ -506,9 +506,7 @@ private fun exprOperator(functionStack: ArrayList<FunInStack>, stackInd: Int) {
         errorOut(errorOperatorUsedInappropriately)
         return
     }
-    if (operInfo.first == "-") {
-
-    } else if (operInfo.second == prefixPrecedence) {
+    if (operInfo.second == prefixPrecedence) {
         val startByte = inp.currChunk.tokens[inp.currInd + 1]
         functionStack[stackInd].operators.add(FunctionParse(operInfo.first, prefixPrecedence, 1, 1, startByte))
     } else {
@@ -772,6 +770,12 @@ fun buildInsertBindingsIntoScope(): Parser {
 
 fun buildNode(nType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int): Parser {
     appendNode(nType, payload1, payload2, startByte, lenBytes)
+    return this
+}
+
+fun buildNode(payload: Double, startByte: Int, lenBytes: Int): Parser {
+    val payloadAsLong = payload.toBits()
+    appendNode(RegularAST.litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(), startByte, lenBytes)
     return this
 }
 
