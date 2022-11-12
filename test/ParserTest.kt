@@ -254,7 +254,7 @@ inner class ParseExprTest {
                     .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(PunctuationAST.funcall, 4, 0, 8)
+                it.buildNode(PunctuationAST.funcall, 5, 0, 8)
                     .buildNode(RegularAST.ident, 0, 0, 0, 1)
                     .buildNode(RegularAST.litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 5, 2)
                     .buildNode(RegularAST.idFunc, 0, 8, 2, 1)

@@ -387,28 +387,32 @@ private fun exprSingleItem(theTok: TokenLite, functionStack: ArrayList<FunInStac
  * or parentheses "(-(...))".
  */
 private fun exprNegationOper(sndTok: TokenLite, lenTokens: Int, functionStack: ArrayList<FunInStack>): Int {
+    val startByteMinus = inp.currChunk.tokens[inp.currInd + 1]
     inp.nextToken()
     if (sndTok.tType == RegularToken.litInt.internalVal.toInt() || sndTok.tType == RegularToken.litFloat.internalVal.toInt()) {
+        val startByteLiteral = inp.currChunk.tokens[inp.currInd + 1]
+        val lenLiteral = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+        val totalBytes = (startByteLiteral - startByteMinus + lenLiteral)
         val payload =
             (inp.currChunk.tokens[inp.currInd + 2].toLong() shl 32) + inp.currChunk.tokens[inp.currInd + 3].toLong() * (-1)
         if (sndTok.tType == RegularToken.litInt.internalVal.toInt()) {
             appendNode(RegularAST.litInt, (payload ushr 32).toInt(), (payload and LOWER32BITS).toInt(),
-                inp.currChunk.tokens[inp.currInd + 1],1 + (inp.currChunk.tokens[inp.currInd] and LOWER27BITS))
+                startByteMinus, totalBytes)
         } else {
             val payloadActual: Double = Double.fromBits(payload) * (-1.0)
             val payloadAsLong = payloadActual.toBits()
             appendNode(RegularAST.litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(),
-                        inp.currChunk.tokens[inp.currInd + 1] - 1,3 + (inp.currChunk.tokens[inp.currInd] and LOWER27BITS))
+                        startByteMinus,totalBytes)
         }
+
         inp.nextToken()
         if (lenTokens == 2) {
-            exprOperand(functionStack, functionStack.size - 1)
             val opers = functionStack.last().operators
             while (opers.last().precedence == prefixPrecedence) {
                 appendFnName(opers.last())
                 opers.removeLast()
             }
-            return 2
+            return 3 // the parens, the "-" sign, and the literal
         }
     } else if (sndTok.tType == RegularToken.word.internalVal.toInt()) {
         functionStack.last().operators.add(FunctionParse("-", prefixPrecedence, 0, 1, inp.currChunk.tokens[inp.currInd + 1]))
@@ -419,7 +423,7 @@ private fun exprNegationOper(sndTok: TokenLite, lenTokens: Int, functionStack: A
         return 0
     }
     functionStack.add(FunInStack(arrayListOf(FunctionParse("", 0, 0, 0, 0)), 1, lenTokens, false))
-    return 1
+    return 2 // the parens and the "-" sign
 }
 
 
