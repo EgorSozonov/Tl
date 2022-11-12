@@ -30,9 +30,10 @@ enum class RegularAST(val internalVal: Byte) { // payload
     litBool(3),                       // 1 or 0
     ident(4),                         // index in the bindings table of parser
     idFunc(5),                        // index in the functionBindings table of parser
-    operatorr(6),                     // internal value of OperatorType enum
+    binding(6),                       // id of binding that is being defined
     annot(7),                         // index in the annotations table of parser
     fnDef(8),                         // index in the functionBindings table of parser,
+
 }
 
 enum class PunctuationAST(val internalVal: Byte) {

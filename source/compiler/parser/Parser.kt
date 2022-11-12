@@ -5,6 +5,8 @@ import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 import compiler.lexer.OperatorToken
+import compiler.lexer.RegularToken.*
+import compiler.parser.RegularAST.*
 import java.lang.Exception
 
 class Parser {
@@ -104,7 +106,7 @@ private fun parseNoncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int,
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
         expr(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
-        parseStatementAssignment(lenTokens, startByte, lenBytes)
+        assignment(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
         parseStatementTypeDecl(lenTokens, startByte, lenBytes)
     }
@@ -379,7 +381,7 @@ private fun exprSingleItem(theTok: TokenLite, functionStack: ArrayList<FunInStac
         return
     }
     inp.nextToken()
-    exprOperand(functionStack, functionStack.size - 1)
+    //exprOperand(functionStack, functionStack.size - 1)
 }
 
 /**
@@ -610,8 +612,38 @@ private fun lookupFunction(name: String, arity: Int): Int? {
 }
 
 
-private fun parseStatementAssignment(lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun assignment(lenTokens: Int, startByte: Int, lenBytes: Int) {
+    if (lenTokens < 3) {
+        errorOut(errorAssignment)
+        return
+    }
+    val fstTokenType = inp.currTokenType()
+    val sndTokenType = inp.nextTokenType(1)
+    if (fstTokenType != word.internalVal.toInt() || sndTokenType != operatorTok.internalVal.toInt()) {
+        errorOut(errorAssignment)
+        return
+    }
+    val theName = readString(word)
+    inp.nextToken()
+    val sndOper = OperatorToken.fromInt(inp.currChunk.tokens[inp.currInd + 3])
+    if (sndOper.opType != OperatorType.immDefinition) {
+        errorOut(errorAssignment)
+        return
+    }
 
+    val mbBinding = lookupBinding(theName)
+    if (mbBinding != null) {
+        errorOut(errorAssignmentShadowing)
+        return
+    }
+
+    inp.nextToken()
+
+    bindings.add(Binding(theName))
+    appendNode(PunctuationAST.statementAssignment, lenTokens, startByte, lenBytes)
+    appendNode(binding, 0, bindings.size - 1, startByte, theName.length)
+    val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
+    expr(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
 }
 
 
@@ -845,7 +877,7 @@ companion object {
             2 -> Parser::parseBrackets
             3 -> Parser::parseDotBrackets
             4 -> Parser:: expr
-            5 ->  Parser:: parseStatementAssignment
+            5 ->  Parser:: assignment
             else -> Parser::parseStatementTypeDecl
         }
     }

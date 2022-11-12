@@ -3,13 +3,15 @@ package compiler.parser
 const val errorLengthOverflow              = "AST nodes length overflow"
 const val errorUnexpectedToken             = "Unexpected token"
 const val errorCoreFormTooShort            = "Statement too short: core syntax forms cannot be shorter than 3 tokens!"
-const val errorCoreFormAssignment          = "A core form may not contain assignment!"
+const val errorCoreFormAssignment          = "A core form may not contain any assignments!"
 const val errorFnNameAndParams             = "Function definition must start with more than one unique words: its name and parameters!"
 const val errorFnMissingBody               = "Function definition must contain a body which must be a Scope!"
 const val errorExpressionError             = "Cannot parse expression!"
 const val errorOperatorWrongArity          = "Wrong number of arguments for operator!"
 const val errorUnknownBinding              = "Unknown binding!"
 const val errorOperatorUsedInappropriately = "Operator used in an inappropriate location!"
+const val errorAssignment                  = "Cannot parse assignment, it must look like [fresh identifier] = [expression]"
+const val errorAssignmentShadowing         = "Assignment error: existing identifier is being shadowed"
 
 
 val reservedCatch = byteArrayOf(99, 97, 116, 99, 104)
