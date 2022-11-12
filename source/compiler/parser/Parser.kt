@@ -393,18 +393,23 @@ private fun exprNegationOper(sndTok: TokenLite, lenTokens: Int, functionStack: A
             (inp.currChunk.tokens[inp.currInd + 2].toLong() shl 32) + inp.currChunk.tokens[inp.currInd + 3].toLong() * (-1)
         if (sndTok.tType == RegularToken.litInt.internalVal.toInt()) {
             appendNode(RegularAST.litInt, (payload ushr 32).toInt(), (payload and LOWER32BITS).toInt(),
-                inp.currChunk.tokens[inp.currInd + 1],inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+                inp.currChunk.tokens[inp.currInd + 1],1 + (inp.currChunk.tokens[inp.currInd] and LOWER27BITS))
         } else {
             val payloadActual: Double = Double.fromBits(payload) * (-1.0)
             val payloadAsLong = payloadActual.toBits()
             appendNode(RegularAST.litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(),
-                        inp.currChunk.tokens[inp.currInd + 1],inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
+                        inp.currChunk.tokens[inp.currInd + 1] - 1,3 + (inp.currChunk.tokens[inp.currInd] and LOWER27BITS))
         }
         inp.nextToken()
         if (lenTokens == 2) {
-            exprClosing(functionStack, functionStack.size - 1)
+            exprOperand(functionStack, functionStack.size - 1)
+            val opers = functionStack.last().operators
+            while (opers.last().precedence == prefixPrecedence) {
+                appendFnName(opers.last())
+                opers.removeLast()
+            }
+            return 2
         }
-        return 2
     } else if (sndTok.tType == RegularToken.word.internalVal.toInt()) {
         functionStack.last().operators.add(FunctionParse("-", prefixPrecedence, 0, 1, inp.currChunk.tokens[inp.currInd + 1]))
     } else if (sndTok.tType == PunctuationToken.parens.internalVal.toInt()) {
@@ -515,30 +520,32 @@ private fun exprOperator(functionStack: ArrayList<FunInStack>, stackInd: Int) {
 
 }
 
-
+/**
+ * Flushes the finished subexpr frames from the top of the stack.
+ * A subexpr frame is finished when it has no tokens left.
+ * Flushing includes appending its operators, clearing the operator stack, and appending
+ * prefix unaries from the previous subexpr frame, if any.
+ */
 private fun exprClosing(functionStack: ArrayList<FunInStack>, stackInd: Int) {
     for (k in stackInd downTo 0) {
         val funInSt = functionStack[k]
-        if (funInSt.indToken == funInSt.lenTokens) {
-            for (m in funInSt.operators.size - 1 downTo 0) {
-                appendFnName(funInSt.operators[m])
-            }
-            functionStack.removeLast()
+        if (funInSt.indToken != funInSt.lenTokens) break
+        for (m in funInSt.operators.size - 1 downTo 0) {
+            appendFnName(funInSt.operators[m])
+        }
+        functionStack.removeLast()
 
-            // flush parent's prefix opers, if any, because this subexp was their operand
-            if (functionStack.isNotEmpty()) {
-                val opersPrev = functionStack[k - 1].operators
-                for (n in (opersPrev.size - 1) downTo 0) {
-                    if (opersPrev[n].precedence == prefixPrecedence) {
-                        appendFnName(opersPrev[n])
-                        opersPrev.removeLast()
-                    } else {
-                        break
-                    }
+        // flush parent's prefix opers, if any, because this subexp was their operand
+        if (functionStack.isNotEmpty()) {
+            val opersPrev = functionStack[k - 1].operators
+            for (n in (opersPrev.size - 1) downTo 0) {
+                if (opersPrev[n].precedence == prefixPrecedence) {
+                    appendFnName(opersPrev[n])
+                    opersPrev.removeLast()
+                } else {
+                    break
                 }
             }
-        } else {
-            break
         }
     }
 }
