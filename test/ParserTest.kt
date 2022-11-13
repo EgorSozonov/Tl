@@ -269,14 +269,14 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a + !(-5)", {
                 it.buildBinding(Binding("a"))
-                    .buildInsertBindingsIntoScope()
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 6, 0, 9)
-                    .buildNode(ident, 0, 0, 0, 1)
-                    .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 6, 2)
-                    .buildNode(idFunc, 0, 1, 4, 1)
-                    .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 6, 2)
+                  .buildNode(idFunc, 0, 1, 4, 1)
+                  .buildNode(idFunc, 0, 8, 2, 1)
             }
         )
     }
@@ -290,11 +290,63 @@ inner class ExprTest {
             },
             {
                 it.buildNode(funcall, 7, 0, 10)
-                    .buildNode(ident, 0, 0, 0, 1)
-                    .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 7, 2)
-                    .buildNode(idFunc, 0, 1, 5, 1)
-                    .buildNode(idFunc, 0, 1, 4, 1)
-                    .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 7, 2)
+                  .buildNode(idFunc, 0, 1, 5, 1)
+                  .buildNode(idFunc, 0, 1, 4, 1)
+                  .buildNode(idFunc, 0, 8, 2, 1)
+            }
+        )
+    }
+
+    @Test
+    fun `Operator arity error 1`() {
+        testParseWithEnvironment(
+            "a + 5 100", {
+                it.buildBinding(Binding("a"))
+                  .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(funcall, 4, 0, 9)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(litInt, 0, 5, 4, 1)
+                  .buildError(errorOperatorWrongArity)
+            }
+        )
+    }
+
+    @Test
+    fun `Single-item expression 1`() {
+        testParseWithEnvironment(
+            "a + (5)", {
+                it.buildBinding(Binding("a"))
+                  .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(funcall, 4, 0, 7)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(litInt, 0, 5, 5, 1)
+                  .buildNode(idFunc, 0, 8, 2, 1)
+            }
+        )
+    }
+
+    @Test
+    fun `Single-item expression 2`() {
+        testParseWithEnvironment(
+            "foo 5 !!!(a)", {
+                it.buildBinding(Binding("a"))
+                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 2))
+                  .buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildNode(funcall, 7, 0, 12)
+                  .buildNode(litInt, 0, 5, 4, 1)
+                  .buildNode(ident, 0, 0, 10, 1)
+                  .buildNode(idFunc, 0, 1, 8, 1)
+                  .buildNode(idFunc, 0, 1, 7, 1)
+                  .buildNode(idFunc, 0, 1, 6, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 0, 3)
             }
         )
     }
@@ -304,16 +356,15 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a .foo b c", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                    .buildFBinding(FunctionBinding("foo", funcPrecedence, 2))
-                    .buildInsertBindingsIntoScope()
+                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 2))
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 4, 0, 10)
-                    .buildNode(ident, 0, 0, 0, 1)
-                    .buildNode(ident, 0, 1, 7, 1)
-                    .buildNode(ident, 0, 2, 9, 1)
-                    .buildUnknownFunc("foo", 3, 2)
-
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(ident, 0, 1, 7, 1)
+                  .buildNode(ident, 0, 2, 9, 1)
+                  .buildUnknownFunc("foo", 3, 2)
             }
         )
     }
@@ -324,16 +375,32 @@ inner class ExprTest {
 @Nested
 inner class AssignmentTest {
     @Test
-    fun `Simple assignment`() {
+    fun `Simple assignment 1`() {
         testParseWithEnvironment(
-            "a = 1 + 5", { x -> x.buildInsertBindingsIntoScope() },
+            "a = 1 + 5", { x -> x.buildInsertBindingsIntoScope()
+                         },
             {
-                it.buildNode(statementAssignment, 5, 0, 9)
+                it.buildBinding(Binding("a"))
+                  .buildNode(statementAssignment, 5, 0, 9)
                   .buildNode(binding, 0, 0, 0, 1)
                   .buildNode(funcall, 3, 4, 5)
                   .buildNode(litInt, 0, 1, 4, 1)
                   .buildNode(litInt, 0, 5, 8, 1)
                   .buildNode(idFunc, 0, 8, 6, 1)
+            }
+        )
+    }
+
+    @Test
+    fun `Simple assignment 2`() {
+        testParseWithEnvironment(
+            "a = 9", { x -> x.buildInsertBindingsIntoScope()
+                     },
+            {
+                it.buildBinding(Binding("a")).buildNode(statementAssignment, 3, 0, 5)
+                  .buildNode(binding, 0, 0, 0, 1)
+                  .buildNode(funcall, 1, 4, 1)
+                  .buildNode(litInt, 0, 9, 4, 1)
             }
         )
     }
@@ -376,4 +443,5 @@ private fun testParseResult(inp: String, parserWithEnvironment: Parser, expected
     }
     assertEquals(parseCorrect, true)
 }
+
 }

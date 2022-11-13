@@ -2,9 +2,9 @@ package compiler.lexer
 
 
 enum class RegularToken(val internalVal: Byte) {
-    litInt(0),
-    litFloat(1),
-    litString(2),
+    intTok(0),
+    floatTok(1),
+    stringTok(2),
     verbatimString(3),
     word(4),
     dotWord(5),

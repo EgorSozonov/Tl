@@ -29,8 +29,8 @@ inner class LexWordTest {
         testInpOutp(
             "asdf Abc",
             Lexer().buildPunct(0, 8, statementFun, 2)
-                .build(0, 0, 4, word)
-                .build(0, 5, 3, word)
+                  .build(0, 0, 4, word)
+                  .build(0, 5, 3, word)
         )
     }
 
@@ -47,7 +47,7 @@ inner class LexWordTest {
         testInpOutp(
             "Asdf.abc",
             Lexer().buildPunct(0, 8, statementFun, 1)
-                .build(0, 0, 8, word)
+                  .build(0, 0, 8, word)
         )
     }
 
@@ -56,7 +56,7 @@ inner class LexWordTest {
         testInpOutp(
             "asdf.abcd.zyui",
             Lexer().buildPunct(0, 14, statementFun, 1)
-                .build(0, 0, 14, word)
+                  .build(0, 0, 14, word)
         )
     }
 
@@ -65,7 +65,7 @@ inner class LexWordTest {
         testInpOutp(
             "Asdf.Abcd",
             Lexer().buildPunct(0, 9, statementFun, 1)
-                .build(0, 0, 9, word)
+                   .build(0, 0, 9, word)
         )
     }
 
@@ -82,7 +82,7 @@ inner class LexWordTest {
         testInpOutp(
             "_abc",
             Lexer().buildPunct(0, 4, statementFun, 1)
-                .build(0, 0, 4, word)
+                   .build(0, 0, 4, word)
         )
     }
 
@@ -91,7 +91,7 @@ inner class LexWordTest {
         testInpOutp(
             "_Abc",
             Lexer().buildPunct(0, 4, statementFun, 1)
-                .build(0, 0, 4, word)
+                   .build(0, 0, 4, word)
         )
     }
 
@@ -116,8 +116,8 @@ inner class LexWordTest {
         testInpOutp(
             "@a123 .Abc ",
             Lexer().buildPunct(0, 11, statementFun, 2)
-                .build(0, 0, 5, atWord)
-                .build(0, 6, 4, dotWord)
+                   .build(0, 0, 5, atWord)
+                   .build(0, 6, 4, dotWord)
         )
     }
 }
@@ -131,7 +131,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0b0",
             Lexer().buildPunct(0, 3, statementFun, 1)
-                .build(0, 0, 3, litInt)
+                   .build(0, 0, 3, intTok)
         )
     }
 
@@ -140,7 +140,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0b101",
             Lexer().buildPunct(0, 5, statementFun, 1)
-                .build(5, 0, 5, litInt)
+                   .build(5, 0, 5, intTok)
         )
     }
 
@@ -149,7 +149,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0111",
             Lexer().buildPunct(0, 81, statementFun, 1)
-                .build(7, 0, 81, litInt)
+                   .build(7, 0, 81, intTok)
         )
     }
 
@@ -158,7 +158,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0b1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1111_1001",
             Lexer().buildPunct(0, 81, statementFun, 1)
-                .build(-7, 0, 81, litInt)
+                   .build(-7, 0, 81, intTok)
         )
     }
 
@@ -175,7 +175,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0x15",
             Lexer().buildPunct(0, 4, statementFun, 1)
-                .build(21, 0, 4, litInt)
+                   .build(21, 0, 4, intTok)
         )
     }
 
@@ -184,7 +184,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0x05",
             Lexer().buildPunct(0, 4, statementFun, 1)
-                .build(5, 0, 4, litInt)
+                   .build(5, 0, 4, intTok)
         )
     }
 
@@ -193,7 +193,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0xFFFFFFFFFFFFFFFF",
             Lexer().buildPunct(0, 18, statementFun, 1)
-                .build(-1L, 0, 18, litInt)
+                   .build(-1L, 0, 18, intTok)
         )
     }
 
@@ -210,7 +210,7 @@ inner class LexNumericTest {
         testInpOutp(
             "1.234",
             Lexer().buildPunct(0, 5, statementFun, 1)
-                .build(1.234, 0, 5)
+                   .build(1.234, 0, 5)
         )
     }
 
@@ -219,7 +219,7 @@ inner class LexNumericTest {
         testInpOutp(
             "00001.234",
             Lexer().buildPunct(0, 9, statementFun, 1)
-                .build(1.234, 0, 9)
+                   .build(1.234, 0, 9)
         )
     }
 
@@ -228,7 +228,7 @@ inner class LexNumericTest {
         testInpOutp(
             "10500.01",
             Lexer().buildPunct(0, 8, statementFun, 1)
-                .build(10500.01, 0, 8)
+                   .build(10500.01, 0, 8)
         )
     }
 
@@ -237,7 +237,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0.9",
             Lexer().buildPunct(0, 3, statementFun, 1)
-                .build(0.9, 0, 3)
+                   .build(0.9, 0, 3)
         )
     }
 
@@ -246,7 +246,7 @@ inner class LexNumericTest {
         testInpOutp(
             "100500.123456",
             Lexer().buildPunct(0, 13, statementFun, 1)
-                .build(100500.123456, 0, 13)
+                   .build(100500.123456, 0, 13)
         )
     }
 
@@ -255,7 +255,7 @@ inner class LexNumericTest {
         testInpOutp(
             "9007199254740992.0",
             Lexer().buildPunct(0, 18, statementFun, 1)
-                .build(9007199254740992.0, 0, 18)
+                   .build(9007199254740992.0, 0, 18)
         )
     }
 
@@ -273,7 +273,7 @@ inner class LexNumericTest {
         testInpOutp(
             "1005001234560000000000.0",
             Lexer().buildPunct(0, 24, statementFun, 1)
-                .build(1005001234560000000000.0, 0, 24)
+                   .build(1005001234560000000000.0, 0, 24)
         )
     }
 
@@ -282,7 +282,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0.0000000000000000000003",
             Lexer().buildPunct(0, 24, statementFun, 1)
-                .build(0.0000000000000000000003, 0, 24)
+                   .build(0.0000000000000000000003, 0, 24)
         )
     }
 
@@ -291,7 +291,7 @@ inner class LexNumericTest {
         testInpOutp(
             "3",
             Lexer().buildPunct(0, 1, statementFun, 1)
-                .build(3, 0, 1, litInt)
+                   .build(3, 0, 1, intTok)
         )
     }
 
@@ -300,7 +300,7 @@ inner class LexNumericTest {
         testInpOutp(
             "12",
             Lexer().buildPunct(0, 2, statementFun, 1)
-                .build(12, 0, 2, litInt)
+                   .build(12, 0, 2, intTok)
         )
     }
 
@@ -309,7 +309,7 @@ inner class LexNumericTest {
         testInpOutp(
             "0987_12",
             Lexer().buildPunct(0, 7, statementFun, 1)
-                .build(98712, 0, 7, litInt)
+                   .build(98712, 0, 7, intTok)
         )
     }
 
@@ -318,7 +318,7 @@ inner class LexNumericTest {
         testInpOutp(
             "9_223_372_036_854_775_807",
             Lexer().buildPunct(0, 25, statementFun, 1)
-                .build(9_223_372_036_854_775_807L, 0, 25, litInt)
+                   .build(9_223_372_036_854_775_807L, 0, 25, intTok)
         )
     }
 
@@ -347,7 +347,7 @@ inner class LexStringTest {
         testInpOutp(
             "\"asdf\"",
             Lexer().buildPunct(0, 6, statementFun, 1)
-                .build(0, 1, 4, litString)
+                   .build(0, 1, 4, stringTok)
         )
     }
 
@@ -356,9 +356,9 @@ inner class LexStringTest {
         testInpOutp(
             "\"wasn\\\"t\" so sure",
             Lexer().buildPunct(0, 17, statementFun, 3)
-                .build(0, 1, 7, litString)
-                .build(0, 10, 2, word)
-                .build(0, 13, 4, word)
+                   .build(0, 1, 7, stringTok)
+                   .build(0, 10, 2, word)
+                   .build(0, 13, 4, word)
         )
     }
 
@@ -367,7 +367,7 @@ inner class LexStringTest {
         testInpOutp(
             "\"hello мир\"",
             Lexer().buildPunct(0, 14, statementFun, 1)
-                .build(0, 1, 12, litString) // 12 because each Cyrillic letter = 2 bytes
+                  .build(0, 1, 12, stringTok) // 12 because each Cyrillic letter = 2 bytes
         )
     }
 
@@ -406,12 +406,12 @@ inner class LexCommentTest {
         testInpOutp(
             "# this is a comment.# and #this too.# but not this",
             Lexer().buildPunct(22, 28, statementFun, 4)
-                .build(0, 1, 18, comment)
-                .build(0, 22, 3, word)
-                .build(0, 27, 8, comment)
-                .build(0, 38, 3, word)
-                .build(0, 42, 3, word)
-                .build(0, 46, 4, word)
+                   .build(0, 1, 18, comment)
+                   .build(0, 22, 3, word)
+                   .build(0, 27, 8, comment)
+                   .build(0, 38, 3, word)
+                   .build(0, 42, 3, word)
+                   .build(0, 46, 4, word)
         )
     }
 }
@@ -424,9 +424,9 @@ inner class LexPunctuationTest {
         testInpOutp(
             "(car cdr)",
             Lexer().buildPunct(0, 9, statementFun, 3)
-                .buildPunct(1, 7, parens, 2)
-                .build(0, 1, 3, word)
-                .build(0, 5, 3, word)
+                   .buildPunct(1, 7, parens, 2)
+                   .build(0, 1, 3, word)
+                   .build(0, 5, 3, word)
         )
     }
 
@@ -499,10 +499,10 @@ inner class LexPunctuationTest {
         testInpOutp(
             "x.[y z]",
             Lexer().buildPunct(0, 7, statementFun, 4)
-                .build(0, 0, 1, word)
-                .buildPunct(3, 3, dotBrackets, 2)
-                .build(0, 3, 1, word)
-                .build(0, 5, 1, word)
+                   .build(0, 0, 1, word)
+                   .buildPunct(3, 3, dotBrackets, 2)
+                   .build(0, 3, 1, word)
+                   .build(0, 5, 1, word)
         )
     }
 
@@ -543,10 +543,10 @@ bcjk
         testInpOutp(
             """foo $ a b""",
             Lexer().buildPunct(0, 9, statementFun, 4)
-                .build(0, 0, 3, word)
-                .buildPunct(5, 4, dollar, 2)
-                .build(0, 6, 1, word)
-                .build(0, 8, 1, word)
+                   .build(0, 0, 3, word)
+                   .buildPunct(5, 4, dollar, 2)
+                   .build(0, 6, 1, word)
+                   .build(0, 8, 1, word)
         )
     }
 
@@ -555,13 +555,13 @@ bcjk
         testInpOutp(
             """foo $ a b $ 6 5""",
             Lexer().buildPunct(0, 15, statementFun, 7)
-                .build(0, 0, 3, word)
-                .buildPunct(5, 10, dollar, 5)
-                .build(0, 6, 1, word)
-                .build(0, 8, 1, word)
-                .buildPunct(11, 4, dollar, 2)
-                .build(6, 12, 1, litInt)
-                .build(5, 14, 1, litInt)
+                   .build(0, 0, 3, word)
+                   .buildPunct(5, 10, dollar, 5)
+                   .build(0, 6, 1, word)
+                   .build(0, 8, 1, word)
+                   .buildPunct(11, 4, dollar, 2)
+                   .build(6, 12, 1, intTok)
+                   .build(5, 14, 1, intTok)
         )
     }
 
@@ -570,13 +570,13 @@ bcjk
         testInpOutp(
             """foo (bar $ 1 2 3)""",
             Lexer().buildPunct(0, 17, statementFun, 7)
-                .build(0, 0, 3, word)
-                .buildPunct(5, 11, parens, 5)
-                .build(0, 5, 3, word)
-                .buildPunct(10, 6, dollar, 3)
-                .build(1, 11, 1, litInt)
-                .build(2, 13, 1, litInt)
-                .build(3, 15, 1, litInt)
+                   .build(0, 0, 3, word)
+                   .buildPunct(5, 11, parens, 5)
+                   .build(0, 5, 3, word)
+                   .buildPunct(10, 6, dollar, 3)
+                   .build(1, 11, 1, intTok)
+                   .build(2, 13, 1, intTok)
+                   .build(3, 15, 1, intTok)
         )
     }
 
@@ -585,11 +585,11 @@ bcjk
         testInpOutp(
             """foo bar { asdf }""",
             Lexer().buildPunct(0, 16, statementFun, 5)
-                .build(0, 0, 3, word)
-                .build(0, 4, 3, word)
-                .buildPunct(9, 6, curlyBraces, 2)
-                .buildPunct(10, 5, statementFun, 1)
-                .build(0, 10, 4, word)
+                   .build(0, 0, 3, word)
+                   .build(0, 4, 3, word)
+                   .buildPunct(9, 6, curlyBraces, 2)
+                   .buildPunct(10, 5, statementFun, 1)
+                   .build(0, 10, 4, word)
         )
 
     }
@@ -602,13 +602,13 @@ asdf
 bcj
 }""".trimMargin(),
             Lexer().buildPunct(0, 21, statementFun, 7)
-                .build(0, 0, 3, word)
-                .build(0, 4, 3, word)
-                .buildPunct(9, 11, curlyBraces, 4)
-                .buildPunct(11, 4, statementFun, 1)
-                .build(0, 11, 4, word)
-                .buildPunct(16, 3, statementFun, 1)
-                .build(0, 16, 3, word)
+                   .build(0, 0, 3, word)
+                   .build(0, 4, 3, word)
+                   .buildPunct(9, 11, curlyBraces, 4)
+                   .buildPunct(11, 4, statementFun, 1)
+                   .build(0, 11, 4, word)
+                   .buildPunct(16, 3, statementFun, 1)
+                   .build(0, 16, 3, word)
         )
 
     }
@@ -622,29 +622,29 @@ asdf (b [d ef (y z)] c d.[x y])
 bcjk ({a; b})
 }""",
             Lexer().buildPunct(1, 48, curlyBraces, 23)
-                .buildPunct(2, 31, statementFun, 14)
-                .build(0, 2, 4, word)
-                .buildPunct(8, 24, parens, 12)
-                .build(0, 8, 1, word)
-                .buildPunct(11, 10, brackets, 5)
-                .build(0, 11, 1, word)
-                .build(0, 13, 2, word)
-                .buildPunct(17, 3, parens, 2)
-                .build(0, 17, 1, word)
-                .build(0, 19, 1, word)
-                .build(0, 23, 1, word)
-                .build(0, 25, 1, word)
-                .buildPunct(28, 3, dotBrackets, 2)
-                .build(0, 28, 1, word)
-                .build(0, 30, 1, word)
-                .buildPunct(35, 13, statementFun, 7)
-                .build(0, 35, 4, word)
-                .buildPunct(41, 6, parens, 5)
-                .buildPunct(42, 4, curlyBraces, 4)
-                .buildPunct(42, 1, statementFun, 1)
-                .build(0, 42, 1, word)
-                .buildPunct(45, 1, statementFun, 1)
-                .build(0, 45, 1, word)
+                   .buildPunct(2, 31, statementFun, 14)
+                   .build(0, 2, 4, word)
+                   .buildPunct(8, 24, parens, 12)
+                   .build(0, 8, 1, word)
+                   .buildPunct(11, 10, brackets, 5)
+                   .build(0, 11, 1, word)
+                   .build(0, 13, 2, word)
+                   .buildPunct(17, 3, parens, 2)
+                   .build(0, 17, 1, word)
+                   .build(0, 19, 1, word)
+                   .build(0, 23, 1, word)
+                   .build(0, 25, 1, word)
+                   .buildPunct(28, 3, dotBrackets, 2)
+                   .build(0, 28, 1, word)
+                   .build(0, 30, 1, word)
+                   .buildPunct(35, 13, statementFun, 7)
+                   .build(0, 35, 4, word)
+                   .buildPunct(41, 6, parens, 5)
+                   .buildPunct(42, 4, curlyBraces, 4)
+                   .buildPunct(42, 1, statementFun, 1)
+                   .build(0, 42, 1, word)
+                   .buildPunct(45, 1, statementFun, 1)
+                   .build(0, 45, 1, word)
         )
     }
 }
@@ -655,7 +655,7 @@ inner class LexOperatorTest {
     fun `Operator simple 1`() {
         testInpOutp("+",
         Lexer().buildPunct(0, 1, statementFun, 1)
-            .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 0, 1, operatorTok))
+               .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 0, 1, operatorTok))
     }
 
     @Test
@@ -684,18 +684,18 @@ inner class LexOperatorTest {
     fun `Operator expression`() {
         testInpOutp("a - b",
             Lexer().buildPunct(0, 5, statementFun, 3)
-                .build(0, 0, 1, word)
-                .build(OperatorToken(OperatorType.minus, 0, false).toInt(), 2, 1, operatorTok)
-                .build(0, 4, 1, word))
+                   .build(0, 0, 1, word)
+                   .build(OperatorToken(OperatorType.minus, 0, false).toInt(), 2, 1, operatorTok)
+                   .build(0, 4, 1, word))
     }
 
     @Test
     fun `Operator assignment 1`() {
         testInpOutp("a += b",
             Lexer().buildPunct(0, 6, statementAssignment, 3)
-                .build(0, 0, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, operatorTok)
-                .build(0, 5, 1, word))
+                   .build(0, 0, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, operatorTok)
+                   .build(0, 5, 1, word))
     }
 
 
@@ -703,88 +703,88 @@ inner class LexOperatorTest {
     fun `Operator assignment 2`() {
         testInpOutp("a ||= b",
             Lexer().buildPunct(0, 7, statementAssignment, 3)
-                .build(0, 0, 1, word)
-                .build(OperatorToken(OperatorType.boolOr, 0, true).toInt(), 2, 3, operatorTok)
-                .build(0, 6, 1, word))
+                   .build(0, 0, 1, word)
+                   .build(OperatorToken(OperatorType.boolOr, 0, true).toInt(), 2, 3, operatorTok)
+                   .build(0, 6, 1, word))
     }
 
     @Test
     fun `Operator assignment 3`() {
         testInpOutp("a ||=. b",
             Lexer().buildPunct(0, 8, statementAssignment, 3)
-                .build(0, 0, 1, word)
-                .build(OperatorToken(OperatorType.boolOr, 1, true).toInt(), 2, 4, operatorTok)
-                .build(0, 7, 1, word))
+                   .build(0, 0, 1, word)
+                   .build(OperatorToken(OperatorType.boolOr, 1, true).toInt(), 2, 4, operatorTok)
+                   .build(0, 7, 1, word))
     }
 
     @Test
     fun `Operator assignment 4`() {
         testInpOutp("a ||=: b",
             Lexer().buildPunct(0, 8, statementAssignment, 3)
-                .build(0, 0, 1, word)
-                .build(OperatorToken(OperatorType.boolOr, 2, true).toInt(), 2, 4, operatorTok)
-                .build(0, 7, 1, word))
+                   .build(0, 0, 1, word)
+                   .build(OperatorToken(OperatorType.boolOr, 2, true).toInt(), 2, 4, operatorTok)
+                   .build(0, 7, 1, word))
     }
 
     @Test
     fun `Operator assignment in parens 1`() {
         testInpOutp("x += y + 5",
             Lexer().buildPunct(0, 10, statementAssignment, 5)
-                .build(0, 0, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, operatorTok)
-                .build(0, 5, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 7, 1, operatorTok)
-                .build(5, 9, 1, litInt))
+                   .build(0, 0, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, operatorTok)
+                   .build(0, 5, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 7, 1, operatorTok)
+                   .build(5, 9, 1, intTok))
     }
 
     @Test
     fun `Operator assignment in parens 2`() {
         testInpOutp("(x += y + 5)",
             Lexer().buildPunct(0, 12, statementAssignment, 6)
-                .buildPunct(1, 10, parens, 5)
-                .build(0, 1, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 3, 2, operatorTok)
-                .build(0, 6, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 8, 1, operatorTok)
-                .build(5, 10, 1, litInt))
+                   .buildPunct(1, 10, parens, 5)
+                   .build(0, 1, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 3, 2, operatorTok)
+                   .build(0, 6, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 8, 1, operatorTok)
+                   .build(5, 10, 1, intTok))
     }
 
     @Test
     fun `Operator assignment in parens 3`() {
         testInpOutp("((x += y + 5))",
             Lexer().buildPunct(0, 14, statementAssignment, 7)
-                .buildPunct(1, 12, parens, 6)
-                .buildPunct(2, 10, parens, 5)
-                .build(0, 2, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 4, 2, operatorTok)
-                .build(0, 7, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 9, 1, operatorTok)
-                .build(5, 11, 1, litInt))
+                   .buildPunct(1, 12, parens, 6)
+                   .buildPunct(2, 10, parens, 5)
+                   .build(0, 2, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 4, 2, operatorTok)
+                   .build(0, 7, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 9, 1, operatorTok)
+                   .build(5, 11, 1, intTok))
     }
 
     @Test
     fun `Operator assignment in parens 4`() {
         testInpOutp("x += (y + 5)",
             Lexer().buildPunct(0, 12, statementAssignment, 6)
-                .build(0, 0, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, operatorTok)
-                .buildPunct(6, 5, parens, 3)
-                .build(0, 6, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 8, 1, operatorTok)
-                .build(5, 10, 1, litInt))
+                   .build(0, 0, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 2, 2, operatorTok)
+                   .buildPunct(6, 5, parens, 3)
+                   .build(0, 6, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 8, 1, operatorTok)
+                   .build(5, 10, 1, intTok))
     }
 
     @Test
     fun `Operator assignment in parens error 1`() {
         testInpOutp("x (+= y) + 5",
             Lexer().buildPunct(0, 12, statementAssignment, 6)
-                .build(0, 0, 1, word)
-                .buildPunct(3, 4, parens, 2)
-                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 3, 2, operatorTok)
-                .build(0, 6, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 9, 1, operatorTok)
-                .build(5, 11, 1, litInt)
-                .error(errorOperatorAssignmentPunct)
+                   .build(0, 0, 1, word)
+                   .buildPunct(3, 4, parens, 2)
+                   .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 3, 2, operatorTok)
+                   .build(0, 6, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 9, 1, operatorTok)
+                   .build(5, 11, 1, intTok)
+                   .error(errorOperatorAssignmentPunct)
         )
     }
 
@@ -792,14 +792,14 @@ inner class LexOperatorTest {
     fun `Operator assignment in parens error 2`() {
         testInpOutp("((x += y) + 5)",
             Lexer().buildPunct(0, 14, statementAssignment, 7)
-                .buildPunct(1, 12, parens, 6)
-                .buildPunct(2, 6, parens, 3)
-                .build(0, 2, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 4, 2, operatorTok)
-                .build(0, 7, 1, word)
-                .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 10, 1, operatorTok)
-                .build(5, 12, 1, litInt)
-                .error(errorOperatorAssignmentPunct)
+                   .buildPunct(1, 12, parens, 6)
+                   .buildPunct(2, 6, parens, 3)
+                   .build(0, 2, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, true).toInt(), 4, 2, operatorTok)
+                   .build(0, 7, 1, word)
+                   .build(OperatorToken(OperatorType.plus, 0, false).toInt(), 10, 1, operatorTok)
+                   .build(5, 12, 1, intTok)
+                   .error(errorOperatorAssignmentPunct)
         )
     }
 
@@ -807,11 +807,11 @@ inner class LexOperatorTest {
     fun `Operator assignment multiple error 1`() {
         testInpOutp("x := y := 7",
             Lexer().buildPunct(0, 0, statementAssignment, 0)
-                .build(0, 0, 1, word)
-                .build(OperatorToken(OperatorType.mutation, 0, false).toInt(), 2, 2, operatorTok)
-                .build(0, 5, 1, word)
-                .build(OperatorToken(OperatorType.mutation, 0, false).toInt(), 7, 2, operatorTok)
-                .error(errorOperatorMultipleAssignment)
+                   .build(0, 0, 1, word)
+                   .build(OperatorToken(OperatorType.mutation, 0, false).toInt(), 2, 2, operatorTok)
+                   .build(0, 5, 1, word)
+                   .build(OperatorToken(OperatorType.mutation, 0, false).toInt(), 7, 2, operatorTok)
+                   .error(errorOperatorMultipleAssignment)
         )
     }
 }

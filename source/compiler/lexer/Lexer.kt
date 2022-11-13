@@ -155,7 +155,7 @@ private fun lexAtWord() {
 private fun lexNumber() {
     val cByte = inp[i]
     if (i == inp.size - 1 && isDigit(cByte)) {
-        addToken((cByte - aDigit0).toLong(), i, 1, litInt)
+        addToken((cByte - aDigit0).toLong(), i, 1, intTok)
         i++
         return
     }
@@ -225,7 +225,7 @@ private fun lexDecNumber() {
             errorOut(errorNumericIntWidthExceeded)
             return
         }
-        addToken(resultValue, i, j - i, litInt)
+        addToken(resultValue, i, j - i, intTok)
     }
     i = j
 }
@@ -266,7 +266,7 @@ private fun lexHexNumber() {
         j++
     }
     val resultValue = numeric.calcHexNumber()
-    addToken(resultValue, i, j - i, litInt)
+    addToken(resultValue, i, j - i, intTok)
     numeric.clear()
     i = j
 }
@@ -306,7 +306,7 @@ private fun lexBinNumber() {
     }
 
     val resultValue = numeric.calcBinNumber()
-    addToken(resultValue, i, j - i, litInt)
+    addToken(resultValue, i, j - i, intTok)
     i = j
 }
 
@@ -469,7 +469,7 @@ private fun lexStringLiteral() {
         if (cByte == aBackslash && j < szMinusOne && inp[j + 1] == aQuote) {
             j += 2
         } else if (cByte == aQuote) {
-            addToken(0, i + 1, j - i - 1, litString)
+            addToken(0, i + 1, j - i - 1, stringTok)
             i = j + 1
             return
         } else {
@@ -571,7 +571,7 @@ private fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: Regula
  * Adds a floating-point literal token
  */
 private fun addToken(payload: Double, startByte: Int, lenBytes: Int) {
-    wrapTokenInStatement(startByte, litFloat)
+    wrapTokenInStatement(startByte, floatTok)
     appendToken(payload, startByte, lenBytes)
 }
 
@@ -603,7 +603,7 @@ private fun openPunctuation(tType: PunctuationToken) {
 private fun wrapTokenInStatement(startByte: Int, tType: RegularToken) {
     if (backtrack.empty() || backtrack.peek().first == curlyBraces) {
         var realStartByte = startByte
-        if (tType == litString || tType == verbatimString) realStartByte -= 1
+        if (tType == stringTok || tType == verbatimString) realStartByte -= 1
         addStatement(realStartByte)
     }
 }
@@ -909,7 +909,7 @@ private fun appendToken(payload: Double, startByte: Int, lenBytes: Int) {
     ensureSpaceForToken()
     checkLenOverflow(lenBytes)
     val asLong: Long = payload.toBits()
-    currChunk.tokens[nextInd    ] = (litFloat.internalVal.toInt() shl 27) + lenBytes
+    currChunk.tokens[nextInd    ] = (floatTok.internalVal.toInt() shl 27) + lenBytes
     currChunk.tokens[nextInd + 1] = startByte
     currChunk.tokens[nextInd + 2] = (asLong shr 32).toInt()
     currChunk.tokens[nextInd + 3] = (asLong and LOWER32BITS).toInt()
@@ -1178,7 +1178,7 @@ companion object {
         val typeBits = (chunk.tokens[ind] ushr 27).toByte()
         if (typeBits <= 8) {
             val regType = RegularToken.values().firstOrNull { it.internalVal == typeBits }
-            if (regType != litFloat) {
+            if (regType != floatTok) {
                 val payload: Long = (chunk.tokens[ind + 2].toLong() shl 32) + chunk.tokens[ind + 3].toLong()
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             } else {
