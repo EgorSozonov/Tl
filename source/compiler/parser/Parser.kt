@@ -9,7 +9,7 @@ import compiler.lexer.RegularToken.*
 import compiler.parser.RegularAST.*
 import java.lang.Exception
 
-class Parser {
+class Parser() {
 
 
 private var inp: Lexer
@@ -19,7 +19,7 @@ var currChunk: ParseChunk                                    // Last array of to
     private set
 var nextInd: Int                                             // Next ind inside the current token array
     private set
-var wasError: Boolean                                        // The lexer's error flag
+var wasError: Boolean                                        // The lexer's error flagerrorScope
     private set
 var errMsg: String
     private set
@@ -34,6 +34,8 @@ private var functionBindings: MutableList<FunctionBinding>
 val indFirstFunction: Int
 private var scopes: MutableList<LexicalScope>
 private var strings: ArrayList<String>
+var fileType: FileType = FileType.library
+    private set
 
 
 /**
@@ -41,6 +43,7 @@ private var strings: ArrayList<String>
  */
 fun parse(lexer: Lexer, fileType: FileType) {
     this.inp = lexer
+    this.fileType = fileType
     val lastChunk = inp.currChunk
     val sentinelInd = inp.nextInd
     inp.currChunk = inp.firstChunk
@@ -54,11 +57,16 @@ fun parse(lexer: Lexer, fileType: FileType) {
         val tokType = inp.currChunk.tokens[inp.currInd] ushr 27
         if (Lexer.isStatement(tokType)) {
             parseTopLevelStatement()
+        } else if (tokType == PunctuationToken.curlyBraces.internalVal.toInt()) {
+            val lenTokens = inp.currChunk.tokens[inp.currInd + 3]
+            val startByte = inp.currChunk.tokens[inp.currInd + 1]
+            val lenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+
+            scope(lenTokens, startByte, lenBytes)
         } else {
             parseUnexpectedToken()
         }
 
-        inp.nextToken()
     }
     /**
      * fn foo x y {
@@ -77,7 +85,7 @@ fun parse(lexer: Lexer, fileType: FileType) {
 }
 
 
-private fun parseTopLevelStatement() {
+private fun parseTopLevelStatement(): Int {
     val lenTokens = inp.currChunk.tokens[inp.currInd + 3]
     val stmtType = inp.currTokenType()
     val startByte = inp.currChunk.tokens[inp.currInd + 1]
@@ -94,6 +102,7 @@ private fun parseTopLevelStatement() {
     } else {
         parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
     }
+    return lenTokens + 1 // plus 1 for the statement token itself
 }
 
 
@@ -224,8 +233,28 @@ private fun parseFnBody(params: HashMap<String, Int>) {
 /**
  * Parses a scope (curly braces)
  */
-private fun parseScope(lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun scope(lenTokens: Int, startByte: Int, lenBytes: Int) {
+    inp.nextToken() // the curlyBraces token
+    appendNode(PunctuationAST.scope, lenTokens, startByte, lenBytes)
 
+    val newScope = LexicalScope()
+    this.scopes.add(newScope)
+    this.scopeBacktrack.push(newScope)
+    var j = 0
+    var tokensConsumed = 0
+    while (j < lenTokens) {
+        val tokType = inp.currTokenType()
+//        val currLenTokens = inp.currChunk.tokens[inp.currInd + 3]
+//        val currStartByte = inp.currChunk.tokens[inp.currInd + 1]
+//        val currLenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+        if (Lexer.isStatement(tokType)) {
+            tokensConsumed = parseTopLevelStatement()
+        } else {
+            throw Exception(errorScope)
+        }
+        j += tokensConsumed
+    }
+    this.scopeBacktrack.pop()
 }
 
 
@@ -252,6 +281,12 @@ private fun parseDotBrackets(lenTokens: Int, startByte: Int, lenBytes: Int) {
  * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
  */
 private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
+    if (lenTokens == 1) {
+        val theToken = inp.nextToken(0)
+        exprSingleItem(theToken)
+        return
+    }
+
     appendNode(PunctuationAST.funcall, lenTokens, startByte, lenBytes)
     backtrack.push(Pair(PunctuationAST.funcall, totalNodes))
 
@@ -316,7 +351,7 @@ private fun exprStartSubexpr(lenTokens: Int, isBeforeFirstToken: Boolean, functi
     }
     val firstTok = inp.nextToken(0)
     if (lenTokens == 1) {
-        exprSingleItem(firstTok, functionStack)
+        exprSingleItem(firstTok)
         return consumedTokens + 1
     } else if (firstTok.tType == operatorTok.internalVal.toInt()
                && functionalityOfOper(firstTok.payload).first == "-"){
@@ -337,7 +372,7 @@ private fun exprStartSubexpr(lenTokens: Int, isBeforeFirstToken: Boolean, functi
 /**
  * A single-item subexpression, like "(5)" or "x". Cannot be a function call.
  */
-private fun exprSingleItem(theTok: TokenLite, functionStack: ArrayList<FunInStack>) {
+private fun exprSingleItem(theTok: TokenLite) {
     if (theTok.tType == intTok.internalVal.toInt()) {
         appendNode(litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
             inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS)
@@ -366,7 +401,6 @@ private fun exprSingleItem(theTok: TokenLite, functionStack: ArrayList<FunInStac
         throw Exception(errorUnexpectedToken)
     }
     inp.nextToken()
-    //exprOperand(functionStack, functionStack.size - 1)
 }
 
 /**
@@ -617,8 +651,11 @@ private fun assignment(lenTokens: Int, startByte: Int, lenBytes: Int) {
     inp.nextToken()
 
     bindings.add(Binding(theName))
+    val newBindingId = bindings.size - 1
+    this.scopeBacktrack.peek().bindings.put(theName, newBindingId)
+
     appendNode(PunctuationAST.statementAssignment, lenTokens, startByte, lenBytes)
-    appendNode(binding, 0, bindings.size - 1, startByte, theName.length)
+    appendNode(binding, 0, newBindingId, startByte, theName.length)
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
     expr(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
 }
@@ -849,7 +886,7 @@ init {
 companion object {
     private val dispatchTable: Array<Parser.(Int, Int, Int) -> Unit> = Array(7) {
         i -> when(i) {
-            0 -> Parser::parseScope
+            0 -> Parser::scope
             1 -> Parser::parseParens
             2 -> Parser::parseBrackets
             3 -> Parser::parseDotBrackets
@@ -905,6 +942,11 @@ companion object {
             for (j in 0 until v.size) {
                 if (v[j] != b.unknownFunctions[key]!![j]) return false
             }
+        }
+
+        if (a.bindings.size != b.bindings.size) return false
+        for (i in 0 until a.bindings.size) {
+            if (a.bindings[i].name != b.bindings[i].name) return false
         }
 
         return true

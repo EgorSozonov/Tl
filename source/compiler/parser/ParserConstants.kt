@@ -12,6 +12,7 @@ const val errorUnknownBinding              = "Unknown binding!"
 const val errorOperatorUsedInappropriately = "Operator used in an inappropriate location!"
 const val errorAssignment                  = "Cannot parse assignment, it must look like [fresh identifier] = [expression]"
 const val errorAssignmentShadowing         = "Assignment error: existing identifier is being shadowed"
+const val errorScope                       = "A scope may consist only of expressions and assignments!"
 
 
 val reservedCatch = byteArrayOf(99, 97, 116, 99, 104)

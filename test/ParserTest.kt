@@ -57,14 +57,14 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a .foo b", {
                 it.buildFBinding(FunctionBinding("foo", 26, 2))
-                    .buildBinding(Binding("a")).buildBinding(Binding("b"))
-                    .buildInsertBindingsIntoScope()
+                  .buildBinding(Binding("a")).buildBinding(Binding("b"))
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 3, 0, 8)
-                    .buildNode(ident, 0, 0, 0, 1)
-                    .buildNode(ident, 0, 1, 7, 1)
-                    .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(ident, 0, 1, 7, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
             }
         )
     }
@@ -74,17 +74,17 @@ inner class ExprTest {
         testParseWithEnvironment(
             "c .foo b a .bar", {
                 it.buildFBinding(FunctionBinding("foo", 26, 3))
-                    .buildFBinding(FunctionBinding("bar", 26, 1))
-                    .buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                    .buildInsertBindingsIntoScope()
+                  .buildFBinding(FunctionBinding("bar", 26, 1))
+                  .buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 5, 0, 15)
-                    .buildNode(ident, 0, 2, 0, 1)
-                    .buildNode(ident, 0, 1, 7, 1)
-                    .buildNode(ident, 0, 0, 9, 1)
-                    .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
-                    .buildNode(idFunc, 0, it.indFirstFunction + 1, 11, 3)
+                  .buildNode(ident, 0, 2, 0, 1)
+                  .buildNode(ident, 0, 1, 7, 1)
+                  .buildNode(ident, 0, 0, 9, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
+                  .buildNode(idFunc, 0, it.indFirstFunction + 1, 11, 3)
             }
         )
     }
@@ -94,16 +94,16 @@ inner class ExprTest {
         testParseWithEnvironment(
             "(foo a) .bar b", {
                 it.buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
-                    .buildFBinding(FunctionBinding("bar", funcPrecedence, 2))
-                    .buildBinding(Binding("a")).buildBinding(Binding("b"))
-                    .buildInsertBindingsIntoScope()
+                  .buildFBinding(FunctionBinding("bar", funcPrecedence, 2))
+                  .buildBinding(Binding("a")).buildBinding(Binding("b"))
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 5, 0, 14)
-                    .buildNode(ident, 0, 0, 5, 1)
-                    .buildNode(idFunc, 0, it.indFirstFunction, 1, 3)
-                    .buildNode(ident, 0, 1, 13, 1)
-                    .buildNode(idFunc, 0, it.indFirstFunction + 1, 8, 3)
+                  .buildNode(ident, 0, 0, 5, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 1, 3)
+                  .buildNode(ident, 0, 1, 13, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction + 1, 8, 3)
             }
         )
     }
@@ -113,15 +113,15 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a + b * c", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                    .buildInsertBindingsIntoScope()
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 5, 0, 9)
-                    .buildNode(ident, 0, 0, 0, 1)
-                    .buildNode(ident, 0, 1, 4, 1)
-                    .buildNode(ident, 0, 2, 8, 1)
-                    .buildNode(idFunc, 0, 6, 6, 1)
-                    .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(ident, 0, 1, 4, 1)
+                  .buildNode(ident, 0, 2, 8, 1)
+                  .buildNode(idFunc, 0, 6, 6, 1)
+                  .buildNode(idFunc, 0, 8, 2, 1)
             }
         )
     }
@@ -131,15 +131,15 @@ inner class ExprTest {
         testParseWithEnvironment(
             "(a + b) * c", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                    .buildInsertBindingsIntoScope()
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 6, 0, 11)
-                    .buildNode(ident, 0, 0, 1, 1)
-                    .buildNode(ident, 0, 1, 5, 1)
-                    .buildNode(idFunc, 0, 8, 3, 1)
-                    .buildNode(ident, 0, 2, 10, 1)
-                    .buildNode(idFunc, 0, 6, 8, 1)
+                  .buildNode(ident, 0, 0, 1, 1)
+                  .buildNode(ident, 0, 1, 5, 1)
+                  .buildNode(idFunc, 0, 8, 3, 1)
+                  .buildNode(ident, 0, 2, 10, 1)
+                  .buildNode(idFunc, 0, 6, 8, 1)
 
             }
         )
@@ -150,21 +150,21 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a != 7 && a != 8 && a != 9", {
                 it.buildBinding(Binding("a"))
-                    .buildInsertBindingsIntoScope()
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 11, 0, 26)
-                    .buildNode(ident, 0, 0, 0, 1)
-                    .buildNode(litInt, 0, 7, 5, 1)
-                    .buildNode(idFunc, 0, 0, 2, 2)
-                    .buildNode(ident, 0, 0, 10, 1)
-                    .buildNode(litInt, 0, 8, 15, 1)
-                    .buildNode(idFunc, 0, 0, 12, 2)
-                    .buildNode(idFunc, 0, 3, 7, 2)
-                    .buildNode(ident, 0, 0, 20, 1)
-                    .buildNode(litInt, 0, 9, 25, 1)
-                    .buildNode(idFunc, 0, 0, 22, 2)
-                    .buildNode(idFunc, 0, 3, 17, 2)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(litInt, 0, 7, 5, 1)
+                  .buildNode(idFunc, 0, 0, 2, 2)
+                  .buildNode(ident, 0, 0, 10, 1)
+                  .buildNode(litInt, 0, 8, 15, 1)
+                  .buildNode(idFunc, 0, 0, 12, 2)
+                  .buildNode(idFunc, 0, 3, 7, 2)
+                  .buildNode(ident, 0, 0, 20, 1)
+                  .buildNode(litInt, 0, 9, 25, 1)
+                  .buildNode(idFunc, 0, 0, 22, 2)
+                  .buildNode(idFunc, 0, 3, 17, 2)
 
             }
         )
@@ -175,14 +175,14 @@ inner class ExprTest {
         testParseWithEnvironment(
             "foo !a", {
                 it.buildBinding(Binding("a"))
-                    .buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
-                    .buildInsertBindingsIntoScope()
+                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 3, 0, 6)
-                    .buildNode(ident, 0, 0, 5, 1)
-                    .buildNode(idFunc, 0, 1, 4, 1)
-                    .buildNode(idFunc, 0, it.indFirstFunction, 0, 3)
+                  .buildNode(ident, 0, 0, 5, 1)
+                  .buildNode(idFunc, 0, 1, 4, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 0, 3)
             }
         )
     }
@@ -192,17 +192,17 @@ inner class ExprTest {
         testParseWithEnvironment(
             "foo !a b !c", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                    .buildFBinding(FunctionBinding("foo", funcPrecedence, 3))
-                    .buildInsertBindingsIntoScope()
+                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 3))
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 6, 0, 11)
-                    .buildNode(ident, 0, 0, 5, 1)
-                    .buildNode(idFunc, 0, 1, 4, 1)
-                    .buildNode(ident, 0, 1, 7, 1)
-                    .buildNode(ident, 0, 2, 10, 1)
-                    .buildNode(idFunc, 0, 1, 9, 1)
-                    .buildNode(idFunc, 0, it.indFirstFunction, 0, 3)
+                  .buildNode(ident, 0, 0, 5, 1)
+                  .buildNode(idFunc, 0, 1, 4, 1)
+                  .buildNode(ident, 0, 1, 7, 1)
+                  .buildNode(ident, 0, 2, 10, 1)
+                  .buildNode(idFunc, 0, 1, 9, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 0, 3)
             }
         )
     }
@@ -212,16 +212,16 @@ inner class ExprTest {
         testParseWithEnvironment(
             "foo !(a || b)", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b"))
-                    .buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
-                    .buildInsertBindingsIntoScope()
+                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 6, 0, 13)
-                    .buildNode(ident, 0, 0, 6, 1)
-                    .buildNode(ident, 0, 1, 11, 1)
-                    .buildNode(idFunc, 0, 25, 8, 2)
-                    .buildNode(idFunc, 0, 1, 4, 1)
-                    .buildNode(idFunc, 0, it.indFirstFunction, 0, 3)
+                  .buildNode(ident, 0, 0, 6, 1)
+                  .buildNode(ident, 0, 1, 11, 1)
+                  .buildNode(idFunc, 0, 25, 8, 2)
+                  .buildNode(idFunc, 0, 1, 4, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 0, 3)
             }
         )
     }
@@ -231,19 +231,19 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a + (b - c % 2)**11", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                    .buildInsertBindingsIntoScope()
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 10, 0, 19)
-                    .buildNode(ident, 0, 0, 0, 1)
-                    .buildNode(ident, 0, 1, 5, 1)
-                    .buildNode(ident, 0, 2, 9, 1)
-                    .buildNode(litInt, 0, 2, 13, 1)
-                    .buildNode(idFunc, 0, 2, 11, 1)
-                    .buildNode(idFunc, 0, 10, 7, 1)
-                    .buildNode(litInt, 0, 11, 17, 2)
-                    .buildNode(idFunc, 0, 5, 15, 2)
-                    .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(ident, 0, 1, 5, 1)
+                  .buildNode(ident, 0, 2, 9, 1)
+                  .buildNode(litInt, 0, 2, 13, 1)
+                  .buildNode(idFunc, 0, 2, 11, 1)
+                  .buildNode(idFunc, 0, 10, 7, 1)
+                  .buildNode(litInt, 0, 11, 17, 2)
+                  .buildNode(idFunc, 0, 5, 15, 2)
+                  .buildNode(idFunc, 0, 8, 2, 1)
             }
         )
     }
@@ -253,13 +253,13 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a + (-5)", {
                 it.buildBinding(Binding("a"))
-                    .buildInsertBindingsIntoScope()
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 5, 0, 8)
-                    .buildNode(ident, 0, 0, 0, 1)
-                    .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 5, 2)
-                    .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(ident, 0, 0, 0, 1)
+                  .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 5, 2)
+                  .buildNode(idFunc, 0, 8, 2, 1)
             }
         )
     }
@@ -286,7 +286,7 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a + !!(-5)", {
                 it.buildBinding(Binding("a"))
-                    .buildInsertBindingsIntoScope()
+                  .buildInsertBindingsIntoScope()
             },
             {
                 it.buildNode(funcall, 7, 0, 10)
@@ -397,16 +397,72 @@ inner class AssignmentTest {
             "a = 9", { x -> x.buildInsertBindingsIntoScope()
                      },
             {
-                it.buildBinding(Binding("a")).buildNode(statementAssignment, 3, 0, 5)
+                it.buildBinding(Binding("a"))
+                  .buildNode(statementAssignment, 3, 0, 5)
                   .buildNode(binding, 0, 0, 0, 1)
-                  .buildNode(funcall, 1, 4, 1)
                   .buildNode(litInt, 0, 9, 4, 1)
             }
         )
     }
 }
-    
-    
+
+@Nested
+inner class ScopeTest {
+    @Test
+    fun `Simple scope 1`() {
+        testParseWithEnvironment(
+            """{
+    x = 5
+
+    print x
+}""",
+            {
+                it.buildFBinding(FunctionBinding("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildBinding(Binding("x"))
+                  .buildNode(scope, 7, 1, 24)
+                  .buildNode(statementAssignment, 3, 6, 5)
+                  .buildNode(binding, 0, 0, 6, 1)
+                  .buildNode(litInt, 0, 5, 10, 1)
+                  .buildNode(funcall, 2, 17, 7)
+                  .buildNode(ident, 0, 0, 23, 1)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 17, 5)
+            }
+        )
+    }
+
+    @Test
+    fun `Simple scope 2`() {
+        testParseWithEnvironment(
+            """{
+    x = 123;  yy = x * 10
+    print yy
+}""",
+            {
+                it.buildFBinding(FunctionBinding("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
+            },
+            {
+                it.buildBinding(Binding("x"))
+                  .buildBinding(Binding("yy"))
+                  .buildNode(scope, 13, 1, 40)
+                  .buildNode(statementAssignment, 3, 6, 7)
+                  .buildNode(binding, 0, 0, 6, 1)
+                  .buildNode(litInt, 0, 123, 10, 3)
+                  .buildNode(statementAssignment, 5, 16, 11)
+                  .buildNode(binding, 0, 1, 16, 2)
+                  .buildNode(funcall, 3, 21, 6)
+                  .buildNode(ident, 0, 0, 21, 1)
+                  .buildNode(litInt, 0, 10, 25, 2)
+                  .buildNode(idFunc, 0, 6, 23, 1)
+                  .buildNode(funcall, 2, 32, 8)
+                  .buildNode(ident, 0, 1, 38, 2)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 32, 5)
+            }
+        )
+    }
+}
+
 private fun testParseWithEnvironment(inp: String, environmentSetup: (Parser) -> Unit, resultBuilder: (Parser) -> Unit) {
     val lr = Lexer()
     lr.setInput(inp.toByteArray())

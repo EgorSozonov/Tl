@@ -29,8 +29,8 @@ inner class LexWordTest {
         testInpOutp(
             "asdf Abc",
             Lexer().buildPunct(0, 8, statementFun, 2)
-                  .build(0, 0, 4, word)
-                  .build(0, 5, 3, word)
+                   .build(0, 0, 4, word)
+                   .build(0, 5, 3, word)
         )
     }
 
@@ -47,7 +47,7 @@ inner class LexWordTest {
         testInpOutp(
             "Asdf.abc",
             Lexer().buildPunct(0, 8, statementFun, 1)
-                  .build(0, 0, 8, word)
+                   .build(0, 0, 8, word)
         )
     }
 
@@ -56,7 +56,7 @@ inner class LexWordTest {
         testInpOutp(
             "asdf.abcd.zyui",
             Lexer().buildPunct(0, 14, statementFun, 1)
-                  .build(0, 0, 14, word)
+                   .build(0, 0, 14, word)
         )
     }
 
@@ -530,10 +530,10 @@ asdf
 bcjk
 }""",
             Lexer().buildPunct(1, 12, curlyBraces, 4)
-                .buildPunct(2, 4, statementFun, 1)
-                .build(0, 2, 4, word)
-                .buildPunct(8, 4, statementFun, 1)
-                .build(0, 8, 4, word)
+                   .buildPunct(2, 4, statementFun, 1)
+                   .build(0, 2, 4, word)
+                   .buildPunct(8, 4, statementFun, 1)
+                   .build(0, 8, 4, word)
         )
     }
 
