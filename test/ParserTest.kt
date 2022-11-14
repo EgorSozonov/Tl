@@ -41,7 +41,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 7, 0, 17)
+                it.buildNode(funcall, 6, 0, 17)
                   .buildNode(ident, 0, 0, 4, 1)
                   .buildNode(ident, 0, 1, 11, 1)
                   .buildNode(ident, 0, 2, 13, 1)
@@ -99,7 +99,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 5, 0, 14)
+                it.buildNode(funcall, 4, 0, 14)
                   .buildNode(ident, 0, 0, 5, 1)
                   .buildNode(idFunc, 0, it.indFirstFunction, 1, 3)
                   .buildNode(ident, 0, 1, 13, 1)
@@ -134,7 +134,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 6, 0, 11)
+                it.buildNode(funcall, 5, 0, 11)
                   .buildNode(ident, 0, 0, 1, 1)
                   .buildNode(ident, 0, 1, 5, 1)
                   .buildNode(idFunc, 0, 8, 3, 1)
@@ -216,7 +216,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 6, 0, 13)
+                it.buildNode(funcall, 5, 0, 13)
                   .buildNode(ident, 0, 0, 6, 1)
                   .buildNode(ident, 0, 1, 11, 1)
                   .buildNode(idFunc, 0, 25, 8, 2)
@@ -234,7 +234,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 10, 0, 19)
+                it.buildNode(funcall, 9, 0, 19)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(ident, 0, 1, 5, 1)
                   .buildNode(ident, 0, 2, 9, 1)
@@ -256,7 +256,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 5, 0, 8)
+                it.buildNode(funcall, 3, 0, 8)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 5, 2)
                   .buildNode(idFunc, 0, 8, 2, 1)
@@ -272,7 +272,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 6, 0, 9)
+                it.buildNode(funcall, 4, 0, 9)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 6, 2)
                   .buildNode(idFunc, 0, 1, 4, 1)
@@ -289,7 +289,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 7, 0, 10)
+                it.buildNode(funcall, 5, 0, 10)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 7, 2)
                   .buildNode(idFunc, 0, 1, 5, 1)
@@ -307,7 +307,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 4, 0, 9)
+                it.buildNode(funcall, 0, 0, 9)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, 0, 5, 4, 1)
                   .buildError(errorOperatorWrongArity)
@@ -323,7 +323,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 4, 0, 7)
+                it.buildNode(funcall, 3, 0, 7)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, 0, 5, 5, 1)
                   .buildNode(idFunc, 0, 8, 2, 1)
@@ -340,7 +340,7 @@ inner class ExprTest {
                   .buildInsertBindingsIntoScope()
             },
             {
-                it.buildNode(funcall, 7, 0, 12)
+                it.buildNode(funcall, 6, 0, 12)
                   .buildNode(litInt, 0, 5, 4, 1)
                   .buildNode(ident, 0, 0, 10, 1)
                   .buildNode(idFunc, 0, 1, 8, 1)
@@ -398,7 +398,7 @@ inner class AssignmentTest {
                      },
             {
                 it.buildBinding(Binding("a"))
-                  .buildNode(statementAssignment, 3, 0, 5)
+                  .buildNode(statementAssignment, 2, 0, 5)
                   .buildNode(binding, 0, 0, 0, 1)
                   .buildNode(litInt, 0, 9, 4, 1)
             }
@@ -421,8 +421,8 @@ inner class ScopeTest {
             },
             {
                 it.buildBinding(Binding("x"))
-                  .buildNode(scope, 7, 1, 24)
-                  .buildNode(statementAssignment, 3, 6, 5)
+                  .buildNode(scope, 6, 1, 24)
+                  .buildNode(statementAssignment, 2, 6, 5)
                   .buildNode(binding, 0, 0, 6, 1)
                   .buildNode(litInt, 0, 5, 10, 1)
                   .buildNode(funcall, 2, 17, 7)
@@ -445,8 +445,8 @@ inner class ScopeTest {
             {
                 it.buildBinding(Binding("x"))
                   .buildBinding(Binding("yy"))
-                  .buildNode(scope, 13, 1, 40)
-                  .buildNode(statementAssignment, 3, 6, 7)
+                  .buildNode(scope, 12, 1, 40)
+                  .buildNode(statementAssignment, 2, 6, 7)
                   .buildNode(binding, 0, 0, 6, 1)
                   .buildNode(litInt, 0, 123, 10, 3)
                   .buildNode(statementAssignment, 5, 16, 11)

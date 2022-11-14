@@ -235,7 +235,8 @@ private fun parseFnBody(params: HashMap<String, Int>) {
  */
 private fun scope(lenTokens: Int, startByte: Int, lenBytes: Int) {
     inp.nextToken() // the curlyBraces token
-    appendNode(PunctuationAST.scope, lenTokens, startByte, lenBytes)
+    val indHead = totalNodes
+    appendNode(PunctuationAST.scope, 0, startByte, lenBytes)
 
     val newScope = LexicalScope()
     this.scopes.add(newScope)
@@ -254,6 +255,7 @@ private fun scope(lenTokens: Int, startByte: Int, lenBytes: Int) {
         }
         j += tokensConsumed
     }
+    setPunctuationLength(indHead)
     this.scopeBacktrack.pop()
 }
 
@@ -287,8 +289,8 @@ private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
         return
     }
 
-    appendNode(PunctuationAST.funcall, lenTokens, startByte, lenBytes)
-    backtrack.push(Pair(PunctuationAST.funcall, totalNodes))
+    val indHead = this.totalNodes
+    appendNode(PunctuationAST.funcall, 0, startByte, lenBytes)
 
     try {
         val functionStack = ArrayList<FunInStack>()
@@ -329,6 +331,7 @@ private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
             j += consumedTokens
         }
         exprClosing(functionStack, stackInd)
+        setPunctuationLength(indHead)
     } catch (e: Exception) {
         errorOut(e.message ?: errorUnexpectedToken)
     }
@@ -627,6 +630,9 @@ private fun lookupFunction(name: String, arity: Int): Int? {
 }
 
 
+/**
+ * Parses an assignment statement like "x = y + 5" and enriches the environment with new bindings.
+ */
 private fun assignment(lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (lenTokens < 3) {
         throw Exception(errorAssignment)
@@ -654,10 +660,12 @@ private fun assignment(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val newBindingId = bindings.size - 1
     this.scopeBacktrack.peek().bindings.put(theName, newBindingId)
 
-    appendNode(PunctuationAST.statementAssignment, lenTokens, startByte, lenBytes)
+    val indHead = totalNodes
+    appendNode(PunctuationAST.statementAssignment, 0, startByte, lenBytes)
     appendNode(binding, 0, newBindingId, startByte, theName.length)
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
     expr(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
+    setPunctuationLength(indHead)
 }
 
 
@@ -742,6 +750,20 @@ private fun errorOut(msg: String) {
     this.errMsg = msg
 }
 
+/**
+ * Finds the top-level punctuation opener by its index, and sets its node length.
+ * Called when the parsing of punctuation is finished.
+ */
+private fun setPunctuationLength(nodeInd: Int) {
+    var curr = firstChunk
+    var j = nodeInd * 4
+    while (j >= CHUNKSZ) {
+        curr = curr.next!!
+        j -= CHUNKSZ
+    }
+
+    curr.nodes[j + 3] = totalNodes - nodeInd - 1
+}
 
 /**
  * For programmatic LexResult construction (builder pattern)
