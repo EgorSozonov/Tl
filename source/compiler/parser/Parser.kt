@@ -126,13 +126,16 @@ private fun coreCatch(stmtType: Int, lenTokens: Int) {
 }
 
 /**
- * Parses a core form: function definition.
- *
+ * Parses a core form: function definition, like "fn foo x y { x + y }"
+ * or "fn bar x y { print x; x + y }"
  */
 private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
     validateCoreForm(stmtType, lenTokens)
     val stmtStartByte = inp.currChunk.tokens[inp.currInd + 1]
     val stmtLenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+
+
+    // fnDef[] fnParams[] param1 param2 fnBody[] stmt[] ... stmt[] ...
 
     inp.nextToken() // skipping the "fn" keyword
 
@@ -166,7 +169,7 @@ private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
     functionBindings.add(fnBinding)
 
     names.remove(functionName)
-    parseFnBody(names)
+    scopeInternal(names)
 }
 
 
@@ -222,15 +225,6 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
 
 
 /**
- * Parses a function definition body
- * @params function parameter names and indices (indices are 1-based)
- */
-private fun parseFnBody(params: HashMap<String, Int>) {
-
-}
-
-
-/**
  * Parses a scope (curly braces)
  */
 private fun scope(lenTokens: Int, startByte: Int, lenBytes: Int) {
@@ -241,13 +235,19 @@ private fun scope(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val newScope = LexicalScope()
     this.scopes.add(newScope)
     this.scopeBacktrack.push(newScope)
+
+    scopeInternal(lenTokens)
+
+    setPunctuationLength(indHead)
+    this.scopeBacktrack.pop()
+}
+
+
+private fun scopeInternal(lenTokens: Int) {
     var j = 0
     var tokensConsumed = 0
     while (j < lenTokens) {
         val tokType = inp.currTokenType()
-//        val currLenTokens = inp.currChunk.tokens[inp.currInd + 3]
-//        val currStartByte = inp.currChunk.tokens[inp.currInd + 1]
-//        val currLenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
         if (Lexer.isStatement(tokType)) {
             tokensConsumed = parseTopLevelStatement()
         } else {
@@ -255,8 +255,6 @@ private fun scope(lenTokens: Int, startByte: Int, lenBytes: Int) {
         }
         j += tokensConsumed
     }
-    setPunctuationLength(indHead)
-    this.scopeBacktrack.pop()
 }
 
 
