@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Nested
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import compiler.parser.RegularAST.*
+import compiler.parser.FrameAST.*
 import compiler.parser.PunctuationAST.*
 
 
@@ -16,14 +17,14 @@ inner class ExprTest {
     @Test
     fun `Simple function call`() {
         testParseWithEnvironment(
-            "foo 10 2 3", { it.buildFBinding(FunctionBinding("foo", 26, 3))
+            "foo 10 2 3", { it.buildFBinding(FunctionBinding("foo", funcPrecedence, 3))
                 .buildInsertBindingsIntoScope() },
             {
                 it.buildNode(expression, 4, 0, 10)
                   .buildNode(litInt, 0, 10, 4, 2)
                   .buildNode(litInt, 0, 2, 7, 1)
                   .buildNode(litInt, 0, 3, 9, 1)
-                  .buildNode(idFunc, 0, 26, 0, 3)
+                  .buildNode(idFunc, 0, it.indFirstFunction, 0, 3)
             }
         )
     }
@@ -56,7 +57,7 @@ inner class ExprTest {
     fun `Infix function call`() {
         testParseWithEnvironment(
             "a .foo b", {
-                it.buildFBinding(FunctionBinding("foo", 26, 2))
+                it.buildFBinding(FunctionBinding("foo", funcPrecedence, 2))
                   .buildBinding(Binding("a")).buildBinding(Binding("b"))
                   .buildInsertBindingsIntoScope()
             },
@@ -73,8 +74,8 @@ inner class ExprTest {
     fun `Infix function calls`() {
         testParseWithEnvironment(
             "c .foo b a .bar", {
-                it.buildFBinding(FunctionBinding("foo", 26, 3))
-                  .buildFBinding(FunctionBinding("bar", 26, 1))
+                it.buildFBinding(FunctionBinding("foo", funcPrecedence, 3))
+                  .buildFBinding(FunctionBinding("bar", funcPrecedence, 1))
                   .buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
                   .buildInsertBindingsIntoScope()
             },

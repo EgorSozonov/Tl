@@ -27,17 +27,20 @@ enum class RegularAST(val internalVal: Byte) { // payload
 
 }
 
-enum class PunctuationAST(val internalVal: Byte) {
+/** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need resuming */
+enum class FrameAST(val internalVal: Byte) {
     scope(10),
     expression(11),
-    dataInit(12),
-    dataIndexer(13),
-    statementFun(15),
-    statementAssignment(16),
-    statementTypeDecl(17),
-    functionDef(18),
-    functionSignature(19),
-    functionBody(20),
+    statementAssignment(12),
+    functionDef(13),
+}
+
+/** The rest of extentful AST types, if they are ever needed. */
+enum class PunctuationAST(val internalVal: Byte) {
+    dataIndexer(14),
+    statementTypeDecl(15),
+    functionSignature(16),
+    functionBody(17),
 }
 
 /**
@@ -49,7 +52,7 @@ enum class PunctuationAST(val internalVal: Byte) {
  */
 data class ParseChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ParseChunk? = null)
 
-data class ParseFrame(val extentType: PunctuationAST, val indNode: Int, val lenTokens: Int, var tokensRead: Int = 0)
+data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens: Int, var tokensRead: Int = 0)
 
 enum class FileType {
     executable,

@@ -55,10 +55,12 @@ fun parse(lexer: Lexer, fileType: FileType) {
     inp.currChunk = inp.firstChunk
     inp.currInd = 0
 
-
-
     try {
-        while ((inp.currChunk != lastChunk || inp.currInd < sentinelInd)) {
+        if ((inp.currChunk == lastChunk && inp.currInd == sentinelInd)) return
+        if (backtrack.isNotEmpty()) {
+            val currFrame = backtrack.peek()
+            dispatchTable[currFrame.extentType.internalVal.toInt() - 10](currFrame)
+        } else {
             val tokType = inp.currTokenType()
             if (Lexer.isStatement(tokType)) {
                 parseTopLevelStatement()
@@ -67,11 +69,12 @@ fun parse(lexer: Lexer, fileType: FileType) {
                 val startByte = inp.currChunk.tokens[inp.currInd + 1]
                 val lenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
 
-                scope(lenTokens, startByte, lenBytes)
+                scopeInit(lenTokens, startByte, lenBytes)
             } else {
-                parseUnexpectedToken()
+                errorOut(errorUnexpectedToken)
+                return
             }
-            closeExtent()
+            maybeCloseFrames()
         }
     } catch (e: Exception) {
         errorOut(e.message ?: "")
@@ -79,18 +82,20 @@ fun parse(lexer: Lexer, fileType: FileType) {
 }
 
 /**
- * An extent is a punctuation token and its following content.
- * When we are at the end of a function parsing an extent, we might be at the end of said extent
- * (if we are not => we've encountered a nested extent),
+ * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
+ * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
  * in which case this function handles all the corresponding stack poppin'.
+ * It also always handles updating all inner frames with consumed tokens.
  */
-private fun closeExtent() {
+private fun maybeCloseFrames() {
+    if (backtrack.isEmpty()) return
+
     val topFrame = backtrack.peek()
     val tokensToAdd = topFrame.lenTokens
     if (topFrame.tokensRead == topFrame.lenTokens) {
-        if (topFrame.extentType == PunctuationAST.scope) {
+        if (topFrame.extentType == FrameAST.scope) {
             scopeBacktrack.pop()
-        } else if (topFrame.extentType == PunctuationAST.expression) {
+        } else if (topFrame.extentType == FrameAST.expression) {
             exprBacktrack.pop()
         }
         setPunctuationLength(topFrame.indNode)
@@ -104,12 +109,12 @@ private fun closeExtent() {
         if (frame.tokensRead < frame.lenTokens) {
             stillPopping = false
         } else if (stillPopping && frame.tokensRead == frame.lenTokens) {
-            backtrack.pop()
-            if (topFrame.extentType == PunctuationAST.scope) {
+            if (topFrame.extentType == FrameAST.scope) {
                 scopeBacktrack.pop()
-            } else if (topFrame.extentType == PunctuationAST.expression) {
+            } else if (topFrame.extentType == FrameAST.expression) {
                 exprBacktrack.pop()
             }
+            backtrack.pop()
             setPunctuationLength(frame.indNode)
         } else {
             throw Exception(errorInconsistentExtent)
@@ -130,7 +135,7 @@ private fun parseTopLevelStatement(): Int {
         if (firstLetter < aCLower || firstLetter > aWLower) {
             parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
         } else {
-            statementDispatch[firstLetter - aCLower](stmtType, lenTokens, startByte, lenBytes)
+            possiblyCoreDispatch[firstLetter - aCLower](stmtType, lenTokens, startByte, lenBytes)
         }
     } else {
         parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
@@ -146,9 +151,9 @@ private fun parseTopLevelStatement(): Int {
  */
 private fun parseNoncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
-        expr(lenTokens, startByte, lenBytes)
+        exprInit(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
-        assignment(lenTokens, startByte, lenBytes)
+        assignmentInit(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
         parseStatementTypeDecl(lenTokens, startByte, lenBytes)
     }
@@ -162,51 +167,58 @@ private fun coreCatch(stmtType: Int, lenTokens: Int) {
  * Parses a core form: function definition, like "fn foo x y { x + y }"
  * or "fn bar x y { print x; x + y }"
  */
-private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
-    validateCoreForm(stmtType, lenTokens)
-    val stmtStartByte = inp.currChunk.tokens[inp.currInd + 1]
-    val stmtLenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
-    val wordType = word.internalVal.toInt()
+private fun coreFnDefinitionInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
-    val indHead = totalNodes
-    appendNode(PunctuationAST.functionDef, 0, stmtStartByte, stmtLenBytes)
-
-    val newScope = LexicalScope()
-
-    inp.nextToken() // skipping the "fn" keyword
-    if (inp.currTokenType() != wordType) {
-        throw Exception(errorFnNameAndParams)
-    }
-
-    val functionName = readString(word)
-    var j = 0
-    while (j < lenTokens && inp.currTokenType() == wordType) {
-        val paramName = readString(word)
-        if (newScope.bindings.containsKey(paramName) || paramName == functionName) {
-            throw Exception(errorFnNameAndParams)
-        }
-
-        newScope.bindings[paramName] = j
-        j++
-        inp.nextToken()
-    }
-    if (j == 0) {
-        throw Exception(errorFnNameAndParams)
-    } else if (j == lenTokens || inp.currTokenType() != PunctuationToken.curlyBraces.internalVal.toInt()) {
-        throw Exception(errorFnMissingBody)
-    }
-
-
-    appendNode(PunctuationAST.functionSignature, newScope.bindings.size + 1, stmtStartByte, stmtLenBytes)
-    appendNode(fnDef, newScope.bindings.size + 1, stmtStartByte, stmtLenBytes)
-
-
-    val indBody = totalNodes
-    val fnBinding = FunctionBinding(functionName, 26, names.count() - 1)
-
-    functionBindings.add(fnBinding)
-
-    scopeInternal(lenTokens - j)
+}
+/**
+ * Parses a core form: function definition, like "fn foo x y { x + y }"
+ * or "fn bar x y { print x; x + y }"
+ */
+private fun coreFnDefinition(parseFrame: ParseFrame) {
+//    validateCoreForm(stmtType, lenTokens)
+//    val stmtStartByte = inp.currChunk.tokens[inp.currInd + 1]
+//    val stmtLenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+//    val wordType = word.internalVal.toInt()
+//
+//    val indHead = totalNodes
+//    appendNode(PunctuationAST.functionDef, 0, stmtStartByte, stmtLenBytes)
+//
+//    val newScope = LexicalScope()
+//
+//    inp.nextToken() // skipping the "fn" keyword
+//    if (inp.currTokenType() != wordType) {
+//        throw Exception(errorFnNameAndParams)
+//    }
+//
+//    val functionName = readString(word)
+//    var j = 0
+//    while (j < lenTokens && inp.currTokenType() == wordType) {
+//        val paramName = readString(word)
+//        if (newScope.bindings.containsKey(paramName) || paramName == functionName) {
+//            throw Exception(errorFnNameAndParams)
+//        }
+//
+//        newScope.bindings[paramName] = j
+//        j++
+//        inp.nextToken()
+//    }
+//    if (j == 0) {
+//        throw Exception(errorFnNameAndParams)
+//    } else if (j == lenTokens || inp.currTokenType() != PunctuationToken.curlyBraces.internalVal.toInt()) {
+//        throw Exception(errorFnMissingBody)
+//    }
+//
+//
+//    appendNode(PunctuationAST.functionSignature, newScope.bindings.size + 1, stmtStartByte, stmtLenBytes)
+//    appendNode(fnDef, newScope.bindings.size + 1, stmtStartByte, stmtLenBytes)
+//
+//
+//    val indBody = totalNodes
+//    val fnBinding = FunctionBinding(functionName, 26, names.count() - 1)
+//
+//    functionBindings.add(fnBinding)
+//
+//    scopeInternal(lenTokens - j)
 }
 
 
@@ -261,26 +273,27 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
 }
 
 
-/**
- * Parses a scope (curly braces)
- */
-private fun scope(lenTokens: Int, startByte: Int, lenBytes: Int) {
-    appendNode(PunctuationAST.scope, 0, startByte, lenBytes)
-    backtrack.push(ParseFrame(PunctuationAST.scope, this.totalNodes, lenTokens))
+private fun scopeInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
+    appendNode(FrameAST.scope, 0, startByte, lenBytes)
+
     val newScope = LexicalScope()
     this.scopes.add(newScope)
     this.scopeBacktrack.push(newScope)
 
     inp.nextToken() // the curlyBraces token
-
-    scopeInternal(lenTokens)
+    val newFrame = ParseFrame(FrameAST.scope, this.totalNodes - 1, lenTokens)
+    backtrack.push(newFrame)
+    scope(newFrame)
 }
 
-
-private fun scopeInternal(lenTokens: Int) {
-    var j = 0
+/**
+ * Parses a scope (curly braces)
+ * This function does NOT emit the scope node - that's the responsibility of the caller.
+ */
+private fun scope(parseFrame: ParseFrame) {
+    var j = parseFrame.tokensRead
     var tokensConsumed = 0
-    while (j < lenTokens) {
+    while (j < parseFrame.lenTokens) {
         val tokType = inp.currTokenType()
         if (Lexer.isStatement(tokType)) {
             tokensConsumed = parseTopLevelStatement()
@@ -289,6 +302,7 @@ private fun scopeInternal(lenTokens: Int) {
         }
         j += tokensConsumed
     }
+    parseFrame.tokensRead = j
 }
 
 
@@ -306,15 +320,7 @@ private fun parseDotBrackets(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
 }
 
-
-/**
- * Parses a statement that is a fun call. Uses the Shunting Yard algo from Dijkstra to
- * flatten all internal parens into a single "Reverse Polish Notation" stream.
- * I.e. into basically a post-order traversal of a function call tree. In the resulting AST nodes, function names are
- * annotated with numbers of their arguments.
- * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
- */
-private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (lenTokens == 1) {
         val theToken = inp.nextToken(0)
         exprSingleItem(theToken)
@@ -322,15 +328,29 @@ private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
     }
 
     val functionStack = ArrayList<FunInStack>()
-    appendNode(PunctuationAST.expression, 0, startByte, lenBytes)
-    backtrack.push(ParseFrame(PunctuationAST.expression, totalNodes, lenTokens))
+    appendNode(FrameAST.expression, 0, startByte, lenBytes)
+
     exprBacktrack.push(functionStack)
+    val newFrame = ParseFrame(FrameAST.expression, totalNodes - 1, lenTokens)
+    backtrack.push(newFrame)
+    expr(newFrame)
+}
 
+/**
+ * Parses a statement that is a fun call. Uses an extended Shunting Yard algo from Dijkstra to
+ * flatten all internal parens into a single "Reverse Polish Notation" stream.
+ * I.e. into basically a post-order traversal of a function call tree. In the resulting AST nodes, function names are
+ * annotated with arities.
+ * This function does NOT emit the expression node - that's the responsibility of the caller.
+ * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
+ */
+private fun expr(parseFrame: ParseFrame) {
     var stackInd = 0
-    val initConsumedTokens = exprStartSubexpr(lenTokens, false, functionStack)
+    val functionStack = exprBacktrack.peek()
+    val initConsumedTokens = exprStartSubexpr(parseFrame.lenTokens, false, functionStack)
 
-    var j = initConsumedTokens
-    while (j < lenTokens) {
+    var j = parseFrame.tokensRead + initConsumedTokens
+    while (j < parseFrame.lenTokens) {
         val tokType = inp.currTokenType()
         exprClosing(functionStack, stackInd)
         stackInd = functionStack.size - 1
@@ -364,6 +384,7 @@ private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
         }
         j += consumedTokens
     }
+    parseFrame.tokensRead = j
     exprClosing(functionStack, stackInd)
 }
 
@@ -659,11 +680,7 @@ private fun lookupFunction(name: String, arity: Int): Int? {
     return null
 }
 
-
-/**
- * Parses an assignment statement like "x = y + 5" and enriches the environment with new bindings.
- */
-private fun assignment(lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (lenTokens < 3) {
         throw Exception(errorAssignment)
     }
@@ -690,12 +707,24 @@ private fun assignment(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val newBindingId = bindings.size - 1
     this.scopeBacktrack.peek().bindings.put(theName, newBindingId)
 
-    val indHead = totalNodes
-    appendNode(PunctuationAST.statementAssignment, 0, startByte, lenBytes)
+    appendNode(FrameAST.statementAssignment, 0, startByte, lenBytes)
     appendNode(binding, 0, newBindingId, startByte, theName.length)
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
-    expr(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
-    setPunctuationLength(indHead)
+
+    // we've already consumed 2 tokens in this func
+    val newFrame = ParseFrame(FrameAST.statementAssignment, totalNodes - 2, lenTokens, 2)
+    backtrack.push(newFrame)
+    exprInit(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
+
+}
+
+
+/**
+ * Parses an assignment statement like "x = y + 5" and enriches the environment with new bindings.
+ */
+private fun assignment(parseFrame: ParseFrame) {
+
+
 }
 
 
@@ -705,7 +734,7 @@ private fun parseStatementTypeDecl(lenTokens: Int, startByte: Int, lenBytes: Int
 
 
 private fun parseUnexpectedToken() {
-    errorOut(errorUnexpectedToken)
+    throw Exception(errorUnexpectedToken)
 }
 
 
@@ -722,7 +751,7 @@ fun parseFromC(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
  */
 fun parseFromF(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (lenBytes == 2 && inp.inp[startByte + 1] == aNLower) {
-        coreFnDefinition(stmtType, lenTokens)
+        coreFnDefinitionInit(lenTokens, startByte, lenBytes)
     }
     parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
@@ -820,6 +849,16 @@ private fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByt
 }
 
 
+private fun appendNode(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    ensureSpaceForNode()
+    currChunk.nodes[nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
+    currChunk.nodes[nextInd + 1] = startByte
+    currChunk.nodes[nextInd + 2] = 0
+    currChunk.nodes[nextInd + 3] = lenTokens
+    bump()
+}
+
+
 private fun appendNode(nType: PunctuationAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
     ensureSpaceForNode()
     currChunk.nodes[nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
@@ -889,6 +928,12 @@ fun buildNode(payload: Double, startByte: Int, lenBytes: Int): Parser {
 }
 
 
+fun buildNode(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int): Parser {
+    appendNode(nType, lenTokens, startByte, lenBytes)
+    return this
+}
+
+
 fun buildNode(nType: PunctuationAST, lenTokens: Int, startByte: Int, lenBytes: Int): Parser {
     appendNode(nType, lenTokens, startByte, lenBytes)
     return this
@@ -942,22 +987,21 @@ init {
 }
 
 companion object {
-    private val dispatchTable: Array<Parser.(Int, Int, Int) -> Unit> = Array(7) {
+    /** The numeric values must correspond to the values of PunctuationToken enum */
+    private val dispatchTable: Array<Parser.(ParseFrame) -> Unit> = Array(4) {
         i -> when(i) {
             0 -> Parser::scope
-            1 -> Parser::parseParens
-            2 -> Parser::parseBrackets
-            3 -> Parser::parseDotBrackets
-            4 -> Parser:: expr
-            5 ->  Parser:: assignment
-            else -> Parser::parseStatementTypeDecl
+            1 -> Parser::expr
+            2 -> Parser::assignment
+            else -> Parser::coreFnDefinition
         }
     }
 
     /**
-     * Table for dispatch on the first letter of the first word of a statement
+     * Table for dispatch on the first letter of the first word of a statement in case
+     * it might be a core syntax form.
      */
-    private val statementDispatch: Array<Parser.(Int, Int, Int, Int) -> Unit> = Array(21) {
+    private val possiblyCoreDispatch: Array<Parser.(Int, Int, Int, Int) -> Unit> = Array(21) {
         i -> when(i) {
             0 -> Parser::parseFromC
             3 -> Parser::parseFromF
@@ -1084,6 +1128,10 @@ companion object {
                 )
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             }
+        } else if (typeBits <= 13) {
+            val punctType = FrameAST.values().firstOrNull { it.internalVal == typeBits }
+            val lenTokens = chunk.nodes[ind + 3]
+            wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
         } else {
             val punctType = PunctuationAST.values().firstOrNull { it.internalVal == typeBits }
             val lenTokens = chunk.nodes[ind + 3]
