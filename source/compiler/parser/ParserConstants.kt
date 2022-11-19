@@ -2,6 +2,7 @@ package compiler.parser
 
 const val errorLengthOverflow              = "AST nodes length overflow"
 const val errorUnexpectedToken             = "Unexpected token"
+const val errorInconsistentExtent          = "Inconsistent extent length / structure of token scopes!"
 const val errorCoreFormTooShort            = "Statement too short: core syntax forms cannot be shorter than 3 tokens!"
 const val errorCoreFormAssignment          = "A core form may not contain any assignments!"
 const val errorFnNameAndParams             = "Function definition must start with more than one unique words: its name and parameters!"

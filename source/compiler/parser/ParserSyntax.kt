@@ -9,6 +9,7 @@ object ParserSyntax {
         for (of in operatorFunctionality.filter { x -> x.first != "" }) {
             result.add(FunctionBinding(of.first, of.second, of.third))
         }
+        result.add(FunctionBinding("__entrypoint", funcPrecedence, 0))
         return result
     }
 }

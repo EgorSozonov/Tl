@@ -10,7 +10,7 @@ class LexicalScope {
 
 class Binding(val name: String)
 
-class FunctionBinding(val name: String, val precedence: Int, val arity: Int)
+class FunctionBinding(val name: String, val precedence: Int, val arity: Int, var countLocals: Int = 0)
 
 class FunctionParse(var name: String, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
@@ -29,12 +29,15 @@ enum class RegularAST(val internalVal: Byte) { // payload
 
 enum class PunctuationAST(val internalVal: Byte) {
     scope(10),
-    funcall(11),
+    expression(11),
     dataInit(12),
     dataIndexer(13),
     statementFun(15),
     statementAssignment(16),
     statementTypeDecl(17),
+    functionDef(18),
+    functionSignature(19),
+    functionBody(20),
 }
 
 /**
@@ -45,6 +48,8 @@ enum class PunctuationAST(val internalVal: Byte) {
  * payload (for regular tokens) or empty 32 bits + lenTokens (for punctuation tokens) | i64
  */
 data class ParseChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ParseChunk? = null)
+
+data class ParseFrame(val extentType: PunctuationAST, val indNode: Int, val lenTokens: Int, var tokensRead: Int = 0)
 
 enum class FileType {
     executable,

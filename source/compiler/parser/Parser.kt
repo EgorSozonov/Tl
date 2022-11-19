@@ -26,16 +26,22 @@ var errMsg: String
 private var i: Int                                           // current index inside input byte array
 var totalNodes: Int
     private set
-private val backtrack = Stack<Pair<PunctuationAST, Int>>()   // The stack of punctuation scopes
-private val scopeBacktrack = Stack<LexicalScope>()  // The stack of symbol tables that form current lex env
-private val unknownFunctions: HashMap<String, ArrayList<UnknownFunLocation>>
-private var bindings: MutableList<Binding>
-private var functionBindings: MutableList<FunctionBinding>
-val indFirstFunction: Int
-private var scopes: MutableList<LexicalScope>
-private var strings: ArrayList<String>
 var fileType: FileType = FileType.library
     private set
+
+// The backtracks and mutable state to support nested data structures
+private val backtrack = Stack<ParseFrame>()   // The stack of punctuation scopes
+private val scopeBacktrack = Stack<LexicalScope>()  // The stack of symbol tables that form current lex env
+private val exprBacktrack = Stack<ArrayList<FunInStack>>()
+private var currentFunction: FunctionBinding
+
+// The storage for parsed bindings etc
+private var bindings: MutableList<Binding>
+private var functionBindings: MutableList<FunctionBinding>
+private var scopes: MutableList<LexicalScope>
+private var strings: ArrayList<String>
+private val unknownFunctions: HashMap<String, ArrayList<UnknownFunLocation>>
+val indFirstFunction: Int
 
 
 /**
@@ -48,40 +54,67 @@ fun parse(lexer: Lexer, fileType: FileType) {
     val sentinelInd = inp.nextInd
     inp.currChunk = inp.firstChunk
     inp.currInd = 0
-    if (this.scopes.isEmpty()) {
-        this.scopes.add(LexicalScope())
-    }
 
-    scopeBacktrack.push(this.scopes.last())
-    while ((inp.currChunk != lastChunk || inp.currInd < sentinelInd) && !wasError) {
-        val tokType = inp.currChunk.tokens[inp.currInd] ushr 27
-        if (Lexer.isStatement(tokType)) {
-            parseTopLevelStatement()
-        } else if (tokType == PunctuationToken.curlyBraces.internalVal.toInt()) {
-            val lenTokens = inp.currChunk.tokens[inp.currInd + 3]
-            val startByte = inp.currChunk.tokens[inp.currInd + 1]
-            val lenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
 
-            scope(lenTokens, startByte, lenBytes)
-        } else {
-            parseUnexpectedToken()
+
+    try {
+        while ((inp.currChunk != lastChunk || inp.currInd < sentinelInd)) {
+            val tokType = inp.currTokenType()
+            if (Lexer.isStatement(tokType)) {
+                parseTopLevelStatement()
+            } else if (tokType == PunctuationToken.curlyBraces.internalVal.toInt()) {
+                val lenTokens = inp.currChunk.tokens[inp.currInd + 3]
+                val startByte = inp.currChunk.tokens[inp.currInd + 1]
+                val lenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+
+                scope(lenTokens, startByte, lenBytes)
+            } else {
+                parseUnexpectedToken()
+            }
+            closeExtent()
         }
-
+    } catch (e: Exception) {
+        errorOut(e.message ?: "")
     }
-    /**
-     * fn foo x y {
-     *     x + 2*y
-     * }
-     *
-     * FunDef
-     * Word
-     * ParamNames: Word+ or _
-     * FunBody: { stmt ... }
-     *
-     *
-     * print $ "bar 1 2 3 = " + (bar 1 2 3) .toString
-     * print $ foo 5 10
-     */
+}
+
+/**
+ * An extent is a punctuation token and its following content.
+ * When we are at the end of a function parsing an extent, we might be at the end of said extent
+ * (if we are not => we've encountered a nested extent),
+ * in which case this function handles all the corresponding stack poppin'.
+ */
+private fun closeExtent() {
+    val topFrame = backtrack.peek()
+    val tokensToAdd = topFrame.lenTokens
+    if (topFrame.tokensRead == topFrame.lenTokens) {
+        if (topFrame.extentType == PunctuationAST.scope) {
+            scopeBacktrack.pop()
+        } else if (topFrame.extentType == PunctuationAST.expression) {
+            exprBacktrack.pop()
+        }
+        setPunctuationLength(topFrame.indNode)
+        backtrack.pop()
+    }
+
+    var stillPopping = true
+    while (backtrack.isNotEmpty()) {
+        val frame = backtrack.peek()
+        frame.tokensRead += tokensToAdd
+        if (frame.tokensRead < frame.lenTokens) {
+            stillPopping = false
+        } else if (stillPopping && frame.tokensRead == frame.lenTokens) {
+            backtrack.pop()
+            if (topFrame.extentType == PunctuationAST.scope) {
+                scopeBacktrack.pop()
+            } else if (topFrame.extentType == PunctuationAST.expression) {
+                exprBacktrack.pop()
+            }
+            setPunctuationLength(frame.indNode)
+        } else {
+            throw Exception(errorInconsistentExtent)
+        }
+    }
 }
 
 
@@ -133,43 +166,47 @@ private fun coreFnDefinition(stmtType: Int, lenTokens: Int) {
     validateCoreForm(stmtType, lenTokens)
     val stmtStartByte = inp.currChunk.tokens[inp.currInd + 1]
     val stmtLenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+    val wordType = word.internalVal.toInt()
 
+    val indHead = totalNodes
+    appendNode(PunctuationAST.functionDef, 0, stmtStartByte, stmtLenBytes)
 
-    // fnDef[] fnParams[] param1 param2 fnBody[] stmt[] ... stmt[] ...
+    val newScope = LexicalScope()
 
     inp.nextToken() // skipping the "fn" keyword
-
-    val names = HashMap<String, Int>(4)
-    val wordType = word.internalVal.toInt()
-    var j = 0
-    var functionName = ""
-    if (inp.currTokenType() == wordType) {
-        functionName = readString(word)
-        j++
-        names[functionName] = j
-        inp.nextToken()
-
+    if (inp.currTokenType() != wordType) {
+        throw Exception(errorFnNameAndParams)
     }
+
+    val functionName = readString(word)
+    var j = 0
     while (j < lenTokens && inp.currTokenType() == wordType) {
         val paramName = readString(word)
-        if (names.containsKey(paramName)) {
+        if (newScope.bindings.containsKey(paramName) || paramName == functionName) {
             throw Exception(errorFnNameAndParams)
         }
+
+        newScope.bindings[paramName] = j
         j++
-        names[paramName] = j - 1
         inp.nextToken()
     }
-    if (j == 0 || j == lenTokens) {
+    if (j == 0) {
         throw Exception(errorFnNameAndParams)
-    } else if (inp.currTokenType() != PunctuationToken.curlyBraces.internalVal.toInt()) {
+    } else if (j == lenTokens || inp.currTokenType() != PunctuationToken.curlyBraces.internalVal.toInt()) {
         throw Exception(errorFnMissingBody)
     }
+
+
+    appendNode(PunctuationAST.functionSignature, newScope.bindings.size + 1, stmtStartByte, stmtLenBytes)
+    appendNode(fnDef, newScope.bindings.size + 1, stmtStartByte, stmtLenBytes)
+
+
+    val indBody = totalNodes
     val fnBinding = FunctionBinding(functionName, 26, names.count() - 1)
-    appendNode(fnDef, 0, functionBindings.size, stmtStartByte, stmtLenBytes)
+
     functionBindings.add(fnBinding)
 
-    names.remove(functionName)
-    scopeInternal(names)
+    scopeInternal(lenTokens - j)
 }
 
 
@@ -228,18 +265,15 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
  * Parses a scope (curly braces)
  */
 private fun scope(lenTokens: Int, startByte: Int, lenBytes: Int) {
-    inp.nextToken() // the curlyBraces token
-    val indHead = totalNodes
     appendNode(PunctuationAST.scope, 0, startByte, lenBytes)
-
+    backtrack.push(ParseFrame(PunctuationAST.scope, this.totalNodes, lenTokens))
     val newScope = LexicalScope()
     this.scopes.add(newScope)
     this.scopeBacktrack.push(newScope)
 
-    scopeInternal(lenTokens)
+    inp.nextToken() // the curlyBraces token
 
-    setPunctuationLength(indHead)
-    this.scopeBacktrack.pop()
+    scopeInternal(lenTokens)
 }
 
 
@@ -287,52 +321,50 @@ private fun expr(lenTokens: Int, startByte: Int, lenBytes: Int) {
         return
     }
 
-    val indHead = this.totalNodes
-    appendNode(PunctuationAST.funcall, 0, startByte, lenBytes)
+    val functionStack = ArrayList<FunInStack>()
+    appendNode(PunctuationAST.expression, 0, startByte, lenBytes)
+    backtrack.push(ParseFrame(PunctuationAST.expression, totalNodes, lenTokens))
+    exprBacktrack.push(functionStack)
 
-    try {
-        val functionStack = ArrayList<FunInStack>()
-        var stackInd = 0
-        val initConsumedTokens = exprStartSubexpr(lenTokens, false, functionStack)
+    var stackInd = 0
+    val initConsumedTokens = exprStartSubexpr(lenTokens, false, functionStack)
 
-        var j = initConsumedTokens
-        while (j < lenTokens) {
-            val tokType = inp.currTokenType()
-            exprClosing(functionStack, stackInd)
-            stackInd = functionStack.size - 1
-            var consumedTokens = 1
-            if (tokType == PunctuationToken.parens.internalVal.toInt()) {
-                val subExprLenTokens = inp.currChunk.tokens[inp.currInd + 3]
-                exprIncrementArity(functionStack[stackInd])
-                consumedTokens = exprStartSubexpr(subExprLenTokens, true, functionStack)
-                stackInd = functionStack.size - 1
-            } else {
-                if (tokType == word.internalVal.toInt()) {
-                    exprWord(functionStack, stackInd)
-                } else if (tokType == intTok.internalVal.toInt()) {
-                    exprOperand(functionStack, stackInd)
-                    appendNode(
-                        litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
-                        inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS
-                    )
-                } else if (tokType == dotWord.internalVal.toInt()) {
-                    exprInfix(readString(dotWord), funcPrecedence, 0, functionStack, stackInd)
-                } else if (tokType == operatorTok.internalVal.toInt()) {
-                    exprOperator(functionStack, stackInd)
-                }
-                inp.nextToken()
-            }
-
-            for (i in 0..stackInd) {
-                functionStack[i].indToken += consumedTokens
-            }
-            j += consumedTokens
-        }
+    var j = initConsumedTokens
+    while (j < lenTokens) {
+        val tokType = inp.currTokenType()
         exprClosing(functionStack, stackInd)
-        setPunctuationLength(indHead)
-    } catch (e: Exception) {
-        errorOut(e.message ?: errorUnexpectedToken)
+        stackInd = functionStack.size - 1
+        var consumedTokens = 1
+        if (tokType == PunctuationToken.parens.internalVal.toInt()) {
+            val subExprLenTokens = inp.currChunk.tokens[inp.currInd + 3]
+            exprIncrementArity(functionStack[stackInd])
+            consumedTokens = exprStartSubexpr(subExprLenTokens, true, functionStack)
+            stackInd = functionStack.size - 1
+        } else if (tokType >= 10) {
+            break
+        } else {
+            if (tokType == word.internalVal.toInt()) {
+                exprWord(functionStack, stackInd)
+            } else if (tokType == intTok.internalVal.toInt()) {
+                exprOperand(functionStack, stackInd)
+                appendNode(
+                    litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
+                    inp.currChunk.tokens[inp.currInd + 1], inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+                )
+            } else if (tokType == dotWord.internalVal.toInt()) {
+                exprInfix(readString(dotWord), funcPrecedence, 0, functionStack, stackInd)
+            } else if (tokType == operatorTok.internalVal.toInt()) {
+                exprOperator(functionStack, stackInd)
+            }
+            inp.nextToken()
+        }
+
+        for (i in 0..stackInd) {
+            functionStack[i].indToken += consumedTokens
+        }
+        j += consumedTokens
     }
+    exprClosing(functionStack, stackInd)
 }
 
 /**
@@ -901,6 +933,12 @@ init {
     scopes = ArrayList(10)
     unknownFunctions = HashMap(8)
     strings = ArrayList(100)
+
+    currentFunction = functionBindings[indFirstFunction - 1]
+
+    val firstScope = LexicalScope()
+    this.scopes.add(firstScope)
+    scopeBacktrack.push(firstScope)
 }
 
 companion object {
