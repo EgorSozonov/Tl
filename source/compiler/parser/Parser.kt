@@ -56,11 +56,7 @@ fun parse(lexer: Lexer, fileType: FileType) {
     inp.currInd = 0
 
     try {
-        if ((inp.currChunk == lastChunk && inp.currInd == sentinelInd)) return
-        if (backtrack.isNotEmpty()) {
-            val currFrame = backtrack.peek()
-            dispatchTable[currFrame.extentType.internalVal.toInt() - 10](currFrame)
-        } else {
+        while ((inp.currChunk != lastChunk || inp.currInd < sentinelInd)) {
             val tokType = inp.currTokenType()
             if (Lexer.isStatement(tokType)) {
                 parseTopLevelStatement()
@@ -70,10 +66,14 @@ fun parse(lexer: Lexer, fileType: FileType) {
                 val lenBytes = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
 
                 scopeInit(lenTokens, startByte, lenBytes)
+            } else if (backtrack.isNotEmpty()) {
+                val currFrame = backtrack.peek()
+                dispatchTable[currFrame.extentType.internalVal.toInt() - 10](currFrame)
             } else {
                 errorOut(errorUnexpectedToken)
                 return
             }
+
             maybeCloseFrames()
         }
     } catch (e: Exception) {
@@ -89,36 +89,39 @@ fun parse(lexer: Lexer, fileType: FileType) {
  */
 private fun maybeCloseFrames() {
     if (backtrack.isEmpty()) return
-
     val topFrame = backtrack.peek()
-    val tokensToAdd = topFrame.lenTokens
-    if (topFrame.tokensRead == topFrame.lenTokens) {
-        if (topFrame.extentType == FrameAST.scope) {
-            scopeBacktrack.pop()
-        } else if (topFrame.extentType == FrameAST.expression) {
-            exprBacktrack.pop()
-        }
-        setPunctuationLength(topFrame.indNode)
-        backtrack.pop()
+    if (topFrame.tokensRead < topFrame.lenTokens) return
+
+    var tokensToAdd = topFrame.lenTokens + topFrame.additionalPrefixToken
+
+    if (topFrame.extentType == FrameAST.scope) {
+        scopeBacktrack.pop()
+    } else if (topFrame.extentType == FrameAST.expression) {
+        exprBacktrack.pop()
     }
+    setPunctuationLength(topFrame.indNode)
+    backtrack.pop()
 
     var stillPopping = true
-    while (backtrack.isNotEmpty()) {
-        val frame = backtrack.peek()
+    var i = backtrack.size - 1
+    while (i > -1) {
+        val frame = backtrack[i]
         frame.tokensRead += tokensToAdd
         if (frame.tokensRead < frame.lenTokens) {
             stillPopping = false
         } else if (stillPopping && frame.tokensRead == frame.lenTokens) {
-            if (topFrame.extentType == FrameAST.scope) {
+            if (frame.extentType == FrameAST.scope) {
                 scopeBacktrack.pop()
-            } else if (topFrame.extentType == FrameAST.expression) {
+            } else if (frame.extentType == FrameAST.expression) {
                 exprBacktrack.pop()
             }
             backtrack.pop()
+            tokensToAdd = frame.lenTokens + frame.additionalPrefixToken
             setPunctuationLength(frame.indNode)
         } else {
             throw Exception(errorInconsistentExtent)
         }
+        i--
     }
 }
 
@@ -151,7 +154,7 @@ private fun parseTopLevelStatement(): Int {
  */
 private fun parseNoncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
-        exprInit(lenTokens, startByte, lenBytes)
+        exprInit(lenTokens, startByte, lenBytes, 1)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
         assignmentInit(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
@@ -281,9 +284,9 @@ private fun scopeInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     this.scopeBacktrack.push(newScope)
 
     inp.nextToken() // the curlyBraces token
-    val newFrame = ParseFrame(FrameAST.scope, this.totalNodes - 1, lenTokens)
+    val newFrame = ParseFrame(FrameAST.scope, this.totalNodes - 1, lenTokens, 1)
     backtrack.push(newFrame)
-    scope(newFrame)
+    //scope(newFrame)
 }
 
 /**
@@ -320,7 +323,7 @@ private fun parseDotBrackets(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
 }
 
-private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
     if (lenTokens == 1) {
         val theToken = inp.nextToken(0)
         exprSingleItem(theToken)
@@ -331,7 +334,7 @@ private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     appendNode(FrameAST.expression, 0, startByte, lenBytes)
 
     exprBacktrack.push(functionStack)
-    val newFrame = ParseFrame(FrameAST.expression, totalNodes - 1, lenTokens)
+    val newFrame = ParseFrame(FrameAST.expression, totalNodes - 1, lenTokens, additionalPrefixToken)
     backtrack.push(newFrame)
     expr(newFrame)
 }
@@ -454,6 +457,7 @@ private fun exprSingleItem(theTok: TokenLite) {
     } else {
         throw Exception(errorUnexpectedToken)
     }
+    backtrack.peek().tokensRead++
     inp.nextToken()
 }
 
@@ -712,9 +716,9 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
 
     // we've already consumed 2 tokens in this func
-    val newFrame = ParseFrame(FrameAST.statementAssignment, totalNodes - 2, lenTokens, 2)
+    val newFrame = ParseFrame(FrameAST.statementAssignment, totalNodes - 2, lenTokens, 1, 2)
     backtrack.push(newFrame)
-    exprInit(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
+    exprInit(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
 
 }
 

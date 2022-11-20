@@ -52,7 +52,10 @@ enum class PunctuationAST(val internalVal: Byte) {
  */
 data class ParseChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ParseChunk? = null)
 
-data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens: Int, var tokensRead: Int = 0)
+data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens: Int,
+                      /** 1 for lexer extents that have a prefix token, 0 for extents that are inserted by the parser */
+                      val additionalPrefixToken: Int,
+                      var tokensRead: Int = 0)
 
 enum class FileType {
     executable,
