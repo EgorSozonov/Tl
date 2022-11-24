@@ -7,7 +7,6 @@ import kotlin.collections.HashMap
 import compiler.lexer.OperatorToken
 import compiler.lexer.RegularToken.*
 import compiler.parser.RegularAST.*
-import java.lang.Exception
 
 class Parser() {
 
@@ -95,25 +94,24 @@ private fun maybeCloseFrames() {
     var tokensToAdd = topFrame.lenTokens + topFrame.additionalPrefixToken
 
     if (topFrame.extentType == FrameAST.scope) {
-        scopeBacktrack.pop()
+        closeScope(tokensToAdd)
     } else if (topFrame.extentType == FrameAST.expression) {
-        exprBacktrack.pop()
+        closeExpr()
     }
     setPunctuationLength(topFrame.indNode)
     backtrack.pop()
 
-    var stillPopping = true
     var i = backtrack.size - 1
     while (i > -1) {
         val frame = backtrack[i]
         frame.tokensRead += tokensToAdd
         if (frame.tokensRead < frame.lenTokens) {
-            stillPopping = false
-        } else if (stillPopping && frame.tokensRead == frame.lenTokens) {
+            break
+        } else if (frame.tokensRead == frame.lenTokens) {
             if (frame.extentType == FrameAST.scope) {
-                scopeBacktrack.pop()
+                closeScope(tokensToAdd)
             } else if (frame.extentType == FrameAST.expression) {
-                exprBacktrack.pop()
+                closeExpr()
             }
             backtrack.pop()
             tokensToAdd = frame.lenTokens + frame.additionalPrefixToken
@@ -123,6 +121,20 @@ private fun maybeCloseFrames() {
         }
         i--
     }
+}
+
+/** Closes a frame that is a scope. Since we're not just tracking consumed tokens in the
+ * frames, but also in the FunctionStack (i.e. in the subexpressions), we need to duly update
+ * those when a scope is closed.
+ */
+private fun closeScope(tokensToAdd: Int) {
+    if (exprBacktrack.isNotEmpty()) {
+        val functionStack = exprBacktrack.peek()
+        if (functionStack.isNotEmpty()) {
+            functionStack.last().indToken += tokensToAdd
+        }
+    }
+    scopeBacktrack.pop()
 }
 
 
@@ -277,6 +289,12 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
 
 
 private fun scopeInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
+    // if we are in an expression, then this scope will be an operand for some operator
+    if (exprBacktrack.isNotEmpty()) {
+        val funStack = exprBacktrack.peek()
+        exprIncrementArity(funStack[funStack.size - 1])
+    }
+
     appendNode(FrameAST.scope, 0, startByte, lenBytes)
 
     val newScope = LexicalScope()
@@ -336,6 +354,10 @@ private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPr
     exprBacktrack.push(functionStack)
     val newFrame = ParseFrame(FrameAST.expression, totalNodes - 1, lenTokens, additionalPrefixToken)
     backtrack.push(newFrame)
+
+    val initConsumedTokens = exprStartSubexpr(newFrame.lenTokens, false, functionStack)
+    newFrame.tokensRead += initConsumedTokens
+
     expr(newFrame)
 }
 
@@ -350,12 +372,11 @@ private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPr
 private fun expr(parseFrame: ParseFrame) {
     var stackInd = 0
     val functionStack = exprBacktrack.peek()
-    val initConsumedTokens = exprStartSubexpr(parseFrame.lenTokens, false, functionStack)
 
-    var j = parseFrame.tokensRead + initConsumedTokens
+    var j = parseFrame.tokensRead
     while (j < parseFrame.lenTokens) {
         val tokType = inp.currTokenType()
-        exprClosing(functionStack, stackInd)
+        closeSubexpr(functionStack, stackInd)
         stackInd = functionStack.size - 1
         var consumedTokens = 1
         if (tokType == PunctuationToken.parens.internalVal.toInt()) {
@@ -388,7 +409,7 @@ private fun expr(parseFrame: ParseFrame) {
         j += consumedTokens
     }
     parseFrame.tokensRead = j
-    exprClosing(functionStack, stackInd)
+    closeSubexpr(functionStack, stackInd)
 }
 
 /**
@@ -596,16 +617,15 @@ private fun exprOperator(functionStack: ArrayList<FunInStack>, stackInd: Int) {
     } else {
         exprInfix(operInfo.first, operInfo.second, operInfo.third, functionStack, stackInd)
     }
-
 }
 
 /**
- * Flushes the finished subexpr frames from the top of the stack.
+ * Flushes the finished subexpr frames from the top of the function stack.
  * A subexpr frame is finished when it has no tokens left.
  * Flushing includes appending its operators, clearing the operator stack, and appending
  * prefix unaries from the previous subexpr frame, if any.
  */
-private fun exprClosing(functionStack: ArrayList<FunInStack>, stackInd: Int) {
+private fun closeSubexpr(functionStack: ArrayList<FunInStack>, stackInd: Int) {
     for (k in stackInd downTo 0) {
         val funInSt = functionStack[k]
         if (funInSt.indToken != funInSt.lenTokens) break
@@ -625,6 +645,27 @@ private fun exprClosing(functionStack: ArrayList<FunInStack>, stackInd: Int) {
                     break
                 }
             }
+        }
+    }
+}
+
+/**
+ * This function is similar to closeSubexpr, but it operates at the end of a whole expression.
+ * As such, it requires that all the functions in stack be saturated.
+ */
+private fun closeExpr() {
+    val functionStack = exprBacktrack.pop()
+    for (k in (functionStack.size - 1) downTo 0) {
+        val funInSt = functionStack[k]
+//        if (funInSt.indToken != funInSt.lenTokens) {
+//            throw Exception(errorExpressionError)
+//        }
+        for (o in funInSt.operators.size - 1 downTo 0) {
+            val theFunction = funInSt.operators[o]
+            if (theFunction.maxArity > 0 && theFunction.arity != theFunction.maxArity) {
+                throw Exception(errorOperatorWrongArity)
+            }
+            appendFnName(theFunction)
         }
     }
 }
@@ -1042,17 +1083,27 @@ companion object {
             currA = currA.next
             currB = currB.next
         }
-        if (a.unknownFunctions.size != b.unknownFunctions.size) return false
+        if (a.unknownFunctions.size != b.unknownFunctions.size) {
+            return false
+        }
         for ((key, v) in a.unknownFunctions.entries) {
-            if (!b.unknownFunctions.containsKey(key) || b.unknownFunctions[key]!!.size != v.size) return false
+            if (!b.unknownFunctions.containsKey(key) || b.unknownFunctions[key]!!.size != v.size) {
+                return false
+            }
             for (j in 0 until v.size) {
-                if (v[j] != b.unknownFunctions[key]!![j]) return false
+                if (v[j] != b.unknownFunctions[key]!![j]) {
+                    return false
+                }
             }
         }
 
-        if (a.bindings.size != b.bindings.size) return false
+        if (a.bindings.size != b.bindings.size) {
+            return false
+        }
         for (i in 0 until a.bindings.size) {
-            if (a.bindings[i].name != b.bindings[i].name) return false
+            if (a.bindings[i].name != b.bindings[i].name) {
+                return false
+            }
         }
 
         return true

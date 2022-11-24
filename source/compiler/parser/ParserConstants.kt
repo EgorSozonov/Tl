@@ -11,7 +11,7 @@ const val errorExpressionError             = "Cannot parse expression!"
 const val errorOperatorWrongArity          = "Wrong number of arguments for operator!"
 const val errorUnknownBinding              = "Unknown binding!"
 const val errorOperatorUsedInappropriately = "Operator used in an inappropriate location!"
-const val errorAssignment                  = "Cannot parse assignment, it must look like [fresh identifier] = [expression]"
+const val errorAssignment                  = "Cannot parse assignment, it must look like [freshIdentifier] = [expression]"
 const val errorAssignmentShadowing         = "Assignment error: existing identifier is being shadowed"
 const val errorScope                       = "A scope may consist only of expressions and assignments!"
 

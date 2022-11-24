@@ -462,6 +462,42 @@ inner class ScopeTest {
             }
         )
     }
+
+    @Test
+    fun `Scope inside statement`() {
+        testParseWithEnvironment(
+            """a = 5 + {
+    x = 15
+    x*2
+}/3""",
+            {
+                it.buildInsertBindingsIntoScope()//.buildBinding(Binding("a")).buildBinding(Binding("x"))
+            },
+            {
+                it.buildBinding(Binding("a"))
+                  .buildBinding(Binding("x"))
+                  .buildNode(statementAssignment, 14, 0, 32)
+                  .buildNode(binding, 0, 0, 0, 1)
+                  .buildNode(expression, 12, 4, 28)
+
+                  .buildNode(litInt, 0, 5, 4, 1)
+
+                  .buildNode(scope, 7, 9, 20)
+                  .buildNode(statementAssignment, 2, 14, 6)
+                  .buildNode(binding, 0, 1, 14, 1)
+                  .buildNode(litInt, 0, 15, 18, 2)
+                  .buildNode(expression, 3, 25, 3)
+                  .buildNode(ident, 0, 1, 25, 1)
+                  .buildNode(litInt, 0, 2, 27, 1)
+                  .buildNode(idFunc, 0, 6, 26, 1)
+
+                  .buildNode(litInt, 0, 3, 31, 1)
+                  .buildNode(idFunc, 0, 13, 30, 1)
+
+                  .buildNode(idFunc, 0, 8, 6, 1)
+            }
+        )
+    }
 }
 
 private fun testParseWithEnvironment(inp: String, environmentSetup: (Parser) -> Unit, resultBuilder: (Parser) -> Unit) {
