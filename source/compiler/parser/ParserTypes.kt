@@ -1,6 +1,9 @@
 package compiler.parser
 
 import compiler.lexer.CHUNKSZ
+import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.collections.HashMap
 
 
 class LexicalScope {
@@ -12,7 +15,7 @@ class Binding(val name: String)
 
 class FunctionBinding(val name: String, val precedence: Int, val arity: Int, var countLocals: Int = 0)
 
-class FunctionParse(var name: String, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
+class FunctionCall(var name: String, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
 enum class RegularAST(val internalVal: Byte) { // payload
     litInt(0),                        // int value
@@ -63,13 +66,43 @@ enum class FileType {
     testing,
 }
 
-data class FunInStack(var operators: ArrayList<FunctionParse>,
-                      var indToken: Int, val lenTokens: Int,
-                      val prefixMode: Boolean = true,
-                      var firstFun: Boolean = true)
+data class Subexpr(var operators: ArrayList<FunctionCall>,
+                   var indToken: Int, val lenTokens: Int,
+                   val prefixMode: Boolean = true,
+                   var firstFun: Boolean = true)
 
 /**
  * A record about an unknown function binding that has been encountered when parsing.
  * Is used at scope end to fill in the blanks, or signal unknown function bindings.
  */
 data class UnknownFunLocation(val indNode: Int, val arity: Int)
+
+
+data class FunctionDef(val backtrack: Stack<ParseFrame> = Stack<ParseFrame>(),
+                       val subscopes: Stack<LexicalScope> = Stack<LexicalScope>(),
+                       val subexprs: Stack<ArrayList<Subexpr>> = Stack(),
+                       val structScope: LexicalScope = LexicalScope(),
+                       /** The maximum number of local vars in any scope of this fun def, to be emitted into bytecode */
+                       var maxLocals: Int = 0,
+                       /** The max number of stack operands in any scope of this fun def, to be emitted into bytecode */
+                       var maxStack: Int = 0,
+                       )
+
+/*
+
+GlobalScope <- from outside, plus functions from this file. all immutable!
+
+Stack Function
+
+Function[ maxLocals maxStack structScope (Stack ParseFrame) ]
+
+Lookup: first in current (Stack ParseFrame), then in current structScope,
+then global (those're all immutable).
+
+Toplevel: functions go into the GlobalScope, non-functions into structScope of the entrypoint function.
+
+
+
+Closures: todo
+
+ */
