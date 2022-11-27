@@ -42,8 +42,8 @@ enum class FrameAST(val internalVal: Byte) {
 enum class PunctuationAST(val internalVal: Byte) {
     dataIndexer(14),
     statementTypeDecl(15),
-    functionSignature(16),
-    functionBody(17),
+    functionDef(16),
+    functionDefBody(17),
 }
 
 /**
@@ -55,19 +55,20 @@ enum class PunctuationAST(val internalVal: Byte) {
  */
 data class ParseChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ParseChunk? = null)
 
-data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens: Int,
-                      /** 1 for lexer extents that have a prefix token, 0 for extents that are inserted by the parser */
-                      val additionalPrefixToken: Int,
-                      var tokensRead: Int = 0)
-
 enum class FileType {
     executable,
     library,
     testing,
 }
 
+
+data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens: Int,
+                      /** 1 for lexer extents that have a prefix token, 0 for extents that are inserted by the parser */
+                      val additionalPrefixToken: Int,
+                      var tokensRead: Int = 0)
+
 data class Subexpr(var operators: ArrayList<FunctionCall>,
-                   var indToken: Int, val lenTokens: Int,
+                   var tokensRead: Int, val lenTokens: Int,
                    val prefixMode: Boolean = true,
                    var firstFun: Boolean = true)
 
@@ -86,6 +87,10 @@ data class FunctionDef(val backtrack: Stack<ParseFrame> = Stack<ParseFrame>(),
                        var maxLocals: Int = 0,
                        /** The max number of stack operands in any scope of this fun def, to be emitted into bytecode */
                        var maxStack: Int = 0,
+                       val name: String,
+                       val indNode: Int,
+                       val lenTokens: Int,
+                       var tokensRead: Int = 0,
                        )
 
 /*

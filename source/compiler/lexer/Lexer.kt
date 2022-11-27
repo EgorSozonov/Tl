@@ -960,6 +960,21 @@ fun currTokenType(): Int {
 }
 
 
+fun currLenBytes(): Int {
+    return currChunk.tokens[currInd] and LOWER27BITS
+}
+
+
+fun currStartByte(): Int {
+    return currChunk.tokens[currInd + 1]
+}
+
+
+fun currLenTokens(): Int {
+    return currChunk.tokens[currInd + 3]
+}
+
+
 fun nextTokenType(skip: Int): Int {
     var nextInd = currInd + 4*skip
     var nextChunk = currChunk

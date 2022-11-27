@@ -1,5 +1,7 @@
 package compiler.parser
 
+import compiler.lexer.RegularToken
+
 const val errorLengthOverflow              = "AST nodes length overflow"
 const val errorUnexpectedToken             = "Unexpected token"
 const val errorInconsistentExtent          = "Inconsistent extent length / structure of token scopes!"
@@ -30,3 +32,5 @@ val reservedWhile = byteArrayOf(119, 104, 105, 108, 101)
 /** Function precedence must be higher than that of any operator */
 val funcPrecedence = 26
 val prefixPrecedence = 27
+
+val wordType = RegularToken.word.internalVal.toInt()
