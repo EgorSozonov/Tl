@@ -72,7 +72,7 @@ fun parse(lexer: Lexer, fileType: FileType) {
                 val startByte = inp.currStartByte()
                 val lenBytes = inp.currLenBytes()
 
-                scopeInit(lenTokens, startByte, lenBytes)
+                scopeInit(null, lenTokens, startByte, lenBytes)
             } else if (currFnDef.backtrack.isNotEmpty()) {
                 val currFrame = currFnDef.backtrack.peek()
                 dispatchTable[currFrame.extentType.internalVal.toInt() - 10](currFrame)
@@ -96,20 +96,24 @@ fun parse(lexer: Lexer, fileType: FileType) {
  */
 private fun maybeCloseFrames() {
     if (fnDefBacktrack.isEmpty()) return
+
     val topFrame = currFnDef.backtrack.peek()
     if (topFrame.tokensRead < topFrame.lenTokens) return
+
+    var isFunClose = false
 
     var tokensToAdd = topFrame.lenTokens + topFrame.additionalPrefixToken
 
     if (topFrame.extentType == FrameAST.scope) {
+        if (currFnDef.backtrack.size == 1) isFunClose = true
         closeScope(tokensToAdd)
     } else if (topFrame.extentType == FrameAST.expression) {
         closeExpr()
     }
     setPunctuationLength(topFrame.indNode)
-    fnDefBacktrack.pop()
+    currFnDef.backtrack.pop()
 
-    var i = fnDefBacktrack.size - 1
+    var i = currFnDef.backtrack.size - 1
     while (i > -1) {
         val frame = currFnDef.backtrack[i]
         frame.tokensRead += tokensToAdd
@@ -118,16 +122,22 @@ private fun maybeCloseFrames() {
         } else if (frame.tokensRead == frame.lenTokens) {
             if (frame.extentType == FrameAST.scope) {
                 closeScope(tokensToAdd)
+                if (currFnDef.backtrack.size == 1) isFunClose = true
             } else if (frame.extentType == FrameAST.expression) {
                 closeExpr()
             }
-            fnDefBacktrack.pop()
+            currFnDef.backtrack.pop()
             tokensToAdd = frame.lenTokens + frame.additionalPrefixToken
             setPunctuationLength(frame.indNode)
         } else {
             throw Exception(errorInconsistentExtent)
         }
         i--
+    }
+
+    if (isFunClose) {
+        fnDefBacktrack.pop()
+        if (fnDefBacktrack.isNotEmpty()) currFnDef = fnDefBacktrack.peek()
     }
 }
 
@@ -190,7 +200,7 @@ private fun coreCatch(stmtType: Int, lenTokens: Int) {
  * Parses a core form: function definition, like "fn foo x y { x + y }"
  * or "fn bar x y { print x; x + y }"
  */
-private fun coreFnDefinitionInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val newFunScope = LexicalScope()
 
     inp.nextToken() // skipping the "fn" keyword
@@ -198,7 +208,11 @@ private fun coreFnDefinitionInit(lenTokens: Int, startByte: Int, lenBytes: Int) 
         throw Exception(errorFnNameAndParams)
     }
 
+    appendNode(PunctuationAST.functionDef, lenTokens, startByte, lenBytes)
+
     val functionName = readString(word)
+    appendNode(fnDefName, 0, this.strings.size, inp.currStartByte(), functionName.length)
+    this.strings.add(functionName)
     inp.nextToken()
 
     var j = 0
@@ -209,8 +223,11 @@ private fun coreFnDefinitionInit(lenTokens: Int, startByte: Int, lenBytes: Int) 
         }
 
         newFunScope.bindings[paramName] = j
-        j++
+        appendNode(fnDefParam, 0, this.strings.size, inp.currStartByte(), paramName.length)
+        this.strings.add(paramName)
         inp.nextToken()
+
+        j++
     }
     if (j == 0) {
         throw Exception(errorFnNameAndParams)
@@ -218,29 +235,21 @@ private fun coreFnDefinitionInit(lenTokens: Int, startByte: Int, lenBytes: Int) 
         throw Exception(errorFnMissingBody)
     }
 
-    val newFnDef = FunctionDef(name = functionName, indNode = totalNodes, tokensRead = newFunScope.bindings.size + 2,
-                               lenTokens = lenTokens)
-    newFnDef.maxLocals = newFunScope.bindings.size
-    newFnDef.subscopes.push(newFunScope)
+    // Actually create the function and push it to stack. But the AST nodes have already been emitted, see above
+    val newFnDef = FunctionDef(ind = functionBindings.size, indNode = totalNodes)
+    val newFnBinding = FunctionBinding(functionName, funcPrecedence, j, j, 0)
+    this.functionBindings.add(newFnBinding)
     fnDefBacktrack.push(newFnDef)
-    appendNode(PunctuationAST.functionDef, 0, startByte, lenBytes)
 
     val scopeLenTokens = inp.currLenTokens()
     val scopelenBytes = inp.currLenBytes()
     val scopeStartByte = inp.currStartByte()
 
-    appendNode(PunctuationAST.functionSignature, newFunScope.bindings.size + 1, stmtStartByte, stmtLenBytes)
-    appendNode(fnDef, newFunScope.bindings.size + 1, stmtStartByte, stmtLenBytes)
+    if (scopeLenTokens + j + 3 != lenTokens) {
+        throw Exception(errorInconsistentExtent)
+    }
 
-
-    scopeInit(scopeLenTokens, scopeStartByte, scopelenBytes)
-}
-/**
- * Parses a core form: function definition, like "fn foo x y { x + y }"
- * or "fn bar x y { print x; x + y }"
- */
-private fun coreFnDefinition(parseFrame: ParseFrame) {
-
+    scopeInit(newFunScope, scopeLenTokens, scopeStartByte, scopelenBytes)
 }
 
 
@@ -295,18 +304,24 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
 }
 
 
-private fun scopeInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: Int, lenBytes: Int) {
     // if we are in an expression, then this scope will be an operand for some operator
     if (currFnDef.subexprs.isNotEmpty()) {
         val funStack = currFnDef.subexprs.peek()
         exprIncrementArity(funStack[funStack.size - 1])
     }
 
-    appendNode(FrameAST.scope, 0, startByte, lenBytes)
+    appendNode(FrameAST.scope, lenTokens, startByte, lenBytes)
 
-    val newScope = LexicalScope()
-    this.scopes.add(newScope)
-    this.currFnDef.subscopes.push(newScope)
+    if (mbLexicalScope != null) {
+        this.scopes.add(mbLexicalScope)
+        this.currFnDef.subscopes.push(mbLexicalScope)
+    } else {
+        val newScope = LexicalScope()
+        this.scopes.add(newScope)
+        this.currFnDef.subscopes.push(newScope)
+    }
+
 
     inp.nextToken() // the curlyBraces token
     val newFrame = ParseFrame(FrameAST.scope, this.totalNodes - 1, lenTokens, 1)
@@ -779,7 +794,6 @@ private fun parseUnexpectedToken() {
     throw Exception(errorUnexpectedToken)
 }
 
-
 /**
  * Returns the index of the "catch" parser if the word starting with "c" under cursor is indeed "catch"
  */
@@ -787,17 +801,15 @@ fun parseFromC(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
-
 /**
  * Parse a statement where the first word is possibly "fn", "for" or "forRaw"
  */
 fun parseFromF(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (lenBytes == 2 && inp.inp[startByte + 1] == aNLower) {
-        coreFnDefinitionInit(lenTokens, startByte, lenBytes)
+        coreFnDefinition(lenTokens, startByte, lenBytes)
     }
     parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
-
 
 /**
  * Parse a statement where the first word is possibly "if", "ifEq" or "ifPred"
@@ -805,7 +817,6 @@ fun parseFromF(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
 fun parseFromI(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
-
 
 /**
  * Parse a statement where the first word is possibly "match"
@@ -822,14 +833,12 @@ fun parseFromR(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
-
 /**
  * Parse a funcall statement where the first word is possibly "try"
  */
 fun parseFromT(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
-
 
 /**
  * Parse a funcall statement where the first word is possibly "while"
@@ -879,7 +888,6 @@ fun setInput(inp: Lexer) {
     this.inp = inp
 }
 
-
 /** Append a regular AST node */
 private fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int) {
     ensureSpaceForNode()
@@ -910,7 +918,6 @@ private fun appendNode(nType: PunctuationAST, lenTokens: Int, startByte: Int, le
     bump()
 }
 
-
 /** Append a punctuation AST node */
 private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationAST) {
     ensureSpaceForNode()
@@ -919,20 +926,17 @@ private fun appendNode(startByte: Int, lenBytes: Int, tType: PunctuationAST) {
     bump()
 }
 
-
 /** The programmatic/builder method for allocating a function binding */
 fun buildBinding(binding: Binding): Parser {
     this.bindings.add(binding)
     return this
 }
 
-
 /** The programmatic/builder method for allocating a function binding */
 fun buildFBinding(fBinding: FunctionBinding): Parser {
     this.functionBindings.add(fBinding)
     return this
 }
-
 
 /** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
 fun buildInsertBindingsIntoScope(): Parser {
@@ -963,6 +967,7 @@ fun buildNode(nType: RegularAST, payload1: Int, payload2: Int, startByte: Int, l
     return this
 }
 
+
 fun buildNode(payload: Double, startByte: Int, lenBytes: Int): Parser {
     val payloadAsLong = payload.toBits()
     appendNode(litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(), startByte, lenBytes)
@@ -981,6 +986,7 @@ fun buildNode(nType: PunctuationAST, lenTokens: Int, startByte: Int, lenBytes: I
     return this
 }
 
+
 fun buildUnknownFunc(name: String, arity: Int, startByte: Int) {
     if (unknownFunctions.containsKey(name)) {
         unknownFunctions[name]!!.add(UnknownFunLocation(totalNodes, arity))
@@ -989,6 +995,7 @@ fun buildUnknownFunc(name: String, arity: Int, startByte: Int) {
     }
     appendNode(idFunc, 0, -1, startByte, name.length)
 }
+
 
 private fun bump() {
     nextInd += 4
@@ -1015,11 +1022,11 @@ init {
     wasError = false
     errMsg = ""
 
-    currFnDef = FunctionDef(indNode = 0, lenTokens = 0, name = "__entrypoint")
-
     bindings = ArrayList(12)
     functionBindings = ParserSyntax.builtInBindings()
     indFirstFunction = functionBindings.size
+    currFnDef = FunctionDef(indNode = 0, ind = indFirstFunction - 1) // entry+
+
     scopes = ArrayList(10)
     unknownFunctions = HashMap(8)
     strings = ArrayList(100)
@@ -1027,13 +1034,12 @@ init {
 }
 
 companion object {
-    /** The numeric values must correspond to the values of PunctuationToken enum */
-    private val dispatchTable: Array<Parser.(ParseFrame) -> Unit> = Array(4) {
+    /** The numeric values must correspond to the values of FrameAST enum */
+    private val dispatchTable: Array<Parser.(ParseFrame) -> Unit> = Array(3) {
         i -> when(i) {
             0 -> Parser::scope
             1 -> Parser::expr
-            2 -> Parser::assignment
-            else -> Parser::coreFnDefinition
+            else -> Parser::assignment
         }
     }
 

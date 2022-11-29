@@ -13,7 +13,12 @@ class LexicalScope {
 
 class Binding(val name: String)
 
-class FunctionBinding(val name: String, val precedence: Int, val arity: Int, var countLocals: Int = 0)
+class FunctionBinding(val name: String, val precedence: Int, val arity: Int,
+                      /** The maximum number of local vars in any scope of this fun def, to be emitted into bytecode */
+                      var maxLocals: Int = 0,
+                      /** The max number of stack operands in any scope of this fun def, to be emitted into bytecode */
+                      var maxStack: Int = 0,
+                      )
 
 class FunctionCall(var name: String, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
@@ -26,8 +31,8 @@ enum class RegularAST(val internalVal: Byte) { // payload
     idFunc(5),                        // index in the functionBindings table of parser
     binding(6),                       // id of binding that is being defined
     annot(7),                         // index in the annotations table of parser
-    fnDef(8),                         // index in the functionBindings table of parser,
-
+    fnDefName(8),                     // index in the functionBindings table of parser,
+    fnDefParam(9),                    // index in the strings table
 }
 
 /** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need resuming */
@@ -35,7 +40,6 @@ enum class FrameAST(val internalVal: Byte) {
     scope(10),
     expression(11),
     statementAssignment(12),
-    functionDef(13),
 }
 
 /** The rest of extentful AST types, if they are ever needed. */
@@ -83,14 +87,9 @@ data class FunctionDef(val backtrack: Stack<ParseFrame> = Stack<ParseFrame>(),
                        val subscopes: Stack<LexicalScope> = Stack<LexicalScope>(),
                        val subexprs: Stack<ArrayList<Subexpr>> = Stack(),
                        val structScope: LexicalScope = LexicalScope(),
-                       /** The maximum number of local vars in any scope of this fun def, to be emitted into bytecode */
-                       var maxLocals: Int = 0,
-                       /** The max number of stack operands in any scope of this fun def, to be emitted into bytecode */
-                       var maxStack: Int = 0,
-                       val name: String,
+                       /** Index in the bindings table */
+                       val ind: Int,
                        val indNode: Int,
-                       val lenTokens: Int,
-                       var tokensRead: Int = 0,
                        )
 
 /*
