@@ -1,4 +1,4 @@
-package compiler.lexer
+package lexer
 
 const val errorLengthOverflow             = "Token length overflow"
 const val errorNona                       = "Non-a symbols are not allowed in code - only inside comments & string literals!"

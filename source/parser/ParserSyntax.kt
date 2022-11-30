@@ -1,5 +1,5 @@
-package compiler.parser
-import compiler.lexer.operatorFunctionality
+package parser
+import lexer.operatorFunctionality
 
 
 object ParserSyntax {

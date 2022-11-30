@@ -1,12 +1,12 @@
-package compiler.parser
-import compiler.lexer.*
+package parser
+import lexer.*
 import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
-import compiler.lexer.OperatorToken
-import compiler.lexer.RegularToken.*
-import compiler.parser.RegularAST.*
+import lexer.OperatorToken
+import lexer.RegularToken.*
+import parser.RegularAST.*
 
 class Parser {
 

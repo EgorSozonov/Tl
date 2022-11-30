@@ -1,4 +1,4 @@
-package compiler.lexer
+package lexer
 import kotlin.math.absoluteValue
 import kotlin.math.pow
 

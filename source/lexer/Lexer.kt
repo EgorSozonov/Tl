@@ -1,8 +1,8 @@
-package compiler.lexer
+package lexer
 import java.lang.StringBuilder
 import java.util.*
-import compiler.lexer.RegularToken.*
-import compiler.lexer.PunctuationToken.*
+import lexer.RegularToken.*
+import lexer.PunctuationToken.*
 
 class Lexer {
 

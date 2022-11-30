@@ -1,7 +1,7 @@
-import compiler.lexer.*
-import compiler.lexer.Lexer
-import compiler.lexer.PunctuationToken.*
-import compiler.lexer.RegularToken.*
+import lexer.*
+import lexer.Lexer
+import lexer.PunctuationToken.*
+import lexer.RegularToken.*
 import org.junit.jupiter.api.Nested
 import kotlin.test.Test
 import kotlin.test.assertEquals

@@ -1,4 +1,4 @@
-package compiler.lexer
+package lexer
 
 
 enum class RegularToken(val internalVal: Byte) {

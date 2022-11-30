@@ -1,12 +1,11 @@
-import compiler.lexer.LOWER32BITS
-import compiler.lexer.Lexer
-import compiler.parser.*
+import lexer.LOWER32BITS
+import lexer.Lexer
 import org.junit.jupiter.api.Nested
+import parser.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import compiler.parser.RegularAST.*
-import compiler.parser.FrameAST.*
-import compiler.parser.PunctuationAST.*
+import parser.RegularAST.*
+import parser.FrameAST.*
 
 
 class ParserTest {

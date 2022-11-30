@@ -1,6 +1,6 @@
-package compiler.lexer
-import compiler.parser.funcPrecedence
-import compiler.parser.prefixPrecedence
+package lexer
+import parser.funcPrecedence
+import parser.prefixPrecedence
 
 
 /**
