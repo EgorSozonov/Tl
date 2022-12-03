@@ -37,29 +37,29 @@ object Opcodes {
 
     // JVM Access flags
 
-    const val accessPublic = 0x0001; // class, field, method
-    const val accessPrivate = 0x0002; // class, field, method
-    const val accessProtected = 0x0004; // class, field, method
-    const val accessStatic = 0x0008; // field, method
-    const val ACC_FINAL = 0x0010; // class, field, method, parameter
-    const val ACC_SUPER = 0x0020; // class
-    const val ACC_SYNCHRONIZED = 0x0020; // method
-    const val ACC_OPEN = 0x0020; // module
-    const val ACC_TRANSITIVE = 0x0020; // module requires
-    const val ACC_VOLATILE = 0x0040; // field
-    const val ACC_BRIDGE = 0x0040; // method
-    const val ACC_STATIC_PHASE = 0x0040; // module requires
-    const val ACC_VARARGS = 0x0080; // method
-    const val ACC_TRANSIENT = 0x0080; // field
-    const val ACC_NATIVE = 0x0100; // method
-    const val ACC_INTERFACE = 0x0200; // class
-    const val ACC_ABSTRACT = 0x0400; // class, method
-    const val ACC_STRICT = 0x0800; // method
-    const val ACC_SYNTHETIC = 0x1000; // class, field, method, parameter, module *
-    const val ACC_ANNOTATION = 0x2000; // class
-    const val ACC_ENUM = 0x4000; // class(?) field inner
-    const val ACC_MANDATED = 0x8000; // field, method, parameter, module, module *
-    const val ACC_MODULE = 0x8000; // class
+    const val accessPublic = 0x0001       // class, field, method
+    const val accessPrivate = 0x0002      // class, field, method
+    const val accessProtected = 0x0004    // class, field, method
+    const val accessStatic = 0x0008       // field, method
+    const val accessFinal = 0x0010        // class, field, method, parameter
+    const val accessSuper = 0x0020        // class
+    const val accessSynchronized = 0x0020 // method
+    const val accessOpen = 0x0020         // module
+    const val accessTransitive = 0x0020   // module requires
+    const val accessVolatile = 0x0040     // field
+    const val accessBridge = 0x0040       // method
+    const val accessStaticPhase = 0x0040  // module requires
+    const val accessVarargs = 0x0080      // method
+    const val accessTransient = 0x0080    // field
+    const val accessNative = 0x0100       // method
+    const val accessInterface = 0x0200    // class
+    const val accessAbstract = 0x0400     // class, method
+    const val accessStrict = 0x0800       // method
+    const val accessSynthetic = 0x1000    // class, field, method, parameter, module *
+    const val accessAnnotation = 0x2000   // class
+    const val accessEnum = 0x4000         // class(?) field inner
+    const val accessMandated = 0x8000     // field, method, parameter, module, module *
+    const val accessModule = 0x8000       // class
 
     // Primitive types for the NEWARRAY instruction.
     // See https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-6.html#jvms-6.5.newarray.
@@ -76,15 +76,15 @@ object Opcodes {
     // Possible values for the reference_kind field of CONSTANT_MethodHandle_info structures.
     // See https://docs.oracle.com/javase/specs/jvms/se9/html/jvms-4.html#jvms-4.4.8.
 
-    const val handleGetField = 1;
-    const val H_GETSTATIC = 2;
-    const val H_PUTFIELD = 3;
-    const val H_PUTSTATIC = 4;
-    const val H_INVOKEVIRTUAL = 5;
-    const val H_INVOKESTATIC = 6;
-    const val H_INVOKESPECIAL = 7;
-    const val H_NEWINVOKESPECIAL = 8;
-    const val H_INVOKEINTERFACE = 9;
+    const val handleGetField = 1
+    const val handleGetStatic = 2
+    const val handlePutField = 3
+    const val handlePutStatic = 4
+    const val handleInvokeVirtual = 5
+    const val handleInvokeStatic = 6
+    const val handleInvokeSpecial = 7
+    const val handleNewInvokeSpecial = 8
+    const val handleInvokeInterface = 9
 
 
 
@@ -105,37 +105,37 @@ object Opcodes {
     const val fConst0      =  11
     const val fConst1      =  12
     const val fConst2      =  13
-    const val DCONST_0     =  14
-    const val DCONST_1     =  15
-    const val BIPUSH       =  16
-    const val SIPUSH       =  17
-    const val LDC          =  18
-    const val ILOAD        =  21
-    const val LLOAD        =  22
-    const val FLOAD        =  23
-    const val DLOAD        =  24
-    const val ALOAD        =  25
-    const val IALOAD       =  46
-    const val LALOAD       =  47
-    const val FALOAD       =  48
-    const val DALOAD       =  49
-    const val AALOAD       =  50
-    const val BALOAD       =  51
-    const val CALOAD       =  52
-    const val SALOAD       =  53
-    const val ISTORE       =  54
-    const val LSTORE       =  55
-    const val FSTORE       =  56
-    const val DSTORE       =  57
-    const val ASTORE       =  58
-    const val IASTORE      =  79
-    const val LASTORE      =  80
-    const val fAStore      =  81
-    const val dAStore      =  82
-    const val aAStore      =  83
-    const val bAStore      =  84
-    const val cAStore      =  85
-    const val sAStore      =  86
+    const val dConst0      =  14
+    const val dConst1      =  15
+    const val biPush       =  16
+    const val siPush       =  17
+    const val ldc          =  18
+    const val iLoad        =  21
+    const val lLoad        =  22
+    const val fLoad        =  23
+    const val dLoad        =  24
+    const val aLoad        =  25
+    const val iaLoad       =  46
+    const val laLoad       =  47
+    const val faLoad       =  48
+    const val daLoad       =  49
+    const val aaLoad       =  50
+    const val baLoad       =  51
+    const val caLoad       =  52
+    const val saLoad       =  53
+    const val iStore       =  54
+    const val lStore       =  55
+    const val fStore       =  56
+    const val dStore       =  57
+    const val aStore       =  58
+    const val iaStore      =  79
+    const val laStore      =  80
+    const val faStore      =  81
+    const val daStore      =  82
+    const val aaStore      =  83
+    const val baStore      =  84
+    const val caStore      =  85
+    const val saStore      =  86
     const val pop          =  87
     const val pop2         =  88
     const val dup          =  89
@@ -248,4 +248,52 @@ object Opcodes {
     const val multiANewArr = 197
     const val ifNull       = 198
     const val ifNonnull    = 199
+
+
+
+    const val ldcW = 19
+    const val ldc2W = 20
+    const val iLoad0 = 26
+    const val iLoad1 = 27
+    const val iLoad2 = 28
+    const val iLoad3 = 29
+    const val lLoad0 = 30
+    const val lLoad1 = 31
+    const val lLoad2 = 32
+    const val lLoad3 = 33
+    const val fLoad0 = 34
+    const val fLoad1 = 35
+    const val fLoad2 = 36
+    const val fLoad3 = 37
+    const val dLoad0 = 38
+    const val dLoad1 = 39
+    const val dLoad2 = 40
+    const val dLoad3 = 41
+    const val ALOAD_0 = 42
+    const val ALOAD_1 = 43
+    const val ALOAD_2 = 44
+    const val ALOAD_3 = 45
+    const val ISTORE_0 = 59
+    const val ISTORE_1 = 60
+    const val ISTORE_2 = 61
+    const val ISTORE_3 = 62
+    const val lStore0 = 63
+    const val lStore1 = 64
+    const val lStore2 = 65
+    const val lStore3 = 66
+    const val fStore0 = 67
+    const val fStore1 = 68
+    const val fStore2 = 69
+    const val fStore3 = 70
+    const val dStore0 = 71
+    const val dStore1 = 72
+    const val dStore2 = 73
+    const val dStore3 = 74
+    const val aStore0 = 75
+    const val aStore1 = 76
+    const val aStore2 = 77
+    const val aStore3 = 78
+    const val wide = 196
+    const val gotoW = 200
+    const val jsrW = 201
 }

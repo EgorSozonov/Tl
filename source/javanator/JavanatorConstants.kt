@@ -1,0 +1,5 @@
+package javanator
+
+class JavanatorConstants {
+
+}
