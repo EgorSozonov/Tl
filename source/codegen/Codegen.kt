@@ -16,7 +16,7 @@ class Codegen {
      */
     private val version = 0
 
-    fun codegen(theClass: JavaClass): ByteArray {
+    fun codegen(theClass: JavaClass): UnsafeByteArray {
         val size = computeSizeClassFile(theClass)
         val result = writeClassFile(theClass, size)
         return result
@@ -29,7 +29,7 @@ class Codegen {
      * methodsCount and attributesCount) use 2 bytes each, and each interface uses 2 bytes too.
      */
     private fun computeSizeClassFile(theClass: JavaClass): Int {
-//        var result: Int = 24 + 2 * interfaceCount
+        var result: Int = 24 + 2 * theClass.interfaces.size
 //        var fieldsCount = 0
 //        var fieldWriter: FieldWriter = firstField
 //        while (fieldWriter != null) {
@@ -152,133 +152,74 @@ class Codegen {
 //        if (constantPoolCount > 0xFFFF) {
 //            throw ClassTooLargeException(symbolTable.getClassName(), constantPoolCount)
 //        }
-//        return result
+        return result
     }
 
     /**
      * Allocates a ByteVector of the pre-calculated size and write its contents
      */
-    private fun writeClassFile(theClass: JavaClass, size: Int): ByteArray {
+    private fun writeClassFile(theClass: JavaClass, size: Int): UnsafeByteArray {
         val result = UnsafeByteArray(size)
         result.addInt(0xCAFEBABE.toInt())
+        result.addShort(0).addShort(61) // versions
 
-        result.addInt(version)
-        symbolTable.putConstantPool(result)
-        val mask = if (version and 0xFFFF < Opcodes.v1_5) Opcodes.ACC_SYNTHETIC else 0
-        result.addShort(theClass.accessFlags and mask.inv()).addShort(theClass.thisClass).addShort(theClass.superClass)
+        result.addShort(theClass.constantPool.size)
+        for (con in theClass.constantPool) {
+
+        }
+
+        result.addShort(theClass.accessFlags).addShort(theClass.thisClass).addShort(theClass.superClass)
+
         val interfaceCount = theClass.interfaces.size/2
 
         result.addShort(interfaceCount)
-        for (i in 0 until interfaceCount) {
-            result.addShort(theClass.interfaces.get(i))
-        }
+        // TODO interfaces
 
         result.addShort(theClass.fields.size)
-        fieldWriter = firstField
-        while (fieldWriter != null) {
-            fieldWriter.putFieldInfo(result)
-            fieldWriter = fieldWriter.fv as FieldWriter
-        }
+        // TODO fields
 
         val methodCount = theClass.methods.size
         result.addShort(methodCount)
 
-        var hasFrames = false
-        methodWriter = firstMethod
-        while (methodWriter != null) {
-            hasFrames = hasFrames or methodWriter.hasFrames()
-            hasAsmInstructions = hasAsmInstructions or methodWriter.hasAsmInstructions()
-            methodWriter.putMethodInfo(result)
-            methodWriter = methodWriter.mv as MethodWriter
-        }
-
-        val attributeCount = theClass.methods.size
-        result.addShort(attributeCount)
-        if (innerClasses != null) {
-            result
-                .addShort(symbolTable.addConstantUtf8(Constants.INNER_CLASSES))
-                .putInt(innerClasses.length + 2)
-                .addShort(numberOfInnerClasses)
-                .putByteArray(innerClasses.data, 0, innerClasses.length)
-        }
-//        if (enclosingClassIndex !== 0) {
-//            result
-//                .addShort(symbolTable.addConstantUtf8(Constants.ENCLOSING_METHOD))
-//                .putInt(4)
-//                .addShort(enclosingClassIndex)
-//                .addShort(enclosingMethodIndex)
-//        }
-//        if (accessFlags and Opcodes.ACC_SYNTHETIC !== 0 && version and 0xFFFF < Opcodes.V1_5) {
-//            result.addShort(symbolTable.addConstantUtf8(Constants.SYNTHETIC)).putInt(0)
-//        }
-//        if (signatureIndex !== 0) {
-//            result
-//                .addShort(symbolTable.addConstantUtf8(Constants.SIGNATURE))
-//                .putInt(2)
-//                .addShort(signatureIndex)
-//        }
-//        if (sourceFileIndex !== 0) {
-//            result
-//                .addShort(symbolTable.addConstantUtf8(Constants.SOURCE_FILE))
-//                .putInt(2)
-//                .addShort(sourceFileIndex)
-//        }
-//        if (debugExtension != null) {
-//            val length: Int = debugExtension.length
-//            result
-//                .addShort(symbolTable.addConstantUtf8(Constants.SOURCE_DEBUG_EXTENSION))
-//                .putInt(length)
-//                .putByteArray(debugExtension.data, 0, length)
-//        }
-//        if (accessFlags and Opcodes.ACC_DEPRECATED !== 0) {
-//            result.addShort(symbolTable.addConstantUtf8(Constants.DEPRECATED)).putInt(0)
-//        }
-//        AnnotationWriter.putAnnotations(
-//            symbolTable,
-//            lastRuntimeVisibleAnnotation,
-//            lastRuntimeInvisibleAnnotation,
-//            lastRuntimeVisibleTypeAnnotation,
-//            lastRuntimeInvisibleTypeAnnotation,
-//            result
-//        )
-//        symbolTable.putBootstrapMethods(result)
-//        if (moduleWriter != null) {
-//            moduleWriter.putAttributes(result)
-//        }
-//        if (nestHostClassIndex !== 0) {
-//            result
-//                .addShort(symbolTable.addConstantUtf8(Constants.NEST_HOST))
-//                .putInt(2)
-//                .addShort(nestHostClassIndex)
-//        }
-//        if (nestMemberClasses != null) {
-//            result
-//                .addShort(symbolTable.addConstantUtf8(Constants.NEST_MEMBERS))
-//                .putInt(nestMemberClasses.length + 2)
-//                .addShort(numberOfNestMemberClasses)
-//                .putByteArray(nestMemberClasses.data, 0, nestMemberClasses.length)
-//        }
-//        if (permittedSubclasses != null) {
-//            result
-//                .addShort(symbolTable.addConstantUtf8(Constants.PERMITTED_SUBCLASSES))
-//                .putInt(permittedSubclasses.length + 2)
-//                .addShort(numberOfPermittedSubclasses)
-//                .putByteArray(permittedSubclasses.data, 0, permittedSubclasses.length)
-//        }
-//        if (accessFlags and Opcodes.ACC_RECORD !== 0 || firstRecordComponent != null) {
-//            result
-//                .addShort(symbolTable.addConstantUtf8(Constants.RECORD))
-//                .putInt(recordSize + 2)
-//                .addShort(recordComponentCount)
-//            var recordComponentWriter: RecordComponentWriter = firstRecordComponent
-//            while (recordComponentWriter != null) {
-//                recordComponentWriter.putRecordComponentInfo(result)
-//                recordComponentWriter = recordComponentWriter.delegate as RecordComponentWriter
-//            }
-//        }
-//        if (firstAttribute != null) {
-//            firstAttribute.putAttributes(symbolTable, result)
-//        }
         return result
     }
 }
+
+//Java class file can be divided into 10 basic sections e.g.
+//
+//Magic Number : 0xCAFEBABE
+//Major and Minor class version or .class file
+//Constant pool - constants for this class
+//Access modifiers - to indicate whether the class is static or abstract
+//This class - name of this class
+//Super class - name of superclass
+//Interfaces -
+//Fields
+//Methods
+//Attributes
+//
+
+
+
+//4-byte magic number
+//2-byte minor_version
+//2-byte major_version
+
+//2-byte constant_pool_count
+//N-byte constant_pool[constant_pool_count-1]
+
+//2-byte access_flags
+//2-byte this_class
+//2-byte super_class
+
+//2-byte interfaces_count
+//2-byte interfaces[interfaces_count]
+
+//2-byte fields_count
+//N-byte fields[fields_count]
+
+//2-byte methods_count
+//N-byte methods[methods_count]
+
+//2-byte attributes_count
+//N-byte attributes[attributes_count]
