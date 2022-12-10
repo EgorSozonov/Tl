@@ -1,4 +1,4 @@
-package javanator
+package jokifier
 
 data class JavaClass(
     val name: String,

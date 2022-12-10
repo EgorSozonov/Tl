@@ -1,12 +1,7 @@
 package codegen
 
-import com.sun.tools.javap.AnnotationWriter
-import javanator.JavaClass
+import jokifier.JavaClass
 import utils.UnsafeByteArray
-import jdk.internal.org.objectweb.asm.ClassTooLargeException
-import jdk.javadoc.internal.doclets.toolkit.FieldWriter
-import jdk.javadoc.internal.doclets.toolkit.MethodWriter
-import java.io.ByteArrayOutputStream
 
 
 class Codegen {

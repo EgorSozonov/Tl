@@ -152,3 +152,16 @@ non-init keywords
 
 as
 mb ? (wrapping a failable operation with an early return)
+
+
+
+Nesting
+_____________________
+Assignment: right side may be an expression, a core form or a scope
+
+x = { y = 5; y + 5 }
+
+Expression: may be a scope, any core form or a funcall.
+Subexpression: may be a function definition, a core form without scopes or a funcall. Otherwise may contain no scopes!
+Funcall: may not have any scopes!
+

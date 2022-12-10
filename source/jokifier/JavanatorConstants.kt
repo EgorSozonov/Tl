@@ -1,4 +1,4 @@
-package javanator
+package jokifier
 
 class JavanatorConstants {
 

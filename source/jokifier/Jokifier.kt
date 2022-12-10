@@ -1,8 +1,8 @@
-package javanator
+package jokifier
 
 import parser.Parser
 
-class Javanator {
+class Jokifier {
     fun javanate(pa: Parser): ArrayList<JavaClass> {
         return ArrayList()
     }

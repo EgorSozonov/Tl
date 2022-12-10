@@ -257,9 +257,11 @@ private fun coreFnValidateNames() {
 
 }
 
+
 private fun coreIf(stmtType: Int, lenTokens: Int) {
     validateCoreForm(stmtType, lenTokens)
 }
+
 
 private fun coreIfEq(stmtType: Int, lenTokens: Int) {
     validateCoreForm(stmtType, lenTokens)
@@ -322,7 +324,6 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: 
         this.currFnDef.subscopes.push(newScope)
     }
 
-
     inp.nextToken() // the curlyBraces token
     val newFrame = ParseFrame(FrameAST.scope, this.totalNodes - 1, lenTokens, 1)
     currFnDef.backtrack.push(newFrame)
@@ -348,7 +349,9 @@ private fun scope(parseFrame: ParseFrame) {
     parseFrame.tokensRead = j
 }
 
-
+/**
+ * An expression, i.e. a funcall.
+ */
 private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
     if (lenTokens == 1) {
         val theToken = inp.nextToken(0)
@@ -363,10 +366,75 @@ private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPr
     val newFrame = ParseFrame(FrameAST.expression, totalNodes - 1, lenTokens, additionalPrefixToken)
     currFnDef.backtrack.push(newFrame)
 
-    val initConsumedTokens = exprStartSubexpr(newFrame.lenTokens, false, funCallStack)
+    val initConsumedTokens = subexprInit(newFrame.lenTokens, false, funCallStack)
     newFrame.tokensRead += initConsumedTokens
 
     expr(newFrame)
+}
+
+/**
+ * Parses a fun call or a series of funcalls. Uses a modified Shunting Yard algo from Dijkstra to
+ * flatten all internal parens into a single prefix notation stream.
+ * The algo goes as following:
+ *     1. Reverse the tokens, correctly handling parentheses
+ *     2. Walk left to right, maintaining a stack of stacks of operators (one stack for each subexpression)
+ *     3. If the stack is empty, operator goes into it
+ *     4. If the top is lower in precedence than the new one, we pop and print while that's true
+ *     5. Otherwise, operator gets pushed upon the stack
+ *     6. Operands just get appended
+ *     7. The result node sequence is reversed before being appended to the AST.
+ * In the resulting AST nodes, function names are annotated with arities.
+ * This function does NOT emit the expression node - that's the responsibility of the caller.
+ * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
+ */
+private fun exprNew(parseFrame: ParseFrame) {
+    var stackInd = 0
+    val functionStack = currFnDef.subexprs.peek()
+
+    // scratch space
+    // reverse the tokens into the scratch space
+    // write the parsed prefix operators and operands
+    // reverse the written tokens into the AST
+    // clear the scratch space
+
+    var j = parseFrame.tokensRead
+    while (j < parseFrame.lenTokens) {
+        val tokType = inp.currTokenType()
+        closeSubexpr(functionStack, stackInd)
+        stackInd = functionStack.size - 1
+        var consumedTokens = 1
+        if (tokType == PunctuationToken.parens.internalVal.toInt()) {
+            val subExprLenTokens = inp.currChunk.tokens[inp.currInd + 3]
+            exprIncrementArity(functionStack[stackInd])
+            consumedTokens = subexprInit(subExprLenTokens, true, functionStack)
+            stackInd = functionStack.size - 1
+        } else if (tokType >= 10) {
+            break
+        } else {
+            if (tokType == word.internalVal.toInt()) {
+                exprWord(functionStack, stackInd)
+            } else if (tokType == intTok.internalVal.toInt()) {
+                exprOperand(functionStack, stackInd)
+                appendNode(
+                    litInt, inp.currChunk.tokens[inp.currInd + 2], inp.currChunk.tokens[inp.currInd + 3],
+                    inp.currStartByte(), inp.currLenBytes()
+                )
+            } else if (tokType == dotWord.internalVal.toInt()) {
+                exprInfix(readString(dotWord), funcPrecedence, 0, functionStack, stackInd)
+            } else if (tokType == operatorTok.internalVal.toInt()) {
+                exprOperator(functionStack, stackInd)
+            }
+            inp.nextToken()
+        }
+
+        for (i in 0..stackInd) {
+            functionStack[i].tokensRead += consumedTokens
+        }
+        j += consumedTokens
+    }
+
+    parseFrame.tokensRead = j
+    closeSubexpr(functionStack, stackInd)
 }
 
 /**
@@ -390,7 +458,7 @@ private fun expr(parseFrame: ParseFrame) {
         if (tokType == PunctuationToken.parens.internalVal.toInt()) {
             val subExprLenTokens = inp.currChunk.tokens[inp.currInd + 3]
             exprIncrementArity(functionStack[stackInd])
-            consumedTokens = exprStartSubexpr(subExprLenTokens, true, functionStack)
+            consumedTokens = subexprInit(subExprLenTokens, true, functionStack)
             stackInd = functionStack.size - 1
         } else if (tokType >= 10) {
             break
@@ -428,8 +496,10 @@ private fun expr(parseFrame: ParseFrame) {
  * Examples: "foo 5 a" is prefix
  *           "5 .foo a" is infix
  *           "5 + a" is infix
+ * TODO: allow for core forms (but not scopes!)
+ * TODO: remove support for prefix as part of the simplification
  */
-private fun exprStartSubexpr(lenTokens: Int, isBeforeFirstToken: Boolean, functionStack: ArrayList<Subexpr>): Int{
+private fun subexprInit(lenTokens: Int, isBeforeFirstToken: Boolean, functionStack: ArrayList<Subexpr>): Int{
     var consumedTokens = 0
     if (isBeforeFirstToken) {
         inp.nextToken()
@@ -772,6 +842,8 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     // we've already consumed 2 tokens in this func
     val newFrame = ParseFrame(FrameAST.statementAssignment, totalNodes - 2, lenTokens, 1, 2)
     currFnDef.backtrack.push(newFrame)
+
+    // TODO check if we have a scope or a core form here
     exprInit(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
 
 }
