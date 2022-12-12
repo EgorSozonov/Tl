@@ -4,10 +4,8 @@ import java.util.*
 import lexer.RegularToken.*
 import lexer.PunctuationToken.*
 
-class Lexer {
+class Lexer(val inp: ByteArray, val fileType: FileType) {
 
-var inp: ByteArray
-    private set
 var firstChunk: LexChunk = LexChunk()                        // First array of tokens
     private set
 var currChunk: LexChunk                                      // Last array of tokens
@@ -941,10 +939,6 @@ private fun bump() {
     totalTokens += 1
 }
 
-fun setInput(inp: ByteArray) {
-    this.inp = inp
-}
-
 
 fun nextToken() {
     currInd += 4
@@ -999,7 +993,6 @@ fun nextToken(skip: Int): TokenLite {
 
 
 init {
-    inp = byteArrayOf()
     currChunk = firstChunk
     i = 0
     nextInd = 0

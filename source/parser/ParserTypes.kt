@@ -35,7 +35,7 @@ enum class RegularAST(val internalVal: Byte) { // payload
     fnDefParam(9),                    // index in the strings table
 }
 
-/** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need resuming */
+/** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need pausing & resuming */
 enum class FrameAST(val internalVal: Byte) {
     scope(10),
     expression(11),
@@ -57,13 +57,7 @@ enum class PunctuationAST(val internalVal: Byte) {
  * startByte                                                                          | i32
  * payload (for regular tokens) or empty 32 bits + lenTokens (for punctuation tokens) | i64
  */
-data class ParseChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ParseChunk? = null)
-
-enum class FileType {
-    executable,
-    library,
-    testing,
-}
+data class ASTChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ASTChunk? = null)
 
 
 data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens: Int,
@@ -73,7 +67,6 @@ data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens:
 
 data class Subexpr(var operators: ArrayList<FunctionCall>,
                    var tokensRead: Int, val lenTokens: Int,
-                   val prefixMode: Boolean = true,
                    var firstFun: Boolean = true)
 
 /**

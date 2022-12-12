@@ -10,8 +10,7 @@ internal class LexerTest {
 
 
 private fun testInpOutp(inp: String, expected: Lexer) {
-    val lr = Lexer()
-    lr.setInput(inp.toByteArray())
+    val lr = Lexer(inp.toByteArray(), FileType.library)
     lr.lexicallyAnalyze()
     val doEqual = Lexer.equality(lr, expected)
     if (!doEqual) {

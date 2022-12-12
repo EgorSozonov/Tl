@@ -1,3 +1,4 @@
+import lexer.FileType
 import lexer.LOWER32BITS
 import lexer.Lexer
 import org.junit.jupiter.api.Nested
@@ -500,15 +501,14 @@ inner class ScopeTest {
 }
 
 private fun testParseWithEnvironment(inp: String, environmentSetup: (Parser) -> Unit, resultBuilder: (Parser) -> Unit) {
-    val lr = Lexer()
-    lr.setInput(inp.toByteArray())
+    val lr = Lexer(inp.toByteArray(), FileType.executable)
     lr.lexicallyAnalyze()
 
-    val runnerParser = Parser()
-    val controlParser = Parser()
+    val runnerParser = Parser(lr)
+    val controlParser = Parser(lr)
 
     environmentSetup(runnerParser)
-    runnerParser.parse(lr, FileType.executable)
+    runnerParser.parse(FileType.executable)
 
     environmentSetup(controlParser)
     resultBuilder(controlParser)
@@ -522,11 +522,10 @@ private fun testParseWithEnvironment(inp: String, environmentSetup: (Parser) -> 
 }
 
 private fun testParseResult(inp: String, parserWithEnvironment: Parser, expected: Parser) {
-    val lr = Lexer()
-    lr.setInput(inp.toByteArray())
+    val lr = Lexer(inp.toByteArray(), FileType.executable)
     lr.lexicallyAnalyze()
 
-    parserWithEnvironment.parse(lr, FileType.executable)
+    parserWithEnvironment.parse(FileType.executable)
 
     val parseCorrect = Parser.equality(parserWithEnvironment, expected)
     if (!parseCorrect) {
