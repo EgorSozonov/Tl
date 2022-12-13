@@ -1,10 +1,10 @@
 package parser
 
 import lexer.CHUNKSZ
-import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 
+const val SCRATCHSZ = 100
 
 class LexicalScope {
     val bindings: HashMap<String, Int> = HashMap(12)        // bindingId
@@ -37,17 +37,10 @@ enum class RegularAST(val internalVal: Byte) { // payload
 
 /** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need pausing & resuming */
 enum class FrameAST(val internalVal: Byte) {
-    scope(10),
-    expression(11),
-    statementAssignment(12),
-}
-
-/** The rest of extentful AST types, if they are ever needed. */
-enum class PunctuationAST(val internalVal: Byte) {
-    dataIndexer(14),
-    statementTypeDecl(15),
-    functionDef(16),
-    functionDefBody(17),
+    functionDef(10),
+    scope(11),
+    expression(12),
+    statementAssignment(13),
 }
 
 /**
@@ -59,6 +52,7 @@ enum class PunctuationAST(val internalVal: Byte) {
  */
 data class ASTChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ASTChunk? = null)
 
+data class ScratchChunk(val nodes: IntArray = IntArray(SCRATCHSZ), var next: ScratchChunk? = null)
 
 data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens: Int,
                       /** 1 for lexer extents that have a prefix token, 0 for extents that are inserted by the parser */
@@ -69,21 +63,6 @@ data class Subexpr(var operators: ArrayList<FunctionCall>,
                    var tokensRead: Int, val lenTokens: Int,
                    var firstFun: Boolean = true)
 
-/**
- * A record about an unknown function binding that has been encountered when parsing.
- * Is used at scope end to fill in the blanks, or signal unknown function bindings.
- */
-data class UnknownFunLocation(val indNode: Int, val arity: Int)
-
-
-data class FunctionDef(val backtrack: Stack<ParseFrame> = Stack<ParseFrame>(),
-                       val subscopes: Stack<LexicalScope> = Stack<LexicalScope>(),
-                       val subexprs: Stack<ArrayList<Subexpr>> = Stack(),
-                       val structScope: LexicalScope = LexicalScope(),
-                       /** Index in the bindings table */
-                       val ind: Int,
-                       val indNode: Int,
-                       )
 
 /*
 

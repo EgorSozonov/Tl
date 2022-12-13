@@ -3,7 +3,6 @@ import lexer.*
 import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.ArrayList
-import kotlin.collections.HashMap
 import lexer.OperatorToken
 import lexer.RegularToken.*
 import parser.RegularAST.*
@@ -23,11 +22,9 @@ private var currFnDef: FunctionDef
 private val globalScope: LexicalScope
 
 // The storage for parsed bindings etc
-private var bindings: MutableList<Binding>
-private var functionBindings: MutableList<FunctionBinding>
+//private var bindings: MutableList<Binding>
 private var scopes: MutableList<LexicalScope>
-
-
+private var allStrings = HashMap<String, Int>(50)
 
 /**
  * Main parser method
@@ -120,9 +117,18 @@ private fun maybeCloseFrames() {
     }
 
     if (isFunClose) {
-        fnDefBacktrack.pop()
+        val freshlyMintedFn = fnDefBacktrack.pop()
+        appendFun(freshlyMintedFn)
         if (fnDefBacktrack.isNotEmpty()) currFnDef = fnDefBacktrack.peek()
     }
+}
+
+/**
+ * Copies the nodes from the functionDef's scratch space to the AST proper.
+ * This happens only after the functionDef is complete.
+ */
+private fun appendFun(freshlyMintedFn: FunctionDef) {
+
 }
 
 /** Closes a frame that is a scope. Since we're not just tracking consumed tokens in the
@@ -185,19 +191,21 @@ private fun coreCatch(stmtType: Int, lenTokens: Int) {
  * or "fn bar x y { print x; x + y }"
  */
 private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
+    val newFnDef = FunctionDef()
+    fnDefBacktrack.push(newFnDef)
     val newFunScope = LexicalScope()
 
     inp.nextToken() // skipping the "fn" keyword
     if (inp.currTokenType() != wordType) {
         throw Exception(errorFnNameAndParams)
     }
-
-    ast.appendNode(PunctuationAST.functionDef, lenTokens, startByte, lenBytes)
+    val stringIds = ArrayList<Int>(4)
 
     val functionName = readString(word)
-    ast.appendNode(fnDefName, 0, this.strings.size, inp.currStartByte(), functionName.length)
-    this.strings.add(functionName)
-    inp.nextToken()
+    inp.nextToken() // the function name
+    val fnNameId = addString(functionName)
+    stringIds.add(fnNameId)
+    newFnDef.appendName(fnNameId, inp.currStartByte(), functionName.length)
 
     var j = 0
     while (j < lenTokens && inp.currTokenType() == wordType) {
@@ -207,10 +215,10 @@ private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
         }
 
         newFunScope.bindings[paramName] = j
-        ast.appendNode(fnDefParam, 0, this.strings.size, inp.currStartByte(), paramName.length)
-        this.strings.add(paramName)
-        inp.nextToken()
+        val paramNameId = addString(functionName)
+        newFnDef.appendName(paramNameId, inp.currStartByte(), paramName.length)
 
+        inp.nextToken()
         j++
     }
     if (j == 0) {
@@ -219,11 +227,11 @@ private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
         throw Exception(errorFnMissingBody)
     }
 
-    // Actually create the function and push it to stack. But the AST nodes have already been emitted, see above
-    val newFnDef = FunctionDef(ind = functionBindings.size, indNode = ast.funcTotalNodes)
-    val newFnBinding = FunctionBinding(functionName, funcPrecedence, j, j, 0)
-    this.functionBindings.add(newFnBinding)
-    fnDefBacktrack.push(newFnDef)
+    currFnDef.setArityPrec(j, funcPrecedence)
+    val currTokenType = inp.currTokenType()
+    if (currTokenType != PunctuationToken.curlyBraces.internalVal.toInt()) {
+        throw Exception(errorFnMissingBody)
+    }
 
     val scopeLenTokens = inp.currLenTokens()
     val scopelenBytes = inp.currLenBytes()
@@ -234,6 +242,17 @@ private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
     }
 
     scopeInit(newFunScope, scopeLenTokens, scopeStartByte, scopelenBytes)
+}
+
+
+private fun addString(s: String): Int {
+    if (this.allStrings.containsKey(s)) {
+        return allStrings[s]!!
+    }
+    val id = ast.bindings.size
+    ast.bindings.add(s)
+    this.allStrings[s] = id
+    return id
 }
 
 
@@ -289,7 +308,12 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
     }
 }
 
-
+/**
+ * First it walks the current scope breadth-first without recursing into inner scopes.
+ * The purpose is to find all names of functions defined in this scope.
+ * Then it walks from the start again, this time depth-first, and writes instructions into the
+ * AST scratch space
+ */
 private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: Int, lenBytes: Int) {
     // if we are in an expression, then this scope will be an operand for some operator
     if (currFnDef.subexprs.isNotEmpty()) {
@@ -297,7 +321,7 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: 
         exprIncrementArity(funStack[funStack.size - 1])
     }
 
-    ast.appendNode(FrameAST.scope, lenTokens, startByte, lenBytes)
+    ast.appendExtent(FrameAST.scope, lenTokens, startByte, lenBytes)
 
     if (mbLexicalScope != null) {
         this.scopes.add(mbLexicalScope)
@@ -344,7 +368,7 @@ private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPr
     }
 
     val funCallStack = ArrayList<Subexpr>()
-    ast.appendNode(FrameAST.expression, 0, startByte, lenBytes)
+    ast.appendExtent(FrameAST.expression, 0, startByte, lenBytes)
 
     currFnDef.subexprs.push(funCallStack)
     val newFrame = ParseFrame(FrameAST.expression, ast.funcTotalNodes - 1, lenTokens, additionalPrefixToken)
@@ -731,7 +755,7 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val newBindingId = bindings.size - 1
     currFnDef.subscopes.peek().bindings[theName] = newBindingId
 
-    ast.appendNode(FrameAST.statementAssignment, 0, startByte, lenBytes)
+    ast.appendExtent(FrameAST.statementAssignment, 0, startByte, lenBytes)
     ast.appendNode(binding, 0, newBindingId, startByte, theName.length)
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
 
@@ -816,22 +840,11 @@ fun parseFromW(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
 }
 
 /**
- * Appends a node that either points to a function binding, or is pointed to by an unknown function
+ * Appends a node that represents a function name in a function call
  */
 private fun appendFnName(fnParse: FunctionCall) {
     val fnName = fnParse.name
-    val mbId = lookupFunction(fnName, fnParse.arity)
-    if (mbId != null) {
-        ast.appendNode(RegularAST.idFunc, 0, mbId, fnParse.startByte, fnParse.name.length)
-    } else {
-        if (unknownFunctions.containsKey(fnName)) {
-            val lst: ArrayList<UnknownFunLocation> = unknownFunctions[fnName]!!
-            lst.add(UnknownFunLocation(funcTotalNodes, fnParse.arity))
-        } else {
-            unknownFunctions[fnName] = arrayListOf(UnknownFunLocation(funcTotalNodes, fnParse.arity))
-        }
-        ast.appendNode(RegularAST.idFunc, 0, -1, fnParse.startByte, fnParse.name.length)
-    }
+    val fnId = lookupFunction(fnName, fnParse.arity) ?: throw Exception(errorUnknownFunction)
 }
 
 /**
@@ -857,18 +870,36 @@ fun buildError(msg: String): Parser {
 }
 
 
+/** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
+fun buildInsertBindingsIntoScope(): Parser {
+    if (currFnDef.subscopes.isEmpty()) {
+        currFnDef.subscopes.add(LexicalScope())
+    }
+    val topScope = currFnDef.subscopes.peek()
+    for (id in 0 until this.bindings.size) {
+        val name = this.bindings[id].name
+        if (!topScope.bindings.containsKey(name)) {
+            topScope.bindings[name]  = id
+        }
+    }
+    for (id in 0 until this.functionBindings.size) {
+        val name = this.functionBindings[id].name
+        if (topScope.functions.containsKey(name)) {
+            topScope.functions[name]!!.add(id)
+        } else {
+            topScope.functions[name] = arrayListOf(id)
+        }
+    }
+    return this
+}
 
 init {
     wasError = false
     errMsg = ""
 
-    bindings = ArrayList(12)
-
-    currFnDef = FunctionDef(indNode = 0, ind = ast.indFirstFunction - 1) // entry+
+    currFnDef = FunctionDef()
 
     scopes = ArrayList(10)
-    unknownFunctions = HashMap(8)
-    strings = ArrayList(100)
     globalScope = LexicalScope()
 }
 

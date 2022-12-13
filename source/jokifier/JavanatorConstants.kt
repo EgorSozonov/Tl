@@ -1,5 +1,0 @@
-package jokifier
-
-class JavanatorConstants {
-
-}

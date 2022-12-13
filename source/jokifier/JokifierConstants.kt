@@ -1,0 +1,5 @@
+package jokifier
+
+class JokifierConstants {
+
+}
