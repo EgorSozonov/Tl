@@ -6,6 +6,7 @@ import kotlin.collections.ArrayList
 import lexer.OperatorToken
 import lexer.RegularToken.*
 import parser.RegularAST.*
+import utils.IntPair
 
 class Parser(private val inp: Lexer) {
 val ast = AST()
@@ -249,8 +250,8 @@ private fun addString(s: String): Int {
     if (this.allStrings.containsKey(s)) {
         return allStrings[s]!!
     }
-    val id = ast.bindings.size
-    ast.bindings.add(s)
+    val id = ast.identifiers.size
+    ast.identifiers.add(s)
     this.allStrings[s] = id
     return id
 }
@@ -716,8 +717,8 @@ private fun lookupFunction(name: String, arity: Int): Int? {
         if (subscopes[j].functions.containsKey(name)) {
             val lst = subscopes[j].functions[name]!!
             for (funcId in lst) {
-                if (this.functionBindings[funcId].arity == arity) {
-                    return funcId
+                if (funcId.snd == arity) {
+                    return funcId.fst
                 }
             }
         }
@@ -737,26 +738,27 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (fstTokenType != word.internalVal.toInt() || sndTokenType != operatorTok.internalVal.toInt()) {
         throw Exception(errorAssignment)
     }
-    val theName = readString(word)
-    inp.nextToken()
+
+    val bindingName = readString(word)
+    inp.nextToken() // the name of the binding
+
     val sndOper = OperatorToken.fromInt(inp.currChunk.tokens[inp.currInd + 3])
     if (sndOper.opType != OperatorType.immDefinition) {
         throw Exception(errorAssignment)
     }
 
-    val mbBinding = lookupBinding(theName)
+    val mbBinding = lookupBinding(bindingName)
     if (mbBinding != null) {
         throw Exception(errorAssignmentShadowing)
     }
 
-    inp.nextToken()
+    val strId = addString(bindingName)
+    currFnDef.subscopes.peek().bindings[bindingName] = strId
 
-    bindings.add(Binding(theName))
-    val newBindingId = bindings.size - 1
-    currFnDef.subscopes.peek().bindings[theName] = newBindingId
+    inp.nextToken() // equals sign
 
     ast.appendExtent(FrameAST.statementAssignment, 0, startByte, lenBytes)
-    ast.appendNode(binding, 0, newBindingId, startByte, theName.length)
+    ast.appendNode(binding, 0, strId, startByte, bindingName.length)
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
 
     // we've already consumed 2 tokens in this func
@@ -764,8 +766,12 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     currFnDef.backtrack.push(newFrame)
 
     // TODO check if we have a scope or a core form here
-    exprInit(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
-
+    val tokType = inp.currTokenType()
+    if (tokType == PunctuationToken.curlyBraces.internalVal.toInt()) {
+        scopeInit(null, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
+    } else {
+        exprInit(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
+    }
 }
 
 /**
@@ -871,23 +877,30 @@ fun buildError(msg: String): Parser {
 
 
 /** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
-fun buildInsertBindingsIntoScope(): Parser {
+fun buildInsertBindingsIntoScope(bindings: ArrayList<String>): Parser {
+
     if (currFnDef.subscopes.isEmpty()) {
         currFnDef.subscopes.add(LexicalScope())
     }
+
     val topScope = currFnDef.subscopes.peek()
-    for (id in 0 until this.bindings.size) {
-        val name = this.bindings[id].name
-        if (!topScope.bindings.containsKey(name)) {
-            topScope.bindings[name]  = id
+    for (id in 0 until bindings.size) {
+        val binding = bindings[i]
+        if (!topScope.bindings.containsKey(binding)) {
+            topScope.bindings[binding] = id
+        }
+        if (!allStrings.containsKey(binding)) {
+            allStrings[binding] = id
         }
     }
-    for (id in 0 until this.functionBindings.size) {
-        val name = this.functionBindings[id].name
-        if (topScope.functions.containsKey(name)) {
-            topScope.functions[name]!!.add(id)
+
+    val builtins = builtInFunctions()
+    for (id in 0 until builtins.size) {
+        val builtin = builtins[id]
+        if (topScope.functions.containsKey(builtin.name)) {
+            topScope.functions[builtin.name]!!.add(IntPair(id, builtin.arity))
         } else {
-            topScope.functions[name] = arrayListOf(id)
+            topScope.functions[builtin.name] = arrayListOf(IntPair(id, builtin.arity))
         }
     }
     return this
@@ -929,6 +942,18 @@ companion object {
             else -> Parser::parseNoncoreStatement
         }
     }
+
+    fun builtInFunctions(): ArrayList<BuiltInFunction> {
+        val result = ArrayList<BuiltInFunction>(20)
+        for (of in operatorFunctionality.filter { x -> x.first != "" }) {
+            result.add(BuiltInFunction(of.first, of.second, of.third))
+        }
+        // This must always be the first after the built-ins
+        result.add(BuiltInFunction("__entrypoint", funcPrecedence, 0))
+
+        return result
+    }
+
 
     /**
      * Equality comparison for parsers.

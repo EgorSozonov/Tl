@@ -17,7 +17,7 @@ inner class ExprTest {
     @Test
     fun `Simple function call`() {
         testParseWithEnvironment(
-            "foo 10 2 3", { it.buildFBinding(FunctionBinding("foo", funcPrecedence, 3))
+            "10 .foo 2 3", { it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 3))
                 .buildInsertBindingsIntoScope() },
             {
                 it.buildNode(expression, 4, 0, 10)
@@ -32,9 +32,9 @@ inner class ExprTest {
     @Test
     fun `Double function call`() {
         testParseWithEnvironment(
-            "foo a (bar b c d)", {
-                it.buildFBinding(FunctionBinding("foo", funcPrecedence, 2))
-                  .buildFBinding(FunctionBinding("bar", funcPrecedence, 3))
+            "a .foo (b .bar c d)", {
+                it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 2))
+                  .buildFBinding(BuiltInFunction("bar", funcPrecedence, 3))
                   .buildBinding(Binding("a"))
                   .buildBinding(Binding("b"))
                   .buildBinding(Binding("c"))
@@ -57,7 +57,7 @@ inner class ExprTest {
     fun `Infix function call`() {
         testParseWithEnvironment(
             "a .foo b", {
-                it.buildFBinding(FunctionBinding("foo", funcPrecedence, 2))
+                it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 2))
                   .buildBinding(Binding("a")).buildBinding(Binding("b"))
                   .buildInsertBindingsIntoScope()
             },
@@ -74,8 +74,8 @@ inner class ExprTest {
     fun `Infix function calls`() {
         testParseWithEnvironment(
             "c .foo b a .bar", {
-                it.buildFBinding(FunctionBinding("foo", funcPrecedence, 3))
-                  .buildFBinding(FunctionBinding("bar", funcPrecedence, 1))
+                it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 3))
+                  .buildFBinding(BuiltInFunction("bar", funcPrecedence, 1))
                   .buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
                   .buildInsertBindingsIntoScope()
             },
@@ -93,9 +93,9 @@ inner class ExprTest {
     @Test
     fun `Parentheses then infix function call`() {
         testParseWithEnvironment(
-            "(foo a) .bar b", {
-                it.buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
-                  .buildFBinding(FunctionBinding("bar", funcPrecedence, 2))
+            "(a .foo) .bar b", {
+                it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 1))
+                  .buildFBinding(BuiltInFunction("bar", funcPrecedence, 2))
                   .buildBinding(Binding("a")).buildBinding(Binding("b"))
                   .buildInsertBindingsIntoScope()
             },
@@ -174,9 +174,9 @@ inner class ExprTest {
     @Test
     fun `Operator prefix 1`() {
         testParseWithEnvironment(
-            "foo !a", {
+            "!a .foo", {
                 it.buildBinding(Binding("a"))
-                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
+                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 1))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -191,9 +191,9 @@ inner class ExprTest {
     @Test
     fun `Operator prefix 2`() {
         testParseWithEnvironment(
-            "foo !a b !c", {
+            "!a .foo b !c", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 3))
+                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 3))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -211,9 +211,9 @@ inner class ExprTest {
     @Test
     fun `Operator prefix 3`() {
         testParseWithEnvironment(
-            "foo !(a || b)", {
+            "!(a || b) .foo", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b"))
-                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 1))
+                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 1))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -335,9 +335,9 @@ inner class ExprTest {
     @Test
     fun `Single-item expression 2`() {
         testParseWithEnvironment(
-            "foo 5 !!!(a)", {
+            "5 .foo !!!(a)", {
                 it.buildBinding(Binding("a"))
-                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 2))
+                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 2))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -357,7 +357,7 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a .foo b c", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                  .buildFBinding(FunctionBinding("foo", funcPrecedence, 2))
+                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 2))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -415,10 +415,10 @@ inner class ScopeTest {
             """{
     x = 5
 
-    print x
+    x .print
 }""",
             {
-                it.buildFBinding(FunctionBinding("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
+                it.buildFBinding(BuiltInFunction("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
             },
             {
                 it.buildBinding(Binding("x"))
@@ -438,10 +438,10 @@ inner class ScopeTest {
         testParseWithEnvironment(
             """{
     x = 123;  yy = x * 10
-    print yy
+    yy .print
 }""",
             {
-                it.buildFBinding(FunctionBinding("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
+                it.buildFBinding(BuiltInFunction("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
             },
             {
                 it.buildBinding(Binding("x"))
@@ -508,7 +508,7 @@ private fun testParseWithEnvironment(inp: String, environmentSetup: (Parser) -> 
     val controlParser = Parser(lr)
 
     environmentSetup(runnerParser)
-    runnerParser.parse(FileType.executable)
+    runnerParser.parse()
 
     environmentSetup(controlParser)
     resultBuilder(controlParser)
@@ -525,7 +525,7 @@ private fun testParseResult(inp: String, parserWithEnvironment: Parser, expected
     val lr = Lexer(inp.toByteArray(), FileType.executable)
     lr.lexicallyAnalyze()
 
-    parserWithEnvironment.parse(FileType.executable)
+    parserWithEnvironment.parse()
 
     val parseCorrect = Parser.equality(parserWithEnvironment, expected)
     if (!parseCorrect) {

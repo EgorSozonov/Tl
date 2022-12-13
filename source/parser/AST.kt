@@ -3,7 +3,6 @@ package parser
 import lexer.CHUNKSZ
 import lexer.LOWER27BITS
 import lexer.LOWER32BITS
-import lexer.operatorFunctionality
 import java.lang.StringBuilder
 
 
@@ -14,11 +13,20 @@ class AST {
     private val functions = ASTChunk()
     var currChunk: ASTChunk                                    // Last array of tokens
         private set
-    private val functionsIndex = ArrayList<Int>(50)
-    val bindings = ArrayList<String>(50)
-    var funcNextInd: Int                                             // Next ind inside the current token array
+    var funcNextInd: Int                                      // Next ind inside the current token array
         private set
     var funcTotalNodes: Int
+        private set
+    private val functionsIndex = ArrayList<Int>(50)
+
+    val identifiers = ArrayList<String>(50)
+
+    private val imports = ASTChunk()
+    var currImpChunk: ASTChunk                                    // Last array of tokens
+        private set
+    var impNextInd: Int                                      // Next ind inside the current token array
+        private set
+    var impTotalNodes: Int
         private set
 
     /**
@@ -93,25 +101,26 @@ class AST {
         funcNextInd = 0
     }
 
+    /**
+     * Precondition: all function IDs in the AST are indices into 'functionsIndex'.
+     * Post-condition: all function IDs in the AST are indices into 'functions'.
+     */
+    private fun fixupFunctionIds() {
+
+    }
+
 
     init {
         currChunk = functions
         funcNextInd = 0
         funcTotalNodes = 0
+
+        currImpChunk = imports
+        impNextInd = 0
+        impTotalNodes = 0
     }
     
     companion object {
-        fun builtInBindings(): ArrayList<FunctionBinding> {
-            val result = ArrayList<FunctionBinding>(20)
-            for (of in operatorFunctionality.filter { x -> x.first != "" }) {
-                result.add(FunctionBinding(of.first, of.second, of.third))
-            }
-            // This must always be the first after the built-ins
-            result.add(FunctionBinding("__entrypoint", funcPrecedence, 0))
-
-            return result
-        }
-
         /**
          * Equality comparison for ASTs.
          */
@@ -134,11 +143,11 @@ class AST {
                 currA = currA.next
                 currB = currB.next
             }
-            if (a.bindings.size != b.bindings.size) {
+            if (a.identifiers.size != b.identifiers.size) {
                 return false
             }
-            for (i in 0 until a.bindings.size) {
-                if (a.bindings[i] != b.bindings[i]) {
+            for (i in 0 until a.identifiers.size) {
+                if (a.identifiers[i] != b.identifiers[i]) {
                     return false
                 }
             }

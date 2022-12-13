@@ -1,6 +1,7 @@
 package parser
 
 import lexer.CHUNKSZ
+import utils.IntPair
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 
@@ -8,17 +9,12 @@ const val SCRATCHSZ = 100
 
 class LexicalScope {
     val bindings: HashMap<String, Int> = HashMap(12)        // bindingId
-    val functions: HashMap<String, ArrayList<Int>> = HashMap(12) // List (functionBindingId)
+    val functions: HashMap<String, ArrayList<IntPair>> = HashMap(12) // List (functionBindingId, arity)
 }
 
 class Binding(val name: String)
 
-class FunctionBinding(val name: String, val precedence: Int, val arity: Int,
-                      /** The maximum number of local vars in any scope of this fun def, to be emitted into bytecode */
-                      var maxLocals: Int = 0,
-                      /** The max number of stack operands in any scope of this fun def, to be emitted into bytecode */
-                      var maxStack: Int = 0,
-                      )
+class BuiltInFunction(val name: String, val precedence: Int, val arity: Int)
 
 class FunctionCall(var name: String, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
