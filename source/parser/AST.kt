@@ -47,7 +47,6 @@ class AST {
         private set
 
 
-
     fun currentFunc(): FunctionSignature {
         return FunctionSignature(funcCurrChunk.nodes[funcNextInd], funcCurrChunk.nodes[funcNextInd + 1],
                                  funcCurrChunk.nodes[funcNextInd + 2], funcCurrChunk.nodes[funcNextInd + 3])
@@ -124,25 +123,6 @@ class AST {
         currChunk.next = newChunk
         currChunk = newChunk
         nextInd = 0
-    }
-
-
-    fun buildNode(nType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int): AST {
-        appendNode(nType, payload1, payload2, startByte, lenBytes)
-        return this
-    }
-
-
-    fun buildFloatNode(payload: Double, startByte: Int, lenBytes: Int): AST {
-        val payloadAsLong = payload.toBits()
-        appendNode(RegularAST.litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(), startByte, lenBytes)
-        return this
-    }
-
-
-    fun buildExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int): AST {
-        appendExtent(nType, lenTokens, startByte, lenBytes)
-        return this
     }
 
 

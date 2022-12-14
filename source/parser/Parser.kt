@@ -27,6 +27,10 @@ private val importedScope: LexicalScope
 /** Map for interning/deduplication of identifier names */
 private var allStrings = HashMap<String, Int>(50)
 
+/** Index of first non-builtin in 'functions' of AST */
+var indFirstFunction: Int = 0
+    private set
+
 
 /**
  * Main parser method
@@ -922,11 +926,36 @@ private fun functionalityOfOper(operPayload: Long): Triple<String, Int, Int> {
     return operatorFunctionality[OperatorToken.fromInt(operPayload.toInt()).opType.internalVal]
 }
 
+
 private fun errorOut(msg: String) {
     this.wasError = true
     this.errMsg = msg
 }
 
+
+fun buildInsertString(s: String): Parser {
+    addString(s)
+    return this
+}
+
+
+fun buildNode(nType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int): Parser {
+    ast.appendNode(nType, payload1, payload2, startByte, lenBytes)
+    return this
+}
+
+
+fun buildFloatNode(payload: Double, startByte: Int, lenBytes: Int): Parser {
+    val payloadAsLong = payload.toBits()
+    ast.appendNode(litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(), startByte, lenBytes)
+    return this
+}
+
+
+fun buildExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int): Parser {
+    ast.appendExtent(nType, lenTokens, startByte, lenBytes)
+    return this
+}
 
 /**
  * For programmatic LexResult construction (builder pattern)
@@ -938,7 +967,7 @@ fun buildError(msg: String): Parser {
 
 
 /** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
-private fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
+fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
     val uniqueNames = HashSet<String>()
     val builtins = builtInFunctions()
     val importsAndBuiltins = builtins + imports
@@ -957,6 +986,7 @@ private fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
             importedScope.bindings[theImport.name] = strId
         }
     }
+    this.indFirstFunction = builtins.size
 
     return this
 }
