@@ -8,7 +8,6 @@ import utils.LOWER32BITS
 import utils.MAXTOKENLEN
 import utils.byte0
 
-
 class Lexer(val inp: ByteArray, val fileType: FileType) {
 
 
@@ -87,7 +86,6 @@ private fun lexWordInternal(wordType: RegularToken) {
     }
 }
 
-
 /**
  * Lexes a single chunk of a word, i.e. the characters between two dots
  * (or the whole word if there are no dots).
@@ -122,7 +120,6 @@ private fun lexWordChunk(): Boolean {
 
     return result
 }
-
 
 /**
  * Lexes either a dot-word (like '.asdf') or a dot-bracket (like '.[1 2 3]')
@@ -171,7 +168,6 @@ private fun lexNumber() {
     }
     numeric.clear()
 }
-
 
 /**
  * Lexes a decimal numeric literal (integer or floating-point).
@@ -234,7 +230,6 @@ private fun lexDecNumber() {
     i = j
 }
 
-
 /**
  * Lexes a hexadecimal numeric literal (integer or floating-point).
  * Examples of accepted expressions: 0xCAFE_BABE, 0xdeadbeef, 0x123_45A
@@ -274,7 +269,6 @@ private fun lexHexNumber() {
     numeric.clear()
     i = j
 }
-
 
 /**
  * Lexes a decimal numeric literal (integer or floating-point).
@@ -458,7 +452,6 @@ private fun lexStatementTerminator() {
     closeStatement()
 }
 
-
 /**
  * String literals look like "wasn't" and may contain arbitrary UTF-8.
  * The insides of the string have escape sequences and variable interpolation with
@@ -482,7 +475,6 @@ private fun lexStringLiteral() {
     }
     errorOut(errorPrematureEndOfInput)
 }
-
 
 /**
  * Verbatim strings look like @"asdf" or @"\nasdf" or @4"asdf"""asdf"""".
@@ -547,7 +539,6 @@ private fun lexComment() {
     i = inp.size
 }
 
-
 /**
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
@@ -556,7 +547,6 @@ private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray) {
         errorOut(errorPrematureEndOfInput)
     }
 }
-
 
 /**
  * Adds a regular, non-punctuation token
@@ -570,7 +560,6 @@ private fun addToken(payload: Long, startByte: Int, lenBytes: Int, tType: Regula
     }
 }
 
-
 /**
  * Adds a floating-point literal token
  */
@@ -578,7 +567,6 @@ private fun addToken(payload: Double, startByte: Int, lenBytes: Int) {
     wrapTokenInStatement(startByte, floatTok)
     appendToken(payload, startByte, lenBytes)
 }
-
 
 /**
  * Adds a token which serves punctuation purposes, i.e. either a (, a {, a [, a .[ or a $
@@ -599,7 +587,6 @@ private fun openPunctuation(tType: PunctuationToken) {
     i = insidesStart
 }
 
-
 /**
  * Regular tokens may not exist directly at the top level, or inside curlyBraces.
  * So this function inserts an implicit statement scope to prevent this.
@@ -612,7 +599,6 @@ private fun wrapTokenInStatement(startByte: Int, tType: RegularToken) {
     }
 }
 
-
 /**
  * Regular tokens may not exist directly at the top level, or inside curlyBraces.
  * So this function inserts an implicit statement scope to prevent this.
@@ -621,7 +607,6 @@ private fun addStatement(startByte: Int) {
     backtrack.add(Pair(statementFun, totalTokens))
     appendToken(startByte, statementFun)
 }
-
 
 /**
  * Validates that opening punctuation obeys the rules
@@ -638,7 +623,6 @@ private fun validateOpeningPunct(openingType: PunctuationToken) {
         }
     }
 }
-
 
 /**
  * The statement closer function. It is called for a newline or a semi-colon.
@@ -660,7 +644,6 @@ private fun closeStatement() {
     }
     i++
 }
-
 
 /**
  * Validates an assignment/type declaration with respect to its parentheses.
@@ -752,7 +735,6 @@ private fun getPrevTokenType(): Int {
     }
 }
 
-
 /**
  * Validation to catch unmatched closing punctuation
  */
@@ -785,7 +767,6 @@ private fun validateClosingPunct(closingType: PunctuationToken, openType: Punctu
         else -> {}
     }
 }
-
 
 /**
  * For programmatic LexResult construction (builder pattern)
@@ -825,7 +806,6 @@ private fun setPunctuationLength(tokenInd: Int) {
     curr.tokens[j    ] += (lenBytes and LOWER27BITS) // lenBytes
 }
 
-
 /**
  * Mutates a statement to a more precise type of statement (assignment, type declaration).
  * Also stores the number of parentheses wrapping the assignment operator in the unused +2nd
@@ -859,7 +839,6 @@ private fun checkLenOverflow(lenBytes: Int) {
     }
 }
 
-
 /**
  * For programmatic LexResult construction (builder pattern)
  */
@@ -873,7 +852,6 @@ private fun errorOut(msg: String) {
     this.wasError = true
     this.errMsg = msg
 }
-
 
 /**
  * For programmatic LexResult construction (builder pattern)
@@ -895,7 +873,6 @@ private fun finalize() {
         errorOut(errorPunctuationExtraOpening)
     }
 }
-
 
 /** Append a regular (non-punctuation) token */
 private fun appendToken(payload: Long, startByte: Int, lenBytes: Int, tType: RegularToken) {
@@ -927,7 +904,6 @@ private fun appendToken(startByte: Int, tType: PunctuationToken) {
     currChunk.tokens[nextInd + 1] = startByte
     bump()
 }
-
 
 /** The programmatic/builder method for appending a punctuation token */
 private fun appendToken(startByte: Int, lenBytes: Int, tType: PunctuationToken, lenTokens: Int) {
@@ -1112,7 +1088,6 @@ companion object {
                 || tType == statementFun.internalVal.toInt()
                 || tType == statementAssignment.internalVal.toInt()
     }
-
 
     /**
      * Equality comparison for lexers.

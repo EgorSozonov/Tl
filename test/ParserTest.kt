@@ -56,9 +56,10 @@ inner class ExprTest {
                 ImportOrBuiltin("a", 0, 0),
                 ImportOrBuiltin("b", 0, 0),
             )) {
-                it.buildExtent(expression, 3, 0, 8)
-                  .buildNode(ident, 0, 0, 0, 1)
-                  .buildNode(ident, 0, 1, 7, 1)
+                it.buildExtent(scope, 4, 0, 8)
+                  .buildExtent(expression, 3, 0, 8)
+                  .buildNode(ident, 0, it.indFirstFunction + 1, 0, 1)
+                  .buildNode(ident, 0, it.indFirstFunction + 2, 7, 1)
                   .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
         }
     }
@@ -465,6 +466,7 @@ private fun testParseWithEnvironment(inp: String, imports: ArrayList<ImportOrBui
     testSpecimen.parse(imports)
 
     controlParser.insertImports(imports)
+    controlParser.ast.funcNode(-1, 0, 0)
     resultBuilder(controlParser)
 
     val parseCorrect = Parser.equality(testSpecimen, controlParser)

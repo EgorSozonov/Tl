@@ -1,29 +1,23 @@
 package parser
 
+import lexer.CHUNKSZ
 import java.util.*
 import kotlin.collections.ArrayList
 
 
-class FunctionDef {
-    var arity: Int = 0
-        private set
-    var precedence: Int = 0
-        private set
+class FunctionDef(var funcId: Int = 0, var arity: Int = 0, val precedence: Int) {
     val backtrack: Stack<ParseFrame> = Stack<ParseFrame>()
     val subscopes: Stack<LexicalScope> = Stack<LexicalScope>()
     val subexprs: Stack<ArrayList<Subexpr>> = Stack()
     val structScope: LexicalScope = LexicalScope()
-    val scratch: ScratchChunk = ScratchChunk()
+
+    val firstChunk: ScratchChunk = ScratchChunk()
     var currChunk: ScratchChunk
     var nextInd: Int                                             // Next ind inside the current token array
         private set
     var totalNodes: Int
         private set
 
-    fun setArityPrec(arity: Int, prec: Int) {
-        this.arity = arity
-        this.precedence = prec
-    }
     
     fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int) {
         ensureSpaceForNode()
@@ -55,6 +49,20 @@ class FunctionDef {
         bump()
     }
 
+    /**
+     * Finds the top-level punctuation opener by its index, and sets its node length.
+     * Called when the parsing of an extent is finished.
+     */
+    fun setExtentLength(nodeInd: Int) {
+        var curr = firstChunk
+        var j = nodeInd * 4
+        while (j >= CHUNKSZ) {
+            curr = curr.next!!
+            j -= CHUNKSZ
+        }
+
+        curr.nodes[j + 3] = totalNodes - nodeInd - 1
+    }
 
 
     private fun bump() {
@@ -73,7 +81,7 @@ class FunctionDef {
     }
 
     init {
-        currChunk = scratch
+        currChunk = firstChunk
         nextInd = 0
         totalNodes = 0
     }

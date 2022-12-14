@@ -8,7 +8,7 @@ import kotlin.collections.HashMap
 class LexicalScope {
     /** Map [name -> identifierId] **/
     val bindings: HashMap<String, Int> = HashMap(12)
-    /** Map [name -> List (functionBindingId arity)] */
+    /** Map [name -> List (functionId arity)] */
     val functions: HashMap<String, ArrayList<IntPair>> = HashMap(12)
 }
 

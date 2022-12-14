@@ -1,6 +1,5 @@
 package parser
 
-import lexer.RegularToken
 
 const val errorImportsNonUnique            = "Import names must be unique!"
 const val errorLengthOverflow              = "AST nodes length overflow"

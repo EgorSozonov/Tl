@@ -1,7 +1,6 @@
 package parser
 import lexer.CHUNKSZ
 import utils.LOWER27BITS
-import utils.LOWER32BITS
 import java.lang.StringBuilder
 
 
@@ -39,7 +38,7 @@ class AST {
      *     (body: ind in 'functionBodies') i32
      * ]  */
     private val functions = ASTChunk()
-    var funcCurrChunk: ASTChunk                                    // Last array of tokens
+    var funcCurrChunk: ASTChunk                               // Last array of tokens
         private set
     var funcNextInd: Int                                      // Next ind inside the current token array
         private set
@@ -50,6 +49,20 @@ class AST {
     fun currentFunc(): FunctionSignature {
         return FunctionSignature(funcCurrChunk.nodes[funcNextInd], funcCurrChunk.nodes[funcNextInd + 1],
                                  funcCurrChunk.nodes[funcNextInd + 2], funcCurrChunk.nodes[funcNextInd + 3])
+    }
+
+    /**
+     * When a function header is created, index of its body within 'functionBodies' is not known as it's
+     * written into the scratch space first. This function sets this index when the function body is complete.
+     */
+    fun setBodyId(funcId: Int, bodyInd: Int) {
+        var i = funcId
+        var tmp = functions
+        while (i > CHUNKSZ) {
+            tmp = tmp.next!!
+            i -= CHUNKSZ
+        }
+        tmp.nodes[i + 3] = bodyInd
     }
 
     fun funcNode(nameId: Int, arity: Int, typeId: Int) {
@@ -94,21 +107,6 @@ class AST {
         bump()
     }
 
-    /**
-     * Finds the top-level punctuation opener by its index, and sets its node length.
-     * Called when the parsing of punctuation is finished.
-     */
-    fun setPunctuationLength(nodeInd: Int) {
-        var curr = functionBodies
-        var j = nodeInd * 4
-        while (j >= CHUNKSZ) {
-            curr = curr.next!!
-            j -= CHUNKSZ
-        }
-
-        curr.nodes[j + 3] = totalNodes - nodeInd - 1
-    }
-
 
     private fun bump() {
         nextInd += 4
@@ -127,6 +125,51 @@ class AST {
 
 
     /**
+     * Copies the nodes from the functionDef's scratch space to the AST proper.
+     * This happens only after the functionDef is complete.
+     */
+    fun storeFreshFunction(freshlyMintedFn: FunctionDef) {
+        var src = freshlyMintedFn.firstChunk
+        var tgt = currChunk
+
+        val srcLast = freshlyMintedFn.currChunk
+        val srcIndLast = freshlyMintedFn.nextInd
+        val bodyInd = totalNodes
+
+        while (src != srcLast) {
+            val spaceInTgt = (CHUNKSZ - nextInd)
+            if (SCRATCHSZ < spaceInTgt) {
+                src.nodes.copyInto(tgt.nodes, nextInd, 0)
+                nextInd += SCRATCHSZ
+            } else {
+                val toCopy = SCRATCHSZ.coerceAtMost(spaceInTgt)
+                src.nodes.copyInto(tgt.nodes, nextInd, 0, toCopy)
+                tgt = tgt.next!!
+                src.nodes.copyInto(tgt.nodes, 0, toCopy)
+                nextInd = SCRATCHSZ - toCopy
+            }
+            src = src.next!!
+        }
+
+        val spaceInTgt = (CHUNKSZ - nextInd)
+        if (srcIndLast < spaceInTgt) {
+            src.nodes.copyInto(tgt.nodes, nextInd, 0)
+            nextInd += srcIndLast
+        } else {
+            val toCopy = srcIndLast.coerceAtMost(spaceInTgt)
+            src.nodes.copyInto(tgt.nodes, nextInd, 0, toCopy)
+            currChunk = currChunk.next!!
+            src.nodes.copyInto(tgt.nodes, 0, toCopy)
+            nextInd = srcIndLast - toCopy
+        }
+        this.totalNodes += freshlyMintedFn.totalNodes
+        setBodyId(freshlyMintedFn.funcId, bodyInd)
+    }
+
+
+    /**
+     * This is called at the end of parse to walk over and remove indirection from all
+     * function ids in all function calls.
      * Precondition: all function IDs in the AST are indices into 'functionsIndex'.
      * Post-condition: all function IDs in the AST are indices into 'functions'.
      */
@@ -150,9 +193,11 @@ class AST {
          * Equality comparison for ASTs.
          */
         fun equality(a: AST, b: AST): Boolean {
-            if (a.totalNodes != b.totalNodes) {
+            if (a.totalNodes != b.totalNodes || a.funcTotalNodes != b.funcTotalNodes) {
                 return false
             }
+
+            if (!equalityFuncs(a, b)) return false
             var currA: ASTChunk? = a.functionBodies
             var currB: ASTChunk? = b.functionBodies
             while (currA != null) {
@@ -177,6 +222,25 @@ class AST {
                 }
             }
 
+            return true
+        }
+
+        private fun equalityFuncs(a: AST, b: AST): Boolean {
+            var currA: ASTChunk? = a.functions
+            var currB: ASTChunk? = b.functions
+            while (currA != null) {
+                if (currB == null) {
+                    return false
+                }
+                val len = if (currA == a.funcCurrChunk) { a.nextInd } else { CHUNKSZ }
+                for (i in 0 until len) {
+                    if (currA.nodes[i] != currB.nodes[i]) {
+                        return false
+                    }
+                }
+                currA = currA.next
+                currB = currB.next
+            }
             return true
         }
 
