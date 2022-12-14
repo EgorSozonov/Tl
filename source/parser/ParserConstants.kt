@@ -10,6 +10,7 @@ const val errorCoreFormTooShort            = "Statement too short: core syntax f
 const val errorCoreFormAssignment          = "A core form may not contain any assignments!"
 const val errorFnNameAndParams             = "Function definition must start with more than one unique words: its name and parameters!"
 const val errorFnMissingBody               = "Function definition must contain a body which must be a Scope immediately following its parameter list!"
+const val errorDuplicateFunction           = "Duplicate function declaration: a function with same name and arity already exists in this scope!"
 const val errorExpressionError             = "Cannot parse expression!"
 const val errorOperatorWrongArity          = "Wrong number of arguments for operator!"
 const val errorUnknownBinding              = "Unknown binding!"
@@ -17,7 +18,7 @@ const val errorUnknownFunction             = "Unknown function!"
 const val errorOperatorUsedInappropriately = "Operator used in an inappropriate location!"
 const val errorAssignment                  = "Cannot parse assignment, it must look like [freshIdentifier] = [expression]"
 const val errorAssignmentShadowing         = "Assignment error: existing identifier is being shadowed"
-const val errorScope                       = "A scope may consist only of expressions and assignments!"
+const val errorScope                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!"
 
 
 val reservedCatch = byteArrayOf(99, 97, 116, 99, 104)
@@ -35,6 +36,6 @@ val reservedWhile = byteArrayOf(119, 104, 105, 108, 101)
 val funcPrecedence = 26
 val prefixPrecedence = 27
 
-val wordType = RegularToken.word.internalVal.toInt()
+
 
 const val SCRATCHSZ = 100 // must be divisible by 4

@@ -998,6 +998,36 @@ fun nextToken(skip: Int): TokenLite {
 }
 
 
+fun currentPosition(): Int {
+    var tmp = firstChunk
+    var result = 0
+    while (tmp != currChunk) {
+        tmp = currChunk.next!!
+        result += CHUNKSZ
+    }
+    return result + currInd
+}
+
+
+fun seek(tokenId: Int) {
+    currInd = tokenId
+    currChunk = firstChunk
+    while (currInd > CHUNKSZ) {
+        currChunk = currChunk.next!!
+        currInd -= CHUNKSZ
+    }
+}
+
+
+fun skipTokens(toSkip: Int) {
+    currInd += 4*toSkip
+    while (currInd >= CHUNKSZ) {
+        currChunk = currChunk.next!!
+        nextInd -= CHUNKSZ
+    }
+}
+
+
 init {
     currChunk = firstChunk
     i = 0

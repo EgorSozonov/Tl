@@ -121,7 +121,7 @@ private fun maybeCloseFrames() {
 
     if (isFunClose) {
         val freshlyMintedFn = fnDefBacktrack.pop()
-        appendFun(freshlyMintedFn)
+        copyFunToAST(freshlyMintedFn)
         if (fnDefBacktrack.isNotEmpty()) currFnDef = fnDefBacktrack.peek()
     }
 }
@@ -130,7 +130,7 @@ private fun maybeCloseFrames() {
  * Copies the nodes from the functionDef's scratch space to the AST proper.
  * This happens only after the functionDef is complete.
  */
-private fun appendFun(freshlyMintedFn: FunctionDef) {
+private fun copyFunToAST(freshlyMintedFn: FunctionDef) {
 
 }
 
@@ -330,7 +330,7 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: 
 
     inp.nextToken() // the curlyBraces token
 
-    scopeInitAddFunctions(newScope)
+    scopeInitAddFunctions(newScope, lenTokens)
 
     val newFrame = ParseFrame(FrameAST.scope, ast.totalNodes - 1, lenTokens, 1)
     currFnDef.backtrack.push(newFrame)
@@ -340,8 +340,64 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: 
  * walks the current scope breadth-first without recursing into inner scopes.
  * The purpose is to find all names of functions defined in this scope.
  */
-private fun scopeInitAddFunctions(newScope: LexicalScope) {
+private fun scopeInitAddFunctions(newScope: LexicalScope, lenTokensScope: Int) {
+    val originalPosition = inp.currentPosition()
+    var j = 0
 
+    while (j < lenTokensScope) {
+        val currToken = inp.nextToken(0)
+        if (currToken.tType <= 10) {
+            throw Exception(errorScope)
+        }
+        val lenTokensExtent = (currToken.payload and LOWER32BITS).toInt()
+        if (currToken.tType == PunctuationToken.statementAssignment.internalVal.toInt()) {
+            inp.nextToken()
+            val nextTokenType = inp.currTokenType()
+            var arity = 0
+            if (nextTokenType == wordType
+                && inp.currChunk.tokens[inp.currInd + 1] == 2) {
+                val startByte = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+                if (inp.inp[startByte] == aFLower && inp.inp[startByte + 1] == aNLower) {
+                    inp.nextToken() // "fn"
+                    if (inp.currTokenType() != word.internalVal.toInt()) throw Exception(errorFnNameAndParams)
+
+                    val fnName = readString(word)
+
+                    inp.nextToken() // function name
+                    j += 2
+
+                    while (j < lenTokensScope && inp.currTokenType() == wordType) {
+                        inp.nextToken()
+                        j++
+                        arity++
+                    }
+                    if (arity == 0) throw Exception(errorFnNameAndParams)
+
+                    val nameId = addString(fnName)
+                    val funcId = ast.funcTotalNodes
+                    ast.funcNode(nameId, arity, 0)
+
+                    if (newScope.functions.containsKey(fnName)) {
+                        val lstExisting = newScope.functions[fnName]!!
+                        if (lstExisting.any { it.snd == arity }) {
+                            throw Exception(errorDuplicateFunction)
+                        }
+                        lstExisting.add(IntPair(funcId, arity))
+                    } else {
+                        newScope.functions[fnName] = arrayListOf(IntPair(funcId, arity))
+                    }
+                }
+            }
+            inp.skipTokens(lenTokensExtent - arity - 2) // -2 for the "fn" and the function name
+        } else {
+            inp.skipTokens(lenTokensExtent + 1) // + 1 for the extent token itself
+        }
+
+        j += lenTokensExtent + 1
+    }
+
+
+    inp.seek(originalPosition)
 }
 
 /**
