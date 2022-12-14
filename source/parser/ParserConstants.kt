@@ -2,6 +2,7 @@ package parser
 
 import lexer.RegularToken
 
+const val errorImportsNonUnique            = "Import names must be unique!"
 const val errorLengthOverflow              = "AST nodes length overflow"
 const val errorUnexpectedToken             = "Unexpected token"
 const val errorInconsistentExtent          = "Inconsistent extent length / structure of token scopes!"
@@ -35,3 +36,5 @@ val funcPrecedence = 26
 val prefixPrecedence = 27
 
 val wordType = RegularToken.word.internalVal.toInt()
+
+const val SCRATCHSZ = 100 // must be divisible by 4

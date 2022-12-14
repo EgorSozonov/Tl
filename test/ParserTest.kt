@@ -17,7 +17,7 @@ inner class ExprTest {
     @Test
     fun `Simple function call`() {
         testParseWithEnvironment(
-            "10 .foo 2 3", { it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 3))
+            "10 .foo 2 3", { it.buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 3))
                 .buildInsertBindingsIntoScope() },
             {
                 it.buildNode(expression, 4, 0, 10)
@@ -33,8 +33,8 @@ inner class ExprTest {
     fun `Double function call`() {
         testParseWithEnvironment(
             "a .foo (b .bar c d)", {
-                it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 2))
-                  .buildFBinding(BuiltInFunction("bar", funcPrecedence, 3))
+                it.buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 2))
+                  .buildFBinding(ImportOrBuiltin("bar", funcPrecedence, 3))
                   .buildBinding(Binding("a"))
                   .buildBinding(Binding("b"))
                   .buildBinding(Binding("c"))
@@ -57,7 +57,7 @@ inner class ExprTest {
     fun `Infix function call`() {
         testParseWithEnvironment(
             "a .foo b", {
-                it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 2))
+                it.buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 2))
                   .buildBinding(Binding("a")).buildBinding(Binding("b"))
                   .buildInsertBindingsIntoScope()
             },
@@ -74,8 +74,8 @@ inner class ExprTest {
     fun `Infix function calls`() {
         testParseWithEnvironment(
             "c .foo b a .bar", {
-                it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 3))
-                  .buildFBinding(BuiltInFunction("bar", funcPrecedence, 1))
+                it.buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 3))
+                  .buildFBinding(ImportOrBuiltin("bar", funcPrecedence, 1))
                   .buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
                   .buildInsertBindingsIntoScope()
             },
@@ -94,8 +94,8 @@ inner class ExprTest {
     fun `Parentheses then infix function call`() {
         testParseWithEnvironment(
             "(a .foo) .bar b", {
-                it.buildFBinding(BuiltInFunction("foo", funcPrecedence, 1))
-                  .buildFBinding(BuiltInFunction("bar", funcPrecedence, 2))
+                it.buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 1))
+                  .buildFBinding(ImportOrBuiltin("bar", funcPrecedence, 2))
                   .buildBinding(Binding("a")).buildBinding(Binding("b"))
                   .buildInsertBindingsIntoScope()
             },
@@ -176,7 +176,7 @@ inner class ExprTest {
         testParseWithEnvironment(
             "!a .foo", {
                 it.buildBinding(Binding("a"))
-                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 1))
+                  .buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 1))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -193,7 +193,7 @@ inner class ExprTest {
         testParseWithEnvironment(
             "!a .foo b !c", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 3))
+                  .buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 3))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -213,7 +213,7 @@ inner class ExprTest {
         testParseWithEnvironment(
             "!(a || b) .foo", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b"))
-                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 1))
+                  .buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 1))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -337,7 +337,7 @@ inner class ExprTest {
         testParseWithEnvironment(
             "5 .foo !!!(a)", {
                 it.buildBinding(Binding("a"))
-                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 2))
+                  .buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 2))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -357,7 +357,7 @@ inner class ExprTest {
         testParseWithEnvironment(
             "a .foo b c", {
                 it.buildBinding(Binding("a")).buildBinding(Binding("b")).buildBinding(Binding("c"))
-                  .buildFBinding(BuiltInFunction("foo", funcPrecedence, 2))
+                  .buildFBinding(ImportOrBuiltin("foo", funcPrecedence, 2))
                   .buildInsertBindingsIntoScope()
             },
             {
@@ -418,7 +418,7 @@ inner class ScopeTest {
     x .print
 }""",
             {
-                it.buildFBinding(BuiltInFunction("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
+                it.buildFBinding(ImportOrBuiltin("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
             },
             {
                 it.buildBinding(Binding("x"))
@@ -441,7 +441,7 @@ inner class ScopeTest {
     yy .print
 }""",
             {
-                it.buildFBinding(BuiltInFunction("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
+                it.buildFBinding(ImportOrBuiltin("print", funcPrecedence, 1)).buildInsertBindingsIntoScope()
             },
             {
                 it.buildBinding(Binding("x"))

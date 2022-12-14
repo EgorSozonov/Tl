@@ -7,6 +7,8 @@ import lexer.OperatorToken
 import lexer.RegularToken.*
 import parser.RegularAST.*
 import utils.IntPair
+import utils.LOWER27BITS
+import utils.LOWER32BITS
 
 class Parser(private val inp: Lexer) {
 val ast = AST()
@@ -20,27 +22,27 @@ private var i: Int = 0                                           // current inde
 // The backtracks and mutable state to support nested data structures
 private val fnDefBacktrack = Stack<FunctionDef>()   // The stack of function definitions
 private var currFnDef: FunctionDef
-private val globalScope: LexicalScope
+private val importedScope: LexicalScope
 
-// The storage for parsed bindings etc
-//private var bindings: MutableList<Binding>
-private var scopes: MutableList<LexicalScope>
+/** Map for interning/deduplication of identifier names */
 private var allStrings = HashMap<String, Int>(50)
+
 
 /**
  * Main parser method
  */
-fun parse() {
+fun parse(imports: ArrayList<ImportOrBuiltin>) {
     val lastChunk = inp.currChunk
     val sentinelInd = inp.nextInd
     inp.currChunk = inp.firstChunk
     inp.currInd = 0
 
+    insertImports(imports)
+
     if (this.inp.fileType == FileType.executable) {
         fnDefBacktrack.push(currFnDef)
 
         val firstScope = LexicalScope()
-        this.scopes.add(firstScope)
         currFnDef.subscopes.push(firstScope)
     }
 
@@ -323,20 +325,23 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: 
     }
 
     ast.appendExtent(FrameAST.scope, lenTokens, startByte, lenBytes)
-
-    if (mbLexicalScope != null) {
-        this.scopes.add(mbLexicalScope)
-        this.currFnDef.subscopes.push(mbLexicalScope)
-    } else {
-        val newScope = LexicalScope()
-        this.scopes.add(newScope)
-        this.currFnDef.subscopes.push(newScope)
-    }
+    val newScope = mbLexicalScope ?: LexicalScope()
+    this.currFnDef.subscopes.push(newScope)
 
     inp.nextToken() // the curlyBraces token
-    val newFrame = ParseFrame(FrameAST.scope, ast.funcTotalNodes - 1, lenTokens, 1)
+
+    scopeInitAddFunctions(newScope)
+
+    val newFrame = ParseFrame(FrameAST.scope, ast.totalNodes - 1, lenTokens, 1)
     currFnDef.backtrack.push(newFrame)
-    //scope(newFrame)
+}
+
+/**
+ * walks the current scope breadth-first without recursing into inner scopes.
+ * The purpose is to find all names of functions defined in this scope.
+ */
+private fun scopeInitAddFunctions(newScope: LexicalScope) {
+
 }
 
 /**
@@ -372,7 +377,7 @@ private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPr
     ast.appendExtent(FrameAST.expression, 0, startByte, lenBytes)
 
     currFnDef.subexprs.push(funCallStack)
-    val newFrame = ParseFrame(FrameAST.expression, ast.funcTotalNodes - 1, lenTokens, additionalPrefixToken)
+    val newFrame = ParseFrame(FrameAST.expression, ast.totalNodes - 1, lenTokens, additionalPrefixToken)
     currFnDef.backtrack.push(newFrame)
 
     val initConsumedTokens = subexprInit(newFrame.lenTokens, false, funCallStack)
@@ -762,7 +767,7 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
 
     // we've already consumed 2 tokens in this func
-    val newFrame = ParseFrame(FrameAST.statementAssignment, ast.funcTotalNodes - 2, lenTokens, 1, 2)
+    val newFrame = ParseFrame(FrameAST.statementAssignment, ast.totalNodes - 2, lenTokens, 1, 2)
     currFnDef.backtrack.push(newFrame)
 
     // TODO check if we have a scope or a core form here
@@ -877,32 +882,26 @@ fun buildError(msg: String): Parser {
 
 
 /** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
-fun buildInsertBindingsIntoScope(bindings: ArrayList<String>): Parser {
-
-    if (currFnDef.subscopes.isEmpty()) {
-        currFnDef.subscopes.add(LexicalScope())
-    }
-
-    val topScope = currFnDef.subscopes.peek()
-    for (id in 0 until bindings.size) {
-        val binding = bindings[i]
-        if (!topScope.bindings.containsKey(binding)) {
-            topScope.bindings[binding] = id
-        }
-        if (!allStrings.containsKey(binding)) {
-            allStrings[binding] = id
-        }
-    }
-
+private fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
+    val uniqueNames = HashSet<String>()
     val builtins = builtInFunctions()
-    for (id in 0 until builtins.size) {
-        val builtin = builtins[id]
-        if (topScope.functions.containsKey(builtin.name)) {
-            topScope.functions[builtin.name]!!.add(IntPair(id, builtin.arity))
+    val importsAndBuiltins = builtins + imports
+    for (id in importsAndBuiltins.indices) {
+        val theImport = importsAndBuiltins[i]
+        if (uniqueNames.contains(theImport.name)) {
+            throw Exception()
+        }
+        uniqueNames.add(theImport.name)
+        val strId = addString(theImport.name)
+        if (theImport.arity > 0) {
+            val funcId = ast.funcTotalNodes
+            ast.funcNode(strId, theImport.arity, 0)
+            importedScope.functions[theImport.name] = arrayListOf(IntPair(funcId, theImport.arity))
         } else {
-            topScope.functions[builtin.name] = arrayListOf(IntPair(id, builtin.arity))
+            importedScope.bindings[theImport.name] = strId
         }
     }
+
     return this
 }
 
@@ -912,8 +911,7 @@ init {
 
     currFnDef = FunctionDef()
 
-    scopes = ArrayList(10)
-    globalScope = LexicalScope()
+    importedScope = LexicalScope()
 }
 
 companion object {
@@ -943,13 +941,11 @@ companion object {
         }
     }
 
-    fun builtInFunctions(): ArrayList<BuiltInFunction> {
-        val result = ArrayList<BuiltInFunction>(20)
+    fun builtInFunctions(): ArrayList<ImportOrBuiltin> {
+        val result = ArrayList<ImportOrBuiltin>(20)
         for (of in operatorFunctionality.filter { x -> x.first != "" }) {
-            result.add(BuiltInFunction(of.first, of.second, of.third))
+            result.add(ImportOrBuiltin(of.first, of.second, of.third))
         }
-        // This must always be the first after the built-ins
-        result.add(BuiltInFunction("__entrypoint", funcPrecedence, 0))
 
         return result
     }

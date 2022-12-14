@@ -1,20 +1,20 @@
 package parser
-
 import lexer.CHUNKSZ
 import utils.IntPair
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 
-const val SCRATCHSZ = 100
 
 class LexicalScope {
-    val bindings: HashMap<String, Int> = HashMap(12)        // bindingId
-    val functions: HashMap<String, ArrayList<IntPair>> = HashMap(12) // List (functionBindingId, arity)
+    /** Map [name -> identifierId] **/
+    val bindings: HashMap<String, Int> = HashMap(12)
+    /** Map [name -> List (functionBindingId arity)] */
+    val functions: HashMap<String, ArrayList<IntPair>> = HashMap(12)
 }
 
 class Binding(val name: String)
 
-class BuiltInFunction(val name: String, val precedence: Int, val arity: Int)
+class ImportOrBuiltin(val name: String, val precedence: Int, val arity: Int)
 
 class FunctionCall(var name: String, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
@@ -59,6 +59,7 @@ data class Subexpr(var operators: ArrayList<FunctionCall>,
                    var tokensRead: Int, val lenTokens: Int,
                    var firstFun: Boolean = true)
 
+data class FunctionSignature(val nameId: Int, val arity: Int, val typeId: Int, val bodyId: Int)
 
 /*
 

@@ -1,8 +1,7 @@
 package parser
-
 import lexer.CHUNKSZ
-import lexer.LOWER27BITS
-import lexer.LOWER32BITS
+import utils.LOWER27BITS
+import utils.LOWER32BITS
 import java.lang.StringBuilder
 
 
@@ -10,61 +9,122 @@ import java.lang.StringBuilder
  * AST consists of a functions array, a types array a string array, a numerical constants array (?).
  */
 class AST {
-    private val functions = ASTChunk()
+    /** 4-int32 elements of [
+     *     (type) u5
+     *     (lenBytes) i27
+     *     (startByte) i32
+     *     (payload1) i32
+     *     (payload2) i32
+     * ]
+     * A functionBody starts with the list of identIds of the parameter names.
+     * Then come the statements, expressions, scopes of the body.
+     * */
+    private val functionBodies = ASTChunk()
     var currChunk: ASTChunk                                    // Last array of tokens
+        private set
+    var nextInd: Int                                      // Next ind inside the current token array
+        private set
+    var totalNodes: Int
+        private set
+
+    /**
+     * The unique string storage for identifier names
+     */
+    val identifiers = ArrayList<String>(50)
+
+    /** 4-int32 elements of [
+     *     (name: id in 'identifiers') i32
+     *     (arity) i32
+     *     (type) i32
+     *     (body: ind in 'functionBodies') i32
+     * ]  */
+    private val functions = ASTChunk()
+    var funcCurrChunk: ASTChunk                                    // Last array of tokens
         private set
     var funcNextInd: Int                                      // Next ind inside the current token array
         private set
     var funcTotalNodes: Int
         private set
-    private val functionsIndex = ArrayList<Int>(50)
 
-    val identifiers = ArrayList<String>(50)
 
-    private val imports = ASTChunk()
-    var currImpChunk: ASTChunk                                    // Last array of tokens
-        private set
-    var impNextInd: Int                                      // Next ind inside the current token array
-        private set
-    var impTotalNodes: Int
-        private set
 
-    /**
-     * Finds the top-level punctuation opener by its index, and sets its node length.
-     * Called when the parsing of punctuation is finished.
-     */
-    fun setPunctuationLength(nodeInd: Int) {
-        var curr = functions
-        var j = nodeInd * 4
-        while (j >= CHUNKSZ) {
-            curr = curr.next!!
-            j -= CHUNKSZ
-        }
+    fun currentFunc(): FunctionSignature {
+        return FunctionSignature(funcCurrChunk.nodes[funcNextInd], funcCurrChunk.nodes[funcNextInd + 1],
+                                 funcCurrChunk.nodes[funcNextInd + 2], funcCurrChunk.nodes[funcNextInd + 3])
+    }
 
-        curr.nodes[j + 3] = funcTotalNodes - nodeInd - 1
+    fun funcNode(nameId: Int, arity: Int, typeId: Int) {
+        ensureSpaceForFunc()
+        funcCurrChunk.nodes[funcNextInd    ] = nameId
+        funcCurrChunk.nodes[funcNextInd + 1] = arity
+        funcCurrChunk.nodes[funcNextInd + 2] = typeId
+        bumpFunc()
     }
 
 
+    private fun ensureSpaceForFunc() {
+        if (funcNextInd < (CHUNKSZ - 4)) return
+
+        val newChunk = ASTChunk()
+        funcCurrChunk.next = newChunk
+        funcCurrChunk = newChunk
+        funcNextInd = 0
+    }
+
+    private fun bumpFunc() {
+        funcNextInd += 4
+        funcTotalNodes++
+    }
+
     fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int) {
         ensureSpaceForNode()
-        currChunk.nodes[funcNextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
-        currChunk.nodes[funcNextInd + 1] = startByte
-        currChunk.nodes[funcNextInd + 2] = payload1
-        currChunk.nodes[funcNextInd + 3] = payload2
+        currChunk.nodes[nextInd    ] = (tType.internalVal.toInt() shl 27) + lenBytes
+        currChunk.nodes[nextInd + 1] = startByte
+        currChunk.nodes[nextInd + 2] = payload1
+        currChunk.nodes[nextInd + 3] = payload2
         bump()
     }
 
 
     fun appendExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
         ensureSpaceForNode()
-        currChunk.nodes[funcNextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
-        currChunk.nodes[funcNextInd + 1] = startByte
-        currChunk.nodes[funcNextInd + 2] = 0
-        currChunk.nodes[funcNextInd + 3] = lenTokens
+        currChunk.nodes[nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
+        currChunk.nodes[nextInd + 1] = startByte
+        currChunk.nodes[nextInd + 2] = 0
+        currChunk.nodes[nextInd + 3] = lenTokens
         bump()
     }
 
+    /**
+     * Finds the top-level punctuation opener by its index, and sets its node length.
+     * Called when the parsing of punctuation is finished.
+     */
+    fun setPunctuationLength(nodeInd: Int) {
+        var curr = functionBodies
+        var j = nodeInd * 4
+        while (j >= CHUNKSZ) {
+            curr = curr.next!!
+            j -= CHUNKSZ
+        }
 
+        curr.nodes[j + 3] = totalNodes - nodeInd - 1
+    }
+
+
+    private fun bump() {
+        nextInd += 4
+        totalNodes++
+    }
+
+
+    private fun ensureSpaceForNode() {
+        if (nextInd < (CHUNKSZ - 4)) return
+
+        val newChunk = ASTChunk()
+        currChunk.next = newChunk
+        currChunk = newChunk
+        nextInd = 0
+    }
 
 
     fun buildNode(nType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int): AST {
@@ -73,33 +133,18 @@ class AST {
     }
 
 
-    fun buildNode(payload: Double, startByte: Int, lenBytes: Int): AST {
+    fun buildFloatNode(payload: Double, startByte: Int, lenBytes: Int): AST {
         val payloadAsLong = payload.toBits()
         appendNode(RegularAST.litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(), startByte, lenBytes)
         return this
     }
 
 
-    fun buildNode(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int): AST {
+    fun buildExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int): AST {
         appendExtent(nType, lenTokens, startByte, lenBytes)
         return this
     }
 
-
-    private fun bump() {
-        funcNextInd += 4
-        funcTotalNodes++
-    }
-
-
-    private fun ensureSpaceForNode() {
-        if (funcNextInd < (CHUNKSZ - 4)) return
-
-        val newChunk = ASTChunk()
-        currChunk.next = newChunk
-        currChunk = newChunk
-        funcNextInd = 0
-    }
 
     /**
      * Precondition: all function IDs in the AST are indices into 'functionsIndex'.
@@ -111,13 +156,13 @@ class AST {
 
 
     init {
-        currChunk = functions
+        currChunk = functionBodies
+        nextInd = 0
+        totalNodes = 0
+
+        funcCurrChunk = functions
         funcNextInd = 0
         funcTotalNodes = 0
-
-        currImpChunk = imports
-        impNextInd = 0
-        impTotalNodes = 0
     }
     
     companion object {
@@ -125,16 +170,16 @@ class AST {
          * Equality comparison for ASTs.
          */
         fun equality(a: AST, b: AST): Boolean {
-            if (a.funcTotalNodes != b.funcTotalNodes) {
+            if (a.totalNodes != b.totalNodes) {
                 return false
             }
-            var currA: ASTChunk? = a.functions
-            var currB: ASTChunk? = b.functions
+            var currA: ASTChunk? = a.functionBodies
+            var currB: ASTChunk? = b.functionBodies
             while (currA != null) {
                 if (currB == null) {
                     return false
                 }
-                val len = if (currA == a.currChunk) { a.funcNextInd } else { CHUNKSZ }
+                val len = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
                 for (i in 0 until len) {
                     if (currA.nodes[i] != currB.nodes[i]) {
                         return false
@@ -160,13 +205,13 @@ class AST {
          * Pretty printer function for debugging purposes
          */
         fun printSideBySide(a: AST, b: AST, result: StringBuilder): String {
-            var currA: ASTChunk? = a.functions
-            var currB: ASTChunk? = b.functions
+            var currA: ASTChunk? = a.functionBodies
+            var currB: ASTChunk? = b.functionBodies
             while (true) {
                 if (currA != null) {
                     if (currB != null) {
-                        val lenA = if (currA == a.currChunk) { a.funcNextInd } else { CHUNKSZ }
-                        val lenB = if (currB == b.currChunk) { b.funcNextInd } else { CHUNKSZ }
+                        val lenA = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
+                        val lenB = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
                         val len = lenA.coerceAtMost(lenB)
                         for (i in 0 until len step 4) {
                             printNode(currA, i, result)
@@ -185,7 +230,7 @@ class AST {
                         }
                         currB = currB.next
                     } else {
-                        val len = if (currA == a.currChunk) { a.funcNextInd } else { CHUNKSZ }
+                        val len = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
                         for (i in 0 until len step 4) {
                             printNode(currA, i, result)
                             result.appendLine(" | ")
@@ -193,7 +238,7 @@ class AST {
                     }
                     currA = currA.next
                 } else if (currB != null) {
-                    val len = if (currB == b.currChunk) { b.funcNextInd } else { CHUNKSZ }
+                    val len = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
                     for (i in 0 until len step 4) {
                         result.append(" | ")
                         printNode(currB, i, result)

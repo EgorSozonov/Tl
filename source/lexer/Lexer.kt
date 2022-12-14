@@ -3,8 +3,14 @@ import java.lang.StringBuilder
 import java.util.*
 import lexer.RegularToken.*
 import lexer.PunctuationToken.*
+import utils.LOWER27BITS
+import utils.LOWER32BITS
+import utils.MAXTOKENLEN
+import utils.byte0
+
 
 class Lexer(val inp: ByteArray, val fileType: FileType) {
+
 
 var firstChunk: LexChunk = LexChunk()                        // First array of tokens
     private set

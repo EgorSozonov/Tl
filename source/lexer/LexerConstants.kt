@@ -88,7 +88,3 @@ const val aGreaterThan: Byte = 62
 val maximumPreciselyRepresentedFloatingInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
 const val CHUNKSZ: Int = 10000 // Must be divisible by 4
 const val COMMENTSZ: Int = 100 // Must be divisible by 2
-const val LOWER32BITS: Long =  0x00000000FFFFFFFF
-const val LOWER27BITS: Int = 0x07FFFFFF
-const val MAXTOKENLEN = 134217728 // 2**27
-const val byte0: Byte = 0
