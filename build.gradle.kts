@@ -39,6 +39,11 @@ sourceSets {
     }
 }
 
+application {
+    mainClass.set("runner.RunnerKt")
+}
+
+
 tasks.test {
     useJUnitPlatform()
 }

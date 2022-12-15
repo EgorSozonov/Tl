@@ -1,5 +1,6 @@
 package parser
 import lexer.CHUNKSZ
+import utils.LOWER24BITS
 import utils.LOWER27BITS
 import java.lang.StringBuilder
 
@@ -32,10 +33,11 @@ class AST {
     val identifiers = ArrayList<String>(50)
 
     /** 4-int32 elements of [
-     *     (name: id in 'identifiers') i32
-     *     (arity) i32
-     *     (type) i32
-     *     (body: ind in 'functionBodies') i32
+     *     (nameId: ind in 'identifiers') i32
+     *     (parent: ind in same array, or -1) i32
+     *     (arity) u8
+     *     (type) u24
+     *     (bodyId: ind in 'functionBodies') i32
      * ]  */
     val functions = ASTChunk()
     var funcCurrChunk: ASTChunk                               // Last array of tokens
@@ -55,13 +57,17 @@ class AST {
             funcCurrInd -= CHUNKSZ
             funcCurrChunk = funcCurrChunk.next!!
         }
-        return FunctionSignature(funcCurrChunk.nodes[funcCurrInd], funcCurrChunk.nodes[funcCurrInd + 1],
-                                 funcCurrChunk.nodes[funcCurrInd + 2], funcCurrChunk.nodes[funcCurrInd + 3])
+        val arity = funcCurrChunk.nodes[funcCurrInd + 2] ushr 24
+        val typeId = funcCurrChunk.nodes[funcCurrInd + 2] and LOWER24BITS
+        return FunctionSignature(funcCurrChunk.nodes[funcCurrInd], arity,
+                                 typeId, funcCurrChunk.nodes[funcCurrInd + 3])
     }
 
     fun currentFunc(): FunctionSignature {
-        return FunctionSignature(funcCurrChunk.nodes[funcNextInd], funcCurrChunk.nodes[funcNextInd + 1],
-                                 funcCurrChunk.nodes[funcNextInd + 2], funcCurrChunk.nodes[funcNextInd + 3])
+        val arity = funcCurrChunk.nodes[funcNextInd + 2] ushr 24
+        val typeId = funcCurrChunk.nodes[funcNextInd + 2] and LOWER24BITS
+        return FunctionSignature(funcCurrChunk.nodes[funcNextInd], arity,
+                                 typeId, funcCurrChunk.nodes[funcNextInd + 3])
     }
 
     /**
@@ -69,7 +75,7 @@ class AST {
      * written into the scratch space first. This function sets this index when the function body is complete.
      */
     fun setBodyId(funcId: Int, bodyInd: Int) {
-        var i = funcId
+        var i = funcId*4
         var tmp = functions
         while (i >= CHUNKSZ) {
             tmp = tmp.next!!
@@ -78,12 +84,31 @@ class AST {
         tmp.nodes[i + 3] = bodyInd
     }
 
-    fun funcNode(nameId: Int, arity: Int, typeId: Int) {
+
+    fun funcNode(nameId: Int, arity: Int, parentId: Int, typeId: Int) {
         ensureSpaceForFunc()
         funcCurrChunk.nodes[funcNextInd    ] = nameId
-        funcCurrChunk.nodes[funcNextInd + 1] = arity
-        funcCurrChunk.nodes[funcNextInd + 2] = typeId
+        funcCurrChunk.nodes[funcNextInd + 1] = parentId
+        funcCurrChunk.nodes[funcNextInd + 2] = (arity shl 24) + (typeId and LOWER24BITS)
         bumpFunc()
+    }
+
+
+    fun funcSeek(funcId: Int) {
+        funcCurrInd = funcId*4
+        funcCurrChunk = functions
+        while (funcCurrInd >= CHUNKSZ) {
+            funcCurrChunk = funcCurrChunk.next!!
+            funcCurrInd -= CHUNKSZ
+        }
+    }
+
+    fun funcNext() {
+        funcCurrInd += 4
+        if (funcNextInd >= CHUNKSZ) {
+            funcCurrChunk = funcCurrChunk.next!!
+            funcNextInd
+        }
     }
 
 

@@ -45,7 +45,7 @@ fun parse(imports: ArrayList<ImportOrBuiltin>) {
     insertImports(imports)
 
     if (this.inp.fileType == FileType.executable) {
-        ast.funcNode(-1, 0, 0)
+        ast.funcNode(-1, 0, -1, 0) // entrypoint function
 
         fnDefBacktrack.push(currFnDef)
         scopeInitEntryPoint()
@@ -398,7 +398,8 @@ private fun scopeInitAddFunctions(newScope: LexicalScope, lenTokensScope: Int) {
 
                     val nameId = addString(fnName)
                     val funcId = ast.funcTotalNodes
-                    ast.funcNode(nameId, arity, 0)
+                    val parentFuncId = if (!fnDefBacktrack.isEmpty()) { currFnDef.funcId } else { -1 }
+                    ast.funcNode(nameId, arity, parentFuncId, 0)
 
                     if (newScope.functions.containsKey(fnName)) {
                         val lstExisting = newScope.functions[fnName]!!
@@ -1012,7 +1013,7 @@ fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
     val builtins = builtInOperators()
     for (bui in builtins) {
         val funcId = ast.funcTotalNodes
-        ast.funcNode(-1, bui.arity, 0)
+        ast.funcNode(-1, bui.arity, -1, 0)
         importedScope.functions[bui.name] = arrayListOf(IntPair(funcId, bui.arity))
     }
     for (imp in imports) {
@@ -1023,7 +1024,7 @@ fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
         val strId = addString(imp.name)
         if (imp.arity > 0) {
             val funcId = ast.funcTotalNodes
-            ast.funcNode(strId, imp.arity, 0)
+            ast.funcNode(strId, imp.arity, -1, 0)
             importedScope.functions[imp.name] = arrayListOf(IntPair(funcId, imp.arity))
         } else {
             importedScope.bindings[imp.name] = strId

@@ -981,12 +981,12 @@ fun currentPosition(): Int {
         tmp = currChunk.next!!
         result += CHUNKSZ
     }
-    return result + currInd
+    return (result + currInd)/4
 }
 
 
 fun seek(tokenId: Int) {
-    currInd = tokenId
+    currInd = tokenId*4
     currChunk = firstChunk
     while (currInd >= CHUNKSZ) {
         currChunk = currChunk.next!!
