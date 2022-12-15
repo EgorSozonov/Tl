@@ -11,6 +11,8 @@ import utils.LOWER27BITS
 import utils.LOWER32BITS
 
 class Parser(private val inp: Lexer) {
+
+
 val ast = AST()
 
 var wasError: Boolean
@@ -1031,6 +1033,12 @@ fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
 
     return this
 }
+
+
+fun getFileType(): FileType {
+    return inp.fileType
+}
+
 
 init {
     wasError = false

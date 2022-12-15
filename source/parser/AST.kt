@@ -37,14 +37,27 @@ class AST {
      *     (type) i32
      *     (body: ind in 'functionBodies') i32
      * ]  */
-    private val functions = ASTChunk()
+    val functions = ASTChunk()
     var funcCurrChunk: ASTChunk                               // Last array of tokens
         private set
     var funcNextInd: Int                                      // Next ind inside the current token array
         private set
+    var funcCurrInd: Int = 0
+        private set
     var funcTotalNodes: Int
         private set
 
+
+    fun getFunc(funcId: Int): FunctionSignature {
+        funcCurrInd = funcId
+        funcCurrChunk = functions
+        while (funcCurrInd >= CHUNKSZ) {
+            funcCurrInd -= CHUNKSZ
+            funcCurrChunk = funcCurrChunk.next!!
+        }
+        return FunctionSignature(funcCurrChunk.nodes[funcCurrInd], funcCurrChunk.nodes[funcCurrInd + 1],
+                                 funcCurrChunk.nodes[funcCurrInd + 2], funcCurrChunk.nodes[funcCurrInd + 3])
+    }
 
     fun currentFunc(): FunctionSignature {
         return FunctionSignature(funcCurrChunk.nodes[funcNextInd], funcCurrChunk.nodes[funcNextInd + 1],
@@ -58,7 +71,7 @@ class AST {
     fun setBodyId(funcId: Int, bodyInd: Int) {
         var i = funcId
         var tmp = functions
-        while (i > CHUNKSZ) {
+        while (i >= CHUNKSZ) {
             tmp = tmp.next!!
             i -= CHUNKSZ
         }

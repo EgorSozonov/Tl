@@ -988,7 +988,7 @@ fun currentPosition(): Int {
 fun seek(tokenId: Int) {
     currInd = tokenId
     currChunk = firstChunk
-    while (currInd > CHUNKSZ) {
+    while (currInd >= CHUNKSZ) {
         currChunk = currChunk.next!!
         currInd -= CHUNKSZ
     }
