@@ -84,9 +84,19 @@ const val aEquals: Byte = 61
 const val aLessThan: Byte = 60
 const val aGreaterThan: Byte = 62
 
+/** 2**53 */
+val maximumPreciselyRepresentedFloatingInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2)
 
-val maximumPreciselyRepresentedFloatingInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2) // 2**53
-const val CHUNKSZ: Int = 10000 // Must be divisible by 4
-const val COMMENTSZ: Int = 100 // Must be divisible by 2
+/** Must be divisible by 4 */
+const val CHUNKSZ: Int = 10000
+
+/** Must be divisible by 2 and less than CHUNKSZ */
+const val COMMENTSZ: Int = 100
+
+/** Must be the lowest value in the PunctuationToken enum */
+const val firstPunctuationTokenType = 10
+
+/** Must equal the index of the "-" oper in the 'operatorBindingIndices' array */
+const val minusOperatorIndex = 11
 
 val wordType = RegularToken.word.internalVal.toInt()

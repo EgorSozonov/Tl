@@ -11,6 +11,7 @@ const val errorFnNameAndParams             = "Function definition must start wit
 const val errorFnMissingBody               = "Function definition must contain a body which must be a Scope immediately following its parameter list!"
 const val errorDuplicateFunction           = "Duplicate function declaration: a function with same name and arity already exists in this scope!"
 const val errorExpressionError             = "Cannot parse expression!"
+const val errorExpressionCannotContain     = "Expressions cannot contain scopes or statements!"
 const val errorOperatorWrongArity          = "Wrong number of arguments for operator!"
 const val errorUnknownBinding              = "Unknown binding!"
 const val errorUnknownFunction             = "Unknown function!"

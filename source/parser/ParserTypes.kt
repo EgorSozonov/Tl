@@ -16,7 +16,7 @@ class Binding(val name: String)
 
 class ImportOrBuiltin(val name: String, val precedence: Int, val arity: Int)
 
-class FunctionCall(var name: String, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
+class FunctionCall(var nameStringId: Int, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
 enum class RegularAST(val internalVal: Byte) { // payload
     litInt(0),                        // int value

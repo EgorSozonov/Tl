@@ -13,11 +13,10 @@ import utils.LOWER32BITS
 class Parser(private val inp: Lexer) {
 val ast = AST()
 
-var wasError: Boolean                                        // The lexer's error flagerrorScope
+var wasError: Boolean
     private set
 var errMsg: String
     private set
-private var i: Int = 0                                           // current index inside input byte array
 
 // The backtracks and mutable state to support nested data structures
 private val fnDefBacktrack = Stack<FunctionDef>()   // The stack of function definitions
@@ -166,7 +165,7 @@ private fun parseTopLevelStatement(): Int {
     } else {
         parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
     }
-    return lenTokens + 1 // plus 1 for the statement token itself
+    return lenTokens + 1 // plus 1 is for the statement token itself
 }
 
 
@@ -197,7 +196,7 @@ private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val currentScope = currFnDef.subscopes.peek()
     val newFunScope = LexicalScope()
 
-    inp.nextToken() // skipping the "fn" keyword
+    inp.nextToken() // the "fn" keyword
     if (inp.currTokenType() != wordType) {
         throw Exception(errorFnNameAndParams)
     }
@@ -367,7 +366,7 @@ private fun scopeInitAddFunctions(newScope: LexicalScope, lenTokensScope: Int) {
 
     while (j < lenTokensScope) {
         val currToken = inp.nextToken(0)
-        if (currToken.tType <= 10) {
+        if (currToken.tType < firstPunctuationTokenType) {
             throw Exception(errorScope)
         }
         val lenTokensExtent = (currToken.payload and LOWER32BITS).toInt()
@@ -375,6 +374,7 @@ private fun scopeInitAddFunctions(newScope: LexicalScope, lenTokensScope: Int) {
             inp.nextToken()
             val nextTokenType = inp.currTokenType()
             var arity = 0
+            var consumedTokens = 0
             if (nextTokenType == wordType
                 && inp.currChunk.tokens[inp.currInd + 1] == 2) {
                 val startByte = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
@@ -407,9 +407,10 @@ private fun scopeInitAddFunctions(newScope: LexicalScope, lenTokensScope: Int) {
                     } else {
                         newScope.functions[fnName] = arrayListOf(IntPair(funcId, arity))
                     }
+                    consumedTokens = arity + 2 // +2 for the "fn" and the function name
                 }
             }
-            inp.skipTokens(lenTokensExtent - arity - 2) // -2 for the "fn" and the function name
+            inp.skipTokens(lenTokensExtent - consumedTokens)
         } else {
             inp.skipTokens(lenTokensExtent + 1) // + 1 for the extent token itself
         }
@@ -441,7 +442,7 @@ private fun scope(parseFrame: ParseFrame) {
 }
 
 /**
- * An expression, i.e. a funcall.
+ * An expression, i.e. a series of funcalls and/or operator calls.
  */
 private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
     if (lenTokens == 1) {
@@ -464,11 +465,10 @@ private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPr
 }
 
 /**
- * Parses a statement that is a fun call. Uses an extended Shunting Yard algo from Dijkstra to
+ * Parses (a part of) an expression. Uses an extended Shunting Yard algo from Dijkstra to
  * flatten all internal parens into a single "Reverse Polish Notation" stream.
- * I.e. into basically a post-order traversal of a function call tree. In the resulting AST nodes, function names are
+ * I.e. into a post-order traversal of a function call tree. In the resulting AST nodes, the function names are
  * annotated with arities.
- * This function does NOT emit the expression node - that's the responsibility of the caller.
  * TODO also flatten dataInits and dataIndexers (i.e. [] and .[])
  */
 private fun expr(parseFrame: ParseFrame) {
@@ -487,7 +487,7 @@ private fun expr(parseFrame: ParseFrame) {
             consumedTokens = subexprInit(subExprLenTokens, true, functionStack)
             stackInd = functionStack.size - 1
         } else if (tokType >= 10) {
-            break
+            throw Exception(errorExpressionCannotContain)
         } else {
             when (tokType) {
                 word.internalVal.toInt() -> {
@@ -501,7 +501,9 @@ private fun expr(parseFrame: ParseFrame) {
                     )
                 }
                 dotWord.internalVal.toInt() -> {
-                    exprInfix(readString(dotWord), funcPrecedence, 0, functionStack, stackInd)
+                    val fnName = readString(dotWord)
+                    if (!allStrings.containsKey(fnName)) throw Exception(errorUnknownFunction)
+                    exprFuncall(allStrings[fnName]!!, funcPrecedence, 0, functionStack, stackInd)
                 }
                 operatorTok.internalVal.toInt() -> {
                     exprOperator(functionStack, stackInd)
@@ -520,15 +522,13 @@ private fun expr(parseFrame: ParseFrame) {
 }
 
 /**
- * Adds a frame for the expression or subexpression by determining its structure: prefix or infix.
- * Also handles the negation operator "-" (since it can only ever be at the start of a subexpression).
+ * Adds a frame for a subexpression.
+ * Handles the unary negation operator "-" (since it can only ever be at the start of a subexpression).
  * Precondition: the current token must be past the opening paren / statement token
  * Returns: number of consumed tokens
- * Examples: "foo 5 a" is prefix
- *           "5 .foo a" is infix
- *           "5 + a" is infix
+ * Examples: "5 .foo a"
+ *           "5 + !a"
  * TODO: allow for core forms (but not scopes!)
- * TODO: remove support for prefix as part of the simplification
  */
 private fun subexprInit(lenTokens: Int, isBeforeFirstToken: Boolean, functionStack: ArrayList<Subexpr>): Int{
     var consumedTokens = 0
@@ -541,12 +541,12 @@ private fun subexprInit(lenTokens: Int, isBeforeFirstToken: Boolean, functionSta
         exprSingleItem(firstTok)
         consumedTokens + 1
     } else if (firstTok.tType == operatorTok.internalVal.toInt()
-        && functionalityOfOper(firstTok.payload).first == "-"){
+        && functionalityOfOper(firstTok.payload).first == minusOperatorIndex){
         val sndTok = inp.nextToken(1)
         exprNegationOper(sndTok, lenTokens, functionStack)
     } else {
         val startIndToken = if (isBeforeFirstToken) { -1 } else { 0 }
-        functionStack.add(Subexpr(arrayListOf(FunctionCall("", 0, 0, 0, 0)), startIndToken, lenTokens))
+        functionStack.add(Subexpr(arrayListOf(FunctionCall(-1, 0, 0, 0, 0)), startIndToken, lenTokens))
         consumedTokens
     }
 }
@@ -590,6 +590,7 @@ private fun exprSingleItem(theTok: TokenLite) {
 /**
  * A subexpression that starts with "-". Can be either a negated numeric literal "(-5)", identifier "(-x)"
  * or parentheses "(-(...))".
+ * Returns the number of consumed tokens.
  */
 private fun exprNegationOper(sndTok: TokenLite, lenTokens: Int, functionStack: ArrayList<Subexpr>): Int {
     val startByteMinus = inp.currChunk.tokens[inp.currInd + 1]
@@ -620,14 +621,14 @@ private fun exprNegationOper(sndTok: TokenLite, lenTokens: Int, functionStack: A
             return 3 // the parens, the "-" sign, and the literal
         }
     } else if (sndTok.tType == word.internalVal.toInt()) {
-        functionStack.last().operators.add(FunctionCall("-", prefixPrecedence, 0, 1, inp.currChunk.tokens[inp.currInd + 1]))
+        functionStack.last().operators.add(FunctionCall(-minusOperatorIndex, prefixPrecedence, 0, 1, inp.currChunk.tokens[inp.currInd + 1]))
     } else if (sndTok.tType == PunctuationToken.parens.internalVal.toInt()) {
-        functionStack.last().operators.add(FunctionCall("-", prefixPrecedence, 0, 1, inp.currChunk.tokens[inp.currInd + 1]))
+        functionStack.last().operators.add(FunctionCall(-minusOperatorIndex, prefixPrecedence, 0, 1, inp.currChunk.tokens[inp.currInd + 1]))
     } else {
         errorOut(errorUnexpectedToken)
         return 0
     }
-    functionStack.add(Subexpr(arrayListOf(FunctionCall("", 0, 0, 0, 0)), 1, lenTokens, false))
+    functionStack.add(Subexpr(arrayListOf(FunctionCall(-1000, 0, 0, 0, 0)), 1, lenTokens, false))
     return 2 // the parens and the "-" sign
 }
 
@@ -643,17 +644,19 @@ private fun exprWord(functionStack: ArrayList<Subexpr>, stackInd: Int) {
     } else {
         throw Exception(errorUnknownBinding)
     }
-
 }
 
-
-private fun exprInfix(fnName: String, precedence: Int, maxArity: Int, functionStack: ArrayList<Subexpr>, stackInd: Int) {
+/**
+ * For functions, the first param is the stringId of the name.
+ * For operators, it's the negative index of operator from its payload
+ */
+private fun exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, functionStack: ArrayList<Subexpr>, stackInd: Int) {
     val startByte = inp.currChunk.tokens[inp.currInd + 1]
     val topParen = functionStack[stackInd]
 
     if (topParen.firstFun) {
         val newFun = FunctionCall(
-            fnName, precedence, functionStack[stackInd].operators[0].arity, maxArity,
+            nameStringId, precedence, functionStack[stackInd].operators[0].arity, maxArity,
             inp.currChunk.tokens[inp.currInd + 1]
         )
         topParen.firstFun = false
@@ -666,7 +669,7 @@ private fun exprInfix(fnName: String, precedence: Int, maxArity: Int, functionSt
             appendFnName(topParen.operators.last())
             topParen.operators.removeLast()
         }
-        topParen.operators.add(FunctionCall(fnName, precedence, 1, maxArity, startByte))
+        topParen.operators.add(FunctionCall(nameStringId, precedence, 1, maxArity, startByte))
     }
 }
 
@@ -707,15 +710,16 @@ private fun exprIncrementArity(topFrame: Subexpr) {
 
 
 private fun exprOperator(functionStack: ArrayList<Subexpr>, stackInd: Int) {
-    val operInfo = functionalityOfOper(inp.currChunk.tokens[inp.currInd + 3].toLong())
-    if (operInfo.first == "") {
+    val operTypeIndex = inp.currChunk.tokens[inp.currInd + 3].toLong()
+    val operInfo = functionalityOfOper(operTypeIndex)
+    if (operInfo.first < 0) {
         throw Exception(errorOperatorUsedInappropriately)
     }
     if (operInfo.second == prefixPrecedence) {
         val startByte = inp.currChunk.tokens[inp.currInd + 1]
-        functionStack[stackInd].operators.add(FunctionCall(operInfo.first, prefixPrecedence, 1, 1, startByte))
+        functionStack[stackInd].operators.add(FunctionCall(-operInfo.first - 1, prefixPrecedence, 1, 1, startByte))
     } else {
-        exprInfix(operInfo.first, operInfo.second, operInfo.third, functionStack, stackInd)
+        exprFuncall(-operInfo.first - 1, operInfo.second, operInfo.third, functionStack, stackInd)
     }
 }
 
@@ -938,17 +942,27 @@ fun parseFromW(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
  * Appends a node that represents a function name in a function call
  */
 private fun appendFnName(fnParse: FunctionCall) {
-    val fnName = fnParse.name
-    val fnId = lookupFunction(fnName, fnParse.arity) ?: throw Exception(errorUnknownFunction)
-    currFnDef.appendNode(idFunc, 0, fnId, fnParse.startByte, fnName.length)
+    if (fnParse.nameStringId > -1) {
+        // functions
+        val fnName = ast.identifiers[fnParse.nameStringId]
+        val fnId = lookupFunction(fnName, fnParse.arity) ?: throw Exception(errorUnknownFunction)
+        currFnDef.appendNode(idFunc, 0, fnId, fnParse.startByte, fnName.length)
+    } else {
+        // operators
+        val operInfo = operatorFunctionality[-fnParse.nameStringId - 1]
+        currFnDef.appendNode(idFunc, 0, operatorBindingIndices[-fnParse.nameStringId - 1], fnParse.startByte, operInfo.first.length)
+    }
+
 }
 
 /**
- * Returns [name precedence arity] of an operator from the payload in the token
+ * Returns [operId precedence arity] of an operator from the payload in the token
  * TODO sort out Int vs Long silliness
  */
-private fun functionalityOfOper(operPayload: Long): Triple<String, Int, Int> {
-    return operatorFunctionality[OperatorToken.fromInt(operPayload.toInt()).opType.internalVal]
+private fun functionalityOfOper(operPayload: Long): Triple<Int, Int, Int> {
+    val index = OperatorToken.fromInt(operPayload.toInt()).opType.internalVal
+    val precArity = operatorFunctionality[index]
+    return Triple(index, precArity.second, precArity.third)
 }
 
 
@@ -990,13 +1004,16 @@ fun buildError(msg: String): Parser {
     return this
 }
 
-
 /** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
 fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
     val uniqueNames = HashSet<String>()
-    val builtins = builtInFunctions()
-    val importsAndBuiltins = builtins + imports
-    for (imp in importsAndBuiltins) {
+    val builtins = builtInOperators()
+    for (bui in builtins) {
+        val funcId = ast.funcTotalNodes
+        ast.funcNode(-1, bui.arity, 0)
+        importedScope.functions[bui.name] = arrayListOf(IntPair(funcId, bui.arity))
+    }
+    for (imp in imports) {
         if (uniqueNames.contains(imp.name)) {
             throw Exception(errorImportsNonUnique)
         }
@@ -1051,7 +1068,7 @@ companion object {
         }
     }
 
-    fun builtInFunctions(): ArrayList<ImportOrBuiltin> {
+    fun builtInOperators(): ArrayList<ImportOrBuiltin> {
         val result = ArrayList<ImportOrBuiltin>(20)
         for (of in operatorFunctionality.filter { x -> x.first != "" }) {
             result.add(ImportOrBuiltin(of.first, of.second, of.third))
