@@ -338,7 +338,7 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: 
 
     inp.nextToken() // the curlyBraces token
 
-    scopeInitAddFunctions(newScope, lenTokens)
+    scopeInitAddNestedFunctions(newScope, lenTokens)
 
     currFnDef.backtrack.push(ParseFrame(FrameAST.scope, currFnDef.totalNodes - 1, lenTokens, 1))
 }
@@ -353,16 +353,17 @@ private fun scopeInitEntryPoint() {
     currFnDef.subscopes.push(newScope)
     currFnDef.appendExtent(FrameAST.scope, lenTokens, 0, inp.inp.size)
 
-    scopeInitAddFunctions(newScope, lenTokens)
+    scopeInitAddNestedFunctions(newScope, lenTokens)
 
     currFnDef.backtrack.push(ParseFrame(FrameAST.scope, currFnDef.totalNodes - 1, lenTokens, 1))
 }
 
 /**
- * walks the current scope breadth-first without recursing into inner scopes.
- * The purpose is to find all names of functions defined in this scope.
+ * Walks the current scope breadth-first without recursing into inner scopes.
+ * The purpose is to find all names of functions defined (neseted) in this scope.
+ * Does not consume any tokens.
  */
-private fun scopeInitAddFunctions(newScope: LexicalScope, lenTokensScope: Int) {
+private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: Int) {
     val originalPosition = inp.currentPosition()
     var j = 0
 
@@ -375,42 +376,12 @@ private fun scopeInitAddFunctions(newScope: LexicalScope, lenTokensScope: Int) {
         if (currToken.tType == PunctuationToken.statementAssignment.internalVal.toInt()) {
             inp.nextToken()
             val nextTokenType = inp.currTokenType()
-            var arity = 0
             var consumedTokens = 0
             if (nextTokenType == wordType
                 && inp.currChunk.tokens[inp.currInd + 1] == 2) {
                 val startByte = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
                 if (inp.inp[startByte] == aFLower && inp.inp[startByte + 1] == aNLower) {
-                    inp.nextToken() // "fn"
-                    if (inp.currTokenType() != word.internalVal.toInt()) throw Exception(errorFnNameAndParams)
-
-                    val fnName = readString(word)
-
-                    inp.nextToken() // function name
-                    j += 2
-
-                    while (j < lenTokensScope && inp.currTokenType() == wordType) {
-                        inp.nextToken()
-                        j++
-                        arity++
-                    }
-                    if (arity == 0) throw Exception(errorFnNameAndParams)
-
-                    val nameId = addString(fnName)
-                    val funcId = ast.funcTotalNodes
-                    val parentFuncId = if (!fnDefBacktrack.isEmpty()) { currFnDef.funcId } else { -1 }
-                    ast.funcNode(nameId, arity, parentFuncId, 0)
-
-                    if (newScope.functions.containsKey(fnName)) {
-                        val lstExisting = newScope.functions[fnName]!!
-                        if (lstExisting.any { it.snd == arity }) {
-                            throw Exception(errorDuplicateFunction)
-                        }
-                        lstExisting.add(IntPair(funcId, arity))
-                    } else {
-                        newScope.functions[fnName] = arrayListOf(IntPair(funcId, arity))
-                    }
-                    consumedTokens = arity + 2 // +2 for the "fn" and the function name
+                    consumedTokens = scopeInitAddNestedFn(j, newScope, lenTokensScope)
                 }
             }
             inp.skipTokens(lenTokensExtent - consumedTokens)
@@ -421,8 +392,45 @@ private fun scopeInitAddFunctions(newScope: LexicalScope, lenTokensScope: Int) {
         j += lenTokensExtent + 1
     }
 
-
     inp.seek(originalPosition)
+}
+
+/**
+ * Adds the function from a single "fn" definition. Returns the number of consumed tokens
+ */
+private fun scopeInitAddNestedFn(i: Int, newScope: LexicalScope, lenTokensScope: Int): Int {
+    var arity = 0
+    var j = i
+    inp.nextToken() // "fn"
+    if (inp.currTokenType() != word.internalVal.toInt()) throw Exception(errorFnNameAndParams)
+
+    val fnName = readString(word)
+
+    inp.nextToken() // function name
+    j += 2
+
+    while (j < lenTokensScope && inp.currTokenType() == wordType) {
+        inp.nextToken()
+        j++
+        arity++
+    }
+    if (arity == 0) throw Exception(errorFnNameAndParams)
+
+    val nameId = addString(fnName)
+    val funcId = ast.funcTotalNodes
+    val parentFuncId = if (!fnDefBacktrack.isEmpty()) { currFnDef.funcId } else { -1 }
+    ast.funcNode(nameId, arity, parentFuncId, 0)
+
+    if (newScope.functions.containsKey(fnName)) {
+        val lstExisting = newScope.functions[fnName]!!
+        if (lstExisting.any { it.snd == arity }) {
+            throw Exception(errorDuplicateFunction)
+        }
+        lstExisting.add(IntPair(funcId, arity))
+    } else {
+        newScope.functions[fnName] = arrayListOf(IntPair(funcId, arity))
+    }
+    return arity + 2 // +2 for the "fn" and the function name
 }
 
 /**

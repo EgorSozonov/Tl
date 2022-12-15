@@ -38,14 +38,19 @@ private fun codeGenExecutable(wr: StringBuilder) {
             backtrack.removeLast()
         }
     }
-
-    wr.append(entryPointName).append("() {\n")
-    indentation += 4
-    wr.append("}")
 }
 
-private fun writeSignatureAndBody(f: CodegenFunc, backtrackSize: Int, wr: StringBuilder) {
 
+private fun writeSignatureAndBody(f: CodegenFunc, backtrackSize: Int, wr: StringBuilder) {
+    val indentation = " ".repeat(backtrackSize*4 - 4)
+    val funcName = if (f.nameId > -1) { pr.ast.identifiers[f.nameId] } else { entryPointName }
+    wr.append(indentation)
+    wr.append(funcName)
+    wr.append("(")
+
+    wr.append(") {\n")
+    wr.append(indentation)
+    wr.append("}\n")
 }
 
 /**
@@ -62,7 +67,9 @@ private fun buildFunctionTree(): ArrayList<CodegenFunc> {
         val newFunc = CodegenFunc(i, pr.ast.funcCurrChunk.nodes[pr.ast.funcCurrInd + 3])
         result.add(newFunc)
         val parentId = pr.ast.funcCurrChunk.nodes[pr.ast.funcCurrInd + 1]
-        result[parentId - baseId].childFunctions.add(newFunc)
+        if (parentId > -1) {
+            result[parentId - baseId].childFunctions.add(newFunc)
+        }
         pr.ast.funcNext()
     }
     return result
