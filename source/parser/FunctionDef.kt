@@ -49,6 +49,15 @@ class FunctionDef(var funcId: Int = 0, var arity: Int = 0, val precedence: Int) 
         bump()
     }
 
+    fun appendExtentWithPayload(nType: FrameAST, payload: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+        ensureSpaceForNode()
+        currChunk.nodes[nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
+        currChunk.nodes[nextInd + 1] = startByte
+        currChunk.nodes[nextInd + 2] = payload
+        currChunk.nodes[nextInd + 3] = lenTokens
+        bump()
+    }
+
     /**
      * Finds the top-level punctuation opener by its index, and sets its node length.
      * Called when the parsing of an extent is finished.

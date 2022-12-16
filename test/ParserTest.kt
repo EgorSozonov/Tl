@@ -436,6 +436,45 @@ inner class ScopeTest {
     }
 }
 
+
+@Nested
+inner class FunctionTest {
+    @Test
+    fun `Simple function def 1`() {
+
+    }
+
+    @Test
+    fun `Simple function def 2`() {
+
+    }
+
+    @Test
+    fun `Nested function def 1`() {
+
+    }
+
+    @Test
+    fun `Nested function def 2`() {
+
+    }
+
+    @Test
+    fun `Function def error 1`() {
+
+    }
+
+    @Test
+    fun `Function def error 2`() {
+
+    }
+
+    @Test
+    fun `Function def error 3`() {
+
+    }
+}
+
 private fun testParseWithEnvironment(inp: String, imports: ArrayList<ImportOrBuiltin>, resultBuilder: (Parser) -> Unit) {
     val lr = Lexer(inp.toByteArray(), FileType.executable)
     lr.lexicallyAnalyze()
@@ -446,7 +485,7 @@ private fun testParseWithEnvironment(inp: String, imports: ArrayList<ImportOrBui
     testSpecimen.parse(imports)
 
     controlParser.insertImports(imports)
-    controlParser.ast.funcNode(-1, 0, -1, 0)
+    controlParser.ast.funcNode(-1, 0, 0)
     resultBuilder(controlParser)
 
     val parseCorrect = Parser.equality(testSpecimen, controlParser)

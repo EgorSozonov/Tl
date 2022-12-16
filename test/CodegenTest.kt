@@ -34,7 +34,7 @@ private fun testParseWithEnvironment(inp: String, imports: ArrayList<ImportOrBui
     testSpecimen.parse(imports)
 
     controlParser.insertImports(imports)
-    controlParser.ast.funcNode(-1, 0, 0, 0)
+    controlParser.ast.funcNode(-1, 0, 0)
     resultBuilder(controlParser)
 
     val parseCorrect = Parser.equality(testSpecimen, controlParser)

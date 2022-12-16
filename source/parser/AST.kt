@@ -24,6 +24,8 @@ class AST {
         private set
     var nextInd: Int                                      // Next ind inside the current token array
         private set
+    var currInd: Int = 0
+        private set
     var totalNodes: Int
         private set
 
@@ -34,7 +36,7 @@ class AST {
 
     /** 4-int32 elements of [
      *     (nameId: ind in 'identifiers') i32
-     *     (parent: ind in same array, or -1) i32
+     *     () i32
      *     (arity) u8
      *     (type) u24
      *     (bodyId: ind in 'functionBodies') i32
@@ -74,7 +76,7 @@ class AST {
      * When a function header is created, index of its body within 'functionBodies' is not known as it's
      * written into the scratch space first. This function sets this index when the function body is complete.
      */
-    fun setBodyId(funcId: Int, bodyInd: Int) {
+    private fun setBodyId(funcId: Int, bodyInd: Int) {
         var i = funcId*4
         var tmp = functions
         while (i >= CHUNKSZ) {
@@ -85,10 +87,9 @@ class AST {
     }
 
 
-    fun funcNode(nameId: Int, arity: Int, parentId: Int, typeId: Int) {
+    fun funcNode(nameId: Int, arity: Int, typeId: Int) {
         ensureSpaceForFunc()
         funcCurrChunk.nodes[funcNextInd    ] = nameId
-        funcCurrChunk.nodes[funcNextInd + 1] = parentId
         funcCurrChunk.nodes[funcNextInd + 2] = (arity shl 24) + (typeId and LOWER24BITS)
         bumpFunc()
     }
@@ -124,6 +125,15 @@ class AST {
     private fun bumpFunc() {
         funcNextInd += 4
         funcTotalNodes++
+    }
+
+    fun seek(bodyId: Int) {
+        currInd = bodyId*4
+        currChunk = functionBodies
+        while (currInd >= CHUNKSZ) {
+            currChunk = currChunk.next!!
+            currInd -= CHUNKSZ
+        }
     }
 
     fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int) {
@@ -174,6 +184,9 @@ class AST {
         val srcIndLast = freshlyMintedFn.nextInd
         val bodyInd = totalNodes
 
+        // setting the token length of the function body because it's only known now
+        freshlyMintedFn.firstChunk.nodes[3] = freshlyMintedFn.totalNodes - 1
+
         while (src != srcLast) {
             val spaceInTgt = (CHUNKSZ - nextInd)
             if (SCRATCHSZ < spaceInTgt) {
@@ -201,6 +214,7 @@ class AST {
             nextInd = srcIndLast - toCopy
         }
         this.totalNodes += freshlyMintedFn.totalNodes
+
         setBodyId(freshlyMintedFn.funcId, bodyInd)
     }
 

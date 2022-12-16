@@ -45,7 +45,7 @@ fun parse(imports: ArrayList<ImportOrBuiltin>) {
     insertImports(imports)
 
     if (this.inp.fileType == FileType.executable) {
-        ast.funcNode(-1, 0, -1, 0) // entrypoint function
+        ast.funcNode(-1, 0, 0) // entrypoint function
 
         fnDefBacktrack.push(currFnDef)
         scopeInitEntryPoint()
@@ -119,16 +119,14 @@ private fun maybeCloseFrames() {
             tokensToAdd = frame.lenTokens + frame.additionalPrefixToken
             currFnDef.setExtentLength(frame.indNode)
         } else {
-            throw Exception(errorInconsistentExtent)
+            createError(errorInconsistentExtent)
         }
         i--
     }
 
     if (isFunClose) {
         val freshlyMintedFn = fnDefBacktrack.pop()
-        val freshBodyId = ast.totalNodes
         ast.storeFreshFunction(freshlyMintedFn)
-        ast.setBodyId(freshlyMintedFn.funcId, freshBodyId)
 
         if (fnDefBacktrack.isNotEmpty()) currFnDef = fnDefBacktrack.peek()
     }
@@ -193,66 +191,46 @@ private fun coreCatch(stmtType: Int, lenTokens: Int) {
 /**
  * Parses a core form: function definition, like "fn foo x y { x + y }"
  * or "fn bar x y { print x; x + y }"
+ * This function doesn't do the validation that has already been done in scopeInitAddNestedFn()
  */
 private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val currentScope = currFnDef.subscopes.peek()
     val newFunScope = LexicalScope()
+    val funcId = currentScope.funDefs.removeLast()
+    val funcSignature = ast.getFunc(funcId)
 
     inp.nextToken() // the "fn" keyword
-    if (inp.currTokenType() != wordType) {
-        throw Exception(errorFnNameAndParams)
-    }
-
-    val functionName = readString(word)
     inp.nextToken() // the function name
 
-    if (!currentScope.functions.containsKey(functionName)) {
-        throw Exception(errorUnknownFunction)
-    }
-
-    val newFnDef = FunctionDef(0, 0, funcPrecedence)
+    val newFnDef = FunctionDef(funcId, funcSignature.arity, funcPrecedence)
     fnDefBacktrack.push(newFnDef)
+
     newFnDef.appendExtent(FrameAST.functionDef, 0, startByte, lenBytes)
 
-    var arity = 0
-    while (arity < lenTokens && inp.currTokenType() == wordType) {
+    var j = 0
+    while (j < funcSignature.arity) {
         val paramName = readString(word)
-        if (newFunScope.bindings.containsKey(paramName) || paramName == functionName) {
-            throw Exception(errorFnNameAndParams)
-        }
 
-        newFunScope.bindings[paramName] = arity
-        val paramNameId = addString(functionName)
-        newFnDef.appendName(paramNameId, inp.currStartByte(), paramName.length)
+        newFunScope.bindings[paramName] = j
+        newFnDef.appendName(allStrings[paramName]!!, inp.currStartByte(), paramName.length)
 
         inp.nextToken()
-        arity++
+        j++
     }
-    if (arity == 0) {
-        throw Exception(errorFnNameAndParams)
-    } else if (arity == lenTokens || inp.currTokenType() != PunctuationToken.curlyBraces.internalVal.toInt()) {
-        throw Exception(errorFnMissingBody)
-    }
-
-    val funcList = currentScope.functions[functionName]!!
-    val func = funcList.firstOrNull { it.snd == arity } ?: throw Exception(errorUnknownFunction)
-    newFnDef.arity = arity
-    newFnDef.funcId = func.fst
 
     val currTokenType = inp.currTokenType()
-    if (currTokenType != PunctuationToken.curlyBraces.internalVal.toInt()) {
-        throw Exception(errorFnMissingBody)
-    }
+    if (currTokenType != PunctuationToken.curlyBraces.internalVal.toInt()) createError(errorFnMissingBody)
 
-    val scopeLenTokens = inp.currLenTokens()
-    val scopelenBytes = inp.currLenBytes()
-    val scopeStartByte = inp.currStartByte()
+    currFnDef.appendExtentWithPayload(FrameAST.fnDefPlaceholder, newFnDef.funcId, 0, 0, 0)
 
-    if (scopeLenTokens + arity + 3 != lenTokens) {
-        throw Exception(errorInconsistentExtent)
-    }
+    val newScopeLenTokens = inp.currLenTokens()
+    val newScopelenBytes = inp.currLenBytes()
+    val newScopeStartByte = inp.currStartByte()
 
-    scopeInit(newFunScope, scopeLenTokens, scopeStartByte, scopelenBytes)
+    if (newScopeLenTokens + newFnDef.arity + 3 != lenTokens) createError(errorInconsistentExtent) // + 3 = "fn" + fnName + scope token
+    
+    currFnDef = newFnDef
+    scopeInit(newFunScope, newScopeLenTokens, newScopeStartByte, newScopelenBytes)
 }
 
 
@@ -264,6 +242,12 @@ private fun addString(s: String): Int {
     ast.identifiers.add(s)
     this.allStrings[s] = id
     return id
+}
+    
+private fun createError(errMsg: String): Nothing {
+    val startByte = inp.currChunk.tokens[inp.currInd + 1]
+    val endByte = startByte + inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+    throw Exception("[$startByte $endByte] $errMsg")
 }
 
 
@@ -312,10 +296,10 @@ private fun coreWhile(stmtType: Int, lenTokens: Int) {
 
 private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
     if (lenTokens < 3) {
-        throw Exception(errorCoreFormTooShort)
+        createError(errorCoreFormTooShort)
     }
     if (stmtType != PunctuationToken.statementFun.internalVal.toInt()) {
-        throw Exception(errorCoreFormAssignment)
+        createError(errorCoreFormAssignment)
     }
 }
 
@@ -361,6 +345,7 @@ private fun scopeInitEntryPoint() {
 /**
  * Walks the current scope breadth-first without recursing into inner scopes.
  * The purpose is to find all names of functions defined (neseted) in this scope.
+ * They are stored inside the LexicalScope in the reverse order they were found in (for fast deletion during codegen).
  * Does not consume any tokens.
  */
 private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: Int) {
@@ -370,18 +355,20 @@ private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: 
     while (j < lenTokensScope) {
         val currToken = inp.nextToken(0)
         if (currToken.tType < firstPunctuationTokenType) {
-            throw Exception(errorScope)
+            createError(errorScope)
         }
         val lenTokensExtent = (currToken.payload and LOWER32BITS).toInt()
         if (currToken.tType == PunctuationToken.statementAssignment.internalVal.toInt()) {
-            inp.nextToken()
+            inp.nextToken() // statement token
             val nextTokenType = inp.currTokenType()
             var consumedTokens = 0
             if (nextTokenType == wordType
                 && inp.currChunk.tokens[inp.currInd + 1] == 2) {
                 val startByte = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
                 if (inp.inp[startByte] == aFLower && inp.inp[startByte + 1] == aNLower) {
-                    consumedTokens = scopeInitAddNestedFn(j, newScope, lenTokensScope)
+                    val newFnDef = scopeInitAddNestedFn(j, newScope, lenTokensScope, lenTokensExtent)
+                    newScope.funDefs.add(newFnDef.fst)
+                    consumedTokens += newFnDef.snd
                 }
             }
             inp.skipTokens(lenTokensExtent - consumedTokens)
@@ -392,45 +379,55 @@ private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: 
         j += lenTokensExtent + 1
     }
 
+    newScope.funDefs.reverse()
     inp.seek(originalPosition)
 }
 
+
 /**
- * Adds the function from a single "fn" definition. Returns the number of consumed tokens
+ * Adds the function from a single "fn" definition. Returns the pair (funcId, number of consumed tokens)
  */
-private fun scopeInitAddNestedFn(i: Int, newScope: LexicalScope, lenTokensScope: Int): Int {
+private fun scopeInitAddNestedFn(i: Int, newScope: LexicalScope, lenTokensScope: Int, lenTokensStatement: Int): IntPair {
     var arity = 0
     var j = i
     inp.nextToken() // "fn"
-    if (inp.currTokenType() != word.internalVal.toInt()) throw Exception(errorFnNameAndParams)
+    if (inp.currTokenType() != word.internalVal.toInt()) createError(errorFnNameAndParams)
 
     val fnName = readString(word)
-
     inp.nextToken() // function name
     j += 2
 
     while (j < lenTokensScope && inp.currTokenType() == wordType) {
+        val paramName = readString(word)
+        val existingBinding = lookupBinding(paramName)
+        if (existingBinding != null || paramName == fnName) {
+            createError(errorFnNameAndParams)
+        }
+        addString(paramName)
         inp.nextToken()
         j++
         arity++
     }
-    if (arity == 0) throw Exception(errorFnNameAndParams)
+    if (arity == 0) {
+        createError(errorFnNameAndParams)
+    } else if (arity == lenTokensStatement || inp.currTokenType() != PunctuationToken.curlyBraces.internalVal.toInt()) {
+        createError(errorFnMissingBody)
+    }
 
     val nameId = addString(fnName)
     val funcId = ast.funcTotalNodes
-    val parentFuncId = if (!fnDefBacktrack.isEmpty()) { currFnDef.funcId } else { -1 }
-    ast.funcNode(nameId, arity, parentFuncId, 0)
+    ast.funcNode(nameId, arity, 0)
 
+    if (lookupFunction(fnName, arity) != null) {
+        createError(errorDuplicateFunction)
+    }
     if (newScope.functions.containsKey(fnName)) {
         val lstExisting = newScope.functions[fnName]!!
-        if (lstExisting.any { it.snd == arity }) {
-            throw Exception(errorDuplicateFunction)
-        }
         lstExisting.add(IntPair(funcId, arity))
     } else {
         newScope.functions[fnName] = arrayListOf(IntPair(funcId, arity))
     }
-    return arity + 2 // +2 for the "fn" and the function name
+    return IntPair(funcId, arity + 2) // +2 for the "fn" and the function name
 }
 
 /**
@@ -445,7 +442,7 @@ private fun scope(parseFrame: ParseFrame) {
         if (Lexer.isStatement(tokType)) {
             tokensConsumed = parseTopLevelStatement()
         } else {
-            throw Exception(errorScope)
+            createError(errorScope)
         }
         j += tokensConsumed
     }
@@ -498,7 +495,7 @@ private fun expr(parseFrame: ParseFrame) {
             consumedTokens = subexprInit(subExprLenTokens, true, functionStack)
             stackInd = functionStack.size - 1
         } else if (tokType >= 10) {
-            throw Exception(errorExpressionCannotContain)
+            createError(errorExpressionCannotContain)
         } else {
             when (tokType) {
                 word.internalVal.toInt() -> {
@@ -513,7 +510,7 @@ private fun expr(parseFrame: ParseFrame) {
                 }
                 dotWord.internalVal.toInt() -> {
                     val fnName = readString(dotWord)
-                    if (!allStrings.containsKey(fnName)) throw Exception(errorUnknownFunction)
+                    if (!allStrings.containsKey(fnName)) createError(errorUnknownFunction)
                     exprFuncall(allStrings[fnName]!!, funcPrecedence, 0, functionStack, stackInd)
                 }
                 operatorTok.internalVal.toInt() -> {
@@ -588,11 +585,11 @@ private fun exprSingleItem(theTok: TokenLite) {
                 currFnDef.appendNode(ident, 0, mbBinding,
                     startByte, inp.currLenBytes())
             } else {
-                throw Exception(errorUnknownBinding)
+                createError(errorUnknownBinding)
             }
         }
     } else {
-        throw Exception(errorUnexpectedToken)
+        createError(errorUnexpectedToken)
     }
     currFnDef.backtrack.peek().tokensRead++
     inp.nextToken()
@@ -653,7 +650,7 @@ private fun exprWord(functionStack: ArrayList<Subexpr>, stackInd: Int) {
             inp.currStartByte(), inp.currLenBytes())
         exprOperand(functionStack, stackInd)
     } else {
-        throw Exception(errorUnknownBinding)
+        createError(errorUnknownBinding)
     }
 }
 
@@ -675,7 +672,7 @@ private fun exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, funct
     } else {
         while (topParen.operators.isNotEmpty() && topParen.operators.last().precedence >= precedence) {
             if (topParen.operators.last().precedence == prefixPrecedence) {
-                throw Exception(errorOperatorUsedInappropriately)
+                createError(errorOperatorUsedInappropriately)
             }
             appendFnName(topParen.operators.last())
             topParen.operators.removeLast()
@@ -710,12 +707,12 @@ private fun exprIncrementArity(topFrame: Subexpr) {
         n--
     }
     if (n < 0) {
-        throw Exception(errorExpressionError)
+        createError(errorExpressionError)
     }
     val oper = topFrame.operators[n]
     oper.arity++
     if (oper.maxArity > 0 && oper.arity > oper.maxArity) {
-        throw Exception(errorOperatorWrongArity)
+        createError(errorOperatorWrongArity)
     }
 }
 
@@ -724,7 +721,7 @@ private fun exprOperator(functionStack: ArrayList<Subexpr>, stackInd: Int) {
     val operTypeIndex = inp.currChunk.tokens[inp.currInd + 3].toLong()
     val operInfo = functionalityOfOper(operTypeIndex)
     if (operInfo.first < 0) {
-        throw Exception(errorOperatorUsedInappropriately)
+        createError(errorOperatorUsedInappropriately)
     }
     if (operInfo.second == prefixPrecedence) {
         val startByte = inp.currChunk.tokens[inp.currInd + 1]
@@ -775,7 +772,7 @@ private fun closeExpr() {
         for (o in funInSt.operators.size - 1 downTo 0) {
             val theFunction = funInSt.operators[o]
             if (theFunction.maxArity > 0 && theFunction.arity != theFunction.maxArity) {
-                throw Exception(errorOperatorWrongArity)
+                createError(errorOperatorWrongArity)
             }
             appendFnName(theFunction)
         }
@@ -835,12 +832,12 @@ private fun lookupFunction(name: String, arity: Int): Int? {
  */
 private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (lenTokens < 3) {
-        throw Exception(errorAssignment)
+        createError(errorAssignment)
     }
     val fstTokenType = inp.currTokenType()
     val sndTokenType = inp.nextTokenType(1)
     if (fstTokenType != word.internalVal.toInt() || sndTokenType != operatorTok.internalVal.toInt()) {
-        throw Exception(errorAssignment)
+        createError(errorAssignment)
     }
 
     val bindingName = readString(word)
@@ -848,12 +845,12 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
     val sndOper = OperatorToken.fromInt(inp.currChunk.tokens[inp.currInd + 3])
     if (sndOper.opType != OperatorType.immDefinition) {
-        throw Exception(errorAssignment)
+        createError(errorAssignment)
     }
 
     val mbBinding = lookupBinding(bindingName)
     if (mbBinding != null) {
-        throw Exception(errorAssignmentShadowing)
+        createError(errorAssignmentShadowing)
     }
 
     val strId = addString(bindingName)
@@ -893,7 +890,7 @@ private fun parseStatementTypeDecl(lenTokens: Int, startByte: Int, lenBytes: Int
 
 
 private fun parseUnexpectedToken() {
-    throw Exception(errorUnexpectedToken)
+    createError(errorUnexpectedToken)
 }
 
 /**
@@ -956,7 +953,7 @@ private fun appendFnName(fnParse: FunctionCall) {
     if (fnParse.nameStringId > -1) {
         // functions
         val fnName = ast.identifiers[fnParse.nameStringId]
-        val fnId = lookupFunction(fnName, fnParse.arity) ?: throw Exception(errorUnknownFunction)
+        val fnId = lookupFunction(fnName, fnParse.arity) ?: createError(errorUnknownFunction)
         currFnDef.appendNode(idFunc, 0, fnId, fnParse.startByte, fnName.length)
     } else {
         // operators
@@ -1021,18 +1018,18 @@ fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
     val builtins = builtInOperators()
     for (bui in builtins) {
         val funcId = ast.funcTotalNodes
-        ast.funcNode(-1, bui.arity, -1, 0)
+        ast.funcNode(-1, bui.arity, 0)
         importedScope.functions[bui.name] = arrayListOf(IntPair(funcId, bui.arity))
     }
     for (imp in imports) {
         if (uniqueNames.contains(imp.name)) {
-            throw Exception(errorImportsNonUnique)
+            createError(errorImportsNonUnique)
         }
         uniqueNames.add(imp.name)
         val strId = addString(imp.name)
         if (imp.arity > 0) {
             val funcId = ast.funcTotalNodes
-            ast.funcNode(strId, imp.arity, -1, 0)
+            ast.funcNode(strId, imp.arity, 0)
             importedScope.functions[imp.name] = arrayListOf(IntPair(funcId, imp.arity))
         } else {
             importedScope.bindings[imp.name] = strId
@@ -1099,7 +1096,7 @@ companion object {
      * Equality comparison for parsers.
      */
     fun equality(a: Parser, b: Parser): Boolean {
-        if (a.wasError != b.wasError || a.errMsg != b.errMsg) {
+        if (a.wasError != b.wasError || !a.errMsg.endsWith(b.errMsg)) {
             return false
         }
         return AST.equality(a.ast, b.ast)

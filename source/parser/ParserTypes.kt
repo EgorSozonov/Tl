@@ -10,6 +10,8 @@ class LexicalScope {
     val bindings: HashMap<String, Int> = HashMap(12)
     /** Map [name -> List (functionId arity)] */
     val functions: HashMap<String, ArrayList<IntPair>> = HashMap(12)
+    /** Array funcId */
+    val funDefs: ArrayList<Int> = ArrayList(4)
 }
 
 class Binding(val name: String)
@@ -19,16 +21,14 @@ class ImportOrBuiltin(val name: String, val precedence: Int, val arity: Int)
 class FunctionCall(var nameStringId: Int, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
 enum class RegularAST(val internalVal: Byte) { // payload
-    litInt(0),                        // int value
-    litFloat(1),                      // floating-point value
-    litString(2),                     // 0
-    litBool(3),                       // 1 or 0
-    ident(4),                         // index in the bindings table of parser
-    idFunc(5),                        // index in the functionBindings table of parser
-    binding(6),                       // id of binding that is being defined
-    annot(7),                         // index in the annotations table of parser
-    fnDefName(8),                     // index in the functionBindings table of parser,
-    fnDefParam(9),                    // index in the strings table
+    litInt(0),                // int value
+    litFloat(1),              // floating-point value
+    litString(2),             // 0
+    litBool(3),               // 1 or 0
+    ident(4),                 // index in the bindings table of parser
+    idFunc(5),                // index in the functionBindings table of parser
+    binding(6),               // id of binding that is being defined
+    annot(7),                 // index in the annotations table of parser
 }
 
 /** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need pausing & resuming */
@@ -37,6 +37,7 @@ enum class FrameAST(val internalVal: Byte) {
     scope(11),
     expression(12),
     statementAssignment(13),
+    fnDefPlaceholder(14),     // index in the functions table of AST,
 }
 
 /**

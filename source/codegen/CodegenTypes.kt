@@ -1,5 +1,5 @@
 package codegen
 
 
-data class CodegenFunc(val nameId: Int, val bodyInd: Int, val childFunctions: ArrayList<CodegenFunc> = ArrayList(), var currChild: Int = -1)
+data class CodegenFunc(val nameId: Int, val bodyInd: Int, var currBodyInd: Int = 0, var lastBodyInd: Int = 0)
 
