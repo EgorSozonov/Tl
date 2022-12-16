@@ -172,6 +172,14 @@ class AST {
         }
     }
 
+    fun skipNodes(toSkip: Int) {
+        currInd += 4*toSkip
+        if (currInd == CHUNKSZ) {
+            currChunk = currChunk.next!!
+            currInd = 0
+        }
+    }
+
 
     fun currNodeType(): Int {
         return currChunk.nodes[currInd] ushr 27

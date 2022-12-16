@@ -11,10 +11,10 @@ import parser.funcPrecedence
 const val input = """
 fn foo x y {
     z = x*y
-    return (z + x) .inner
+    return (z + x) .inner 5
     
     fn inner a b {
-        return a + 2*b
+        return a - 2*b
     }
 }
 """

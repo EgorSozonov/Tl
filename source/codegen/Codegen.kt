@@ -1,5 +1,7 @@
 package codegen
 import lexer.FileType
+import lexer.RegularToken
+import parser.FrameAST
 import parser.Parser
 import parser.FrameAST.*;
 
@@ -29,11 +31,12 @@ private fun codeGenExecutable(wr: StringBuilder) {
     ast.seek(entryPoint.bodyId)
     val entryPointLenNodes = ast.currChunk.nodes[ast.currInd + 3]
 
-    backtrack.add(CodegenFrame(functionDef, entryPoint.bodyId, entryPointLenNodes))
+    backtrack.add(CodegenFrame(functionDef, -1, 0, entryPoint.bodyId, entryPointLenNodes))
     while (backtrack.isNotEmpty()) {
         val f = backtrack.last()
         if (f.currNode == f.sentinelNode) {
             backtrack.removeLast()
+            closeFrame(f, wr)
         } else {
             writeFrame(f, wr)
         }
@@ -43,6 +46,47 @@ private fun codeGenExecutable(wr: StringBuilder) {
 private fun writeFrame(fr: CodegenFrame, wr: StringBuilder) {
     if (fr.eType == functionDef) {
         writeSignatureAndBody(fr, wr)
+    } else if (fr.eType == scope) {
+        indentDepth += 4
+        writeScope(fr, wr)
+    } else if (fr.eType == expression) {
+        writeExpression(fr, wr)
+    } else if (fr.eType == statementAssignment) {
+        writeAssignment(fr, wr)
+    } else if (fr.eType == returnExpression) {
+        writeReturn(fr, wr)
+    }
+}
+
+private fun writeExpression(fr: CodegenFrame, wr: StringBuilder) {
+    wr.append("expression")
+}
+
+private fun writeAssignment(fr: CodegenFrame, wr: StringBuilder) {
+    wr.append("assignment")
+}
+
+private fun writeReturn(fr: CodegenFrame, wr: StringBuilder) {
+    wr.append("return")
+}
+
+private fun writeScope(fr: CodegenFrame, wr: StringBuilder) {
+    ast.nextNode()
+    backtrack.last().currNode++
+}
+
+private fun closeFrame(fr: CodegenFrame, wr: StringBuilder) {
+    if (fr.eType == functionDef) {
+
+    } else if (fr.eType == scope) {
+        indentDepth -= 4
+        wr.append("}\n")
+    } else if (fr.eType == expression) {
+        wr.append(";\n")
+    } else if (fr.eType == statementAssignment) {
+        wr.append(";\n")
+    } else if (fr.eType == returnExpression) {
+        wr.append(";\n")
     }
 }
 
@@ -58,28 +102,31 @@ private fun codeGenTests(wr: StringBuilder) {
 
 
 private fun writeSignatureAndBody(fr: CodegenFrame, wr: StringBuilder) {
-    val indentation = " ".repeat(indentDepth*4 - 4)
+    val indentation = " ".repeat(indentDepth*4)
     val funcName = if (fr.nameId > -1) { ast.identifiers[fr.nameId] } else { entryPointName }
     wr.append(indentation)
     wr.append("function ")
     wr.append(funcName)
     wr.append("(")
 
+
     ast.seek(fr.currNode)
     ast.nextNode() // Skipping the "functionDef" node
-
+    var consumedTokens = 1
     for (i in 0 until fr.arity) {
         wr.append(ast.getString(ast.currChunk.nodes[ast.currInd + 2]))
         if (i == fr.arity - 1) {
-            wr.append(") {\n")
+            wr.append(")\n")
         } else {
             wr.append(", ")
         }
         ast.nextNode()
+        consumedTokens++
     }
 
-    wr.append(indentation)
-    wr.append("}\n")
+    backtrack.last().currNode += consumedTokens
+    val nextFrameType = FrameAST.values().firstOrNull { it.internalVal == ast.currNodeType().toByte() }
+    this.backtrack.add(CodegenFrame(nextFrameType!!, -1, -1))
 }
 
 /**

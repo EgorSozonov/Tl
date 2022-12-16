@@ -55,7 +55,7 @@ fun parse(imports: ArrayList<ImportOrBuiltin>) {
         while ((inp.currChunk != lastChunk || inp.currInd < sentinelInd)) {
             val tokType = inp.currTokenType()
             if (Lexer.isStatement(tokType)) {
-                parseTopLevelStatement()
+                statement()
             } else if (tokType == PunctuationToken.curlyBraces.internalVal.toInt()) {
                 val lenTokens = inp.currLenTokens()
                 val startByte = inp.currStartByte()
@@ -89,10 +89,8 @@ private fun maybeCloseFrames() {
     val topFrame = currFnDef.backtrack.peek()
     if (topFrame.tokensRead < topFrame.lenTokens) return
 
-    var isFunClose = false
-
     var tokensToAdd = topFrame.lenTokens + topFrame.additionalPrefixToken
-
+    var isFunClose = false
     if (topFrame.extentType == FrameAST.scope) {
         if (currFnDef.backtrack.size == 1) isFunClose = true
         closeScope(tokensToAdd)
@@ -148,7 +146,7 @@ private fun closeScope(tokensToAdd: Int) {
 }
 
 
-private fun parseTopLevelStatement(): Int {
+private fun statement(): Int {
     val lenTokens = inp.currLenTokens()
     val stmtType = inp.currTokenType()
     val startByte = inp.currStartByte()
@@ -158,12 +156,12 @@ private fun parseTopLevelStatement(): Int {
     if (nextTokType == word.internalVal.toInt()) {
         val firstLetter = inp.inp[startByte]
         if (firstLetter < aCLower || firstLetter > aWLower) {
-            parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+            noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
         } else {
             possiblyCoreDispatch[firstLetter - aCLower](stmtType, lenTokens, startByte, lenBytes)
         }
     } else {
-        parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+        noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
     }
     return lenTokens + 1 // plus 1 is for the statement token itself
 }
@@ -174,7 +172,7 @@ private fun parseTopLevelStatement(): Int {
  * The @startByte and @lenBytes may both be 0, this means that the first token is not a word.
  * Otherwise they are both nonzero.
  */
-private fun parseNoncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun noncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
         exprInit(FrameAST.expression, lenTokens, startByte, lenBytes, 1)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
@@ -283,7 +281,7 @@ private fun coreMatch(stmtType: Int, lenTokens: Int) {
 
 private fun coreReturn(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     inp.nextToken()
-    exprInit(FrameAST.returnExpression, lenTokens, startByte, lenBytes, 1)
+    exprInit(FrameAST.returnExpression, lenTokens - 1, startByte, lenBytes, 2) // tokensToAdd = 2 for the "return" and the expression token
 }
 
 private fun coreTry(stmtType: Int, lenTokens: Int) {
@@ -441,7 +439,7 @@ private fun scope(parseFrame: ParseFrame) {
     while (j < parseFrame.lenTokens) {
         val tokType = inp.currTokenType()
         if (Lexer.isStatement(tokType)) {
-            tokensConsumed = parseTopLevelStatement()
+            tokensConsumed = statement()
         } else {
             createError(errorScope)
         }
@@ -452,6 +450,7 @@ private fun scope(parseFrame: ParseFrame) {
 
 /**
  * An expression, i.e. a series of funcalls and/or operator calls.
+ * 'additionalPrefixToken' - set to 1 if
  */
 private fun exprInit(exprType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
     if (lenTokens == 1) {
@@ -901,7 +900,7 @@ fun parseFromC(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (inp.currLenBytes() == 5) {
         coreCatch(lenTokens, startByte, lenBytes)
     } else {
-        parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+        noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
     }
 }
 
@@ -912,7 +911,7 @@ fun parseFromF(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (inp.currLenBytes() == 2 && inp.inp[startByte + 1] == aNLower) {
         coreFnDefinition(lenTokens, startByte, lenBytes)
     } else {
-        parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+        noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
     }
 }
 
@@ -920,14 +919,14 @@ fun parseFromF(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
  * Parse a statement where the first word is possibly "if", "ifEq" or "ifPred"
  */
 fun parseFromI(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+    noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 /**
  * Parse a statement where the first word is possibly "match"
  */
 fun parseFromM(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+    noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 
@@ -938,7 +937,7 @@ fun parseFromR(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (inp.currLenBytes() == 6 && inp.testByteSequence(startByte, reservedReturn)) {
         coreReturn(stmtType, lenTokens, startByte, lenBytes)
     } else {
-        parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+        noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
     }
 }
 
@@ -946,14 +945,14 @@ fun parseFromR(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
  * Parse a funcall statement where the first word is possibly "try"
  */
 fun parseFromT(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+    noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 /**
  * Parse a funcall statement where the first word is possibly "while"
  */
 fun parseFromW(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+    noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 /**
@@ -1088,7 +1087,7 @@ companion object {
             15 -> Parser::parseFromR
             17 -> Parser::parseFromT
             20 -> Parser::parseFromW
-            else -> Parser::parseNoncoreStatement
+            else -> Parser::noncoreStatement
         }
     }
 
