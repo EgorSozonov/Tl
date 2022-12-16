@@ -23,6 +23,7 @@ fun main(args: Array<String>) {
     println("compilation result:")
     println()
     val lexer = Lexer(input.toByteArray(), FileType.executable)
+    lexer.lexicallyAnalyze()
     val parser = Parser(lexer)
     parser.parse(arrayListOf(ImportOrBuiltin("print", funcPrecedence, 1)))
     val codegen = Codegen(parser)

@@ -632,7 +632,10 @@ private fun validateOpeningPunct(openingType: PunctuationToken) {
 private fun closeStatement() {
     closeDollars()
 
-    if (backtrack.isEmpty()) return
+    if (backtrack.isEmpty()) {
+        i++
+        return
+    }
 
     val top = backtrack.peek()
     if (isStatement(top.first)) {
@@ -837,6 +840,16 @@ private fun checkLenOverflow(lenBytes: Int) {
     if (lenBytes > MAXTOKENLEN) {
         errorOut(errorLengthOverflow)
     }
+}
+
+/** Tests if the following several bytes in the input match an array. This is for reserved word detection */
+fun testByteSequence(startByte: Int, letters: ByteArray): Boolean {
+    if (startByte + letters.size >= inp.size) return false
+
+    for (j in (letters.size - 1) downTo 0) {
+        if (inp[startByte + j] != letters[j]) return false
+    }
+    return true
 }
 
 /**

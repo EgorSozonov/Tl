@@ -38,6 +38,7 @@ enum class FrameAST(val internalVal: Byte) {
     expression(12),
     statementAssignment(13),
     fnDefPlaceholder(14),     // index in the functions table of AST,
+    returnExpression(15)
 }
 
 /**

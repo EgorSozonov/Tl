@@ -176,7 +176,7 @@ private fun parseTopLevelStatement(): Int {
  */
 private fun parseNoncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
-        exprInit(lenTokens, startByte, lenBytes, 1)
+        exprInit(FrameAST.expression, lenTokens, startByte, lenBytes, 1)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
         assignmentInit(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
@@ -184,8 +184,8 @@ private fun parseNoncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int,
     }
 }
 
-private fun coreCatch(stmtType: Int, lenTokens: Int) {
-    validateCoreForm(stmtType, lenTokens)
+private fun coreCatch(lenTokens: Int, startByte: Int, lenBytes: Int) {
+    //validateCoreForm(stmtType, lenTokens)
 }
 
 /**
@@ -281,8 +281,9 @@ private fun coreMatch(stmtType: Int, lenTokens: Int) {
     validateCoreForm(stmtType, lenTokens)
 }
 
-private fun coreReturn(stmtType: Int, lenTokens: Int) {
-    validateCoreForm(stmtType, lenTokens)
+private fun coreReturn(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    inp.nextToken()
+    exprInit(FrameAST.returnExpression, lenTokens, startByte, lenBytes, 1)
 }
 
 private fun coreTry(stmtType: Int, lenTokens: Int) {
@@ -358,13 +359,13 @@ private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: 
             createError(errorScope)
         }
         val lenTokensExtent = (currToken.payload and LOWER32BITS).toInt()
-        if (currToken.tType == PunctuationToken.statementAssignment.internalVal.toInt()) {
+        if (currToken.tType == PunctuationToken.statementFun.internalVal.toInt()) {
             inp.nextToken() // statement token
             val nextTokenType = inp.currTokenType()
             var consumedTokens = 0
             if (nextTokenType == wordType
-                && inp.currChunk.tokens[inp.currInd + 1] == 2) {
-                val startByte = inp.currChunk.tokens[inp.currInd] and LOWER27BITS
+                && (inp.currChunk.tokens[inp.currInd] and LOWER27BITS) == 2) {
+                val startByte = inp.currChunk.tokens[inp.currInd + 1]
                 if (inp.inp[startByte] == aFLower && inp.inp[startByte + 1] == aNLower) {
                     val newFnDef = scopeInitAddNestedFn(j, newScope, lenTokensScope, lenTokensExtent)
                     newScope.funDefs.add(newFnDef.fst)
@@ -452,7 +453,7 @@ private fun scope(parseFrame: ParseFrame) {
 /**
  * An expression, i.e. a series of funcalls and/or operator calls.
  */
-private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
+private fun exprInit(exprType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
     if (lenTokens == 1) {
         val theToken = inp.nextToken(0)
         exprSingleItem(theToken)
@@ -460,10 +461,10 @@ private fun exprInit(lenTokens: Int, startByte: Int, lenBytes: Int, additionalPr
     }
 
     val funCallStack = ArrayList<Subexpr>()
-    currFnDef.appendExtent(FrameAST.expression, 0, startByte, lenBytes)
+    currFnDef.appendExtent(exprType, 0, startByte, lenBytes)
 
     currFnDef.subexprs.push(funCallStack)
-    val newFrame = ParseFrame(FrameAST.expression, currFnDef.totalNodes - 1, lenTokens, additionalPrefixToken)
+    val newFrame = ParseFrame(exprType, currFnDef.totalNodes - 1, lenTokens, additionalPrefixToken)
     currFnDef.backtrack.push(newFrame)
 
     val initConsumedTokens = subexprInit(newFrame.lenTokens, false, funCallStack)
@@ -494,7 +495,7 @@ private fun expr(parseFrame: ParseFrame) {
             exprIncrementArity(functionStack[stackInd])
             consumedTokens = subexprInit(subExprLenTokens, true, functionStack)
             stackInd = functionStack.size - 1
-        } else if (tokType >= 10) {
+        } else if (tokType >= firstPunctuationTokenType) {
             createError(errorExpressionCannotContain)
         } else {
             when (tokType) {
@@ -871,7 +872,7 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (tokType == PunctuationToken.curlyBraces.internalVal.toInt()) {
         scopeInit(null, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
     } else {
-        exprInit(lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
+        exprInit(FrameAST.expression, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
     }
 }
 
@@ -897,17 +898,22 @@ private fun parseUnexpectedToken() {
  * Returns the index of the "catch" parser if the word starting with "c" under cursor is indeed "catch"
  */
 fun parseFromC(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+    if (inp.currLenBytes() == 5) {
+        coreCatch(lenTokens, startByte, lenBytes)
+    } else {
+        parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+    }
 }
 
 /**
  * Parse a statement where the first word is possibly "fn", "for" or "forRaw"
  */
 fun parseFromF(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    if (lenBytes == 2 && inp.inp[startByte + 1] == aNLower) {
+    if (inp.currLenBytes() == 2 && inp.inp[startByte + 1] == aNLower) {
         coreFnDefinition(lenTokens, startByte, lenBytes)
+    } else {
+        parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
     }
-    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
 /**
@@ -929,7 +935,11 @@ fun parseFromM(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
  * Parse a statement where the first word is possibly "return"
  */
 fun parseFromR(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+    if (inp.currLenBytes() == 6 && inp.testByteSequence(startByte, reservedReturn)) {
+        coreReturn(stmtType, lenTokens, startByte, lenBytes)
+    } else {
+        parseNoncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+    }
 }
 
 /**
