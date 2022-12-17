@@ -331,7 +331,6 @@ class AST {
             return true
         }
 
-
         /**
          * Pretty printer function for debugging purposes
          */
@@ -385,6 +384,26 @@ class AST {
             return result.toString()
         }
 
+        /**
+         * Pretty printer function for debugging purposes
+         */
+        fun print(a: AST, result: StringBuilder): String {
+            var currA: ASTChunk? = a.functionBodies
+            while (true) {
+                if (currA != null) {
+
+                    val lenA = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
+                    for (i in 0 until lenA step 4) {
+                        printNode(currA, i, result)
+                        result.appendLine("")
+                    }
+                    currA = currA.next
+                } else {
+                    break
+                }
+            }
+            return result.toString()
+        }
 
         private fun printNode(chunk: ASTChunk, ind: Int, wr: StringBuilder) {
             val startByte = chunk.nodes[ind + 1]

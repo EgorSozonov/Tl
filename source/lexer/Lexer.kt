@@ -1203,6 +1203,32 @@ companion object {
         return result.toString()
     }
 
+    /**
+     * Pretty printer function for debugging purposes
+     */
+    fun print(a: Lexer): String {
+        val result = StringBuilder()
+        result.appendLine("Lex result")
+        result.appendLine(if (a.wasError) {a.errMsg} else { "OK" })
+        result.appendLine("tokenType [startByte lenBytes] (payload/lenTokens)")
+        var currA: LexChunk? = a.firstChunk
+        while (true) {
+            if (currA != null) {
+                val lenA = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
+                for (i in 0 until lenA step 4) {
+                    printToken(currA, i, result)
+                    result.appendLine("")
+                }
+
+                currA = currA.next
+            } else {
+                break
+            }
+
+        }
+        return result.toString()
+    }
+
 
     private fun printToken(chunk: LexChunk, ind: Int, wr: StringBuilder) {
         val startByte = chunk.tokens[ind + 1]

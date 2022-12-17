@@ -74,9 +74,6 @@ private fun moveIntoFunctionDefinition() {
     pushNewFrame()
 }
 
-
-
-
 /**
  * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
  * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
@@ -120,22 +117,6 @@ private fun maybeCloseFrames(wr: StringBuilder) {
     }
 }
 
-private fun writeFrame(fr: CodegenFrame, wr: StringBuilder) {
-    val lenNodes = ast.currChunk.nodes[ast.currInd + 3]
-    if (fr.eType == functionDef) {
-        writeFnSignature(fr, lenNodes, wr)
-    } else if (fr.eType == scope) {
-
-        writeScope(fr, lenNodes, wr)
-    } else if (fr.eType == expression) {
-        writeExpression(fr, lenNodes, wr)
-    } else if (fr.eType == statementAssignment) {
-        writeAssignment(fr, lenNodes, wr)
-    } else if (fr.eType == returnExpression) {
-        writeReturn(fr, lenNodes, wr)
-    }
-}
-
 
 private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     pushNewFrame()
@@ -147,8 +128,6 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
     wr.append(funcName)
     wr.append("(")
 
-
-    ast.seek(fr.currNode)
     ast.nextNode() // Skipping the "functionDef" node
     var consumedTokens = 1
     for (i in 0 until fr.arity) {
@@ -163,27 +142,29 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
     }
 
     backtrack.last().currNode += consumedTokens
+}
 
-
+private fun moveForward(numNodes: Int, fr: CodegenFrame) {
+    ast.skipNodes(numNodes)
+    fr.currNode += numNodes
 }
 
 
 private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append("expression")
-    fr.currNode += lenNodes
+    moveForward(lenNodes, fr)
 }
 
     
 private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append("assignment")
-
-    fr.currNode += lenNodes
+    moveForward(lenNodes, fr)
 }
 
 
 private fun writeReturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append("return")
-    fr.currNode += lenNodes
+    moveForward(lenNodes, fr)
 }
 
 
@@ -191,7 +172,7 @@ private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     pushNewFrame()
 
     indentDepth += 4
-    ast.nextNode()
+    moveForward(1, fr)
 }
 
 

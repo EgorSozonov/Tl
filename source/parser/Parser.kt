@@ -84,49 +84,55 @@ fun parse(imports: ArrayList<ImportOrBuiltin>) {
  * It also always handles updating all inner frames with consumed tokens.
  */
 private fun maybeCloseFrames() {
-    if (fnDefBacktrack.isEmpty()) return
+    while (true) {
+        if (fnDefBacktrack.isEmpty()) return
 
-    val topFrame = currFnDef.backtrack.peek()
-    if (topFrame.tokensRead < topFrame.lenTokens) return
+        val topFrame = currFnDef.backtrack.peek()
+        if (topFrame.tokensRead < topFrame.lenTokens) return
 
-    var tokensToAdd = topFrame.lenTokens + topFrame.additionalPrefixToken
-    var isFunClose = false
-    if (topFrame.extentType == FrameAST.scope) {
-        if (currFnDef.backtrack.size == 1) isFunClose = true
-        closeScope(tokensToAdd)
-    } else if (topFrame.extentType == FrameAST.expression) {
-        closeExpr()
-    }
-    currFnDef.setExtentLength(topFrame.indNode)
-    currFnDef.backtrack.pop()
-
-    var i = currFnDef.backtrack.size - 1
-    while (i > -1) {
-        val frame = currFnDef.backtrack[i]
-        frame.tokensRead += tokensToAdd
-        if (frame.tokensRead < frame.lenTokens) {
-            break
-        } else if (frame.tokensRead == frame.lenTokens) {
-            if (frame.extentType == FrameAST.scope) {
-                closeScope(tokensToAdd)
-                if (currFnDef.backtrack.size == 1) isFunClose = true
-            } else if (frame.extentType == FrameAST.expression) {
-                closeExpr()
-            }
-            currFnDef.backtrack.pop()
-            tokensToAdd = frame.lenTokens + frame.additionalPrefixToken
-            currFnDef.setExtentLength(frame.indNode)
-        } else {
-            createError(errorInconsistentExtent)
+        var tokensToAdd = topFrame.lenTokens + topFrame.additionalPrefixToken
+        var isFunClose = false
+        if (topFrame.extentType == FrameAST.scope) {
+            if (currFnDef.backtrack.size == 1) isFunClose = true
+            closeScope(tokensToAdd)
+        } else if (topFrame.extentType == FrameAST.expression) {
+            closeExpr()
         }
-        i--
-    }
+        currFnDef.setExtentLength(topFrame.indNode)
+        currFnDef.backtrack.pop()
 
-    if (isFunClose) {
+        var i = currFnDef.backtrack.size - 1
+        while (i > -1) {
+            val frame = currFnDef.backtrack[i]
+            frame.tokensRead += tokensToAdd
+            if (frame.tokensRead < frame.lenTokens) {
+                break
+            } else if (frame.tokensRead == frame.lenTokens) {
+                if (frame.extentType == FrameAST.scope) {
+                    closeScope(tokensToAdd)
+                    if (currFnDef.backtrack.size == 1) isFunClose = true
+                } else if (frame.extentType == FrameAST.expression) {
+                    closeExpr()
+                }
+                currFnDef.backtrack.pop()
+                tokensToAdd = frame.lenTokens + frame.additionalPrefixToken
+                currFnDef.setExtentLength(frame.indNode)
+            } else {
+                createError(errorInconsistentExtent)
+            }
+            i--
+        }
+
+        if (!isFunClose) return
+
         val freshlyMintedFn = fnDefBacktrack.pop()
         ast.storeFreshFunction(freshlyMintedFn)
 
-        if (fnDefBacktrack.isNotEmpty()) currFnDef = fnDefBacktrack.peek()
+        if (fnDefBacktrack.isNotEmpty()) {
+            currFnDef = fnDefBacktrack.peek()
+            currFnDef.backtrack.last().tokensRead += tokensToAdd
+        }
+
     }
 }
 
@@ -333,6 +339,7 @@ private fun scopeInitEntryPoint() {
     val lenTokens = inp.totalTokens
 
     val newScope = LexicalScope()
+    currFnDef.appendExtent(FrameAST.functionDef, 0, 0, inp.inp.size)
     currFnDef.subscopes.push(newScope)
     currFnDef.appendExtent(FrameAST.scope, lenTokens, 0, inp.inp.size)
 
@@ -1120,6 +1127,18 @@ companion object {
         result.appendLine("${if (a.wasError) {a.errMsg} else { "OK" }} | ${if (b.wasError) {b.errMsg} else { "OK" }}")
         result.appendLine("astType [startByte lenBytes] (payload/lenTokens)")
         AST.printSideBySide(a.ast, b.ast, result)
+        return result.toString()
+    }
+
+    /**
+     * Pretty printer function for debugging purposes
+     */
+    fun print(a: Parser): String {
+        val result = StringBuilder()
+        result.appendLine("Parse result")
+        result.appendLine(if (a.wasError) {a.errMsg} else { "OK" })
+        result.appendLine("astType [startByte lenBytes] (payload/lenTokens)")
+        AST.print(a.ast, result)
         return result.toString()
     }
 }
