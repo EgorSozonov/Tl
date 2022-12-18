@@ -36,6 +36,7 @@ val reservedWhile = byteArrayOf(119, 104, 105, 108, 101)
 val funcPrecedence = 26
 val prefixPrecedence = 27
 
-
+/** Must be the lowest value in the PunctuationToken enum */
+const val firstFrameASTType = 10
 
 const val SCRATCHSZ = 100 // must be divisible by 4

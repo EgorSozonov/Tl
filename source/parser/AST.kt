@@ -166,6 +166,7 @@ class AST {
 
     fun nextNode() {
         currInd += 4
+        currTokInd++
         if (currInd == CHUNKSZ) {
             currChunk = currChunk.next!!
             currInd = 0
@@ -174,6 +175,7 @@ class AST {
 
     fun skipNodes(toSkip: Int) {
         currInd += 4*toSkip
+        currTokInd += toSkip
         if (currInd == CHUNKSZ) {
             currChunk = currChunk.next!!
             currInd = 0
@@ -391,7 +393,6 @@ class AST {
             var currA: ASTChunk? = a.functionBodies
             while (true) {
                 if (currA != null) {
-
                     val lenA = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
                     for (i in 0 until lenA step 4) {
                         printNode(currA, i, result)
@@ -409,7 +410,7 @@ class AST {
             val startByte = chunk.nodes[ind + 1]
             val lenBytes = chunk.nodes[ind] and LOWER27BITS
             val typeBits = (chunk.nodes[ind] ushr 27).toByte()
-            if (typeBits <= 10) {
+            if (typeBits < firstFrameASTType) {
                 val regType = RegularAST.values().firstOrNull { it.internalVal == typeBits }
                 if (regType != RegularAST.litFloat) {
                     val payload: Long = (chunk.nodes[ind + 2].toLong() shl 32) + chunk.nodes[ind + 3].toLong()

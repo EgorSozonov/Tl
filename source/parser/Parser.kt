@@ -42,11 +42,10 @@ fun parse(imports: ArrayList<ImportOrBuiltin>) {
     inp.currChunk = inp.firstChunk
     inp.currInd = 0
 
-    insertImports(imports)
+    insertImports(imports, inp.fileType)
 
     if (this.inp.fileType == FileType.executable) {
-        ast.funcNode(-1, 0, 0) // entrypoint function
-
+        currFnDef.funcId = indFirstFunction
         fnDefBacktrack.push(currFnDef)
         scopeInitEntryPoint()
     }
@@ -61,7 +60,7 @@ fun parse(imports: ArrayList<ImportOrBuiltin>) {
                 val startByte = inp.currStartByte()
                 val lenBytes = inp.currLenBytes()
 
-                scopeInit(null, lenTokens, startByte, lenBytes)
+                scopeInit(null, 0, lenTokens, startByte, lenBytes)
             } else if (currFnDef.backtrack.isNotEmpty()) {
                 val currFrame = currFnDef.backtrack.peek()
                 dispatchTable[currFrame.extentType.internalVal.toInt() - 10](currFrame)
@@ -234,7 +233,7 @@ private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (newScopeLenTokens + newFnDef.arity + 3 != lenTokens) createError(errorInconsistentExtent) // + 3 = "fn" + fnName + scope token
     
     currFnDef = newFnDef
-    scopeInit(newFunScope, newScopeLenTokens, newScopeStartByte, newScopelenBytes)
+    scopeInit(newFunScope, newFnDef.arity + 3, newScopeLenTokens, newScopeStartByte, newScopelenBytes)
 }
 
 
@@ -314,7 +313,7 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
  * Then it walks from the start again, this time depth-first, and writes instructions into the
  * AST scratch space
  */
-private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun scopeInit(mbLexicalScope: LexicalScope?, extraTokenLength: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     // if we are in an expression, then this scope will be an operand for some operator
     if (currFnDef.subexprs.isNotEmpty()) {
         val funStack = currFnDef.subexprs.peek()
@@ -329,7 +328,7 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, lenTokens: Int, startByte: 
 
     scopeInitAddNestedFunctions(newScope, lenTokens)
 
-    currFnDef.backtrack.push(ParseFrame(FrameAST.scope, currFnDef.totalNodes - 1, lenTokens, 1))
+    currFnDef.backtrack.push(ParseFrame(FrameAST.scope, currFnDef.totalNodes - 1, lenTokens, extraTokenLength + 1))
 }
 
 /**
@@ -876,7 +875,7 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     // TODO check if we have a scope or a core form here
     val tokType = inp.currTokenType()
     if (tokType == PunctuationToken.curlyBraces.internalVal.toInt()) {
-        scopeInit(null, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
+        scopeInit(null, 0, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
     } else {
         exprInit(FrameAST.expression, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
     }
@@ -1029,13 +1028,17 @@ fun buildError(msg: String): Parser {
 }
 
 /** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
-fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
+fun insertImports(imports: ArrayList<ImportOrBuiltin>, fileType: FileType): Parser {
     val uniqueNames = HashSet<String>()
     val builtins = builtInOperators()
     for (bui in builtins) {
         val funcId = ast.funcTotalNodes
         ast.funcNode(-1, bui.arity, 0)
         importedScope.functions[bui.name] = arrayListOf(IntPair(funcId, bui.arity))
+    }
+    this.indFirstFunction = builtins.size
+    if (fileType == FileType.executable) {
+        ast.funcNode(-1, 0, 0) // the entrypoint
     }
     for (imp in imports) {
         if (uniqueNames.contains(imp.name)) {
@@ -1051,7 +1054,7 @@ fun insertImports(imports: ArrayList<ImportOrBuiltin>): Parser {
             importedScope.bindings[imp.name] = strId
         }
     }
-    this.indFirstFunction = builtins.size
+
 
     return this
 }
