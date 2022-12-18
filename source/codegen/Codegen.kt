@@ -58,7 +58,6 @@ private fun codeGenExecutable(wr: StringBuilder) {
 private fun pushNewFrame(nameId: Int, arity: Int) {
     val eType = FrameAST.values().first {it.internalVal.toInt() == ast.currChunk.nodes[ast.currInd] ushr 27 }
     val lenNodes = ast.currChunk.nodes[ast.currInd + 3]
-
     backtrack.add(CodegenFrame(eType, nameId, arity, ast.currTokInd, lenNodes))
 }
 
@@ -69,16 +68,15 @@ private fun writeEntryPointSignature(fr: CodegenFrame, lenNodes: Int, wr: String
     wr.append("() ")
 
     ast.nextNode() // Skipping the "functionDef" node
-
-    backtrack.last().currNode += 1
+    fr.currNode = ast.currTokInd
 }
 
 
 private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
-    fr.currNode++
     val funcId = ast.currChunk.nodes[ast.currInd + 2]
     val func = ast.getFunc(funcId)
-
+    ast.nextNode() // fnDefPlaceholder
+    fr.currNode = ast.currTokInd
     ast.seek(func.bodyId)
     pushNewFrame(func.nameId, func.arity)
 
@@ -90,19 +88,17 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
     wr.append("(")
 
     ast.nextNode() // Skipping the "functionDef" node
-    var consumedTokens = 1
     for (i in 0 until func.arity) {
         wr.append(ast.getString(ast.currChunk.nodes[ast.currInd + 2]))
         if (i == func.arity - 1) {
-            wr.append(")\n")
+            wr.append(")")
         } else {
             wr.append(", ")
         }
         ast.nextNode()
-        consumedTokens++
     }
 
-    backtrack.last().currNode += consumedTokens
+    backtrack.last().currNode = ast.currTokInd
 }
 
 /**
@@ -128,9 +124,9 @@ private fun maybeCloseFrames(wr: StringBuilder) {
                 backtrack.removeLast()
                 if (frame.eType == functionDef) {
                     if (backtrack.isNotEmpty()) {
-                        ast.seek(backtrack.last().currNode + 1) // skipping to the node after the fnDefPlaceholder
+                        ast.seek(backtrack.last().currNode) // skipping to the node after the fnDefPlaceholder
                     } else {
-                        ast.seek(frame.currNode + 1) // skipping to the node after the fnDefPlaceholder
+                        ast.seek(frame.currNode) // skipping to the node after the fnDefPlaceholder
                     }
                     nodesToAdd = 0
                 } else {
@@ -145,7 +141,7 @@ private fun maybeCloseFrames(wr: StringBuilder) {
 
 private fun moveForward(numNodes: Int, fr: CodegenFrame) {
     ast.skipNodes(numNodes)
-    fr.currNode += numNodes
+    fr.currNode = ast.currTokInd
 }
 
 
@@ -177,9 +173,10 @@ private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
         indentDepth += 4
     }
 
-    fr.currNode += 1
     pushNewFrame(-1, -1)
     ast.skipNodes(1)
+    backtrack.last().currNode = ast.currTokInd
+
 }
 
 
