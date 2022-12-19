@@ -68,7 +68,6 @@ private fun writeEntryPointSignature(fr: CodegenFrame, lenNodes: Int, wr: String
     wr.append("() ")
 
     ast.nextNode() // Skipping the "functionDef" node
-    fr.currNode = ast.currTokInd
 }
 
 
@@ -76,11 +75,11 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
     val funcId = ast.currChunk.nodes[ast.currInd + 2]
     val func = ast.getFunc(funcId)
     ast.nextNode() // fnDefPlaceholder
-    fr.currNode = ast.currTokInd
+    fr.returnNode = ast.currTokInd // the node to return to after we're done with this nested function
     ast.seek(func.bodyId)
     pushNewFrame(func.nameId, func.arity)
 
-    val indentation = " ".repeat(indentDepth*4)
+    val indentation = " ".repeat(indentDepth)
     val funcName = ast.identifiers[func.nameId]
     wr.append(indentation)
     wr.append("function ")
@@ -89,7 +88,7 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
 
     ast.nextNode() // Skipping the "functionDef" node
     for (i in 0 until func.arity) {
-        wr.append(ast.getString(ast.currChunk.nodes[ast.currInd + 2]))
+        wr.append(ast.getString(ast.currChunk.nodes[ast.currInd + 3]))
         if (i == func.arity - 1) {
             wr.append(")")
         } else {
@@ -97,8 +96,6 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
         }
         ast.nextNode()
     }
-
-    backtrack.last().currNode = ast.currTokInd
 }
 
 /**
@@ -111,26 +108,20 @@ private fun maybeCloseFrames(wr: StringBuilder) {
     while (true) {
         if (backtrack.isEmpty()) return
 
-        var nodesToAdd = 0
-
         var i = backtrack.size - 1
         while (i > -1) {
             val frame = backtrack[i]
-            frame.currNode += nodesToAdd
-            if (frame.currNode < frame.sentinelNode) {
+            if (ast.currTokInd < frame.sentinelNode) {
                 return
             } else {
                 closeFrame(frame, wr)
                 backtrack.removeLast()
                 if (frame.eType == functionDef) {
                     if (backtrack.isNotEmpty()) {
-                        ast.seek(backtrack.last().currNode) // skipping to the node after the fnDefPlaceholder
+                        ast.seek(backtrack.last().returnNode) // skipping to the node after the fnDefPlaceholder
                     } else {
-                        ast.seek(frame.currNode) // skipping to the node after the fnDefPlaceholder
+                        ast.seek(frame.sentinelNode) // since this is the outermost func, we finish up its codegen
                     }
-                    nodesToAdd = 0
-                } else {
-                    nodesToAdd = frame.lenNodes
                 }
             }
             i--
@@ -139,44 +130,47 @@ private fun maybeCloseFrames(wr: StringBuilder) {
 }
 
 
-private fun moveForward(numNodes: Int, fr: CodegenFrame) {
-    ast.skipNodes(numNodes)
-    fr.currNode = ast.currTokInd
-}
-
-
 private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
     wr.append("expression;\n")
-    moveForward(lenNodes + 1, fr)
+    ast.skipNodes(lenNodes + 1)
 }
 
     
 private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
+
+    wr.append("const ")
+    ast.nextNode()
+
+    wr.append(ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]])
+    wr.append(" = ")
+
     wr.append("assignment;\n")
-    moveForward(lenNodes + 1, fr)
+    ast.skipNodes(lenNodes)
 }
 
 
 private fun writeReturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
     wr.append("return;\n")
-    moveForward(lenNodes + 1, fr)
+    ast.skipNodes(lenNodes + 1)
 }
 
 
 private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
-    wr.append(" ".repeat(indentDepth))
-    wr.append("{\n")
-    if (fr.eType != functionDef || fr.nameId > -1) {
-        indentDepth += 4
+    if (fr.eType != functionDef) {
+        wr.append(" ".repeat(indentDepth))
+    } else {
+        wr.append(" ")
     }
+    wr.append("{\n")
+
+    indentDepth += 4
+
 
     pushNewFrame(-1, -1)
     ast.skipNodes(1)
-    backtrack.last().currNode = ast.currTokInd
-
 }
 
 
@@ -184,9 +178,10 @@ private fun closeFrame(fr: CodegenFrame, wr: StringBuilder) {
     if (fr.eType == functionDef) {
 
     } else if (fr.eType == scope) {
+        indentDepth -= 4
         wr.append(" ".repeat(indentDepth))
         wr.append("}\n")
-        indentDepth -= 4
+
     } else if (fr.eType == expression) {
         wr.append(";\n")
     } else if (fr.eType == statementAssignment) {
