@@ -43,11 +43,11 @@ class AST {
     private val functionBodies = ASTChunk()
     var currChunk: ASTChunk                                    // Last array of tokens
         private set
-    var nextInd: Int                                      // Next ind inside the current token array
+    var nextInd: Int                                           // Next ind inside the current token array
         private set
     var currInd: Int = 0
         private set
-    var currTokInd: Int = 0
+    var currNodeInd: Int = 0
         private set
     var totalNodes: Int
         private set
@@ -141,7 +141,7 @@ class AST {
             currChunk = currChunk.next!!
             currInd -= CHUNKSZ
         }
-        currTokInd = bodyId
+        currNodeInd = bodyId
     }
 
     fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, lenBytes: Int) {
@@ -166,7 +166,7 @@ class AST {
 
     fun nextNode() {
         currInd += 4
-        currTokInd++
+        currNodeInd++
         if (currInd == CHUNKSZ) {
             currChunk = currChunk.next!!
             currInd = 0
@@ -175,7 +175,7 @@ class AST {
 
     fun skipNodes(toSkip: Int) {
         currInd += 4*toSkip
-        currTokInd += toSkip
+        currNodeInd += toSkip
         if (currInd == CHUNKSZ) {
             currChunk = currChunk.next!!
             currInd = 0

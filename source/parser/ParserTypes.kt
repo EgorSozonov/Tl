@@ -20,15 +20,16 @@ class ImportOrBuiltin(val name: String, val precedence: Int, val arity: Int)
 
 class FunctionCall(var nameStringId: Int, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
-enum class RegularAST(val internalVal: Byte) { // payload
-    litInt(0),                // int value
-    litFloat(1),              // floating-point value
-    litString(2),             // 0
-    litBool(3),               // 1 or 0
-    ident(4),                 // index in the bindings table of parser
-    idFunc(5),                // index in the functionBindings table of parser
-    binding(6),               // id of binding that is being defined
-    annot(7),                 // index in the annotations table of parser
+enum class RegularAST(val internalVal: Byte) {
+                   // payload2 at +3                                    // extra payload1 at +2
+    litInt(0),     // int value
+    litFloat(1),   // floating-point value
+    litString(2),  // 0
+    litBool(3),    // 1 or 0
+    ident(4),      // index in the identifiers table of AST
+    idFunc(5),     // index in the functions table of AST              // arity, negated if it's an infix operator
+    binding(6),    // id of binding that is being defined
+    annot(7),      // index in the annotations table of parser
 }
 
 /** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need pausing & resuming */

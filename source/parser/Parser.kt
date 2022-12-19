@@ -962,18 +962,21 @@ fun parseFromW(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
 }
 
 /**
- * Appends a node that represents a function name in a function call
+ * Appends a node that represents a function name in a function call.
+ * For functions, fnParse.nameStringId is the id of the function name.
+ * For operators, it's (-indOper - 1), where indOper is the index inside 'operatorBindingIndices' and 'operatorFunctionality' arrays.
  */
 private fun appendFnName(fnParse: FunctionCall) {
     if (fnParse.nameStringId > -1) {
         // functions
         val fnName = ast.identifiers[fnParse.nameStringId]
         val fnId = lookupFunction(fnName, fnParse.arity) ?: createError(errorUnknownFunction)
-        currFnDef.appendNode(idFunc, 0, fnId, fnParse.startByte, fnName.length)
+        currFnDef.appendNode(idFunc, fnParse.arity, fnId, fnParse.startByte, fnName.length)
     } else {
         // operators
         val operInfo = operatorFunctionality[-fnParse.nameStringId - 1]
-        currFnDef.appendNode(idFunc, 0, operatorBindingIndices[-fnParse.nameStringId - 1], fnParse.startByte, operInfo.first.length)
+        currFnDef.appendNode(idFunc, -fnParse.arity, -fnParse.nameStringId - 1, fnParse.startByte,
+                             operInfo.first.length)
     }
 
 }

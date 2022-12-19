@@ -1,8 +1,14 @@
 package codegen
 import lexer.FileType
+import lexer.operatorBindingIndices
+import lexer.operatorFunctionality
 import parser.FrameAST
 import parser.Parser
 import parser.FrameAST.*;
+import parser.RegularAST.*;
+import java.util.*
+import kotlin.collections.ArrayList
+import kotlin.math.abs
 
 class Codegen(val pr: Parser) {
 
@@ -31,7 +37,7 @@ private fun codeGenExecutable(wr: StringBuilder) {
     val entryPointLenNodes = ast.currChunk.nodes[ast.currInd + 3]
     backtrack.add(CodegenFrame(functionDef, -1, 0, entryPoint.bodyId, entryPointLenNodes))
 
-    while (ast.currTokInd != (entryPoint.bodyId + entryPointLenNodes + 1)) {
+    while (ast.currNodeInd != (entryPoint.bodyId + entryPointLenNodes + 1)) {
         val extentType = ast.currNodeType()
         val lenNodes = ast.currChunk.nodes[ast.currInd + 3]
         val fr = backtrack.last()
@@ -58,7 +64,7 @@ private fun codeGenExecutable(wr: StringBuilder) {
 private fun pushNewFrame(nameId: Int, arity: Int) {
     val eType = FrameAST.values().first {it.internalVal.toInt() == ast.currChunk.nodes[ast.currInd] ushr 27 }
     val lenNodes = ast.currChunk.nodes[ast.currInd + 3]
-    backtrack.add(CodegenFrame(eType, nameId, arity, ast.currTokInd, lenNodes))
+    backtrack.add(CodegenFrame(eType, nameId, arity, ast.currNodeInd, lenNodes))
 }
 
 
@@ -75,7 +81,7 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
     val funcId = ast.currChunk.nodes[ast.currInd + 2]
     val func = ast.getFunc(funcId)
     ast.nextNode() // fnDefPlaceholder
-    fr.returnNode = ast.currTokInd // the node to return to after we're done with this nested function
+    fr.returnNode = ast.currNodeInd // the node to return to after we're done with this nested function
     ast.seek(func.bodyId)
     pushNewFrame(func.nameId, func.arity)
 
@@ -111,7 +117,7 @@ private fun maybeCloseFrames(wr: StringBuilder) {
         var i = backtrack.size - 1
         while (i > -1) {
             val frame = backtrack[i]
-            if (ast.currTokInd < frame.sentinelNode) {
+            if (ast.currNodeInd < frame.sentinelNode) {
                 return
             } else {
                 closeFrame(frame, wr)
@@ -130,6 +136,63 @@ private fun maybeCloseFrames(wr: StringBuilder) {
 }
 
 
+/** Writes out the reverse Polish notation expression in JS prefix+infix form.
+ *  Consumes all nodes of the expression */
+private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
+    val stringBuildup = Stack<String>()
+    for (i in 0 until lenNodes) {
+        val nodeType = ast.currNodeType()
+        val payload1 = ast.currChunk.nodes[ast.currInd + 2]
+        val payload2 = ast.currChunk.nodes[ast.currInd + 3]
+        if (nodeType == ident.internalVal.toInt()) {
+            stringBuildup.push(ast.getString(payload2))
+        } else if (nodeType == litInt.internalVal.toInt()) {
+            val literalValue = (payload1.toLong() shl 32) + payload2.toLong()
+            stringBuildup.push(literalValue.toString())
+        } else if (nodeType == idFunc.internalVal.toInt()) {
+            val sb = StringBuilder()
+
+            val arity = abs(payload1)
+            val operands = Array(arity) { "" }
+            for (j in 0 until arity) {
+                operands[arity - j - 1] = stringBuildup.pop()
+            }
+            val func = ast.getFunc(payload2)
+            if (payload1 >= 0) {
+                // function
+
+                sb.append(ast.getString(func.nameId))
+                sb.append("(")
+                sb.append(operands[0])
+                for (j in 1 until payload1) {
+                    sb.append(operands[j])
+                    sb.append(", ")
+                }
+            } else {
+                // operator
+                val operString: String = operatorFunctionality[payload2].first
+                sb.append("(")
+                if (payload1 == -1) {
+                    sb.append(operString)
+                    sb.append(operands[0])
+                } else if (payload1 == -2) {
+                    sb.append(operands[0])
+                    sb.append(operString)
+                    sb.append(operands[1])
+                }
+
+            }
+            sb.append(")")
+            stringBuildup.push(sb.toString())
+        } else {
+            throw Exception(errorUnknownNodeInExpression)
+        }
+        ast.nextNode()
+    }
+    wr.append(stringBuildup.pop())
+}
+
+
 private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
     wr.append("expression;\n")
@@ -140,14 +203,19 @@ private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) 
 private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
 
-    wr.append("const ")
-    ast.nextNode()
+    ast.nextNode() // the "assignment node
 
+    wr.append("const ")
     wr.append(ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]])
     wr.append(" = ")
 
-    wr.append("assignment;\n")
-    ast.skipNodes(lenNodes)
+    ast.nextNode()  // the binding name node
+    val lenExpression = ast.currChunk.nodes[ast.currInd + 3]
+
+    ast.nextNode()  // the "expression" node
+    writeExpressionBody(lenExpression, wr)
+
+    wr.append(";\n")
 }
 
 
