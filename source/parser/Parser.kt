@@ -214,7 +214,7 @@ private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
     while (j < funcSignature.arity) {
         val paramName = readString(word)
 
-        newFunScope.bindings[paramName] = j
+        newFunScope.bindings[paramName] = allStrings[paramName]!!
         newFnDef.appendName(allStrings[paramName]!!, inp.currStartByte(), paramName.length)
 
         inp.nextToken()
@@ -801,12 +801,16 @@ private fun readString(tType: RegularToken): String {
 
 
 private fun lookupBinding(name: String): Int? {
-    val subscopes = currFnDef.subscopes
-    for (j in (subscopes.size - 1) downTo 0) {
-        if (subscopes[j].bindings.containsKey(name)) {
-            return subscopes[j].bindings[name]
+    for (f in (fnDefBacktrack.size - 1) downTo 0) {
+        val fnDef = fnDefBacktrack[f]
+        val subscopes = fnDef.subscopes
+        for (j in (subscopes.size - 1) downTo 0) {
+            if (subscopes[j].bindings.containsKey(name)) {
+                return subscopes[j].bindings[name]
+            }
         }
     }
+
     if (importedScope.bindings.containsKey(name)) {
         return importedScope.bindings[name]
     }

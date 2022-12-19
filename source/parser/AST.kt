@@ -2,6 +2,7 @@ package parser
 import lexer.CHUNKSZ
 import utils.LOWER24BITS
 import utils.LOWER27BITS
+import utils.LOWER32BITS
 import java.lang.StringBuilder
 
 
@@ -413,7 +414,7 @@ class AST {
             if (typeBits < firstFrameASTType) {
                 val regType = RegularAST.values().firstOrNull { it.internalVal == typeBits }
                 if (regType != RegularAST.litFloat) {
-                    val payload: Long = (chunk.nodes[ind + 2].toLong() shl 32) + chunk.nodes[ind + 3].toLong()
+                    val payload: Long = (chunk.nodes[ind + 2].toLong() shl 32) + (chunk.nodes[ind + 3].toLong() and LOWER32BITS)
                     wr.append("$regType [${startByte} ${lenBytes}] $payload")
                 } else {
                     val payload: Double = Double.fromBits(

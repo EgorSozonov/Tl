@@ -6,6 +6,7 @@ import parser.FrameAST
 import parser.Parser
 import parser.FrameAST.*;
 import parser.RegularAST.*;
+import utils.LOWER32BITS
 import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.math.abs
@@ -147,7 +148,7 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
         if (nodeType == ident.internalVal.toInt()) {
             stringBuildup.push(ast.getString(payload2))
         } else if (nodeType == litInt.internalVal.toInt()) {
-            val literalValue = (payload1.toLong() shl 32) + payload2.toLong()
+            val literalValue = (payload1.toLong() shl 32) + (payload2.toLong() and LOWER32BITS)
             stringBuildup.push(literalValue.toString())
         } else if (nodeType == idFunc.internalVal.toInt()) {
             val sb = StringBuilder()
@@ -158,20 +159,20 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
                 operands[arity - j - 1] = stringBuildup.pop()
             }
             val func = ast.getFunc(payload2)
+            val needParentheses = (i < (lenNodes - 1)) || payload1 >= 0
             if (payload1 >= 0) {
                 // function
-
                 sb.append(ast.getString(func.nameId))
-                sb.append("(")
+                if (needParentheses) sb.append("(")
                 sb.append(operands[0])
                 for (j in 1 until payload1) {
-                    sb.append(operands[j])
                     sb.append(", ")
+                    sb.append(operands[j])
                 }
             } else {
                 // operator
                 val operString: String = operatorFunctionality[payload2].first
-                sb.append("(")
+                if (needParentheses) sb.append("(")
                 if (payload1 == -1) {
                     sb.append(operString)
                     sb.append(operands[0])
@@ -182,7 +183,7 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
                 }
 
             }
-            sb.append(")")
+            if (needParentheses) sb.append(")")
             stringBuildup.push(sb.toString())
         } else {
             throw Exception(errorUnknownNodeInExpression)
@@ -221,8 +222,11 @@ private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) 
 
 private fun writeReturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
-    wr.append("return;\n")
-    ast.skipNodes(lenNodes + 1)
+    wr.append("return ")
+    val lenExpression = ast.currChunk.nodes[ast.currInd + 3]
+    ast.nextNode() // the returnExpression
+    writeExpressionBody(lenExpression, wr)
+    wr.append(";\n")
 }
 
 
