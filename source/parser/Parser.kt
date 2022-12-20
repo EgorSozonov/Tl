@@ -1008,6 +1008,17 @@ fun buildNode(nType: RegularAST, payload1: Int, payload2: Int, startByte: Int, l
 }
 
 
+fun buildFunction(nameId: Int, arity: Int, bodyId: Int): Parser {
+    ast.buildFunc(nameId, arity, 0, bodyId)
+    return this
+}
+
+fun buildFnDefPlaceholder(bodyId: Int): Parser {
+    ast.appendFnDefPlaceholder(bodyId)
+    return this
+}
+
+
 fun buildFloatNode(payload: Double, startByte: Int, lenBytes: Int): Parser {
     val payloadAsLong = payload.toBits()
     ast.appendNode(litFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(), startByte, lenBytes)
