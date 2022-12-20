@@ -3,9 +3,8 @@ package runner
 import codegen.Codegen
 import lexer.FileType
 import lexer.Lexer
-import parser.ImportOrBuiltin
+import parser.Import
 import parser.Parser
-import parser.funcPrecedence
 
 
 const val input = """
@@ -17,6 +16,8 @@ fn foo x y {
         return a - 2*b + 3*c
     }
 }
+
+90 .foo 100 .print
 """
 
 // foo ~20
@@ -34,7 +35,7 @@ fun main(args: Array<String>) {
     println(Lexer.print(lexer))
 
     val parser = Parser(lexer)
-    parser.parse(arrayListOf(ImportOrBuiltin("print", funcPrecedence, 1)))
+    parser.parse(arrayListOf(Import("print", "console.log", 1)))
 
     println(Parser.print(parser))
 

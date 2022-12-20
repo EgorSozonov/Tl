@@ -3,7 +3,6 @@ import lexer.Lexer
 import lexer.PunctuationToken.*
 import lexer.RegularToken.*
 import org.junit.jupiter.api.Nested
-import parser.ImportOrBuiltin
 import parser.Parser
 import kotlin.test.Test
 import kotlin.test.assertEquals

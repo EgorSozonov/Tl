@@ -18,15 +18,15 @@ class AST {
     /** 4-int32 elements of [
      *     (nameId: ind in 'identifiers') i32
      *     (arity) i32
-     *     (type) i32
-     *     (bodyId: ind in 'functionBodies') i32
+     *     (typeId) i32
+     *     (bodyId: ind in 'functionBodies') i32 or (for imports) (-nativeNameId: int ind 'identifiers') i32
      * ]  */
     val functions = ASTChunk()
     var funcCurrChunk: ASTChunk                               // Last array of tokens
         private set
     var funcNextInd: Int                                      // Next ind inside the current token array
         private set
-    var funcCurrInd: Int = 0
+    private var funcCurrInd: Int = 0
         private set
     var funcTotalNodes: Int
         private set
@@ -73,6 +73,16 @@ class AST {
         funcCurrChunk.nodes[funcNextInd    ] = nameId
         funcCurrChunk.nodes[funcNextInd + 1] = arity
         funcCurrChunk.nodes[funcNextInd + 2] = typeId
+        bumpFunc()
+    }
+
+
+    fun importNode(nameId: Int, arity: Int, typeId: Int, nativeNameId: Int) {
+        ensureSpaceForFunc()
+        funcCurrChunk.nodes[funcNextInd    ] = nameId
+        funcCurrChunk.nodes[funcNextInd + 1] = arity
+        funcCurrChunk.nodes[funcNextInd + 2] = typeId
+        funcCurrChunk.nodes[funcNextInd + 3] = -nativeNameId - 1
         bumpFunc()
     }
 

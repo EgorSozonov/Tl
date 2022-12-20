@@ -20,7 +20,6 @@ var wasError: Boolean
 var errMsg: String
     private set
 
-// The backtracks and mutable state to support nested data structures
 private val fnDefBacktrack = Stack<FunctionDef>()   // The stack of function definitions
 private var currFnDef: FunctionDef
 private val importedScope: LexicalScope
@@ -28,7 +27,7 @@ private val importedScope: LexicalScope
 /** Map for interning/deduplication of identifier names */
 private var allStrings = HashMap<String, Int>(50)
 
-/** Index of first non-builtin in 'functions' of AST */
+/** Index of first non-builtin in 'functions' of AST. For executable files, this is the index of the Entrypoint function */
 var indFirstFunction: Int = 0
     private set
 
@@ -36,7 +35,7 @@ var indFirstFunction: Int = 0
 /**
  * Main parser method
  */
-fun parse(imports: ArrayList<ImportOrBuiltin>) {
+fun parse(imports: ArrayList<Import>) {
     val lastChunk = inp.currChunk
     val sentinelInd = inp.nextInd
     inp.currChunk = inp.firstChunk
@@ -135,7 +134,6 @@ private fun maybeCloseFrames() {
     }
 }
 
-
 /** Closes a frame that is a scope. Since we're not just tracking consumed tokens in the
  * frames, but also in the FunctionStack (i.e. in the subexpressions), we need to duly update
  * those when a scope is closed.
@@ -170,7 +168,6 @@ private fun statement(): Int {
     }
     return lenTokens + 1 // plus 1 is for the statement token itself
 }
-
 
 /**
  * Parses any kind of statement (fun, assignment, typedecl) except core forms
@@ -387,7 +384,6 @@ private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: 
     newScope.funDefs.reverse()
     inp.seek(originalPosition)
 }
-
 
 /**
  * Adds the function from a single "fn" definition. Returns the pair (funcId, number of consumed tokens)
@@ -799,7 +795,6 @@ private fun readString(tType: RegularToken): String {
 }
 
 
-
 private fun lookupBinding(name: String): Int? {
     for (f in (fnDefBacktrack.size - 1) downTo 0) {
         val fnDef = fnDefBacktrack[f]
@@ -939,7 +934,6 @@ fun parseFromM(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
 }
 
-
 /**
  * Parse a statement where the first word is possibly "return"
  */
@@ -1035,7 +1029,7 @@ fun buildError(msg: String): Parser {
 }
 
 /** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
-fun insertImports(imports: ArrayList<ImportOrBuiltin>, fileType: FileType): Parser {
+fun insertImports(imports: ArrayList<Import>, fileType: FileType): Parser {
     val uniqueNames = HashSet<String>()
     val builtins = builtInOperators()
     for (bui in builtins) {
@@ -1055,14 +1049,13 @@ fun insertImports(imports: ArrayList<ImportOrBuiltin>, fileType: FileType): Pars
         val strId = addString(imp.name)
         if (imp.arity > -1) {
             val funcId = ast.funcTotalNodes
-            ast.funcNode(strId, imp.arity, 0)
+            val nativeNameId = addString(imp.nativeName)
+            ast.importNode(strId, imp.arity, 0, nativeNameId)
             importedScope.functions[imp.name] = arrayListOf(IntPair(funcId, imp.arity))
         } else {
             importedScope.bindings[imp.name] = strId
         }
     }
-
-
     return this
 }
 
@@ -1108,13 +1101,12 @@ companion object {
         }
     }
 
-    fun builtInOperators(): ArrayList<ImportOrBuiltin> {
-        val result = ArrayList<ImportOrBuiltin>(20)
-        for (of in operatorFunctionality.filter { x -> x.first != "" }) {
-            result.add(ImportOrBuiltin(of.first, of.second, of.third))
-        }
-
-        return result
+    fun builtInOperators(): ArrayList<BuiltinOperator> {
+//        val result = ArrayList<BuiltinOperator>(20)
+//        for (of in operatorFunctionality.filter { x -> x.first != "" }) {
+//            result.add(BuiltinOperator(of.first, of.third))
+//        }
+        return ArrayList(operatorFunctionality.filter { x -> x.first != "" } .map{BuiltinOperator(it.first, it.third)})
     }
 
 

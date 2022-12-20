@@ -160,7 +160,14 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
             val needParentheses = (i < (lenNodes - 1)) || payload1 >= 0
             if (payload1 >= 0) {
                 // function
-                sb.append(ast.getString(func.nameId))
+                if (func.bodyId < 0) {
+                    // imported function
+                    sb.append(ast.getString(-func.bodyId - 1))
+                } else {
+                    // local function
+                    sb.append(ast.getString(func.nameId))
+                }
+
                 sb.append("(")
                 sb.append(operands[0])
                 for (j in 1 until payload1) {
@@ -194,8 +201,9 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
 
 private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
-    wr.append("expression;\n")
-    ast.skipNodes(lenNodes + 1)
+    ast.nextNode()
+    writeExpressionBody(lenNodes, wr)
+    wr.append(";\n")
 }
 
     

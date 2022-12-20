@@ -14,9 +14,9 @@ class LexicalScope {
     val funDefs: ArrayList<Int> = ArrayList(4)
 }
 
-class Binding(val name: String)
+data class BuiltinOperator(val name: String, val arity: Int)
+data class Import(val name: String, val nativeName: String, val arity: Int)
 
-class ImportOrBuiltin(val name: String, val precedence: Int, val arity: Int)
 
 class FunctionCall(var nameStringId: Int, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
