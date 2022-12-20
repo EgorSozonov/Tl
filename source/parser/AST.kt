@@ -77,16 +77,6 @@ class AST {
     }
 
 
-    fun importNode(nameId: Int, arity: Int, typeId: Int, nativeNameId: Int) {
-        ensureSpaceForFunc()
-        funcCurrChunk.nodes[funcNextInd    ] = nameId
-        funcCurrChunk.nodes[funcNextInd + 1] = arity
-        funcCurrChunk.nodes[funcNextInd + 2] = typeId
-        funcCurrChunk.nodes[funcNextInd + 3] = -nativeNameId - 1
-        bumpFunc()
-    }
-
-
     fun funcSeek(funcId: Int) {
         funcCurrInd = funcId*4
         funcCurrChunk = functions

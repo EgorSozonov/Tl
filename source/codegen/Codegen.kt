@@ -160,13 +160,7 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
             val needParentheses = (i < (lenNodes - 1)) || payload1 >= 0
             if (payload1 >= 0) {
                 // function
-                if (func.bodyId < 0) {
-                    // imported function
-                    sb.append(ast.getString(-func.bodyId - 1))
-                } else {
-                    // local function
-                    sb.append(ast.getString(func.nameId))
-                }
+                sb.append(ast.getString(func.nameId))
 
                 sb.append("(")
                 sb.append(operands[0])

@@ -1050,7 +1050,7 @@ fun insertImports(imports: ArrayList<Import>, fileType: FileType): Parser {
         if (imp.arity > -1) {
             val funcId = ast.funcTotalNodes
             val nativeNameId = addString(imp.nativeName)
-            ast.importNode(strId, imp.arity, 0, nativeNameId)
+            ast.funcNode(nativeNameId, imp.arity, 0)
             importedScope.functions[imp.name] = arrayListOf(IntPair(funcId, imp.arity))
         } else {
             importedScope.bindings[imp.name] = strId

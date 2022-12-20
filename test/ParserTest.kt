@@ -462,7 +462,30 @@ inner class ScopeTest {
 inner class FunctionTest {
     @Test
     fun `Simple function def 1`() {
+        testParseWithEnvironment(
+            """fn newFn x {
+    return x + 3
+}
+""",
+            arrayListOf())
+        {
+            it.buildInsertString("newFn").buildInsertString("x")
 
+                .buildExtent(functionDef, 14, 0, 43)
+                .buildExtent(scope, 13, 0, 43)
+                .buildExtent(returnExpression, 2, 6, 7)
+                .buildNode(binding, 0, 2, 6, 1)
+                .buildNode(litInt, 0, 123, 10, 3)
+                .buildExtent(statementAssignment, 5, 16, 11)
+                .buildNode(binding, 0, 3, 16, 2)
+                .buildExtent(expression, 3, 21, 6)
+                .buildNode(ident, 0, 2, 21, 1)
+                .buildNode(litInt, 0, 10, 25, 2)
+                .buildNode(idFunc, -2, 6, 23, 1)
+                .buildExtent(expression, 2, 32, 9)
+                .buildNode(ident, 0, 3, 32, 2)
+                .buildNode(idFunc, 1, it.indFirstFunction + 1, 35, 6)
+        }
     }
 
     @Test
