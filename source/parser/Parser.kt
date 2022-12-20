@@ -975,7 +975,7 @@ private fun appendFnName(fnParse: FunctionCall) {
         // functions
         val fnName = ast.identifiers[fnParse.nameStringId]
         val fnId = lookupFunction(fnName, fnParse.arity) ?: createError(errorUnknownFunction)
-        currFnDef.appendNode(idFunc, fnParse.arity, fnId, fnParse.startByte, fnName.length)
+        currFnDef.appendNode(idFunc, fnParse.arity, fnId, fnParse.startByte, fnName.length + 1) // +1 because of the dot
     } else {
         // operators
         val operInfo = operatorFunctionality[-fnParse.nameStringId - 1]
@@ -1053,7 +1053,7 @@ fun insertImports(imports: ArrayList<ImportOrBuiltin>, fileType: FileType): Pars
         }
         uniqueNames.add(imp.name)
         val strId = addString(imp.name)
-        if (imp.arity > 0) {
+        if (imp.arity > -1) {
             val funcId = ast.funcTotalNodes
             ast.funcNode(strId, imp.arity, 0)
             importedScope.functions[imp.name] = arrayListOf(IntPair(funcId, imp.arity))

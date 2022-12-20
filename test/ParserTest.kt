@@ -19,12 +19,13 @@ inner class ExprTest {
         testParseWithEnvironment(
             "10 .foo 2 3", arrayListOf(ImportOrBuiltin("foo", funcPrecedence, 3)
         )) {
-            it.buildExtent(scope, 5, 0, 11)
+            it.buildExtent(functionDef, 6, 0, 11)
+              .buildExtent(scope, 5, 0, 11)
               .buildExtent(expression, 4, 0, 11)
               .buildNode(litInt, 0, 10, 0, 2)
               .buildNode(litInt, 0, 2, 8, 1)
               .buildNode(litInt, 0, 3, 10, 1)
-              .buildNode(idFunc, 0, it.indFirstFunction, 3, 3)
+              .buildNode(idFunc, 3, it.indFirstFunction + 1, 3, 4)
         }
     }
 
@@ -34,20 +35,21 @@ inner class ExprTest {
             "a .foo (b .bar c d)", arrayListOf(
                 ImportOrBuiltin("foo", funcPrecedence, 2),
                 ImportOrBuiltin("bar", funcPrecedence, 3),
-                ImportOrBuiltin("a", 0, 0),
-                ImportOrBuiltin("b", 0, 0),
-                ImportOrBuiltin("c", 0, 0),
-                ImportOrBuiltin("d", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
+                ImportOrBuiltin("b", 0, -1),
+                ImportOrBuiltin("c", 0, -1),
+                ImportOrBuiltin("d", 0, -1),
             )
         ) {
-            it.buildExtent(scope, 7, 0, 19)
+            it.buildExtent(functionDef, 8, 0, 19)
+              .buildExtent(scope, 7, 0, 19)
               .buildExtent(expression, 6, 0, 19)
               .buildNode(ident, 0, 2, 0, 1)
               .buildNode(ident, 0, 3, 8, 1)
               .buildNode(ident, 0, 4, 15, 1)
               .buildNode(ident, 0, 5, 17, 1)
-              .buildNode(idFunc, 0, it.indFirstFunction + 1, 10, 3)
-              .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
+              .buildNode(idFunc, 3, it.indFirstFunction + 2, 10, 4)
+              .buildNode(idFunc, 2, it.indFirstFunction + 1, 2, 4)
         }
     }
 
@@ -55,51 +57,54 @@ inner class ExprTest {
     fun `Infix function call`() {
         testParseWithEnvironment("a .foo b", arrayListOf(
                 ImportOrBuiltin("foo", funcPrecedence, 2),
-                ImportOrBuiltin("a", 0, 0),
-                ImportOrBuiltin("b", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
+                ImportOrBuiltin("b", 0, -1),
         )) {
-            it.buildExtent(scope, 4, 0, 8)
+            it.buildExtent(functionDef, 5, 0, 8)
+              .buildExtent(scope, 4, 0, 8)
               .buildExtent(expression, 3, 0, 8)
               .buildNode(ident, 0, 1, 0, 1)
               .buildNode(ident, 0, 2, 7, 1)
-              .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
+              .buildNode(idFunc, 2, it.indFirstFunction + 1, 2, 4)
         }
     }
 
     @Test
     fun `Infix function calls`() {
         testParseWithEnvironment("c .foo b a .bar", arrayListOf(
-            ImportOrBuiltin("a", 0, 0),
-            ImportOrBuiltin("b", 0, 0),
-            ImportOrBuiltin("c", 0, 0),
+            ImportOrBuiltin("a", 0, -1),
+            ImportOrBuiltin("b", 0, -1),
+            ImportOrBuiltin("c", 0, -1),
             ImportOrBuiltin("foo", funcPrecedence, 3),
             ImportOrBuiltin("bar", funcPrecedence, 1),
         )) {
-            it.buildExtent(scope, 6, 0, 15)
+            it.buildExtent(functionDef, 7, 0, 15)
+              .buildExtent(scope, 6, 0, 15)
               .buildExtent(expression, 5, 0, 15)
               .buildNode(ident, 0, 2, 0, 1)
               .buildNode(ident, 0, 1, 7, 1)
               .buildNode(ident, 0, 0, 9, 1)
-              .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
-              .buildNode(idFunc, 0, it.indFirstFunction + 1, 11, 3)
+              .buildNode(idFunc, 3, it.indFirstFunction + 1, 2, 4)
+              .buildNode(idFunc, 1, it.indFirstFunction + 2, 11, 4)
         }
     }
 
     @Test
     fun `Parentheses then infix function call`() {
         testParseWithEnvironment(
-            "(a .foo) .bar b", arrayListOf(
-                ImportOrBuiltin("a", 0, 0),
-                ImportOrBuiltin("b", 0, 0),
+            "(a .foo) .barbar b", arrayListOf(
+                ImportOrBuiltin("a", 0, -1),
+                ImportOrBuiltin("b", 0, -1),
                 ImportOrBuiltin("foo", funcPrecedence, 1),
-                ImportOrBuiltin("bar", funcPrecedence, 2),
+                ImportOrBuiltin("barbar", funcPrecedence, 2),
             )) {
-                it.buildExtent(scope, 5, 0, 15)
-                  .buildExtent(expression, 4, 0, 15)
+                it.buildExtent(functionDef, 6, 0, 18)
+                  .buildExtent(scope, 5, 0, 18)
+                  .buildExtent(expression, 4, 0, 18)
                   .buildNode(ident, 0, 0, 1, 1)
-                  .buildNode(idFunc, 0, it.indFirstFunction, 3, 3)
-                  .buildNode(ident, 0, 1, 14, 1)
-                  .buildNode(idFunc, 0, it.indFirstFunction + 1, 9, 3)
+                  .buildNode(idFunc, 1, it.indFirstFunction + 1, 3, 4)
+                  .buildNode(ident, 0, 1, 17, 1)
+                  .buildNode(idFunc, 2, it.indFirstFunction + 2, 9, 7)
             }
     }
 
@@ -107,30 +112,32 @@ inner class ExprTest {
     fun `Operator precedence simple`() {
         testParseWithEnvironment(
             "a + b * c", arrayListOf(
-                ImportOrBuiltin("a", 0, 0), ImportOrBuiltin("b", 0, 0), ImportOrBuiltin("c", 0, 0)
+                ImportOrBuiltin("a", 0, -1), ImportOrBuiltin("b", 0, -1), ImportOrBuiltin("c", 0, -1)
             )) {
-                it.buildExtent(scope, 6, 0, 9)
+                it.buildExtent(functionDef, 7, 0, 9)
+                  .buildExtent(scope, 6, 0, 9)
                   .buildExtent(expression, 5, 0, 9)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(ident, 0, 1, 4, 1)
                   .buildNode(ident, 0, 2, 8, 1)
-                  .buildNode(idFunc, 0, 6, 6, 1)
-                  .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(idFunc, -2, 6, 6, 1)
+                  .buildNode(idFunc, -2, 8, 2, 1)
             }
     }
 
     @Test
     fun `Operator precedence simple 2`() {
         testParseWithEnvironment("(a + b) * c", arrayListOf(
-                ImportOrBuiltin("a", 0, 0), ImportOrBuiltin("b", 0, 0), ImportOrBuiltin("c", 0, 0)
+                ImportOrBuiltin("a", 0, -1), ImportOrBuiltin("b", 0, -1), ImportOrBuiltin("c", 0, -1)
         )) {
-            it.buildExtent(scope, 6, 0, 11)
+            it.buildExtent(functionDef, 7, 0, 11)
+              .buildExtent(scope, 6, 0, 11)
               .buildExtent(expression, 5, 0, 11)
               .buildNode(ident, 0, 0, 1, 1)
               .buildNode(ident, 0, 1, 5, 1)
-              .buildNode(idFunc, 0, 8, 3, 1)
+              .buildNode(idFunc, -2, 8, 3, 1)
               .buildNode(ident, 0, 2, 10, 1)
-              .buildNode(idFunc, 0, 6, 8, 1)
+              .buildNode(idFunc, -2, 6, 8, 1)
 
         }
         
@@ -140,21 +147,22 @@ inner class ExprTest {
     fun `Operator precedence simple 3`() {
         testParseWithEnvironment(
             "a != 7 && a != 8 && a != 9", arrayListOf(
-                ImportOrBuiltin("a", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
             )) {
-                it.buildExtent(scope, 12, 0, 26)
+                it.buildExtent(functionDef, 13, 0, 26)
+                  .buildExtent(scope, 12, 0, 26)
                   .buildExtent(expression, 11, 0, 26)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, 0, 7, 5, 1)
-                  .buildNode(idFunc, 0, 0, 2, 2)
+                  .buildNode(idFunc, -2, 0, 2, 2)
                   .buildNode(ident, 0, 0, 10, 1)
                   .buildNode(litInt, 0, 8, 15, 1)
-                  .buildNode(idFunc, 0, 0, 12, 2)
-                  .buildNode(idFunc, 0, 3, 7, 2)
+                  .buildNode(idFunc, -2, 0, 12, 2)
+                  .buildNode(idFunc, -2, 3, 7, 2)
                   .buildNode(ident, 0, 0, 20, 1)
                   .buildNode(litInt, 0, 9, 25, 1)
-                  .buildNode(idFunc, 0, 0, 22, 2)
-                  .buildNode(idFunc, 0, 3, 17, 2)
+                  .buildNode(idFunc, -2, 0, 22, 2)
+                  .buildNode(idFunc, -2, 3, 17, 2)
 
             }
     }
@@ -163,14 +171,15 @@ inner class ExprTest {
     fun `Operator prefix 1`() {
         testParseWithEnvironment(
             "!a .foo", arrayListOf(
-                ImportOrBuiltin("a", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
                 ImportOrBuiltin("foo", funcPrecedence, 1)
             )) {
-                it.buildExtent(scope, 4, 0, 7)
+                it.buildExtent(functionDef, 5, 0, 7)
+                  .buildExtent(scope, 4, 0, 7)
                   .buildExtent(expression, 3, 0, 7)
                   .buildNode(ident, 0, 0, 1, 1)
-                  .buildNode(idFunc, 0, 1, 0, 1)
-                  .buildNode(idFunc, 0, it.indFirstFunction, 3, 3)
+                  .buildNode(idFunc, -1, 1, 0, 1)
+                  .buildNode(idFunc, 1, it.indFirstFunction + 1, 3, 4)
             }
         
     }
@@ -179,19 +188,20 @@ inner class ExprTest {
     fun `Operator prefix 2`() {
         testParseWithEnvironment(
             "!a .foo b !c", arrayListOf(
-                ImportOrBuiltin("a", 0, 0),
-                ImportOrBuiltin("b", 0, 0),
-                ImportOrBuiltin("c", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
+                ImportOrBuiltin("b", 0, -1),
+                ImportOrBuiltin("c", 0, -1),
                 ImportOrBuiltin("foo", funcPrecedence, 3),
             )) {
-                it.buildExtent(scope, 7, 0, 12)
+                it.buildExtent(functionDef, 8, 0, 12)
+                  .buildExtent(scope, 7, 0, 12)
                   .buildExtent(expression, 6, 0, 12)
                   .buildNode(ident, 0, 0, 1, 1)
-                  .buildNode(idFunc, 0, 1, 0, 1)
+                  .buildNode(idFunc, -1, 1, 0, 1)
                   .buildNode(ident, 0, 1, 8, 1)
                   .buildNode(ident, 0, 2, 11, 1)
-                  .buildNode(idFunc, 0, 1, 10, 1)
-                  .buildNode(idFunc, 0, it.indFirstFunction, 3, 3)
+                  .buildNode(idFunc, -1, 1, 10, 1)
+                  .buildNode(idFunc, 3, it.indFirstFunction + 1, 3, 4)
             }
     }
 
@@ -199,17 +209,18 @@ inner class ExprTest {
     fun `Operator prefix 3`() {
         testParseWithEnvironment(
             "!(a || b) .foo", arrayListOf(
-                ImportOrBuiltin("a", 0, 0),
-                ImportOrBuiltin("b", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
+                ImportOrBuiltin("b", 0, -1),
                 ImportOrBuiltin("foo", funcPrecedence, 1),
             )) {
-                it.buildExtent(scope, 6, 0, 14)
+                it.buildExtent(functionDef, 7, 0, 14)
+                  .buildExtent(scope, 6, 0, 14)
                   .buildExtent(expression, 5, 0, 14)
                   .buildNode(ident, 0, 0, 2, 1)
                   .buildNode(ident, 0, 1, 7, 1)
-                  .buildNode(idFunc, 0, 25, 4, 2)
-                  .buildNode(idFunc, 0, 1, 0, 1)
-                  .buildNode(idFunc, 0, it.indFirstFunction, 10, 3)
+                  .buildNode(idFunc, -2, 35, 4, 2)
+                  .buildNode(idFunc, -1, 1, 0, 1)
+                  .buildNode(idFunc, 1, it.indFirstFunction + 1, 10, 4)
             }
     }
 
@@ -217,21 +228,22 @@ inner class ExprTest {
     fun `Operator arithmetic 1`() {
         testParseWithEnvironment(
             "a + (b - c % 2)**11", arrayListOf(
-                ImportOrBuiltin("a", 0, 0),
-                ImportOrBuiltin("b", 0, 0),
-                ImportOrBuiltin("c", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
+                ImportOrBuiltin("b", 0, -1),
+                ImportOrBuiltin("c", 0, -1),
             )) {
-                it.buildExtent(scope, 10, 0, 19)
+                it.buildExtent(functionDef, 11, 0, 19)
+                  .buildExtent(scope, 10, 0, 19)
                   .buildExtent(expression, 9, 0, 19)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(ident, 0, 1, 5, 1)
                   .buildNode(ident, 0, 2, 9, 1)
                   .buildNode(litInt, 0, 2, 13, 1)
-                  .buildNode(idFunc, 0, 2, 11, 1)
-                  .buildNode(idFunc, 0, 10, 7, 1)
+                  .buildNode(idFunc, -2, 2, 11, 1)
+                  .buildNode(idFunc, -2, 11, 7, 1)
                   .buildNode(litInt, 0, 11, 17, 2)
-                  .buildNode(idFunc, 0, 5, 15, 2)
-                  .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(idFunc, -2, 5, 15, 2)
+                  .buildNode(idFunc, -2, 8, 2, 1)
             }
     }
 
@@ -239,13 +251,14 @@ inner class ExprTest {
     fun `Operator arithmetic 2`() {
         testParseWithEnvironment(
             "a + (-5)", arrayListOf(
-                ImportOrBuiltin("a", 0, 0)
+                ImportOrBuiltin("a", 0, -1)
             )) {
-                it.buildExtent(scope, 4, 0, 8)
+                it.buildExtent(functionDef, 5, 0, 8)
+                  .buildExtent(scope, 4, 0, 8)
                   .buildExtent(expression, 3, 0, 8)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 5, 2)
-                  .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(idFunc, -2, 8, 2, 1)
             }
     }
 
@@ -253,14 +266,15 @@ inner class ExprTest {
     fun `Operator arithmetic 3`() {
         testParseWithEnvironment(
             "a + !(-5)", arrayListOf(
-                ImportOrBuiltin("a", 0, 0)
+                ImportOrBuiltin("a", 0, -1)
             )) {
-                it.buildExtent(scope, 5, 0, 9)
+                it.buildExtent(functionDef, 6, 0, 9)
+                  .buildExtent(scope, 5, 0, 9)
                   .buildExtent(expression, 4, 0, 9)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 6, 2)
-                  .buildNode(idFunc, 0, 1, 4, 1)
-                  .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(idFunc, -1, 1, 4, 1)
+                  .buildNode(idFunc, -2, 8, 2, 1)
             }
         
     }
@@ -269,15 +283,16 @@ inner class ExprTest {
     fun `Operator arithmetic 4`() {
         testParseWithEnvironment(
             "a + !!(-5)", arrayListOf(
-                ImportOrBuiltin("a", 0, 0)
+                ImportOrBuiltin("a", 0, -1)
             )) {
-                it.buildExtent(scope, 6, 0, 10)
+                it.buildExtent(functionDef, 7, 0, 10)
+                  .buildExtent(scope, 6, 0, 10)
                   .buildExtent(expression, 5, 0, 10)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, ((-5).toLong() ushr 32).toInt(), ((-5).toLong() and LOWER32BITS).toInt(), 7, 2)
-                  .buildNode(idFunc, 0, 1, 5, 1)
-                  .buildNode(idFunc, 0, 1, 4, 1)
-                  .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(idFunc, -1, 1, 5, 1)
+                  .buildNode(idFunc, -1, 1, 4, 1)
+                  .buildNode(idFunc, -2, 8, 2, 1)
             }
     }
 
@@ -285,7 +300,7 @@ inner class ExprTest {
     fun `Operator arity error 1`() {
         testParseWithEnvironment(
             "a + 5 100", arrayListOf(
-                ImportOrBuiltin("a", 0, 0)
+                ImportOrBuiltin("a", 0, -1)
             )) {
                 it.buildError(errorOperatorWrongArity)
             }
@@ -295,13 +310,14 @@ inner class ExprTest {
     fun `Single-item expression 1`() {
         testParseWithEnvironment(
             "a + (5)", arrayListOf(
-                ImportOrBuiltin("a", 0, 0)
+                ImportOrBuiltin("a", 0, -1)
             )) {
-                it.buildExtent(scope, 4, 0, 7)
+                it.buildExtent(functionDef, 5, 0, 7)
+                  .buildExtent(scope, 4, 0, 7)
                   .buildExtent(expression, 3, 0, 7)
                   .buildNode(ident, 0, 0, 0, 1)
                   .buildNode(litInt, 0, 5, 5, 1)
-                  .buildNode(idFunc, 0, 8, 2, 1)
+                  .buildNode(idFunc, -2, 8, 2, 1)
             }
     }
 
@@ -309,17 +325,18 @@ inner class ExprTest {
     fun `Single-item expression 2`() {
         testParseWithEnvironment(
             "5 .foo !!!(a)", arrayListOf(
-                ImportOrBuiltin("a", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
                 ImportOrBuiltin("foo", funcPrecedence, 2)
             )) {
-                it.buildExtent(scope, 7, 0, 13)
+                it.buildExtent(functionDef, 8, 0, 13)
+                  .buildExtent(scope, 7, 0, 13)
                   .buildExtent(expression, 6, 0, 13)
                   .buildNode(litInt, 0, 5, 0, 1)
                   .buildNode(ident, 0, 0, 11, 1)
-                  .buildNode(idFunc, 0, 1, 9, 1)
-                  .buildNode(idFunc, 0, 1, 8, 1)
-                  .buildNode(idFunc, 0, 1, 7, 1)
-                  .buildNode(idFunc, 0, it.indFirstFunction, 2, 3)
+                  .buildNode(idFunc, -1, 1, 9, 1)
+                  .buildNode(idFunc, -1, 1, 8, 1)
+                  .buildNode(idFunc, -1, 1, 7, 1)
+                  .buildNode(idFunc, 2, it.indFirstFunction + 1, 2, 4)
             }
     }
 
@@ -327,9 +344,9 @@ inner class ExprTest {
     fun `Unknown function arity`() {
         testParseWithEnvironment(
             "a .foo b c", arrayListOf(
-                ImportOrBuiltin("a", 0, 0),
-                ImportOrBuiltin("b", 0, 0),
-                ImportOrBuiltin("c", 0, 0),
+                ImportOrBuiltin("a", 0, -1),
+                ImportOrBuiltin("b", 0, -1),
+                ImportOrBuiltin("c", 0, -1),
                 ImportOrBuiltin("foo", funcPrecedence, 2),
             ))
             {
@@ -348,13 +365,14 @@ inner class AssignmentTest {
             "a = 1 + 5", arrayListOf())
             {
                 it.buildInsertString("a")
+                  .buildExtent(functionDef, 7, 0, 9)
                   .buildExtent(scope, 6, 0, 9)
                   .buildExtent(statementAssignment, 5, 0, 9)
                   .buildNode(binding, 0, 0, 0, 1)
                   .buildExtent(expression, 3, 4, 5)
                   .buildNode(litInt, 0, 1, 4, 1)
                   .buildNode(litInt, 0, 5, 8, 1)
-                  .buildNode(idFunc, 0, 8, 6, 1)
+                  .buildNode(idFunc, -2, 8, 6, 1)
             }
     }
 
@@ -364,6 +382,7 @@ inner class AssignmentTest {
             "a = 9", arrayListOf())
             {
                 it.buildInsertString("a")
+                  .buildExtent(functionDef, 4, 0, 5)
                   .buildExtent(scope, 3, 0, 5)
                   .buildExtent(statementAssignment, 2, 0, 5)
                   .buildNode(binding, 0, 0, 0, 1)
@@ -384,6 +403,7 @@ inner class ScopeTest {
 }""", arrayListOf(ImportOrBuiltin("print", funcPrecedence, 1)))
             {
                 it.buildInsertString("x")
+                  .buildExtent(functionDef, 8, 0, 27)
                   .buildExtent(scope, 7, 0, 27)
                   .buildExtent(scope, 6, 1, 25)
                   .buildExtent(statementAssignment, 2, 6, 5)
@@ -391,7 +411,7 @@ inner class ScopeTest {
                   .buildNode(litInt, 0, 5, 10, 1)
                   .buildExtent(expression, 2, 17, 8)
                   .buildNode(ident, 0, 1, 17, 1)
-                  .buildNode(idFunc, 0, it.indFirstFunction, 19, 5)
+                  .buildNode(idFunc, 1, it.indFirstFunction + 1, 19, 6)
             }
     }
 
@@ -406,6 +426,7 @@ inner class ScopeTest {
             {
                 it.buildInsertString("x")
                   .buildInsertString("yy")
+                  .buildExtent(functionDef, 14, 0, 43)
                   .buildExtent(scope, 13, 0, 43)
                   .buildExtent(scope, 12, 1, 41)
                   .buildExtent(statementAssignment, 2, 6, 7)
@@ -416,10 +437,10 @@ inner class ScopeTest {
                   .buildExtent(expression, 3, 21, 6)
                   .buildNode(ident, 0, 1, 21, 1)
                   .buildNode(litInt, 0, 10, 25, 2)
-                  .buildNode(idFunc, 0, 6, 23, 1)
+                  .buildNode(idFunc, -2, 6, 23, 1)
                   .buildExtent(expression, 2, 32, 9)
                   .buildNode(ident, 0, 2, 32, 2)
-                  .buildNode(idFunc, 0, it.indFirstFunction, 35, 5)
+                  .buildNode(idFunc, 1, it.indFirstFunction + 1, 35, 6)
             }
     }
 
@@ -484,8 +505,8 @@ private fun testParseWithEnvironment(inp: String, imports: ArrayList<ImportOrBui
 
     testSpecimen.parse(imports)
 
-    controlParser.insertImports(imports)
-    controlParser.ast.funcNode(-1, 0, 0)
+    controlParser.insertImports(imports, FileType.executable)
+    //controlParser.ast.funcNode(-1, 0, 0)
     resultBuilder(controlParser)
 
     val parseCorrect = Parser.equality(testSpecimen, controlParser)

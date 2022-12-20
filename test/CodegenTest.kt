@@ -24,25 +24,5 @@ inner class ExeCodegenTest {
 //    }
 }
 
-private fun testParseWithEnvironment(inp: String, imports: ArrayList<ImportOrBuiltin>, resultBuilder: (Parser) -> Unit) {
-    val lr = Lexer(inp.toByteArray(), FileType.executable)
-    lr.lexicallyAnalyze()
-
-    val testSpecimen = Parser(lr)
-    val controlParser = Parser(lr)
-
-    testSpecimen.parse(imports)
-
-    controlParser.insertImports(imports)
-    controlParser.ast.funcNode(-1, 0, 0)
-    resultBuilder(controlParser)
-
-    val parseCorrect = Parser.equality(testSpecimen, controlParser)
-    if (!parseCorrect) {
-        val printOut = Parser.printSideBySide(testSpecimen, controlParser)
-        println(printOut)
-    }
-    assertEquals(parseCorrect, true)
-}
 
 }

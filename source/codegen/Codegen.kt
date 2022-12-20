@@ -1,6 +1,5 @@
 package codegen
 import lexer.FileType
-import lexer.operatorBindingIndices
 import lexer.operatorFunctionality
 import parser.FrameAST
 import parser.Parser
@@ -11,7 +10,7 @@ import java.util.*
 import kotlin.collections.ArrayList
 import kotlin.math.abs
 
-class Codegen(val pr: Parser) {
+class Codegen(private val pr: Parser) {
 
 private val ast = pr.ast
 private var indentDepth = 0
@@ -59,8 +58,8 @@ private fun codeGenExecutable(wr: StringBuilder) {
         }
         maybeCloseFrames(wr)
     }
-
 }
+
 
 private fun pushNewFrame(nameId: Int, arity: Int) {
     val eType = FrameAST.values().first {it.internalVal.toInt() == ast.currChunk.nodes[ast.currInd] ushr 27 }
@@ -136,7 +135,6 @@ private fun maybeCloseFrames(wr: StringBuilder) {
     }
 }
 
-
 /** Writes out the reverse Polish notation expression in JS prefix+infix form.
  *  Consumes all nodes of the expression */
 private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
@@ -163,7 +161,7 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
             if (payload1 >= 0) {
                 // function
                 sb.append(ast.getString(func.nameId))
-                if (needParentheses) sb.append("(")
+                sb.append("(")
                 sb.append(operands[0])
                 for (j in 1 until payload1) {
                     sb.append(", ")
@@ -272,8 +270,6 @@ private fun codeGenLibrary(wr: StringBuilder) {
 private fun codeGenTests(wr: StringBuilder) {
 
 }
-
-
 
 
 }
