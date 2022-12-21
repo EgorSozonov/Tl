@@ -132,7 +132,7 @@ fun currentFunc(): FunctionSignature {
  * When a function header is created, index of its body within 'functionBodies' is not known as it's
  * written into the scratch space first. This function sets this index when the function body is complete.
  */
-private fun setBodyId(funcId: Int, bodyInd: Int) {
+fun setBodyId(funcId: Int, bodyInd: Int) {
     var i = funcId*4
     var tmp = functions
     while (i >= CHUNKSZ) {
@@ -173,10 +173,10 @@ fun appendExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int)
     bump()
 }
 
-fun appendFnDefPlaceholder(bodyId: Int) {
+fun appendFnDefPlaceholder(funcId: Int) {
     ensureSpaceForNode()
     currChunk.nodes[nextInd    ] = (FrameAST.fnDefPlaceholder.internalVal.toInt() shl 27)
-    currChunk.nodes[nextInd + 2] = bodyId
+    currChunk.nodes[nextInd + 2] = funcId
     bump()
 }
 
@@ -188,6 +188,7 @@ fun nextNode() {
         currInd = 0
     }
 }
+
 
 fun skipNodes(toSkip: Int) {
     currInd += 4*toSkip

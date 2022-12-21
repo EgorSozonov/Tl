@@ -34,11 +34,11 @@ enum class RegularAST(val internalVal: Byte) {
 
 /** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need pausing & resuming */
 enum class FrameAST(val internalVal: Byte) {
-    functionDef(10),          // index in the functions table of AST,
+    functionDef(10),          // index in the 'functions' table of AST,
     scope(11),
     expression(12),
     statementAssignment(13),
-    fnDefPlaceholder(14),     // index in the functions table of AST,
+    fnDefPlaceholder(14),     // index in the 'functions' table of AST,
     returnExpression(15)
 }
 

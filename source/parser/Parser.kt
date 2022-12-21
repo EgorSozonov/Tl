@@ -41,15 +41,16 @@ fun parse(imports: ArrayList<Import>) {
     inp.currChunk = inp.firstChunk
     inp.currInd = 0
 
-    insertImports(imports, inp.fileType)
-
-    if (this.inp.fileType == FileType.executable) {
-        currFnDef.funcId = indFirstFunction
-        fnDefBacktrack.push(currFnDef)
-        scopeInitEntryPoint()
-    }
-
     try {
+        insertImports(imports, inp.fileType)
+
+        if (this.inp.fileType == FileType.executable) {
+            currFnDef.funcId = indFirstFunction
+            fnDefBacktrack.push(currFnDef)
+            scopeInitEntryPoint()
+        }
+
+
         while ((inp.currChunk != lastChunk || inp.currInd < sentinelInd)) {
             val tokType = inp.currTokenType()
             if (Lexer.isStatement(tokType)) {
@@ -323,7 +324,7 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, extraTokenLength: Int, lenT
 
     inp.nextToken() // the curlyBraces token
 
-    scopeInitAddNestedFunctions(newScope, lenTokens)
+    detectNestedFunctions(newScope, lenTokens)
 
     currFnDef.backtrack.push(ParseFrame(FrameAST.scope, currFnDef.totalNodes - 1, lenTokens, extraTokenLength + 1))
 }
@@ -339,7 +340,7 @@ private fun scopeInitEntryPoint() {
     currFnDef.subscopes.push(newScope)
     currFnDef.appendExtent(FrameAST.scope, lenTokens, 0, inp.inp.size)
 
-    scopeInitAddNestedFunctions(newScope, lenTokens)
+    detectNestedFunctions(newScope, lenTokens)
 
     currFnDef.backtrack.push(ParseFrame(FrameAST.scope, currFnDef.totalNodes - 1, lenTokens, 1))
 }
@@ -350,7 +351,7 @@ private fun scopeInitEntryPoint() {
  * They are stored inside the LexicalScope in the reverse order they were found in (for fast deletion during codegen).
  * Does not consume any tokens.
  */
-private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: Int) {
+private fun detectNestedFunctions(newScope: LexicalScope, lenTokensScope: Int) {
     val originalPosition = inp.currentPosition()
     var j = 0
 
@@ -368,7 +369,7 @@ private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: 
                 && (inp.currChunk.tokens[inp.currInd] and LOWER27BITS) == 2) {
                 val startByte = inp.currChunk.tokens[inp.currInd + 1]
                 if (inp.inp[startByte] == aFLower && inp.inp[startByte + 1] == aNLower) {
-                    val newFnDef = scopeInitAddNestedFn(j, newScope, lenTokensScope, lenTokensExtent)
+                    val newFnDef = detectNestedFn(j, newScope, lenTokensScope, lenTokensExtent)
                     newScope.funDefs.add(newFnDef.fst)
                     consumedTokens += newFnDef.snd
                 }
@@ -386,9 +387,10 @@ private fun scopeInitAddNestedFunctions(newScope: LexicalScope, lenTokensScope: 
 }
 
 /**
- * Adds the function from a single "fn" definition. Returns the pair (funcId, number of consumed tokens)
+ * Adds the function from a single "fn" definition to current scope. Validates function name and that of its params.
+ * Returns the pair [funcId, number of consumed tokens]
  */
-private fun scopeInitAddNestedFn(i: Int, newScope: LexicalScope, lenTokensScope: Int, lenTokensStatement: Int): IntPair {
+private fun detectNestedFn(i: Int, newScope: LexicalScope, lenTokensScope: Int, lenTokensStatement: Int): IntPair {
     var arity = 0
     var j = i
     inp.nextToken() // "fn"
@@ -398,12 +400,16 @@ private fun scopeInitAddNestedFn(i: Int, newScope: LexicalScope, lenTokensScope:
     inp.nextToken() // function name
     j += 2
 
+    val nameSet = HashSet<String>(4)
+    nameSet.add(fnName)
+
     while (j < lenTokensScope && inp.currTokenType() == wordType) {
         val paramName = readString(word)
         val existingBinding = lookupBinding(paramName)
-        if (existingBinding != null || paramName == fnName) {
+        if (existingBinding != null || nameSet.contains(paramName)) {
             createError(errorFnNameAndParams)
         }
+        nameSet.add(paramName)
         addString(paramName)
         inp.nextToken()
         j++
@@ -1013,8 +1019,8 @@ fun buildFunction(nameId: Int, arity: Int, bodyId: Int): Parser {
     return this
 }
 
-fun buildFnDefPlaceholder(bodyId: Int): Parser {
-    ast.appendFnDefPlaceholder(bodyId)
+fun buildFnDefPlaceholder(funcId: Int): Parser {
+    ast.appendFnDefPlaceholder(funcId)
     return this
 }
 

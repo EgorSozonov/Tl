@@ -489,66 +489,105 @@ inner class FunctionTest {
 
     @Test
     fun `Nested function def`() {
-//        fn foo x y {
-//            z = x*y
-//            return (z + x) .inner 5 (-2)
-//
-//            fn inner a b c {
-//                return a - 2*b + 3*c
-//            }
-//        }
+        testParseWithEnvironment(
+            """fn foo x y {
+    z = x*y
+    return (z + x) .inner 5 (-2)
+
+    fn inner a b c {
+        return a - 2*b + 3*c
     }
-//    functionDef [68 51] 14
-//    ident [77 1] 5
-//    ident [79 1] 6
-//    ident [81 1] 7
-//    scope [84 34] 10
-//    returnExpression [93 20] 9
-//    ident [100 1] 5
-//    litInt [104 1] 2
-//    ident [106 1] 6
-//    idFunc [105 1] -8589934586
-//    idFunc [102 1] -8589934581
-//    litInt [110 1] 3
-//    ident [112 1] 7
-//    idFunc [111 1] -8589934586
-//    idFunc [108 1] -8589934584
-//    functionDef [1 120] 17
-//    ident [8 1] 2
-//    ident [10 1] 3
-//    scope [13 107] 14
-//    statementAssignment [18 7] 5
-//    binding [18 1] 9
-//    expression [22 3] 3
-//    ident [22 1] 2
-//    ident [24 1] 3
-//    idFunc [23 1] -8589934586
-//    returnExpression [30 28] 6
-//    ident [38 1] 9
-//    ident [42 1] 2
-//    idFunc [40 1] -8589934584
-//    litInt [52 1] 5
-//    litInt [55 2] -2
-//    idFunc [45 6] 12884901917
-//    fnDefPlaceholder [0 0] 0
-//    functionDef [0 142] 7
-//    scope [0 142] 6
-//    fnDefPlaceholder [0 0] 0
-//    expression [123 18] 4
-//    litInt [123 2] 90
-//    litInt [131 3] 100
-//    idFunc [126 4] 8589934620
-//    idFunc [135 6] 4294967323
+}""",
+            arrayListOf())
+        {
+            it.buildInsertString("x").buildInsertString("y").buildInsertString("foo")
+              .buildInsertString("a").buildInsertString("b").buildInsertString("c")
+              .buildInsertString("inner").buildInsertString("z")
+              .buildFunction(2, 2, 15)
+              .buildFunction(6, 3, 0)
+
+              .buildExtent(functionDef, 14, 63, 51) // inner
+              .buildNode(ident, 0, 3, 72, 1)
+              .buildNode(ident, 0, 4, 74, 1)
+              .buildNode(ident, 0, 5, 76, 1)
+              .buildExtent(scope, 10, 79, 34)
+              .buildExtent(returnExpression, 9, 88, 20)
+              .buildNode(ident, 0, 3, 95, 1) // a
+              .buildNode(litInt, 0, 2, 99, 1)
+              .buildNode(ident, 0, 4, 101, 1) // b
+              .buildNode(idFunc, -2, 6, 100, 1) // *
+              .buildNode(idFunc, -2, 11, 97, 1) // -
+              .buildNode(litInt, 0, 3, 105, 1)
+              .buildNode(ident, 0, 5, 107, 1) // c
+              .buildNode(idFunc, -2, 6, 106, 1) // *
+              .buildNode(idFunc, -2, 8, 103, 1) // +
+
+              .buildExtent(functionDef, 17, 0, 116) // foo
+              .buildNode(ident, 0, 0, 7, 1)
+              .buildNode(ident, 0, 1, 9, 1)
+              .buildExtent(scope, 14, 12, 103)
+              .buildExtent(statementAssignment, 5, 17, 7)
+              .buildNode(binding, 0, 7, 17, 1) // z
+              .buildExtent(expression, 3, 21, 3)
+              .buildNode(ident, 0, 0, 21, 1)
+              .buildNode(ident, 0, 1, 23, 1)
+              .buildNode(idFunc, -2, 6, 22, 1) // *
+              .buildExtent(returnExpression, 6, 29, 28)
+              .buildNode(ident, 0, 7, 37, 1) // z
+              .buildNode(ident, 0, 0, 41, 1) // x
+              .buildNode(idFunc, -2, 8, 39, 1) // +
+              .buildNode(litInt, 0, 5, 51, 1)
+              .buildNode(litInt, ((-2).toLong() ushr 32).toInt(), ((-2).toLong() and LOWER32BITS).toInt(), 54, 2)
+              .buildNode(idFunc, 3, it.indFirstFunction + 2, 44, 6)
+              .buildFnDefPlaceholder(it.indFirstFunction + 2) // definition of inner
+
+              .buildExtent(functionDef, 2, 0, 116) // entrypoint
+              .buildExtent(scope, 1, 0, 116)
+              .buildFnDefPlaceholder(it.indFirstFunction + 1) // definition of foo
+            it.ast.setBodyId(it.indFirstFunction, 33)
+
+        }
+    }
 
 
     @Test
     fun `Function def error 1`() {
-
+        testParseWithEnvironment(
+            """fn newFn x y x {
+    return x + 3
+}""",
+            arrayListOf())
+        {
+            it.buildInsertString("x")
+              .buildInsertString("y")
+              .buildError(errorFnNameAndParams)
+        }
     }
+
 
     @Test
     fun `Function def error 2`() {
+        testParseWithEnvironment(
+            """fn newFn x newFn {
+    return x + 3
+}""",
+            arrayListOf())
+        {
+            it.buildInsertString("x")
+              .buildError(errorFnNameAndParams)
+        }
+    }
 
+
+    @Test
+    fun `Function def error 3`() {
+        testParseWithEnvironment(
+            """fn newFn x 5""",
+            arrayListOf())
+        {
+            it.buildInsertString("x")
+                .buildError(errorFnMissingBody)
+        }
     }
 }
 
