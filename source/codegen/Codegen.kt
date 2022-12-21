@@ -1,9 +1,9 @@
 package codegen
 import lexer.FileType
 import lexer.operatorFunctionality
-import parser.FrameAST
+import parser.ExtentAST
 import parser.Parser
-import parser.FrameAST.*;
+import parser.ExtentAST.*;
 import parser.RegularAST.*;
 import utils.LOWER32BITS
 import java.util.*
@@ -62,7 +62,7 @@ private fun codeGenExecutable(wr: StringBuilder) {
 
 
 private fun pushNewFrame(nameId: Int, arity: Int) {
-    val eType = FrameAST.values().first {it.internalVal.toInt() == ast.currChunk.nodes[ast.currInd] ushr 27 }
+    val eType = ExtentAST.values().first {it.internalVal.toInt() == ast.currChunk.nodes[ast.currInd] ushr 27 }
     val lenNodes = ast.currChunk.nodes[ast.currInd + 3]
     backtrack.add(CodegenFrame(eType, nameId, arity, ast.currNodeInd, lenNodes))
 }
@@ -200,23 +200,37 @@ private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) 
     wr.append(";\n")
 }
 
-    
+
+/**
+ * Assignments of the type 'a = b + 5' are written out as 'const a = b + 5;'
+ * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
+ */
 private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
 
-    ast.nextNode() // the "assignment node
+    val isRightHandScope = ast.currChunk.nodes[ast.currInd + 2] > 0
 
-    wr.append("const ")
-    wr.append(ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]])
-    wr.append(" = ")
+    ast.nextNode() // the "assignment node
+    if (isRightHandScope) {
+        wr.append("let ")
+        wr.append(ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]])
+        wr.append(";\n")
+    } else {
+        wr.append("const ")
+        wr.append(ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]])
+        wr.append(" = ")
+    }
 
     ast.nextNode()  // the binding name node
-    val lenExpression = ast.currChunk.nodes[ast.currInd + 3]
-
+    val lenExtent = ast.currChunk.nodes[ast.currInd + 3]
     ast.nextNode()  // the "expression" node
-    writeExpressionBody(lenExpression, wr)
 
-    wr.append(";\n")
+    if (!isRightHandScope) {
+        writeExpressionBody(lenExtent, wr)
+        wr.append(";\n")
+    }
+
+
 }
 
 
@@ -240,9 +254,15 @@ private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
 
     indentDepth += 4
 
-
     pushNewFrame(-1, -1)
     ast.skipNodes(1)
+}
+
+/**
+ * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
+ */
+private fun writeScopeRightHandInAssignment(bindingName: String, fr: CodegenFrame, wr: StringBuilder) {
+
 }
 
 

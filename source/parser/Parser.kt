@@ -50,7 +50,6 @@ fun parse(imports: ArrayList<Import>) {
             scopeInitEntryPoint()
         }
 
-
         while ((inp.currChunk != lastChunk || inp.currInd < sentinelInd)) {
             val tokType = inp.currTokenType()
             if (Lexer.isStatement(tokType)) {
@@ -91,13 +90,13 @@ private fun maybeCloseFrames() {
 
         var tokensToAdd = topFrame.lenTokens + topFrame.additionalPrefixToken
         var isFunClose = false
-        if (topFrame.extentType == FrameAST.scope) {
+        if (topFrame.extentType == ExtentAST.scope) {
             if (currFnDef.backtrack.size == 1) isFunClose = true
             closeScope(tokensToAdd)
-        } else if (topFrame.extentType == FrameAST.expression) {
+        } else if (topFrame.extentType == ExtentAST.expression) {
             closeExpr()
         }
-        currFnDef.setExtentLength(topFrame.indNode)
+        currFnDef.setExtentLength(topFrame.indStartNode)
         currFnDef.backtrack.pop()
 
         var i = currFnDef.backtrack.size - 1
@@ -107,15 +106,15 @@ private fun maybeCloseFrames() {
             if (frame.tokensRead < frame.lenTokens) {
                 break
             } else if (frame.tokensRead == frame.lenTokens) {
-                if (frame.extentType == FrameAST.scope) {
+                if (frame.extentType == ExtentAST.scope) {
                     closeScope(tokensToAdd)
                     if (currFnDef.backtrack.size == 1) isFunClose = true
-                } else if (frame.extentType == FrameAST.expression) {
+                } else if (frame.extentType == ExtentAST.expression) {
                     closeExpr()
                 }
                 currFnDef.backtrack.pop()
                 tokensToAdd = frame.lenTokens + frame.additionalPrefixToken
-                currFnDef.setExtentLength(frame.indNode)
+                currFnDef.setExtentLength(frame.indStartNode)
             } else {
                 createError(errorInconsistentExtent)
             }
@@ -177,7 +176,7 @@ private fun statement(): Int {
  */
 private fun noncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
-        exprInit(FrameAST.expression, lenTokens, startByte, lenBytes, 1)
+        exprInit(ExtentAST.expression, lenTokens, startByte, lenBytes, 1)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
         assignmentInit(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
@@ -206,7 +205,7 @@ private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val newFnDef = FunctionDef(funcId, funcSignature.arity, funcPrecedence)
     fnDefBacktrack.push(newFnDef)
 
-    newFnDef.appendExtent(FrameAST.functionDef, 0, startByte, lenBytes)
+    newFnDef.appendExtent(ExtentAST.functionDef, 0, startByte, lenBytes)
 
     var j = 0
     while (j < funcSignature.arity) {
@@ -222,7 +221,7 @@ private fun coreFnDefinition(lenTokens: Int, startByte: Int, lenBytes: Int) {
     val currTokenType = inp.currTokenType()
     if (currTokenType != PunctuationToken.curlyBraces.internalVal.toInt()) createError(errorFnMissingBody)
 
-    currFnDef.appendExtentWithPayload(FrameAST.fnDefPlaceholder, newFnDef.funcId, 0, 0, 0)
+    currFnDef.appendExtentWithPayload(ExtentAST.fnDefPlaceholder, newFnDef.funcId, 0, 0, 0)
 
     val newScopeLenTokens = inp.currLenTokens()
     val newScopelenBytes = inp.currLenBytes()
@@ -284,7 +283,7 @@ private fun coreMatch(stmtType: Int, lenTokens: Int) {
 
 private fun coreReturn(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     inp.nextToken()
-    exprInit(FrameAST.returnExpression, lenTokens - 1, startByte, lenBytes, 2) // tokensToAdd = 2 for the "return" and the expression token
+    exprInit(ExtentAST.returnExpression, lenTokens - 1, startByte, lenBytes, 2) // tokensToAdd = 2 for the "return" and the expression token
 }
 
 private fun coreTry(stmtType: Int, lenTokens: Int) {
@@ -311,14 +310,15 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
  * Then it walks from the start again, this time depth-first, and writes instructions into the
  * AST scratch space
  */
-private fun scopeInit(mbLexicalScope: LexicalScope?, extraTokenLength: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+private fun scopeInit(mbLexicalScope: LexicalScope?, extraTokenLength: Int,
+                      lenTokens: Int, startByte: Int, lenBytes: Int) {
     // if we are in an expression, then this scope will be an operand for some operator
     if (currFnDef.subexprs.isNotEmpty()) {
         val funStack = currFnDef.subexprs.peek()
         exprIncrementArity(funStack[funStack.size - 1])
     }
 
-    currFnDef.appendExtent(FrameAST.scope, lenTokens, startByte, lenBytes)
+    currFnDef.appendExtent(ExtentAST.scope, lenTokens, startByte, lenBytes)
     val newScope = mbLexicalScope ?: LexicalScope()
     this.currFnDef.subscopes.push(newScope)
 
@@ -326,7 +326,7 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, extraTokenLength: Int, lenT
 
     detectNestedFunctions(newScope, lenTokens)
 
-    currFnDef.backtrack.push(ParseFrame(FrameAST.scope, currFnDef.totalNodes - 1, lenTokens, extraTokenLength + 1))
+    currFnDef.backtrack.push(ParseFrame(ExtentAST.scope, currFnDef.totalNodes - 1, lenTokens, extraTokenLength + 1))
 }
 
 /**
@@ -336,13 +336,13 @@ private fun scopeInitEntryPoint() {
     val lenTokens = inp.totalTokens
 
     val newScope = LexicalScope()
-    currFnDef.appendExtent(FrameAST.functionDef, 0, 0, inp.inp.size)
+    currFnDef.appendExtent(ExtentAST.functionDef, 0, 0, inp.inp.size)
     currFnDef.subscopes.push(newScope)
-    currFnDef.appendExtent(FrameAST.scope, lenTokens, 0, inp.inp.size)
+    currFnDef.appendExtent(ExtentAST.scope, lenTokens, 0, inp.inp.size)
 
     detectNestedFunctions(newScope, lenTokens)
 
-    currFnDef.backtrack.push(ParseFrame(FrameAST.scope, currFnDef.totalNodes - 1, lenTokens, 1))
+    currFnDef.backtrack.push(ParseFrame(ExtentAST.scope, currFnDef.totalNodes - 1, lenTokens, 1))
 }
 
 /**
@@ -460,7 +460,7 @@ private fun scope(parseFrame: ParseFrame) {
  * An expression, i.e. a series of funcalls and/or operator calls.
  * 'additionalPrefixToken' - set to 1 if
  */
-private fun exprInit(exprType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
+private fun exprInit(exprType: ExtentAST, lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
     if (lenTokens == 1) {
         val theToken = inp.nextToken(0)
         exprSingleItem(theToken)
@@ -869,20 +869,20 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
     inp.nextToken() // equals sign
 
-    currFnDef.appendExtent(FrameAST.statementAssignment, 0, startByte, lenBytes)
+    val tokType = inp.currTokenType()
+    val isRightHandScope = tokType == PunctuationToken.curlyBraces.internalVal.toInt()
+    currFnDef.appendExtent(ExtentAST.statementAssignment, if (isRightHandScope) { 1 } else { 0 } , startByte, lenBytes)
     currFnDef.appendNode(binding, 0, strId, startByte, bindingName.length)
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
 
     // we've already consumed 2 tokens in this func
-    val newFrame = ParseFrame(FrameAST.statementAssignment, currFnDef.totalNodes - 2, lenTokens, 1, 2)
+    val newFrame = ParseFrame(ExtentAST.statementAssignment, currFnDef.totalNodes - 2, lenTokens, 1, 2)
     currFnDef.backtrack.push(newFrame)
 
-    // TODO check if we have a scope or a core form here
-    val tokType = inp.currTokenType()
-    if (tokType == PunctuationToken.curlyBraces.internalVal.toInt()) {
+    if (isRightHandScope) {
         scopeInit(null, 0, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
     } else {
-        exprInit(FrameAST.expression, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
+        exprInit(ExtentAST.expression, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
     }
 }
 
@@ -1032,7 +1032,7 @@ fun buildFloatNode(payload: Double, startByte: Int, lenBytes: Int): Parser {
 }
 
 
-fun buildExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int): Parser {
+fun buildExtent(nType: ExtentAST, lenTokens: Int, startByte: Int, lenBytes: Int): Parser {
     ast.appendExtent(nType, lenTokens, startByte, lenBytes)
     return this
 }

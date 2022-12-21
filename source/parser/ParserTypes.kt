@@ -5,23 +5,23 @@ import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 
 
-class LexicalScope {
+class LexicalScope() {
     /** Map [name -> identifierId] **/
     val bindings: HashMap<String, Int> = HashMap(12)
     /** Map [name -> List (functionId arity)] */
     val functions: HashMap<String, ArrayList<IntPair>> = HashMap(12)
-    /** Array funcId */
+    /** Array funcId - these are the function definitions in this scope (see 'detectNestedFunctions'). */
     val funDefs: ArrayList<Int> = ArrayList(4)
 }
 
 data class BuiltinOperator(val name: String, val arity: Int)
-data class Import(val name: String, val nativeName: String, val arity: Int)
 
+data class Import(val name: String, val nativeName: String, val arity: Int)
 
 class FunctionCall(var nameStringId: Int, var precedence: Int, var arity: Int, var maxArity: Int, var startByte: Int)
 
 enum class RegularAST(val internalVal: Byte) {
-                   // payload2 at +3                                    // extra payload1 at +2
+                   // payload2 at +3:                                    // extra payload1 at +2:
     litInt(0),     // int value
     litFloat(1),   // floating-point value
     litString(2),  // 0
@@ -33,12 +33,13 @@ enum class RegularAST(val internalVal: Byte) {
 }
 
 /** The types of extentful AST that may be in ParserFrames, i.e. whose parsing may need pausing & resuming */
-enum class FrameAST(val internalVal: Byte) {
-    functionDef(10),          // index in the 'functions' table of AST,
+enum class ExtentAST(val internalVal: Byte) {
+                              // extra payload1 at +2:
+    functionDef(10),          // index in the 'functions' table of AST
     scope(11),
     expression(12),
-    statementAssignment(13),
-    fnDefPlaceholder(14),     // index in the 'functions' table of AST,
+    statementAssignment(13),  // 1 if the right-hand side is a scope rather than an expression
+    fnDefPlaceholder(14),     // index in the 'functions' table of AST
     returnExpression(15)
 }
 
@@ -53,7 +54,7 @@ data class ASTChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ASTChunk?
 
 data class ScratchChunk(val nodes: IntArray = IntArray(SCRATCHSZ), var next: ScratchChunk? = null)
 
-data class ParseFrame(val extentType: FrameAST, val indNode: Int, val lenTokens: Int,
+data class ParseFrame(val extentType: ExtentAST, val indStartNode: Int, val lenTokens: Int,
                       /** 1 for lexer extents that have a prefix token, 0 for extents that are inserted by the parser */
                       val additionalPrefixToken: Int,
                       var tokensRead: Int = 0)

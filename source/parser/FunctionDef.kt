@@ -40,7 +40,7 @@ class FunctionDef(var funcId: Int = 0, var arity: Int = 0, val precedence: Int) 
     }
 
 
-    fun appendExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    fun appendExtent(nType: ExtentAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
         ensureSpaceForNode()
         currChunk.nodes[nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
         currChunk.nodes[nextInd + 1] = startByte
@@ -49,7 +49,7 @@ class FunctionDef(var funcId: Int = 0, var arity: Int = 0, val precedence: Int) 
         bump()
     }
 
-    fun appendExtentWithPayload(nType: FrameAST, payload: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    fun appendExtentWithPayload(nType: ExtentAST, payload: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
         ensureSpaceForNode()
         currChunk.nodes[nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
         currChunk.nodes[nextInd + 1] = startByte

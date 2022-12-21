@@ -5,7 +5,7 @@ import parser.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import parser.RegularAST.*
-import parser.FrameAST.*
+import parser.ExtentAST.*
 import utils.LOWER32BITS
 
 

@@ -164,7 +164,7 @@ fun appendNode(tType: RegularAST, payload1: Int, payload2: Int, startByte: Int, 
 }
 
 
-fun appendExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
+fun appendExtent(nType: ExtentAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
     ensureSpaceForNode()
     currChunk.nodes[nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
     currChunk.nodes[nextInd + 1] = startByte
@@ -175,7 +175,7 @@ fun appendExtent(nType: FrameAST, lenTokens: Int, startByte: Int, lenBytes: Int)
 
 fun appendFnDefPlaceholder(funcId: Int) {
     ensureSpaceForNode()
-    currChunk.nodes[nextInd    ] = (FrameAST.fnDefPlaceholder.internalVal.toInt() shl 27)
+    currChunk.nodes[nextInd    ] = (ExtentAST.fnDefPlaceholder.internalVal.toInt() shl 27)
     currChunk.nodes[nextInd + 2] = funcId
     bump()
 }
@@ -439,7 +439,7 @@ companion object {
                 wr.append("$regType [${startByte} ${lenBytes}] $payload")
             }
         } else {
-            val punctType = FrameAST.values().firstOrNull { it.internalVal == typeBits }
+            val punctType = ExtentAST.values().firstOrNull { it.internalVal == typeBits }
             val lenTokens = chunk.nodes[ind + 3]
             wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
         }
