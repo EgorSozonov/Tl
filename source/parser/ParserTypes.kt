@@ -4,8 +4,16 @@ import utils.IntPair
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
 
+data class ParseFrame(val extentType: ExtentAST, val indStartNode: Int, val lenTokens: Int,
+                      /** 1 for lexer extents that have a prefix token, 0 for extents that are inserted by the parser */
+                      val additionalPrefixToken: Int,
+                      var tokensRead: Int = 0)
 
-class LexicalScope() {
+data class Subexpr(var operators: ArrayList<FunctionCall>,
+                   var tokensRead: Int, val lenTokens: Int,
+                   var firstFun: Boolean = true)
+
+class LexicalScope(val leftHandBindingName: String = "") {
     /** Map [name -> identifierId] **/
     val bindings: HashMap<String, Int> = HashMap(12)
     /** Map [name -> List (functionId arity)] */
@@ -36,11 +44,12 @@ enum class RegularAST(val internalVal: Byte) {
 enum class ExtentAST(val internalVal: Byte) {
                               // extra payload1 at +2:
     functionDef(10),          // index in the 'functions' table of AST
-    scope(11),
+    scope(11),                // 1 if this scope is the right-hand side of an assignment
     expression(12),
-    statementAssignment(13),  // 1 if the right-hand side is a scope rather than an expression
+    statementAssignment(13),
     fnDefPlaceholder(14),     // index in the 'functions' table of AST
-    returnExpression(15)
+    returnExpression(15),
+    pushOutExpression(16),
 }
 
 /**
@@ -53,15 +62,6 @@ enum class ExtentAST(val internalVal: Byte) {
 data class ASTChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ASTChunk? = null)
 
 data class ScratchChunk(val nodes: IntArray = IntArray(SCRATCHSZ), var next: ScratchChunk? = null)
-
-data class ParseFrame(val extentType: ExtentAST, val indStartNode: Int, val lenTokens: Int,
-                      /** 1 for lexer extents that have a prefix token, 0 for extents that are inserted by the parser */
-                      val additionalPrefixToken: Int,
-                      var tokensRead: Int = 0)
-
-data class Subexpr(var operators: ArrayList<FunctionCall>,
-                   var tokensRead: Int, val lenTokens: Int,
-                   var firstFun: Boolean = true)
 
 data class FunctionSignature(val nameId: Int, val arity: Int, val typeId: Int, val bodyId: Int)
 

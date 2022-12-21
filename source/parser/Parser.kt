@@ -62,7 +62,7 @@ fun parse(imports: ArrayList<Import>) {
                 scopeInit(null, 0, lenTokens, startByte, lenBytes)
             } else if (currFnDef.backtrack.isNotEmpty()) {
                 val currFrame = currFnDef.backtrack.peek()
-                dispatchTable[currFrame.extentType.internalVal.toInt() - 10](currFrame)
+                dispatchTable[currFrame.extentType.internalVal.toInt() - firstPunctuationTokenType](currFrame)
             } else {
                 errorOut(errorUnexpectedToken)
                 return
@@ -176,7 +176,15 @@ private fun statement(): Int {
  */
 private fun noncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (stmtType == PunctuationToken.statementFun.internalVal.toInt()) {
-        exprInit(ExtentAST.expression, lenTokens, startByte, lenBytes, 1)
+        val topFrame = currFnDef.backtrack.peek()
+        val topScope = currFnDef.subscopes.last()
+        var exprType = ExtentAST.expression
+        if (topScope.leftHandBindingName.length > 0 && topFrame.extentType == ExtentAST.scope) {
+            if (topFrame.tokensRead + lenTokens == topFrame.lenTokens) {
+                exprType = ExtentAST.pushOutExpression
+            }
+        }
+        exprInit(exprType, 1, true, lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementAssignment.internalVal.toInt()) {
         assignmentInit(lenTokens, startByte, lenBytes)
     } else if (stmtType == PunctuationToken.statementTypeDecl.internalVal.toInt()) {
@@ -283,7 +291,7 @@ private fun coreMatch(stmtType: Int, lenTokens: Int) {
 
 private fun coreReturn(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     inp.nextToken()
-    exprInit(ExtentAST.returnExpression, lenTokens - 1, startByte, lenBytes, 2) // tokensToAdd = 2 for the "return" and the expression token
+    exprInit(ExtentAST.returnExpression, 2, false, lenTokens - 1, startByte, lenBytes) // tokensToAdd = 2 for the "return" and the expression token
 }
 
 private fun coreTry(stmtType: Int, lenTokens: Int) {
@@ -311,7 +319,7 @@ private fun validateCoreForm(stmtType: Int, lenTokens: Int) {
  * AST scratch space
  */
 private fun scopeInit(mbLexicalScope: LexicalScope?, extraTokenLength: Int,
-                      lenTokens: Int, startByte: Int, lenBytes: Int) {
+                      lenTokens: Int, startByte: Int, lenBytes: Int, bindingName: String = "") {
     // if we are in an expression, then this scope will be an operand for some operator
     if (currFnDef.subexprs.isNotEmpty()) {
         val funStack = currFnDef.subexprs.peek()
@@ -319,7 +327,7 @@ private fun scopeInit(mbLexicalScope: LexicalScope?, extraTokenLength: Int,
     }
 
     currFnDef.appendExtent(ExtentAST.scope, lenTokens, startByte, lenBytes)
-    val newScope = mbLexicalScope ?: LexicalScope()
+    val newScope = mbLexicalScope ?: LexicalScope(bindingName)
     this.currFnDef.subscopes.push(newScope)
 
     inp.nextToken() // the curlyBraces token
@@ -460,7 +468,7 @@ private fun scope(parseFrame: ParseFrame) {
  * An expression, i.e. a series of funcalls and/or operator calls.
  * 'additionalPrefixToken' - set to 1 if
  */
-private fun exprInit(exprType: ExtentAST, lenTokens: Int, startByte: Int, lenBytes: Int, additionalPrefixToken: Int) {
+private fun exprInit(exprType: ExtentAST, countTokensToAdd: Int, isStatementLevel: Boolean, lenTokens: Int, startByte: Int, lenBytes: Int, ) {
     if (lenTokens == 1) {
         val theToken = inp.nextToken(0)
         exprSingleItem(theToken)
@@ -471,7 +479,7 @@ private fun exprInit(exprType: ExtentAST, lenTokens: Int, startByte: Int, lenByt
     currFnDef.appendExtent(exprType, 0, startByte, lenBytes)
 
     currFnDef.subexprs.push(funCallStack)
-    val newFrame = ParseFrame(exprType, currFnDef.totalNodes - 1, lenTokens, additionalPrefixToken)
+    val newFrame = ParseFrame(exprType, currFnDef.totalNodes - 1, lenTokens, countTokensToAdd)
     currFnDef.backtrack.push(newFrame)
 
     val initConsumedTokens = subexprInit(newFrame.lenTokens, false, funCallStack)
@@ -871,7 +879,7 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
     val tokType = inp.currTokenType()
     val isRightHandScope = tokType == PunctuationToken.curlyBraces.internalVal.toInt()
-    currFnDef.appendExtent(ExtentAST.statementAssignment, if (isRightHandScope) { 1 } else { 0 } , startByte, lenBytes)
+    currFnDef.appendExtent(ExtentAST.statementAssignment, 0, startByte, lenBytes)
     currFnDef.appendNode(binding, 0, strId, startByte, bindingName.length)
     val startOfExpr = inp.currChunk.tokens[inp.currInd + 1]
 
@@ -880,28 +888,15 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     currFnDef.backtrack.push(newFrame)
 
     if (isRightHandScope) {
-        scopeInit(null, 0, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
+        scopeInit(null, 0, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, bindingName)
     } else {
-        exprInit(ExtentAST.expression, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, 0)
+        exprInit(ExtentAST.expression, 0, false, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
     }
-}
-
-/**
- * Parses an assignment statement like "x = y + 5" and enriches the environment with new bindings.
- */
-private fun assignment(parseFrame: ParseFrame) {
-
-
 }
 
 
 private fun parseStatementTypeDecl(lenTokens: Int, startByte: Int, lenBytes: Int) {
 
-}
-
-
-private fun parseUnexpectedToken() {
-    createError(errorUnexpectedToken)
 }
 
 /**
@@ -1093,11 +1088,10 @@ init {
 
 companion object {
     /** The numeric values must correspond to the values of FrameAST enum */
-    private val dispatchTable: Array<Parser.(ParseFrame) -> Unit> = Array(3) {
+    private val dispatchTable: Array<Parser.(ParseFrame) -> Unit> = Array(2) {
         i -> when(i) {
             0 -> Parser::scope
-            1 -> Parser::expr
-            else -> Parser::assignment
+            else -> Parser::expr
         }
     }
 

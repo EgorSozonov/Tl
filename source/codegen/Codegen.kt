@@ -35,7 +35,7 @@ private fun codeGenExecutable(wr: StringBuilder) {
     val entryPoint = ast.getFunc(pr.indFirstFunction)
     ast.seek(entryPoint.bodyId)
     val entryPointLenNodes = ast.currChunk.nodes[ast.currInd + 3]
-    backtrack.add(CodegenFrame(functionDef, -1, 0, entryPoint.bodyId, entryPointLenNodes))
+    backtrack.add(CodegenFrame(functionDef, 0, entryPoint.bodyId, entryPointLenNodes))
 
     while (ast.currNodeInd != (entryPoint.bodyId + entryPointLenNodes + 1)) {
         val extentType = ast.currNodeType()
@@ -61,10 +61,10 @@ private fun codeGenExecutable(wr: StringBuilder) {
 }
 
 
-private fun pushNewFrame(nameId: Int, arity: Int) {
+private fun pushNewFrame(arity: Int) {
     val eType = ExtentAST.values().first {it.internalVal.toInt() == ast.currChunk.nodes[ast.currInd] ushr 27 }
     val lenNodes = ast.currChunk.nodes[ast.currInd + 3]
-    backtrack.add(CodegenFrame(eType, nameId, arity, ast.currNodeInd, lenNodes))
+    backtrack.add(CodegenFrame(eType, arity, ast.currNodeInd, lenNodes))
 }
 
 
@@ -83,7 +83,7 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
     ast.nextNode() // fnDefPlaceholder
     fr.returnNode = ast.currNodeInd // the node to return to after we're done with this nested function
     ast.seek(func.bodyId)
-    pushNewFrame(func.nameId, func.arity)
+    pushNewFrame(func.arity)
 
     val indentation = " ".repeat(indentDepth)
     val funcName = ast.identifiers[func.nameId]
@@ -105,34 +105,46 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
 }
 
 /**
- * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
- * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
- * in which case this function handles all the corresponding stack poppin'.
- * It also always handles updating all inner frames with consumed tokens.
+ * Assignments of the type 'a = b + 5' are written out as 'const a = b + 5;'
+ * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
  */
-private fun maybeCloseFrames(wr: StringBuilder) {
-    while (true) {
-        if (backtrack.isEmpty()) return
+private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+    wr.append(" ".repeat(indentDepth))
 
-        var i = backtrack.size - 1
-        while (i > -1) {
-            val frame = backtrack[i]
-            if (ast.currNodeInd < frame.sentinelNode) {
-                return
-            } else {
-                closeFrame(frame, wr)
-                backtrack.removeLast()
-                if (frame.eType == functionDef) {
-                    if (backtrack.isNotEmpty()) {
-                        ast.seek(backtrack.last().returnNode) // skipping to the node after the fnDefPlaceholder
-                    } else {
-                        ast.seek(frame.sentinelNode) // since this is the outermost func, we finish up its codegen
-                    }
-                }
-            }
-            i--
-        }
+    val isRightHandScope = ast.lookaheadPayload1(2) > 0
+
+    ast.nextNode() // the "assignment node
+    val bindingName = ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]]
+    if (isRightHandScope) {
+        wr.append("let ")
+        wr.append(bindingName)
+        wr.append(";\n")
+    } else {
+        wr.append("const ")
+        wr.append(bindingName)
+        wr.append(" = ")
     }
+
+    ast.nextNode()  // the binding name node
+    val lenExtent = ast.currChunk.nodes[ast.currInd + 3]
+    ast.nextNode()  // the "expression" node
+
+    if (isRightHandScope) {
+        writeExpressionBody(lenExtent, wr)
+        wr.append(";\n")
+    } else {
+        writeScopeRightHandInAssignment(bindingName, fr, wr)
+    }
+}
+
+
+private fun writeReturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+    wr.append(" ".repeat(indentDepth))
+    wr.append("return ")
+    val lenExpression = ast.currChunk.nodes[ast.currInd + 3]
+    ast.nextNode() // the returnExpression
+    writeExpressionBody(lenExpression, wr)
+    wr.append(";\n")
 }
 
 /** Writes out the reverse Polish notation expression in JS prefix+infix form.
@@ -201,49 +213,6 @@ private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) 
 }
 
 
-/**
- * Assignments of the type 'a = b + 5' are written out as 'const a = b + 5;'
- * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
- */
-private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
-    wr.append(" ".repeat(indentDepth))
-
-    val isRightHandScope = ast.currChunk.nodes[ast.currInd + 2] > 0
-
-    ast.nextNode() // the "assignment node
-    if (isRightHandScope) {
-        wr.append("let ")
-        wr.append(ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]])
-        wr.append(";\n")
-    } else {
-        wr.append("const ")
-        wr.append(ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]])
-        wr.append(" = ")
-    }
-
-    ast.nextNode()  // the binding name node
-    val lenExtent = ast.currChunk.nodes[ast.currInd + 3]
-    ast.nextNode()  // the "expression" node
-
-    if (!isRightHandScope) {
-        writeExpressionBody(lenExtent, wr)
-        wr.append(";\n")
-    }
-
-
-}
-
-
-private fun writeReturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
-    wr.append(" ".repeat(indentDepth))
-    wr.append("return ")
-    val lenExpression = ast.currChunk.nodes[ast.currInd + 3]
-    ast.nextNode() // the returnExpression
-    writeExpressionBody(lenExpression, wr)
-    wr.append(";\n")
-}
-
-
 private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     if (fr.eType != functionDef) {
         wr.append(" ".repeat(indentDepth))
@@ -254,7 +223,7 @@ private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
 
     indentDepth += 4
 
-    pushNewFrame(-1, -1)
+    pushNewFrame(-1)
     ast.skipNodes(1)
 }
 
@@ -262,7 +231,50 @@ private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
  * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
  */
 private fun writeScopeRightHandInAssignment(bindingName: String, fr: CodegenFrame, wr: StringBuilder) {
+    if (fr.eType != functionDef) {
+        wr.append(" ".repeat(indentDepth))
+    } else {
+        wr.append(" ")
+    }
+    wr.append("{\n")
 
+    indentDepth += 4
+
+    val eType = ExtentAST.values().first {it.internalVal.toInt() == ast.currChunk.nodes[ast.currInd] ushr 27 }
+    val lenNodes = ast.currChunk.nodes[ast.currInd + 3]
+    backtrack.add(CodegenFrame(eType, -1, ast.currNodeInd, lenNodes, bindingName))
+    ast.skipNodes(1)
+}
+
+/**
+ * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
+ * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
+ * in which case this function handles all the corresponding stack poppin'.
+ * It also always handles updating all inner frames with consumed tokens.
+ */
+private fun maybeCloseFrames(wr: StringBuilder) {
+    while (true) {
+        if (backtrack.isEmpty()) return
+
+        var i = backtrack.size - 1
+        while (i > -1) {
+            val frame = backtrack[i]
+            if (ast.currNodeInd < frame.sentinelNode) {
+                return
+            } else {
+                closeFrame(frame, wr)
+                backtrack.removeLast()
+                if (frame.eType == functionDef) {
+                    if (backtrack.isNotEmpty()) {
+                        ast.seek(backtrack.last().returnNode) // skipping to the node after the fnDefPlaceholder
+                    } else {
+                        ast.seek(frame.sentinelNode) // since this is the outermost func, we finish up its codegen
+                    }
+                }
+            }
+            i--
+        }
+    }
 }
 
 

@@ -32,11 +32,11 @@ val reservedReturn = byteArrayOf(114, 101, 116, 117, 114, 110)
 val reservedTry = byteArrayOf(116, 114, 121)
 val reservedWhile = byteArrayOf(119, 104, 105, 108, 101)
 
-/** Function precedence must be higher than that of any operator */
-val funcPrecedence = 26
-val prefixPrecedence = 27
+/** Function precedence must be higher than that of any infix operator, yet lower than the prefix operators */
+const val funcPrecedence = 26
+const val prefixPrecedence = 27
 
 /** Must be the lowest value in the PunctuationToken enum */
-const val firstFrameASTType = 10
+const val firstExtentASTType = 10
 
 const val SCRATCHSZ = 100 // must be divisible by 4

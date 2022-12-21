@@ -268,15 +268,16 @@ fun storeFreshFunction(freshlyMintedFn: FunctionDef) {
 }
 
 
-/**
- * This is called at the end of parse to walk over and remove indirection from all
- * function ids in all function calls.
- * Precondition: all function IDs in the AST are indices into 'functionsIndex'.
- * Post-condition: all function IDs in the AST are indices into 'functions'.
- */
-private fun fixupFunctionIds() {
-
+fun lookaheadPayload1(nodesToSkip: Int): Int{
+    var ind = (currNodeInd + nodesToSkip)*4
+    var chunk = currChunk
+    while (ind > CHUNKSZ) {
+        chunk = chunk.next!!
+        ind -= CHUNKSZ
+    }
+    return chunk.nodes[ind + 2]
 }
+
 
 
 fun getString(stringId: Int): String {
@@ -427,7 +428,7 @@ companion object {
         val startByte = chunk.nodes[ind + 1]
         val lenBytes = chunk.nodes[ind] and LOWER27BITS
         val typeBits = (chunk.nodes[ind] ushr 27).toByte()
-        if (typeBits < firstFrameASTType) {
+        if (typeBits < firstExtentASTType) {
             val regType = RegularAST.values().firstOrNull { it.internalVal == typeBits }
             if (regType != RegularAST.litFloat) {
                 val payload: Long = (chunk.nodes[ind + 2].toLong() shl 32) + (chunk.nodes[ind + 3].toLong() and LOWER32BITS)
