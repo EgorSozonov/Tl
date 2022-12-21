@@ -8,17 +8,27 @@ import parser.Parser
 
 
 const val input = """
-fn foo x y {
-    z = x*y
-    return (z + x) .inner 5 (-2)
-    
-    fn inner a b c {
-        return a - 2*b + 3*c
-    }
+z = {
+    aw = 5
+    aw + 11
 }
+z .print
 
-90 .foo 100 .print
+
 """
+
+//const val input = """
+//fn foo x y {
+//    z = x*y
+//    return (z + x) .inner 5 (-2)
+//
+//    fn inner a b c {
+//        return a - 2*b + 3*c
+//    }
+//}
+//
+//90 .foo 100 .print
+//"""
 
 // foo ~20
 // inner 17

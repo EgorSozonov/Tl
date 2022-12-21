@@ -47,12 +47,14 @@ private fun codeGenExecutable(wr: StringBuilder) {
             writeScope(fr, lenNodes, wr)
         } else if (extentType == expression.internalVal.toInt()) {
             writeExpression(fr, lenNodes, wr)
+        } else if (extentType == returnExpression.internalVal.toInt()) {
+            writeReturn(fr, lenNodes, wr)
+        } else if (extentType == exturnExpression.internalVal.toInt()) {
+            writeExturn(fr, lenNodes, wr)
         } else if (extentType == statementAssignment.internalVal.toInt()) {
             writeAssignment(fr, lenNodes, wr)
         } else if (extentType == fnDefPlaceholder.internalVal.toInt()) {
             writeFnSignature(fr, lenNodes, wr)
-        } else if (extentType == returnExpression.internalVal.toInt()) {
-            writeReturn(fr, lenNodes, wr)
         } else {
             throw Exception()
         }
@@ -111,7 +113,7 @@ private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder)
 private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
 
-    val isRightHandScope = ast.lookaheadPayload1(2) > 0
+    val isRightHandScope = ast.lookaheadType(2) == scope.internalVal.toInt()
 
     ast.nextNode() // the "assignment node
     val bindingName = ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]]
@@ -126,14 +128,27 @@ private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) 
     }
 
     ast.nextNode()  // the binding name node
-    val lenExtent = ast.currChunk.nodes[ast.currInd + 3]
-    ast.nextNode()  // the "expression" node
 
-    if (isRightHandScope) {
-        writeExpressionBody(lenExtent, wr)
+    val nodeType = ast.currNodeType()
+    if (nodeType == litInt.internalVal.toInt()) {
+        wr.append(ast.getPayload())
         wr.append(";\n")
+        ast.nextNode()
+    } else if (nodeType == ident.internalVal.toInt()) {
+        val identName = ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]]
+        wr.append(identName)
+        wr.append(";\n")
+        ast.nextNode()
     } else {
-        writeScopeRightHandInAssignment(bindingName, fr, wr)
+        val lenExtent = ast.currChunk.nodes[ast.currInd + 3]
+
+        if (isRightHandScope) {
+            writeScopeRightHandInAssignment(bindingName, fr, wr)
+        } else {
+            ast.nextNode()  // the "expression" node
+            writeExpressionBody(lenExtent, wr)
+            wr.append(";\n")
+        }
     }
 }
 
@@ -207,6 +222,16 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
 
 private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
     wr.append(" ".repeat(indentDepth))
+    ast.nextNode()
+    writeExpressionBody(lenNodes, wr)
+    wr.append(";\n")
+}
+
+private fun writeExturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+    wr.append(" ".repeat(indentDepth))
+    wr.append(fr.bindingNameIfAssignment)
+    wr.append(" = ")
+
     ast.nextNode()
     writeExpressionBody(lenNodes, wr)
     wr.append(";\n")

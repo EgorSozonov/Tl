@@ -49,7 +49,7 @@ enum class ExtentAST(val internalVal: Byte) {
     statementAssignment(13),
     fnDefPlaceholder(14),     // index in the 'functions' table of AST
     returnExpression(15),
-    pushOutExpression(16),
+    exturnExpression(16),
 }
 
 /**

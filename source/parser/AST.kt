@@ -268,20 +268,23 @@ fun storeFreshFunction(freshlyMintedFn: FunctionDef) {
 }
 
 
-fun lookaheadPayload1(nodesToSkip: Int): Int{
+fun lookaheadType(nodesToSkip: Int): Int {
     var ind = (currNodeInd + nodesToSkip)*4
     var chunk = currChunk
     while (ind > CHUNKSZ) {
         chunk = chunk.next!!
         ind -= CHUNKSZ
     }
-    return chunk.nodes[ind + 2]
+    return chunk.nodes[ind] ushr 27
 }
-
 
 
 fun getString(stringId: Int): String {
     return identifiers[stringId]
+}
+
+fun getPayload(): Long {
+    return (currChunk.nodes[currInd + 2].toLong() shl 32) + (currChunk.nodes[currInd + 3].toLong() and LOWER32BITS)
 }
 
 

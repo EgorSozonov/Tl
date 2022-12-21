@@ -180,8 +180,8 @@ private fun noncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenB
         val topScope = currFnDef.subscopes.last()
         var exprType = ExtentAST.expression
         if (topScope.leftHandBindingName.length > 0 && topFrame.extentType == ExtentAST.scope) {
-            if (topFrame.tokensRead + lenTokens == topFrame.lenTokens) {
-                exprType = ExtentAST.pushOutExpression
+            if (topFrame.tokensRead + lenTokens + 1 == topFrame.lenTokens) {
+                exprType = ExtentAST.exturnExpression
             }
         }
         exprInit(exprType, 1, true, lenTokens, startByte, lenBytes)
@@ -191,6 +191,7 @@ private fun noncoreStatement(stmtType: Int, lenTokens: Int, startByte: Int, lenB
         parseStatementTypeDecl(lenTokens, startByte, lenBytes)
     }
 }
+
 
 private fun coreCatch(lenTokens: Int, startByte: Int, lenBytes: Int) {
     //validateCoreForm(stmtType, lenTokens)
@@ -468,7 +469,7 @@ private fun scope(parseFrame: ParseFrame) {
  * An expression, i.e. a series of funcalls and/or operator calls.
  * 'additionalPrefixToken' - set to 1 if
  */
-private fun exprInit(exprType: ExtentAST, countTokensToAdd: Int, isStatementLevel: Boolean, lenTokens: Int, startByte: Int, lenBytes: Int, ) {
+private fun exprInit(exprType: ExtentAST, countTokensToAdd: Int, isStatementLevel: Boolean, lenTokens: Int, startByte: Int, lenBytes: Int) {
     if (lenTokens == 1) {
         val theToken = inp.nextToken(0)
         exprSingleItem(theToken)
@@ -489,7 +490,7 @@ private fun exprInit(exprType: ExtentAST, countTokensToAdd: Int, isStatementLeve
 }
 
 /**
- * Parses (a part of) an expression. Uses an extended Shunting Yard algo from Dijkstra to
+ * Parses (a part of) an expression. Uses an extended Shunting Yard algorithm from Dijkstra to
  * flatten all internal parens into a single "Reverse Polish Notation" stream.
  * I.e. into a post-order traversal of a function call tree. In the resulting AST nodes, the function names are
  * annotated with arities.
@@ -888,7 +889,7 @@ private fun assignmentInit(lenTokens: Int, startByte: Int, lenBytes: Int) {
     currFnDef.backtrack.push(newFrame)
 
     if (isRightHandScope) {
-        scopeInit(null, 0, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte, bindingName)
+        scopeInit(null, 0, lenTokens - 3, startOfExpr, lenBytes - startOfExpr + startByte, bindingName)
     } else {
         exprInit(ExtentAST.expression, 0, false, lenTokens - 2, startOfExpr, lenBytes - startOfExpr + startByte)
     }

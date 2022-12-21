@@ -29,6 +29,7 @@ inner class ExprTest {
         }
     }
 
+
     @Test
     fun `Double function call`() {
         testParseWithEnvironment(
