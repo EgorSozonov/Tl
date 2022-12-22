@@ -17,7 +17,6 @@ inner class LexWordTest {
             it.buildPunct(0, 8, statementFun, 2)
               .build(0, 0, 4, word)
               .build(0, 5, 3, word)
-
         }
     }
 

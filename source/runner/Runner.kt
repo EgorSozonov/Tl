@@ -9,8 +9,8 @@ import parser.Parser
 
 const val input = """
 z = {
-    aw = 5
-    aw + 11
+    aw = "asdf "
+    aw + "bcjk"
 }
 z .print
 
@@ -39,6 +39,12 @@ fun main(args: Array<String>) {
     val lexer = Lexer(input.toByteArray(), FileType.executable)
     lexer.lexicallyAnalyze()
 
+    if (lexer.wasError) {
+        println(lexer.errMsg)
+        println(Lexer.print(lexer))
+        return
+    }
+
     println()
     println("lexing result:")
     println()
@@ -46,6 +52,12 @@ fun main(args: Array<String>) {
 
     val parser = Parser(lexer)
     parser.parse(arrayListOf(Import("print", "console.log", 1)))
+
+    if (parser.wasError) {
+        println(parser.errMsg)
+        println(Parser.print(parser))
+        return
+    }
 
     println(Parser.print(parser))
 

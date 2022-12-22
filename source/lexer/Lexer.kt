@@ -62,7 +62,6 @@ private fun lexWord() {
     lexWordInternal(word)
 }
 
-
 /**
  * Lexes a word (both reserved and identifier) according to Tl's rules.
  * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45

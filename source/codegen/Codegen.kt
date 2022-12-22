@@ -5,6 +5,7 @@ import parser.ExtentAST
 import parser.Parser
 import parser.ExtentAST.*;
 import parser.RegularAST.*;
+import utils.LOWER27BITS
 import utils.LOWER32BITS
 import java.util.*
 import kotlin.collections.ArrayList
@@ -134,6 +135,12 @@ private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) 
         wr.append(ast.getPayload())
         wr.append(";\n")
         ast.nextNode()
+    } else if (nodeType == litString.internalVal.toInt()) {
+        val literal = pr.getStringLiteral(ast.currChunk.nodes[ast.currInd + 1], ast.currChunk.nodes[ast.currInd] and LOWER27BITS)
+        wr.append("\"")
+        wr.append(literal)
+        wr.append("\";\n")
+        ast.nextNode()
     } else if (nodeType == ident.internalVal.toInt()) {
         val identName = ast.identifiers[ast.currChunk.nodes[ast.currInd + 3]]
         wr.append(identName)
@@ -174,7 +181,10 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
             stringBuildup.push(ast.getString(payload2))
         } else if (nodeType == litInt.internalVal.toInt()) {
             val literalValue = (payload1.toLong() shl 32) + (payload2.toLong() and LOWER32BITS)
-            stringBuildup.push(literalValue.toString())
+            stringBuildup.push(literalValue.toString() )
+        } else if (nodeType == litString.internalVal.toInt()) {
+            val stringLiteral = pr.getStringLiteral(ast.currChunk.nodes[ast.currInd + 1], ast.currChunk.nodes[ast.currInd] and LOWER27BITS)
+            stringBuildup.push("\"" + stringLiteral + "\"")
         } else if (nodeType == idFunc.internalVal.toInt()) {
             val sb = StringBuilder()
 
@@ -207,7 +217,6 @@ private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
                     sb.append(operString)
                     sb.append(operands[1])
                 }
-
             }
             if (needParentheses) sb.append(")")
             stringBuildup.push(sb.toString())

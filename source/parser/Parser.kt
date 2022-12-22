@@ -525,6 +525,13 @@ private fun expr(parseFrame: ParseFrame) {
                         inp.currStartByte(), inp.currLenBytes()
                     )
                 }
+                stringTok.internalVal.toInt() -> {
+                    exprOperand(functionStack, stackInd)
+                    currFnDef.appendNode(
+                        litString, 0, 0,
+                        inp.currStartByte(), inp.currLenBytes()
+                    )
+                }
                 dotWord.internalVal.toInt() -> {
                     val fnName = readString(dotWord)
                     if (!allStrings.containsKey(fnName)) createError(errorUnknownFunction)
@@ -959,6 +966,11 @@ fun parseFromT(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
  */
 fun parseFromW(stmtType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
     noncoreStatement(stmtType, lenTokens, startByte, lenBytes)
+}
+
+
+fun getStringLiteral(startByte: Int, lenBytes: Int): String {
+    return String(inp.inp, startByte, lenBytes)
 }
 
 /**
