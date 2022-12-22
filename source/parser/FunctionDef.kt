@@ -1,6 +1,4 @@
 package parser
-
-import lexer.CHUNKSZ
 import java.util.*
 import kotlin.collections.ArrayList
 
@@ -65,9 +63,9 @@ class FunctionDef(var funcId: Int = 0, var arity: Int = 0, val precedence: Int) 
     fun setExtentLength(nodeInd: Int) {
         var curr = firstChunk
         var j = nodeInd * 4
-        while (j >= CHUNKSZ) {
+        while (j >= SCRATCHSZ) {
             curr = curr.next!!
-            j -= CHUNKSZ
+            j -= SCRATCHSZ
         }
 
         curr.nodes[j + 3] = totalNodes - nodeInd - 1
@@ -81,7 +79,7 @@ class FunctionDef(var funcId: Int = 0, var arity: Int = 0, val precedence: Int) 
 
 
     private fun ensureSpaceForNode() {
-        if (nextInd < (SCRATCHSZ - 4)) return
+        if (nextInd < SCRATCHSZ) return
 
         val newChunk = ScratchChunk()
         currChunk.next = newChunk

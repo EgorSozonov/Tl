@@ -1,5 +1,6 @@
 package parser
 import lexer.CHUNKSZ
+import lexer.operatorFunctionality
 import utils.LOWER24BITS
 import utils.LOWER27BITS
 import utils.LOWER32BITS
@@ -106,7 +107,7 @@ fun funcNext() {
 
 
 private fun ensureSpaceForFunc() {
-    if (funcNextInd < (CHUNKSZ - 4)) return
+    if (funcNextInd < CHUNKSZ) return
 
     val newChunk = ASTChunk()
     funcCurrChunk.next = newChunk
@@ -212,7 +213,7 @@ private fun bump() {
 
 
 private fun ensureSpaceForNode() {
-    if (nextInd < (CHUNKSZ - 4)) return
+    if (nextInd < CHUNKSZ) return
 
     val newChunk = ASTChunk()
     currChunk.next = newChunk
@@ -416,6 +417,7 @@ companion object {
             if (currA != null) {
                 val lenA = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
                 for (i in 0 until lenA step 4) {
+                    result.append((i/4 + 1).toString() + " ")
                     printNode(currA, i, result)
                     result.appendLine("")
                 }
@@ -433,19 +435,28 @@ companion object {
         val typeBits = (chunk.nodes[ind] ushr 27).toByte()
         if (typeBits < firstExtentASTType) {
             val regType = RegularAST.values().firstOrNull { it.internalVal == typeBits }
-            if (regType != RegularAST.litFloat) {
+            if (regType == RegularAST.idFunc) {
+                val funcId: Int = chunk.nodes[ind + 3]
+                val arity = chunk.nodes[ind + 2]
+                if (arity >= 0) {
+                    wr.append("funcId $funcId $arity-ary [${startByte} ${lenBytes}]")
+                } else {
+                    wr.append("${operatorFunctionality[funcId].first} ${-arity}-ary [${startByte} ${lenBytes}]")
+                }
+
+            } else if (regType != RegularAST.litFloat) {
                 val payload: Long = (chunk.nodes[ind + 2].toLong() shl 32) + (chunk.nodes[ind + 3].toLong() and LOWER32BITS)
-                wr.append("$regType [${startByte} ${lenBytes}] $payload")
+                wr.append("$regType $payload [${startByte} ${lenBytes}]")
             } else {
                 val payload: Double = Double.fromBits(
                     (chunk.nodes[ind + 2].toLong() shl 32) + chunk.nodes[ind + 3].toLong()
                 )
-                wr.append("$regType [${startByte} ${lenBytes}] $payload")
+                wr.append("$regType $payload [${startByte} ${lenBytes}]")
             }
         } else {
             val punctType = ExtentAST.values().firstOrNull { it.internalVal == typeBits }
             val lenTokens = chunk.nodes[ind + 3]
-            wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
+            wr.append("$punctType len=$lenTokens [${startByte} ${lenBytes}] ")
         }
     }
 }

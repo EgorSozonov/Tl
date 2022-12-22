@@ -8,11 +8,26 @@ import parser.Parser
 
 
 const val input = """
-z = {
+"Hello world from Tl" .print
+    
+scopeAssignment = {
     aw = "asdf "
     aw + "bcjk"
 }
-z .print
+
+scopeAssignment .print
+
+
+a = 1
+b = 4
+c = 2
+d = 2
+e = 3
+f = 15
+
+result = a*b/c + d*e -f # 1*4/2 + 2*3 - 15 = -7
+  
+result .print
 
 
 """

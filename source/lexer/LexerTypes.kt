@@ -70,7 +70,7 @@ class CommentStorage {
 
 
     private fun ensureSpaceForToken() {
-        if (nextInd < (COMMENTSZ - 2)) return
+        if (nextInd < COMMENTSZ) return
 
         val newChunk = CommentChunk()
         currChunk.next = newChunk

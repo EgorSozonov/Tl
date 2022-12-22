@@ -826,7 +826,7 @@ private fun setStatementType(tokenInd: Int, tType: PunctuationToken, numParenthe
 
 
 private fun ensureSpaceForToken() {
-    if (nextInd < (CHUNKSZ - 4)) return
+    if (nextInd < CHUNKSZ) return
 
     val newChunk = LexChunk()
     currChunk.next = newChunk
@@ -1215,6 +1215,7 @@ companion object {
             if (currA != null) {
                 val lenA = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
                 for (i in 0 until lenA step 4) {
+                    result.append((i/4 + 1).toString() + " ")
                     printToken(currA, i, result)
                     result.appendLine("")
                 }
@@ -1237,17 +1238,17 @@ companion object {
             val regType = RegularToken.values().firstOrNull { it.internalVal == typeBits }
             if (regType != floatTok) {
                 val payload: Long = (chunk.tokens[ind + 2].toLong() shl 32) + chunk.tokens[ind + 3].toLong()
-                wr.append("$regType [${startByte} ${lenBytes}] $payload")
+                wr.append("$regType $payload [${startByte} ${lenBytes}]")
             } else {
                 val payload: Double = Double.fromBits(
                     (chunk.tokens[ind + 2].toLong() shl 32) + chunk.tokens[ind + 3].toLong()
                 )
-                wr.append("$regType [${startByte} ${lenBytes}] $payload")
+                wr.append("$regType $payload [${startByte} ${lenBytes}]")
             }
         } else {
             val punctType = PunctuationToken.values().firstOrNull { it.internalVal == typeBits }
             val lenTokens = chunk.tokens[ind + 3]
-            wr.append("$punctType [${startByte} ${lenBytes}] $lenTokens")
+            wr.append("$punctType $lenTokens [${startByte} ${lenBytes}]")
         }
     }
 }
