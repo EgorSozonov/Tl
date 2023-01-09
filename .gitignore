@@ -1,0 +1,25 @@
+.git/*
+.idea/*
+
+source/.DS_Store
+.DS_Store
+source/.DS_Store?
+*.zip
+*.cache
+*.bat
+gradlew
+
+# Ignore Gradle build output directory
+_bin/*
+_temp/*
+*.bat
+**/CMakeFiles/*
+CMakeCache.txt
+*.cmake
+*.cbp
+*.user
+target/*
+.gradle/*
+gradle/*
+
+*.iml
