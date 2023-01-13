@@ -13,7 +13,8 @@ data class ParseFrame(val spanType: SpanAST, val indStartNode: Int, val sentinel
 
 data class Subexpr(var operators: ArrayList<FunctionCall>,
                    val sentinelToken: Int,
-                   var isStillPrefix: Boolean = false)
+                   var isStillPrefix: Boolean,
+                   val isInHeadPosition: Boolean)
 
 class LexicalScope() {
     /** Array funcId - these are the function definitions in this scope (see 'detectNestedFunctions'). */
@@ -77,10 +78,6 @@ enum class SpanAST(val internalVal: Byte) {
     loop(22),
     breakSpan(23),
 }
-
-// we met x inside of y
-// _| y
-// x| .
 
 /**
  * The real element of this array is struct Token - modeled as 4 32-bit ints

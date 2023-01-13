@@ -737,7 +737,7 @@ private fun typeSubExprInit(lenTokens: Int) {
         }
 
         subexprs.add(Subexpr(arrayListOf(FunctionCall(-1, functionPrec, 0, 0, false, 0)),
-                                  inp.currTokInd + lenTokens, isStillPrefix = isPrefix))
+                                  inp.currTokInd + lenTokens, isStillPrefix = isPrefix, false))
     }
 }
 
@@ -751,11 +751,11 @@ private fun typeOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens:
         val funcNameId = allStrings[funcName]!!
 
         functionStack.add(Subexpr(arrayListOf(FunctionCall(funcNameId, functionPrec, 0, 0, payload2 > 0, startByte)),
-                                  inp.currTokInd + lenTokens, isStillPrefix = true))
+                                  inp.currTokInd + lenTokens, isStillPrefix = true, false))
     } else {
         val stringId = addString(funcName)
         functionStack.add(Subexpr(arrayListOf(FunctionCall(stringId, functionPrec, 0, 0, false, startByte)),
-                                  inp.currTokInd + lenTokens, isStillPrefix = true))
+                                  inp.currTokInd + lenTokens, isStillPrefix = true, false))
     }
 }
 
@@ -920,7 +920,7 @@ private fun expression(parseFrame: ParseFrame) {
     val functionStack = currFnDef.subexprs.last()
     while (inp.currTokInd < parseFrame.sentinelToken) {
         val tokType = inp.currTokenType()
-        closeSubexpr(functionStack)
+        subexprClose(functionStack)
         val topSubexpr = functionStack.last()
         if (tokType == PunctuationToken.parens.internalVal.toInt()) {
             val subExprLenTokens = inp.currChunk.tokens[inp.currInd + 3]
@@ -961,7 +961,7 @@ private fun expression(parseFrame: ParseFrame) {
             inp.nextToken() // any leaf token
         }
     }
-    closeSubexpr(functionStack)
+    subexprClose(functionStack)
 }
 
 /**
@@ -1066,6 +1066,9 @@ private fun exprOperator(topSubexpr: Subexpr) {
 private fun subexprInit(lenTokens: Int) {
     val firstTok = inp.lookAhead(0)
     val subexprs = currFnDef.subexprs.last()
+    val currSubexpr = subexprs.last()
+    val isHeadPosition = (currSubexpr.isStillPrefix && currSubexpr.operators.size == 1
+                            && currSubexpr.operators[0].arity == 0)
     if (lenTokens == 1) {
         exprSingleItem(firstTok)
     } else {
@@ -1081,19 +1084,19 @@ private fun subexprInit(lenTokens: Int) {
                 }
             }
             if (isPrefix) {
-                exprOpenPrefixFunction(subexprs, lenTokens)
+                exprOpenPrefixFunction(subexprs, lenTokens, isHeadPosition)
                 inp.nextToken() // the first token of this subexpression, which is a word
                 return
             }
-        } else {
+        } else if (firstTok.tType != PunctuationToken.parens.internalVal.toInt()) {
             isPrefix = false
         }
         currFnDef.subexprs.last().add(Subexpr(arrayListOf(FunctionCall(-1, 0, 0, 0, false, 0)),
-                                              inp.currTokInd + lenTokens, isStillPrefix = isPrefix))
+                                              inp.currTokInd + lenTokens, isPrefix, isHeadPosition))
     }
 }
 
-private fun exprOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens: Int) {
+private fun exprOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens: Int, isHeadPosition: Boolean) {
     val funcName = readString(word)
     val startByte = inp.currStartByte()
 
@@ -1101,7 +1104,7 @@ private fun exprOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens:
     val funcNameId = allStrings[funcName]!!
 
     functionStack.add(Subexpr(arrayListOf(FunctionCall(funcNameId, functionPrec, 0, 0, false, startByte)),
-                              inp.currTokInd + lenTokens, isStillPrefix = true))
+                              inp.currTokInd + lenTokens, isStillPrefix = true, isInHeadPosition = isHeadPosition))
 }
 
 /**
@@ -1110,23 +1113,27 @@ private fun exprOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens:
  * Flushing includes appending its operators, clearing the operator stack, and appending
  * prefix unaries from the previous subexpr frame, if any.
  */
-private fun closeSubexpr(funCallStack: ArrayList<Subexpr>) {
+private fun subexprClose(funCallStack: ArrayList<Subexpr>) {
     for (k in (funCallStack.size - 1) downTo 0) {
         val funInSt = funCallStack[k]
         if (inp.currTokInd != funInSt.sentinelToken) return
+
         if (funInSt.operators.size == 1) {
-            if (funInSt.isStillPrefix) {
+            if (funInSt.isInHeadPosition) {
+
+            } else if (funInSt.isStillPrefix) {
                 appendFnName(funInSt.operators[0], true)
-            } else if (funInSt.operators[0].nameStringId == -1) {
-                if (funInSt.operators[0].arity != 1) {
-                    // this is cases like "(1 2 3)" or "(!x y)"
-                    exitWithError(errorExpressionFunctionless)
-                }
+            } else if (funInSt.operators[0].nameStringId == -1
+                        && funInSt.operators[0].arity != 1) {
+                // this is cases like "(1 2 3)" or "(!x y)"
+                exitWithError(errorExpressionFunctionless)
             } else {
                 for (m in funInSt.operators.size - 1 downTo 0) {
                     appendFnName(funInSt.operators[m], false)
                 }
             }
+        } else if (funInSt.isInHeadPosition) {
+            exitWithError(errorExpressionHeadFormTooMany)
         } else {
             for (m in funInSt.operators.size - 1 downTo 0) {
                 appendFnName(funInSt.operators[m], false)

@@ -20,6 +20,7 @@ const val errorExpressionInfixNotSecond    = "An infix expression must have the 
 const val errorExpressionError             = "Cannot parse expression!"
 const val errorExpressionCannotContain     = "Expressions cannot contain scopes or statements!"
 const val errorExpressionFunctionless      = "Functionless expression!"
+const val errorExpressionHeadFormTooMany   = "Incorrect number operators in a head-function subexpression, should be just one!"
 const val errorTypeDeclCannotContain       = "Type declarations may only contain types (like A), type params (like a), type constructors (like .List) and parentheses!"
 const val errorTypeDeclError               = "Cannot parse type declaration!"
 const val errorUnknownType                 = "Unknown type"

@@ -354,6 +354,22 @@ inner class ExprTest {
             }
     }
 
+    @Test
+    fun `Head position 1`() {
+        testParseWithEnvironment(
+            "((f a) 5)", arrayListOf(
+                Import("f", "f", 1),
+                Import("a", "", -1),
+            )) {
+            it.buildSpan(functionDef, 5, 0, 9)
+                .buildSpan(scope, 4, 0, 9)
+                .buildSpan(expression, 3, 1, 7)
+                .buildNode(ident, 0, 1, 4, 1)
+                .buildIntNode(5, 7, 1)
+                .buildNode(idFunc, 2, 0, 2, 1)
+        }
+    }
+
 }
 
     
