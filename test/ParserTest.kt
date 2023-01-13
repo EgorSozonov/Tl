@@ -355,20 +355,99 @@ inner class ExprTest {
     }
 
     @Test
-    fun `Head position 1`() {
+    fun `Head-function expression 1`() {
         testParseWithEnvironment(
             "((f a) 5)", arrayListOf(
+                Import("f", "f", 2),
+                Import("a", "", -1),
+            )) {
+            it.buildSpan(functionDef, 5, 0, 9)
+              .buildSpan(scope, 4, 0, 9)
+              .buildSpan(expression, 3, 1, 7)
+              .buildNode(ident, 0, 1, 4, 1)
+              .buildIntNode(5, 7, 1)
+              .buildNode(idFunc, 2, 0, 2, 1)
+        }
+    }
+
+    @Test
+    fun `Head-function expression 2`() {
+        testParseWithEnvironment(
+            "(f ((g a) 4))", arrayListOf(
                 Import("f", "f", 1),
+                Import("g", "g", 2),
+                Import("a", "", -1),
+            )) {
+            it.buildSpan(functionDef, 6, 0, 13)
+              .buildSpan(scope, 5, 0, 13)
+              .buildSpan(expression, 4, 1, 11)
+              .buildNode(ident, 0, 2, 7, 1)
+              .buildIntNode(4, 10, 1)
+              .buildNode(idFunc, 2, 1, 5, 1)
+              .buildNode(idFunc, 1, 0, 1, 1)
+        }
+    }
+
+    @Test
+    fun `Head-function expression 3`() {
+        testParseWithEnvironment(
+            "((1 +) 5)", arrayListOf(
+                Import("f", "f", 2),
                 Import("a", "", -1),
             )) {
             it.buildSpan(functionDef, 5, 0, 9)
                 .buildSpan(scope, 4, 0, 9)
                 .buildSpan(expression, 3, 1, 7)
-                .buildNode(ident, 0, 1, 4, 1)
+                .buildIntNode(1, 2, 1)
                 .buildIntNode(5, 7, 1)
-                .buildNode(idFunc, 2, 0, 2, 1)
+                .buildNode(idFunc, -2, 10, 4, 1)
         }
     }
+
+    @Test
+    fun `Head-function expression 4`() {
+        testParseWithEnvironment(
+            "((3*a +) 5)", arrayListOf(
+                Import("f", "f", 2),
+                Import("a", "", -1),
+            )) {
+            it.buildSpan(functionDef, 7, 0, 11)
+                .buildSpan(scope, 6, 0, 11)
+                .buildSpan(expression, 5, 1, 9)
+                .buildIntNode(3, 2, 1)
+                .buildNode(ident, 0, 1, 4, 1)
+                .buildNode(idFunc, -2, 8, 3, 1) // *
+                .buildIntNode(5, 9, 1)
+                .buildNode(idFunc, -2, 10, 6, 1)// +
+        }
+    }
+
+    @Test
+    fun `Head-function error 1`() {
+        testParseWithEnvironment(
+            "((3+a *) 5)", arrayListOf(
+                Import("f", "f", 2),
+                Import("a", "", -1),
+            )) {
+            it.buildError(errorExpressionHeadFormOperators)
+        }
+    }
+
+//    @Test
+//    fun `Head-function error 1`() {
+//        testParseWithEnvironment(
+//            "((1 + x *) 5)", arrayListOf(
+//                Import("f", "f", 2),
+//                Import("a", "", -1),
+//            )) {
+//            it.buildSpan(functionDef, 5, 0, 9)
+//                .buildSpan(scope, 4, 0, 9)
+//                .buildSpan(expression, 3, 1, 7)
+//                .buildIntNode(1, 2, 1)
+//                .buildIntNode(5, 7, 1)
+//                .buildNode(idFunc, -2, 10, 4, 1)
+//        }
+//    }
 
 }
 

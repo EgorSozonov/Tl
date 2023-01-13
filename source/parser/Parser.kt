@@ -1009,7 +1009,7 @@ private fun exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topSu
         if (nameStringId < -1 && precedence != prefixPrec) {
             // infix operator, need to check if it's the first in this subexpr
             if (topSubexpr.operators.size == 1 && topSubexpr.operators[0].nameStringId == -1) {
-                if (topSubexpr.operators[0].arity != 1) exitWithError(errorExpressionInfixNotSecond)
+                if (topSubexpr.operators[0].arity != 0) exitWithError(errorExpressionInfixNotSecond)
 
                 val newFun = FunctionCall(nameStringId, precedence, 1, maxArity, false, startByte)
                 topSubexpr.operators[0] = newFun
@@ -1066,9 +1066,13 @@ private fun exprOperator(topSubexpr: Subexpr) {
 private fun subexprInit(lenTokens: Int) {
     val firstTok = inp.lookAhead(0)
     val subexprs = currFnDef.subexprs.last()
-    val currSubexpr = subexprs.last()
-    val isHeadPosition = (currSubexpr.isStillPrefix && currSubexpr.operators.size == 1
-                            && currSubexpr.operators[0].arity == 0)
+    val isHeadPosition = if (subexprs.isEmpty()) {
+        false
+    } else {
+        val currSubexpr = subexprs.last()
+        currSubexpr.isStillPrefix && currSubexpr.operators.size == 1
+                && currSubexpr.operators[0].arity == 0
+    }
     if (lenTokens == 1) {
         exprSingleItem(firstTok)
     } else {
@@ -1115,28 +1119,30 @@ private fun exprOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens:
  */
 private fun subexprClose(funCallStack: ArrayList<Subexpr>) {
     for (k in (funCallStack.size - 1) downTo 0) {
-        val funInSt = funCallStack[k]
-        if (inp.currTokInd != funInSt.sentinelToken) return
+        val currSubexpr = funCallStack[k]
+        if (inp.currTokInd != currSubexpr.sentinelToken) return
 
-        if (funInSt.operators.size == 1) {
-            if (funInSt.isInHeadPosition) {
-
-            } else if (funInSt.isStillPrefix) {
-                appendFnName(funInSt.operators[0], true)
-            } else if (funInSt.operators[0].nameStringId == -1
-                        && funInSt.operators[0].arity != 1) {
+        if (currSubexpr.operators.size == 1) {
+            if (currSubexpr.isInHeadPosition) {
+                // this is cases like "((f 5) 1.2)" - the inner head-position operator gets moved out into the outer subexpr
+                val parentSubexpr = funCallStack[k - 1]
+                parentSubexpr.operators[0] = currSubexpr.operators[0]
+            } else if (currSubexpr.isStillPrefix) {
+                appendFnName(currSubexpr.operators[0], true)
+            } else if (currSubexpr.operators[0].nameStringId == -1
+                        && currSubexpr.operators[0].arity != 1) {
                 // this is cases like "(1 2 3)" or "(!x y)"
                 exitWithError(errorExpressionFunctionless)
             } else {
-                for (m in funInSt.operators.size - 1 downTo 0) {
-                    appendFnName(funInSt.operators[m], false)
+                for (m in currSubexpr.operators.size - 1 downTo 0) {
+                    appendFnName(currSubexpr.operators[m], false)
                 }
             }
-        } else if (funInSt.isInHeadPosition) {
-            exitWithError(errorExpressionHeadFormTooMany)
+        } else if (currSubexpr.isInHeadPosition) {
+            exitWithError(errorExpressionHeadFormOperators)
         } else {
-            for (m in funInSt.operators.size - 1 downTo 0) {
-                appendFnName(funInSt.operators[m], false)
+            for (m in currSubexpr.operators.size - 1 downTo 0) {
+                appendFnName(currSubexpr.operators[m], false)
             }
         }
 
@@ -1170,6 +1176,7 @@ private fun exprIncrementArity(topFrame: Subexpr) {
         exitWithError(errorExpressionError)
     }
     val oper = topFrame.operators[n]
+    if (oper.nameStringId == -1) return
     oper.arity++
     if (oper.maxArity > 0 && oper.arity > oper.maxArity) {
         exitWithError(errorOperatorWrongArity)
@@ -1191,6 +1198,7 @@ private fun appendFnName(fnParse: FunctionCall, isPrefixWord: Boolean) {
     } else {
         // operators
         val operInfo = operatorDefinitions[-fnParse.nameStringId - 2]
+        if (operInfo.arity != fnParse.arity) exitWithError(errorOperatorWrongArity)
         currFnDef.appendNode(idFunc, -fnParse.arity, -fnParse.nameStringId - 2, fnParse.startByte,
             operInfo.name.length)
     }
