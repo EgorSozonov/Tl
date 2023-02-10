@@ -2,7 +2,7 @@
 #include "Arena.h"
 #include <string.h>
 #include <math.h>
-
+#include <stdio.h>
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
@@ -55,4 +55,9 @@ String* allocateFromSubstring(Arena* ar, char* content, int start, int length) {
     strncpy(result->content, content, realLength);
     result->content[realLength] = '\0';
     return result;
+}
+
+void printString(String* s) {
+    fwrite(s->content, 1, s->length, stdout);
+    printf("\n");
 }
