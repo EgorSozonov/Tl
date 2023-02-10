@@ -396,11 +396,11 @@ inner class ExprTest {
                 Import("a", "", -1),
             )) {
             it.buildSpan(functionDef, 5, 0, 9)
-                .buildSpan(scope, 4, 0, 9)
-                .buildSpan(expression, 3, 1, 7)
-                .buildIntNode(1, 2, 1)
-                .buildIntNode(5, 7, 1)
-                .buildNode(idFunc, -2, 10, 4, 1)
+              .buildSpan(scope, 4, 0, 9)
+              .buildSpan(expression, 3, 1, 7)
+              .buildIntNode(1, 2, 1)
+              .buildIntNode(5, 7, 1)
+              .buildNode(idFunc, -2, 10, 4, 1)
         }
     }
 
@@ -412,13 +412,13 @@ inner class ExprTest {
                 Import("a", "", -1),
             )) {
             it.buildSpan(functionDef, 7, 0, 11)
-                .buildSpan(scope, 6, 0, 11)
-                .buildSpan(expression, 5, 1, 9)
-                .buildIntNode(3, 2, 1)
-                .buildNode(ident, 0, 1, 4, 1)
-                .buildNode(idFunc, -2, 8, 3, 1) // *
-                .buildIntNode(5, 9, 1)
-                .buildNode(idFunc, -2, 10, 6, 1)// +
+              .buildSpan(scope, 6, 0, 11)
+              .buildSpan(expression, 5, 1, 9)
+              .buildIntNode(3, 2, 1)
+              .buildNode(ident, 0, 1, 4, 1)
+              .buildNode(idFunc, -2, 8, 3, 1) // *
+              .buildIntNode(5, 9, 1)
+              .buildNode(idFunc, -2, 10, 6, 1)// +
         }
     }
 
@@ -432,23 +432,6 @@ inner class ExprTest {
             it.buildError(errorExpressionHeadFormOperators)
         }
     }
-
-//    @Test
-//    fun `Head-function error 1`() {
-//        testParseWithEnvironment(
-//            "((1 + x *) 5)", arrayListOf(
-//                Import("f", "f", 2),
-//                Import("a", "", -1),
-//            )) {
-//            it.buildSpan(functionDef, 5, 0, 9)
-//                .buildSpan(scope, 4, 0, 9)
-//                .buildSpan(expression, 3, 1, 7)
-//                .buildIntNode(1, 2, 1)
-//                .buildIntNode(5, 7, 1)
-//                .buildNode(idFunc, -2, 10, 4, 1)
-//        }
-//    }
-
 }
 
     
