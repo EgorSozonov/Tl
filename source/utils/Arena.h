@@ -7,9 +7,9 @@ typedef struct ArenaChunk ArenaChunk;
 typedef struct Arena Arena;
 
 Arena* mkArena();
-void* arenaAllocate(Arena* ar, size_t allocSize);
-void* arenaAllocateArray(Arena* ar, size_t allocSize, int numElems);
-void arenaDelete(Arena* ar);
+void* allocateOnArena(Arena* ar, size_t allocSize);
+//void* allocateArrayArena(Arena* ar, size_t allocSize, int numElems);
+void deleteArena(Arena* ar);
 
 
 #endif

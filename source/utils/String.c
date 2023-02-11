@@ -21,7 +21,7 @@ String* allocateLiteral(Arena* ar, char* content) {
     for (; *ind != '\0'; ind++)
         len++;
 
-    String* result = arenaAllocate(ar, len + 1 + sizeof(String));
+    String* result = allocateOnArena(ar, len + 1 + sizeof(String));
     result->length = len;
     memcpy(result->content, content, len + 1);
     return result;
@@ -32,7 +32,7 @@ String* allocateLiteral(Arena* ar, char* content) {
 /// WARNING: does not zero out its contents.
 ///
 String* allocateScratchSpace(Arena* ar, uint64_t len) {
-    String* result = arenaAllocate(ar, len + 1 + sizeof(String));
+    String* result = allocateOnArena(ar, len + 1 + sizeof(String));
     result->length = len;
     return result;
 }
@@ -50,7 +50,7 @@ String* allocateFromSubstring(Arena* ar, char* content, int start, int length) {
     if (i < start) return NULL;
     int realLength = MIN(i - start, length);
 
-    String* result = arenaAllocate(ar, realLength + 1 + sizeof(String));
+    String* result = allocateOnArena(ar, realLength + 1 + sizeof(String));
     result->length = realLength;
     strncpy(result->content, content, realLength);
     result->content[realLength] = '\0';

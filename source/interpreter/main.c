@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
     } else {
         printf("Script run successfully!\n");
     }
-    arenaDelete(ar);
+    deleteArena(ar);
     return 0;
 
 

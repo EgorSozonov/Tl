@@ -59,7 +59,7 @@ size_t calculateChunkSize(size_t allocSize) {
 /**
  * Allocate memory in the arena, malloc'ing a new chunk if needed
  */
-void* arenaAllocate(Arena* ar, size_t allocSize) {
+void* allocateOnArena(Arena* ar, size_t allocSize) {
     if (ar->currInd + allocSize >= ar->currChunk->size) {
         size_t newSize = calculateChunkSize(allocSize);
 
@@ -68,7 +68,7 @@ void* arenaAllocate(Arena* ar, size_t allocSize) {
             perror("malloc error when allocating arena chunk");
             exit(EXIT_FAILURE);
         };
-        // sizeof includes everything but the flexible array member, that's why we subtract it
+        // sizeof counts everything but the flexible array member, that's why we subtract it
         newChunk->size = newSize - sizeof(ArenaChunk);
         newChunk->next = NULL;
         printf("Allocated a new chunk with bookkeep size %zu, array size %zu\n", sizeof(ArenaChunk), newChunk->size);
@@ -83,7 +83,7 @@ void* arenaAllocate(Arena* ar, size_t allocSize) {
 }
 
 
-void arenaDelete(Arena* ar) {
+void deleteArena(Arena* ar) {
     ArenaChunk* curr = ar->firstChunk;
     ArenaChunk* nextToFree = curr;
     while (curr != NULL) {
