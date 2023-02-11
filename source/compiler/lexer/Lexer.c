@@ -8,11 +8,8 @@
 
 Lexer* createLexer(Arena* ar) {
     Lexer* result = allocateOnArena(ar, sizeof(Lexer));
-    result->chunkCapacity = 1;
-    result->chunkCount = 1;
-    result->storage = allocateOnArena(ar, sizeof(Token*)); // 1-element array
-    result->currChunk = allocateOnArena(ar, LEX_CHUNK_SIZE*sizeof(Token));
-    result->storage[0] = result->currChunk;
+    result->capacity = LEX_CHUNK_SIZE;
+    result->tokens = allocateOnArena(ar, LEX_CHUNK_SIZE*sizeof(Token)); // 1-element array    
     result->arena = ar;
 
     return result;
@@ -20,23 +17,17 @@ Lexer* createLexer(Arena* ar) {
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
 static void handleFullChunk(Lexer* lexer) {
-    lexer->chunkCount++;
-    if (lexer->chunkCount == lexer->chunkCapacity) {
-        Token** newStorage = allocateOnArena(lexer->arena, lexer->chunkCapacity*2*sizeof(Token*));
-        memcpy(newStorage, lexer->storage, lexer->chunkCapacity*(sizeof(Token*)));
-        lexer->storage = newStorage;
-        lexer->chunkCapacity = 2*lexer->chunkCapacity;
-    }
-    
-    lexer->currChunk = allocateOnArena(lexer->arena, LEX_CHUNK_SIZE*sizeof(Token));
-    lexer->storage[lexer->chunkCount - 1] = lexer->currChunk;
-    lexer->nextInd = 0;
+    Token* newStorage = allocateOnArena(lexer->arena, lexer->capacity*2*sizeof(Token));
+    memcpy(newStorage, lexer->tokens, lexer->capacity*(sizeof(Token)));
+    lexer->tokens = newStorage;
+
+    lexer->capacity *= 2;
 }
 
 void addToken(Token t, Lexer* lexer) {
-    lexer->currChunk[lexer->nextInd] = t;
+    lexer->tokens[lexer->nextInd] = t;
     lexer->nextInd++;
-    if (lexer->nextInd == LEX_CHUNK_SIZE) {
+    if (lexer->nextInd == lexer->capacity) {
         handleFullChunk(lexer);
     }
 }

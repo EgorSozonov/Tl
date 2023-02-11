@@ -10,9 +10,9 @@
 /**
  * Allocates a C string literal into an arena. The length of the literal is determined in O(N).
  */
-String* allocateLiteral(Arena* ar, char* content) {
+String* allocateLiteral(Arena* ar, const char* content) {
     if (content == NULL) return NULL;
-    char* ind = content;
+    const char* ind = content;
     int len = 0;
     for (; *ind != '\0'; ind++)
         len++;

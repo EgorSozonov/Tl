@@ -6,7 +6,7 @@
 #include "../utils/String.h"
 #include "../utils/StackHeader.h"
 
-#define LEX_CHUNK_SIZE 10000
+#define LEX_CHUNK_SIZE 5000
 
 
 typedef struct {
@@ -18,20 +18,14 @@ typedef struct {
 } Token;
 
 typedef struct {
-    Token* tokens;
     int totalTokens;
     bool wasError;
     String* errMsg;
     
-    int currInd; // for reading a previously filled token storage. This is the absolute index (i.e. not within a single array)
+    Token* tokens; 
     
-    int chunkCapacity;
-    int chunkCount;
-    Token** storage; // chunkCapacity-length array of pointers to LEX_CHUNK_SIZE-sized arrays of Token
-    
-    Token* currChunk; // the current token array being added to
-    int nextInd; // the relative (i.e. withing a single token array, currChunk) index for the next token to be added
-    
+    int nextInd; // the  index for the next token to be added
+    int capacity; // current capacity of token storage
     Arena* arena;
 } Lexer;
 
@@ -75,6 +69,7 @@ void addToken(Token t, Lexer* lexer);
 #define tokStmtBreak 22
 #define tokStmtIfEq 23
 #define tokStmtIfPred 24
+
 
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType = tokCurlyBraces

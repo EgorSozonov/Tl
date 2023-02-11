@@ -2,38 +2,38 @@
 #define STACK_H
 
 
-#define DEFINE_STACK(CONCRETE_TYPE)                                          \
-    Stack ## CONCRETE_TYPE * mkStack ## CONCRETE_TYPE (Arena* ar, int initCapacity) {          \
+#define DEFINE_STACK(T)                                          \
+    Stack ## T * mkStack ## T (Arena* ar, int initCapacity) {          \
         int capacity = initCapacity < 4 ? 4 : initCapacity;                                    \
-        Stack ## CONCRETE_TYPE * result = arenaAllocate(ar, sizeof(Stack ## CONCRETE_TYPE));   \
+        Stack ## T * result = arenaAllocate(ar, sizeof(Stack ## T));   \
         result->capacity = capacity;                                         \
         result->length = 0;                                                  \
         result->arena = ar;                                                  \
-        CONCRETE_TYPE (* arr)[] = arenaAllocate(ar, capacity*sizeof(CONCRETE_TYPE));    \
+        T (* arr)[] = arenaAllocate(ar, capacity*sizeof(T));    \
         result->content = arr;                                                          \
         return result;                                                                  \
     }                                                                                   \
-    bool hasValues ## CONCRETE_TYPE (Stack ## CONCRETE_TYPE * st) {                     \
+    bool hasValues ## T (Stack ## T * st) {                     \
         return st->length > 0;                                                          \
     }                                                                                   \
-    CONCRETE_TYPE pop ## CONCRETE_TYPE (Stack ## CONCRETE_TYPE * st) {                  \
+    T pop ## T (Stack ## T * st) {                  \
         st->length--;                                                                   \
         return (*st->content)[st->length];                           \
     }                                                                                   \
-    void push ## CONCRETE_TYPE (Stack ## CONCRETE_TYPE * st, CONCRETE_TYPE newItem) {   \
+    void push ## T (Stack ## T * st, T newItem) {   \
         if (st->length < st->capacity) {                                                \
-            memcpy((CONCRETE_TYPE*)(st->content) + (st->length), &newItem, sizeof(CONCRETE_TYPE));          \
+            memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));          \
             st->length++;                                                                                   \
         } else {                                                                                            \
-            CONCRETE_TYPE (* newContent)[] = arenaAllocate(st->arena, 2*(st->capacity)*sizeof(CONCRETE_TYPE));   \
-            memcpy(newContent, st->content, st->length*sizeof(CONCRETE_TYPE));              \
-            memcpy((CONCRETE_TYPE*)(newContent) + (st->length), &newItem, sizeof(CONCRETE_TYPE)); \
+            T (* newContent)[] = arenaAllocate(st->arena, 2*(st->capacity)*sizeof(T));   \
+            memcpy(newContent, st->content, st->length*sizeof(T));              \
+            memcpy((T*)(newContent) + (st->length), &newItem, sizeof(T)); \
             st->capacity *= 2;                                                  \
             st->length++;                                                       \
-            st->content = (CONCRETE_TYPE(*)[])newContent;                       \
+            st->content = (T(*)[])newContent;                       \
         }                                                                       \
     }                                                                           \
-    void clear ## CONCRETE_TYPE (Stack ## CONCRETE_TYPE * st) {                 \
+    void clear ## T (Stack ## T * st) {                 \
         st->length = 0;                                                         \
     }                                                                           \
 
