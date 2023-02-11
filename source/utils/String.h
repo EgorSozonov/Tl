@@ -17,5 +17,6 @@ String* allocateScratchSpace(Arena* ar, uint64_t len);
 String* allocateFromSubstring(Arena* ar, char* content, int start, int length);
 bool endsWith(String* a, String* b);
 void printString(String* s);
+extern String empty;
 
 #endif

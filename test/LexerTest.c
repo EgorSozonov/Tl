@@ -84,12 +84,25 @@ LexerTestSet* createTestSet(String* name, int count, Arena *ar, ...) {
     return result;
 }
 
-
-bool equalityLexer(Lexer a, Lexer b) {
-    if (a.wasError != b.wasError || a.totalTokens != b.totalTokens || !endsWith(a.errMsg, b.errMsg)) {
-        return false;
+/** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
+int equalityLexer(Lexer a, Lexer b) {
+    if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
+        return -1;
     }
-    return true;
+    printf("a\n");
+    int commonLength = a.totalTokens < b.totalTokens ? a.totalTokens : b.totalTokens;
+    int i = 0;
+    for (; i < commonLength; i++) {
+        Token tokA = a.tokens[i];
+        Token tokB = b.tokens[i];
+        if (tokA.tp != tokB.tp || tokA.lenBytes != tokB.lenBytes || tokA.startByte != tokB.startByte 
+            || tokA.payload1 != tokB.payload1 || tokA.payload2 != tokB.payload2) {
+            return i;
+        }
+        printf("b %d\n", i);
+    }
+    return (a.totalTokens == b.totalTokens) ? -2 : i;    
+    
 }
 
 void printLexer(Lexer* a) {
@@ -196,14 +209,23 @@ int main() {
     );
     
 
-    
-    for (int j = 0; j < wordSet->totalTests; j++) {
-        LexerTest test = wordSet->tests[j];
-        printString(test.name);
+    Lexer* a = buildLexer(2, ar, 
+                (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 14  },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
+    );
+    Lexer* b = buildLexer(2, ar, 
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
+                
+    );
+    printf("equality = %d\n", equalityLexer(*a, *b));
+    //~ for (int j = 0; j < wordSet->totalTests; j++) {
+        //~ LexerTest test = wordSet->tests[j];
+        //~ printString(test.name);
         
-        printLexer(test.expectedOutput);
+        //~ printLexer(test.expectedOutput);
         
-    }
+    //~ }
     
     
     deleteArena(ar);
