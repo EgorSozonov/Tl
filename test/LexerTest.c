@@ -1,33 +1,22 @@
 #include "../source/utils/Arena.h"
 #include "../source/utils/String.h"
 #include "../source/utils/Stack.h"
+#include "../source/compiler/lexer/Lexer.h"
+#include "../source/compiler/lexer/LexerConstants.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdarg.h>
 
-#define lIntLit 0
-#define lFloatLit 1
-#define lStringLit 2
 
-typedef struct {
-    unsigned int tp : 6;
-    unsigned int lenBytes: 26;
-    unsigned int startByte;
-    unsigned int payload1;
-    unsigned int payload2;
-} Token;
 
-typedef struct {
-    Token* tokens;
-    int totalTokens;
-} Lexer;
 
 typedef struct {
     String* name;
     String* input;
     Lexer* expectedOutput;
 } LexerTest;
+
 
 typedef struct {
     String* name;
@@ -36,26 +25,40 @@ typedef struct {
 } LexerTestSet;
 
 
-Token* allocTokens(int count, Arena *ar, ...) {
-    va_list args;
-    va_start (args, ar);
-    
-    Token* result = allocateOnArena(ar, count*sizeof(Token));
+Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
+    Lexer* result = createLexer(ar);
     if (result == NULL) return result;
     
-    for (int i = 0; i < count; i++) {
-        result[i] = va_arg(args, Token);
-    }    
+    result->totalTokens = totalTokens;
     
-    va_end(args);
+    va_list tokens;
+    va_start (tokens, ar);
+    
+    for (int i = 0; i < totalTokens; i++) {
+        addToken(va_arg(tokens, Token), result);
+    }
+    
+    va_end(tokens);
     return result;
 }
 
-
-Lexer* createLexer(int totalTokens, Arena *ar, Token* tokens) {
+Lexer* buildLexerWithError(String* errMsg, int totalTokens, Arena *ar, /* Tokens */ ...) {
     Lexer* result = allocateOnArena(ar, sizeof(Lexer));
+    result->wasError = true;
+    result->errMsg = errMsg;
     result->totalTokens = totalTokens;
-    result->tokens = tokens;
+    
+    va_list tokens;
+    va_start (tokens, ar);
+    
+    result->tokens = allocateOnArena(ar, totalTokens*sizeof(Token));
+    if (result == NULL) return result;
+    
+    for (int i = 0; i < totalTokens; i++) {
+        result->tokens[i] = va_arg(tokens, Token);
+    }
+    
+    va_end(tokens);
     return result;
 }
 
@@ -79,6 +82,13 @@ LexerTestSet* createTestSet(String* name, int count, Arena *ar, ...) {
     return result;
 }
 
+bool equalityLexer(Lexer a, Lexer b) {
+    if (a.wasError != b.wasError || a.totalTokens != b.totalTokens || !endsWith(a.errMsg, b.errMsg)) {
+        return false;
+    }
+    
+}
+
 
 int main() {
     printf("Hello test\n");
@@ -88,17 +98,15 @@ int main() {
     printf("Sizeof LexNode is %d\n", sizeof(Token));
     printString(str);
     
-    LexerTestSet* testSet = createTestSet(allocateLiteral(ar, "Number lexing"), 2, ar,
-        (LexerTest) { .name = allocateLiteral(ar, "Test 1"), .input = allocateLiteral(ar, "1.234"), 
-            .expectedOutput = createLexer(2, ar, allocTokens(2, ar, 
-                (Token){ .tp = lStringLit, .lenBytes = 5, .startByte = 0, .payload1 = 7 },
-                (Token){ .tp = lFloatLit, .lenBytes = 4, .startByte = 6, .payload1 = 5 }
-            )),
+    LexerTestSet* testSet = createTestSet(allocateLiteral(ar, "Word lexer test"), 2, ar,
+        (LexerTest) { .name = allocateLiteral(ar, "Simple word lexing"), .input = allocateLiteral(ar, "asdf Abc"), 
+            .expectedOutput = buildLexer(2, ar, 
+                (Token){ .tp = tokWord, .lenBytes = 4, .startByte = 0 },
+                (Token){ .tp = tokWord, .lenBytes = 3, .startByte = 5, .payload2 = 1 }
+            )
         },
-        (LexerTest) { .name = allocateLiteral(ar, "Test 2"), .input = allocateLiteral(ar, "asdf"), 
-            .expectedOutput = createLexer(1, ar, allocTokens(1, ar, 
-                (Token){ .tp = lStringLit, .lenBytes = 5, .startByte = 0, .payload1 = 7 }
-            )),
+        (LexerTest) { .name = allocateLiteral(ar, "Word snake case"), .input = allocateLiteral(ar, "asdf_abc"), 
+            .expectedOutput = buildLexerWithError(allocateLiteral(ar, "Simple word lexing"), 0, ar)
         }
     );
     
@@ -107,7 +115,6 @@ int main() {
     printString(testSet->name);
     
     for (int j = 0; j < testSet->totalTests; j++) {
-        printf("I'mhere\n");
         printString(testSet->tests[j].name);
     }
     
