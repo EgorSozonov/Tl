@@ -54,7 +54,11 @@ String* allocateFromSubstring(Arena* ar, char* content, int start, int length) {
 
 /** Does string "a" end with string "b"? */
 bool endsWith(String* a, String* b) {
-    if (a->length < b->length) return false;
+    if (a->length < b->length) {
+        return false;
+    } else if (b->length == 0) {
+        return true;
+    }
     
     int shift = a->length - b->length;
     int cmpResult = memcmp(a->content + shift, b->content, b->length);
@@ -65,3 +69,5 @@ void printString(String* s) {
     fwrite(s->content, 1, s->length, stdout);
     printf("\n");
 }
+
+String empty = { .length = 0 };

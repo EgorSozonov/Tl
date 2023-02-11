@@ -9,7 +9,8 @@
 Lexer* createLexer(Arena* ar) {
     Lexer* result = allocateOnArena(ar, sizeof(Lexer));
     result->capacity = LEX_CHUNK_SIZE;
-    result->tokens = allocateOnArena(ar, LEX_CHUNK_SIZE*sizeof(Token)); // 1-element array    
+    result->tokens = allocateOnArena(ar, LEX_CHUNK_SIZE*sizeof(Token)); // 1-element array
+    result->errMsg = &empty;
     result->arena = ar;
 
     return result;
