@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../utils/String.h"
-#include "../utils/StackHeader.h"
+#include "../../utils/String.h"
+#include "../../utils/StackHeader.h"
 
 #define LEX_CHUNK_SIZE 5000
 
@@ -75,6 +75,12 @@ void addToken(Token t, Lexer* lexer);
 #define firstPunctuationTokenType = tokCurlyBraces
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType = tokStmtFn
+
+typedef struct {
+    Token* token;
+    int numberOfToken;
+} RememberedToken;
+DEFINE_STACK_HEADER(RememberedToken)
 
 Lexer* lexicallyAnalyze(String* inp, Arena* ar);
 /*

@@ -9,7 +9,7 @@
  */
 typedef struct {
     int length;
-    char content[];
+    unsigned char content[];
 } String;
 
 String* allocateLiteral(Arena* ar, const char* content);

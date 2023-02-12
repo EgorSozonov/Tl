@@ -9,7 +9,7 @@ public static void main(String[] args) {
 	System.out.println("Build");
 	try {	
 		Process process = Runtime.getRuntime()
-        .exec("gcc -Isource/utils -Isource/compiler/lexer -o _bin/lexerTest test/LexerTest.c source/utils/String.c source/utils/Arena.c source/compiler/lexer/Lexer.c");
+        .exec("gcc --std=c11 -Isource/utils -Isource/compiler/lexer -o _bin/lexerTest test/LexerTest.c source/utils/String.c source/utils/Arena.c source/compiler/lexer/Lexer.c");
 		// Run a shell command		
 		
 		StringBuilder output = new StringBuilder();

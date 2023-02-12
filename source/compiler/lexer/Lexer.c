@@ -1,11 +1,48 @@
 ﻿#include "Lexer.h"
-#include "../utils/Arena.h"
-#include "../utils/String.h"
-#include "../utils/Stack.h"
+#include "../../utils/Arena.h"
+#include "../../utils/String.h"
+#include "../../utils/Stack.h"
 #include <string.h>
 #include <stdarg.h>
 
 #define private static
+
+    /*     for (i in aDigit0..aDigit9) { */
+    /*         dispatchTable[i] = Lexer::lexNumber */
+    /*     } */
+
+    /*     for (i in aALower..aZLower) { */
+    /*         dispatchTable[i] = Lexer::lexWord */
+    /*     } */
+    /*     for (i in aAUpper..aZUpper) { */
+    /*         dispatchTable[i] = Lexer::lexWord */
+    /*     } */
+    /*     dispatchTable[aUnderscore.toInt()] = Lexer::lexWord */
+    /*     dispatchTable[aDot.toInt()] = Lexer::lexDotSomething */
+    /*     dispatchTable[aAt.toInt()] = Lexer::lexAtWord */
+
+    /*     for (i in operatorStartSymbols) { */
+    /*         dispatchTable[i.toInt()] = Lexer::lexOperator */
+    /*     } */
+    /*     dispatchTable[aMinus.toInt()] = Lexer::lexMinus */
+    /*     dispatchTable[aParenLeft.toInt()] = Lexer::lexParenLeft */
+    /*     dispatchTable[aParenRight.toInt()] = Lexer::lexParenRight */
+    /*     dispatchTable[aCurlyLeft.toInt()] = Lexer::lexCurlyLeft */
+    /*     dispatchTable[aCurlyRight.toInt()] = Lexer::lexCurlyRight */
+    /*     dispatchTable[aBracketLeft.toInt()] = Lexer::lexBracketLeft */
+    /*     dispatchTable[aBracketRight.toInt()] = Lexer::lexBracketRight */
+
+    /*     dispatchTable[aQuestion.toInt()] = Lexer::lexQuestionMark */
+    /*     dispatchTable[aSpace.toInt()] = Lexer::lexSpace */
+    /*     dispatchTable[aCarriageReturn.toInt()] = Lexer::lexSpace */
+    /*     dispatchTable[aNewline.toInt()] = Lexer::lexNewline */
+
+    /*     dispatchTable[aQuote.toInt()] = Lexer::lexStringLiteral */
+    /*     dispatchTable[aSemicolon.toInt()] = Lexer::lexComment */
+    /*     dispatchTable[aColon.toInt()] = Lexer::lexColon */
+    /* } */
+
+DEFINE_STACK(RememberedToken)
 
 Lexer* createLexer(Arena* ar) {
     Lexer* result = allocateOnArena(ar, sizeof(Lexer));
@@ -59,26 +96,27 @@ private void exitWithError(const char errMsg[], Lexer* res) {
 
 
 private void finalize(Lexer* this) {
-    if (!backtrack.empty()) {
-        exitWithError(errorPunctuationExtraOpening)
+    if (!this->backtrack.empty()) {
+        exitWithError(errorPunctuationExtraOpening, this)
     }
 }
 
 
 Lexer* lexicallyAnalyze(String* inp, Arena* ar) {
+    Lexer* result = createLexer(ar);
     if (inp->length == 0) {
-        exitWithError("Empty input", lexer);
+        exitWithError("Empty input", result);
     }
 
 	// Check for UTF-8 BOM at start of file
 	int i = 0;
-	if (inp.length >= 3 && inp->content[0] == 0xEF && inp->content[1] == 0xBB && inp->content[2] == 0xBF)) {
+	if (inp->length >= 3 && (unsigned char)inp->content[0] == 0xEF && inp->content[1] == 0xBB && inp->content[2] == 0xBF) {
 		i = 3;
 	}
 
 	// Main loop over the input
-	while (i < inp.size && !wasError) {
-		val cByte = inp[i]
+	while (i < inp->length && !result->wasError) {
+		unsigned byte cByte = inp[i];
 		if (cByte >= 0) {
 			dispatchTable[cByte.toInt()]()
 		} else {
@@ -86,8 +124,8 @@ Lexer* lexicallyAnalyze(String* inp, Arena* ar) {
 		}
 	}
 
-	finalize();
-	Lexer* result = createLexer(ar);
+	finalize(result);
+
 }
 
 
