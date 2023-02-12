@@ -76,7 +76,7 @@ void addToken(Token t, Lexer* lexer);
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType = tokStmtFn
 
-
+Lexer* lexicallyAnalyze(String* inp, Arena* ar);
 /*
 
 typedef enum {

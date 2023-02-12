@@ -26,7 +26,7 @@ const char* tokNames[] = {
     "int", "float", "bool", "string", "_", "docComment", "compoundString", "word", ".word", "@word", "reserved", "operator"
 };
 
-Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
+static Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
     Lexer* result = createLexer(ar);
     if (result == NULL) return result;
     
@@ -101,8 +101,7 @@ int equalityLexer(Lexer a, Lexer b) {
         }
         printf("b %d\n", i);
     }
-    return (a.totalTokens == b.totalTokens) ? -2 : i;    
-    
+    return (a.totalTokens == b.totalTokens) ? -2 : i;        
 }
 
 void printLexer(Lexer* a) {
@@ -113,6 +112,27 @@ void printLexer(Lexer* a) {
     for (int i = 0; i < a->totalTokens; i++) {
         printf("%s [%d; %d]\n", tokNames[a->tokens[i].tp], a->tokens[i].startByte, a->tokens[i].lenBytes);
     }
+}
+
+/** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
+int runLexerTest(LexerTest test, Arena *ar) {
+	Lexer* result = lexicallyAnalyze(test.input, ar);
+	int equalityStatus = equalityLexer(*result, *test.expectedOutput);
+	if (equalityStatus == -2) {
+		return 0;
+	} else if (equalityStatus == -1) {
+		printf("ERROR IN ");
+		printString(test.name);
+		printf("\nError msg: ");
+		printString(result->errMsg);
+		printf("\nBut was expected: ");
+		printString(test.expectedOutput->errMsg);
+		printf("\n\n");
+	} else {
+		printf("ERROR IN ");
+		printString(test.name);
+		printf("On token %d\n\n", equalityStatus);
+	}		
 }
 
 
@@ -219,13 +239,11 @@ int main() {
                 
     );
     printf("equality = %d\n", equalityLexer(*a, *b));
-    //~ for (int j = 0; j < wordSet->totalTests; j++) {
-        //~ LexerTest test = wordSet->tests[j];
-        //~ printString(test.name);
+    for (int j = 0; j < wordSet->totalTests; j++) {
+        LexerTest test = wordSet->tests[j];
+        runLexerTest(test, ar);        
         
-        //~ printLexer(test.expectedOutput);
-        
-    //~ }
+    }
     
     
     deleteArena(ar);

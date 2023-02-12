@@ -3,8 +3,9 @@
 #include "../utils/String.h"
 #include "../utils/Stack.h"
 #include <string.h>
+#include <stdarg.h>
 
-
+#define private static
 
 Lexer* createLexer(Arena* ar) {
     Lexer* result = allocateOnArena(ar, sizeof(Lexer));
@@ -17,9 +18,9 @@ Lexer* createLexer(Arena* ar) {
 }
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
-static void handleFullChunk(Lexer* lexer) {
+private void handleFullChunk(Lexer* lexer) {
     Token* newStorage = allocateOnArena(lexer->arena, lexer->capacity*2*sizeof(Token));
-    memcpy(newStorage, lexer->tokens, lexer->capacity*(sizeof(Token)));
+    memcpy(newStorage, lexer->tokens, (lexer->capacity)*(sizeof(Token)));
     lexer->tokens = newStorage;
 
     lexer->capacity *= 2;
@@ -33,25 +34,61 @@ void addToken(Token t, Lexer* lexer) {
     }
 }
 
-
-
-
-
-//~ typedef struct {
-    //~ Token* tokens;
-    //~ int totalTokens;
-    //~ bool wasError;
-    //~ String* errMsg;
+private Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
+    Lexer* result = createLexer(ar);
+    if (result == NULL) return result;
     
-    //~ int currInd; // for reading a previously filled token storage. This is the absolute index (i.e. not within a single array)
+    result->totalTokens = totalTokens;
     
-    //~ int chunkCapacity;
-    //~ int chunkCount;
-    //~ Token** storage; // chunkCapacity-length array of pointers to LEX_CHUNK_SIZE-sized arrays of Token
+    va_list tokens;
+    va_start (tokens, ar);
     
-    //~ Token* currChunk; // the current token array being added to
-    //~ int nextInd; // the relative (i.e. withing a single token array, currChunk) index for the next token to be added
-//~ } Lexer;
+    for (int i = 0; i < totalTokens; i++) {
+        addToken(va_arg(tokens, Token), result);
+    }
+    
+    va_end(tokens);
+    return result;
+}
+
+
+private void exitWithError(const char errMsg[], Lexer* res) {
+    res->wasError = true;
+    res->errMsg = allocateLiteral(res->arena, errMsg);
+}
+
+
+private void finalize(Lexer* this) {
+    if (!backtrack.empty()) {
+        exitWithError(errorPunctuationExtraOpening)
+    }
+}
+
+
+Lexer* lexicallyAnalyze(String* inp, Arena* ar) {
+    if (inp->length == 0) {
+        exitWithError("Empty input", lexer);
+    }
+
+	// Check for UTF-8 BOM at start of file
+	int i = 0;
+	if (inp.length >= 3 && inp->content[0] == 0xEF && inp->content[1] == 0xBB && inp->content[2] == 0xBF)) {
+		i = 3;
+	}
+
+	// Main loop over the input
+	while (i < inp.size && !wasError) {
+		val cByte = inp[i]
+		if (cByte >= 0) {
+			dispatchTable[cByte.toInt()]()
+		} else {
+			exitWithError(errorNona)
+		}
+	}
+
+	finalize();
+	Lexer* result = createLexer(ar);
+}
 
 
 
@@ -111,10 +148,7 @@ void addToken(Token t, Lexer* lexer) {
 //~ }
 
 
-//~ void errorOut(char* errMsg, LexResult* res) {
-    //~ res->wasError = true;
-    //~ res->errMsg = allocateLiteral(res->arena, errMsg);
-//~ }
+
 
 //~ LexResult* lexicallyAnalyze(String* inp, Arena* ar) {
     //~ LexResult* result = mkLexResult(ar);
