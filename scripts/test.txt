@@ -1,0 +1,3 @@
+gcc --std=c11 -o _bin/lexerTest \
+-Isource/utils -Isource/compiler/lexer \
+test/LexerTest.c source/utils/String.c source/utils/Arena.c source/compiler/lexer/Lexer.c

@@ -108,23 +108,23 @@ Lexer* lexicallyAnalyze(String* inp, Arena* ar) {
         exitWithError("Empty input", result);
     }
 
-	// Check for UTF-8 BOM at start of file
-	int i = 0;
-	if (inp->length >= 3 && (unsigned char)inp->content[0] == 0xEF && inp->content[1] == 0xBB && inp->content[2] == 0xBF) {
-		i = 3;
-	}
+    // Check for UTF-8 BOM at start of file
+    int i = 0;
+    if (inp->length >= 3 && (unsigned char)inp->content[0] == 0xEF && inp->content[1] == 0xBB && inp->content[2] == 0xBF) {
+        i = 3;
+    }
 
-	// Main loop over the input
-	while (i < inp->length && !result->wasError) {
-		unsigned byte cByte = inp[i];
-		if (cByte >= 0) {
-			dispatchTable[cByte.toInt()]()
-		} else {
-			exitWithError(errorNona)
-		}
-	}
+    // Main loop over the input
+    while (i < inp->length && !result->wasError) {
+        unsigned byte cByte = inp[i];
+        if (cByte >= 0) {
+            dispatchTable[cByte.toInt()]()
+        } else {
+            exitWithError(errorNona)
+        }
+    }
 
-	finalize(result);
+    finalize(result);
 
 }
 
