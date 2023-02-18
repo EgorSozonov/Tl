@@ -172,5 +172,6 @@ LexResult* lexicallyAnalyze(String* inp, Arena* ar);
 
 */
 
-
+typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
+typedef int (*ReservedProbe)(int, int, Lexer*);
 #endif

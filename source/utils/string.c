@@ -1,5 +1,6 @@
-﻿#include "String.h"
-#include "Arena.h"
+﻿#include "./string.h"
+#include "./aliases.h"
+#include "arena.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -68,6 +69,16 @@ bool endsWith(String* a, String* b) {
 void printString(String* s) {
     fwrite(s->content, 1, s->length, stdout);
     printf("\n");
+}
+
+/** Tests if the following several bytes in the input match an array. This is for reserved word detection */
+bool testByteSequence(String* inp, int startByte, const byte letters[]) {
+    if (startByte + sizeof(letters) > inp->length) return false
+
+    for (int j in (letters.size - 1) downTo 0) {
+        if (inp[startByte + j] != letters[j]) return false
+    }
+    return true
 }
 
 String empty = { .length = 0 };

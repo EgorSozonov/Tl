@@ -9,28 +9,237 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#define CURR_BT lr->inp->content[lr->i]
+#define NEXT_BT lr->inp->content[lr->i + 1]
 
 DEFINE_STACK(RememberedToken)
 
-typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
+private bool isLetter(byte a) {
+    return ((a >= aALower && a <= aZLower) || (a >= aAUpper && a <= aZUpper));
+}
 
-void lexNumber(Lexer*);
-void lexWord(Lexer*);
-void lexDotSomething(Lexer*);
-void lexAtWord(Lexer*);
-void lexOperator(Lexer*);
-void lexMinus(Lexer*);
-void lexColon(Lexer*);
-void lexParenLeft(Lexer*);
-void lexParenRight(Lexer*);
-void lexCurlyLeft(Lexer*);
-void lexCurlyRight(Lexer*);
-void lexBracketLeft(Lexer*);
-void lexBracketRight(Lexer*);
-void lexUnexpectedSymbol(Lexer*);
-void lexNonAsciiError(Lexer*);
+private bool isCapitalLetter(byte a) {
+    return a >= aAUpper && a <= aZUpper;
+}
 
-LexerFunc (*buildLexerDispatch(Arena* ar))[256] {
+private bool isLowercaseLetter(byte a) {
+    return a >= aALower && a <= aZLower;
+}
+
+private bool isDigit(byte a) {
+    return a >= aDigit0 && a <= aDigit9;
+}
+
+private bool isAlphanumeric(byte a) {
+    return isLetter(a) || isDigit(a);
+}
+
+private bool isHexDigit(byte a) {
+    return isDigit(a) || (a >= aALower && a <= aFLower) || (a >= aAUpper && a <= aFUpper);
+}
+
+/** Predicate for an element of a scope, which can be any type of statement, or a split statement (such as an "if" or "match" form) */
+bool isParensElement(unsigned int tType) {
+    return  tType == tokLexScope || tType == tokStmtTypeDecl || tType == tokParens
+            || tType == tokStmtAssignment;
+}
+
+/** Predicate for an element of a scope, which can be any type of statement, or a split statement (such as an "if" or "match" form) */
+bool isScopeElementVal(unsigned int tType) {
+    return tType == tokLexScope
+            || tType == tokStmtTypeDecl
+            || tType == tokParens
+            || tType == tokStmtAssignment;
+}
+
+/** Sets i to beyond input's length to communicate to callers that lexing is over */
+private void exitWithError(const char errMsg[], Lexer* res) {
+    res->i = res->inp->length;
+    res->wasError = true;
+    res->errMsg = allocateLiteral(res->arena, errMsg);
+}
+
+/**
+ * Checks that there are at least 'requiredSymbols' symbols left in the input.
+ */
+private void checkPrematureEnd(int requiredSymbols, Lexer* lr) {
+    if (lr->i > lr->inp->length - requiredSymbols) {
+        exitWithError(errorPrematureEndOfInput, lr);
+    }
+}
+
+private void lexNumber(Lexer* lr) {
+
+}
+
+/**
+ * Lexes a single chunk of a word, i.e. the characters between two dots
+ * (or the whole word if there are no dots).
+ * Returns True if the lexed chunk was uncapitalized
+ */
+private bool lexWordChunk(Lexer* lr) {
+    bool result = false;
+
+    if (lr->inp->content[lr->i] == aUnderscore) {
+        checkPrematureEnd(2, lr);
+        lr->i++;
+    } else {
+        checkPrematureEnd(1, lr);
+    }
+    if (lr->wasError) return false;
+
+    if (isLowercaseLetter(CURR_BT)) {
+        result = true;
+    } else if (!isCapitalLetter(CURR_BT)) {
+        exitWithError(errorWordChunkStart, lr);
+    }
+    lr->i++;
+
+    while (lr->i < lr->inp->length && isAlphanumeric(CURR_BT)) {
+        lr->i++;
+    }
+    if (lr->i < lr->inp->length && CURR_BT == aUnderscore) {
+        exitWithError(errorWordUnderscoresOnlyAtStart, lr);
+    }
+
+    return result;
+}
+
+/**
+ * Lexes a word (both reserved and identifier) according to Tl's rules.
+ * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45
+ * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
+ */
+private void lexWordInternal(unsigned int wordType, Lexer* lr) {
+    int startInd = lr->i;
+    bool metUncapitalized = lexWordChunk(lr);
+    while (lr->i < (lr->inp->length - 1) && CURR_BT == aDot && NEXT_BT != aBracketLeft && !lr->wasError) {
+        lr->i++;
+        bool isCurrUncapitalized = lexWordChunk(lr);
+        if (metUncapitalized && !isCurrUncapitalized) {
+            exitWithError(errorWordCapitalizationOrder, lr);
+        }
+        metUncapitalized = isCurrUncapitalized;
+    }
+    int realStartInd = (wordType == tokWord) ? startInd : (startInd - 1); // accounting for the . or @ at the start
+    bool paylCapitalized = metUncapitalized ? 0 : 1;
+
+    byte firstByte = lr->inp->content[startInd];
+    int lenBytes = lr->i - realStartInd;
+    if (wordType == tokAtWord || firstByte < aBLower || firstByte > aWLower) {
+        addToken((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
+    } else {
+        int mbReservedWord = possiblyReservedDispatch[(firstByte - aBLower)](startInd, lr->i - startInd);
+        if (mbReservedWord > 0) {
+            if (wordType == tokDotWord) {
+                exitWithError(errorWordReservedWithDot, lr);
+            } else if (mbReservedWord == reservedTrue) {
+                addToken((Token){.tp=tokBool, .payload2=1, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
+            } else if (mbReservedWord == reservedFalse) {
+                addToken((Token){.tp=tokBool, .payload2=0, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
+            } else {
+                lexReservedWord(mbReservedWord, realStartInd, lr);
+            }
+        } else  {
+            addToken((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes }, lr);
+        }
+    }
+}
+
+
+private void lexWord(Lexer* lr) {
+    lexWordInternal(tokWord, lr);
+}
+
+void lexDotSomething(Lexer* lr) {
+
+}
+
+void lexAtWord(Lexer* lr) {
+
+}
+
+void lexOperator(Lexer* lr) {
+
+}
+
+void lexMinus(Lexer* lr) {
+
+}
+
+void lexColon(Lexer* lr) {
+
+}
+
+void lexParenLeft(Lexer* lr) {
+
+}
+
+void lexParenRight(Lexer* lr) {
+
+}
+
+void lexCurlyLeft(Lexer* lr) {
+
+}
+
+void lexCurlyRight(Lexer* lr) {
+
+}
+
+void lexBracketLeft(Lexer* lr) {
+
+}
+
+void lexBracketRight(Lexer* lr) {
+
+}
+
+void lexUnexpectedSymbol(Lexer* lr) {
+
+}
+
+void lexNonAsciiError(Lexer* lr) {
+
+}
+
+private int determineReservedB(int startByte, int lenBytes, Lexer* lr) {
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesBreak)) return tokStmtBreak;
+    return 0;
+}
+
+private int determineUnreserved(int startByte, int lenBytes, Lexer* lr) {
+    return 0;
+}
+
+/**
+    * Table for dispatch on the first letter of a word in case it might be a reserved word.
+    * It's indexed on the diff between first byte and the letter "c" (the earliest letter a reserved word may start with)
+    */
+private ReservedProbe (*possiblyReservedDispatch(Arena* ar))[19] {
+    ReservedProbe (*result)[19] = allocateOnArena(ar, 19*sizeof(ReservedProbe));
+    ReservedProbe* p = *result;
+    for (int i = 2; i < 18; i++) {
+        p[i] = determineUnreserved;
+    }
+    p[0] = determineReservedB;
+    // i -> when(i) {
+    //     0 -> Lexer::determineReservedB
+    //     1 -> Lexer::determineReservedC
+    //     3 -> Lexer::determineReservedE
+    //     4 -> Lexer::determineReservedF
+    //     7 -> Lexer::determineReservedI
+    //     10 -> Lexer::determineReservedL
+    //     11 -> Lexer::determineReservedM
+    //     16 -> Lexer::determineReservedR
+    //     18 -> Lexer::determineReservedT
+    //     21 -> Lexer::determineReservedW
+    //     else -> Lexer::determineUnreserved
+    // }
+    return result;
+}
+
+private LexerFunc (*buildLexerDispatch(Arena* ar))[256] {
     printf("Building lexer dispatch table, sizeof(LexerFunc) = %lu", sizeof(LexerFunc));
     LexerFunc (*result)[256] = allocateOnArena(ar, 256*sizeof(LexerFunc));
     LexerFunc* p = *result;
@@ -117,12 +326,6 @@ private Lexer* buildLexer(int totalTokens, String* inp, Arena *ar, /* Tokens */ 
     return result;
 }
 
-/** Sets i to beyond input's length to communicate to callers that lexing is over */
-private void exitWithError(const char errMsg[], Lexer* res) {
-    res->i = res->inp->length;
-    res->wasError = true;
-    res->errMsg = allocateLiteral(res->arena, errMsg);
-}
 
 
 private void finalize(Lexer* this) {
@@ -133,7 +336,7 @@ private void finalize(Lexer* this) {
 
 
 Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar) {
-    Lexer* result = createLexer(ar);
+    Lexer* result = createLexer(inp, ar);
     if (inp->length == 0) {
         exitWithError("Empty input", result);
     }
@@ -146,7 +349,7 @@ Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar) {
         && (unsigned char)inp->content[2] == 0xBF) {
         i = 3;
     }
-    LexDispatch (*dispatchTable)[256] = buildLexerDispatch(ar);
+    LexerFunc (*dispatchTable)[256] = buildLexerDispatch(ar);
 
     // Main loop over the input
     while (i < inp->length && !result->wasError) {

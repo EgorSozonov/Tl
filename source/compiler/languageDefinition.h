@@ -10,7 +10,8 @@
 
 /**
  * OperatorType
- * Values must exactly agree in order with the operatorSymbols array below. The order is defined by ASCII.
+ * Values must exactly agree in order with the operatorSymbols array in the .c file.
+ * The order is defined by ASCII.
  */
 #define opTNotEqual                0 // !=
 #define opTBoolNegation            1 // !
@@ -87,10 +88,8 @@ typedef struct {
 } OpDef;
 
 typedef struct {
-    int countOperatorStartSymbols;
-    int* operatorStartSymbols; // array
     int countOperators;
-    OpDef* operators; // array
+    Arr(OpDef) operators;
 } LanguageDefinition;
 
 
@@ -159,41 +158,6 @@ const int operatorStartSymbols[] = {
     aExclamation, aSharp, aDollar, aPercent, aAmpersand, aTimes, aPlus, aDivBy, aSemicolon,
     aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe
 };
-// #define opTNotEqual                0 // !=
-// #define opTBoolNegation            1 // !
-// #define opTSize                    2 // #
-// #define opTNotEmpty                3 // $
-// #define opTRemainder               4 // %
-// #define opTBoolAnd                 5 // &&
-// #define opTPointer                 6 // &
-// #define opTTimes                   7 // *
-// #define opTIncrement               8 // ++
-// #define opTPlus                    9 // +
-// #define opTDecrement              10 // --
-// #define opTMinus                  11 // -
-// #define opTDivBy                  12 // /
-// #define opTMutation               13 // :=
-// #define opTRangeHalf              14 // ;<
-// #define opTRange                  15 // ;
-// #define opTLessThanEq             16 // <=
-// #define opTBitShiftLeft           17 // <<
-// #define opTArrowLeft              18 // <-
-// #define opTLessThan               19 // <
-// #define opTArrowRight             20 // =>
-// #define opTEquality               21 // ==
-// #define opTImmDefinition          22 // =
-// #define opTIntervalBothInclusive  23 // >=<=
-// #define opTIntervalLeftInclusive  24 // >=<
-// #define opTIntervalRightInclusive 25 // ><=
-// #define opTIntervalExclusive      26 // ><
-// #define opTGreaterThanEq          27 // >=
-// #define opTBitshiftRight          28 // >>
-// #define opTGreaterThan            29 // >
-// #define opTQuestionMark           30 // ?
-// #define opTBackslash              31 // backslash
-// #define opTExponentiation         32 // ^
-// #define opTBoolOr                 33 // ||
-// #define opTPipe                   34 // |
 
 const OpDef noFun = {
     .name = &empty,
@@ -209,42 +173,24 @@ const OpDef noFun = {
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique
  * and below "firstPunctuationTokenType"
  */
-//const const byte reservedBreak       =  1
-//const const byte reservedCatch       =  5
-//const const byte reservedExport      =  6
 #define reservedFalse         2
-//const const byte reservedFn          =  8
-//const const byte reservedIf          =  2
-//const const byte reservedIfEq        =  9
-//const const byte reservedIfPred      = 10
-//const const byte reservedImport      = 11
-//const const byte reservedLoop        =  4
-//const const byte reservedMatch       = 12
-//const const byte reservedReturn      =  3
-//const const byte reservedServicetest = 13
 #define reservedTrue         1
-//const const byte reservedTry         = 15
-//const const byte reservedType        = 16
-//const const byte reservedUnittest    = 17
-//const const byte reservedWhile       = 18
 
 
 /** Reserved words of Tl in ASCII byte form */
 const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
 const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
+const byte reservedBytesContinue[]    = { 0 };
 const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
 const byte reservedBytesFn[]          = { 102, 110 };
 const byte reservedBytesFor[]         = { 102, 111, 114 };
 const byte reservedBytesImport[]      = { 105, 109, 112, 111, 114, 116 };
-const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
 const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
-const byte reservedBytesServicetest[] = { 115, 101, 114, 118, 105, 99, 101, 116, 101, 115, 116 };
+const byte reservedBytesTest[]        = { 116, 101, 115, 116 };
 const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
 const byte reservedBytesTry[]         = { 116, 114, 121 };
 const byte reservedBytesType[]        = { 116, 121, 112, 101 };
-const byte reservedBytesUnittest[]    = { 117, 110, 105, 116, 116, 101, 115, 116 };
-const byte reservedBytesWhile[]       = { 119, 104, 105, 108, 101 };
 
 #endif
