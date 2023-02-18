@@ -1,14 +1,7 @@
-#include "LanguageDefinition.h"
+#include "languageDefinition.h"
 
 LanguageDefinition* buildLanguageDefinitions(Arena* ar) {
-    /** All the symbols an operator may start with. The ':' is absent because it's handled by 'lexColon'.
-    * The '-' is absent because it's handled by 'lexMinus'.
-    */
-    const int operatorStartSymbols[] = {
-        aExclamation, aAmpersand, aPlus, aDivBy, aTimes,
-        aPercent, aCaret, aPipe, aGreaterThan, aLessThan, aQuestion, aEqual,
-        aSharp, aApostrophe
-    };
+
 
     /*
     * Definition of the operators with info for those that act as functions. The order must be exactly the same as

@@ -3,10 +3,14 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../../utils/String.h"
-#include "../../utils/StackHeader.h"
+#include "../../utils/aliases.h"
+#include "../../utils/arena.h"
+#include "../../utils/string.h"
+#include "../../utils/stackHeader.h"
+#include "../languageDefinition.h"
 
-#define LEX_CHUNK_SIZE 5000
+
+#define LEXER_INIT_SIZE 2000
 
 typedef struct {
     unsigned int tp : 6;
@@ -26,11 +30,13 @@ DEFINE_STACK_HEADER(RememberedToken)
 
 
 typedef struct {
+    int i;
+    String* inp;
     int totalTokens;
     bool wasError;
     String* errMsg;
     
-    Token* tokens;
+    Arr(Token) tokens;
 
     StackRememberedToken* backtrack;
     
@@ -39,7 +45,7 @@ typedef struct {
     Arena* arena;
 } Lexer;
 
-Lexer* createLexer(Arena* ar);
+Lexer* createLexer(String* inp, Arena* ar);
 void addToken(Token t, Lexer* lexer);
 
 /** 
@@ -88,7 +94,7 @@ void addToken(Token t, Lexer* lexer);
 
 
 
-Lexer* lexicallyAnalyze(String* inp, Arena* ar);
+Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar);
 /*
 
 typedef enum {

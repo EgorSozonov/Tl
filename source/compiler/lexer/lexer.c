@@ -1,46 +1,45 @@
-﻿#include "Lexer.h"
-#include "LexerConstants.h"
-#include "../../utils/Aliases.h"
-#include "../../utils/Arena.h"
-#include "../../utils/String.h"
-#include "../../utils/Stack.h"
+﻿#include "lexer.h"
+#include "lexerConstants.h"
+#include "../languageDefinition.h"
+#include "../../utils/aliases.h"
+#include "../../utils/arena.h"
+#include "../../utils/string.h"
+#include "../../utils/stack.h"
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
 
 
-    /*     dispatchTable[aMinus.toInt()] = Lexer::lexMinus */
-    /*     dispatchTable[aParenLeft.toInt()] = Lexer::lexParenLeft */
-    /*     dispatchTable[aParenRight.toInt()] = Lexer::lexParenRight */
-    /*     dispatchTable[aCurlyLeft.toInt()] = Lexer::lexCurlyLeft */
-    /*     dispatchTable[aCurlyRight.toInt()] = Lexer::lexCurlyRight */
-    /*     dispatchTable[aBracketLeft.toInt()] = Lexer::lexBracketLeft */
-    /*     dispatchTable[aBracketRight.toInt()] = Lexer::lexBracketRight */
-
-    /*     dispatchTable[aQuestion.toInt()] = Lexer::lexQuestionMark */
-    /*     dispatchTable[aSpace.toInt()] = Lexer::lexSpace */
-    /*     dispatchTable[aCarriageReturn.toInt()] = Lexer::lexSpace */
-    /*     dispatchTable[aNewline.toInt()] = Lexer::lexNewline */
-
-    /*     dispatchTable[aQuote.toInt()] = Lexer::lexStringLiteral */
-    /*     dispatchTable[aSemicolon.toInt()] = Lexer::lexComment */
-    /*     dispatchTable[aColon.toInt()] = Lexer::lexColon */
-    /* } */
-
 DEFINE_STACK(RememberedToken)
 
-typedef void (*LexDispatch)(Lexer*); // LexDispatch = &(Lexer* => void)
+typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
 
 void lexNumber(Lexer*);
 void lexWord(Lexer*);
 void lexDotSomething(Lexer*);
 void lexAtWord(Lexer*);
 void lexOperator(Lexer*);
+void lexMinus(Lexer*);
+void lexColon(Lexer*);
+void lexParenLeft(Lexer*);
+void lexParenRight(Lexer*);
+void lexCurlyLeft(Lexer*);
+void lexCurlyRight(Lexer*);
+void lexBracketLeft(Lexer*);
+void lexBracketRight(Lexer*);
+void lexUnexpectedSymbol(Lexer*);
+void lexNonAsciiError(Lexer*);
 
-LexDispatch (*buildLexerDispatch(Arena* ar))[128] {
-    printf("Building lexer dispatch table, sizeof(LexDispatch) = %lu", sizeof(LexDispatch));
-    LexDispatch (*result)[128] = allocateOnArena(ar, 128*sizeof(LexDispatch));
-    LexDispatch* p = *result;
+LexerFunc (*buildLexerDispatch(Arena* ar))[256] {
+    printf("Building lexer dispatch table, sizeof(LexerFunc) = %lu", sizeof(LexerFunc));
+    LexerFunc (*result)[256] = allocateOnArena(ar, 256*sizeof(LexerFunc));
+    LexerFunc* p = *result;
+    for (int i = 0; i < 128; i++) {
+        p[i] = lexUnexpectedSymbol;
+    }
+    for (int i = 128; i < 256; i++) {
+        p[i] = lexNonAsciiError;
+    }
     for (int i = aDigit0; i <= aDigit9; i++) {
         p[i] = lexNumber;
     }
@@ -54,19 +53,30 @@ LexDispatch (*buildLexerDispatch(Arena* ar))[128] {
     p[aUnderscore] = lexWord;
     p[aDot] = lexDotSomething;
     p[aAt] = lexAtWord;
-    for (int i = 0; i < operatorSymbols; i++) {
+    const int opStartSize = sizeof(operatorStartSymbols);
+
+    printf("opStartSize = %d\n", opStartSize);
+
+    for (int i = 0; i < opStartSize; i++) {
         p[i] = lexOperator;
     }
-
+    p[aMinus] = lexMinus;
+    p[aColon] = lexColon;
+    p[aParenLeft] = lexParenLeft;
+    p[aParenRight] = lexParenRight;
+    p[aCurlyLeft] = lexCurlyLeft;
+    p[aCurlyRight] = lexCurlyRight;
+    p[aBracketLeft] = lexBracketLeft;
+    p[aBracketRight] = lexBracketRight;
     return result;
 }
 
 
-
-Lexer* createLexer(Arena* ar) {
+Lexer* createLexer(String* inp, Arena* ar) {
     Lexer* result = allocateOnArena(ar, sizeof(Lexer));
-    result->capacity = LEX_CHUNK_SIZE;
-    result->tokens = allocateOnArena(ar, LEX_CHUNK_SIZE*sizeof(Token));
+    result->inp = inp;
+    result->capacity = LEXER_INIT_SIZE;
+    result->tokens = allocateOnArena(ar, LEXER_INIT_SIZE*sizeof(Token));
     result->errMsg = &empty;
     result->arena = ar;
 
@@ -90,8 +100,8 @@ void addToken(Token t, Lexer* lexer) {
     }
 }
 
-private Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
-    Lexer* result = createLexer(ar);
+private Lexer* buildLexer(int totalTokens, String* inp, Arena *ar, /* Tokens */ ...) {
+    Lexer* result = createLexer(inp, ar);
     if (result == NULL) return result;
     
     result->totalTokens = totalTokens;
@@ -107,22 +117,22 @@ private Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
     return result;
 }
 
-
+/** Sets i to beyond input's length to communicate to callers that lexing is over */
 private void exitWithError(const char errMsg[], Lexer* res) {
+    res->i = res->inp->length;
     res->wasError = true;
     res->errMsg = allocateLiteral(res->arena, errMsg);
 }
 
 
 private void finalize(Lexer* this) {
-    if (!this->backtrack.empty()) {
+    if (!hasValuesRememberedToken(this->backtrack)) {
         exitWithError(errorPunctuationExtraOpening, this);
     }
 }
 
 
-
-Lexer* lexicallyAnalyze(String* inp, Arena* ar) {
+Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar) {
     Lexer* result = createLexer(ar);
     if (inp->length == 0) {
         exitWithError("Empty input", result);
@@ -136,19 +146,15 @@ Lexer* lexicallyAnalyze(String* inp, Arena* ar) {
         && (unsigned char)inp->content[2] == 0xBF) {
         i = 3;
     }
+    LexDispatch (*dispatchTable)[256] = buildLexerDispatch(ar);
 
     // Main loop over the input
     while (i < inp->length && !result->wasError) {
-        byte cByte = inp->content[i];
-        if (cByte >= 0) {
-            (*dispatchTable[cByte])();
-        } else {
-            exitWithError(errorNonAscii);
-        }
+        (*dispatchTable[inp->content[i]])(result);
     }
 
     finalize(result);
-
+    return result;
 }
 
 

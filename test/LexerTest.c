@@ -1,8 +1,8 @@
-#include "../source/utils/Arena.h"
-#include "../source/utils/String.h"
-#include "../source/utils/Stack.h"
-#include "../source/compiler/lexer/Lexer.h"
-#include "../source/compiler/lexer/LexerConstants.h"
+#include "../source/utils/arena.h"
+#include "../source/utils/string.h"
+#include "../source/utils/stack.h"
+#include "../source/compiler/lexer/lexer.h"
+#include "../source/compiler/lexer/lexerConstants.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -28,7 +28,7 @@ const char* tokNames[] = {
 };
 
 static Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
-    Lexer* result = createLexer(ar);
+    Lexer* result = createLexer(&empty, ar);
     if (result == NULL) return result;
     
     result->totalTokens = totalTokens;
@@ -248,8 +248,5 @@ int main() {
         
     }
     
-    
     deleteArena(ar);
-
-    
 }

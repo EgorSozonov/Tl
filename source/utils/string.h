@@ -1,6 +1,6 @@
 ﻿#ifndef STRING_H
 #define STRING_H
-#include "Arena.h"
+#include "arena.h"
 #include <stdint.h>
 #include <stdbool.h>
 

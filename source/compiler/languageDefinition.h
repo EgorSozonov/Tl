@@ -1,8 +1,8 @@
 #ifndef LANGUAGE_OPERATORS_H
 #define LANGUAGE_OPERATORS_H
 
-#include "../utils/String.h"
-#include "../utils/Aliases.h"
+#include "../utils/string.h"
+#include "../utils/aliases.h"
 
 /** Function precedence must be higher than that of any infix operator, yet lower than the prefix operators */
 #define functionPrec 26
@@ -151,6 +151,49 @@ typedef struct {
 #define aLessThan    60
 #define aGreaterThan 62
 
+
+/** All the symbols an operator may start with. The ':' is absent because it's handled by lexColon.
+* The '-' is absent because it's handled by 'lexMinus'.
+*/
+const int operatorStartSymbols[] = {
+    aExclamation, aSharp, aDollar, aPercent, aAmpersand, aTimes, aPlus, aDivBy, aSemicolon,
+    aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe
+};
+// #define opTNotEqual                0 // !=
+// #define opTBoolNegation            1 // !
+// #define opTSize                    2 // #
+// #define opTNotEmpty                3 // $
+// #define opTRemainder               4 // %
+// #define opTBoolAnd                 5 // &&
+// #define opTPointer                 6 // &
+// #define opTTimes                   7 // *
+// #define opTIncrement               8 // ++
+// #define opTPlus                    9 // +
+// #define opTDecrement              10 // --
+// #define opTMinus                  11 // -
+// #define opTDivBy                  12 // /
+// #define opTMutation               13 // :=
+// #define opTRangeHalf              14 // ;<
+// #define opTRange                  15 // ;
+// #define opTLessThanEq             16 // <=
+// #define opTBitShiftLeft           17 // <<
+// #define opTArrowLeft              18 // <-
+// #define opTLessThan               19 // <
+// #define opTArrowRight             20 // =>
+// #define opTEquality               21 // ==
+// #define opTImmDefinition          22 // =
+// #define opTIntervalBothInclusive  23 // >=<=
+// #define opTIntervalLeftInclusive  24 // >=<
+// #define opTIntervalRightInclusive 25 // ><=
+// #define opTIntervalExclusive      26 // ><
+// #define opTGreaterThanEq          27 // >=
+// #define opTBitshiftRight          28 // >>
+// #define opTGreaterThan            29 // >
+// #define opTQuestionMark           30 // ?
+// #define opTBackslash              31 // backslash
+// #define opTExponentiation         32 // ^
+// #define opTBoolOr                 33 // ||
+// #define opTPipe                   34 // |
 
 const OpDef noFun = {
     .name = &empty,
