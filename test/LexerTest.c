@@ -22,6 +22,7 @@ typedef struct {
     LexerTest* tests;
 } LexerTestSet;
 
+/** Must agree in order with token types in Lexer.h */
 const char* tokNames[] = {
     "int", "float", "bool", "string", "_", "docComment", "compoundString", "word", ".word", "@word", "reserved", "operator"
 };
@@ -104,6 +105,7 @@ int equalityLexer(Lexer a, Lexer b) {
     return (a.totalTokens == b.totalTokens) ? -2 : i;        
 }
 
+
 void printLexer(Lexer* a) {
     if (a->wasError) {
         printf("Error: ");
@@ -115,24 +117,24 @@ void printLexer(Lexer* a) {
 }
 
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
-int runLexerTest(LexerTest test, Arena *ar) {
-	Lexer* result = lexicallyAnalyze(test.input, ar);
-	int equalityStatus = equalityLexer(*result, *test.expectedOutput);
-	if (equalityStatus == -2) {
-		return 0;
-	} else if (equalityStatus == -1) {
-		printf("ERROR IN ");
-		printString(test.name);
-		printf("\nError msg: ");
-		printString(result->errMsg);
-		printf("\nBut was expected: ");
-		printString(test.expectedOutput->errMsg);
-		printf("\n\n");
-	} else {
-		printf("ERROR IN ");
-		printString(test.name);
-		printf("On token %d\n\n", equalityStatus);
-	}		
+void runLexerTest(LexerTest test, Arena *ar) {
+    Lexer* result = lexicallyAnalyze(test.input, ar);
+    int equalityStatus = equalityLexer(*result, *test.expectedOutput);
+    if (equalityStatus == -2) {
+        return;
+    } else if (equalityStatus == -1) {
+        printf("ERROR IN ");
+        printString(test.name);
+        printf("\nError msg: ");
+        printString(result->errMsg);
+        printf("\nBut was expected: ");
+        printString(test.expectedOutput->errMsg);
+        printf("\n\n");
+    } else {
+        printf("ERROR IN ");
+        printString(test.name);
+        printf("On token %d\n\n", equalityStatus);
+    }
 }
 
 
@@ -238,6 +240,7 @@ int main() {
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
                 
     );
+
     printf("equality = %d\n", equalityLexer(*a, *b));
     for (int j = 0; j < wordSet->totalTests; j++) {
         LexerTest test = wordSet->tests[j];
@@ -247,6 +250,6 @@ int main() {
     
     
     deleteArena(ar);
-	
+
     
 }

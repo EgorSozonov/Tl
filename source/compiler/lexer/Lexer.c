@@ -9,23 +9,6 @@
 #include <stdio.h>
 
 
-    /*     for (i in aDigit0..aDigit9) { */
-    /*         dispatchTable[i] = Lexer::lexNumber */
-    /*     } */
-
-    /*     for (i in aALower..aZLower) { */
-    /*         dispatchTable[i] = Lexer::lexWord */
-    /*     } */
-    /*     for (i in aAUpper..aZUpper) { */
-    /*         dispatchTable[i] = Lexer::lexWord */
-    /*     } */
-    /*     dispatchTable[aUnderscore.toInt()] = Lexer::lexWord */
-    /*     dispatchTable[aDot.toInt()] = Lexer::lexDotSomething */
-    /*     dispatchTable[aAt.toInt()] = Lexer::lexAtWord */
-
-    /*     for (i in operatorStartSymbols) { */
-    /*         dispatchTable[i.toInt()] = Lexer::lexOperator */
-    /*     } */
     /*     dispatchTable[aMinus.toInt()] = Lexer::lexMinus */
     /*     dispatchTable[aParenLeft.toInt()] = Lexer::lexParenLeft */
     /*     dispatchTable[aParenRight.toInt()] = Lexer::lexParenRight */
@@ -68,18 +51,10 @@ LexDispatch (*buildLexerDispatch(Arena* ar))[128] {
     for (int i = aAUpper; i <= aZUpper; i++) {
         p[i] = lexWord;
     }
-
-        /*     dispatchTable[aUnderscore.toInt()] = Lexer::lexWord */
-    /*     dispatchTable[aDot.toInt()] = Lexer::lexDotSomething */
-    /*     dispatchTable[aAt.toInt()] = Lexer::lexAtWord */
-
-    /*     for (i in operatorStartSymbols) { */
-    /*         dispatchTable[i.toInt()] = Lexer::lexOperator */
-    /*     } */
     p[aUnderscore] = lexWord;
     p[aDot] = lexDotSomething;
     p[aAt] = lexAtWord;
-    for (int i = aAUpper; i <= aZUpper; i++) {
+    for (int i = 0; i < operatorSymbols; i++) {
         p[i] = lexOperator;
     }
 
