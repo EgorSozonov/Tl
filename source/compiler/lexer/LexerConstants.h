@@ -62,58 +62,58 @@ const int maxInt[] = {
         //~ 56, 48, 55,
     //~ };
 
-#define aALower = 97
-#define aBLower = 98
-#define aCLower = 99
-#define aFLower = 102
-#define aNLower = 110
-#define aXLower = 120
-#define aWLower = 119
-#define aZLower = 122
-#define aAUpper = 65
-#define aFUpper = 70
-#define aZUpper = 90
-#define aDigit0 = 48
-#define aDigit1 = 49
-#define aDigit9 = 57
+#define aALower 97
+#define aBLower 98
+#define aCLower 99
+#define aFLower 102
+#define aNLower 110
+#define aXLower 120
+#define aWLower 119
+#define aZLower 122
+#define aAUpper 65
+#define aFUpper 70
+#define aZUpper 90
+#define aDigit0 48
+#define aDigit1 49
+#define aDigit9 57
 
-#define aPlus = 43
-#define aMinus = 45
-#define aTimes = 42
-#define aDivBy = 47
-#define aDot = 46
-#define aPercent = 37
+#define aPlus 43
+#define aMinus 45
+#define aTimes 42
+#define aDivBy 47
+#define aDot 46
+#define aPercent 37
 
-#define aParenLeft = 40
-#define aParenRight = 41
-#define aCurlyLeft = 123
-#define aCurlyRight = 125
-#define aBracketLeft = 91
-#define aBracketRight = 93
-#define aPipe = 124
-#define aAmpersand = 38
-#define aTilde = 126
-#define aBackslash = 92
+#define aParenLeft 40
+#define aParenRight 41
+#define aCurlyLeft 123
+#define aCurlyRight 125
+#define aBracketLeft 91
+#define aBracketRight 93
+#define aPipe 124
+#define aAmpersand 38
+#define aTilde 126
+#define aBackslash 92
 
-#define aSpace = 32
-#define aNewline = 10
-#define aCarriageReturn = 13
+#define aSpace 32
+#define aNewline 10
+#define aCarriageReturn 13
 
-#define aApostrophe = 39
-#define aQuote = 34
-#define aSharp = 35
-#define aDollar = 36
-#define aUnderscore = 95
-#define aCaret = 94
-#define aAt = 64
-#define aColon = 58
-#define aSemicolon = 59
-#define aExclamation = 33
-#define aQuestion = 63
-#define aEqual = 61
+#define aApostrophe 39
+#define aQuote 34
+#define aSharp 35
+#define aDollar 36
+#define aUnderscore 95
+#define aCaret 94
+#define aAt 64
+#define aColon 58
+#define aSemicolon 59
+#define aExclamation 33
+#define aQuestion 63
+#define aEqual 61
 
-#define aLessThan = 60
-#define aGreaterThan = 62
+#define aLessThan 60
+#define aGreaterThan 62
 
 /** 2**53 */
 const unsigned char maximumPreciselyRepresentedFloatingInt[] = { 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };

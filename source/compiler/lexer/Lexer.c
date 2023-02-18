@@ -1,11 +1,13 @@
 ﻿#include "Lexer.h"
+#include "LexerConstants.h"
+#include "../../utils/Aliases.h"
 #include "../../utils/Arena.h"
 #include "../../utils/String.h"
 #include "../../utils/Stack.h"
 #include <string.h>
 #include <stdarg.h>
+#include <stdio.h>
 
-#define private static
 
     /*     for (i in aDigit0..aDigit9) { */
     /*         dispatchTable[i] = Lexer::lexNumber */
@@ -44,10 +46,52 @@
 
 DEFINE_STACK(RememberedToken)
 
+typedef void (*LexDispatch)(Lexer*); // LexDispatch = &(Lexer* => void)
+
+void lexNumber(Lexer*);
+void lexWord(Lexer*);
+void lexDotSomething(Lexer*);
+void lexAtWord(Lexer*);
+void lexOperator(Lexer*);
+
+LexDispatch (*buildLexerDispatch(Arena* ar))[128] {
+    printf("Building lexer dispatch table, sizeof(LexDispatch) = %lu", sizeof(LexDispatch));
+    LexDispatch (*result)[128] = allocateOnArena(ar, 128*sizeof(LexDispatch));
+    LexDispatch* p = *result;
+    for (int i = aDigit0; i <= aDigit9; i++) {
+        p[i] = lexNumber;
+    }
+
+    for (int i = aALower; i <= aZLower; i++) {
+        p[i] = lexWord;
+    }
+    for (int i = aAUpper; i <= aZUpper; i++) {
+        p[i] = lexWord;
+    }
+
+        /*     dispatchTable[aUnderscore.toInt()] = Lexer::lexWord */
+    /*     dispatchTable[aDot.toInt()] = Lexer::lexDotSomething */
+    /*     dispatchTable[aAt.toInt()] = Lexer::lexAtWord */
+
+    /*     for (i in operatorStartSymbols) { */
+    /*         dispatchTable[i.toInt()] = Lexer::lexOperator */
+    /*     } */
+    p[aUnderscore] = lexWord;
+    p[aDot] = lexDotSomething;
+    p[aAt] = lexAtWord;
+    for (int i = aAUpper; i <= aZUpper; i++) {
+        p[i] = lexOperator;
+    }
+
+    return result;
+}
+
+
+
 Lexer* createLexer(Arena* ar) {
     Lexer* result = allocateOnArena(ar, sizeof(Lexer));
     result->capacity = LEX_CHUNK_SIZE;
-    result->tokens = allocateOnArena(ar, LEX_CHUNK_SIZE*sizeof(Token)); // 1-element array
+    result->tokens = allocateOnArena(ar, LEX_CHUNK_SIZE*sizeof(Token));
     result->errMsg = &empty;
     result->arena = ar;
 
@@ -97,9 +141,10 @@ private void exitWithError(const char errMsg[], Lexer* res) {
 
 private void finalize(Lexer* this) {
     if (!this->backtrack.empty()) {
-        exitWithError(errorPunctuationExtraOpening, this)
+        exitWithError(errorPunctuationExtraOpening, this);
     }
 }
+
 
 
 Lexer* lexicallyAnalyze(String* inp, Arena* ar) {
@@ -110,17 +155,20 @@ Lexer* lexicallyAnalyze(String* inp, Arena* ar) {
 
     // Check for UTF-8 BOM at start of file
     int i = 0;
-    if (inp->length >= 3 && (unsigned char)inp->content[0] == 0xEF && inp->content[1] == 0xBB && inp->content[2] == 0xBF) {
+    if (inp->length >= 3
+        && (unsigned char)inp->content[0] == 0xEF
+        && (unsigned char)inp->content[1] == 0xBB
+        && (unsigned char)inp->content[2] == 0xBF) {
         i = 3;
     }
 
     // Main loop over the input
     while (i < inp->length && !result->wasError) {
-        unsigned byte cByte = inp[i];
+        byte cByte = inp->content[i];
         if (cByte >= 0) {
-            dispatchTable[cByte.toInt()]()
+            (*dispatchTable[cByte])();
         } else {
-            exitWithError(errorNona)
+            exitWithError(errorNonAscii);
         }
     }
 

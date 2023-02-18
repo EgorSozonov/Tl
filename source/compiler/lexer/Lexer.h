@@ -8,7 +8,6 @@
 
 #define LEX_CHUNK_SIZE 5000
 
-
 typedef struct {
     unsigned int tp : 6;
     unsigned int lenBytes: 26;
@@ -18,11 +17,22 @@ typedef struct {
 } Token;
 
 typedef struct {
+    Token* token;
+    int numberOfToken;
+} RememberedToken;
+
+
+DEFINE_STACK_HEADER(RememberedToken)
+
+
+typedef struct {
     int totalTokens;
     bool wasError;
     String* errMsg;
     
-    Token* tokens; 
+    Token* tokens;
+
+    StackRememberedToken* backtrack;
     
     int nextInd; // the  index for the next token to be added
     int capacity; // current capacity of token storage
@@ -76,11 +86,7 @@ void addToken(Token t, Lexer* lexer);
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType = tokStmtFn
 
-typedef struct {
-    Token* token;
-    int numberOfToken;
-} RememberedToken;
-DEFINE_STACK_HEADER(RememberedToken)
+
 
 Lexer* lexicallyAnalyze(String* inp, Arena* ar);
 /*
@@ -139,14 +145,10 @@ typedef struct {
 
 typedef struct LexChunk {
     struct LexChunk* next;
+
     Token tokens[LEX_CHUNK_SIZE];
 } LexChunk;
 
-typedef struct {
-    Token* token;
-    int numberOfToken;
-} RememberedToken;
-DEFINE_STACK_HEADER(RememberedToken)
 
 typedef struct {
     LexChunk* firstChunk;
