@@ -167,24 +167,4 @@ Validated by construction (parent extent forcefully changed to "scope" upon seei
 Validated in the parser.
 
 
-Lexer innovations:
-1) [+] ; ... .; as comment symbols
-2) [+] (;; doc-comments ;) <- included in the AST as atomic nodes!
-3) [+] ' and # as operators ( ' is "non-null and non-empty", # is "size, absolute value, modulus etc")
-4) [+] ? as a replacer for "if" keyword
-5) [+] >< >=< >=<= ><= instead of >. etc. Example: "x >< 5 10" is same as "x > 5 && x < 10"
-6) [+] : as operator for "else"
-7) [+] get rid of "dotBrackets": the {} will be for data initializers, and [] for data addressing
-8) [+] replace ifEq with ?= and ifPred with ??
 
-Example syntax:
-
-(? ('arr) -> (? (#arr > 10) -> "big array"
-                             : "not so big array")
-           : "no array at all")
-
-(:: &Int)  ; pointer to int
-(ptr = &v) ; address of value
-(v = ^ptr) ; value of pointer
-
-(

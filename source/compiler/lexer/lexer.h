@@ -7,10 +7,7 @@
 #include "../../utils/arena.h"
 #include "../../utils/string.h"
 #include "../../utils/stackHeader.h"
-#include "../languageDefinition.h"
 
-
-#define LEXER_INIT_SIZE 2000
 
 typedef struct {
     unsigned int tp : 6;
@@ -20,16 +17,20 @@ typedef struct {
     unsigned int payload2;
 } Token;
 
+
 typedef struct {
-    Token* token;
+    unsigned int tp;
     int numberOfToken;
 } RememberedToken;
 
 
 DEFINE_STACK_HEADER(RememberedToken)
 
+typedef struct _Lexer Lexer;
+typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
+typedef int (*ReservedProbe)(int, int, Lexer*);
 
-typedef struct {
+struct _Lexer {
     int i;
     String* inp;
     int totalTokens;
@@ -39,139 +40,77 @@ typedef struct {
     Arr(Token) tokens;
 
     StackRememberedToken* backtrack;
+    ReservedProbe (*possiblyReservedDispatch)[19];
     
     int nextInd; // the  index for the next token to be added
     int capacity; // current capacity of token storage
     Arena* arena;
-} Lexer;
+};
+
+
 
 Lexer* createLexer(String* inp, Arena* ar);
 void addToken(Token t, Lexer* lexer);
 
-/** 
- * Regular (leaf) Token types
+
+
+/**
+ * There is a closed set of operators in the language.
+ *
+ * For added flexibility, most operators are extended into two more planes,
+ * for example '+' may be extended into '+.', while '/' may be extended into '/.'.
+ * These extended operators are declared by the language, and may be defined
+ * for any type by the user, with the return type being arbitrary.
+ * For example, the type of 3D vectors may have two different multiplication
+ * operators: * for vector product and *. for scalar product.
+ *
+ * Plus, all the extensible operators (and only them) have automatic assignment counterparts.
+ * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
+ *
+ * This OperatorToken class records the base type of operator, its extension (0, 1 or 2),
+ * and whether it is the assignment version of itself.
+ * In the token stream, both of these values are stored inside the 32-bit payload2 of the Token.
  */
-// The following group of variants are transferred to the AST byte for byte, with no analysis
-// Their values must exactly correspond with the initial group of variants in "RegularAST"
-// The largest value must be stored in "topVerbatimTokenVariant" constant
-#define tokInt 0
-#define tokFloat 1
-#define tokBool 2
-#define tokString 3
-#define tokUnderscore 4
+typedef struct {
+    unsigned int opType : 6;
+    unsigned int extended : 2;
+    unsigned int isAssignment: 1;
+} OperatorToken;
 
-// This group requires analysis in the parser
-#define tokDocComment 5
-#define tokCompoundString 6
-#define tokWord 7              // payload2: 1 if the word is all capitals
-#define tokDotWord 8           // payload2: 1 if the word is all capitals
-#define tokAtWord 9
-#define tokReserved 10         // payload2: value of a constant from the 'reserved*' group
-#define tokOperator 11         // payload2: OperatorToken encoded as an Int
-
-/** 
- * Punctuation (inner node) Token types
- */
-#define tokCurlyBraces 12
-#define tokBrackets 13
-#define tokParens 14
-#define tokStmtAssignment 15 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
-#define tokStmtTypeDecl 16
-#define tokLexScope 17
-#define tokStmtFn 18
-#define tokStmtReturn 19
-#define tokStmtIf 20
-#define tokStmtLoop 21
-#define tokStmtBreak 22
-#define tokStmtIfEq 23
-#define tokStmtIfPred 24
-
-
-/** Must be the lowest value in the PunctuationToken enum */
-#define firstPunctuationTokenType = tokCurlyBraces
-/** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
-#define firstCoreFormTokenType = tokStmtFn
+typedef struct {
+    String* name;
+    byte bytes[4];
+    int precedence;
+    int arity;
+    /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
+    bool extensible;
+    /* Indices of operators that act as functions in the built-in bindings array.
+     * Contains -1 for non-functional operators
+     */
+    int bindingIndex;
+    bool overloadable;
+} OpDef;
 
 
 
+typedef struct {
+    OpDef (*operators)[36];
+    LexerFunc (*dispatchTable)[256];
+    ReservedProbe (*possiblyReservedDispatch)[19];
+} LanguageDefinition;
+
+
+const OpDef noFun = {
+    .name = &empty,
+    .bytes = {0, 0, 0, 0},
+    .precedence = 0,
+    .arity = 0,
+    .extensible = false,
+    .bindingIndex = -1,
+    .overloadable = false
+};
+
+LanguageDefinition* createLanguage(Arena* ar);
 Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar);
-/*
 
-typedef enum {
-    parens,
-    curlyBraces,
-    squareBrackets,
-    intLiteral,
-    floatLiteral,
-    strLiteral,
-    word,
-    dotWord,
-    operator,
-    comment,
-    nopToken,
-} TokenType;
-
-
-// & + - / * ! ~ $ % ^ | > < ? =
- 
-typedef enum  {
-    ampersand,
-    plus,
-    minus,
-    slash,
-    asterisk,
-    exclamation,
-    tilde,
-    dollar,
-    percent,
-    caret,
-    pipe,
-    lt,
-    gt,
-    question,
-    equals,
-    colon,
-    notASymb,
-} OperatorSymb;
-
-typedef enum {
-    statement,
-    dataInitializer,
-    scope,
-    subExpr,
-} LexicalContext;
-
-typedef struct {
-    TokenType tokType;
-    uint64_t payload;
-    uint32_t startChar;
-    uint32_t lenChars;
-    uint32_t lenTokens;
-} Token;
-
-typedef struct LexChunk {
-    struct LexChunk* next;
-
-    Token tokens[LEX_CHUNK_SIZE];
-} LexChunk;
-
-
-typedef struct {
-    LexChunk* firstChunk;
-    LexChunk* currChunk;
-    int currInd;
-    int totalNumber;
-    bool wasError;
-    String* errMsg;
-    Arena* arena;
-} LexResult;
-
-
-LexResult* mkLexResult(Arena* ar);
-LexResult* lexicallyAnalyze(String* inp, Arena* ar);
-
-*/
-
-typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
-typedef int (*ReservedProbe)(int, int, Lexer*);
 #endif

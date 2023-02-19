@@ -48,7 +48,7 @@ String* allocateFromSubstring(Arena* ar, char* content, int start, int length) {
 
     String* result = allocateOnArena(ar, realLength + 1 + sizeof(String));
     result->length = realLength;
-    strncpy(result->content, content, realLength);
+    memcpy(result->content, content, realLength);
     result->content[realLength] = '\0';
     return result;
 }
@@ -72,13 +72,13 @@ void printString(String* s) {
 }
 
 /** Tests if the following several bytes in the input match an array. This is for reserved word detection */
-bool testByteSequence(String* inp, int startByte, const byte letters[]) {
-    if (startByte + sizeof(letters) > inp->length) return false
+bool testByteSequence(String* inp, int startByte, const byte letters[], int lengthLetters) {
+    if (startByte + lengthLetters > inp->length) return false;
 
-    for (int j in (letters.size - 1) downTo 0) {
-        if (inp[startByte + j] != letters[j]) return false
+    for (int j = (lengthLetters - 1); j > -1; j--) {
+        if (inp->content[startByte + j] != letters[j]) return false;
     }
-    return true
+    return true;
 }
 
 String empty = { .length = 0 };

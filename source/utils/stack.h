@@ -20,6 +20,9 @@
         st->length--;                                                                    \
         return (*st->content)[st->length];                                               \
     }                                                                                    \
+    T peek ## T(Stack ## T * st) {                                                       \
+        return (*st->content)[st->length];                                               \
+    }                                                                                    \
     void push ## T (Stack ## T * st, T newItem) {                                        \
         if (st->length < st->capacity) {                                                 \
             memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));               \

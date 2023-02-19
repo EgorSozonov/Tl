@@ -242,6 +242,8 @@ int main() {
     );
 
     printf("equality = %d\n", equalityLexer(*a, *b));
+    LanguageDefinition*
+
     for (int j = 0; j < wordSet->totalTests; j++) {
         LexerTest test = wordSet->tests[j];
         runLexerTest(test, ar);        

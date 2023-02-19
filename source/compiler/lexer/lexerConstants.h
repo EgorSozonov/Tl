@@ -1,6 +1,10 @@
 #ifndef LEXER_CONSTANTS_H
 #define LEXER_CONSTANTS_H
 
+#include "../../utils/aliases.h"
+
+
+#define LEXER_INIT_SIZE 2000
 
 const char errorLengthOverflow[]             = "Token length overflow";
 const char errorNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";
@@ -36,31 +40,6 @@ const int maxInt[] = {
     8, 5, 4, 7, 7, 5, 8, 0, 7
 };
 
-//~ /**
- //~ * The ASCII notation for the lowest 64-bit integer, -9_223_372_036_854_775_808
- //~ */
-//~ static char minInt[] = {
-        //~ 57,
-        //~ 50, 50, 51,
-        //~ 51, 55, 50,
-        //~ 48, 51, 54,
-        //~ 56, 53, 52,
-        //~ 55, 55, 53,
-        //~ 56, 48, 56,
-    //~ };
-
-//~ /**
- //~ * The ASCII notation for the highest 64-bit integer, 9_223_372_036_854_775_807
- //~ */
-//~ static char maxInt[] = {
-        //~ 57,
-        //~ 50, 50, 51,
-        //~ 51, 55, 50,
-        //~ 48, 51, 54,
-        //~ 56, 53, 52,
-        //~ 55, 55, 53,
-        //~ 56, 48, 55,
-    //~ };
 
 #define aALower 97
 #define aBLower 98
@@ -118,13 +97,144 @@ const int maxInt[] = {
 /** 2**53 */
 const unsigned char maximumPreciselyRepresentedFloatingInt[] = { 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
 
-/** Must be divisible by 4 */
-#define CHUNKSZ = 10000
 
-/** Must be divisible by 2 and less than CHUNKSZ */
-#define COMMENTSZ = 100
+/** All the symbols an operator may start with. The ':' is absent because it's handled by lexColon.
+* The '-' is absent because it's handled by 'lexMinus'.
+*/
+const int operatorStartSymbols[] = {
+    aExclamation, aSharp, aDollar, aPercent, aAmpersand, aTimes, aPlus, aDivBy, aSemicolon,
+    aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe
+};
+
+
+
+/** Reserved words of Tl in ASCII byte form */
+#define countReservedLetters         19 // length of the interval of letters that may be init for reserved words
+const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
+const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
+const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
+const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
+const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
+const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
+const byte reservedBytesFn[]          = { 102, 110 };
+const byte reservedBytesFor[]         = { 102, 111, 114 };
+const byte reservedBytesIf[]          = { 105, 102 };
+const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
+const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
+const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
+const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
+const byte reservedBytesOpen[]        = { 111, 112, 101, 110 };
+const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
+const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
+const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
+const byte reservedBytesTest[]        = { 116, 101, 115, 116 };
+const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
+const byte reservedBytesTry[]         = { 116, 114, 121 };
+const byte reservedBytesType[]        = { 116, 121, 112, 101 };
+
 
 #define topVerbatimTokenVariant = 4
+
+/**
+ * Regular (leaf) Token types
+ */
+// The following group of variants are transferred to the AST byte for byte, with no analysis
+// Their values must exactly correspond with the initial group of variants in "RegularAST"
+// The largest value must be stored in "topVerbatimTokenVariant" constant
+#define tokInt 0
+#define tokFloat 1
+#define tokBool 2
+#define tokString 3
+#define tokUnderscore 4
+
+// This group requires analysis in the parser
+#define tokDocComment 5
+#define tokCompoundString 6
+#define tokWord 7              // payload2: 1 if the word is all capitals
+#define tokDotWord 8           // payload2: 1 if the word is all capitals
+#define tokAtWord 9
+#define tokReserved 10         // payload2: value of a constant from the 'reserved*' group
+#define tokOperator 11         // payload2: OperatorToken encoded as an Int
+
+/**
+ * Punctuation (inner node) Token types
+ */
+#define tokCurlyBraces 12
+#define tokBrackets 13
+#define tokParens 14
+#define tokAddresser 15
+#define tokStmtAssignment 16 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
+#define tokStmtTypeDecl 17
+#define tokLexScope 18
+#define tokStmtFn 19
+#define tokStmtReturn 20
+#define tokStmtIf 21
+#define tokStmtLoop 22
+#define tokStmtBreak 23
+#define tokStmtIfEq 24
+#define tokStmtIfPred 25
+
+
+/** Must be the lowest value in the PunctuationToken enum */
+#define firstPunctuationTokenType tokCurlyBraces
+/** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
+#define firstCoreFormTokenType tokStmtFn
+
+/** The indices of reserved words that are stored in token payload2. Must be positive, unique
+ * and below "firstPunctuationTokenType"
+ */
+#define reservedFalse 2
+#define reservedTrue  1
+
+/**
+ * OperatorType
+ * Values must exactly agree in order with the operatorSymbols array in the .c file.
+ * The order is defined by ASCII.
+ */
+#define countOperators            35
+#define opTNotEqual                0 // !=
+#define opTBoolNegation            1 // !
+#define opTSize                    2 // #
+#define opTNotEmpty                3 // $
+#define opTRemainder               4 // %
+#define opTBoolAnd                 5 // &&
+#define opTPointer                 6 // &
+#define opTTimes                   7 // *
+#define opTIncrement               8 // ++
+#define opTPlus                    9 // +
+#define opTDecrement              10 // --
+#define opTMinus                  11 // -
+#define opTDivBy                  12 // /
+#define opTMutation               13 // :=
+#define opTRangeHalf              14 // ;<
+#define opTRange                  15 // ;
+#define opTLessThanEq             16 // <=
+#define opTBitShiftLeft           17 // <<
+#define opTArrowLeft              18 // <-
+#define opTLessThan               19 // <
+#define opTArrowRight             20 // =>
+#define opTEquality               21 // ==
+#define opTImmDefinition          22 // =
+#define opTIntervalBothInclusive  23 // >=<=
+#define opTIntervalLeftInclusive  24 // >=<
+#define opTIntervalRightInclusive 25 // ><=
+#define opTIntervalExclusive      26 // ><
+#define opTGreaterThanEq          27 // >=
+#define opTBitshiftRight          28 // >>
+#define opTGreaterThan            29 // >
+#define opTQuestionMark           30 // ?
+#define opTBackslash              31 // backslash
+#define opTExponentiation         32 // ^
+#define opTBoolOr                 33 // ||
+#define opTPipe                   34 // |
+
+
+
+
+/** Function precedence must be higher than that of any infix operator, yet lower than the prefix operators */
+#define functionPrec 26
+#define prefixPrec 27
+
 
 
 #endif

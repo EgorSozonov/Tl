@@ -12,6 +12,7 @@
     Stack ## T * mkStack ## T (Arena* ar, int initCapacity);\
     bool hasValues ## T (Stack ## T * st);                  \
     T pop ## T (Stack ## T * st);                           \
+    T peek ## T(Stack ## T * st);                           \
     void push ## T (Stack ## T * st, T newItem);            \
     void clear ## T (Stack ## T * st);
 
