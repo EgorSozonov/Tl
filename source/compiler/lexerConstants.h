@@ -71,7 +71,7 @@ extern const unsigned char maximumPreciselyRepresentedFloatingInt[];
 #define aBracketLeft 91
 #define aBracketRight 93
 #define aPipe 124
-#define aAmpersand 38
+#define aAmp 38
 #define aTilde 126
 #define aBackslash 92
 
@@ -92,8 +92,8 @@ extern const unsigned char maximumPreciselyRepresentedFloatingInt[];
 #define aQuestion 63
 #define aEqual 61
 
-#define aLessThan 60
-#define aGreaterThan 62
+#define aLT 60
+#define aGT 62
 
 
 
@@ -108,27 +108,28 @@ extern const int operatorStartSymbols[];
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         19 // length of the interval of letters that may be init for reserved words
 #define countReservedWords           21 // count of different reserved words below
-extern const byte reservedBytesBreak[];
-extern const byte reservedBytesCatch[];
-extern const byte reservedBytesContinue[];
-extern const byte reservedBytesEmbed[];
-extern const byte reservedBytesExport[];
-extern const byte reservedBytesFalse[];
-extern const byte reservedBytesFn[];
-extern const byte reservedBytesFor[];
-extern const byte reservedBytesIf[];
-extern const byte reservedBytesIfEq[];
-extern const byte reservedBytesIfPr[];
-extern const byte reservedBytesImpl[];
-extern const byte reservedBytesInterface[];
-extern const byte reservedBytesOpen[];
-extern const byte reservedBytesMatch[];
-extern const byte reservedBytesReturn[];
-extern const byte reservedBytesStruct[];
-extern const byte reservedBytesTest[];
-extern const byte reservedBytesTrue[];
-extern const byte reservedBytesTry[];
-extern const byte reservedBytesType[];
+static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
+static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
+static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
+static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
+static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
+static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
+static const byte reservedBytesFn[]          = { 102, 110 };
+static const byte reservedBytesFor[]         = { 102, 111, 114 };
+static const byte reservedBytesIf[]          = { 105, 102 };
+static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
+static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
+static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
+static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
+static const byte reservedBytesOpen[]        = { 111, 112, 101, 110 };
+static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
+static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
+static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
+static const byte reservedBytesTest[]        = { 116, 101, 115, 116 };
+static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
+static const byte reservedBytesTry[]         = { 116, 114, 121 };
+static const byte reservedBytesType[]        = { 116, 121, 112, 101 };
+
 
 
 #define topVerbatimTokenVariant = 4

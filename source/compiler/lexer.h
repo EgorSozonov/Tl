@@ -25,6 +25,7 @@ typedef struct {
 
 
 DEFINE_STACK_HEADER(RememberedToken)
+DEFINE_STACK_HEADER(int)
 
 typedef struct _Lexer Lexer;
 typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
@@ -42,6 +43,7 @@ struct _Lexer {
     StackRememberedToken* backtrack;
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
+    Stackint* newlines;
     int nextInd; // the  index for the next token to be added
     int capacity; // current capacity of token storage
     Arena* arena;
@@ -87,7 +89,7 @@ typedef struct {
     /* Indices of operators that act as functions in the built-in bindings array.
      * Contains -1 for non-functional operators
      */
-    int bindingIndex;
+    int binding;
     bool overloadable;
 } OpDef;
 

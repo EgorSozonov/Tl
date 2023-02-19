@@ -25,35 +25,13 @@ const char errorOperatorTypeDeclPunct[]      = "Incorrect type declaration opera
 const char errorOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
 const char errorDocComment[]                 = "Doc comments must have the syntax (;; comment .)";
 
-/** Reserved words of Tl in ASCII byte form */
-const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
-const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
-const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
-const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
-const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
-const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
-const byte reservedBytesFn[]          = { 102, 110 };
-const byte reservedBytesFor[]         = { 102, 111, 114 };
-const byte reservedBytesIf[]          = { 105, 102 };
-const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
-const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
-const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
-const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
-const byte reservedBytesOpen[]        = { 111, 112, 101, 110 };
-const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
-const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
-const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
-const byte reservedBytesTest[]        = { 116, 101, 115, 116 };
-const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
-const byte reservedBytesTry[]         = { 116, 114, 121 };
-const byte reservedBytesType[]        = { 116, 121, 112, 101 };
 
 /** All the symbols an operator may start with. The ':' is absent because it's handled by lexColon.
 * The '-' is absent because it's handled by 'lexMinus'.
 */
 const int operatorStartSymbols[] = {
-    aExclamation, aSharp, aDollar, aPercent, aAmpersand, aTimes, aPlus, aDivBy, aSemicolon,
-    aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe
+    aExclamation, aSharp, aDollar, aPercent, aAmp, aTimes, aPlus, aDivBy, aSemicolon,
+    aLT, aEqual, aGT, aQuestion, aBackslash, aCaret, aPipe
 };
 
 

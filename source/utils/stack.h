@@ -3,7 +3,7 @@
 
 
 #define DEFINE_STACK(T)                                                                  \
-    Stack ## T * createStack ## T (Arena* ar, int initCapacity) {                            \
+    Stack ## T * createStack ## T (Arena* ar, int initCapacity) {                        \
         int capacity = initCapacity < 4 ? 4 : initCapacity;                              \
         Stack ## T * result = allocateOnArena(ar, sizeof(Stack ## T));                   \
         result->capacity = capacity;                                                     \
