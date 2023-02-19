@@ -1,18 +1,19 @@
-﻿#include "lexer.h"
-#include "lexerConstants.h"
-#include "../../utils/aliases.h"
-#include "../../utils/arena.h"
-#include "../../utils/string.h"
-#include "../../utils/stack.h"
-#include <string.h>
+﻿#include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include "lexer.h"
+#include "lexerConstants.h"
+#include "../utils/aliases.h"
+#include "../utils/arena.h"
+#include "../utils/goodString.h"
+#include "../utils/stack.h"
 
 
 #define CURR_BT lr->inp->content[lr->i]
 #define NEXT_BT lr->inp->content[lr->i + 1]
 
 DEFINE_STACK(RememberedToken)
+
 
 private bool isLetter(byte a) {
     return ((a >= aALower && a <= aZLower) || (a >= aAUpper && a <= aZUpper));
@@ -68,89 +69,99 @@ private void checkPrematureEnd(int requiredSymbols, Lexer* lr) {
     }
 }
 
+const OpDef noFun = {
+    .name = &empty,
+    .bytes = {0, 0, 0, 0},
+    .precedence = 0,
+    .arity = 0,
+    .extensible = false,
+    .bindingIndex = -1,
+    .overloadable = false
+};
 
-#define TESTRESERVED(reservedBytesName)    \
-    lenReser = sizeof(reservedBytesCatch); \
+
+#define TESTRESERVED(reservedBytesName, nameLen)    \
+    lenReser = nameLen; \
     if (lenBytes == lenReser && testByteSequence(lr->inp, startByte, reservedBytesCatch, lenReser)) \
         return tokStmtBreak;
 
 
 private int determineReservedB(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesBreak)
+    TESTRESERVED(reservedBytesBreak, 5)
     return 0;
 }
 
 
 private int determineReservedC(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesCatch)
-    TESTRESERVED(reservedBytesContinue)
+    TESTRESERVED(reservedBytesCatch, 5)
+    TESTRESERVED(reservedBytesContinue, 8)
     return 0;
 }
 
 
 private int determineReservedE(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesEmbed)
+    TESTRESERVED(reservedBytesEmbed, 5)
     return 0;
 }
 
 
 private int determineReservedF(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesFalse)
-    TESTRESERVED(reservedBytesFn)
-    TESTRESERVED(reservedBytesFor)
+    TESTRESERVED(reservedBytesFalse, 5)
+    TESTRESERVED(reservedBytesFn, 2)
+    TESTRESERVED(reservedBytesFor, 3)
     return 0;
 }
 
 
 private int determineReservedI(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesIf)
-    TESTRESERVED(reservedBytesIfEq)
-    TESTRESERVED(reservedBytesIfPr)
-    TESTRESERVED(reservedBytesImpl)
-    TESTRESERVED(reservedBytesInterface)
+    TESTRESERVED(reservedBytesIf, 2)
+    TESTRESERVED(reservedBytesIfEq, 4)
+    TESTRESERVED(reservedBytesIfPr, 4)
+    TESTRESERVED(reservedBytesImpl, 4)
+    TESTRESERVED(reservedBytesInterface, 9)
     return 0;
 }
 
 
 private int determineReservedM(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesMatch)
+    TESTRESERVED(reservedBytesMatch, 5)
     return 0;
 }
 
 
 private int determineReservedO(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesOpen)
+    TESTRESERVED(reservedBytesOpen, 4)
     return 0;
 }
 
 
 private int determineReservedR(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesReturn)
+    TESTRESERVED(reservedBytesReturn, 6)
     return 0;
 }
 
 
 private int determineReservedS(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesStruct)
+    TESTRESERVED(reservedBytesStruct, 6)
     return 0;
 }
 
 
 private int determineReservedT(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesTest)
-    TESTRESERVED(reservedBytesTrue)
-    TESTRESERVED(reservedBytesTry)
-    TESTRESERVED(reservedBytesType)
+    TESTRESERVED(reservedBytesTest, 4)
+    TESTRESERVED(reservedBytesTrue, 4)
+    TESTRESERVED(reservedBytesTry, 3)
+    TESTRESERVED(reservedBytesType, 4)
     return 0;
 }
 
@@ -160,11 +171,11 @@ private int determineUnreserved(int startByte, int lenBytes, Lexer* lr) {
 
 
 void lexDotSomething(Lexer* lr) {
-
+    exitWithError(errorUnrecognizedByte, lr);
 }
 
 private void lexNumber(Lexer* lr) {
-
+    exitWithError(errorUnrecognizedByte, lr);
 }
 
 /**
@@ -211,7 +222,7 @@ private void lexReservedWord(int reservedWordType, int startInd, Lexer* lr) {
 
     setSpanType(currSpan.numberOfToken, reservedWordType, lr);
     if (reservedWordType == tokStmtReturn) {
-        convertGrandparentToScope();
+        convertGrandparentToScope(lr);
     }
     (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
         .tp=reservedWordType, .numberOfToken=currSpan.numberOfToken
@@ -247,7 +258,6 @@ private bool lexWordChunk(Lexer* lr) {
     if (lr->i < lr->inp->length && CURR_BT == aUnderscore) {
         exitWithError(errorWordUnderscoresOnlyAtStart, lr);
     }
-
     return result;
 }
 
@@ -275,7 +285,7 @@ private void lexWordInternal(unsigned int wordType, Lexer* lr) {
     if (wordType == tokAtWord || firstByte < aBLower || firstByte > aWLower) {
         addToken((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
     } else {
-        int mbReservedWord = (*lr->possiblyReservedDispatch)[(firstByte - aBLower)](startInd, lr->i - startInd);
+        int mbReservedWord = (*lr->possiblyReservedDispatch)[(firstByte - aBLower)](startInd, lr->i - startInd, lr);
         if (mbReservedWord > 0) {
             if (wordType == tokDotWord) {
                 exitWithError(errorWordReservedWithDot, lr);
@@ -298,7 +308,7 @@ private void lexWord(Lexer* lr) {
 }
 
 void lexAtWord(Lexer* lr) {
-
+    exitWithError(errorUnrecognizedByte, lr);
 }
 
 void lexOperator(Lexer* lr) {
@@ -330,25 +340,24 @@ void lexCurlyRight(Lexer* lr) {
 }
 
 void lexBracketLeft(Lexer* lr) {
-
+    exitWithError(errorUnrecognizedByte, lr);
 }
 
 void lexBracketRight(Lexer* lr) {
-
+    exitWithError(errorUnrecognizedByte, lr);
 }
 
 void lexUnexpectedSymbol(Lexer* lr) {
-
+    exitWithError(errorUnrecognizedByte, lr);
 }
 
 void lexNonAsciiError(Lexer* lr) {
-
+    exitWithError(errorNonAscii, lr);
 }
 
 
 
 private LexerFunc (*buildDispatch(Arena* ar))[256] {
-    printf("Building lexer dispatch table, sizeof(LexerFunc) = %lu", sizeof(LexerFunc));
     LexerFunc (*result)[256] = allocateOnArena(ar, 256*sizeof(LexerFunc));
     LexerFunc* p = *result;
     for (int i = 0; i < 128; i++) {
@@ -370,12 +379,10 @@ private LexerFunc (*buildDispatch(Arena* ar))[256] {
     p[aUnderscore] = lexWord;
     p[aDot] = lexDotSomething;
     p[aAt] = lexAtWord;
-    const int opStartSize = sizeof(operatorStartSymbols);
 
-    printf("opStartSize = %d\n", opStartSize);
 
-    for (int i = 0; i < opStartSize; i++) {
-        p[i] = lexOperator;
+    for (int i = 0; i < countOperatorStartSymbols; i++) {
+        p[operatorStartSymbols[i]] = lexOperator;
     }
     p[aMinus] = lexMinus;
     p[aColon] = lexColon;
@@ -392,7 +399,7 @@ private LexerFunc (*buildDispatch(Arena* ar))[256] {
     * Table for dispatch on the first letter of a word in case it might be a reserved word.
     * It's indexed on the diff between first byte and the letter "c" (the earliest letter a reserved word may start with)
     */
-private ReservedProbe (*possiblyReservedDispatch(Arena* ar))[countReservedLetters] {
+private ReservedProbe (*buildReserved(Arena* ar))[countReservedLetters] {
     ReservedProbe (*result)[countReservedLetters] = allocateOnArena(ar, countReservedLetters*sizeof(ReservedProbe));
     ReservedProbe* p = *result;
     for (int i = 2; i < 18; i++) {
@@ -411,18 +418,10 @@ private ReservedProbe (*possiblyReservedDispatch(Arena* ar))[countReservedLetter
     return result;
 }
 
+private OpDef (*buildOperators(Arena* ar))[countOperators] {
+    OpDef (*result)[countOperators] = allocateOnArena(ar, countOperators*sizeof(OpDef));
 
-
-LanguageDefinition* buildLanguageDefinitions(Arena* ar) {
-    LanguageDefinition* result = allocateOnArena(ar, sizeof(LanguageDefinition));
-    /*
-    * Definition of the operators with info for those that act as functions. The order must be exactly the same as
-    * OperatorType.
-    */
-    result->operators = allocateOnArena(ar, countOperators*sizeof(OpDef));
-    result->possiblyReservedDispatch = possiblyReservedDispatch(ar);
-
-    OpDef* p = *result->operators;
+    OpDef* p = *result;
     /**
     * This is an array of 4-byte arrays containing operator byte sequences.
     * Sorted: 1) by first byte ASC 2) by second byte DESC 3) third byte DESC 4) fourth byte DESC.
@@ -502,13 +501,32 @@ LanguageDefinition* buildLanguageDefinitions(Arena* ar) {
 }
 
 
+LanguageDefinition* buildLanguageDefinitions(Arena* ar) {
+    LanguageDefinition* result = allocateOnArena(ar, sizeof(LanguageDefinition));
+    /*
+    * Definition of the operators with info for those that act as functions. The order must be exactly the same as
+    * OperatorType.
+    */
+
+    result->possiblyReservedDispatch = buildReserved(ar);
+    result->dispatchTable = buildDispatch(ar);
+    result->operators = buildOperators(ar);
+
+    return result;
+}
+
 
 Lexer* createLexer(String* inp, Arena* ar) {
     Lexer* result = allocateOnArena(ar, sizeof(Lexer));
+
     result->inp = inp;
     result->capacity = LEXER_INIT_SIZE;
     result->tokens = allocateOnArena(ar, LEXER_INIT_SIZE*sizeof(Token));
+
+    result->backtrack = createStackRememberedToken(ar, 8);
+
     result->errMsg = &empty;
+
     result->arena = ar;
 
     return result;
@@ -552,7 +570,7 @@ private Lexer* buildLexer(int totalTokens, String* inp, Arena *ar, /* Tokens */ 
 
 
 private void finalize(Lexer* this) {
-    if (!hasValuesRememberedToken(this->backtrack)) {
+    if (!this->wasError && !hasValuesRememberedToken(this->backtrack)) {
         exitWithError(errorPunctuationExtraOpening, this);
     }
 }
@@ -565,18 +583,17 @@ Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar) {
     }
 
     // Check for UTF-8 BOM at start of file
-    int i = 0;
     if (inp->length >= 3
         && (unsigned char)inp->content[0] == 0xEF
         && (unsigned char)inp->content[1] == 0xBB
         && (unsigned char)inp->content[2] == 0xBF) {
-        i = 3;
+        result->i = 3;
     }
     LexerFunc (*dispatch)[256] = lang->dispatchTable;
-
+    result->possiblyReservedDispatch = lang->possiblyReservedDispatch;
     // Main loop over the input
-    while (i < inp->length && !result->wasError) {
-        (*dispatch[inp->content[i]])(result);
+    while (result->i < inp->length) {
+        ((*dispatch)[inp->content[result->i]])(result);
     }
 
     finalize(result);

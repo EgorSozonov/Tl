@@ -3,11 +3,11 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "../../utils/aliases.h"
-#include "../../utils/arena.h"
-#include "../../utils/string.h"
-#include "../../utils/stackHeader.h"
-
+#include "../utils/aliases.h"
+#include "../utils/arena.h"
+#include "../utils/goodString.h"
+#include "../utils/stackHeader.h"
+#include "lexerConstants.h"
 
 typedef struct {
     unsigned int tp : 6;
@@ -40,7 +40,7 @@ struct _Lexer {
     Arr(Token) tokens;
 
     StackRememberedToken* backtrack;
-    ReservedProbe (*possiblyReservedDispatch)[19];
+    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
     int nextInd; // the  index for the next token to be added
     int capacity; // current capacity of token storage
@@ -94,23 +94,13 @@ typedef struct {
 
 
 typedef struct {
-    OpDef (*operators)[36];
+    OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
-    ReservedProbe (*possiblyReservedDispatch)[19];
+    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
 } LanguageDefinition;
 
 
-const OpDef noFun = {
-    .name = &empty,
-    .bytes = {0, 0, 0, 0},
-    .precedence = 0,
-    .arity = 0,
-    .extensible = false,
-    .bindingIndex = -1,
-    .overloadable = false
-};
-
-LanguageDefinition* createLanguage(Arena* ar);
+LanguageDefinition* buildLanguageDefinitions(Arena* ar);
 Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar);
 
 #endif

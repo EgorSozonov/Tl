@@ -1,8 +1,8 @@
 #include "../source/utils/arena.h"
-#include "../source/utils/string.h"
+#include "../source/utils/goodString.h"
 #include "../source/utils/stack.h"
-#include "../source/compiler/lexer/lexer.h"
-#include "../source/compiler/lexer/lexerConstants.h"
+#include "../source/compiler/lexer.h"
+#include "../source/compiler/lexerConstants.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -90,7 +90,6 @@ int equalityLexer(Lexer a, Lexer b) {
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
-    printf("a\n");
     int commonLength = a.totalTokens < b.totalTokens ? a.totalTokens : b.totalTokens;
     int i = 0;
     for (; i < commonLength; i++) {
@@ -100,7 +99,6 @@ int equalityLexer(Lexer a, Lexer b) {
             || tokA.payload1 != tokB.payload1 || tokA.payload2 != tokB.payload2) {
             return i;
         }
-        printf("b %d\n", i);
     }
     return (a.totalTokens == b.totalTokens) ? -2 : i;        
 }
@@ -117,15 +115,18 @@ void printLexer(Lexer* a) {
 }
 
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
-void runLexerTest(LexerTest test, Arena *ar) {
-    Lexer* result = lexicallyAnalyze(test.input, ar);
+void runLexerTest(LexerTest test, int* countPassed, int* countTests, LanguageDefinition* lang, Arena *ar) {
+    (*countTests)++;
+    Lexer* result = lexicallyAnalyze(test.input, lang, ar);
+
     int equalityStatus = equalityLexer(*result, *test.expectedOutput);
     if (equalityStatus == -2) {
+        (*countPassed)++;
         return;
     } else if (equalityStatus == -1) {
-        printf("ERROR IN ");
-        printString(test.name);
-        printf("\nError msg: ");
+        printf("ERROR IN [");
+        printStringNoLn(test.name);
+        printf("]\nError msg: ");
         printString(result->errMsg);
         printf("\nBut was expected: ");
         printString(test.expectedOutput->errMsg);
@@ -153,101 +154,97 @@ int main() {
                 (Token){ .tp = tokWord, .startByte = 5, .lenBytes = 3, .payload2 = 1 }
             )
         },
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word snake case"), 
-            .input = allocateLiteral(ar, "asdf_abc"), 
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word snake case"),
+            .input = allocateLiteral(ar, "asdf_abc"),
             .expectedOutput = buildLexerWithError(allocateLiteral(ar, errorWordUnderscoresOnlyAtStart), 0, ar)
         },
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word correct capitalization 1"), 
-            .input = allocateLiteral(ar, "Asdf.abc"), 
-            .expectedOutput = buildLexer(1, ar, 
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word correct capitalization 1"),
+            .input = allocateLiteral(ar, "Asdf.abc"),
+            .expectedOutput = buildLexer(1, ar,
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 8  }
             )
         },
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word correct capitalization 2"), 
-            .input = allocateLiteral(ar, "asdf.abcd.zyui"), 
-            .expectedOutput = buildLexer(1, ar, 
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word correct capitalization 2"),
+            .input = allocateLiteral(ar, "asdf.abcd.zyui"),
+            .expectedOutput = buildLexer(1, ar,
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
             )
         },
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word correct capitalization 3"), 
-            .input = allocateLiteral(ar, "Asdf.Abcd"), 
-            .expectedOutput = buildLexer(1, ar, 
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word correct capitalization 3"),
+            .input = allocateLiteral(ar, "Asdf.Abcd"),
+            .expectedOutput = buildLexer(1, ar,
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 9, .payload2 = 1  }
             )
         },
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word incorrect capitalization"), 
-            .input = allocateLiteral(ar, "Asdf.Abcd"), 
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word incorrect capitalization"),
+            .input = allocateLiteral(ar, "Asdf.Abcd"),
             .expectedOutput = buildLexerWithError(allocateLiteral(ar, errorWordCapitalizationOrder), 0, ar)
         },
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word starts with underscore and lowercase letter"), 
-            .input = allocateLiteral(ar, "_abc"), 
-            .expectedOutput = buildLexer(1, ar, 
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word starts with underscore and lowercase letter"),
+            .input = allocateLiteral(ar, "_abc"),
+            .expectedOutput = buildLexer(1, ar,
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 4 }
             )
         },
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word starts with underscore and capital letter"), 
-            .input = allocateLiteral(ar, "_Abc"), 
-            .expectedOutput = buildLexer(1, ar, 
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word starts with underscore and capital letter"),
+            .input = allocateLiteral(ar, "_Abc"),
+            .expectedOutput = buildLexer(1, ar,
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 4, .payload2 = 1 }
             )
-        },        
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word starts with 2 underscores"), 
-            .input = allocateLiteral(ar, "__abc"), 
+        },
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word starts with 2 underscores"),
+            .input = allocateLiteral(ar, "__abc"),
             .expectedOutput = buildLexerWithError(allocateLiteral(ar, errorWordChunkStart), 0, ar)
         },
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Word starts with underscore and digit"), 
-            .input = allocateLiteral(ar, "_1abc"), 
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Word starts with underscore and digit"),
+            .input = allocateLiteral(ar, "_1abc"),
             .expectedOutput = buildLexerWithError(allocateLiteral(ar, errorWordChunkStart), 0, ar)
-        },                       
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Dotword & @-word"), 
-            .input = allocateLiteral(ar, "@a123 .Abc "), 
-            .expectedOutput = buildLexer(2, ar, 
+        },
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Dotword & @-word"),
+            .input = allocateLiteral(ar, "@a123 .Abc "),
+            .expectedOutput = buildLexer(2, ar,
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 5 },
                 (Token){ .tp = tokWord, .startByte = 6, .lenBytes = 4, .payload2 = 1 }
             )
-        },       
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "Dot-reserved word error"), 
-            .input = allocateLiteral(ar, ".false"), 
+        },
+        (LexerTest) {
+            .name = allocateLiteral(ar, "Dot-reserved word error"),
+            .input = allocateLiteral(ar, ".false"),
             .expectedOutput = buildLexerWithError(allocateLiteral(ar, errorWordReservedWithDot), 0, ar)
-        },  
-        (LexerTest) { 
-            .name = allocateLiteral(ar, "At-reserved word"), 
-            .input = allocateLiteral(ar, "@if"), 
-                        .expectedOutput = buildLexer(1, ar, 
+        },
+        (LexerTest) {
+            .name = allocateLiteral(ar, "At-reserved word"),
+            .input = allocateLiteral(ar, "@if"),
+                        .expectedOutput = buildLexer(1, ar,
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 3 }
             )
-        }            
-    );
-    
-
-    Lexer* a = buildLexer(2, ar, 
-                (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 14  },
-                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
-    );
-    Lexer* b = buildLexer(2, ar, 
-                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  },
-                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
-                
+        }
     );
 
-    printf("equality = %d\n", equalityLexer(*a, *b));
-    LanguageDefinition*
+    LanguageDefinition* lang = buildLanguageDefinitions(ar);
+    int countPassed = 0;
+    int countTests = 0;
 
     for (int j = 0; j < wordSet->totalTests; j++) {
         LexerTest test = wordSet->tests[j];
-        runLexerTest(test, ar);        
-        
+        runLexerTest(test, &countPassed, &countTests, lang, ar);
+    }
+    if (countTests == 0) {
+        printf("\nThere were no tests to run!\n");
+    } else if (countPassed == countTests) {
+        printf("\nAll %d tests passed!\n", countTests);
+    } else {
+        printf("\nFailed %d tests out of %d!\n", (countTests - countPassed), countTests);
     }
     
     deleteArena(ar);

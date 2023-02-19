@@ -1,4 +1,4 @@
-﻿#include "./string.h"
+﻿#include "goodString.h"
 #include "./aliases.h"
 #include "arena.h"
 #include <string.h>
@@ -67,8 +67,14 @@ bool endsWith(String* a, String* b) {
 }
 
 void printString(String* s) {
+    if (s->length == 0) return;
     fwrite(s->content, 1, s->length, stdout);
     printf("\n");
+}
+
+void printStringNoLn(String* s) {
+    if (s->length == 0) return;
+    fwrite(s->content, 1, s->length, stdout);
 }
 
 /** Tests if the following several bytes in the input match an array. This is for reserved word detection */

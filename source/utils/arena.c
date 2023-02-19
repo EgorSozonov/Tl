@@ -1,6 +1,6 @@
 ﻿#include <stdio.h>
 #include <stdlib.h>
-#include "Arena.h"
+#include "arena.h"
 
 #define CHUNK_QUANT 32768
 
@@ -71,7 +71,7 @@ void* allocateOnArena(Arena* ar, size_t allocSize) {
         // sizeof counts everything but the flexible array member, that's why we subtract it
         newChunk->size = newSize - sizeof(ArenaChunk);
         newChunk->next = NULL;
-        printf("Allocated a new chunk with bookkeep size %zu, array size %zu\n", sizeof(ArenaChunk), newChunk->size);
+        //printf("Allocated a new chunk with bookkeep size %zu, array size %zu\n", sizeof(ArenaChunk), newChunk->size);
 
         ar->currChunk->next = newChunk;
         ar->currChunk = newChunk;
@@ -87,7 +87,7 @@ void deleteArena(Arena* ar) {
     ArenaChunk* curr = ar->firstChunk;
     ArenaChunk* nextToFree = curr;
     while (curr != NULL) {
-        printf("freeing a chunk of size %zu\n", curr->size);
+        //printf("freeing a chunk of size %zu\n", curr->size);
         nextToFree = curr->next;
         free(curr);
         curr = nextToFree;

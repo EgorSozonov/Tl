@@ -9,7 +9,7 @@
         Arena* arena;                                       \
         T (* content)[];                                    \
     } Stack ## T;                                           \
-    Stack ## T * mkStack ## T (Arena* ar, int initCapacity);\
+    Stack ## T * createStack ## T (Arena* ar, int initCapacity);\
     bool hasValues ## T (Stack ## T * st);                  \
     T pop ## T (Stack ## T * st);                           \
     T peek ## T(Stack ## T * st);                           \
