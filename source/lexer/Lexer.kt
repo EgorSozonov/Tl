@@ -9,13 +9,26 @@ import utils.*
 class Lexer(val inp: ByteArray, val fileType: FileType) {
 
 
-var firstChunk: LexChunk = LexChunk()                        // First array of tokens
+private var cap = INIT_LIST_SIZE*4
+var currInd = 0
     private set
-var currChunk: LexChunk                                      // Last array of tokens
+private var c = IntArray(INIT_LIST_SIZE*4)
+
+fun add(i1: Int, i2: Int, i3: Int, i4: Int) {
+    currInd += 4
+    if (currInd == cap) {
+        val newArray = IntArray(2*cap)
+        c.copyInto(newArray, 0, cap)
+        cap *= 2
+    }
+    c[currInd    ] = i1
+    c[currInd + 1] = i2
+    c[currInd + 2] = i3
+    c[currInd + 3] = i4
+}
 var nextInd: Int                                             // Next ind inside the current token array
     private set
-var currInd: Int
-var currTokInd: Int
+
 var totalTokens: Int
     private set
 var wasError: Boolean                                        // The lexer's error flag
@@ -23,7 +36,7 @@ var wasError: Boolean                                        // The lexer's erro
 var errMsg: String
     private set
 private var i: Int                                           // current index inside input byte array
-private var comments: CommentStorage = CommentStorage()
+
 private val backtrack = Stack<Pair<PunctuationToken, Int>>() // The stack of [punctuation scope, startTokInd]
 private val numeric: LexerNumerics = LexerNumerics()
 private val newLines: ArrayList<Int> = ArrayList<Int>(50)
@@ -315,11 +328,11 @@ private fun lexOperator() {
     val fourthSymbol = if (inp.size > i + 3) { inp[i + 3] } else { 0 }
     var k = 0
     var foundInd = -1
-    while (k < operatorSymbols.size && operatorSymbols[k] != firstSymbol) {
+    while (k < operatorDefinitions.size && operatorDefinitions[k].bytes[0] != firstSymbol) {
         k += 4
     }
-    while (k < operatorSymbols.size && operatorSymbols[k] == firstSymbol) {
-        val secondTentative = operatorSymbols[k + 1]
+    while (k < operatorDefinitions.size && operatorDefinitions[k].bytes[0] == firstSymbol) {
+        val secondTentative = operatorDefinitions[k].bytes[1]
         if (secondTentative != byte0 && secondTentative != secondSymbol) {
             k += 4
             continue
@@ -527,9 +540,8 @@ private fun lexNewline() {
 }
 
 /**
- * String literals look like "wasn't" and may contain arbitrary UTF-8.
- * The insides of the string have escape sequences and variable interpolation with
- * the "x = ${x}" syntax.
+ * String literals look like 'wasn''t' and may contain arbitrary UTF-8.
+ * The insides of the string have two escape sequences: '' for apostrophe and \n for newlines
  * TODO probably need to count UTF-8 codepoints, or worse - grapheme clusters - in order to correctly report to LSP
  */
 private fun lexStringLiteral() {
@@ -537,47 +549,12 @@ private fun lexStringLiteral() {
     val szMinusOne = inp.size - 1
     while (j < inp.size) {
         val cByte = inp[j]
-        if (cByte == aBackslash && j < szMinusOne && inp[j + 1] == aQuote) {
+        if (cByte == aApostrophe && j < szMinusOne && inp[j + 1] == aApostrophe) {
             j += 2
-        } else if (cByte == aQuote) {
+        } else if (cByte == aApostrophe) {
             appendToken(stringTok, 0, i + 1, j - i - 1)
             i = j + 1
             return
-        } else {
-            j += 1
-        }
-    }
-    exitWithError(errorPrematureEndOfInput)
-}
-
-/**
- * Verbatim strings look like @"asdf" or @"\nasdf" or @4"asdf"""asdf"""".
- * In the second variety (i.e. if the opening " is followed by the newline symbol),
- * the lexer ignores the newline symbol. Also, the minimal number of leading spaces among
- * the lines of text are also ignored. Combined, this means that the following:
- *     myStringVar = "
- *         A
- *          big
- *         grey wolf
- *     """
- * is equivalent to myStringVar = 'A\n big \ngrey wolf'
- * The inside of the string has variables interpolated into it like the common string literal:
- *     "x = ${x}"""
- * but is otherwise unaltered (no symbols are escaped).
- * The third variety is used to set the sufficient number of closing quotes in order to facilitate
- * the string containing any necessary sequence.
- * TODO implement this
- */
-private fun lexVerbatimStringLiteral() {
-    var j = i + 1
-    while (i < inp.size) {
-        val cByte = inp[j]
-        if (cByte == aQuote) {
-            if (j < (inp.size - 2) && inp[j + 1] == aQuote && inp[j + 2] == aQuote) {
-                appendToken(verbatimString, 0, i + 1, j - i - 1)
-                i = j + 3
-                return
-            }
         } else {
             j += 1
         }
@@ -615,10 +592,11 @@ private fun lexComment() {
     i = j
 }
 
+
 private fun lexColon() {
     val j = i + 1
-    if (j < inp.size) {
-        if (inp[j] == aColon) { // :: the type declaration token
+    if (j < inp.size) { // TODO make this what used to be the dollar
+        if (inp[j] == aColon) {
             processTypeDeclOperator()
             i += 2
             return
@@ -632,9 +610,8 @@ private fun lexColon() {
     i++
 }
 
-
-/** Doc comments, syntax is (;; The comment .)
- * Precondition: i is pointing at the first ";" in "(;;"
+/**
+ *  Doc comments, syntax is /// The comment
  */
 private fun lexDocComment() {
     if (backtrack.isEmpty()) exitWithError(errorDocComment)
@@ -1095,6 +1072,11 @@ fun toDebugString(): String {
     return result.toString()
 }
 
+private fun determineReservedA(startByte: Int, lenBytes: Int): Int {
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesAlias)) return PunctuationToken.stmtBreak.internalVal.toInt()
+    return 0
+}
+
 private fun determineReservedB(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 5 && testByteSequence(startByte, reservedBytesBreak)) return PunctuationToken.stmtBreak.internalVal.toInt()
     return 0
@@ -1136,7 +1118,17 @@ private fun determineReservedM(startByte: Int, lenBytes: Int): Int {
     return 0
 }
 
+private fun determineReservedO(startByte: Int, lenBytes: Int): Int {
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesMatch)) return -1
+    return 0
+}
+
 private fun determineReservedR(startByte: Int, lenBytes: Int): Int {
+    if (lenBytes == 6 && testByteSequence(startByte, reservedBytesReturn)) return stmtReturn.internalVal.toInt()
+    return 0
+}
+
+private fun determineReservedS(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 6 && testByteSequence(startByte, reservedBytesReturn)) return stmtReturn.internalVal.toInt()
     return 0
 }
@@ -1144,11 +1136,6 @@ private fun determineReservedR(startByte: Int, lenBytes: Int): Int {
 private fun determineReservedT(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 4 && testByteSequence(startByte, reservedBytesTrue)) return reservedTrue
     if (lenBytes == 3 && testByteSequence(startByte, reservedBytesTry)) return -1
-    return 0
-}
-
-private fun determineReservedW(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesWhile)) return -1
     return 0
 }
 
@@ -1210,7 +1197,7 @@ companion object {
         dispatchTable[aCarriageReturn.toInt()] = Lexer::lexSpace
         dispatchTable[aNewline.toInt()] = Lexer::lexNewline
 
-        dispatchTable[aQuote.toInt()] = Lexer::lexStringLiteral
+        dispatchTable[aApostrophe.toInt()] = Lexer::lexStringLiteral
         dispatchTable[aSemicolon.toInt()] = Lexer::lexComment
         dispatchTable[aColon.toInt()] = Lexer::lexColon
     }
@@ -1219,18 +1206,19 @@ companion object {
      * Table for dispatch on the first letter of a word in case it might be a reserved word.
      * It's indexed on the diff between first byte and the letter "c" (the earliest letter a reserved word may start with)
      */
-    private val possiblyReservedDispatch: Array<Lexer.(Int, Int) -> Int> = Array(22) {
+    private val possiblyReservedDispatch: Array<Lexer.(Int, Int) -> Int> = Array(20) {
         i -> when(i) {
-            0 -> Lexer::determineReservedB
-            1 -> Lexer::determineReservedC
-            3 -> Lexer::determineReservedE
-            4 -> Lexer::determineReservedF
-            7 -> Lexer::determineReservedI
-            10 -> Lexer::determineReservedL
-            11 -> Lexer::determineReservedM
-            16 -> Lexer::determineReservedR
-            18 -> Lexer::determineReservedT
-            21 -> Lexer::determineReservedW
+            0 -> Lexer::determineReservedA
+            1 -> Lexer::determineReservedB
+            2 -> Lexer::determineReservedC
+            4 -> Lexer::determineReservedE
+            5 -> Lexer::determineReservedF
+            8 -> Lexer::determineReservedI
+            12 -> Lexer::determineReservedM
+            14 -> Lexer::determineReservedO
+            17 -> Lexer::determineReservedR
+            18 -> Lexer::determineReservedS
+            19 -> Lexer::determineReservedT
             else -> Lexer::determineUnreserved
         }
     }
