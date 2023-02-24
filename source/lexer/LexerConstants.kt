@@ -35,6 +35,59 @@ val maxInt = byteArrayOf(
     8, 5, 4, 7, 7, 5, 8, 0, 7
 )
 
+// Token types
+
+// The following group of variants are transferred to the AST byte for byte, with no analysis
+// Their values must exactly correspond with the initial group of variants in "RegularAST"
+// The top value must be stored in "topVerbatimTokenVariant" constant
+val topVerbatimTokenVariant = 5
+const val tokInt = 0
+const val tokFloat = 1
+const val tokBool = 2
+const val tokString = 3
+const val tokUnderscore = 4
+const val tokDocComment = 5
+
+// This group requires analysis in the parser
+const val tokWord = 6      // payload2: 1 if the word is all capitals
+const val tokAtWord = 7
+const val tokReserved = 8  // payload2: value of a constant from the 'reserved*' group
+const val tokOperator = 11 // payload1 = (isExtension) 1 bit + (isAssignment) 1 bit. payload2 = opT... constant
+
+// Punctuation (inner node) Token types
+const val tokCompoundString = 12
+const val tokCurlyBraces = 13
+const val tokBrackets = 14
+const val tokParens = 15
+const val tokAccessor = 16 // the [] in x[5]
+const val tokStmtAssignment = 17 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
+const val tokStmtTypeDecl = 18
+const val tokLexScope = 19
+const val tokStmtFn = 20
+const val tokStmtFor = 21
+const val tokStmtReturn = 22
+const val tokStmtIf = 23
+const val tokStmtIfEq = 23
+const val tokStmtIfPr = 23
+const val tokStmtOpen = 24 // maybe remove this
+const val tokStmtBreak = 25
+const val tokStmtExport = 26
+
+/** Order must agree with the tok... constants above */
+val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Word", "Reserved", "Op",
+"Comp Str", "{", "[", "access")
+
+
+/** 2**53 */
+val maximumPreciselyRepresentedFloatingInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2)
+
+/** Must be divisible by 4 */
+const val CHUNKSZ: Int = 10000
+
+/** Must be divisible by 2 and less than CHUNKSZ */
+const val COMMENTSZ: Int = 100
+
+
 const val aALower: Byte = 97
 const val aBLower: Byte = 98
 const val aCLower: Byte = 99
@@ -88,57 +141,3 @@ const val aEqual: Byte = 61
 const val aLessThan: Byte = 60
 const val aGreaterThan: Byte = 62
 
-// Token types
-
-// The following group of variants are transferred to the AST byte for byte, with no analysis
-// Their values must exactly correspond with the initial group of variants in "RegularAST"
-// The top value must be stored in "topVerbatimTokenVariant" constant
-const val tokInt = 0
-const val tokFloat = 1
-const val tokBool = 2
-const val tokString = 3
-const val tokUnderscore = 4
-const val tokDocComment = 5
-
-// This group requires analysis in the parser
-const val tokWord = 6
-const val tokAtWord = 7
-const val tokReserved = 8
-const val tokOperator = 11
-
-
-// Punctuation (inner node) Token types
-const val tokCompoundString = 12
-const val tokCurlyBraces = 13
-const val tokBrackets = 14
-const val tokParens = 15
-const val tokAddresser = 16 // the [] in x[5]
-const val tokStmtAssignment = 17
-const val tokStmtTypeDecl = 18
-const val tokLexScope = 19
-const val tokStmtFn = 20
-const val tokStmtFor = 21
-const val tokStmtReturn = 22
-const val tokStmtIf = 23
-const val tokStmtIfEq = 23
-const val tokStmtIfPr = 23
-const val tokOpen = 24 // maybe remove this
-const val tokBreak = 25
-const val tokExport = 26
-
-
-/** 2**53 */
-val maximumPreciselyRepresentedFloatingInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2)
-
-/** Must be divisible by 4 */
-const val CHUNKSZ: Int = 10000
-
-/** Must be divisible by 2 and less than CHUNKSZ */
-const val COMMENTSZ: Int = 100
-
-
-
-
-val wordType = RegularToken.word.internalVal.toInt()
-
-val topVerbatimTokenVariant = 4

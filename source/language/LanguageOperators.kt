@@ -7,12 +7,12 @@ const val functionPrec = 26
 const val prefixPrec = 27
 
 /**
- * Values must exactly agree with the operatorSymbols array. The order is the same.
+ * opT... operator types. Values must exactly agree with the operatorSymbols array. The order is the same.
  */
 const val countOperators = 36
-const val opTNotEqual               = 0 // !=
-const val opTBoolNegation           = 1 // !
-const val opTSize                   = 2 // #
+const val opTNotEqual               =  0 // !=
+const val opTBoolNegation           =  1 // !
+const val opTSize                   =  2 // #
 const val opTNotEmpty               =  3 // $
 const val opTRemainder              =  4 // %
 const val opTBoolAnd                =  5 // &&
@@ -73,7 +73,7 @@ const val opTTilde                  = 35 // ~
  * Definition of the operators with info for those that act as functions. The order must be exactly the same as
  * the "opT" constants above. Sorted: 1) by first byte ASC 2) by second byte DESC 3) third byte DESC 4) fourth byte DESC.
  *
- * There is a closed set of operators in the language.
+ * There is a closed set of operators in the language. Their length may be up to 4 symbols.
  *
  * For added flexibility, most operators are extended into another plane,
  * for example "+" may be extended into "+." while "/" may be extended into "/.".

@@ -1,10 +1,5 @@
 package utils
 
-import lexer.CHUNKSZ
-import lexer.RegularToken
-import parser.ASTChunk
-import parser.RegularAST
-import parser.SpanAST
 const val INIT_LIST_SIZE = 1000
 class FourIntList {
     private var cap = INIT_LIST_SIZE
