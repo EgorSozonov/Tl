@@ -17,8 +17,7 @@ class Lexer(val inp: ByteArray, val fileType: FileType) {
  */
 private var cap = INIT_LIST_SIZE*4
 var currInd = 0
-    private set
-private var tokens = IntArray(INIT_LIST_SIZE*4)
+var tokens = IntArray(INIT_LIST_SIZE*4)
 
 
 var nextInd: Int                                             // Next ind inside the current token array

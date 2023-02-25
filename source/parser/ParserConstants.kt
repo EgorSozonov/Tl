@@ -34,4 +34,3 @@ const val errorAssignment                  = "Cannot parse assignment, it must l
 const val errorAssignmentShadowing         = "Assignment error: existing identifier is being shadowed"
 const val errorScope                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!"
 const val errorLoopBreakOutside            = "The break keyword cannot be used outside a loop scope!"
-

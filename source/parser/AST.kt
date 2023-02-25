@@ -147,54 +147,27 @@ companion object {
      */
     fun printSideBySide(a: AST, b: AST, indDiff: Int, result: StringBuilder): String {
         print("Diff: ")
-        printNode(a.functionBodies.c[indDiff], a.functionBodies.c[indDiff], result)
+        printNode(a.functionBodies, indDiff, result)
         println()
-        a.functionBodies.seek(0)
-        while (true) {
-            if (currA != null) {
-                if (currB != null) {
-                    val lenA = if (currA == a.functionBodies.currChunk) { a.functionBodies.nextInd } else { CHUNKSZ }
-                    val lenB = if (currB == b.functionBodies.currChunk) { b.functionBodies.nextInd } else { CHUNKSZ }
-                    val len = lenA.coerceAtMost(lenB)
-                    for (i in 0 until len step 4) {
-                        result.append((i/4).toString() + " ")
-                        printNode(currA, i, result)
-                        result.append(" | ")
-                        printNode(currB, i, result)
-                        result.appendLine("")
-                    }
-                    for (i in len until lenA step 4) {
-                        printNode(currA, i, result)
-                        result.appendLine(" | ")
-                    }
-                    for (i in len until lenB step 4) {
-                        result.append(" | ")
-                        printNode(currB, i, result)
-                        result.appendLine("")
-                    }
-                    currB = currB.next
-                } else {
-                    val len = if (currA == a.functionBodies.currChunk) { a.functionBodies.nextInd } else { CHUNKSZ }
-                    for (i in 0 until len step 4) {
-                        printNode(currA, i, result)
-                        result.appendLine(" | ")
-                    }
-                }
-                currA = currA.next
-            } else if (currB != null) {
-                val len = if (currB == b.functionBodies.currChunk) { b.functionBodies.nextInd } else { CHUNKSZ }
-                for (i in 0 until len step 4) {
-                    result.append(" | ")
-                    printNode(currB, i, result)
-                    result.appendLine("")
-                }
-                currB = currB.next
-            } else {
-                break
-            }
 
-
+        val len = Math.min(a.functionBodies.ind, b.functionBodies.ind)
+        for (i in 0 until len step 4) {
+            result.append((i/4).toString() + " ")
+            printNode(currA, i, result)
+            result.append(" | ")
+            printNode(currB, i, result)
+            result.appendLine("")
         }
+        for (i in len until lenA step 4) {
+            printNode(currA, i, result)
+            result.appendLine(" | ")
+        }
+        for (i in len until lenB step 4) {
+            result.append(" | ")
+            printNode(currB, i, result)
+            result.appendLine("")
+        }
+
         return result.toString()
     }
 
@@ -202,57 +175,50 @@ companion object {
      * Pretty printer function for debugging purposes
      */
     fun print(a: AST, result: StringBuilder): String {
-        var currA: ASTChunk? = a.functionBodies.firstChunk
-        while (true) {
-            if (currA != null) {
-                val lenA = if (currA == a.functionBodies.currChunk) { a.functionBodies.nextInd } else { CHUNKSZ }
-                for (i in 0 until lenA step 4) {
-                    result.append((i/4 + 1).toString() + " ")
-                    printNode(currA, i, result)
-                    result.appendLine("")
-                }
-                currA = currA.next
-            } else {
-                break
-            }
+        for (i in 0 until a.functionBodies.ind step 4) {
+            result.append((i/4 + 1).toString() + " ")
+            printNode(a.functionBodies, i, result)
+            result.appendLine("")
         }
+
         return result.toString()
     }
 
-    private fun printNode(chunk: FourIntList, nodeInd: Int, wr: StringBuilder) {
+    private fun printNode(chunk: FourIntList, ind: Int, wr: StringBuilder) {
         val startByte = chunk.c[ind + 1]
         val lenBytes = chunk.c[ind] and LOWER26BITS
-        val typeBits = (chunk.c[ind] ushr 26).toByte()
+        val typeBits = chunk.c[ind] ushr 26
+
+        val nodeName = nodeNames[typeBits]
         if (typeBits < firstSpanASTType) {
-            if (typeBits == RegularAST.idFunc) {
-                val funcId: Int = chunk.nodes[ind + 3]
-                val arity = chunk.nodes[ind + 2]
+            if (typeBits == nodFunc) {
+                val funcId: Int = chunk.c[ind + 3]
+                val arity = chunk.c[ind + 2]
                 if (arity >= 0) {
                     wr.append("funcId $funcId $arity-ary [${startByte} ${lenBytes}]")
                 } else {
                     wr.append("${operatorDefinitions[funcId].name} ${-arity}-ary [${startByte} ${lenBytes}]")
                 }
 
-            } else if (regType == RegularAST.typeFunc) {
-                val payload1 = chunk.nodes[ind + 2]
-                val payload2 = chunk.nodes[ind + 3]
+            } else if (typeBits == nodTypeFunc) {
+                val payload1 = chunk.c[ind + 2]
+                val payload2 = chunk.c[ind + 3]
                 val payl1Str = if (payload1 ushr 31 > 0) {"operator "} else {""} +
                         (if (payload1 and THIRTYFIRSTBIT > 0) {"concreteType "} else {"typeVar "}) +
                         "arity ${payload1 and LOWER26BITS}"
-                wr.append("$regType $payload2 [${startByte} ${lenBytes}] $payl1Str")
-            } else if (regType == RegularAST.litFloat) {
+                wr.append("$nodeName $payload2 [${startByte} ${lenBytes}] $payl1Str")
+            } else if (typeBits == nodFloat) {
                 val payload: Double = Double.fromBits(
-                    (chunk.nodes[ind + 2].toLong() shl 32) + chunk.nodes[ind + 3].toLong()
+                    (chunk.c[ind + 2].toLong() shl 32) + chunk.c[ind + 3].toLong()
                 )
-                wr.append("$regType $payload [${startByte} ${lenBytes}]")
+                wr.append("$nodeName $payload [${startByte} ${lenBytes}]")
             } else {
-                val payload: Long = (chunk.nodes[ind + 2].toLong() shl 32) + (chunk.nodes[ind + 3].toLong() and LOWER32BITS)
-                wr.append("$regType $payload [${startByte} ${lenBytes}]")
+                val payload: Long = (chunk.c[ind + 2].toLong() shl 32) + (chunk.c[ind + 3].toLong() and LOWER32BITS)
+                wr.append("$nodeName $payload [${startByte} ${lenBytes}]")
             }
         } else {
-            val spanType = SpanAST.values().firstOrNull { it.internalVal == typeBits }
-            val lenNodes = chunk.nodes[ind + 3]
-            wr.append("$spanType len=$lenNodes [${startByte} ${lenBytes}] ")
+            val lenNodes = chunk.c[ind + 3]
+            wr.append("$nodeName len=$lenNodes [${startByte} ${lenBytes}] ")
         }
     }
 }

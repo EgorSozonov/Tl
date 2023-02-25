@@ -68,6 +68,12 @@ const val nodBreak = 22
 /** Must be the lowest value of the Span AST node types above */
 const val firstSpanASTType = nodScope
 
+
+/** Order must agree with the tok... constants above */
+val nodeNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Ident", "Func", "Binding", "Type",
+    "TypeCons", "Annot", "Scope", "Expr", "FunDef", "FunDef=>", "Assign", "Return", "TypeDecl", "If", "IfClause",
+    "For", "Break")
+
 /**
  * The real element of this array is struct Token - modeled as 4 32-bit ints
  * astType                                                                            | u6

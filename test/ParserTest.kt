@@ -4,8 +4,6 @@ import org.junit.jupiter.api.Nested
 import parser.*
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import parser.RegularAST.*
-import parser.SpanAST.*
 
 class ParserTest {
 
@@ -15,22 +13,22 @@ inner class ExprTest {
     @Test
     fun `Simple function call`() {
         testParseWithEnvironment(
-            "(foo 10 2 3)", arrayListOf(Import("foo", "foo", 3)
+            "foo 10 2 3", arrayListOf(Import("foo", "foo", 3)
         )) {
-            it.buildSpan(functionDef, 6, 0, 12)
-              .buildSpan(scope, 5, 0, 12)
-              .buildSpan(expression, 4, 1, 10)
-              .buildNode(litInt, 0, 10, 5, 2)
-              .buildNode(litInt, 0, 2, 8, 1)
-              .buildNode(litInt, 0, 3, 10, 1)
-              .buildNode(idFunc, 3, 0, 1, 3)
+            it.buildSpan(nodFunctionDef, 6, 0, 12)
+              .buildSpan(nodScope, 5, 0, 12)
+              .buildSpan(nodExpr, 4, 1, 10)
+              .buildNode(nodInt, 0, 10, 5, 2)
+              .buildNode(nodInt, 0, 2, 8, 1)
+              .buildNode(nodInt, 0, 3, 10, 1)
+              .buildNode(nodFunc, 3, 0, 1, 3)
         }
     }
 
     @Test
     fun `Double function call`() {
         testParseWithEnvironment(
-            "(foo a (buzz b c d))", arrayListOf(
+            "foo a (buzz b c d)", arrayListOf(
                 Import("foo", "foo", 2),
                 Import("buzz", "buzz", 3),
                 Import("a", "", -1),
@@ -39,37 +37,21 @@ inner class ExprTest {
                 Import("d", "", -1),
             )
         ) {
-            it.buildSpan(functionDef, 8, 0, 20)
-              .buildSpan(scope, 7, 0, 20)
-              .buildSpan(expression, 6, 1, 18)
-              .buildNode(ident, 0, 2, 5, 1)
-              .buildNode(ident, 0, 3, 13, 1)
-              .buildNode(ident, 0, 4, 15, 1)
-              .buildNode(ident, 0, 5, 17, 1)
-              .buildNode(idFunc, 3, 1, 8, 4) // buzz
-              .buildNode(idFunc, 2, 0, 1, 3) // foo
-        }
-    }
-
-    @Test
-    fun `Infix function call`() {
-        testParseWithEnvironment("(foo a .bar)", arrayListOf(
-                Import("foo", "foo", 1),
-                Import("bar", "bar", 1),
-                Import("a", "", -1),
-        )) {
-            it.buildSpan(functionDef, 5, 0, 12)
-              .buildSpan(scope, 4, 0, 12)
-              .buildSpan(expression, 3, 1, 10)
-              .buildNode(ident, 0, 2, 5, 1)
-              .buildNode(idFunc, 1, 0, 1, 3)
-              .buildNode(idFunc, 1, 1, 7, 4)
+            it.buildSpan(nodFunctionDef, 8, 0, 20)
+              .buildSpan(nodScope, 7, 0, 20)
+              .buildSpan(nodExpr, 6, 1, 18)
+              .buildNode(nodId, 0, 2, 5, 1)
+              .buildNode(nodId, 0, 3, 13, 1)
+              .buildNode(nodId, 0, 4, 15, 1)
+              .buildNode(nodId, 0, 5, 17, 1)
+              .buildNode(nodFunc, 3, 1, 8, 4) // buzz
+              .buildNode(nodFunc, 2, 0, 1, 3) // foo
         }
     }
 
     @Test
     fun `Infix function calls`() {
-        testParseWithEnvironment("(foo c b a .bar 5 .baz)", arrayListOf(
+        testParseWithEnvironment("(baz : bar 5 : foo c b a)", arrayListOf(
             Import("a", "", -1),
             Import("b", "", -1),
             Import("c", "", -1),
@@ -77,16 +59,16 @@ inner class ExprTest {
             Import("bar", "bar", 2),
             Import("baz", "baz", 1),
         )) {
-            it.buildSpan(functionDef, 9, 0, 23)
-              .buildSpan(scope, 8, 0, 23)
-              .buildSpan(expression, 7, 1, 21)
-              .buildNode(ident, 0, 2, 5, 1)
-              .buildNode(ident, 0, 1, 7, 1)
-              .buildNode(ident, 0, 0, 9, 1)
-              .buildNode(idFunc, 3, 3, 1, 3) // foo
+            it.buildSpan(nodFunctionDef, 9, 0, 23)
+              .buildSpan(nodScope, 8, 0, 23)
+              .buildSpan(nodExpr, 7, 1, 21)
+              .buildNode(nodId, 0, 2, 5, 1)
+              .buildNode(nodId, 0, 1, 7, 1)
+              .buildNode(nodId, 0, 0, 9, 1)
+              .buildNode(nodFunc, 3, 3, 1, 3) // foo
               .buildIntNode(5, 16, 1)
-              .buildNode(idFunc, 2, 4, 11, 4) // bar
-              .buildNode(idFunc, 1, 5, 18, 4) // baz
+              .buildNode(nodFunc, 2, 4, 11, 4) // bar
+              .buildNode(nodFunc, 1, 5, 18, 4) // baz
         }
     }
 
@@ -99,13 +81,13 @@ inner class ExprTest {
                 Import("foo", "foo", 1),
                 Import("barbar", "barbar", 2),
             )) {
-                it.buildSpan(functionDef, 6, 0, 18)
-                  .buildSpan(scope, 5, 0, 18)
-                  .buildSpan(expression, 4, 1, 16)
-                  .buildNode(ident, 0, 0, 13, 1) // a
-                  .buildNode(idFunc, 1, 2, 9, 3) // foo
-                  .buildNode(ident, 0, 1, 16, 1) // b
-                  .buildNode(idFunc, 2, 3, 1, 6) // barbar
+                it.buildSpan(nodFunctionDef, 6, 0, 18)
+                  .buildSpan(nodScope, 5, 0, 18)
+                  .buildSpan(nodExpr, 4, 1, 16)
+                  .buildNode(nodId, 0, 0, 13, 1) // a
+                  .buildNode(nodFunc, 1, 2, 9, 3) // foo
+                  .buildNode(nodId, 0, 1, 16, 1) // b
+                  .buildNode(nodFunc, 2, 3, 1, 6) // barbar
             }
     }
 
@@ -115,14 +97,14 @@ inner class ExprTest {
             "(a + b * c)", arrayListOf(
                 Import("a", "", -1), Import("b", "", -1), Import("c", "", -1)
             )) {
-                it.buildSpan(functionDef, 7, 0, 11)
-                  .buildSpan(scope, 6, 0, 11)
-                  .buildSpan(expression, 5, 1, 9)
-                  .buildNode(ident, 0, 0, 1, 1)
-                  .buildNode(ident, 0, 1, 5, 1)
-                  .buildNode(ident, 0, 2, 9, 1)
-                  .buildNode(idFunc, -2, 8, 7, 1)
-                  .buildNode(idFunc, -2, 10, 3, 1)
+                it.buildSpan(nodFunctionDef, 7, 0, 11)
+                  .buildSpan(nodScope, 6, 0, 11)
+                  .buildSpan(nodExpr, 5, 1, 9)
+                  .buildNode(nodId, 0, 0, 1, 1)
+                  .buildNode(nodId, 0, 1, 5, 1)
+                  .buildNode(nodId, 0, 2, 9, 1)
+                  .buildNode(nodFunc, -2, 8, 7, 1)
+                  .buildNode(nodFunc, -2, 10, 3, 1)
             }
     }
 
@@ -131,14 +113,14 @@ inner class ExprTest {
         testParseWithEnvironment("((a + b) * c)", arrayListOf(
                 Import("a", "", -1), Import("b", "", -1), Import("c", "", -1)
         )) {
-            it.buildSpan(functionDef, 7, 0, 13)
-              .buildSpan(scope, 6, 0, 13)
-              .buildSpan(expression, 5, 1, 11)
-              .buildNode(ident, 0, 0, 2, 1)
-              .buildNode(ident, 0, 1, 6, 1)
-              .buildNode(idFunc, -2, 10, 4, 1)
-              .buildNode(ident, 0, 2, 11, 1)
-              .buildNode(idFunc, -2, 8, 9, 1)
+            it.buildSpan(nodFunctionDef, 7, 0, 13)
+              .buildSpan(nodScope, 6, 0, 13)
+              .buildSpan(nodExpr, 5, 1, 11)
+              .buildNode(nodId, 0, 0, 2, 1)
+              .buildNode(nodId, 0, 1, 6, 1)
+              .buildNode(nodFunc, -2, 10, 4, 1)
+              .buildNode(nodId, 0, 2, 11, 1)
+              .buildNode(nodFunc, -2, 8, 9, 1)
 
         }
 
@@ -150,20 +132,20 @@ inner class ExprTest {
             "(a != 7 && a != 8 && a != 9)", arrayListOf(
                 Import("a", "", -1),
             )) {
-                it.buildSpan(functionDef, 13, 0, 28)
-                  .buildSpan(scope, 12, 0, 28)
-                  .buildSpan(expression, 11, 1, 26)
-                  .buildNode(ident, 0, 0, 1, 1)
-                  .buildNode(litInt, 0, 7, 6, 1)
-                  .buildNode(idFunc, -2, 0, 3, 2)
-                  .buildNode(ident, 0, 0, 11, 1)
-                  .buildNode(litInt, 0, 8, 16, 1)
-                  .buildNode(idFunc, -2, 0, 13, 2)
-                  .buildNode(idFunc, -2, 4, 8, 2)
-                  .buildNode(ident, 0, 0, 21, 1)
-                  .buildNode(litInt, 0, 9, 26, 1)
-                  .buildNode(idFunc, -2, 0, 23, 2)
-                  .buildNode(idFunc, -2, 4, 18, 2)
+                it.buildSpan(nodFunctionDef, 13, 0, 28)
+                  .buildSpan(nodScope, 12, 0, 28)
+                  .buildSpan(nodExpr, 11, 1, 26)
+                  .buildNode(nodId, 0, 0, 1, 1)
+                  .buildNode(nodInt, 0, 7, 6, 1)
+                  .buildNode(nodFunc, -2, 0, 3, 2)
+                  .buildNode(nodId, 0, 0, 11, 1)
+                  .buildNode(nodInt, 0, 8, 16, 1)
+                  .buildNode(nodFunc, -2, 0, 13, 2)
+                  .buildNode(nodFunc, -2, 4, 8, 2)
+                  .buildNode(nodId, 0, 0, 21, 1)
+                  .buildNode(nodInt, 0, 9, 26, 1)
+                  .buildNode(nodFunc, -2, 0, 23, 2)
+                  .buildNode(nodFunc, -2, 4, 18, 2)
         }
     }
 
@@ -174,12 +156,12 @@ inner class ExprTest {
                 Import("a", "", -1),
                 Import("foo", "foo", 1)
             )) {
-                it.buildSpan(functionDef, 5, 0, 8)
-                  .buildSpan(scope, 4, 0, 8)
-                  .buildSpan(expression, 3, 1, 6)
-                  .buildNode(ident, 0, 0, 6, 1)
-                  .buildNode(idFunc, -1, 1, 5, 1)
-                  .buildNode(idFunc, 1, 1, 1, 3)
+                it.buildSpan(nodFunctionDef, 5, 0, 8)
+                  .buildSpan(nodScope, 4, 0, 8)
+                  .buildSpan(nodExpr, 3, 1, 6)
+                  .buildNode(nodId, 0, 0, 6, 1)
+                  .buildNode(nodFunc, -1, 1, 5, 1)
+                  .buildNode(nodFunc, 1, 1, 1, 3)
             }
 
     }
@@ -193,15 +175,15 @@ inner class ExprTest {
                 Import("c", "", -1),
                 Import("foo", "foo", 3),
             )) {
-                it.buildSpan(functionDef, 8, 0, 13)
-                  .buildSpan(scope, 7, 0, 13)
-                  .buildSpan(expression, 6, 1, 11)
-                  .buildNode(ident, 0, 0, 6, 1) // a
-                  .buildNode(idFunc, -1, 1, 5, 1)
-                  .buildNode(ident, 0, 1, 8, 1) // b
-                  .buildNode(ident, 0, 2, 11, 1) // c
-                  .buildNode(idFunc, -1, 1, 10, 1)
-                  .buildNode(idFunc, 3, 3, 1, 3)
+                it.buildSpan(nodFunctionDef, 8, 0, 13)
+                  .buildSpan(nodScope, 7, 0, 13)
+                  .buildSpan(nodExpr, 6, 1, 11)
+                  .buildNode(nodId, 0, 0, 6, 1) // a
+                  .buildNode(nodFunc, -1, 1, 5, 1)
+                  .buildNode(nodId, 0, 1, 8, 1) // b
+                  .buildNode(nodId, 0, 2, 11, 1) // c
+                  .buildNode(nodFunc, -1, 1, 10, 1)
+                  .buildNode(nodFunc, 3, 3, 1, 3)
             }
     }
 
@@ -213,14 +195,14 @@ inner class ExprTest {
                 Import("b", "", -1),
                 Import("foo", "foo", 1),
             )) {
-                it.buildSpan(functionDef, 7, 0, 15)
-                  .buildSpan(scope, 6, 0, 15)
-                  .buildSpan(expression, 5, 1, 13)
-                  .buildNode(ident, 0, 0, 7, 1) // a
-                  .buildNode(ident, 0, 1, 12, 1) // b
-                  .buildNode(idFunc, -2, 35, 9, 2) // ||
-                  .buildNode(idFunc, -1, 1, 5, 1) // !
-                  .buildNode(idFunc, 1, 2, 1, 3)
+                it.buildSpan(nodFunctionDef, 7, 0, 15)
+                  .buildSpan(nodScope, 6, 0, 15)
+                  .buildSpan(nodExpr, 5, 1, 13)
+                  .buildNode(nodId, 0, 0, 7, 1) // a
+                  .buildNode(nodId, 0, 1, 12, 1) // b
+                  .buildNode(nodFunc, -2, 35, 9, 2) // ||
+                  .buildNode(nodFunc, -1, 1, 5, 1) // !
+                  .buildNode(nodFunc, 1, 2, 1, 3)
             }
     }
 
@@ -232,18 +214,18 @@ inner class ExprTest {
                 Import("b", "", -1),
                 Import("c", "", -1),
             )) {
-                it.buildSpan(functionDef, 11, 0, 21)
-                  .buildSpan(scope, 10, 0, 21)
-                  .buildSpan(expression, 9, 1, 19)
-                  .buildNode(ident, 0, 0, 1, 1)
-                  .buildNode(ident, 0, 1, 6, 1)
-                  .buildNode(ident, 0, 2, 10, 1)
-                  .buildNode(litInt, 0, 2, 14, 1)
-                  .buildNode(idFunc, -2, 3, 12, 1)
-                  .buildNode(idFunc, -2, 13, 8, 1)
-                  .buildNode(litInt, 0, 11, 18, 2)
-                  .buildNode(idFunc, -2, 7, 16, 2)
-                  .buildNode(idFunc, -2, 10, 3, 1)
+                it.buildSpan(nodFunctionDef, 11, 0, 21)
+                  .buildSpan(nodScope, 10, 0, 21)
+                  .buildSpan(nodExpr, 9, 1, 19)
+                  .buildNode(nodId, 0, 0, 1, 1)
+                  .buildNode(nodId, 0, 1, 6, 1)
+                  .buildNode(nodId, 0, 2, 10, 1)
+                  .buildNode(nodInt, 0, 2, 14, 1)
+                  .buildNode(nodFunc, -2, 3, 12, 1)
+                  .buildNode(nodFunc, -2, 13, 8, 1)
+                  .buildNode(nodInt, 0, 11, 18, 2)
+                  .buildNode(nodFunc, -2, 7, 16, 2)
+                  .buildNode(nodFunc, -2, 10, 3, 1)
             }
     }
 
@@ -253,12 +235,12 @@ inner class ExprTest {
             "(a + -5)", arrayListOf(
                 Import("a", "", -1)
             )) {
-                it.buildSpan(functionDef, 5, 0, 8)
-                  .buildSpan(scope, 4, 0, 8)
-                  .buildSpan(expression, 3, 1, 6)
-                  .buildNode(ident, 0, 0, 1, 1)
+                it.buildSpan(nodFunctionDef, 5, 0, 8)
+                  .buildSpan(nodScope, 4, 0, 8)
+                  .buildSpan(nodExpr, 3, 1, 6)
+                  .buildNode(nodId, 0, 0, 1, 1)
                   .buildIntNode(-5, 5, 2)
-                  .buildNode(idFunc, -2, 10, 3, 1)
+                  .buildNode(nodFunc, -2, 10, 3, 1)
             }
     }
 
@@ -268,13 +250,13 @@ inner class ExprTest {
             "(a + !(-5))", arrayListOf(
                 Import("a", "", -1)
             )) {
-                it.buildSpan(functionDef, 6, 0, 11)
-                  .buildSpan(scope, 5, 0, 11)
-                  .buildSpan(expression, 4, 1, 9)
-                  .buildNode(ident, 0, 0, 1, 1)
+                it.buildSpan(nodFunctionDef, 6, 0, 11)
+                  .buildSpan(nodScope, 5, 0, 11)
+                  .buildSpan(nodExpr, 4, 1, 9)
+                  .buildNode(nodId, 0, 0, 1, 1)
                   .buildIntNode(-5, 7, 2)
-                  .buildNode(idFunc, -1, 1, 5, 1)
-                  .buildNode(idFunc, -2, 10, 3, 1)
+                  .buildNode(nodFunc, -1, 1, 5, 1)
+                  .buildNode(nodFunc, -2, 10, 3, 1)
             }
 
     }
@@ -285,14 +267,14 @@ inner class ExprTest {
             "(a + !!(-3))", arrayListOf(
                 Import("a", "", -1)
             )) {
-                it.buildSpan(functionDef, 7, 0, 12)
-                  .buildSpan(scope, 6, 0, 12)
-                  .buildSpan(expression, 5, 1, 10)
-                  .buildNode(ident, 0, 0, 1, 1)
+                it.buildSpan(nodFunctionDef, 7, 0, 12)
+                  .buildSpan(nodScope, 6, 0, 12)
+                  .buildSpan(nodExpr, 5, 1, 10)
+                  .buildNode(nodId, 0, 0, 1, 1)
                   .buildIntNode(-3, 8, 2)
-                  .buildNode(idFunc, -1, 1, 6, 1)
-                  .buildNode(idFunc, -1, 1, 5, 1)
-                  .buildNode(idFunc, -2, 10, 3, 1)
+                  .buildNode(nodFunc, -1, 1, 6, 1)
+                  .buildNode(nodFunc, -1, 1, 5, 1)
+                  .buildNode(nodFunc, -2, 10, 3, 1)
             }
     }
 
@@ -307,36 +289,36 @@ inner class ExprTest {
     }
 
     @Test
-    fun `Single-item expression 1`() {
+    fun `Single-item nodExpr 1`() {
         testParseWithEnvironment(
             "(a + (5))", arrayListOf(
                 Import("a", "", -1)
             )) {
-                it.buildSpan(functionDef, 5, 0, 9)
-                  .buildSpan(scope, 4, 0, 9)
-                  .buildSpan(expression, 3, 1, 7)
-                  .buildNode(ident, 0, 0, 1, 1)
-                  .buildNode(litInt, 0, 5, 6, 1)
-                  .buildNode(idFunc, -2, 10, 3, 1)
+                it.buildSpan(nodFunctionDef, 5, 0, 9)
+                  .buildSpan(nodScope, 4, 0, 9)
+                  .buildSpan(nodExpr, 3, 1, 7)
+                  .buildNode(nodId, 0, 0, 1, 1)
+                  .buildNode(nodInt, 0, 5, 6, 1)
+                  .buildNode(nodFunc, -2, 10, 3, 1)
             }
     }
 
     @Test
-    fun `Single-item expression 2`() {
+    fun `Single-item nodExpr 2`() {
         testParseWithEnvironment(
             "(foo 5 !!!(a))", arrayListOf(
                 Import("a", "", -1),
                 Import("foo", "foo", 2)
             )) {
-                it.buildSpan(functionDef, 8, 0, 14)
-                  .buildSpan(scope, 7, 0, 14)
-                  .buildSpan(expression, 6, 1, 12)
-                  .buildNode(litInt, 0, 5, 5, 1)
-                  .buildNode(ident, 0, 0, 11, 1)
-                  .buildNode(idFunc, -1, 1, 9, 1)
-                  .buildNode(idFunc, -1, 1, 8, 1)
-                  .buildNode(idFunc, -1, 1, 7, 1)
-                  .buildNode(idFunc, 2, 1, 1, 4)
+                it.buildSpan(nodFunctionDef, 8, 0, 14)
+                  .buildSpan(nodScope, 7, 0, 14)
+                  .buildSpan(nodExpr, 6, 1, 12)
+                  .buildNode(nodInt, 0, 5, 5, 1)
+                  .buildNode(nodId, 0, 0, 11, 1)
+                  .buildNode(nodFunc, -1, 1, 9, 1)
+                  .buildNode(nodFunc, -1, 1, 8, 1)
+                  .buildNode(nodFunc, -1, 1, 7, 1)
+                  .buildNode(nodFunc, 2, 1, 1, 4)
             }
     }
 
@@ -355,70 +337,70 @@ inner class ExprTest {
     }
 
     @Test
-    fun `Head-function expression 1`() {
+    fun `Head-function nodExpr 1`() {
         testParseWithEnvironment(
             "((f a) 5)", arrayListOf(
                 Import("f", "f", 2),
                 Import("a", "", -1),
             )) {
-            it.buildSpan(functionDef, 5, 0, 9)
-              .buildSpan(scope, 4, 0, 9)
-              .buildSpan(expression, 3, 1, 7)
-              .buildNode(ident, 0, 1, 4, 1)
+            it.buildSpan(nodFunctionDef, 5, 0, 9)
+              .buildSpan(nodScope, 4, 0, 9)
+              .buildSpan(nodExpr, 3, 1, 7)
+              .buildNode(nodId, 0, 1, 4, 1)
               .buildIntNode(5, 7, 1)
-              .buildNode(idFunc, 2, 0, 2, 1)
+              .buildNode(nodFunc, 2, 0, 2, 1)
         }
     }
 
     @Test
-    fun `Head-function expression 2`() {
+    fun `Head-function nodExpr 2`() {
         testParseWithEnvironment(
             "(f ((g a) 4))", arrayListOf(
                 Import("f", "f", 1),
                 Import("g", "g", 2),
                 Import("a", "", -1),
             )) {
-            it.buildSpan(functionDef, 6, 0, 13)
-              .buildSpan(scope, 5, 0, 13)
-              .buildSpan(expression, 4, 1, 11)
-              .buildNode(ident, 0, 2, 7, 1)
+            it.buildSpan(nodFunctionDef, 6, 0, 13)
+              .buildSpan(nodScope, 5, 0, 13)
+              .buildSpan(nodExpr, 4, 1, 11)
+              .buildNode(nodId, 0, 2, 7, 1)
               .buildIntNode(4, 10, 1)
-              .buildNode(idFunc, 2, 1, 5, 1)
-              .buildNode(idFunc, 1, 0, 1, 1)
+              .buildNode(nodFunc, 2, 1, 5, 1)
+              .buildNode(nodFunc, 1, 0, 1, 1)
         }
     }
 
     @Test
-    fun `Head-function expression 3`() {
+    fun `Head-function nodExpr 3`() {
         testParseWithEnvironment(
             "((1 +) 5)", arrayListOf(
                 Import("f", "f", 2),
                 Import("a", "", -1),
             )) {
-            it.buildSpan(functionDef, 5, 0, 9)
-                .buildSpan(scope, 4, 0, 9)
-                .buildSpan(expression, 3, 1, 7)
+            it.buildSpan(nodFunctionDef, 5, 0, 9)
+                .buildSpan(nodScope, 4, 0, 9)
+                .buildSpan(nodExpr, 3, 1, 7)
                 .buildIntNode(1, 2, 1)
                 .buildIntNode(5, 7, 1)
-                .buildNode(idFunc, -2, 10, 4, 1)
+                .buildNode(nodFunc, -2, 10, 4, 1)
         }
     }
 
     @Test
-    fun `Head-function expression 4`() {
+    fun `Head-function nodExpr 4`() {
         testParseWithEnvironment(
             "((3*a +) 5)", arrayListOf(
                 Import("f", "f", 2),
                 Import("a", "", -1),
             )) {
-            it.buildSpan(functionDef, 7, 0, 11)
-                .buildSpan(scope, 6, 0, 11)
-                .buildSpan(expression, 5, 1, 9)
+            it.buildSpan(nodFunctionDef, 7, 0, 11)
+                .buildSpan(nodScope, 6, 0, 11)
+                .buildSpan(nodExpr, 5, 1, 9)
                 .buildIntNode(3, 2, 1)
-                .buildNode(ident, 0, 1, 4, 1)
-                .buildNode(idFunc, -2, 8, 3, 1) // *
+                .buildNode(nodId, 0, 1, 4, 1)
+                .buildNode(nodFunc, -2, 8, 3, 1) // *
                 .buildIntNode(5, 9, 1)
-                .buildNode(idFunc, -2, 10, 6, 1)// +
+                .buildNode(nodFunc, -2, 10, 6, 1)// +
         }
     }
 
@@ -440,12 +422,12 @@ inner class ExprTest {
 //                Import("f", "f", 2),
 //                Import("a", "", -1),
 //            )) {
-//            it.buildSpan(functionDef, 5, 0, 9)
-//                .buildSpan(scope, 4, 0, 9)
-//                .buildSpan(expression, 3, 1, 7)
+//            it.buildSpan(nodFunctionDef, 5, 0, 9)
+//                .buildSpan(nodScope, 4, 0, 9)
+//                .buildSpan(nodExpr, 3, 1, 7)
 //                .buildIntNode(1, 2, 1)
 //                .buildIntNode(5, 7, 1)
-//                .buildNode(idFunc, -2, 10, 4, 1)
+//                .buildNode(nodFunc, -2, 10, 4, 1)
 //        }
 //    }
 
@@ -460,14 +442,14 @@ inner class AssignmentTest {
             "(a = 1 + 5)", arrayListOf())
             {
                 it.buildInsertString("a")
-                  .buildSpan(functionDef, 7, 0, 11)
-                  .buildSpan(scope, 6, 0, 11)
-                  .buildSpan(statementAssignment, 5, 1, 9)
-                  .buildNode(binding, 0, it.indFirstName, 1, 1)
-                  .buildSpan(expression, 3, 5, 5)
-                  .buildNode(litInt, 0, 1, 5, 1)
-                  .buildNode(litInt, 0, 5, 9, 1)
-                  .buildNode(idFunc, -2, 10, 7, 1)
+                  .buildSpan(nodFunctionDef, 7, 0, 11)
+                  .buildSpan(nodScope, 6, 0, 11)
+                  .buildSpan(nodStmtAssignment, 5, 1, 9)
+                  .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
+                  .buildSpan(nodExpr, 3, 5, 5)
+                  .buildNode(nodInt, 0, 1, 5, 1)
+                  .buildNode(nodInt, 0, 5, 9, 1)
+                  .buildNode(nodFunc, -2, 10, 7, 1)
             }
     }
 
@@ -477,11 +459,11 @@ inner class AssignmentTest {
             "(a = 9)", arrayListOf())
             {
                 it.buildInsertString("a")
-                  .buildSpan(functionDef, 4, 0, 7)
-                  .buildSpan(scope, 3, 0, 7)
-                  .buildSpan(statementAssignment, 2, 1, 5)
-                  .buildNode(binding, 0, it.indFirstName, 1, 1)
-                  .buildNode(litInt, 0, 9, 5, 1)
+                  .buildSpan(nodFunctionDef, 4, 0, 7)
+                  .buildSpan(nodScope, 3, 0, 7)
+                  .buildSpan(nodStmtAssignment, 2, 1, 5)
+                  .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
+                  .buildNode(nodInt, 0, 9, 5, 1)
             }
     }
 }
@@ -489,7 +471,7 @@ inner class AssignmentTest {
 @Nested
 inner class ScopeTest {
     @Test
-    fun `Simple scope 1`() {
+    fun `Simple nodScope 1`() {
         testParseWithEnvironment(
             """(
     (x = 5)
@@ -498,20 +480,20 @@ inner class ScopeTest {
 )""", arrayListOf(Import("print", "console.log", 1)))
             {
                 it.buildInsertString("x")
-                  .buildSpan(functionDef, 8, 0, 30)
-                  .buildSpan(scope, 7, 0, 30)
-                  .buildSpan(scope, 6, 1, 28)
-                  .buildSpan(statementAssignment, 2, 7, 5)
-                  .buildNode(binding, 0, it.indFirstName, 7, 1)
-                  .buildNode(litInt, 0, 5, 11, 1)
-                  .buildSpan(expression, 2, 20, 7)
-                  .buildNode(ident, 0, it.indFirstName, 26, 1)
-                  .buildNode(idFunc, 1, 0, 20, 5)
+                  .buildSpan(nodFunctionDef, 8, 0, 30)
+                  .buildSpan(nodScope, 7, 0, 30)
+                  .buildSpan(nodScope, 6, 1, 28)
+                  .buildSpan(nodStmtAssignment, 2, 7, 5)
+                  .buildNode(nodBinding, 0, it.indFirstName, 7, 1)
+                  .buildNode(nodInt, 0, 5, 11, 1)
+                  .buildSpan(nodExpr, 2, 20, 7)
+                  .buildNode(nodId, 0, it.indFirstName, 26, 1)
+                  .buildNode(nodFunc, 1, 0, 20, 5)
             }
     }
 
     @Test
-    fun `Simple scope 2`() {
+    fun `Simple nodScope 2`() {
         testParseWithEnvironment(
             """(
     (x = 123)  (yy = x * 10)
@@ -521,21 +503,21 @@ inner class ScopeTest {
             {
                 it.buildInsertString("x")
                   .buildInsertString("yy")
-                  .buildSpan(functionDef, 14, 0, 47)
-                  .buildSpan(scope, 13, 0, 47)
-                  .buildSpan(scope, 12, 1, 45)
-                  .buildSpan(statementAssignment, 2, 7, 7)
-                  .buildNode(binding, 0, it.indFirstName, 7, 1)
-                  .buildNode(litInt, 0, 123, 11, 3)
-                  .buildSpan(statementAssignment, 5, 18, 11)
-                  .buildNode(binding, 0, it.indFirstName + 1, 18, 2)
-                  .buildSpan(expression, 3, 23, 6)
-                  .buildNode(ident, 0, it.indFirstName, 23, 1)
-                  .buildNode(litInt, 0, 10, 27, 2)
-                  .buildNode(idFunc, -2, 8, 25, 1)
-                  .buildSpan(expression, 2, 36, 8)
-                  .buildNode(ident, 0, it.indFirstName + 1, 42, 2)
-                  .buildNode(idFunc, 1, 0, 36, 5)
+                  .buildSpan(nodFunctionDef, 14, 0, 47)
+                  .buildSpan(nodScope, 13, 0, 47)
+                  .buildSpan(nodScope, 12, 1, 45)
+                  .buildSpan(nodStmtAssignment, 2, 7, 7)
+                  .buildNode(nodBinding, 0, it.indFirstName, 7, 1)
+                  .buildNode(nodInt, 0, 123, 11, 3)
+                  .buildSpan(nodStmtAssignment, 5, 18, 11)
+                  .buildNode(nodBinding, 0, it.indFirstName + 1, 18, 2)
+                  .buildSpan(nodExpr, 3, 23, 6)
+                  .buildNode(nodId, 0, it.indFirstName, 23, 1)
+                  .buildNode(nodInt, 0, 10, 27, 2)
+                  .buildNode(nodFunc, -2, 8, 25, 1)
+                  .buildSpan(nodExpr, 2, 36, 8)
+                  .buildNode(nodId, 0, it.indFirstName + 1, 42, 2)
+                  .buildNode(nodFunc, 1, 0, 36, 5)
             }
     }
 
@@ -559,10 +541,10 @@ inner class TypesTest {
         testParseWithEnvironment(
             "(:: Int)", arrayListOf())
         {
-            it.buildSpan(functionDef, 3, 0, 8)
-              .buildSpan(scope, 2, 0, 8)
-              .buildSpan(typeDecl, 1, 1, 6)
-              .buildNode(idType, 1, 0, 4, 3)
+            it.buildSpan(nodFunctionDef, 3, 0, 8)
+              .buildSpan(nodScope, 2, 0, 8)
+              .buildSpan(nodTypeDecl, 1, 1, 6)
+              .buildNode(nodTypeId, 1, 0, 4, 3)
         }
     }
 
@@ -571,11 +553,11 @@ inner class TypesTest {
         testParseWithEnvironment(
             "(:: List Int)", arrayListOf(Import("List", "List", 1)))
         {
-            it.buildSpan(functionDef, 4, 0, 13)
-              .buildSpan(scope, 3, 0, 13)
-              .buildSpan(typeDecl, 2, 1, 11)
-              .buildNode(idType, 1, 0, 9, 3)
-              .buildNode(typeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 4, 4)
+            it.buildSpan(nodFunctionDef, 4, 0, 13)
+              .buildSpan(nodScope, 3, 0, 13)
+              .buildSpan(nodTypeDecl, 2, 1, 11)
+              .buildNode(nodTypeId, 1, 0, 9, 3)
+              .buildNode(nodTypeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 4, 4)
         }
     }
 
@@ -584,11 +566,11 @@ inner class TypesTest {
         testParseWithEnvironment(
             "(:: &Int)", arrayListOf())
         {
-            it.buildSpan(functionDef, 4, 0, 9)
-              .buildSpan(scope, 3, 0, 9)
-              .buildSpan(typeDecl, 2, 1, 7)
-              .buildNode(idType, 1, 0, 5, 3)
-              .buildNode(typeFunc, 1 + (1 shl 31), 5, 4, 1)
+            it.buildSpan(nodFunctionDef, 4, 0, 9)
+              .buildSpan(nodScope, 3, 0, 9)
+              .buildSpan(nodTypeDecl, 2, 1, 7)
+              .buildNode(nodTypeId, 1, 0, 5, 3)
+              .buildNode(nodTypeFunc, 1 + (1 shl 31), 5, 4, 1)
         }
     }
 
@@ -598,11 +580,11 @@ inner class TypesTest {
             "(:: List a)", arrayListOf(Import("List", "List", 1)))
         {
             it.buildInsertString("a")
-              .buildSpan(functionDef, 4, 0, 11)
-              .buildSpan(scope, 3, 0, 11)
-              .buildSpan(typeDecl, 2, 1, 9)
-              .buildNode(idType, 0, it.indFirstName, 9, 1)
-              .buildNode(typeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 4, 4)
+              .buildSpan(nodFunctionDef, 4, 0, 11)
+              .buildSpan(nodScope, 3, 0, 11)
+              .buildSpan(nodTypeDecl, 2, 1, 9)
+              .buildNode(nodTypeId, 0, it.indFirstName, 9, 1)
+              .buildNode(nodTypeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 4, 4)
         }
     }
 
@@ -612,11 +594,11 @@ inner class TypesTest {
             "(:: a Int)", arrayListOf())
         {
             it.buildInsertString("a")
-              .buildSpan(functionDef, 4, 0, 10)
-              .buildSpan(scope, 3, 0, 10)
-              .buildSpan(typeDecl, 2, 1, 8)
-              .buildNode(idType, 1, 0, 6, 3)
-              .buildNode(typeFunc, 1, it.indFirstName, 4, 1)
+              .buildSpan(nodFunctionDef, 4, 0, 10)
+              .buildSpan(nodScope, 3, 0, 10)
+              .buildSpan(nodTypeDecl, 2, 1, 8)
+              .buildNode(nodTypeId, 1, 0, 6, 3)
+              .buildNode(nodTypeFunc, 1, it.indFirstName, 4, 1)
         }
     }
 
@@ -625,12 +607,12 @@ inner class TypesTest {
         testParseWithEnvironment(
             "(:: List Int .Maybe)", arrayListOf(Import("List", "List", 1), Import("Maybe", "Maybe", 1)))
         {
-            it.buildSpan(functionDef, 5, 0, 20)
-              .buildSpan(scope, 4, 0, 20)
-              .buildSpan(typeDecl, 3, 1, 18)
-              .buildNode(idType, 1, 0, 9, 3)
-              .buildNode(typeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 4, 4)
-              .buildNode(typeFunc, 1 + (1 shl 30), it.indFirstFunction + 2, 13, 6)
+            it.buildSpan(nodFunctionDef, 5, 0, 20)
+              .buildSpan(nodScope, 4, 0, 20)
+              .buildSpan(nodTypeDecl, 3, 1, 18)
+              .buildNode(nodTypeId, 1, 0, 9, 3)
+              .buildNode(nodTypeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 4, 4)
+              .buildNode(nodTypeFunc, 1 + (1 shl 30), it.indFirstFunction + 2, 13, 6)
         }
     }
 
@@ -639,13 +621,13 @@ inner class TypesTest {
         testParseWithEnvironment(
             "(:: Pair Float (List Int))", arrayListOf(Import("List", "List", 1), Import("Pair", "Pair", 2)))
         {
-            it.buildSpan(functionDef, 6, 0, 26)
-              .buildSpan(scope, 5, 0, 26)
-              .buildSpan(typeDecl, 4, 1, 24)
-              .buildNode(idType, 1, 1, 9, 5) // Float
-              .buildNode(idType, 1, 0, 21, 3) // Int
-              .buildNode(typeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 16, 4)
-              .buildNode(typeFunc, 2 + (1 shl 30), it.indFirstFunction + 2, 4, 4)
+            it.buildSpan(nodFunctionDef, 6, 0, 26)
+              .buildSpan(nodScope, 5, 0, 26)
+              .buildSpan(nodTypeDecl, 4, 1, 24)
+              .buildNode(nodTypeId, 1, 1, 9, 5) // Float
+              .buildNode(nodTypeId, 1, 0, 21, 3) // Int
+              .buildNode(nodTypeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 16, 4)
+              .buildNode(nodTypeFunc, 2 + (1 shl 30), it.indFirstFunction + 2, 4, 4)
         }
     }
 
@@ -654,12 +636,12 @@ inner class TypesTest {
         testParseWithEnvironment(
             "(:: List &Int)", arrayListOf(Import("List", "List", 1), Import("Pair", "Pair", 2)))
         {
-            it.buildSpan(functionDef, 5, 0, 14)
-              .buildSpan(scope, 4, 0, 14)
-              .buildSpan(typeDecl, 3, 1, 12)
-              .buildNode(idType, 1, 0, 10, 3) // Int
-              .buildNode(typeFunc, 1 + (1 shl 31), 5, 9, 1) // &
-              .buildNode(typeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 4, 4)
+            it.buildSpan(nodFunctionDef, 5, 0, 14)
+              .buildSpan(nodScope, 4, 0, 14)
+              .buildSpan(nodTypeDecl, 3, 1, 12)
+              .buildNode(nodTypeId, 1, 0, 10, 3) // Int
+              .buildNode(nodTypeFunc, 1 + (1 shl 31), 5, 9, 1) // &
+              .buildNode(nodTypeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 4, 4)
         }
     }
 
@@ -668,13 +650,13 @@ inner class TypesTest {
         testParseWithEnvironment(
             "(:: &Int * Float)", arrayListOf())
         {
-            it.buildSpan(functionDef, 6, 0, 17)
-              .buildSpan(scope, 5, 0, 17)
-              .buildSpan(typeDecl, 4, 1, 15)
-              .buildNode(idType, 1, 0, 5, 3) // Int
-              .buildNode(typeFunc, 1 + (1 shl 31), 5, 4, 1) // &
-              .buildNode(idType, 1, 1, 11, 5) // Float
-              .buildNode(typeFunc, 2 + (1 shl 31), 8, 9, 1) // *
+            it.buildSpan(nodFunctionDef, 6, 0, 17)
+              .buildSpan(nodScope, 5, 0, 17)
+              .buildSpan(nodTypeDecl, 4, 1, 15)
+              .buildNode(nodTypeId, 1, 0, 5, 3) // Int
+              .buildNode(nodTypeFunc, 1 + (1 shl 31), 5, 4, 1) // &
+              .buildNode(nodTypeId, 1, 1, 11, 5) // Float
+              .buildNode(nodTypeFunc, 2 + (1 shl 31), 8, 9, 1) // *
         }
     }
 
@@ -683,15 +665,15 @@ inner class TypesTest {
         testParseWithEnvironment(
             "(:: Pair &(List Int) (List Bool))", arrayListOf(Import("List", "List", 1), Import("Pair", "Pair", 2)))
         {
-            it.buildSpan(functionDef, 8, 0, 33)
-              .buildSpan(scope, 7, 0, 33)
-              .buildSpan(typeDecl, 6, 1, 31)
-              .buildNode(idType, 1, 0, 16, 3) // Int
-              .buildNode(typeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 11, 4) // List
-              .buildNode(typeFunc, 1 + (1 shl 31), 5, 9, 1) // &
-              .buildNode(idType, 1, 2, 27, 4) // Float
-              .buildNode(typeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 22, 4) // List
-              .buildNode(typeFunc, 2 + (1 shl 30), it.indFirstFunction + 2, 4, 4) // Pair
+            it.buildSpan(nodFunctionDef, 8, 0, 33)
+              .buildSpan(nodScope, 7, 0, 33)
+              .buildSpan(nodTypeDecl, 6, 1, 31)
+              .buildNode(nodTypeId, 1, 0, 16, 3) // Int
+              .buildNode(nodTypeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 11, 4) // List
+              .buildNode(nodTypeFunc, 1 + (1 shl 31), 5, 9, 1) // &
+              .buildNode(nodTypeId, 1, 2, 27, 4) // Float
+              .buildNode(nodTypeFunc, 1 + (1 shl 30), it.indFirstFunction + 1, 22, 4) // List
+              .buildNode(nodTypeFunc, 2 + (1 shl 30), it.indFirstFunction + 2, 4, 4) // Pair
         }
     }
 
@@ -728,16 +710,16 @@ inner class FunctionTest {
               .buildInsertString("newFn")
               .buildFunction(1, 1, 0)
 
-              .buildSpan(functionDef, 6, 1, 33)
-              .buildNode(ident, 0, it.indFirstName, 10, 1)
-              .buildSpan(scope, 4, 13, 20)
-              .buildSpan(returnExpression, 3, 19, 12)
-              .buildNode(ident, 0, it.indFirstName, 26, 1)
-              .buildNode(litInt, 0, 3, 30, 1)
-              .buildNode(idFunc, -2, 10, 28, 1)
+              .buildSpan(nodFunctionDef, 6, 1, 33)
+              .buildNode(nodId, 0, it.indFirstName, 10, 1)
+              .buildSpan(nodScope, 4, 13, 20)
+              .buildSpan(nodReturn, 3, 19, 12)
+              .buildNode(nodId, 0, it.indFirstName, 26, 1)
+              .buildNode(nodInt, 0, 3, 30, 1)
+              .buildNode(nodFunc, -2, 10, 28, 1)
 
-              .buildSpan(functionDef, 2, 0, 35)
-              .buildSpan(scope, 1, 0, 35)
+              .buildSpan(nodFunctionDef, 2, 0, 35)
+              .buildSpan(nodScope, 1, 0, 35)
               .buildFnDefPlaceholder(it.indFirstFunction + 1)
         }
     }
@@ -762,43 +744,43 @@ inner class FunctionTest {
               .buildFunction(it.indFirstName + 2, 2, 15)
               .buildFunction(it.indFirstName + 6, 3, 0)
 
-              .buildSpan(functionDef, 14, 66, 53) // inner
-              .buildNode(ident, 0, it.indFirstName + 3, 75, 1)
-              .buildNode(ident, 0, it.indFirstName + 4, 77, 1)
-              .buildNode(ident, 0, it.indFirstName + 5, 79, 1)
-              .buildSpan(scope, 10, 82, 36)
-              .buildSpan(returnExpression, 9, 92, 20)
-              .buildNode(ident, 0, it.indFirstName + 3, 99, 1) // a
-              .buildNode(litInt, 0, 2, 103, 1)
-              .buildNode(ident, 0, it.indFirstName + 4, 105, 1) // b
-              .buildNode(idFunc, -2, 8, 104, 1) // *
-              .buildNode(idFunc, -2, 13, 101, 1) // -
-              .buildNode(litInt, 0, 3, 109, 1)
-              .buildNode(ident, 0, it.indFirstName + 5, 111, 1) // c
-              .buildNode(idFunc, -2, 8, 110, 1) // *
-              .buildNode(idFunc, -2, 10, 107, 1) // +
+              .buildSpan(nodFunctionDef, 14, 66, 53) // inner
+              .buildNode(nodId, 0, it.indFirstName + 3, 75, 1)
+              .buildNode(nodId, 0, it.indFirstName + 4, 77, 1)
+              .buildNode(nodId, 0, it.indFirstName + 5, 79, 1)
+              .buildSpan(nodScope, 10, 82, 36)
+              .buildSpan(nodReturn, 9, 92, 20)
+              .buildNode(nodId, 0, it.indFirstName + 3, 99, 1) // a
+              .buildNode(nodInt, 0, 2, 103, 1)
+              .buildNode(nodId, 0, it.indFirstName + 4, 105, 1) // b
+              .buildNode(nodFunc, -2, 8, 104, 1) // *
+              .buildNode(nodFunc, -2, 13, 101, 1) // -
+              .buildNode(nodInt, 0, 3, 109, 1)
+              .buildNode(nodId, 0, it.indFirstName + 5, 111, 1) // c
+              .buildNode(nodFunc, -2, 8, 110, 1) // *
+              .buildNode(nodFunc, -2, 10, 107, 1) // +
 
-              .buildSpan(functionDef, 17, 1, 121) // foo
-              .buildNode(ident, 0, it.indFirstName, 8, 1) // param x
-              .buildNode(ident, 0, it.indFirstName + 1, 10, 1) // param y
-              .buildSpan(scope, 14, 13, 108)
-              .buildSpan(statementAssignment, 5, 19, 7)
-              .buildNode(binding, 0, it.indFirstName + 7, 19, 1) // z
-              .buildSpan(expression, 3, 23, 3)
-              .buildNode(ident, 0, it.indFirstName, 23, 1)     // x
-              .buildNode(ident, 0, it.indFirstName + 1, 25, 1) // y
-              .buildNode(idFunc, -2, 8, 24, 1) // *
-              .buildSpan(returnExpression, 6, 33, 25)
-              .buildNode(ident, 0, it.indFirstName + 7, 47, 1) // z
-              .buildNode(ident, 0, it.indFirstName, 51, 1) // x
-              .buildNode(idFunc, -2, 10, 49, 1) // +
+              .buildSpan(nodFunctionDef, 17, 1, 121) // foo
+              .buildNode(nodId, 0, it.indFirstName, 8, 1) // param x
+              .buildNode(nodId, 0, it.indFirstName + 1, 10, 1) // param y
+              .buildSpan(nodScope, 14, 13, 108)
+              .buildSpan(nodStmtAssignment, 5, 19, 7)
+              .buildNode(nodBinding, 0, it.indFirstName + 7, 19, 1) // z
+              .buildSpan(nodExpr, 3, 23, 3)
+              .buildNode(nodId, 0, it.indFirstName, 23, 1)     // x
+              .buildNode(nodId, 0, it.indFirstName + 1, 25, 1) // y
+              .buildNode(nodFunc, -2, 8, 24, 1) // *
+              .buildSpan(nodReturn, 6, 33, 25)
+              .buildNode(nodId, 0, it.indFirstName + 7, 47, 1) // z
+              .buildNode(nodId, 0, it.indFirstName, 51, 1) // x
+              .buildNode(nodFunc, -2, 10, 49, 1) // +
               .buildIntNode(5L, 54, 1)
               .buildIntNode(-2L, 56, 2)
-              .buildNode(idFunc, 3, it.indFirstName + 6, 40, 5) // inner
+              .buildNode(nodFunc, 3, it.indFirstName + 6, 40, 5) // inner
               .buildFnDefPlaceholder(it.indFirstFunction + 2) // definition of inner
 
-              .buildSpan(functionDef, 2, 0, 123) // entrypoint
-              .buildSpan(scope, 1, 0, 123)
+              .buildSpan(nodFunctionDef, 2, 0, 123) // entrypoint
+              .buildSpan(nodScope, 1, 0, 123)
               .buildFnDefPlaceholder(it.indFirstFunction + 1) // definition of foo
             it.ast.functions.setFourth(it.indFirstFunction, 33)
 
@@ -852,14 +834,14 @@ inner class IfTest {
     @Test
     fun `Simple if 1`() {
         testParseWithEnvironment(
-            "(? true -> 6)", arrayListOf()
+            "(if true. 6)", arrayListOf()
         )
         {
-            it.buildSpan(functionDef, 5, 0, 13)
-              .buildSpan(scope, 4, 0, 13)
-              .buildSpan(ifSpan, 3, 1, 11)
-              .buildSpan(ifClauseGroup, 2, 3, 9)
-              .buildNode(litBool, 0, 1, 3, 4)
+            it.buildSpan(nodFunctionDef, 5, 0, 13)
+              .buildSpan(nodScope, 4, 0, 13)
+              .buildSpan(nodIfSpan, 3, 1, 11)
+              .buildSpan(nodIfClause, 2, 3, 9)
+              .buildNode(nodBool, 0, 1, 3, 4)
               .buildIntNode(6, 11, 1)
         }
     }
@@ -872,14 +854,14 @@ inner class IfTest {
         )
         {
             it.buildInsertString("x")
-              .buildSpan(functionDef, 8, 0, 23)
-              .buildSpan(scope, 7, 0, 23)
-              .buildSpan(statementAssignment, 2, 1, 9)
-              .buildNode(binding, 0, it.indFirstName, 1, 1)
-              .buildNode(litBool, 0, 0, 5, 5)
-              .buildSpan(ifSpan, 3, 13, 9)
-              .buildSpan(ifClauseGroup, 2, 15, 7)
-              .buildNode(ident, 0, it.indFirstName, 15, 1)
+              .buildSpan(nodFunctionDef, 8, 0, 23)
+              .buildSpan(nodScope, 7, 0, 23)
+              .buildSpan(nodStmtAssignment, 2, 1, 9)
+              .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
+              .buildNode(nodBool, 0, 0, 5, 5)
+              .buildSpan(nodIfSpan, 3, 13, 9)
+              .buildSpan(nodIfClause, 2, 15, 7)
+              .buildNode(nodId, 0, it.indFirstName, 15, 1)
               .buildIntNode(88, 20, 2)
         }
     }
@@ -887,21 +869,21 @@ inner class IfTest {
     @Test
     fun `Simple if 3`() {
         testParseWithEnvironment(
-            """(x = false)
-(? !x -> 88)""", arrayListOf()
+            """x = false.
+(if !x. 88)""", arrayListOf()
         )
         {
             it.buildInsertString("x")
-              .buildSpan(functionDef, 10, 0, 24)
-              .buildSpan(scope, 9, 0, 24)
-              .buildSpan(statementAssignment, 2, 1, 9)
-              .buildNode(binding, 0, it.indFirstName, 1, 1)
-              .buildNode(litBool, 0, 0, 5, 5)
-              .buildSpan(ifSpan, 5, 13, 10)
-              .buildSpan(ifClauseGroup, 4, 15, 8)
-              .buildSpan(expression, 2, 15, 2)
-              .buildNode(ident, 0, it.indFirstName, 16, 1)
-              .buildNode(idFunc, -1, 1, 15, 1)
+              .buildSpan(nodFunctionDef, 10, 0, 24)
+              .buildSpan(nodScope, 9, 0, 24)
+              .buildSpan(nodStmtAssignment, 2, 1, 9)
+              .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
+              .buildNode(nodBool, 0, 0, 5, 5)
+              .buildSpan(nodIfSpan, 5, 13, 10)
+              .buildSpan(nodIfClause, 4, 15, 8)
+              .buildSpan(nodExpr, 2, 15, 2)
+              .buildNode(nodId, 0, it.indFirstName, 16, 1)
+              .buildNode(nodFunc, -1, 1, 15, 1)
               .buildIntNode(88, 21, 2)
         }
     }
@@ -909,24 +891,24 @@ inner class IfTest {
     @Test
     fun `If-else 1`() {
         testParseWithEnvironment(
-            """(x = false)
-(? !x -> 88 : 1)""", arrayListOf()
+            """x = false.
+(if !x. 88. 1)""", arrayListOf()
         )
         {
             it.buildInsertString("x")
-              .buildSpan(functionDef, 13, 0, 28)
-              .buildSpan(scope, 12, 0, 28)
-              .buildSpan(statementAssignment, 2, 1, 9)
-              .buildNode(binding, 0, it.indFirstName, 1, 1)
-              .buildNode(litBool, 0, 0, 5, 5)
-              .buildSpan(ifSpan, 8, 13, 14)
-              .buildSpan(ifClauseGroup, 4, 15, 8)
-              .buildSpan(expression, 2, 15, 2)
-              .buildNode(ident, 0, it.indFirstName, 16, 1)
-              .buildNode(idFunc, -1, 1, 15, 1)
+              .buildSpan(nodFunctionDef, 13, 0, 28)
+              .buildSpan(nodScope, 12, 0, 28)
+              .buildSpan(nodStmtAssignment, 2, 1, 9)
+              .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
+              .buildNode(nodBool, 0, 0, 5, 5)
+              .buildSpan(nodIfSpan, 8, 13, 14)
+              .buildSpan(nodIfClause, 4, 15, 8)
+              .buildSpan(nodExpr, 2, 15, 2)
+              .buildNode(nodId, 0, it.indFirstName, 16, 1)
+              .buildNode(nodFunc, -1, 1, 15, 1)
               .buildIntNode(88, 21, 2)
-              .buildSpan(ifClauseGroup, 2, 24, 3)
-              .buildNode(underscore, 0, 0, 24, 1)
+              .buildSpan(nodIfClause, 2, 24, 3)
+              .buildNode(nodUnderscore, 0, 0, 24, 1)
               .buildIntNode(1, 26, 1)
         }
     }
@@ -934,38 +916,39 @@ inner class IfTest {
     @Test
     fun `If-else 2`() {
         testParseWithEnvironment(
-            """(x = 10)
-(? (x > 8) -> 88
-   (x > 7) -> 77
-            : 1)""", arrayListOf()
+            """x = 10.
+(if x > 8. 88.
+    x > 7. 77.
+            1
+)""", arrayListOf()
         )
         {
             it.buildInsertString("x")
-              .buildSpan(functionDef, 20, 0, 60)
-              .buildSpan(scope, 19, 0, 60)
-              .buildSpan(statementAssignment, 2, 1, 6)
-              .buildNode(binding, 0, it.indFirstName, 1, 1)
+              .buildSpan(nodFunctionDef, 20, 0, 60)
+              .buildSpan(nodScope, 19, 0, 60)
+              .buildSpan(nodStmtAssignment, 2, 1, 6)
+              .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
               .buildIntNode(10, 5, 2)
 
-              .buildSpan(ifSpan, 15, 10, 49)
+              .buildSpan(nodIfSpan, 15, 10, 49)
 
-              .buildSpan(ifClauseGroup, 5, 13, 12)
-              .buildSpan(expression, 3, 13, 5)
-              .buildNode(ident, 0, it.indFirstName, 13, 1)
+              .buildSpan(nodIfClause, 5, 13, 12)
+              .buildSpan(nodExpr, 3, 13, 5)
+              .buildNode(nodId, 0, it.indFirstName, 13, 1)
               .buildIntNode(8, 17, 1)
-              .buildNode(idFunc, -2, 31, 15, 1) // >
+              .buildNode(nodFunc, -2, 31, 15, 1) // >
               .buildIntNode(88, 23, 2)
 
-              .buildSpan(ifClauseGroup, 5, 31, 12)
-              .buildSpan(expression, 3, 31, 5)
-              .buildNode(ident, 0, it.indFirstName, 31, 1)
+              .buildSpan(nodIfClause, 5, 31, 12)
+              .buildSpan(nodExpr, 3, 31, 5)
+              .buildNode(nodId, 0, it.indFirstName, 31, 1)
               .buildIntNode(7, 35, 1)
-              .buildNode(idFunc, -2, 31, 33, 1) // >
+              .buildNode(nodFunc, -2, 31, 33, 1) // >
               .buildIntNode(77, 41, 2)
 
 
-              .buildSpan(ifClauseGroup, 2, 56, 3)
-              .buildNode(underscore, 0, 0, 56, 1)
+              .buildSpan(nodIfClause, 2, 56, 3)
+              .buildNode(nodUnderscore, 0, 0, 56, 1)
               .buildIntNode(1, 58, 1)
         }
     }
@@ -981,30 +964,30 @@ inner class IfTest {
                 "(loop break)", arrayListOf()
             )
             {
-                it.buildSpan(functionDef, 4, 0, 12)
-                  .buildSpan(scope, 3, 0, 12)
-                  .buildSpan(loop, 2, 1, 10)
-                  .buildSpan(scope, 1, 6, 5)
-                  .buildSpan(breakSpan, 0, 6, 5)
+                it.buildSpan(nodFunctionDef, 4, 0, 12)
+                  .buildSpan(nodScope, 3, 0, 12)
+                  .buildSpan(nodFor, 2, 1, 10)
+                  .buildSpan(nodScope, 1, 6, 5)
+                  .buildSpan(nodBreak, 0, 6, 5)
             }
         }
 
         @Test
         fun `Simple loop 2`() {
             testParseWithEnvironment(
-                """(loop
-    (print "hw")
+                """(for ...
+    print "hw".
     break)""", arrayListOf(Import("print", "print", 1))
             )
             {
-                it.buildSpan(functionDef, 7, 0, 50)
-                  .buildSpan(scope, 6, 0, 50)
-                  .buildSpan(loop, 5, 1, 48)
-                  .buildSpan(scope, 4, 6, 43)
-                  .buildSpan(expression, 2, 12, 10)
-                  .buildNode(litString, 0, 0, 19, 2)
-                  .buildNode(idFunc, 1, 0, 12, 5)
-                  .buildSpan(breakSpan, 0, 44, 5)
+                it.buildSpan(nodFunctionDef, 7, 0, 50)
+                  .buildSpan(nodScope, 6, 0, 50)
+                  .buildSpan(nodFor, 5, 1, 48)
+                  .buildSpan(nodScope, 4, 6, 43)
+                  .buildSpan(nodExpr, 2, 12, 10)
+                  .buildNode(nodString, 0, 0, 19, 2)
+                  .buildNode(nodFunc, 1, 0, 12, 5)
+                  .buildSpan(nodBreak, 0, 44, 5)
             }
         }
 
