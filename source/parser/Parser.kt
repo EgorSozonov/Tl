@@ -4,7 +4,6 @@ import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.ArrayList
 import language.*
-import lexer.RegularToken.*
 import parser.RegularAST.*
 import utils.IntPair
 import utils.LOWER24BITS

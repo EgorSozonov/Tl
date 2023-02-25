@@ -48,7 +48,7 @@ java {
         languageVersion.set(JavaLanguageVersion.of(17))
     }
 }
-java.sourceCompatibility = org.gradle.api.JavaVersion.VERSION_17
+
 
 tasks.test {
     useJUnitPlatform()

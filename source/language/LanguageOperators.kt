@@ -9,7 +9,7 @@ const val prefixPrec = 27
 /**
  * opT... operator types. Values must exactly agree with the operatorSymbols array. The order is the same.
  */
-const val countOperators = 36
+const val countOperators = 35
 const val opTNotEqual               =  0 // !=
 const val opTBoolNegation           =  1 // !
 const val opTSize                   =  2 // #
@@ -24,29 +24,27 @@ const val opTDecrement              = 10 // --
 const val opTMinus                  = 11 // -
 const val opTDivBy                  = 12 // /
 const val opTMutation               = 13 // :=
-const val opTRangeHalf              = 14 // ;<
-const val opTRange                  = 15 // ;
-const val opTLessThanEq             = 16 // <=
-const val opTBitShiftLeft           = 17 // <<
-const val opTArrowLeft              = 18 // <-
-const val opTLessThan               = 19 // <
-const val opTArrowRight             = 20 // =>
-const val opTEquality               = 21 // ==
-const val opTImmDefinition          = 22 // =
-const val opTIntervalBothInclusive  = 23 // >=<=
-const val opTIntervalLeftInclusive  = 24 // >=<
-const val opTIntervalRightInclusive = 25 // ><=
-const val opTIntervalExclusive      = 26 // ><
-const val opTGreaterThanEq          = 27 // >=
-const val opTBitshiftRight          = 28 // >>
-const val opTGreaterThan            = 29 // >
-const val opTQuestionMark           = 30 // ?
-const val opTBackslash              = 31 // backslash
-const val opTExponentiation         = 32 // ^
-const val opTBoolOr                 = 33 // ||
-const val opTPipe                   = 34 // |
-const val opTTilde                  = 35 // ~
-
+const val opTLessThanEq             = 14 // <=
+const val opTBitShiftLeft           = 15 // <<
+const val opTArrowLeft              = 16 // <-
+const val opTLessThan               = 17 // <
+const val opTArrowRight             = 18 // =>
+const val opTEquality               = 19 // ==
+const val opTImmDefinition          = 20 // =
+const val opTIntervalBothInclusive  = 21 // >=<=
+const val opTIntervalLeftInclusive  = 22 // >=<
+const val opTIntervalRightInclusive = 23 // ><=
+const val opTIntervalExclusive      = 24 // ><
+const val opTGreaterThanEq          = 25 // >=
+const val opTBitshiftRight          = 26 // >>
+const val opTGreaterThan            = 27 // >
+const val opTQuestionMark           = 28 // ?
+const val opTBackslash              = 29 // backslash
+const val opTExponentiation         = 30 // ^
+const val opTBoolOr                 = 31 // ||
+const val opTPipe                   = 32 // |
+const val opTRange                  = 33 // ~
+const val opTRangeExclusive         = 34 // ~<
 
 
 //data class OperatorToken(val opType: OperatorType, val extended: Int, val isAssignment: Boolean) {
@@ -91,7 +89,7 @@ const val opTTilde                  = 35 // ~
  */
 val operatorDefinitions = arrayListOf(
     OpDef("!=", 11, 2, false,            0, byteArrayOf(aExclamation, aEqual, 0, 0)),               // boolean inequality
-    OpDef("!", prefixPrec,               1, false, 1, byteArrayOf(aExclamation, 0, 0, 0)),          // boolean negation
+    OpDef("!", prefixPrec, 1, false,     1, byteArrayOf(aExclamation, 0, 0, 0)),                    // boolean negation
     OpDef("#", prefixPrec, 1, false,     2, byteArrayOf(aSharp, 0, 0, 0)),                          // size of, length, absolute value etc
     OpDef("$", prefixPrec, 1, false,     3, byteArrayOf(aDollar, 0, 0, 0)),                         // is not empty/null
     OpDef("%", 20, 2, true,              4, byteArrayOf(aPercent, 0, 0, 0)),                        // remainder of division
@@ -104,28 +102,27 @@ val operatorDefinitions = arrayListOf(
     OpDef("-", prefixPrec, 1, false,    11, byteArrayOf(aMinus, 0, 0, 0)),                          // subtraction
     OpDef("/", 20, 2, true,             12, byteArrayOf(aDivBy, 0, 0, 0)),                          // division
     OpDef(":=", 0, 0, false,            -1, byteArrayOf(aColon, aEqual, 0, 0)),                     // mutable assignment
-    OpDef(";<", 1, 2, false,            13, byteArrayOf(aColon, aLessThan, 0, 0)),                  // half-exclusive interval/range
-    OpDef(";", 1, 2, false,             14, byteArrayOf(aColon, 0, 0, 0)),                          // inclusive interval/range
-    OpDef("<=", 12, 2, false,           15, byteArrayOf(aLessThan, aEqual, 0, 0)),                  // less than or equal
-    OpDef("<<", 14, 2, true,            16, byteArrayOf(aLessThan, aLessThan, 0, 0)),               // bitwise left shift
+    OpDef("<=", 12, 2, false,           13, byteArrayOf(aLessThan, aEqual, 0, 0)),                  // less than or equal
+    OpDef("<<", 14, 2, true,            14, byteArrayOf(aLessThan, aLessThan, 0, 0)),               // bitwise left shift
     OpDef("<-", 0, 0, false,            -1, byteArrayOf(aLessThan, aMinus, 0, 0)),                  // receive from channel
-    OpDef("<", 12, 2, false,            17, byteArrayOf(aLessThan, 0, 0, 0)),                       // less than
+    OpDef("<", 12, 2, false,            15, byteArrayOf(aLessThan, 0, 0, 0)),                       // less than
     OpDef("=>", 0, 0, false,            -1, byteArrayOf(aEqual, aGreaterThan, 0, 0)),               // right arrow
-    OpDef("==", 11, 2, false,           18, byteArrayOf(aEqual, aEqual, 0, 0)),                     // boolean equality
+    OpDef("==", 11, 2, false,           16, byteArrayOf(aEqual, aEqual, 0, 0)),                     // boolean equality
     OpDef("=", 0, 0, false,             -1, byteArrayOf(aEqual, 0, 0, 0)),                          // immutable assignment
-    OpDef(">=<=", 12, 3, false,         19, byteArrayOf(aGreaterThan, aEqual, aLessThan, aEqual)),  // is within inclusive range
-    OpDef(">=<", 12, 3, false,          20, byteArrayOf(aGreaterThan, aEqual, aLessThan, 0)),       // is within half-exclusive range
-    OpDef("><=", 12, 3, false,          21, byteArrayOf(aGreaterThan, aLessThan, aEqual, 0)),       // is within half-exclusive range
-    OpDef("><", 12, 3, false,           22, byteArrayOf(aGreaterThan, aLessThan, 0, 0)),            // is within exclusive range
-    OpDef(">=", 12, 2, false,           23, byteArrayOf(aGreaterThan, aEqual, 0, 0)),               // greater than or equal
-    OpDef(">>", 14, 2, true,            24, byteArrayOf(aGreaterThan, aGreaterThan, 0, 0)),         // bitwise right shift
-    OpDef(">", 12, 2, false,            25, byteArrayOf(aGreaterThan, 0, 0, 0)),                    // greater than
-    OpDef("?", prefixPrec, 1, false,    -1, byteArrayOf(aQuestion, 0, 0, 0)),                       // nullable type operator
+    OpDef(">=<=", 12, 3, false,         17, byteArrayOf(aGreaterThan, aEqual, aLessThan, aEqual)),  // is within inclusive range
+    OpDef(">=<", 12, 3, false,          18, byteArrayOf(aGreaterThan, aEqual, aLessThan, 0)),       // is within half-exclusive range
+    OpDef("><=", 12, 3, false,          19, byteArrayOf(aGreaterThan, aLessThan, aEqual, 0)),       // is within half-exclusive range
+    OpDef("><", 12, 3, false,           20, byteArrayOf(aGreaterThan, aLessThan, 0, 0)),            // is within exclusive range
+    OpDef(">=", 12, 2, false,           21, byteArrayOf(aGreaterThan, aEqual, 0, 0)),               // greater than or equal
+    OpDef(">>", 14, 2, true,            22, byteArrayOf(aGreaterThan, aGreaterThan, 0, 0)),         // bitwise right shift
+    OpDef(">", 12, 2, false,            23, byteArrayOf(aGreaterThan, 0, 0, 0)),                    // greater than
+    OpDef("?", prefixPrec, 1, false,    24, byteArrayOf(aQuestion, 0, 0, 0)),                       // nullable type operator
     OpDef("\\", 0, 0, false,            -1, byteArrayOf(aBackslash, 0, 0, 0)),                      // lambda
-    OpDef("^", 21, 2, false,            26, byteArrayOf(aCaret, 0, 0, 0)),                          // exponentiation
-    OpDef("||", 3, 2, true,             27, byteArrayOf(aPipe, aPipe, 0, 0)),                       // boolean or
-    OpDef("|", 9, 2, false,             28, byteArrayOf(aPipe, 0, 0, 0)),                           // bitwise xor
-    OpDef("~", prefixPrec, 1, false,    29, byteArrayOf(aTilde, 0, 0, 0))                           // type operator for pointers
+    OpDef("^", 21, 2, true,             25, byteArrayOf(aCaret, 0, 0, 0)),                          // exponentiation
+    OpDef("||", 3, 2, true,             26, byteArrayOf(aPipe, aPipe, 0, 0)),                       // boolean or
+    OpDef("|", 9, 2, false,             27, byteArrayOf(aPipe, 0, 0, 0)),                           // bitwise xor
+    OpDef("~<", 1, 2, false,            28, byteArrayOf(aTilde, aLessThan, 0, 0), true),            // half-exclusive interval/range
+    OpDef("~", 1, 2, false,             29, byteArrayOf(aTilde, 0, 0, 0), true),                    // inclusive interval/range
 )
 
 /** All the symbols an operator may start with. The : is absent because it's handled by "lexColon".
@@ -133,7 +130,7 @@ val operatorDefinitions = arrayListOf(
  */
 val operatorStartSymbols = byteArrayOf(
     aExclamation, aSharp, aDollar, aPercent, aAmpersand, aTimes, aPlus, aDivBy,
-    aSemicolon, aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe
+    aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe, aTilde
 )
 
 
@@ -146,8 +143,3 @@ data class OpDef(val name: String, val precedence: Int, val arity: Int,
                  val bindingIndex: Int,
                  val bytes: ByteArray,
                  val overloadable: Boolean = false)
-
-
-
-
-

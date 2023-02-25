@@ -9,28 +9,18 @@ class Lexer(val inp: ByteArray, val fileType: FileType) {
     
 /**
  * The real element of this array is struct Token - modeled as 4 32-bit ints
- * tType                                                                              | u5
- * lenBytes                                                                           | u27
- * startByte                                                                          | i32
- * payload (for regular tokens) or lenTokens + empty 32 bits (for punctuation tokens) | i64
+ * tType              | u6
+ * startByte          | u26
+ * lenBytes           | i32
+ * payload1           | i32
+ * payload2           | i32
  */
 private var cap = INIT_LIST_SIZE*4
 var currInd = 0
     private set
 private var tokens = IntArray(INIT_LIST_SIZE*4)
 
-fun add(i1: Int, i2: Int, i3: Int, i4: Int) {
-    currInd += 4
-    if (currInd == cap) {
-        val newArray = IntArray(2*cap)
-        tokens.copyInto(newArray, 0, cap)
-        cap *= 2
-    }
-    tokens[currInd    ] = i1
-    tokens[currInd + 1] = i2
-    tokens[currInd + 2] = i3
-    tokens[currInd + 3] = i4
-}
+
 var nextInd: Int                                             // Next ind inside the current token array
     private set
 
@@ -364,8 +354,8 @@ private fun lexOperator() {
         }
     }
 
-    if (backtrack.isNotEmpty() && ((isExtensionAssignment & 1 > 0) || opType == opTImmDefinition || opType == opTMutation)) {
-            processAssignmentOperator(opType)
+    if (backtrack.isNotEmpty() && ((isExtensionAssignment and 1) > 0 || opType == opTImmDefinition || opType == opTMutation)) {
+        processAssignmentOperator(opType)
     } else {
         appendOperator(opType, isExtensionAssignment, i, lengthOfOperator)
     }
@@ -432,7 +422,7 @@ private fun lexReservedWord(reservedWordType: Int, startInd: Int) {
     }
 
     val currSpan = backtrack.last()
-    if (backtrack.last().second < (totalTokens - 1) || backtrack.last().first >= firstCoreFormTokenType) {
+    if (backtrack.last().second < (totalTokens - 1) || backtrack.last().first >= firstCoreFormTok) {
         // if this is not the first token inside this span, or if it's already been converted to core form, add
         // the reserved word as a token
         appendToken(tokReserved, reservedWordType, startInd, i - startInd)
@@ -444,7 +434,7 @@ private fun lexReservedWord(reservedWordType: Int, startInd: Int) {
     if (reservedWordType == tokStmtReturn) {
         convertGrandparentToScope()
     }
-    backtrack[backtrack.size - 1] = Pair(punctType, currSpan.second)
+    backtrack[backtrack.size - 1] = Pair(reservedWordType, currSpan.second)
 }
 
 
@@ -496,6 +486,11 @@ private fun lexNewline() {
     i++
 }
 
+private fun lexDot() {
+    i++
+    // TODO
+}
+
 /**
  * String literals look like 'wasn''t' and may contain arbitrary UTF-8.
  * The insides of the string have two escape sequences: '' for apostrophe and \n for newlines
@@ -523,70 +518,47 @@ private fun lexUnrecognizedSymbol() {
     exitWithError(errorUnrecognizedByte)
 }
 
-
+/**
+ * Doc-comments start with ;; and are included as a single token. Simple comments start with ; and are excluded from the lexing result.
+ * All comments go until the end of line.
+ */
 private fun lexComment() {
     var j = i + 1
     if (j < inp.size && inp[j] == aSemicolon) {
         lexDocComment()
         return
     }
-    val szMinusOne = inp.size - 1
     while (j < inp.size) {
         val cByte = inp[j]
-        if (cByte == aDot && j < szMinusOne && inp[j + 1] == aSemicolon) {
-            addComment(i + 1, j - i - 1)
-            i = j + 2
-            return
-        } else if (cByte == aNewline) {
-            addComment(i + 1, j - i - 1)
+        if (cByte == aNewline) {
             i = j + 1
             return
         } else {
             j += 1
         }
     }
-    addComment(i + 1, j - i - 1)
     i = j
 }
 
-
+/** Colon = parens until the end of current subexpression (so Tl's colon is equivalent to Haskell's dollar) */
 private fun lexColon() {
-    val j = i + 1
-    if (j < inp.size) { // TODO make this what used to be the dollar
-        if (inp[j] == aColon) {
-            processTypeDeclOperator()
-            i += 2
-            return
-        }  else if (inp[j] == aEqual) { // := the mutating assignment token
-            processAssignmentOperator(OperatorToken(OperatorType.mutation, 0, false))
-            i += 2
-            return
-        }
-    }
-    appendToken(operatorTok, OperatorToken(OperatorType.elseBranch, 0, false).toInt(), i, 1)
+    backtrack.push(Pair(tokColonOpened, currInd/4))
     i++
 }
 
 /**
- *  Doc comments, syntax is /// The comment
+ *  Doc comments, syntax is ;; The comment
  */
 private fun lexDocComment() {
-    if (backtrack.isEmpty()) exitWithError(errorDocComment)
-    val currSpan = backtrack.last()
-    if (currSpan.first != tokParens || currSpan.second != totalTokens - 1) exitWithError(errorDocComment)
-    if (inp[i - 1] != aParenLeft) exitWithError(errorDocComment)
-
-    for (j in (i + 2) until inp.size) {
-        val cByte = inp[j]
-        if (cByte == aNewline) {
+    val startByte = i
+    for (j in (i + 2) until inp.size) { // +2 for the ';;'
+        if (inp[j] == aNewline) {
             newLines.add(j)
-        } else if (cByte == aDot && j + 1 < inp.size && inp[j + 1] == aParenRight) {
-            i = j + 2
-            setDocComment(currSpan.second)
+            appendDocComment(startByte, j)
             return
         }
     }
-    exitWithError(errorPrematureEndOfInput)
+    appendDocComment(startByte, inp.size - 1)
 }
 
 /**
@@ -659,6 +631,16 @@ fun build(tType: Int, payload: Int, startByte: Int, lenBytes: Int): Lexer {
 }
 
 /**
+ * For programmatic Lexer result construction (builder pattern). Regular tokens
+ */
+fun buildOperator(opType: Int, isExtended: Boolean, isAssignment: Boolean, startByte: Int, lenBytes: Int): Lexer {
+    var operData = if (isExtended) { 2 } else { 0 }
+    if (isAssignment) { operData++ }
+    appendOperator(opType, operData, startByte, lenBytes)
+    return this
+}
+
+/**
  * For programmatic Lexer result construction (builder pattern). Literal ints
  */
 fun buildLitInt(payload: Long, startByte: Int, lenBytes: Int): Lexer {
@@ -681,7 +663,7 @@ fun buildLitFloat(payload: Double, startByte: Int, lenBytes: Int): Lexer {
 private fun setSpanLength(tokenInd: Int) {
     var j = tokenInd * 4
     val lenBytes = i - tokens[j + 1]
-    tokens[j    ] += (lenBytes and LOWER27BITS) // lenBytes
+    tokens[j    ] += (lenBytes and LOWER26BITS) // lenBytes
     tokens[j + 3] = totalTokens - tokenInd - 1  // lenTokens
 }
 
@@ -692,7 +674,7 @@ private fun setSpanLength(tokenInd: Int) {
  */
 private fun setSpanType(tokenInd: Int, tType: Int) {
     val j = tokenInd * 4
-    tokens[j    ] = tType shl 27
+    tokens[j    ] = tType shl 26
 }
 
 /**
@@ -700,13 +682,13 @@ private fun setSpanType(tokenInd: Int, tType: Int) {
  */
 private fun setSpanCore(tokenInd: Int, tType: Int) {
     val j = tokenInd * 4
-    tokens[j    ] = tType shl 27
+    tokens[j    ] = tType shl 26
 }
 
 
 private fun setSpanAssignment(tokenInd: Int, payload1: Int) {
     val j = tokenInd * 4
-    tokens[j    ] = tokStmtAssignment shl 27
+    tokens[j    ] = tokStmtAssignment shl 26
     tokens[j + 2] = payload1
 }
 
@@ -724,11 +706,7 @@ private fun testByteSequence(startByte: Int, letters: ByteArray): Boolean {
  * For programmatic Lexer result construction (builder pattern)
  */
 fun buildPunctPayload(tType: Int, payload1: Int, lenTokens: Int, startByte: Int, lenBytes: Int, ): Lexer {
-    tokens[nextInd    ] = (tType shl 27) + lenBytes
-    tokens[nextInd + 1] = startByte
-    tokens[nextInd + 2] = payload1
-    tokens[nextInd + 3] = lenTokens
-    bump()
+    add((tType shl 26) + startByte, lenBytes, payload1, lenTokens)
     return this
 }
 
@@ -752,62 +730,52 @@ private fun finalize() {
 
 /** Append a regular (non-punctuation) token */
 private fun appendToken(tType: Int, payload2: Int, startByte: Int, lenBytes: Int) {
-    tokens[nextInd    ] = (tType shl 27) + lenBytes
-    tokens[nextInd + 1] = startByte
-    tokens[nextInd + 3] = payload2
-    bump()
+    add((tType shl 26) + startByte, lenBytes, 0, payload2)
 }
 
 /** Append an operator token */
 private fun appendOperator(opType: Int, isExtensionAssignment: Int, startByte: Int, lenBytes: Int) {
-    add((tokOperator shl 27) + lenBytes, startByte, 0, opType)
+    add((tokOperator shl 26) + startByte, lenBytes, isExtensionAssignment, opType)
+}
+
+/**
+ * Appends a doc comment token if it's the first one, or elongates the existing token if we've just had one already.
+ * This logic handles multiple consecutive lines of doc comments.
+ * NOTE: this is the only function that needs the endByte instead of lenBytes!
+ */
+private fun appendDocComment(startByte: Int, endByte: Int) {
+    if (nextInd == 0 || tokens[nextInd - 4] ushr 26 != tokDocComment) {
+        add((tokDocComment shl 26) + startByte, endByte - startByte + 1, 0, 0)
+    } else {
+        tokens[nextInd - 4] = (tokDocComment shl 26) + endByte - tokens[nextInd - 3] + 1
+    }
 }
 
 /** Append a 64-bit literal int token */
 private fun appendLitIntToken(payload: Long, startByte: Int, lenBytes: Int) {
-    tokens[nextInd    ] = (tokInt shl 27) + lenBytes
-    tokens[nextInd + 1] = startByte
-    tokens[nextInd + 2] = (payload shr 32).toInt()
-    tokens[nextInd + 3] = (payload and LOWER32BITS).toInt()
-    bump()
+    add((tokInt shl 26) + startByte, lenBytes, (payload shr 32).toInt(), (payload and LOWER32BITS).toInt())
 }
 
 /** Append a floating-point literal */
 private fun appendFloatToken(payload: Double, startByte: Int, lenBytes: Int) {
     val asLong: Long = payload.toBits()
-    tokens[nextInd    ] = (tokFloat shl 27) + lenBytes
-    tokens[nextInd + 1] = startByte
-    tokens[nextInd + 2] = (asLong shr 32).toInt()
-    tokens[nextInd + 3] = (asLong and LOWER32BITS).toInt()
-    bump()
+    add((tokFloat shl 26) + startByte, lenBytes, (asLong shr 32).toInt(), (asLong and LOWER32BITS).toInt())
 }
 
 /** Append a punctuation token */
 private fun appendPunctuation(tType: Int, startByte: Int) {
-    tokens[nextInd    ] = (tType shl 27)
-    tokens[nextInd + 1] = startByte
-    bump()
+    add((tType shl 26) + startByte, 0, 0, 0)
 }
 
 /** Append a punctuation token when it's fully known already */
 private fun appendPunctuationFull(tType: Int, payload1: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    tokens[nextInd    ] = (tType shl 27) + lenBytes
-    tokens[nextInd + 1] = startByte
-    tokens[nextInd + 2] = payload1
-    tokens[nextInd + 3] = lenTokens
-    bump()
+    add((tType shl 26) + startByte, lenBytes, payload1, lenTokens)
 }
 
 /** The programmatic/builder method for appending a punctuation token */
-fun buildPunctuation(startByte: Int, lenBytes: Int, tType: Int, lenTokens: Int): Lexer {
+fun buildPunctuation(tType: Int, lenTokens: Int, startByte: Int, lenBytes: Int): Lexer {
     appendPunctuationFull(tType, 0, lenTokens, startByte, lenBytes)
     return this
-}
-
-
-private fun bump() {
-    nextInd += 4
-    totalTokens += 1
 }
 
 
@@ -817,11 +785,12 @@ fun nextToken() {
     
 
 fun currTokenType(): Int {
-    return tokens[currInd] ushr 27
+    return tokens[currInd] ushr 26
 }
 
+
 fun currLenBytes(): Int {
-    return tokens[currInd] and LOWER27BITS
+    return tokens[currInd] and LOWER26BITS
 }
 
 fun currStartByte(): Int {
@@ -834,8 +803,8 @@ fun currLenTokens(): Int {
 
 
 fun lookAhead(skip: Int): TokenLite {
-    var nextInd = currInd + 4*skip
-    return TokenLite(tokens[nextInd] ushr 27,
+    val nextInd = currInd + 4*skip
+    return TokenLite(tokens[nextInd] ushr 26,
                      (tokens[nextInd + 2].toLong() shl 32) + tokens[nextInd + 3].toLong())
 }
 
@@ -847,88 +816,81 @@ fun toDebugString(): String {
     result.appendLine("Lex result")
     result.appendLine(if (wasError) {errMsg} else { "OK" })
     result.appendLine("tokenType [startByte lenBytes] (payload/lenTokens)")
-    var currA: LexChunk? = firstChunk
-    while (true) {
-        if (currA != null) {
-            val lenA = if (currA == currChunk) { nextInd } else { CHUNKSZ }
-            for (i in 0 until lenA step 4) {
-                result.append((i/4).toString() + " ")
-                printToken(currA, i, result)
-                result.appendLine("")
-            }
 
-            currA = currA.next
-        } else {
-            break
-        }
+    for (i in 0 until totalTokens) {
+        result.append((i).toString() + " ")
+        printToken(tokens, i*4, result)
+        result.appendLine("")
     }
     return result.toString()
 }
 
 private fun determineReservedA(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesAlias)) return Int.stmtBreak
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesAlias)) return tokStmtAlias
     return 0
 }
 
+    
 private fun determineReservedB(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesBreak)) return Int.stmtBreak
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesBreak)) return tokStmtBreak
     return 0
 }
 
 
 private fun determineReservedC(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesCatch)) return -1
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesCatch)) return tokStmtCatch
+    if (lenBytes == 8 && testByteSequence(startByte, reservedBytesContinue)) return tokStmtContinue
     return 0
 }
 
 
 private fun determineReservedE(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 6 && testByteSequence(startByte, reservedBytesExport)) return -1
+    if (lenBytes == 6 && testByteSequence(startByte, reservedBytesExport)) return tokStmtExport
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesEmbed)) return tokStmtEmbed
     return 0
 }
 
 
 private fun determineReservedF(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 5 && testByteSequence(startByte, reservedBytesFalse)) return reservedFalse
-    if (lenBytes == 2 && testByteSequence(startByte, reservedBytesFn)) return stmtFn
+    if (lenBytes == 3 && testByteSequence(startByte, reservedBytesFor)) return tokStmtFor
     return 0
 }
 
 
 private fun determineReservedI(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 6 && testByteSequence(startByte, reservedBytesImport)) return -1
+    if (lenBytes == 2 && testByteSequence(startByte, reservedBytesIf)) return tokStmtIf
+    if (lenBytes == 4 && testByteSequence(startByte, reservedBytesIfEq)) return tokStmtIfEq
+    if (lenBytes == 4 && testByteSequence(startByte, reservedBytesIfPr)) return tokStmtIfPr
+    if (lenBytes == 4 && testByteSequence(startByte, reservedBytesImpl)) return tokStmtImpl
     return 0
 }
 
-
-private fun determineReservedL(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 4 && testByteSequence(startByte, reservedBytesLoop)) return stmtLoop
-    return 0
-}
 
 private fun determineReservedM(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesMatch)) return -1
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesMatch)) return tokStmtMatch
     return 0
 }
 
 private fun determineReservedO(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesMatch)) return -1
+    if (lenBytes == 4 && testByteSequence(startByte, reservedBytesOpen)) return tokStmtOpen
     return 0
 }
 
 private fun determineReservedR(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 6 && testByteSequence(startByte, reservedBytesReturn)) return stmtReturn
+    if (lenBytes == 6 && testByteSequence(startByte, reservedBytesReturn)) return tokStmtReturn
     return 0
 }
 
 private fun determineReservedS(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 6 && testByteSequence(startByte, reservedBytesReturn)) return stmtReturn
+    if (lenBytes == 6 && testByteSequence(startByte, reservedBytesReturn)) return tokStmtStruct
     return 0
 }
 
 private fun determineReservedT(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 4 && testByteSequence(startByte, reservedBytesTrue)) return reservedTrue
-    if (lenBytes == 3 && testByteSequence(startByte, reservedBytesTry)) return -1
+    if (lenBytes == 3 && testByteSequence(startByte, reservedBytesTry)) return tokStmtTry
+    if (lenBytes == 4 && testByteSequence(startByte, reservedBytesType)) return tokStmtType
     return 0
 }
 
@@ -938,18 +900,30 @@ private fun determineUnreserved(startByte: Int, lenBytes: Int): Int {
 
 private fun exitWithError(msg: String): Nothing {
     val startByte = tokens[currInd + 1]
-    val endByte = startByte + tokens[currInd] and LOWER27BITS
+    val endByte = startByte + tokens[currInd] and LOWER26BITS
     wasError = true
     errMsg = "[$startByte $endByte] $msg"
     throw Exception(errMsg)
 }
 
+fun add(i1: Int, i2: Int, i3: Int, i4: Int) {
+    currInd += 4
+    if (currInd == cap) {
+        val newArray = IntArray(2*cap)
+        tokens.copyInto(newArray, 0, cap)
+        cap *= 2
+    }
+    tokens[currInd    ] = i1
+    tokens[currInd + 1] = i2
+    tokens[currInd + 2] = i3
+    tokens[currInd + 3] = i4
+    totalTokens++
+}
+
 init {
-    currChunk = firstChunk
     i = 0
     nextInd = 0
     currInd = 0
-    currTokInd = 0
     totalTokens = 0
     wasError = false
     errMsg = ""
@@ -971,7 +945,7 @@ companion object {
             dispatchTable[i] = Lexer::lexWord
         }
         dispatchTable[aUnderscore.toInt()] = Lexer::lexWord
-        dispatchTable[aDot.toInt()] = Lexer::lexDotSomething
+
         dispatchTable[aAt.toInt()] = Lexer::lexAtWord
 
         for (i in operatorStartSymbols) {
@@ -980,19 +954,19 @@ companion object {
         dispatchTable[aMinus.toInt()] = Lexer::lexMinus
         dispatchTable[aParenLeft.toInt()] = Lexer::lexParenLeft
         dispatchTable[aParenRight.toInt()] = Lexer::lexParenRight
+        dispatchTable[aColon.toInt()] = Lexer::lexColon
         dispatchTable[aCurlyLeft.toInt()] = Lexer::lexCurlyLeft
         dispatchTable[aCurlyRight.toInt()] = Lexer::lexCurlyRight
         dispatchTable[aBracketLeft.toInt()] = Lexer::lexBracketLeft
         dispatchTable[aBracketRight.toInt()] = Lexer::lexBracketRight
 
-        dispatchTable[aQuestion.toInt()] = Lexer::lexQuestionMark
         dispatchTable[aSpace.toInt()] = Lexer::lexSpace
         dispatchTable[aCarriageReturn.toInt()] = Lexer::lexSpace
         dispatchTable[aNewline.toInt()] = Lexer::lexNewline
+        dispatchTable[aDot.toInt()] = Lexer::lexDot
 
         dispatchTable[aApostrophe.toInt()] = Lexer::lexStringLiteral
         dispatchTable[aSemicolon.toInt()] = Lexer::lexComment
-        dispatchTable[aColon.toInt()] = Lexer::lexColon
     }
 
     /**
@@ -1042,16 +1016,16 @@ companion object {
 
     /** Predicate for an element of a scope, which can be any type of statement, or a split statement (such as an "if" or "match" form) */
     fun isParensElement(tType: Int): Boolean {
-        return  tType == lexScope || tType == stmtTypeDecl || tType == parens
-                || tType == stmtAssignment
+        return  tType == tokLexScope || tType == tokStmtTypeDecl || tType == tokParens
+                || tType == tokStmtAssignment
     }
 
     /** Predicate for an element of a scope, which can be any type of statement, or a split statement (such as an "if" or "match" form) */
     fun isScopeElementVal(tType: Int): Boolean {
-        return tType == lexScope
-                || tType == stmtTypeDecl
-                || tType == parens
-                || tType == stmtAssignment
+        return tType == tokLexScope
+                || tType == tokStmtTypeDecl
+                || tType == tokParens
+                || tType == tokStmtAssignment
     }
 
     /**
@@ -1070,7 +1044,6 @@ companion object {
         return true
     }
 
-
     /**
      * Pretty printer function for debugging purposes
      */
@@ -1079,86 +1052,63 @@ companion object {
         result.appendLine("Result | Expected")
         result.appendLine("${if (a.wasError) {a.errMsg} else { "OK" }} | ${if (b.wasError) {b.errMsg} else { "OK" }}")
         result.appendLine("tokenType [startByte lenBytes] (payload/lenTokens)")
-        while (true) {
-            if (currA != null) {
-                if (currB != null) {
-                    val lenA = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
-                    val lenB = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
-                    val len = lenA.coerceAtMost(lenB)
-                    for (i in 0 until len step 4) {
-                        printToken(currA, i, result)
-                        result.append(" | ")
-                        printToken(currB, i, result)
-                        result.appendLine("")
-                    }
-                    for (i in len until lenA step 4) {
-                        printToken(currA, i, result)
-                        result.appendLine(" | ")
-                    }
-                    for (i in len until lenB step 4) {
-                        result.append(" | ")
-                        printToken(currB, i, result)
-                        result.appendLine("")
-                    }
-                    currB = currB.next
-                } else {
-                    val len = if (currA == a.currChunk) { a.nextInd } else { CHUNKSZ }
-                    for (i in 0 until len step 4) {
-                        printToken(currA, i, result)
-                        result.appendLine(" | ")
-                    }
-                }
-                currA = currA.next
-            } else if (currB != null) {
-                val len = if (currB == b.currChunk) { b.nextInd } else { CHUNKSZ }
-                for (i in 0 until len step 4) {
-                    result.append(" | ")
-                    printToken(currB, i, result)
-                    result.appendLine("")
-                }
-                currB = currB.next
-            } else {
-                break
-            }
 
-
+        val len = a.totalTokens.coerceAtMost(b.totalTokens)
+        for (i in 0 until len) {
+            printToken(a.tokens, i*4, result)
+            result.append(" | ")
+            printToken(b.tokens, i*4, result)
+            result.appendLine("")
         }
+        for (i in len until a.totalTokens) {
+            printToken(a.tokens, i*4, result)
+            result.appendLine(" | ")
+        }
+        for (i in len until b.totalTokens) {
+            result.append(" | ")
+            printToken(b.tokens, i, result)
+            result.appendLine("")
+        }
+
         return result.toString()
     }
 
 
     private fun printToken(tokens: IntArray, ind: Int, wr: StringBuilder) {
         val startByte = tokens[ind + 1]
-        val lenBytes = tokens[ind] and LOWER27BITS
-        val typeBits = (tokens[ind] ushr 27)
-        if (typeBits < firstIntType) {
+        val lenBytes = tokens[ind] and LOWER26BITS
+        val typeBits = (tokens[ind] ushr 26)
+        val tokTypeName = tokNames[typeBits]
+        if (typeBits < firstPunctTok) {
+
             if (typeBits == tokFloat) {
                 val payload: Double = Double.fromBits(
                     (tokens[ind + 2].toLong() shl 32) + tokens[ind + 3].toLong()
                 )
-                wr.append("$regType $payload [${startByte} ${lenBytes}]")
-            } else if (regType == operatorTok) {
-                val payload2 = chunk.tokens[ind + 3]
-                val opToken = OperatorToken.fromInt(payload2 and LOWER16BITS)
-                val payloadStr = opToken.opType.toString() + (if (opToken.extended == 1) { "." } else if (opToken.extended == 2) { ":" } else { "" }) +
-                        (if (opToken.isAssignment) { "=" } else {""})
-                wr.append("$regType $payloadStr [${startByte} ${lenBytes}]")
+                wr.append("$tokTypeName $payload [${startByte} ${lenBytes}]")
+            } else if (typeBits == tokOperator) {
+                val opType = tokens[ind + 3]
+                val opExtAssignment = tokens[ind + 2]
+
+                val payloadStr = operatorDefinitions[opType].name + (if ((opExtAssignment ushr 1) == 1) { "." } else { "" }) +
+                        (if ((opExtAssignment and 1) == 1) { "=" } else {""})
+                wr.append("$tokTypeName $payloadStr [${startByte} ${lenBytes}]")
             } else {
-                val payload: Long = (chunk.tokens[ind + 2].toLong() shl 32) + (chunk.tokens[ind + 3].toLong() and LOWER32BITS)
-                wr.append("$regType $payload [${startByte} ${lenBytes}]")
+                val payload: Long = (tokens[ind + 2].toLong() shl 32) + (tokens[ind + 3].toLong() and LOWER32BITS)
+                wr.append("$tokTypeName $payload [${startByte} ${lenBytes}]")
             }
         } else {
-            val punctType = Int.values().firstOrNull { it.internalVal == typeBits }
-            val lenTokens = chunk.tokens[ind + 3]
-            val payload1 = chunk.tokens[ind + 2]
-            if (punctType == stmtAssignment) {
+            val lenTokens = tokens[ind + 3]
+            val payload1 = tokens[ind + 2]
+            if (typeBits == tokStmtAssignment) {
                 val numTokensBefore = payload1 ushr 16
-                val opToken = OperatorToken.fromInt(payload1 and LOWER16BITS);
-                val payloadStr = opToken.opType.toString() + (if (opToken.extended == 1) { "." } else if (opToken.extended == 2) { ":" } else { "" }) +
-                        (if (opToken.isAssignment) { "=" } else {""}) + " " + numTokensBefore.toString()
-                wr.append("$punctType $lenTokens [${startByte} ${lenBytes}] $payloadStr")
+                val opType = (payload1 and LOWER16BITS) ushr 2
+
+                val payloadStr = operatorDefinitions[opType].name + (if (payload1 and 2 == 2) { "." } else { "" }) +
+                        (if (payload1 and 1 == 1) { "=" } else {""}) + " " + numTokensBefore.toString()
+                wr.append("$tokTypeName $lenTokens [${startByte} ${lenBytes}] $payloadStr")
             } else {
-                wr.append("$punctType $lenTokens [${startByte} ${lenBytes}] ${if (payload1 != 0) { payload1.toString() } else {""} }")
+                wr.append("$tokTypeName $lenTokens [${startByte} ${lenBytes}] ${if (payload1 != 0) { payload1.toString() } else {""} }")
             }
 
         }

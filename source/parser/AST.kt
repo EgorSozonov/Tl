@@ -20,7 +20,7 @@ val identifiers = ArrayList<String>(50)
  *     (nativeNameId: ind in 'identifiers') i32
  *     (bodyId: ind in 'functionBodies') i32
  * ]  */
-val functions = FourIntStorage()
+val functions = FourIntList()
 
 /** 4-int32 elements of [
  *     (type) u5
@@ -32,7 +32,7 @@ val functions = FourIntStorage()
  * A functionBody starts with the list of identIds of the parameter names.
  * Then come the statements, expressions, scopes of the body.
  * */
-val functionBodies = FourIntStorage()
+val functionBodies = FourIntList()
 
 /** 4-int32 elements of [
  *     (nameId: ind in 'identifiers') i32
@@ -40,15 +40,15 @@ val functionBodies = FourIntStorage()
  *     (?) i32
  *     (bodyId: ind in 'functionBodies') i32
  * ]  */
-val types = FourIntStorage()
+val types = FourIntList()
 
 
 fun getFunc(funcId: Int): FunctionSignature {
-    functions.seek(funcId)
-    val arity = functions.currChunk.nodes[functions.currInd + 1]
-    val typeId = functions.currChunk.nodes[functions.currInd + 2]
-    return FunctionSignature(functions.currChunk.nodes[functions.currInd], arity,
-                             typeId, functions.currChunk.nodes[functions.currInd + 3])
+    val ind = funcId*4
+    val arity = functions.c[ind + 1]
+    val typeId = functions.c[ind + 2]
+    return FunctionSignature(functions.c[ind], arity,
+                             typeId, functions.c[ind + 3])
 }
 
 fun appendSpan(nType: SpanAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
@@ -272,7 +272,7 @@ companion object {
 
     private fun printNode(chunk: ASTChunk, ind: Int, wr: StringBuilder) {
         val startByte = chunk.nodes[ind + 1]
-        val lenBytes = chunk.nodes[ind] and LOWER27BITS
+        val lenBytes = chunk.nodes[ind] and LOWER26BITS
         val typeBits = (chunk.nodes[ind] ushr 27).toByte()
         if (typeBits < firstSpanASTType) {
             val regType = RegularAST.values().firstOrNull { it.internalVal == typeBits }

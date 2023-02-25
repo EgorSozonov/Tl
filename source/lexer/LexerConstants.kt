@@ -72,10 +72,27 @@ const val tokStmtIfPr = 23
 const val tokStmtOpen = 24 // maybe remove this
 const val tokStmtBreak = 25
 const val tokStmtExport = 26
+const val tokStmtMatch = 27
+const val tokStmtStruct = 28
+const val tokStmtAlias = 29
+const val tokStmtCatch = 30
+const val tokStmtContinue = 31
+const val tokStmtEmbed = 32
+const val tokStmtImpl = 33
+const val tokStmtTry = 34
+const val tokStmtType = 35
+
+// This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
+const val tokColonOpened = 43
+
+// First punctuation/scoped type of token
+const val firstPunctTok = tokCompoundString
+const val firstCoreFormTok = tokStmtAssignment
 
 /** Order must agree with the tok... constants above */
 val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Word", "Reserved", "Op",
-"Comp Str", "{", "[", "access")
+"Comp Str", "{", "[", "(", "access", "assign", "typeDecl", "lexScope", "fn", "for", "return",
+"if", "ifEq", "ifPr", "open", "break", "export", "match", "struct", "alias", "catch", "continue", "embed", "impl", "try", "type")
 
 
 /** 2**53 */

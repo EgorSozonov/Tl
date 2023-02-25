@@ -81,14 +81,11 @@ enum class SpanAST(val internalVal: Byte) {
 
 /**
  * The real element of this array is struct Token - modeled as 4 32-bit ints
- * astType                                                                            | u5
- * lenBytes                                                                           | u27
- * startByte                                                                          | i32
+ * astType                                                                            | u6
+ * startByte                                                                          | u26
+ * lenBytes                                                                           | i32
  * payload (for regular tokens) or empty 32 bits + lenTokens (for punctuation tokens) | i64
  */
-data class ASTChunk(val nodes: IntArray = IntArray(CHUNKSZ), var next: ASTChunk? = null)
-
-data class ScratchChunk(val nodes: IntArray = IntArray(SCRATCHSZ), var next: ScratchChunk? = null)
 
 data class FunctionSignature(val nameId: Int, val arity: Int, val typeId: Int, val bodyId: Int)
 
