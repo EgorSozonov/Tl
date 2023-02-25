@@ -2,7 +2,7 @@ package utils
 
 const val INIT_LIST_SIZE = 1000
 class FourIntList {
-    private var cap = INIT_LIST_SIZE
+    var cap = INIT_LIST_SIZE
     var ind = 0
     var c = IntArray(INIT_LIST_SIZE)
 

@@ -1,5 +1,5 @@
 package parser
-import lexer.CHUNKSZ
+import lexer.*
 import utils.IntPair
 import kotlin.collections.ArrayList
 import kotlin.collections.HashMap
@@ -7,7 +7,7 @@ import kotlin.collections.HashMap
 
 const val SCRATCHSZ = 100 // must be divisible by 4
 
-data class ParseFrame(val spanType: SpanAST, val indStartNode: Int, val sentinelToken: Int, val coreType: Int = 0) {
+data class ParseFrame(val spanType: Int, val indStartNode: Int, val sentinelToken: Int, val coreType: Int = 0) {
     var clauseInd: Int = 0
 }
 
@@ -39,45 +39,34 @@ class FunctionCall(var nameStringId: Int, var precedence: Int, var arity: Int, v
                    var isCapitalized: Boolean,
                    var startByte: Int)
 
-enum class RegularAST(val internalVal: Byte) {
-                   // payload2 at +3:                           // extra payload1 at +2:
-    // The following group of variants are transferred from the lexer byte for byte, with no analysis
-    // Their values must exactly correspond with the initial group of variants in "RegularToken"
-    litInt(0),     // int value
-    litFloat(1),   // floating-point value
-    litBool(2),    // 1 or 0
-    verbatimStr(3),
-    underscore(4),
+const val nodInt = tokInt
+const val nodFloat = tokFloat
+const val nodBool = tokBool // payload2 = 1 or 0
+const val nodString = tokString
+const val nodUnderscore = tokUnderscore
+const val nodDocComment = tokDocComment
 
-    // This group requires analysis in the parser and doesn't have to match "RegularToken"
-    docComment(5),
-    litString(6),
-    ident(7),      // index in the identifiers table of AST
-    idFunc(8),     // index in the identifiers table of AST     // arity, negated if it's an operator
-    binding(9),    // index in the identifiers table of AST
-    idType(10),    // index in the types table of AST           // 1 if it's a type identifier (uppercase), 0 if it's a param (lowercase)
-    typeFunc(11),  // index in the functions table of AST       // 1 bit isOperator, 1 bit is a concrete type (= uppercase), 30 bits arity
-    annot(12),     // index in the annotations table of parser
-}
+const val nodId = 6                 // payload2 = index in the identifiers table of AST
+const val nodFunc = 7               // payload1 = arity, negated if it's an operator. payload2 = index in the identifiers table
+const val nodBinding = 8            // payload2 = index in the identifiers table
+const val nodTypeId = 9             // payload1 = 1 if it's a type identifier (uppercase), 0 if it's a param. payload2 = index in the identifiers table
+const val nodTypeFunc = 10          // payload1 = 1 bit isOperator, 1 bit is a concrete type (uppercase), 30 bits arity
+const val nodAnnotation = 11        // index in the annotations table of parser
 
-/** Must be the lowest value in the PunctuationToken enum */
-const val firstSpanASTType = 13
+const val nodScope = 12             // payload1 = 1 if this scope is the right-hand side of an assignment
+const val nodExpr = 13
+const val nodFunctionDef = 14       // payload1 = index in the 'functions' table of AST
+const val nodFnDefPlaceholder = 15  // payload1 = index in the 'functions' table of AST
+const val nodStmtAssignment = 16
+const val nodReturn = 17
+const val nodTypeDecl = 18
+const val nodIfSpan = 19            // payload1 = number of clauses
+const val nodIfClause = 20
+const val nodFor = 21
+const val nodBreak = 22
 
-/** The types of spanful AST that may be in ParseFrames, i.e. whose parsing may need pausing & resuming */
-enum class SpanAST(val internalVal: Byte) {
-                              // extra payload1 at +2:
-    scope(13),                // 1 if this scope is the right-hand side of an assignment
-    expression(14),
-    functionDef(15),          // index in the 'functions' table of AST
-    fnDefPlaceholder(16),     // index in the 'functions' table of AST
-    statementAssignment(17),
-    returnExpression(18),
-    typeDecl(19),
-    ifSpan(20),              // number of clauses
-    ifClauseGroup(21),
-    loop(22),
-    breakSpan(23),
-}
+/** Must be the lowest value of the Span AST node types above */
+const val firstSpanASTType = nodScope
 
 /**
  * The real element of this array is struct Token - modeled as 4 32-bit ints

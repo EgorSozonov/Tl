@@ -51,26 +51,16 @@ fun getFunc(funcId: Int): FunctionSignature {
                              typeId, functions.c[ind + 3])
 }
 
-fun appendSpan(nType: SpanAST, lenTokens: Int, startByte: Int, lenBytes: Int) {
-    functionBodies.ensureSpaceForNode()
-    functionBodies.currChunk.nodes[functionBodies.nextInd    ] = (nType.internalVal.toInt() shl 27) + lenBytes
-    functionBodies.currChunk.nodes[functionBodies.nextInd + 1] = startByte
-    functionBodies.currChunk.nodes[functionBodies.nextInd + 2] = 0
-    functionBodies.currChunk.nodes[functionBodies.nextInd + 3] = lenTokens
-    functionBodies.bump()
+fun appendSpan(nType: Int, lenTokens: Int, startByte: Int, lenBytes: Int) {
+    functionBodies.add(nType shl 26 + startByte, lenBytes, 0, lenTokens)
 }
 
 fun appendFnDefPlaceholder(funcId: Int) {
-    functionBodies.ensureSpaceForNode()
-    functionBodies.currChunk.nodes[functionBodies.nextInd    ] = (SpanAST.fnDefPlaceholder.internalVal.toInt() shl 27)
-    functionBodies.currChunk.nodes[functionBodies.nextInd + 2] = funcId
-    functionBodies.bump()
+    functionBodies.add(nodFnDefPlaceholder shl 26, 0, funcId, 0)
 }
 
-
-
 fun currNodeType(): Int {
-    return functionBodies.currChunk.nodes[functionBodies.currInd] ushr 27
+    return functionBodies.c[functionBodies.ind] ushr 26
 }
 
 /**
@@ -78,45 +68,26 @@ fun currNodeType(): Int {
  * This happens only after the functionDef is complete.
  */
 fun storeFreshFunction(freshlyMintedFn: FunctionDef) {
-    var src = freshlyMintedFn.firstChunk
-    var tgt = functionBodies.currChunk
+    var src = freshlyMintedFn
+    var tgt = functionBodies
 
-    val srcLast = freshlyMintedFn.currChunk
-    val srcIndLast = freshlyMintedFn.nextInd
-    val bodyInd = functionBodies.totalNodes
+    val srcLast = freshlyMintedFn
+    val srcIndLast = freshlyMintedFn.totalNodes
+    val bodyInd = functionBodies.ind
+
+    if (functionBodies.ind + freshlyMintedFn.currInd >= functionBodies.cap) {
+        val newCapacity = Math.max(functionBodies.ind + freshlyMintedFn.currInd, 2*functionBodies.cap)
+        val newArr = IntArray(newCapacity)
+        functionBodies.c.copyInto(newArr, 0, 0, functionBodies.ind)
+        functionBodies.c = newArr
+        functionBodies.cap = newCapacity
+    }
 
     // setting the token length of the function body because it's only known now
-    freshlyMintedFn.firstChunk.nodes[3] = freshlyMintedFn.totalNodes - 1
+    freshlyMintedFn.nodes[3] = freshlyMintedFn.totalNodes - 1
 
-    while (src != srcLast) {
-        val spaceInTgt = (CHUNKSZ - functionBodies.nextInd)
-        if (SCRATCHSZ < spaceInTgt) {
-            src.nodes.copyInto(tgt.nodes, functionBodies.nextInd, 0)
-            functionBodies.nextInd += SCRATCHSZ
-        } else {
-            val toCopy = SCRATCHSZ.coerceAtMost(spaceInTgt)
-            src.nodes.copyInto(tgt.nodes, functionBodies.nextInd, 0, toCopy)
-            tgt = tgt.next!!
-            src.nodes.copyInto(tgt.nodes, 0, toCopy)
-            functionBodies.nextInd = SCRATCHSZ - toCopy
-        }
-        src = src.next!!
-    }
-
-    val spaceInTgt = (CHUNKSZ - functionBodies.nextInd)
-    if (srcIndLast < spaceInTgt) {
-        src.nodes.copyInto(tgt.nodes, functionBodies.nextInd, 0)
-        functionBodies.nextInd += srcIndLast
-    } else {
-        val toCopy = srcIndLast.coerceAtMost(spaceInTgt)
-        src.nodes.copyInto(tgt.nodes, functionBodies.nextInd, 0, toCopy)
-        functionBodies.currChunk = functionBodies.currChunk.next!!
-        src.nodes.copyInto(tgt.nodes, 0, toCopy)
-        functionBodies.nextInd = srcIndLast - toCopy
-    }
-    functionBodies.totalNodes += freshlyMintedFn.totalNodes
-
-    functions.setFourth(freshlyMintedFn.funcId, bodyInd)
+    freshlyMintedFn.nodes.copyInto(functionBodies.c, bodyInd, 0, freshlyMintedFn.currInd)
+    functions.c[freshlyMintedFn.funcId*4 + 3] = bodyInd
 }
 
 fun getString(stringId: Int): String {
@@ -124,41 +95,31 @@ fun getString(stringId: Int): String {
 }
 
 fun getPayload(): Long {
-    return (functionBodies.currChunk.nodes[functionBodies.currInd + 2].toLong() shl 32) +
-            (functionBodies.currChunk.nodes[functionBodies.currInd + 3].toLong() and LOWER32BITS)
+    return (functionBodies.c[functionBodies.ind + 2].toLong() shl 32) +
+            (functionBodies.c[functionBodies.ind + 3].toLong() and LOWER32BITS)
 }
 
-
-init {
-}
 
 companion object {
     /**
      * Equality comparison for ASTs.
      */
     fun diffInd(a: AST, b: AST): Int? {
-        if (a.functionBodies.totalNodes != b.functionBodies.totalNodes
-            || a.functions.totalNodes != b.functions.totalNodes) {
-            return 0
-        }
+        val sizeA = a.functionBodies.ind
+        val sizeB = b.functionBodies.ind
+
         var nodeInd = 0
         if (!equalityFuncs(a, b)) return 0
-        var currA: ASTChunk? = a.functionBodies.firstChunk
-        var currB: ASTChunk? = b.functionBodies.firstChunk
-        while (currA != null) {
-            if (currB == null) {
-                return 0
+
+        val len = Math.min(sizeA, sizeB)
+        for (i in 0 until len) {
+            if (a.functionBodies.c[i] != b.functionBodies.c[i]) {
+                return nodeInd
             }
-            val len = if (currA == a.functionBodies.currChunk) { a.functionBodies.nextInd } else { CHUNKSZ }
-            for (i in 0 until len) {
-                if (currA.nodes[i] != currB.nodes[i]) {
-                    return nodeInd
-                }
-                nodeInd++
-            }
-            currA = currA.next
-            currB = currB.next
+            nodeInd++
         }
+        if (sizeA != sizeB) return len
+
         if (a.identifiers.size != b.identifiers.size) {
             return 0
         }
@@ -172,20 +133,11 @@ companion object {
     }
 
     private fun equalityFuncs(a: AST, b: AST): Boolean {
-        var currA: ASTChunk? = a.functions.firstChunk
-        var currB: ASTChunk? = b.functions.firstChunk
-        while (currA != null) {
-            if (currB == null) {
+        if (a.functions.ind != b.functions.ind) return false
+        for (i in 0 until a.functions.ind) {
+            if (a.functions.c[i] != b.functions.c[i]) {
                 return false
             }
-            val len = if (currA == a.functions.currChunk) { a.functionBodies.nextInd } else { CHUNKSZ }
-            for (i in 0 until len) {
-                if (currA.nodes[i] != currB.nodes[i]) {
-                    return false
-                }
-            }
-            currA = currA.next
-            currB = currB.next
         }
         return true
     }
@@ -194,11 +146,8 @@ companion object {
      * Pretty printer function for debugging purposes
      */
     fun printSideBySide(a: AST, b: AST, indDiff: Int, result: StringBuilder): String {
-        var currA: ASTChunk? = a.functionBodies.firstChunk
-        var currB: ASTChunk? = b.functionBodies.firstChunk
-        a.functionBodies.seek(indDiff)
         print("Diff: ")
-        printNode(a.functionBodies.currChunk, a.functionBodies.currInd, result)
+        printNode(a.functionBodies.c[indDiff], a.functionBodies.c[indDiff], result)
         println()
         a.functionBodies.seek(0)
         while (true) {
@@ -270,13 +219,12 @@ companion object {
         return result.toString()
     }
 
-    private fun printNode(chunk: ASTChunk, ind: Int, wr: StringBuilder) {
-        val startByte = chunk.nodes[ind + 1]
-        val lenBytes = chunk.nodes[ind] and LOWER26BITS
-        val typeBits = (chunk.nodes[ind] ushr 27).toByte()
+    private fun printNode(chunk: FourIntList, nodeInd: Int, wr: StringBuilder) {
+        val startByte = chunk.c[ind + 1]
+        val lenBytes = chunk.c[ind] and LOWER26BITS
+        val typeBits = (chunk.c[ind] ushr 26).toByte()
         if (typeBits < firstSpanASTType) {
-            val regType = RegularAST.values().firstOrNull { it.internalVal == typeBits }
-            if (regType == RegularAST.idFunc) {
+            if (typeBits == RegularAST.idFunc) {
                 val funcId: Int = chunk.nodes[ind + 3]
                 val arity = chunk.nodes[ind + 2]
                 if (arity >= 0) {
@@ -290,7 +238,7 @@ companion object {
                 val payload2 = chunk.nodes[ind + 3]
                 val payl1Str = if (payload1 ushr 31 > 0) {"operator "} else {""} +
                         (if (payload1 and THIRTYFIRSTBIT > 0) {"concreteType "} else {"typeVar "}) +
-                        "arity ${payload1 and LOWER27BITS}"
+                        "arity ${payload1 and LOWER26BITS}"
                 wr.append("$regType $payload2 [${startByte} ${lenBytes}] $payl1Str")
             } else if (regType == RegularAST.litFloat) {
                 val payload: Double = Double.fromBits(
