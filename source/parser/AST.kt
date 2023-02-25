@@ -1,6 +1,5 @@
 package parser
 import language.operatorDefinitions
-import lexer.CHUNKSZ
 import utils.*
 import java.lang.StringBuilder
 
@@ -153,18 +152,18 @@ companion object {
         val len = Math.min(a.functionBodies.ind, b.functionBodies.ind)
         for (i in 0 until len step 4) {
             result.append((i/4).toString() + " ")
-            printNode(currA, i, result)
+            printNode(a.functionBodies, i, result)
             result.append(" | ")
-            printNode(currB, i, result)
+            printNode(a.functionBodies, i, result)
             result.appendLine("")
         }
-        for (i in len until lenA step 4) {
-            printNode(currA, i, result)
+        for (i in len until a.functionBodies.ind step 4) {
+            printNode(a.functionBodies, i, result)
             result.appendLine(" | ")
         }
-        for (i in len until lenB step 4) {
+        for (i in len until b.functionBodies.ind step 4) {
             result.append(" | ")
-            printNode(currB, i, result)
+            printNode(b.functionBodies, i, result)
             result.appendLine("")
         }
 

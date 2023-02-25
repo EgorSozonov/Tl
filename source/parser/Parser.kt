@@ -4,13 +4,12 @@ import java.lang.StringBuilder
 import java.util.*
 import kotlin.collections.ArrayList
 import language.*
-import parser.RegularAST.*
 import utils.IntPair
 import utils.LOWER24BITS
 import utils.LOWER26BITS
 import utils.LOWER32BITS
 
-class Parser(private val inp: Lexer) {
+class Parser(private val lx: Lexer) {
 
 
 val ast = AST()
@@ -41,30 +40,28 @@ private val parseTable: ArrayList<ArrayList<Parser.(Int, ParseFrame, Int, Int) -
  * Main parser method
  */
 fun parse(imports: ArrayList<Import>) {
-    inp.currInd = 0
-
     try {
-        insertImports(imports, inp.fileType)
+        insertImports(imports, lx.fileType)
 
-        if (this.inp.fileType == FileType.executable) {
+        if (lx.fileType == FileType.executable) {
             currFnDef.funcId = indFirstFunction
             fnDefBacktrack.push(currFnDef)
             scopeInitEntryPoint()
         }
 
-        while (inp.currTokInd < inp.totalTokens) {
+        while (lx.currTokInd < lx.totalTokens) {
             if (currFnDef.spanStack.isEmpty()) exitWithError(errorUnexpectedToken)
 
             val currFrame = currFnDef.spanStack.peek()
-            val tokType = inp.currTokenType()
+            val tokType = lx.currTokenType()
 
-            val lenTokens = inp.currLenTokens()
-            val startByte = inp.currStartByte()
-            val lenBytes = inp.currLenBytes()
+            val lenTokens = lx.currPayload2()
+            val startByte = lx.currStartByte()
+            val lenBytes = lx.currLenBytes()
 
             val tableColumn = currFrame.spanType - firstSpanASTType
             if (tokType >= firstPunctTok) {
-                inp.nextToken()
+                lx.nextToken()
                 parseTable[tokType - firstPunctTok + 1 ][tableColumn](lenTokens, currFrame, startByte, lenBytes)
             } else {
                 parseTable[0][tableColumn](lenTokens, currFrame, startByte, lenBytes)
@@ -87,12 +84,12 @@ fun parse(imports: ArrayList<Import>) {
  * Init of the implicit scope in a .tlx (executable) file.
  */
 private fun scopeInitEntryPoint() {
-    val totalTokens = inp.totalTokens
+    val totalTokens = lx.totalTokens
     val newScope = LexicalScope()
 
     detectNestedFunctions(newScope, totalTokens)
-    currFnDef.appendSpan(nodFunctionDef, totalTokens, 0, inp.inp.size)
-    currFnDef.openScopeFromExisting(1, totalTokens, newScope, 0, inp.inp.size) // 1, because node 0 will be functionDef
+    currFnDef.appendSpan(nodFunctionDef, totalTokens, 0, lx.inp.size)
+    currFnDef.openScopeFromExisting(1, totalTokens, newScope, 0, lx.inp.size) // 1, because node 0 will be functionDef
 }
 
 /**
@@ -102,33 +99,33 @@ private fun scopeInitEntryPoint() {
  * Does not consume any tokens.
  */
 private fun detectNestedFunctions(newScope: LexicalScope, lenTokensScope: Int) {
-    val originalPosition = inp.currInd
+    val originalPosition = lx.currTokInd
     var j = 0
 
     while (j < lenTokensScope) {
-        val currToken = inp.lookAhead(0)
+        val currToken = lx.lookAhead(0)
         if (currToken.tType < firstPunctTok) {
             exitWithError(errorScope)
         }
         val lenTokensSpan = (currToken.payload and LOWER32BITS).toInt()
         if (currToken.tType == tokStmtFn) {
-            inp.nextToken() // fn token
+            lx.nextToken() // fn token
             var consumedTokens = 0
 
             val newFnDef = detectNestedFn(j, newScope, lenTokensScope, lenTokensSpan)
             newScope.funDefs.add(newFnDef.fst)
             consumedTokens += newFnDef.snd
 
-            inp.currInd += 4*(lenTokensSpan - consumedTokens)
+            lx.currTokInd += (lenTokensSpan - consumedTokens)
         } else {
-            inp.currInd += 4*(lenTokensSpan + 1) // + 1 for the span token itself
+            lx.currTokInd += (lenTokensSpan + 1) // + 1 for the span token itself
         }
 
         j += lenTokensSpan + 1
     }
 
     newScope.funDefs.reverse()
-    inp.currInd = originalPosition
+    lx.currTokInd = originalPosition
 }
 
 /**
@@ -138,16 +135,16 @@ private fun detectNestedFunctions(newScope: LexicalScope, lenTokensScope: Int) {
 private fun detectNestedFn(i: Int, newScope: LexicalScope, lenTokensScope: Int, lenTokensStatement: Int): IntPair {
     var arity = 0
     var j = i
-    if (inp.currTokenType() != tokWord) exitWithError(errorFnNameAndParams)
+    if (lx.currTokenType() != tokWord) exitWithError(errorFnNameAndParams)
 
     val fnName = readString(tokWord)
-    inp.nextToken() // function name
+    lx.nextToken() // function name
     j += 2
 
     val nameSet = HashSet<String>(4)
     nameSet.add(fnName)
 
-    while (j < lenTokensScope && inp.currTokenType() == tokWord) {
+    while (j < lenTokensScope && lx.currTokenType() == tokWord) {
         val paramName = readString(tokWord)
         val existingBinding = lookupBinding(paramName)
         if (existingBinding != null || nameSet.contains(paramName)) {
@@ -155,20 +152,20 @@ private fun detectNestedFn(i: Int, newScope: LexicalScope, lenTokensScope: Int, 
         }
         nameSet.add(paramName)
         addString(paramName)
-        inp.nextToken() // the current param name
+        lx.nextToken() // the current param name
         j++
         arity++
     }
-    val currTokType = inp.currTokenType()
+    val currTokType = lx.currTokenType()
     if (arity == 0) {
         exitWithError(errorFnNameAndParams)
-    } else if (arity == lenTokensStatement || (currTokType != PunctuationToken.lexScope.internalVal.toInt() && currTokType != PunctuationToken.parens.internalVal.toInt())) {
+    } else if (arity == lenTokensStatement || (currTokType != tokLexScope && currTokType != tokParens)) {
         exitWithError(errorFnMissingBody)
     }
 
     val nameId = addString(fnName)
     val funcId = ast.functions.ind/4
-    ast.functions.appendThree(nameId, arity and LOWER24BITS, 0)
+    ast.functions.add(nameId, arity and LOWER24BITS, 0, 0)
 
     if (lookupFunction(fnName, arity) != null) {
         exitWithError(errorDuplicateFunction)
@@ -198,7 +195,7 @@ private fun scopeInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: I
 private fun createScope(mbNewScope: LexicalScope?, extraTokenLength: Int,
                         lenTokens: Int, startByte: Int, lenBytes: Int) {
     // if we are in an expression, then this scope will be an operand for some operator
-    val sentinelToken = inp.currTokInd + lenTokens
+    val sentinelToken = lx.currTokInd + lenTokens
     if (currFnDef.subexprs.isNotEmpty()) {
         val funStack = currFnDef.subexprs.last()
         exprIncrementArity(funStack[funStack.size - 1])
@@ -219,13 +216,13 @@ private fun maybeCloseSpans() {
     while (fnDefBacktrack.isNotEmpty()) { // loop over FunctionDefs
         while (currFnDef.spanStack.isNotEmpty()) { // loop over subscopes and expressions inside FunctionDef
             val frame = currFnDef.spanStack.peek()
-            if (inp.currTokInd < frame.sentinelToken) return
-            if (inp.currTokInd > frame.sentinelToken) {
+            if (lx.currTokInd < frame.sentinelToken) return
+            if (lx.currTokInd > frame.sentinelToken) {
                 exitWithError(errorInconsistentSpan)
             }
-            if (frame.spanType == SpanAST.scope) {
+            if (frame.spanType == nodScope) {
                 currFnDef.subscopes.removeLast()
-            } else if (frame.spanType == SpanAST.expression) {
+            } else if (frame.spanType == nodExpr) {
                 currFnDef.subexprs.removeLast()
             }
             currFnDef.spanStack.pop()
@@ -281,7 +278,7 @@ private fun coreFnInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: 
     val funcId = currentScope.funDefs.removeLast()
     val funcSignature = ast.getFunc(funcId)
 
-    inp.nextToken() // the function name
+    lx.nextToken() // the function name
 
     val newFnDef = FunctionDef(funcId, funcSignature.arity, functionPrec)
     fnDefBacktrack.push(newFnDef)
@@ -293,23 +290,23 @@ private fun coreFnInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: 
         val paramName = readString(tokWord)
 
         newFunScope.bindings[paramName] = allStrings[paramName]!!
-        newFnDef.appendName(allStrings[paramName]!!, inp.currStartByte(), paramName.length)
+        newFnDef.appendName(allStrings[paramName]!!, lx.currStartByte(), paramName.length)
 
-        inp.nextToken() // function parameter
+        lx.nextToken() // function parameter
         j++
     }
 
-    val currTokenType = inp.currTokenType()
+    val currTokenType = lx.currTokenType()
     if (predicateFunctionBody(currTokenType)) exitWithError(errorFnMissingBody)
 
     currFnDef.appendSpanWithPayload(nodFnDefPlaceholder, newFnDef.funcId, 0, 0, 0)
 
-    val newScopeLenTokens = inp.currLenTokens()
-    val newScopelenBytes = inp.currLenBytes()
-    val newScopeStartByte = inp.currStartByte()
+    val newScopeLenTokens = lx.currPayload2()
+    val newScopelenBytes = lx.currLenBytes()
+    val newScopeStartByte = lx.currStartByte()
 
     if (newScopeLenTokens + newFnDef.arity + 2 != lenTokens) exitWithError(errorInconsistentSpan) // + 2 = fnName + coreForm token
-    inp.nextToken() // the scope token for the function body
+    lx.nextToken() // the scope token for the function body
     currFnDef = newFnDef
     createScope(newFunScope, newFnDef.arity + 2, newScopeLenTokens, newScopeStartByte, newScopelenBytes)
 }
@@ -332,25 +329,25 @@ private fun predicateFunctionBody(tokenType: Int): Boolean {
 private fun coreIfInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: Int) {
     if (lenTokens < 2) exitWithError(errorCoreFormTooShort)
 
-    currFnDef.openContainerSpan(nodIfSpan, inp.currTokInd + lenTokens, startByte, lenBytes)
+    currFnDef.openContainerSpan(nodIfSpan, lx.currTokInd + lenTokens, startByte, lenBytes)
     //coreIf(lenTokens, currFnDef.spanStack.last(), startByte, lenBytes)
-    currFnDef.openContainerSpan(nodIfClause, f.sentinelToken, inp.currStartByte(), 0)
+    currFnDef.openContainerSpan(nodIfClause, f.sentinelToken, lx.currStartByte(), 0)
     val clauseFrame = currFnDef.spanStack.peek()
 
     // we accept boolean literals, identifiers and expressions; things like "!a" are allowed to be without parens
-    val currTokType = inp.currTokenType()
+    val currTokType = lx.currTokenType()
     if (currTokType == tokWord) {
         parseIdent()
     } else if (currTokType == tokBool) {
-        currFnDef.appendNode(nodBool, 0, inp.tokens[inp.currInd + 3], inp.currStartByte(), inp.currLenBytes())
-        inp.nextToken() // the literal token
+        currFnDef.appendNode(nodBool, 0, lx.currPayload2(), lx.currStartByte(), lx.currLenBytes())
+        lx.nextToken() // the literal token
     } else if (currTokType == tokOperator) {
         parsePrefixFollowedByAtom(f.sentinelToken)
     } else if (currTokType == tokParens) {
-        val parenLenTokens = inp.currLenTokens()
-        val parenLenBytes = inp.currLenBytes()
-        inp.nextToken()
-        expressionInit(parenLenTokens, f, inp.currStartByte(), parenLenBytes)
+        val parenLenTokens = lx.currPayload2()
+        val parenLenBytes = lx.currLenBytes()
+        lx.nextToken()
+        expressionInit(parenLenTokens, f, lx.currStartByte(), parenLenBytes)
     } else {
         exitWithError(errorIfLeft)
     }
@@ -358,15 +355,15 @@ private fun coreIfInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: 
 
 
 private fun coreIfAtom(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: Int) {
-    currFnDef.openContainerSpan(nodIfClause, f.sentinelToken, inp.currStartByte(), 0)
+    currFnDef.openContainerSpan(nodIfClause, f.sentinelToken, lx.currStartByte(), 0)
 
     // we accept boolean literals, identifiers and expressions; things like "!a" are allowed to be without parens
-    val currTokType = inp.currTokenType()
+    val currTokType = lx.currTokenType()
     if (currTokType == tokWord) {
         parseIdent()
     } else if (currTokType == tokBool) {
-        currFnDef.appendNode(nodBool, 0, inp.tokens[inp.currInd + 3], inp.currStartByte(), inp.currLenBytes())
-        inp.nextToken() // the literal token
+        currFnDef.appendNode(nodBool, 0, lx.currPayload2(), lx.currStartByte(), lx.currLenBytes())
+        lx.nextToken() // the literal token
     } else if (currTokType == tokOperator) {
         parsePrefixFollowedByAtom(f.sentinelToken)
     } else {
@@ -385,24 +382,24 @@ private fun coreIfParens(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes
 
 private fun coreIfClAtom(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: Int) {
     // we accept anything that can be evaluated (expressions, scopes, expression-like core forms etc)
-    var currTokType = inp.currTokenType()
+    var currTokType = lx.currTokenType()
     if (currTokType != tokOperator) {
         exitWithError(errorIfMalformed)
     }
-    val opType = inp.tokens[inp.currInd + 3]
+    val opType = lx.currPayload2()
     if (opType != opTArrowRight) exitWithError(errorIfMalformed)
-    inp.nextToken() // the "->" or the ":" token
+    lx.nextToken() // the "->" or the ":" token
 
-    currTokType = inp.currTokenType()
-    val sentinelByteRight = inp.currStartByte() + inp.currLenBytes()
+    currTokType = lx.currTokenType()
+    val sentinelByteRight = lx.currStartByte() + lx.currLenBytes()
     val parsedLiteralOrIdent = parseLiteralOrIdentifier(currTokType)
     if (!parsedLiteralOrIdent) {
         if (currTokType == tokOperator) {
             parsePrefixFollowedByAtom(f.sentinelToken)
         } else {
-            val rightLenTokens = inp.currLenTokens()
-            val rightStartByte = inp.currStartByte()
-            val rightLenBytes = inp.currLenBytes()
+            val rightLenTokens = lx.currPayload2()
+            val rightStartByte = lx.currStartByte()
+            val rightLenBytes = lx.currLenBytes()
             if (currTokType == tokParens) {
                 expressionInit(rightLenTokens, f, rightStartByte, rightLenBytes)
             } else if (currTokType == tokLexScope) {
@@ -418,26 +415,26 @@ private fun coreIfClAtom(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes
 
 /** Parses sequences like "!!true" or "'b" into an expression. This is necessary for parentheses reduction */
 private fun parsePrefixFollowedByAtom(sentinelToken: Int) {
-    val startByte = inp.currStartByte()
+    val startByte = lx.currStartByte()
     val opers = ArrayList<IntPair>() // {id of function, startByte}
-    while (inp.currTokInd < sentinelToken) {
-        val tokType = inp.currTokenType()
+    while (lx.currTokInd < sentinelToken) {
+        val tokType = lx.currTokenType()
         if (tokType == tokWord) {
             break
         } else if (tokType == tokOperator) {
-            val opType = inp.tokens[inp.currInd + 3]
+            val opType = lx.currPayload2()
             if (operatorDefinitions[opType].precedence == prefixPrec) {
-                opers.add(IntPair(opType, inp.currStartByte()))
+                opers.add(IntPair(opType, lx.currStartByte()))
             } else {
                 exitWithError(errorIncorrectPrefixSequence)
             }
         } else {
             exitWithError(errorIncorrectPrefixSequence)
         }
-        inp.nextToken() // the prefix operator
+        lx.nextToken() // the prefix operator
     }
-    val wordStartByte = inp.currStartByte()
-    val wordLenBytes = inp.currLenBytes()
+    val wordStartByte = lx.currStartByte()
+    val wordLenBytes = lx.currLenBytes()
     currFnDef.appendSpan(nodExpr, opers.size + 1, startByte, wordStartByte - startByte + wordLenBytes)
     parseIdent()
 
@@ -451,15 +448,16 @@ private fun parsePrefixFollowedByAtom(sentinelToken: Int) {
 private fun parseIdent() {
     val identName = readString(tokWord)
     val mbBinding = lookupBinding(identName) ?: exitWithError(errorUnknownBinding)
-    currFnDef.appendNode(nodId, 0, mbBinding, inp.currStartByte(), identName.length)
-    inp.nextToken() // the identifier token
+    currFnDef.appendNode(nodId, 0, mbBinding, lx.currStartByte(), identName.length)
+    lx.nextToken() // the identifier token
 }
 
 /** Parses 0 or 1 token. Returns false if didn't parse anything. */
 private fun parseLiteralOrIdentifier(currTokType: Int): Boolean {
     if (currTokType <= topVerbatimTokenVariant) {
-        currFnDef.add(inp.tokens[inp.currInd    ], inp.tokens[inp.currInd + 1], inp.tokens[inp.currInd + 2], inp.tokens[inp.currInd + 3])
-        inp.nextToken()
+        val ind = lx.currTokInd*4
+        currFnDef.add(lx.tokens[ind    ], lx.tokens[ind + 1], lx.tokens[ind + 2], lx.tokens[ind + 3])
+        lx.nextToken()
         return true
     }
     when (currTokType) {
@@ -468,14 +466,14 @@ private fun parseLiteralOrIdentifier(currTokType: Int): Boolean {
             return true
         }
         tokString -> {
-            // TODO interpolation, escapes
-            currFnDef.appendNode(nodString, 0, inp.tokens[inp.currInd + 3], inp.currStartByte(), inp.currLenBytes())
+            // TODO escapes
+            currFnDef.appendNode(nodString, 0, lx.currPayload2(), lx.currStartByte(), lx.currLenBytes())
         }
         else -> {
             return false
         }
     }
-    inp.nextToken() // the literal or ident token
+    lx.nextToken() // the literal or ident token
     return true
 }
 
@@ -500,7 +498,7 @@ private fun coreIfPred(f: ParseFrame) {
 private fun coreLoopInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: Int) {
     if (lenTokens == 0) exitWithError(errorCoreFormTooShort)
 
-    val sentinelToken = inp.currTokInd + lenTokens
+    val sentinelToken = lx.currTokInd + lenTokens
     currFnDef.openContainerSpan(nodFor, sentinelToken, startByte, lenBytes )
     currFnDef.openScope(currFnDef.totalNodes, sentinelToken, startByte + 5, lenBytes - 5) // 5 for the "loop " bytes
 }
@@ -565,11 +563,11 @@ private fun typeDeclarationInit(lenTokens: Int, f: ParseFrame, startByte: Int, l
     if (lenTokens == 1) {
         currFnDef.appendSpan(nodTypeDecl, 1, startByte, lenBytes)
         typeExpressionWord()
-        inp.nextToken() // the word
+        lx.nextToken() // the word
         return
     }
 
-    currFnDef.openTypeDecl(currFnDef.totalNodes, inp.currTokInd + lenTokens, startByte, lenBytes)
+    currFnDef.openTypeDecl(currFnDef.totalNodes, lx.currTokInd + lenTokens, startByte, lenBytes)
     typeSubExprInit(lenTokens)
     typeDeclaration(currFnDef.spanStack.last())
 }
@@ -577,8 +575,8 @@ private fun typeDeclarationInit(lenTokens: Int, f: ParseFrame, startByte: Int, l
 
 private fun typeDeclaration(f: ParseFrame) {
     val functionStack = currFnDef.subexprs.last()
-    while (inp.currTokInd < f.sentinelToken) {
-        val currTokType = inp.currTokenType()
+    while (lx.currTokInd < f.sentinelToken) {
+        val currTokType = lx.currTokenType()
         typeCloseSubEx(functionStack)
         val topSubexpr = functionStack.last()
         if (currTokType == tokWord) {
@@ -587,24 +585,24 @@ private fun typeDeclaration(f: ParseFrame) {
         } else if (currTokType == tokOperator) {
             typeExOperator(topSubexpr)
         } else if (currTokType == tokParens) {
-            val subExprLenTokens = inp.tokens[inp.currInd + 3]
+            val subExprLenTokens = lx.currPayload2()
             typeExIncrementArity(topSubexpr)
-            inp.nextToken() // the parens token
+            lx.nextToken() // the parens token
             typeSubExprInit(subExprLenTokens)
             continue
         } else {
             exitWithError(errorTypeDeclCannotContain)
         }
-        inp.nextToken() // any leaf token
+        lx.nextToken() // any leaf token
     }
     typeCloseSubEx(functionStack)
 }
 
 
 private fun typeExpressionWord() {
-    val payload2 = inp.tokens[inp.currInd + 3]
-    val startByte = inp.currStartByte()
-    val lenBytes = inp.currLenBytes()
+    val payload2 = lx.currPayload2()
+    val startByte = lx.currStartByte()
+    val lenBytes = lx.currLenBytes()
     val theWord = readString(tokWord)
     if (payload2 > 0) {
         val indType = lookupType(theWord) ?: exitWithError(errorUnknownType)
@@ -621,7 +619,7 @@ private fun typeExpressionWord() {
  * For operators, it's the negative index of operator from its payload
  */
 private fun typeExFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topSubexpr: Subexpr, payload2: Int) {
-    val startByte = inp.tokens[inp.currInd + 1]
+    val startByte = lx.currStartByte()
 
     if (topSubexpr.isStillPrefix) {
         if (topSubexpr.operators.size != 1) exitWithError(errorTypeDeclError)
@@ -670,15 +668,15 @@ private fun typeExOperand(topSubExpr: Subexpr) {
 
 
 private fun typeExOperator(topSubexpr: Subexpr) {
-    val operTypeIndex = inp.tokens[inp.currInd + 3].toLong()
-    val operInfo = functionalityOfOper(operTypeIndex)
-    if (operInfo.first < 0) exitWithError(errorOperatorUsedInappropriately)
+    val operTypeIndex = lx.currPayload2()
+    val operInfo = operatorDefinitions[operTypeIndex]
 
-    if (operInfo.second == prefixPrec) {
-        val startByte = inp.tokens[inp.currInd + 1]
-        topSubexpr.operators.add(FunctionCall(-operInfo.first - 2, prefixPrec, 1, 1, false, startByte))
+    if (operInfo.precedence == prefixPrec) {
+        val startByte = lx.currStartByte()
+
+        topSubexpr.operators.add(FunctionCall(-operInfo.bindingIndex - 2, prefixPrec, 1, 1, false, startByte))
     } else {
-        typeExFuncall(-operInfo.first - 2, operInfo.second, operInfo.third, topSubexpr, 0)
+        typeExFuncall(-operInfo.bindingIndex - 2, operInfo.precedence, operInfo.arity, topSubexpr, 0)
     }
 }
 
@@ -689,7 +687,7 @@ private fun typeExOperator(topSubexpr: Subexpr) {
  *           "Foo + Bar"
  */
 private fun typeSubExprInit(lenTokens: Int) {
-    val firstTok = inp.lookAhead(0)
+    val firstTok = lx.lookAhead(0)
     val subexprs = currFnDef.subexprs.last()
     if (lenTokens == 1) {
         if (firstTok.tType != tokWord) exitWithError(errorUnexpectedToken)
@@ -700,16 +698,16 @@ private fun typeSubExprInit(lenTokens: Int) {
         // It is prefix if it starts with a word and the second token is not an infixOperator
         var isPrefix = true
         if (firstTok.tType == tokWord) {
-            val secondToken = inp.lookAhead(1)
+            val secondToken = lx.lookAhead(1)
             if (secondToken.tType == tokOperator) {
-                val operType = secondToken.payload
+                val operType = secondToken.payload.toInt()
                 if (operatorDefinitions[operType].precedence != prefixPrec) {
                     isPrefix = false
                 }
             }
             if (isPrefix) {
                 typeOpenPrefixFunction(subexprs, lenTokens)
-                inp.nextToken() // the first token of this subexpression, which is a word
+                lx.nextToken() // the first token of this subexpression, which is a word
                 return
             }
         } else {
@@ -717,25 +715,25 @@ private fun typeSubExprInit(lenTokens: Int) {
         }
 
         subexprs.add(Subexpr(arrayListOf(FunctionCall(-1, functionPrec, 0, 0, false, 0)),
-                                  inp.currTokInd + lenTokens, isStillPrefix = isPrefix, false))
+                                  lx.currTokInd + lenTokens, isStillPrefix = isPrefix, false))
     }
 }
 
 
 private fun typeOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens: Int) {
     val funcName = readString(tokWord)
-    val payload2 = inp.tokens[inp.currInd + 3]
-    val startByte = inp.currStartByte()
+    val payload2 = lx.currPayload2()
+    val startByte = lx.currStartByte()
     if (payload2 > 0) {
         if (!allStrings.containsKey(funcName)) exitWithError(errorUnknownFunction)
         val funcNameId = allStrings[funcName]!!
 
         functionStack.add(Subexpr(arrayListOf(FunctionCall(funcNameId, functionPrec, 0, 0, payload2 > 0, startByte)),
-                                  inp.currTokInd + lenTokens, isStillPrefix = true, false))
+                                  lx.currTokInd + lenTokens, isStillPrefix = true, false))
     } else {
         val stringId = addString(funcName)
         functionStack.add(Subexpr(arrayListOf(FunctionCall(stringId, functionPrec, 0, 0, false, startByte)),
-                                  inp.currTokInd + lenTokens, isStillPrefix = true, false))
+                                  lx.currTokInd + lenTokens, isStillPrefix = true, false))
     }
 }
 
@@ -743,7 +741,7 @@ private fun typeOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens:
 private fun typeCloseSubEx(funCallStack: ArrayList<Subexpr>) {
     for (k in (funCallStack.size - 1) downTo 0) {
         val funInSt = funCallStack[k]
-        if (inp.currTokInd != funInSt.sentinelToken) return
+        if (lx.currTokInd != funInSt.sentinelToken) return
         if (funInSt.operators.size == 1) {
             if (funInSt.isStillPrefix) {
                 typeAppendFunc(funInSt.operators[0], true)
@@ -873,15 +871,15 @@ private fun expressionInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenByt
 
 private fun createExpr(exprType: Int, lenTokens: Int, startByte: Int, lenBytes: Int)  {
     if (lenTokens == 1) {
-        val theToken = inp.lookAhead(0)
+        val theToken = lx.lookAhead(0)
         exprSingleItem(theToken)
         return
     }
 
     if (exprType == nodExpr) {
-        currFnDef.openExpression(currFnDef.totalNodes, inp.currTokInd + lenTokens, startByte, lenBytes)
+        currFnDef.openExpression(currFnDef.totalNodes, lx.currTokInd + lenTokens, startByte, lenBytes)
     } else {
-        currFnDef.openRetExpression(currFnDef.totalNodes, inp.currTokInd + lenTokens, startByte, lenBytes)
+        currFnDef.openRetExpression(currFnDef.totalNodes, lx.currTokInd + lenTokens, startByte, lenBytes)
     }
 
     subexprInit(lenTokens)
@@ -898,14 +896,14 @@ private fun createExpr(exprType: Int, lenTokens: Int, startByte: Int, lenBytes: 
  */
 private fun expression(parseFrame: ParseFrame) {
     val functionStack = currFnDef.subexprs.last()
-    while (inp.currTokInd < parseFrame.sentinelToken) {
-        val tokType = inp.currTokenType()
+    while (lx.currTokInd < parseFrame.sentinelToken) {
+        val tokType = lx.currTokenType()
         subexprClose(functionStack)
         val topSubexpr = functionStack.last()
-        if (tokType == PunctuationToken.parens.internalVal.toInt()) {
-            val subExprLenTokens = inp.tokens[inp.currInd + 3]
+        if (tokType == tokParens) {
+            val subExprLenTokens = lx.currPayload2()
             exprIncrementArity(functionStack.last())
-            inp.nextToken() // the parens token
+            lx.nextToken() // the parens token
             subexprInit(subExprLenTokens)
             continue
         } else if (tokType >= firstPunctTok) {
@@ -918,22 +916,22 @@ private fun expression(parseFrame: ParseFrame) {
                 tokInt -> {
                     exprOperand(topSubexpr)
                     currFnDef.appendNode(
-                        nodInt, inp.tokens[inp.currInd + 2], inp.tokens[inp.currInd + 3],
-                        inp.currStartByte(), inp.currLenBytes()
+                        nodInt, lx.currPayload1(), lx.currPayload2(),
+                        lx.currStartByte(), lx.currLenBytes()
                     )
                 }
                 tokString -> {
                     exprOperand(topSubexpr)
                     currFnDef.appendNode(
                         nodString, 0, 0,
-                        inp.currStartByte(), inp.currLenBytes()
+                        lx.currStartByte(), lx.currLenBytes()
                     )
                 }
                 tokOperator -> {
                     exprOperator(topSubexpr)
                 }
             }
-            inp.nextToken() // any leaf token
+            lx.nextToken() // any leaf token
         }
     }
     subexprClose(functionStack)
@@ -959,7 +957,7 @@ private fun exprWord(topSubexpr: Subexpr) {
     if (binding != null) {
         currFnDef.appendNode(
             nodId, 0, binding,
-            inp.currStartByte(), inp.currLenBytes())
+            lx.currStartByte(), lx.currLenBytes())
         exprOperand(topSubexpr)
     } else {
         exitWithError(errorUnknownBinding)
@@ -971,7 +969,7 @@ private fun exprWord(topSubexpr: Subexpr) {
  * For operators, it's the negative index of operator from its payload
  */
 private fun exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topSubexpr: Subexpr) {
-    val startByte = inp.tokens[inp.currInd + 1]
+    val startByte = lx.currStartByte()
 
     if (topSubexpr.isStillPrefix) {
         if (topSubexpr.operators.size != 1) exitWithError(errorExpressionError)
@@ -1020,15 +1018,14 @@ private fun exprOperand(topSubexpr: Subexpr) {
 
 
 private fun exprOperator(topSubexpr: Subexpr) {
-    val operTypeIndex = inp.tokens[inp.currInd + 3].toLong()
-    val operInfo = functionalityOfOper(operTypeIndex)
-    if (operInfo.first < 0) exitWithError(errorOperatorUsedInappropriately)
+    val operTypeIndex = lx.currPayload2()
+    val operInfo = operatorDefinitions[operTypeIndex]
 
-    if (operInfo.second == prefixPrec) {
-        val startByte = inp.currStartByte()
-        topSubexpr.operators.add(FunctionCall(-operInfo.first - 2, prefixPrec, 1, 1, false, startByte))
+    if (operInfo.precedence == prefixPrec) {
+        val startByte = lx.currStartByte()
+        topSubexpr.operators.add(FunctionCall(-operInfo.bindingIndex - 2, prefixPrec, 1, 1, false, startByte))
     } else {
-        exprFuncall(-operInfo.first - 2, operInfo.second, operInfo.third, topSubexpr)
+        exprFuncall(-operInfo.bindingIndex - 2, operInfo.precedence, operInfo.arity, topSubexpr)
     }
 }
 
@@ -1040,7 +1037,7 @@ private fun exprOperator(topSubexpr: Subexpr) {
  * TODO: allow for core forms (but not scopes!)
  */
 private fun subexprInit(lenTokens: Int) {
-    val firstTok = inp.lookAhead(0)
+    val firstTok = lx.lookAhead(0)
     val subexprs = currFnDef.subexprs.last()
     val isHeadPosition = if (subexprs.isEmpty()) {
         false
@@ -1056,35 +1053,35 @@ private fun subexprInit(lenTokens: Int) {
         // It is prefix if it starts with a word and the second token is not an infixOperator
         var isPrefix = true
         if (firstTok.tType == tokWord) {
-            val secondToken = inp.lookAhead(1)
+            val secondToken = lx.lookAhead(1)
             if (secondToken.tType == tokOperator) {
-                val opType = secondToken.payload
+                val opType = secondToken.payload.toInt()
                 if (operatorDefinitions[opType].precedence != prefixPrec) {
                     isPrefix = false
                 }
             }
             if (isPrefix) {
                 exprOpenPrefixFunction(subexprs, lenTokens, isHeadPosition)
-                inp.nextToken() // the first token of this subexpression, which is a word
+                lx.nextToken() // the first token of this subexpression, which is a word
                 return
             }
         } else if (firstTok.tType != tokParens) {
             isPrefix = false
         }
         currFnDef.subexprs.last().add(Subexpr(arrayListOf(FunctionCall(-1, 0, 0, 0, false, 0)),
-                                              inp.currTokInd + lenTokens, isPrefix, isHeadPosition))
+                                              lx.currTokInd + lenTokens, isPrefix, isHeadPosition))
     }
 }
 
 private fun exprOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens: Int, isHeadPosition: Boolean) {
     val funcName = readString(tokWord)
-    val startByte = inp.currStartByte()
+    val startByte = lx.currStartByte()
 
     if (!allStrings.containsKey(funcName)) exitWithError(errorUnknownFunction)
     val funcNameId = allStrings[funcName]!!
 
     functionStack.add(Subexpr(arrayListOf(FunctionCall(funcNameId, functionPrec, 0, 0, false, startByte)),
-                              inp.currTokInd + lenTokens, isStillPrefix = true, isInHeadPosition = isHeadPosition))
+                              lx.currTokInd + lenTokens, isStillPrefix = true, isInHeadPosition = isHeadPosition))
 }
 
 /**
@@ -1096,7 +1093,7 @@ private fun exprOpenPrefixFunction(functionStack: ArrayList<Subexpr>, lenTokens:
 private fun subexprClose(funCallStack: ArrayList<Subexpr>) {
     for (k in (funCallStack.size - 1) downTo 0) {
         val currSubexpr = funCallStack[k]
-        if (inp.currTokInd != currSubexpr.sentinelToken) return
+        if (lx.currTokInd != currSubexpr.sentinelToken) return
 
         if (currSubexpr.operators.size == 1) {
             if (currSubexpr.isInHeadPosition) {
@@ -1191,13 +1188,13 @@ private fun appendFnName(fnParse: FunctionCall, isPrefixWord: Boolean) {
 private fun assignmentInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenBytes: Int) {
     if (lenTokens < 2) exitWithError(errorAssignment)
 
-    val sentinelToken = inp.currTokInd + lenTokens
-    val fstTokenType = inp.currTokenType()
-    val numPrefixTokens = inp.tokens[inp.currInd + 2] // Equals 1 for now
+    val sentinelToken = lx.currTokInd + lenTokens
+    val fstTokenType = lx.currTokenType()
+    val numPrefixTokens = lx.currPayload2() // Equals 1 for now
     if (fstTokenType != tokWord) exitWithError(errorAssignment)
 
     val bindingName = readString(tokWord)
-    inp.nextToken() // the name of the binding
+    lx.nextToken() // the name of the binding
 
     val mbBinding = lookupBinding(bindingName)
     if (mbBinding != null) exitWithError(errorAssignmentShadowing)
@@ -1207,10 +1204,10 @@ private fun assignmentInit(lenTokens: Int, f: ParseFrame, startByte: Int, lenByt
 
     currFnDef.openAssignment(currFnDef.totalNodes, sentinelToken, startByte, lenBytes)
     currFnDef.appendNode(nodBinding, 0, strId, startByte, bindingName.length)
-    val startOfExpr = inp.tokens[inp.currInd + 1]
+    val startOfExpr = lx.currStartByte()
     val remainingLen = lenTokens - 1
 
-    val tokType = inp.currTokenType()
+    val tokType = lx.currTokenType()
     if (tokType == tokLexScope) {
         createScope(null, 0, remainingLen - 1, startOfExpr, lenBytes - startOfExpr + startByte)
     } else {
@@ -1245,7 +1242,7 @@ fun buildNode(nType: Int, payload1: Int, payload2: Int, startByte: Int, lenBytes
 
 
 fun buildFunction(nameId: Int, arity: Int, bodyId: Int): Parser {
-    ast.functions.build(nameId, arity and LOWER24BITS, 0, bodyId)
+    ast.functions.add(nameId, arity and LOWER24BITS, 0, bodyId)
     return this
 }
 
@@ -1256,14 +1253,14 @@ fun buildFnDefPlaceholder(funcId: Int): Parser {
 
 
 fun buildIntNode(payload: Long, startByte: Int, lenBytes: Int): Parser {
-    ast.functionBodies.appendNode(nodInt, (payload ushr 32).toInt(), (payload and LOWER32BITS).toInt(), startByte, lenBytes)
+    ast.functionBodies.add((nodInt shl 26) + startByte, lenBytes, (payload ushr 32).toInt(), (payload and LOWER32BITS).toInt())
     return this
 }
 
 
 fun buildFloatNode(payload: Double, startByte: Int, lenBytes: Int): Parser {
     val payloadAsLong = payload.toBits()
-    ast.functionBodies.appendNode(nodFloat, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt(), startByte, lenBytes)
+    ast.functionBodies.add((nodInt shl 26) + startByte, lenBytes, (payloadAsLong ushr 32).toInt(), (payloadAsLong and LOWER32BITS).toInt())
     return this
 }
 
@@ -1291,11 +1288,9 @@ fun buildError(msg: String): Parser {
  */
 private fun readString(tType: Int): String {
     return if (tType == tokWord) {
-        String(inp.inp, inp.tokens[inp.currInd + 1],
-            inp.tokens[inp.currInd] and LOWER26BITS)
+        String(lx.inp, lx.currStartByte(), lx.currLenBytes())
     } else {
-        String(inp.inp, inp.tokens[inp.currInd + 1] + 1,
-            (inp.tokens[inp.currInd] and LOWER26BITS) - 1)
+        String(lx.inp, lx.currStartByte() + 1, lx.currLenBytes() - 1)
     }
 }
 
@@ -1312,16 +1307,6 @@ private fun lookupBinding(name: String): Int? {
     }
 
     return importedScope.bindings.getOrDefault(name, null)
-}
-
-/**
- * Returns {operId precedence arity} of an operator from the payload in the token
- * TODO sort out Int vs Long silliness
- */
-private fun functionalityOfOper(operPayload: Long): Triple<Int, Int, Int> {
-    val index = OperatorToken.fromInt(operPayload.toInt()).opType.internalVal
-    val operDefinition = operatorDefinitions[index]
-    return Triple(index, operDefinition.precedence, operDefinition.arity)
 }
 
 
@@ -1357,15 +1342,15 @@ private fun addString(s: String): Int {
 
 
 private fun exitWithError(msg: String): Nothing {
-    val startByte = inp.tokens[inp.currInd + 1]
-    val endByte = startByte + inp.tokens[inp.currInd] and LOWER26BITS
+    val startByte = lx.currStartByte()
+    val endByte = startByte + lx.currLenBytes()
     wasError = true
     errMsg = "[$startByte $endByte] $msg"
     throw Exception(errMsg)
 }
 
 fun getStringLiteral(startByte: Int, lenBytes: Int): String {
-    return String(inp.inp, startByte, lenBytes)
+    return String(lx.inp, startByte, lenBytes)
 }
 
 /** The programmatic/builder method for inserting all non-builtin function bindings into top scope */
@@ -1373,13 +1358,13 @@ fun insertImports(imports: ArrayList<Import>, fileType: FileType): Parser {
     val uniqueNames = HashSet<String>()
     val builtins = builtInOperators()
     for (bui in builtins) {
-        val funcId = ast.functions.totalNodes
-        ast.functions.appendThree(-1, bui.arity and LOWER24BITS, 0)
+        val funcId = ast.functions.ind/4
+        ast.functions.add(-1, bui.arity and LOWER24BITS, 0, 0)
         importedScope.functions[bui.name] = arrayListOf(IntPair(funcId, bui.arity))
     }
     this.indFirstFunction = builtins.size
     if (fileType == FileType.executable) {
-        ast.functions.appendThree(-1, 0, 0) // the entrypoint
+        ast.functions.add(-1, 0, 0, 0) // the entrypoint
     }
     for (imp in imports) {
         if (uniqueNames.contains(imp.name)) {
@@ -1388,9 +1373,9 @@ fun insertImports(imports: ArrayList<Import>, fileType: FileType): Parser {
         uniqueNames.add(imp.name)
         val strId = addString(imp.name)
         if (imp.arity > -1) {
-            val funcId = ast.functions.totalNodes
+            val funcId = ast.functions.ind/4
             val nativeNameId = addString(imp.nativeName)
-            ast.functions.appendThree(strId, imp.arity and LOWER24BITS, nativeNameId)
+            ast.functions.add(strId, imp.arity and LOWER24BITS, nativeNameId, 0)
             importedScope.functions[imp.name] = arrayListOf(IntPair(funcId, imp.arity))
         } else {
             importedScope.bindings[imp.name] = strId
@@ -1403,7 +1388,7 @@ fun insertImports(imports: ArrayList<Import>, fileType: FileType): Parser {
 
 
 fun getFileType(): FileType {
-    return inp.fileType
+    return lx.fileType
 }
 
 /**
@@ -1429,8 +1414,8 @@ private fun addBuiltInTypes() {
 
 private fun addBuiltInType(name: String) {
     val nameInd = addString(name)
-    ast.types.appendFirst(nameInd)
-    importedScope.types[name] = ast.types.totalNodes - 1
+    ast.types.add(nameInd, 0, 0, 0)
+    importedScope.types[name] = ast.types.ind/4 - 1
 }
 
 //endregion

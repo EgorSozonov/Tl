@@ -782,7 +782,7 @@ inner class FunctionTest {
               .buildSpan(nodFunctionDef, 2, 0, 123) // entrypoint
               .buildSpan(nodScope, 1, 0, 123)
               .buildFnDefPlaceholder(it.indFirstFunction + 1) // definition of foo
-            it.ast.functions.setFourth(it.indFirstFunction, 33)
+            it.ast.functions.c[it.indFirstFunction*4 + 3] = 33
 
         }
     }

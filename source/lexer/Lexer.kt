@@ -16,9 +16,8 @@ class Lexer(val inp: ByteArray, val fileType: FileType) {
  * payload2           | i32
  */
 private var cap = INIT_LIST_SIZE*4
-var currInd = 0
+var currTokInd = 0
 var tokens = IntArray(INIT_LIST_SIZE*4)
-
 
 var nextInd: Int                                             // Next ind inside the current token array
     private set
@@ -541,7 +540,7 @@ private fun lexComment() {
 
 /** Colon = parens until the end of current subexpression (so Tl's colon is equivalent to Haskell's dollar) */
 private fun lexColon() {
-    backtrack.push(Pair(tokColonOpened, currInd/4))
+    backtrack.push(Pair(tokColonOpened, totalTokens))
     i++
 }
 
@@ -591,16 +590,25 @@ private fun openPunctuation(tType: Int) {
  * for the opener token.
  */
 private fun closeRegularPunctuation(closingType: Int) {
+    closeColons()
     if (backtrack.empty()) {
         exitWithError(errorPunctuationExtraClosing)
     }
+
     val top = backtrack.pop()
     validateClosingPunct(closingType, top.first)
-    if (wasError) return
-    
+
     setSpanLength(top.second)
 
     i++
+}
+
+/** For all the colons at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
+private fun closeColons() {
+    while (backtrack.isNotEmpty() && backtrack.peek().first == tokColonOpened) {
+        // TODO
+        backtrack.pop()
+    }
 }
 
 /**
@@ -612,7 +620,7 @@ private fun validateClosingPunct(closingType: Int, openType: Int) {
             if (openType != tokCurlyBraces) exitWithError(errorPunctuationUnmatched)
         }
         tokBrackets -> {
-            if (openType != tokBrackets) exitWithError(errorPunctuationUnmatched)
+            if (openType != tokBrackets && openType != tokColonOpened) exitWithError(errorPunctuationUnmatched)
         }
         tokParens -> {
             if (openType != tokParens) exitWithError(errorPunctuationUnmatched)
@@ -779,30 +787,34 @@ fun buildPunctuation(tType: Int, lenTokens: Int, startByte: Int, lenBytes: Int):
 
 
 fun nextToken() {
-    currInd += 4
+    currTokInd++
 }
     
 
 fun currTokenType(): Int {
-    return tokens[currInd] ushr 26
+    return tokens[currTokInd*4] ushr 26
 }
 
 
 fun currLenBytes(): Int {
-    return tokens[currInd] and LOWER26BITS
+    return tokens[currTokInd*4 + 1]
 }
 
 fun currStartByte(): Int {
-    return tokens[currInd + 1]
+    return tokens[currTokInd*4] and LOWER26BITS
 }
 
-fun currLenTokens(): Int {
-    return tokens[currInd + 3]
+fun currPayload1(): Int {
+    return tokens[currTokInd*4 + 2]
+}
+
+fun currPayload2(): Int {
+    return tokens[currTokInd*4 + 3]
 }
 
 
 fun lookAhead(skip: Int): TokenLite {
-    val nextInd = currInd + 4*skip
+    val nextInd = 4*(currTokInd + skip)
     return TokenLite(tokens[nextInd] ushr 26,
                      (tokens[nextInd + 2].toLong() shl 32) + tokens[nextInd + 3].toLong())
 }
@@ -898,31 +910,28 @@ private fun determineUnreserved(startByte: Int, lenBytes: Int): Int {
 }
 
 private fun exitWithError(msg: String): Nothing {
-    val startByte = tokens[currInd + 1]
-    val endByte = startByte + tokens[currInd] and LOWER26BITS
     wasError = true
-    errMsg = "[$startByte $endByte] $msg"
-    throw Exception(errMsg)
+    throw Exception(msg)
 }
 
 fun add(i1: Int, i2: Int, i3: Int, i4: Int) {
-    currInd += 4
-    if (currInd == cap) {
+
+    if ((nextInd + 4) == cap) {
         val newArray = IntArray(2*cap)
         tokens.copyInto(newArray, 0, cap)
         cap *= 2
     }
-    tokens[currInd    ] = i1
-    tokens[currInd + 1] = i2
-    tokens[currInd + 2] = i3
-    tokens[currInd + 3] = i4
+    tokens[nextInd    ] = i1
+    tokens[nextInd + 1] = i2
+    tokens[nextInd + 2] = i3
+    tokens[nextInd + 3] = i4
+    nextInd += 4
     totalTokens++
 }
 
 init {
     i = 0
     nextInd = 0
-    currInd = 0
     totalTokens = 0
     wasError = false
     errMsg = ""
