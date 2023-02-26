@@ -1,4 +1,4 @@
-//package runner
+package main
 //
 //import lexer.FileType
 //import lexer.Lexer
@@ -32,7 +32,8 @@
 //"""
 //
 //
-//fun main(args: Array<String>) {
+fun main(args: Array<String>) {
+    println("HW")
 //    println("compilation result:")
 //    println()
 //    val lexer = Lexer(input.toByteArray(), FileType.executable)
@@ -63,4 +64,4 @@
 //    println()
 //    println("compiled output:")
 //    println()
-//}
+}

@@ -44,19 +44,18 @@ fun lexicallyAnalyze() {
             exitWithError("Empty input")
         }
 
+        if (inp.size >= 67_108_864) { // 2^26 is the largest byte index representable in a token
+            exitWithError("Source code file size is too big, 2^26 bytes is the largest allowed size")
+        }
+
         // Check for UTF-8 BOM at start of file
         if (inp.size >= 3 && inp[0] == 0xEF.toByte() && inp[1] == 0xBB.toByte() && inp[2] == 0xBF.toByte()) {
             i = 3
         }
 
         // Main loop over the input
-        while (i < inp.size && !wasError) {
-            val cByte = inp[i]
-            if (cByte >= 0) {
-                dispatchTable[cByte.toInt()]()
-            } else {
-                exitWithError(errorNona)
-            }
+        while (i < inp.size) {
+            dispatchTable[inp[i].toInt()]()
         }
 
         finalize()
@@ -72,30 +71,40 @@ private fun lexWord() {
 
 /**
  * Lexes a word (both reserved and identifier) according to Tl's rules.
- * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45
- * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
+ * Examples of acceptable tokens: a.b.c.D, asdf123, ab._Cd45
+ * Examples of unacceptable tokens:
+ *     A.b.c.d (bad because only last chunk may be capitalized),
+ *     1asdf23 (bad because starts with digit),
+ *     ab.cd_45 (bad because snake case).
  */
 private fun lexWordInternal(wordType: Int) {
     val startInd = i
-    var metUncapitalized = lexWordChunk()
-    while (i < (inp.size - 1) && inp[i] == aDot && inp[i + 1] != aBracketLeft && !wasError) {
+    var wasCapitalized = lexWordChunk()
+    while (i < (inp.size - 1) && inp[i] == aDot && inp[i + 1] != aBracketLeft) {
         i += 1
-        val isCurrUncapitalized = lexWordChunk()
-        if (metUncapitalized && !isCurrUncapitalized) {
+        val isCurrCapitalized = lexWordChunk()
+        if (wasCapitalized && isCurrCapitalized) {
             exitWithError(errorWordCapitalizationOrder)
         }
-        metUncapitalized = isCurrUncapitalized
+        wasCapitalized = isCurrCapitalized
     }
-    val realStartInd = if (wordType == tokWord) { startInd } else {startInd - 1} // accounting for the . or @ at the start
-    val paylCapitalized = if (metUncapitalized) { 0 } else { 1 }
+    val isAlsoAccessor = (i < inp.size && inp[i] == aBracketLeft) // data accessor like a[5]
+
+    val realStartInd = if (wordType == tokWord) { startInd } else {startInd - 1} // accounting for the @ at the start
+    val paylCapitalized = if (wasCapitalized) { 1 } else { 0 }
 
     val firstByte = inp[startInd]
     val lenBytes = i - realStartInd
-    if (wordType == tokAtWord || firstByte < aBLower || firstByte > aWLower) {
+    if (wordType != tokWord && isAlsoAccessor) exitWithError(errorWordWrongAccessor)
+    if (wordType == tokAtWord || firstByte < aALower || firstByte > aTLower) {
         appendToken(wordType, paylCapitalized, realStartInd, lenBytes)
+        if (isAlsoAccessor) {
+            openPunctuation(tokAccessor)
+        }
     } else {
-        val mbReservedWord = possiblyReservedDispatch[(firstByte - aBLower)](startInd, i - startInd)
+        val mbReservedWord = possiblyReservedDispatch[(firstByte - aALower)](startInd, i - startInd)
         if (mbReservedWord > 0) {
+            if (isAlsoAccessor) exitWithError(errorWordWrongAccessor)
             if (mbReservedWord == reservedTrue) {
                 appendToken(tokBool, 1, realStartInd, lenBytes)
             } else if (mbReservedWord == reservedFalse) {
@@ -105,6 +114,9 @@ private fun lexWordInternal(wordType: Int) {
             }
         } else  {
             appendToken(wordType, paylCapitalized, realStartInd, lenBytes)
+            if (isAlsoAccessor) {
+                openPunctuation(tokAccessor)
+            }
         }
     }
 }
@@ -112,28 +124,27 @@ private fun lexWordInternal(wordType: Int) {
 /**
  * Lexes a single chunk of a word, i.e. the characters between two dots
  * (or the whole word if there are no dots).
- * Returns True if the lexed chunk was uncapitalized
+ * Returns if the lexed chunk was capitalized.
  */
 private fun lexWordChunk(): Boolean {
     var result = false
 
     if (inp[i] == aUnderscore) {
         checkPrematureEnd(2, inp)
-        i += 1
+        i++
     } else {
         checkPrematureEnd(1, inp)
     }
-    if (wasError) return false
 
-    if (isLowercaseLetter(inp[i])) {
+    if (isCapitalLetter(inp[i])) {
         result = true
-    } else if (!isCapitalLetter(inp[i])) {
+    } else if (!isLowercaseLetter(inp[i])) {
         exitWithError(errorWordChunkStart)
     }
-    i += 1
+    i++
 
     while (i < inp.size && isAlphanumeric(inp[i])) {
-        i += 1
+        i++
     }
     if (i < inp.size && inp[i] == aUnderscore) {
         exitWithError(errorWordUnderscoresOnlyAtStart)
@@ -538,6 +549,10 @@ private fun lexComment() {
     i = j
 }
 
+private fun lexNonAscii() {
+    exitWithError(errorNonAscii)
+}
+
 /** Colon = parens until the end of current subexpression (so Tl's colon is equivalent to Haskell's dollar) */
 private fun lexColon() {
     backtrack.push(Pair(tokColonOpened, totalTokens))
@@ -548,14 +563,18 @@ private fun lexColon() {
  *  Doc comments, syntax is ;; The comment
  */
 private fun lexDocComment() {
-    val startByte = i
-    for (j in (i + 2) until inp.size) { // +2 for the ';;'
+    val startByte = i + 2 // +2 for the ';;'
+    for (j in startByte until inp.size) {
         if (inp[j] == aNewline) {
             newLines.add(j)
-            appendDocComment(startByte, j)
+            if (j > startByte) {
+                appendDocComment(startByte, j - 1)
+            }
+            i = j + 1
             return
         }
     }
+    i = inp.size
     appendDocComment(startByte, inp.size - 1)
 }
 
@@ -620,10 +639,10 @@ private fun validateClosingPunct(closingType: Int, openType: Int) {
             if (openType != tokCurlyBraces) exitWithError(errorPunctuationUnmatched)
         }
         tokBrackets -> {
-            if (openType != tokBrackets && openType != tokColonOpened) exitWithError(errorPunctuationUnmatched)
+            if (openType != tokBrackets && openType != tokAccessor) exitWithError(errorPunctuationUnmatched)
         }
         tokParens -> {
-            if (openType != tokParens) exitWithError(errorPunctuationUnmatched)
+            if (openType != tokParens && openType != tokColonOpened) exitWithError(errorPunctuationUnmatched)
         }
         else -> {}
     }
@@ -669,8 +688,7 @@ fun buildLitFloat(payload: Double, startByte: Int, lenBytes: Int): Lexer {
  */
 private fun setSpanLength(tokenInd: Int) {
     var j = tokenInd * 4
-    val lenBytes = i - tokens[j + 1]
-    tokens[j    ] += (lenBytes and LOWER26BITS) // lenBytes
+    tokens[j + 1] = i - (tokens[j] and LOWER26BITS) // lenBytes
     tokens[j + 3] = totalTokens - tokenInd - 1  // lenTokens
 }
 
@@ -911,6 +929,7 @@ private fun determineUnreserved(startByte: Int, lenBytes: Int): Int {
 
 private fun exitWithError(msg: String): Nothing {
     wasError = true
+    errMsg = msg
     throw Exception(msg)
 }
 
@@ -939,7 +958,7 @@ init {
 
 
 companion object {
-    private val dispatchTable: Array<Lexer.() -> Unit> = Array(127) { Lexer::lexUnrecognizedSymbol }
+    private val dispatchTable: Array<Lexer.() -> Unit> = Array(256) { Lexer::lexUnrecognizedSymbol }
 
     init {
         for (i in aDigit0..aDigit9) {
@@ -975,6 +994,10 @@ companion object {
 
         dispatchTable[aApostrophe.toInt()] = Lexer::lexStringLiteral
         dispatchTable[aSemicolon.toInt()] = Lexer::lexComment
+
+        for (i in 128 until 256) {
+            dispatchTable[i] = Lexer::lexNonAscii
+        }
     }
 
     /**
@@ -1083,8 +1106,8 @@ companion object {
 
 
     private fun printToken(tokens: IntArray, ind: Int, wr: StringBuilder) {
-        val startByte = tokens[ind + 1]
-        val lenBytes = tokens[ind] and LOWER26BITS
+        val startByte = tokens[ind] and LOWER26BITS
+        val lenBytes = tokens[ind + 1]
         val typeBits = (tokens[ind] ushr 26)
         val tokTypeName = tokNames[typeBits]
         if (typeBits < firstPunctTok) {

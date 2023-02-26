@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Nested
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-internal class LexerTest {
+class LexerTest {
 
 
 @Nested
@@ -324,10 +324,8 @@ inner class LexStringTest {
 
     @Test
     fun `String literal with escaped apostrophe inside`() {
-        testInpOutp("'wasn''t so sure") {
-            it.build(tokString, 0, 1, 7)
-              .build(tokWord, 0, 10, 2)
-              .build(tokWord, 0, 13, 4)
+        testInpOutp("'wasn''t so sure'") {
+            it.build(tokString, 0, 1, 15)
         }
     }
 
@@ -360,16 +358,26 @@ inner class LexCommentTest {
     @Test
     fun `Doc comment`() {
         testInpOutp(";; Documentation comment ") {
-            it.build(tokDocComment, 0, 0, 25)
+            it.build(tokDocComment, 0, 2, 23)
         }
     }
 
     @Test
     fun `Doc comment before something`() {
         testInpOutp(""";; Documentation comment
-print "hw" """) {
-            it.build(tokDocComment, 0, 3, 23)
-                .build(tokString, 0, 31, 2)
+print 'hw' """) {
+            it.build(tokDocComment, 0, 2, 22)
+              .build(tokWord, 0, 25, 5)
+              .build(tokString, 0, 32, 2)
+        }
+    }
+
+    @Test
+    fun `Doc comment empty`() {
+        testInpOutp(""";;
+print 'hw' """) {
+            it.build(tokWord, 0, 3, 5)
+              .build(tokString, 0, 10, 2)
         }
     }
 }
@@ -450,7 +458,7 @@ inner class LexPunctuationTest {
     fun `Data accessor`() {
         testInpOutp("asdf[5]") {
             it.build(tokWord, 0, 0, 4)
-              .buildPunctuation(tokAccessor, 1, 4, 3)
+              .buildPunctuation(tokAccessor, 1, 5, 1)
               .buildLitInt(5, 5, 1)
         }
     }

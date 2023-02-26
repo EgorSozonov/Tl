@@ -40,7 +40,7 @@ sourceSets {
 }
 
 application {
-    mainClass.set("runner.RunnerKt")
+    mainClass.set("main.TlcKt")
 }
 
 java {

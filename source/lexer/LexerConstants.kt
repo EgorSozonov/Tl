@@ -2,13 +2,13 @@ package lexer
 
 
 const val errorLengthOverflow             = "Token length overflow"
-const val errorNona                       = "Non-a symbols are not allowed in code - only inside comments & string literals!"
+const val errorNonAscii                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!"
 const val errorPrematureEndOfInput        = "Premature end of input"
 const val errorUnrecognizedByte           = "Unrecognized byte in source code!"
 const val errorWordChunkStart             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!"
 const val errorWordCapitalizationOrder    = "An identifier may not contain a capitalized piece after an uncapitalized one!"
 const val errorWordUnderscoresOnlyAtStart = "Underscores are only allowed at start of word (snake case is forbidden)!"
-const val errorWordReservedWithDot        = "Reserved words may not be called like functions!"
+const val errorWordWrongAccessor          = "Only regular identifier words may be used for data access with []!"
 const val errorNumericEndUnderscore       = "Numeric literal cannot end with underscore!"
 const val errorNumericWidthExceeded       = "Numeric literal width is exceeded!"
 const val errorNumericBinWidthExceeded    = "Integer literals cannot exceed 64 bit!"
@@ -49,25 +49,25 @@ const val tokUnderscore = 4
 const val tokDocComment = 5
 
 // This group requires analysis in the parser
-const val tokWord = 6      // payload2: 1 if the word is all capitals
+const val tokWord = 6      // payload2: 1 if the word is capitalized
 const val tokAtWord = 7
 const val tokReserved = 8  // payload2: value of a constant from the 'reserved*' group
-const val tokOperator = 11 // payload1 = (isExtension) 1 bit + (isAssignment) 1 bit. payload2 = opT... constant
+const val tokOperator = 9 // payload1 = (isExtension) 1 bit + (isAssignment) 1 bit. payload2 = opT... constant
 
 // Punctuation (inner node) Token types
-const val tokCompoundString = 12
-const val tokCurlyBraces = 13
-const val tokBrackets = 14
-const val tokParens = 15
-const val tokAccessor = 16 // the [] in x[5]
-const val tokStmtAssignment = 17 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
-const val tokStmtTypeDecl = 18
-const val tokLexScope = 19
-const val tokStmtFn = 20
-const val tokStmtFor = 21
-const val tokStmtReturn = 22
-const val tokStmtIf = 23
-const val tokStmtIfEq = 23
+const val tokCompoundString = 10
+const val tokCurlyBraces = 11
+const val tokBrackets = 12
+const val tokParens = 13
+const val tokAccessor = 14 // the [] in x[5]
+const val tokStmtAssignment = 15 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
+const val tokStmtTypeDecl = 16
+const val tokLexScope = 17
+const val tokStmtFn = 18
+const val tokStmtFor = 19
+const val tokStmtReturn = 20
+const val tokStmtIf = 21
+const val tokStmtIfEq = 22
 const val tokStmtIfPr = 23
 const val tokStmtOpen = 24 // maybe remove this
 const val tokStmtBreak = 25
@@ -98,11 +98,16 @@ val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Wo
 /** 2**53 */
 val maximumPreciselyRepresentedFloatingInt = byteArrayOf(9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2)
 
-/** Must be divisible by 4 */
-const val CHUNKSZ: Int = 10000
+data class Token(var tType: Int, var startByte: Int, var lenBytes: Int, var payload: Long)
 
-/** Must be divisible by 2 and less than CHUNKSZ */
-const val COMMENTSZ: Int = 100
+data class TokenLite(var tType: Int, var payload: Long)
+
+enum class FileType {
+    executable,
+    library,
+    tests,
+}
+
 
 
 const val aALower: Byte = 97
@@ -110,8 +115,8 @@ const val aBLower: Byte = 98
 const val aCLower: Byte = 99
 const val aFLower: Byte = 102
 const val aNLower: Byte = 110
+const val aTLower: Byte = 116
 const val aXLower: Byte = 120
-const val aWLower: Byte = 119
 const val aZLower: Byte = 122
 const val aAUpper: Byte = 65
 const val aFUpper: Byte = 70
