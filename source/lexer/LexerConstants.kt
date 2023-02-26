@@ -52,7 +52,7 @@ const val tokDocComment = 5
 const val tokWord = 6      // payload2: 1 if the word is capitalized
 const val tokAtWord = 7
 const val tokReserved = 8  // payload2: value of a constant from the 'reserved*' group
-const val tokOperator = 9 // payload1 = (isExtension) 1 bit + (isAssignment) 1 bit. payload2 = opT... constant
+const val tokOperator = 9 // payload1 = opT... constant (30 bits) + isExtension (1 bit) + isAssignment (1 bit)
 
 // Punctuation (inner node) Token types
 const val tokCompoundString = 10
@@ -60,16 +60,16 @@ const val tokCurlyBraces = 11
 const val tokBrackets = 12
 const val tokParens = 13
 const val tokAccessor = 14 // the [] in x[5]
-const val tokStmtAssignment = 15 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
+const val tokStmtAssignment = 15 // payload1 = like in tokOperator
 const val tokStmtTypeDecl = 16
 const val tokLexScope = 17
-const val tokStmtFn = 18
-const val tokStmtFor = 19
-const val tokStmtReturn = 20
-const val tokStmtIf = 21
-const val tokStmtIfEq = 22
-const val tokStmtIfPr = 23
-const val tokStmtOpen = 24 // maybe remove this
+const val tokStmt = 18
+const val tokStmtFn = 19
+const val tokStmtFor = 20
+const val tokStmtReturn = 21
+const val tokStmtIf = 22
+const val tokStmtIfEq = 23
+const val tokStmtIfPr = 24
 const val tokStmtBreak = 25
 const val tokStmtExport = 26
 const val tokStmtMatch = 27
@@ -91,8 +91,8 @@ const val firstCoreFormTok = tokStmtAssignment
 
 /** Order must agree with the tok... constants above */
 val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Word", "Reserved", "Op",
-"Comp Str", "{", "[", "(", "access", "assign", "typeDecl", "lexScope", "fn", "for", "return",
-"if", "ifEq", "ifPr", "open", "break", "export", "match", "struct", "alias", "catch", "continue", "embed", "impl", "try", "type")
+"Comp Str", "{", "[", "(", "access", "assign", "typeDecl", "lexScope", "Stmt", "fn", "for", "return",
+"if", "ifEq", "ifPr", "break", "export", "match", "struct", "alias", "catch", "continue", "embed", "impl", "try", "type")
 
 
 /** 2**53 */

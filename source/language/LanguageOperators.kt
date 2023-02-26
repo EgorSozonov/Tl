@@ -97,9 +97,9 @@ val operatorDefinitions = arrayListOf(
     OpDef("&", 9, 2, false,              6, byteArrayOf(aAmpersand, 0, 0, 0)),                      // bitwise and, type intersection
     OpDef("*", 20, 2, true,              7, byteArrayOf(aTimes, 0, 0, 0)),                          // multiplication
     OpDef("++", functionPrec, 1, false,  8, byteArrayOf(aPlus, aPlus, 0, 0), true),                 // increment
-    OpDef("+", 17, 2, false,             9, byteArrayOf(aPlus, 0, 0, 0)),                           // addition
+    OpDef("+", 17, 2, true,              9, byteArrayOf(aPlus, 0, 0, 0)),                           // addition
     OpDef("--", functionPrec, 1, false, 10, byteArrayOf(aMinus, aMinus, 0, 0), true),               // decrement
-    OpDef("-", prefixPrec, 1, false,    11, byteArrayOf(aMinus, 0, 0, 0)),                          // subtraction
+    OpDef("-", prefixPrec, 1, true,     11, byteArrayOf(aMinus, 0, 0, 0)),                          // subtraction
     OpDef("/", 20, 2, true,             12, byteArrayOf(aDivBy, 0, 0, 0)),                          // division
     OpDef(":=", 0, 0, false,            -1, byteArrayOf(aColon, aEqual, 0, 0)),                     // mutable assignment
     OpDef("<=", 12, 2, false,           13, byteArrayOf(aLessThan, aEqual, 0, 0)),                  // less than or equal

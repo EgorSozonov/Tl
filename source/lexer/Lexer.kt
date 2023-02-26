@@ -47,14 +47,15 @@ fun lexicallyAnalyze() {
         if (inp.size >= 67_108_864) { // 2^26 is the largest byte index representable in a token
             exitWithError("Source code file size is too big, 2^26 bytes is the largest allowed size")
         }
-
+        i = -1
         // Check for UTF-8 BOM at start of file
         if (inp.size >= 3 && inp[0] == 0xEF.toByte() && inp[1] == 0xBB.toByte() && inp[2] == 0xBF.toByte()) {
-            i = 3
+            i = 2
         }
 
         // Main loop over the input
         while (i < inp.size) {
+            guaranteeAStatement()
             dispatchTable[inp[i].toInt()]()
         }
 
@@ -62,6 +63,12 @@ fun lexicallyAnalyze() {
     } catch (e: Exception) {
         println()
     }
+}
+
+/** Guarantees that all tokens are wrapped up at least into a statement */
+private fun guaranteeAStatement() {
+    if (backtrack.isNotEmpty()) return;
+    openPunctuation(tokStmt)
 }
 
 
@@ -345,13 +352,13 @@ private fun lexOperator() {
     val isExtensible = operatorDefinitions[k].extensible
     var isExtensionAssignment = 0
 
-    val lengthOfOperator = when (byte0) {
+    val lengthOfBaseOperator = when (byte0) {
         opDef.bytes[1] -> { 1 }
         opDef.bytes[2] -> { 2 }
         opDef.bytes[3] -> { 3 }
         else           -> { 4 }
     }
-    var j = i + lengthOfOperator
+    var j = i + lengthOfBaseOperator
     if (isExtensible) {
         if (j < inp.size && inp[j] == aDot) {
             isExtensionAssignment += 2
@@ -363,10 +370,10 @@ private fun lexOperator() {
         }
     }
 
-    if (backtrack.isNotEmpty() && ((isExtensionAssignment and 1) > 0 || opType == opTImmDefinition || opType == opTMutation)) {
-        processAssignmentOperator(opType)
+    if (opType == opTImmDefinition || opType == opTMutation || (isExtensionAssignment and 1) > 0) {
+        processAssignmentOperator(opType, isExtensionAssignment)
     } else {
-        appendOperator(opType, isExtensionAssignment, i, lengthOfOperator)
+        appendOperator(opType, isExtensionAssignment, i, j - i)
     }
 
     i = j
@@ -386,19 +393,18 @@ private fun lexMinus() {
 /**
  * Lexer action for assignment operators. Implements the validations 2 and 3 from Syntax.txt
  */
-private fun processAssignmentOperator(opType: Int) {
+private fun processAssignmentOperator(opType: Int, isExtensionAssignment: Int) {
     val currSpan = backtrack.last()
 
-    val numTokensBeforeEquality = totalTokens - 1 - currSpan.second
     if (currSpan.first == tokStmtAssignment) {
         exitWithError(errorOperatorMultipleAssignment)
-    } else if (currSpan.first != tokParens || numTokensBeforeEquality == 0) {
+    } else if (currSpan.first != tokStmt) {
         exitWithError(errorOperatorAssignmentPunct)
     }
     validateNotInsideTypeDecl()
     convertGrandparentToScope()
 
-    setSpanAssignment(currSpan.second, (numTokensBeforeEquality shl 16) + opType)
+    setSpanAssignment(currSpan.second, isExtensionAssignment, opType)
     backtrack[backtrack.size - 1] = Pair(tokStmtAssignment, currSpan.second)
 }
 
@@ -555,8 +561,11 @@ private fun lexNonAscii() {
 
 /** Colon = parens until the end of current subexpression (so Tl's colon is equivalent to Haskell's dollar) */
 private fun lexColon() {
-    backtrack.push(Pair(tokColonOpened, totalTokens))
-    i++
+    if (i + 1 < inp.size && inp[i + 1] == aEqual) {
+        lexOperator()
+    } else {
+        openPunctuation(tokColonOpened)
+    }
 }
 
 /**
@@ -625,8 +634,12 @@ private fun closeRegularPunctuation(closingType: Int) {
 /** For all the colons at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
 private fun closeColons() {
     while (backtrack.isNotEmpty() && backtrack.peek().first == tokColonOpened) {
-        // TODO
-        backtrack.pop()
+        val top = backtrack.pop()
+        val tokenInd = top.second
+        val j = tokenInd * 4
+        tokens[j    ] = (tokens[j] and LOWER26BITS) + (tokParens shl 26)
+        tokens[j + 1] = i - (tokens[j] and LOWER26BITS) // lenBytes
+        tokens[j + 3] = totalTokens - tokenInd - 1  // lenTokens
     }
 }
 
@@ -644,6 +657,9 @@ private fun validateClosingPunct(closingType: Int, openType: Int) {
         tokParens -> {
             if (openType != tokParens && openType != tokColonOpened) exitWithError(errorPunctuationUnmatched)
         }
+        tokStmt -> {
+            if (openType != tokStmt && openType != tokStmtAssignment) exitWithError(errorPunctuationUnmatched)
+        }
         else -> {}
     }
 }
@@ -651,8 +667,16 @@ private fun validateClosingPunct(closingType: Int, openType: Int) {
 /**
  * For programmatic Lexer result construction (builder pattern). Regular tokens
  */
-fun build(tType: Int, payload: Int, startByte: Int, lenBytes: Int): Lexer {
-    appendToken(tType, payload, startByte, lenBytes)
+fun build(tType: Int, payload2: Int, startByte: Int, lenBytes: Int): Lexer {
+    appendToken(tType, payload2, startByte, lenBytes)
+    return this
+}
+
+/**
+ * For programmatic Lexer result construction (builder pattern). Any token
+ */
+fun buildAll(i1: Int, i2: Int, i3: Int, i4: Int): Lexer {
+    add(i1, i2, i3, i4)
     return this
 }
 
@@ -711,10 +735,10 @@ private fun setSpanCore(tokenInd: Int, tType: Int) {
 }
 
 
-private fun setSpanAssignment(tokenInd: Int, payload1: Int) {
+private fun setSpanAssignment(tokenInd: Int, isExtensionAssignment: Int, opType: Int) {
     val j = tokenInd * 4
-    tokens[j    ] = tokStmtAssignment shl 26
-    tokens[j + 2] = payload1
+    tokens[j    ] = (tokens[j] and LOWER26BITS) + (tokStmtAssignment shl 26)
+    tokens[j + 2] = isExtensionAssignment + (opType shl 2)
 }
 
 /** Tests if the following several bytes in the input match an array. This is for reserved word detection */
@@ -748,7 +772,12 @@ fun bError(msg: String): Lexer {
  * Finalizes the lexing of a single input: checks for unclosed scopes, and closes an open statement, if any.
  */
 private fun finalize() {
-    if (!backtrack.empty()) {
+    if (backtrack.empty()) return
+    closeColons()
+    val top = backtrack.peek().first
+    if (backtrack.size == 1 && (top == tokStmt || top == tokStmtAssignment)) {
+        closeRegularPunctuation(tokStmt)
+    } else {
         exitWithError(errorPunctuationExtraOpening)
     }
 }
@@ -760,7 +789,7 @@ private fun appendToken(tType: Int, payload2: Int, startByte: Int, lenBytes: Int
 
 /** Append an operator token */
 private fun appendOperator(opType: Int, isExtensionAssignment: Int, startByte: Int, lenBytes: Int) {
-    add((tokOperator shl 26) + startByte, lenBytes, isExtensionAssignment, opType)
+    add((tokOperator shl 26) + startByte, lenBytes, isExtensionAssignment + (opType shl 2), 0)
 }
 
 /**
@@ -901,10 +930,6 @@ private fun determineReservedM(startByte: Int, lenBytes: Int): Int {
     return 0
 }
 
-private fun determineReservedO(startByte: Int, lenBytes: Int): Int {
-    if (lenBytes == 4 && testByteSequence(startByte, reservedBytesOpen)) return tokStmtOpen
-    return 0
-}
 
 private fun determineReservedR(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 6 && testByteSequence(startByte, reservedBytesReturn)) return tokStmtReturn
@@ -1013,7 +1038,6 @@ companion object {
             5 -> Lexer::determineReservedF
             8 -> Lexer::determineReservedI
             12 -> Lexer::determineReservedM
-            14 -> Lexer::determineReservedO
             17 -> Lexer::determineReservedR
             18 -> Lexer::determineReservedS
             19 -> Lexer::determineReservedT
@@ -1118,8 +1142,8 @@ companion object {
                 )
                 wr.append("$tokTypeName $payload [${startByte} ${lenBytes}]")
             } else if (typeBits == tokOperator) {
-                val opType = tokens[ind + 3]
-                val opExtAssignment = tokens[ind + 2]
+                val opType = tokens[ind + 2] ushr 2
+                val opExtAssignment = tokens[ind + 2] and 3
 
                 val payloadStr = operatorDefinitions[opType].name + (if ((opExtAssignment ushr 1) == 1) { "." } else { "" }) +
                         (if ((opExtAssignment and 1) == 1) { "=" } else {""})
@@ -1132,11 +1156,10 @@ companion object {
             val lenTokens = tokens[ind + 3]
             val payload1 = tokens[ind + 2]
             if (typeBits == tokStmtAssignment) {
-                val numTokensBefore = payload1 ushr 16
-                val opType = (payload1 and LOWER16BITS) ushr 2
+                val opType = payload1 ushr 2
 
                 val payloadStr = operatorDefinitions[opType].name + (if (payload1 and 2 == 2) { "." } else { "" }) +
-                        (if (payload1 and 1 == 1) { "=" } else {""}) + " " + numTokensBefore.toString()
+                        (if (payload1 and 1 == 1) { "=" } else {""})
                 wr.append("$tokTypeName $lenTokens [${startByte} ${lenBytes}] $payloadStr")
             } else {
                 wr.append("$tokTypeName $lenTokens [${startByte} ${lenBytes}] ${if (payload1 != 0) { payload1.toString() } else {""} }")
