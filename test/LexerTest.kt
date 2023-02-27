@@ -163,6 +163,13 @@ inner class LexNumericTest {
     }
 
     @Test
+    fun `Hex numeric 4`() {
+        testInpOutp("0xFFFFFFFFFFFFFFFE") {
+            it.build(tokStmt, 1, 0, 18).buildLitInt(-2L, 0, 18)
+        }
+    }
+
+    @Test
     fun `Hex numeric too long`() {
         testInpOutp("0xFFFFFFFFFFFFFFFF0") {
             it.build(tokStmt, 0, 0, 0).bError(errorNumericBinWidthExceeded)
@@ -356,7 +363,7 @@ inner class LexStringTest {
 inner class LexCommentTest {
     @Test
     fun `Comment simple`() {
-        testInpOutp("; this is a comment") {
+        testInpOutp("# this is a comment") {
             it.build(tokStmt, 0, 0, 19)
         }
     }
@@ -364,14 +371,14 @@ inner class LexCommentTest {
 
     @Test
     fun `Doc comment`() {
-        testInpOutp(";; Documentation comment ") {
+        testInpOutp("## Documentation comment ") {
             it.build(tokStmt, 1, 0, 25).build(tokDocComment, 0, 2, 23)
         }
     }
 
     @Test
     fun `Doc comment before something`() {
-        testInpOutp(""";; Documentation comment
+        testInpOutp("""## Documentation comment
 print 'hw' """) {
             it.build(tokStmt, 3, 0, 36)
               .build(tokDocComment, 0, 2, 22)
@@ -382,7 +389,7 @@ print 'hw' """) {
 
     @Test
     fun `Doc comment empty`() {
-        testInpOutp(""";;
+        testInpOutp("""##
 print 'hw' """) {
             it.build(tokStmt, 2, 0, 14)
               .build(tokWord, 0, 3, 5)

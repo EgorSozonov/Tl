@@ -539,7 +539,7 @@ private fun lexUnrecognizedSymbol() {
  */
 private fun lexComment() {
     var j = i + 1
-    if (j < inp.size && inp[j] == aSemicolon) {
+    if (j < inp.size && inp[j] == aSharp) {
         lexDocComment()
         return
     }
@@ -572,7 +572,7 @@ private fun lexColon() {
  *  Doc comments, syntax is ;; The comment
  */
 private fun lexDocComment() {
-    val startByte = i + 2 // +2 for the ';;'
+    val startByte = i + 2 // +2 for the '##'
     for (j in startByte until inp.size) {
         if (inp[j] == aNewline) {
             newLines.add(j)
@@ -1018,7 +1018,7 @@ companion object {
         dispatchTable[aDot.toInt()] = Lexer::lexDot
 
         dispatchTable[aApostrophe.toInt()] = Lexer::lexStringLiteral
-        dispatchTable[aSemicolon.toInt()] = Lexer::lexComment
+        dispatchTable[aSharp.toInt()] = Lexer::lexComment
 
         for (i in 128 until 256) {
             dispatchTable[i] = Lexer::lexNonAscii
