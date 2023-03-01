@@ -40,6 +40,7 @@ val reservedBytesIfPr        = byteArrayOf(105, 102, 80, 114)
 val reservedBytesImpl        = byteArrayOf(105, 109, 112, 108)
 val reservedBytesInterface   = byteArrayOf(105, 110, 116, 101, 114, 102, 97, 99, 101)
 val reservedBytesMatch       = byteArrayOf(109, 97, 116, 99, 104)
+val reservedBytesMut         = byteArrayOf(109, 117, 116)
 val reservedBytesOpen        = byteArrayOf(111, 112, 101, 110) // maybe remove this
 val reservedBytesReturn      = byteArrayOf(114, 101, 116, 117, 114, 110)
 val reservedBytesStruct      = byteArrayOf(115, 116, 114, 117, 99, 116)

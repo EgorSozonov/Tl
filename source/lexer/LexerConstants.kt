@@ -55,32 +55,32 @@ const val tokReserved = 8  // payload2: value of a constant from the 'reserved*'
 const val tokOperator = 9 // payload1 = opT... constant (30 bits) + isExtension (1 bit) + isAssignment (1 bit)
 
 // Punctuation (inner node) Token types
-const val tokCompoundString = 10
-const val tokCurlyBraces = 11
+const val tokStmt = 10
+const val tokParens = 11
 const val tokBrackets = 12
-const val tokParens = 13
+const val tokCompoundString = 13
 const val tokAccessor = 14 // the [] in x[5]
 const val tokStmtAssignment = 15 // payload1 = like in tokOperator
 const val tokStmtTypeDecl = 16
 const val tokLexScope = 17
-const val tokStmt = 18
-const val tokStmtFn = 19
-const val tokStmtFor = 20
-const val tokStmtReturn = 21
-const val tokStmtIf = 22
-const val tokStmtIfEq = 23
-const val tokStmtIfPr = 24
-const val tokStmtBreak = 25
-const val tokStmtExport = 26
-const val tokStmtMatch = 27
-const val tokStmtStruct = 28
-const val tokStmtAlias = 29
-const val tokStmtCatch = 30
-const val tokStmtContinue = 31
-const val tokStmtEmbed = 32
-const val tokStmtImpl = 33
-const val tokStmtTry = 34
-const val tokStmtType = 35
+const val tokStmtFn = 18
+const val tokStmtFor = 19
+const val tokStmtReturn = 20
+const val tokStmtIf = 21
+const val tokStmtIfEq = 22
+const val tokStmtIfPr = 23
+const val tokStmtBreak = 24
+const val tokStmtExport = 35
+const val tokStmtMatch = 25
+const val tokStmtMut = 26
+const val tokStmtStruct = 27
+const val tokStmtAlias = 28
+const val tokStmtCatch = 29
+const val tokStmtContinue = 30
+const val tokStmtEmbed = 31
+const val tokStmtImpl = 32
+const val tokStmtTry = 33
+const val tokStmtType = 34
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 const val tokColonOpened = 43

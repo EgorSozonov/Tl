@@ -1473,11 +1473,11 @@ companion object {
         val structure = structureOfDispatch()
 
         val rowFunctions = arrayOf(
-         // leafNode                curlyBrace                   brackets           parens
+         // leafNode                statement                   brackets            parens
             Parser::spErr,          Parser::spErr,               Parser::spErr,     Parser::expressionInit,
          // stmtAssig               typeDecl                     lexScope           fn
             Parser::assignmentInit, Parser::typeDeclarationInit, Parser::scopeInit, Parser::coreFnInit,
-         // return                  if                           loop                     break
+         // return                  if                           for loop                 break
             Parser::coreReturnInit, Parser::coreIfInit,          Parser::coreLoopInit,    Parser::coreBreakInit,
          // ifEq                    ifPred
             Parser::spErr,          Parser::spErr,

@@ -94,9 +94,9 @@ val operatorDefinitions = arrayListOf(
     OpDef("!", prefixPrec, 1, false,     1, byteArrayOf(aExclamation, 0, 0, 0)),                    // boolean negation
     OpDef("$", prefixPrec, 1, false,     2, byteArrayOf(aDollar, 0, 0, 0), true),                   // size of, length, absolute value etc
     OpDef("%", 20, 2, true,              3, byteArrayOf(aPercent, 0, 0, 0)),                        // remainder of division
-    OpDef("&&", 9, 2, false,             4, byteArrayOf(aAmpersand, aAmpersand, 0, 0)),             // boolean and
+    OpDef("&&", 9, 2, false,             4, byteArrayOf(aAmpersand, aAmpersand, 0, 0), false, true),// boolean and
     OpDef("&", 9, 2, false,              5, byteArrayOf(aAmpersand, 0, 0, 0)),                      // bitwise and, type intersection
-    OpDef("'", prefixPrec, 1, false,     6, byteArrayOf(aApostrophe, 0, 0, 0), true),               // is not empty/null
+    OpDef("'", prefixPrec, 1, false,     6, byteArrayOf(aApostrophe, 0, 0, 0)),                     // is not empty/null
     OpDef("*", 20, 2, true,              7, byteArrayOf(aTimes, 0, 0, 0)),                          // multiplication
     OpDef("++", functionPrec, 1, false,  8, byteArrayOf(aPlus, aPlus, 0, 0), true),                 // increment
     OpDef("+", 17, 2, true,              9, byteArrayOf(aPlus, 0, 0, 0)),                           // addition
@@ -124,7 +124,7 @@ val operatorDefinitions = arrayListOf(
     OpDef("?", prefixPrec, 1, false,    27, byteArrayOf(aQuestion, 0, 0, 0)),                       // nullable type operator
     OpDef("\\", 0, 0, false,            -1, byteArrayOf(aBackslash, 0, 0, 0)),                      // lambda
     OpDef("^", 21, 2, true,             28, byteArrayOf(aCaret, 0, 0, 0)),                          // exponentiation
-    OpDef("||", 3, 2, false,            29, byteArrayOf(aPipe, aPipe, 0, 0)),                       // boolean or
+    OpDef("||", 3, 2, false,            29, byteArrayOf(aPipe, aPipe, 0, 0), false, true),          // boolean or
     OpDef("|", 9, 2, false,             30, byteArrayOf(aPipe, 0, 0, 0)),                           // bitwise xor
 )
 
@@ -145,4 +145,5 @@ data class OpDef(val name: String, val precedence: Int, val arity: Int,
                   */
                  val bindingIndex: Int,
                  val bytes: ByteArray,
-                 val overloadable: Boolean = false)
+                 val overloadable: Boolean = false,
+                 val assignable: Boolean = false)

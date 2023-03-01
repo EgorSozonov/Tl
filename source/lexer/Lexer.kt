@@ -364,6 +364,8 @@ private fun lexOperator() {
             isExtensionAssignment += 2
             j++
         }
+    }
+    if (isExtensible || operatorDefinitions[k].assignable) {
         if (j < inp.size && inp[j] == aEqual) {
             isExtensionAssignment += 1
             j++
@@ -474,14 +476,6 @@ private fun lexParenLeft() {
 
 private fun lexParenRight() {
     closeRegularPunctuation(tokParens)
-}
-
-private fun lexCurlyLeft() {
-    openPunctuation(tokCurlyBraces)
-}
-
-private fun lexCurlyRight() {
-    closeRegularPunctuation(tokCurlyBraces)
 }
 
 private fun lexBracketLeft() {
@@ -645,12 +639,6 @@ private fun closeColons() {
  */
 private fun validateClosingPunct(closingType: Int, openType: Int) {
     when (closingType) {
-        tokCurlyBraces -> {
-            if (openType != tokCurlyBraces) exitWithError(errorPunctuationUnmatched)
-        }
-        tokBrackets -> {
-            if (openType != tokBrackets && openType != tokAccessor) exitWithError(errorPunctuationUnmatched)
-        }
         tokParens -> {
             if (openType != tokParens && openType != tokColonOpened) exitWithError(errorPunctuationUnmatched)
         }
@@ -924,6 +912,7 @@ private fun determineReservedI(startByte: Int, lenBytes: Int): Int {
 
 private fun determineReservedM(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 5 && testByteSequence(startByte, reservedBytesMatch)) return tokStmtMatch
+    if (lenBytes == 3 && testByteSequence(startByte, reservedBytesMut)) return tokStmtMut
     return 0
 }
 
@@ -1004,8 +993,6 @@ companion object {
         dispatchTable[aParenLeft.toInt()] = Lexer::lexParenLeft
         dispatchTable[aParenRight.toInt()] = Lexer::lexParenRight
         dispatchTable[aColon.toInt()] = Lexer::lexColon
-        dispatchTable[aCurlyLeft.toInt()] = Lexer::lexCurlyLeft
-        dispatchTable[aCurlyRight.toInt()] = Lexer::lexCurlyRight
         dispatchTable[aBracketLeft.toInt()] = Lexer::lexBracketLeft
         dispatchTable[aBracketRight.toInt()] = Lexer::lexBracketRight
 
