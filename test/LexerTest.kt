@@ -330,21 +330,21 @@ inner class LexNumericTest {
 inner class LexStringTest {
     @Test
     fun `String simple literal`() {
-        testInpOutp("'asdf'") {
+        testInpOutp("\"asdf\"") {
             it.build(tokStmt, 1, 0, 6).build(tokString, 0, 1, 4)
         }
     }
 
     @Test
     fun `String literal with escaped apostrophe inside`() {
-        testInpOutp("'wasn''t so sure'") {
-            it.build(tokStmt, 1, 0, 17).build(tokString, 0, 1, 15)
+        testInpOutp("\"wasn't so sure\"") {
+            it.build(tokStmt, 1, 0, 16).build(tokString, 0, 1, 14)
         }
     }
 
     @Test
     fun `String literal with non-ASCII inside`() {
-        testInpOutp("'hello мир'") {
+        testInpOutp("\"hello мир\"") {
             it.build(tokStmt, 1, 0, 14)
               .build(tokString, 0, 1, 12) // 12 because each Cyrillic letter = 2 bytes
         }
@@ -352,7 +352,7 @@ inner class LexStringTest {
 
     @Test
     fun `String literal unclosed`() {
-        testInpOutp("'asdf") {
+        testInpOutp("\"asdf") {
             it.build(tokStmt, 0, 0, 0).bError(errorPrematureEndOfInput)
         }
     }
@@ -379,7 +379,7 @@ inner class LexCommentTest {
     @Test
     fun `Doc comment before something`() {
         testInpOutp("""## Documentation comment
-print 'hw' """) {
+print "hw" """) {
             it.build(tokStmt, 3, 0, 36)
               .build(tokDocComment, 0, 2, 22)
               .build(tokWord, 0, 25, 5)
@@ -390,7 +390,7 @@ print 'hw' """) {
     @Test
     fun `Doc comment empty`() {
         testInpOutp("""##
-print 'hw' """) {
+print "hw" """) {
             it.build(tokStmt, 2, 0, 14)
               .build(tokWord, 0, 3, 5)
               .build(tokString, 0, 10, 2)
@@ -571,17 +571,16 @@ inner class LexOperatorTest {
 
     @Test
     fun `Operator extensible`() {
-        testInpOutp("+. -. &&. >>. %. *. 5 <<. ||.") {
-            it.build(tokStmt, 9, 0, 29)
+        testInpOutp("+. -. >>. %. *. 5 <<. ^.") {
+            it.build(tokStmt, 8, 0, 24)
               .buildOperator(opTPlus, true, false, 0, 2)
               .buildOperator(opTMinus, true, false, 3, 2)
-              .buildOperator(opTBoolAnd, true, false, 6, 3)
-              .buildOperator(opTBitshiftRight, true, false, 10, 3)
-              .buildOperator(opTRemainder, true, false, 14, 2)
-              .buildOperator(opTTimes, true, false, 17, 2)
-              .buildLitInt(5, 20, 1)
-              .buildOperator(opTBitShiftLeft, true, false, 22, 3)
-              .buildOperator(opTBoolOr, true, false, 26, 3)
+              .buildOperator(opTBitshiftRight, true, false, 6, 3)
+              .buildOperator(opTRemainder, true, false, 10, 2)
+              .buildOperator(opTTimes, true, false, 13, 2)
+              .buildLitInt(5, 16, 1)
+              .buildOperator(opTBitShiftLeft, true, false, 18, 3)
+              .buildOperator(opTExponentiation, true, false, 22, 2)
 
         }
     }
@@ -636,10 +635,10 @@ inner class LexOperatorTest {
 
     @Test
     fun `Operator assignment 3`() {
-        testInpOutp("a ||.= b") {
-            it.buildAll(tokStmtAssignment shl 26, 8, (opTBoolOr shl 2) + 3, 2)
+        testInpOutp("a *.= b") {
+            it.buildAll(tokStmtAssignment shl 26, 7, (opTTimes shl 2) + 3, 2)
               .build(tokWord, 0, 0, 1)
-              .build(tokWord, 0, 7, 1)
+              .build(tokWord, 0, 6, 1)
         }
     }
 

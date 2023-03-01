@@ -513,12 +513,9 @@ private fun lexDot() {
  */
 private fun lexStringLiteral() {
     var j = i + 1
-    val szMinusOne = inp.size - 1
     while (j < inp.size) {
         val cByte = inp[j]
-        if (cByte == aApostrophe && j < szMinusOne && inp[j + 1] == aApostrophe) {
-            j += 2
-        } else if (cByte == aApostrophe) {
+        if (cByte == aQuote) {
             appendToken(tokString, 0, i + 1, j - i - 1)
             i = j + 1
             return
@@ -1017,7 +1014,7 @@ companion object {
         dispatchTable[aNewline.toInt()] = Lexer::lexNewline
         dispatchTable[aDot.toInt()] = Lexer::lexDot
 
-        dispatchTable[aApostrophe.toInt()] = Lexer::lexStringLiteral
+        dispatchTable[aQuote.toInt()] = Lexer::lexStringLiteral
         dispatchTable[aSharp.toInt()] = Lexer::lexComment
 
         for (i in 128 until 256) {
