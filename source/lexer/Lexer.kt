@@ -642,6 +642,9 @@ private fun validateClosingPunct(closingType: Int, openType: Int) {
         tokParens -> {
             if (openType != tokParens && openType != tokColonOpened) exitWithError(errorPunctuationUnmatched)
         }
+        tokBrackets -> {
+            if (openType != tokBrackets && openType != tokAccessor) exitWithError(errorPunctuationUnmatched)
+        }
         tokStmt -> {
             if (openType != tokStmt && openType != tokStmtAssignment) exitWithError(errorPunctuationUnmatched)
         }
@@ -870,6 +873,7 @@ fun toDebugString(): String {
 
 private fun determineReservedA(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 5 && testByteSequence(startByte, reservedBytesAlias)) return tokStmtAlias
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesAwait)) return tokStmtAwait
     return 0
 }
 
@@ -913,6 +917,12 @@ private fun determineReservedI(startByte: Int, lenBytes: Int): Int {
 private fun determineReservedM(startByte: Int, lenBytes: Int): Int {
     if (lenBytes == 5 && testByteSequence(startByte, reservedBytesMatch)) return tokStmtMatch
     if (lenBytes == 3 && testByteSequence(startByte, reservedBytesMut)) return tokStmtMut
+    return 0
+}
+
+
+private fun determineReservedN(startByte: Int, lenBytes: Int): Int {
+    if (lenBytes == 10 && testByteSequence(startByte, reservedBytesNodestruct)) return tokStmtNodestruct
     return 0
 }
 
@@ -1022,6 +1032,7 @@ companion object {
             5 -> Lexer::determineReservedF
             8 -> Lexer::determineReservedI
             12 -> Lexer::determineReservedM
+            13 -> Lexer::determineReservedN
             17 -> Lexer::determineReservedR
             18 -> Lexer::determineReservedS
             19 -> Lexer::determineReservedT

@@ -26,26 +26,27 @@ const val opTDivBy                  = 12 // /
 const val opTMutation               = 13 // :=
 const val opTLessThanEq             = 14 // <=
 const val opTBitShiftLeft           = 15 // <<
-const val opTArrowLeft              = 16 // <-
-const val opTRange                  = 17 // ;
-const val opTRangeExclusive         = 18 // ;<
-const val opTLessThan               = 19 // <
-const val opTArrowRight             = 20 // =>
-const val opTEquality               = 21 // ==
-const val opTImmDefinition          = 22 // =
-const val opTIntervalBothInclusive  = 23 // >=<=
-const val opTIntervalLeftInclusive  = 24 // >=<
-const val opTIntervalRightInclusive = 25 // ><=
-const val opTIntervalExclusive      = 26 // ><
-const val opTGreaterThanEq          = 27 // >=
-const val opTBitshiftRight          = 28 // >>
-const val opTGreaterThan            = 29 // >
-const val opTNullCoalescing         = 30 // ?:
-const val opTQuestionMark           = 31 // ?
-const val opTBackslash              = 32 // backslash
+const val opTRange                  = 16 // ;
+const val opTRangeExclusive         = 17 // ;<
+const val opTLessThan               = 18 // <
+const val opTArrowRight             = 19 // =>
+const val opTEquality               = 20 // ==
+const val opTImmDefinition          = 21 // =
+const val opTIntervalBothInclusive  = 22 // >=<=
+const val opTIntervalLeftInclusive  = 23 // >=<
+const val opTIntervalRightInclusive = 24 // ><=
+const val opTIntervalExclusive      = 25 // ><
+const val opTGreaterThanEq          = 26 // >=
+const val opTBitshiftRight          = 27 // >>
+const val opTGreaterThan            = 28 // >
+const val opTNullCoalescing         = 29 // ?:
+const val opTQuestionMark           = 30 // ?
+const val opTBackslash              = 31 // backslash
+const val opTGenerator              = 32 // \*
 const val opTExponentiation         = 33 // ^
 const val opTBoolOr                 = 34 // ||
 const val opTPipe                   = 35 // |
+const val opTIsEmpty                = 36 // ~
 
 
 
@@ -106,7 +107,6 @@ val operatorDefinitions = arrayListOf(
     OpDef(":=", 0, 0, false,            -1, byteArrayOf(aColon, aEqual, 0, 0)),                     // mutable assignment
     OpDef("<=", 12, 2, false,           13, byteArrayOf(aLessThan, aEqual, 0, 0)),                  // less than or equal
     OpDef("<<", 14, 2, true,            14, byteArrayOf(aLessThan, aLessThan, 0, 0)),               // bitwise left shift
-    OpDef("<-", 0, 0, false,            -1, byteArrayOf(aLessThan, aMinus, 0, 0)),                  // receive from channel
     OpDef(";<", 1, 2, false,            15, byteArrayOf(aSemicolon, aLessThan, 0, 0), true),        // half-exclusive interval/range
     OpDef(";", 1, 2, false,             16, byteArrayOf(aSemicolon, 0, 0, 0), true),                // inclusive interval/range
     OpDef("<", 12, 2, false,            17, byteArrayOf(aLessThan, 0, 0, 0)),                       // less than
@@ -123,9 +123,11 @@ val operatorDefinitions = arrayListOf(
     OpDef("?:", 1, 2, false,            26, byteArrayOf(aQuestion, aColon, 0, 0)),                  // nullable coalescing operator
     OpDef("?", prefixPrec, 1, false,    27, byteArrayOf(aQuestion, 0, 0, 0)),                       // nullable type operator
     OpDef("\\", 0, 0, false,            -1, byteArrayOf(aBackslash, 0, 0, 0)),                      // lambda
+    OpDef("\\*", 0, 0, false,           -1, byteArrayOf(aBackslash, aTimes, 0, 0)),                 // generator
     OpDef("^", 21, 2, true,             28, byteArrayOf(aCaret, 0, 0, 0)),                          // exponentiation
     OpDef("||", 3, 2, false,            29, byteArrayOf(aPipe, aPipe, 0, 0), false, true),          // boolean or
     OpDef("|", 9, 2, false,             30, byteArrayOf(aPipe, 0, 0, 0)),                           // bitwise xor
+    OpDef("~", prefixPrec, 1, false,    31, byteArrayOf(aTilde, 0, 0, 0)),                           // is empty/null
 )
 
 /** All the symbols an operator may start with. The : is absent because it's handled by "lexColon".
@@ -133,7 +135,7 @@ val operatorDefinitions = arrayListOf(
  */
 val operatorStartSymbols = byteArrayOf(
     aExclamation, aDollar, aPercent, aAmpersand, aApostrophe, aTimes, aPlus, aDivBy, aSemicolon,
-    aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe
+    aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe, aTilde
 )
 
 

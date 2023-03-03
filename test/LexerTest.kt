@@ -488,11 +488,11 @@ inner class LexPunctuationTest {
 
     @Test
     fun `Punctuation scope inside statement 1`() {
-        testInpOutp("""foo bar { asdf }""") {
+        testInpOutp("""foo bar ( asdf )""") {
             it.build(tokStmt, 4, 0, 16)
               .build(tokWord, 0, 0, 3)
               .build(tokWord, 0, 4, 3)
-              .buildPunctuation(tokCurlyBraces, 1, 9, 6)
+              .buildPunctuation(tokParens, 1, 9, 6)
               .build(tokWord, 0, 10, 4)
         }
     }
@@ -500,15 +500,15 @@ inner class LexPunctuationTest {
     @Test
     fun `Punctuation scope inside statement 2`() {
         testInpOutp(
-            """foo bar {
+            """foo bar (
 asdf
 bcj
-}"""
+)"""
         ) {
             it.build(tokStmt, 5, 0, 20)
               .build(tokWord, 0, 0, 3)
               .build(tokWord, 0, 4, 3)
-              .buildPunctuation(tokCurlyBraces, 2, 9, 10)
+              .buildPunctuation(tokParens, 2, 9, 10)
               .build(tokWord, 0, 10, 4)
               .build(tokWord, 0, 15, 3)
         }
@@ -517,13 +517,13 @@ bcj
     @Test
     fun `Punctuation all types`() {
         testInpOutp(
-            """{
+            """(
 asdf (b [d ef (y z)] c d[x y])
 
-bcjk ({a b})
-}""") {
+bcjk ((a b))
+)""") {
             it.build(tokStmt, 20, 0, 48)
-              .buildPunctuation(tokCurlyBraces, 19, 1, 46)
+              .buildPunctuation(tokParens, 19, 1, 46)
               .build(tokWord, 0, 2, 4)
               .buildPunctuation(tokParens, 12, 8, 23)
               .build(tokWord, 0, 8, 1)
@@ -540,7 +540,7 @@ bcjk ({a b})
               .build(tokWord, 0, 29, 1)
               .build(tokWord, 0, 34, 4)
               .buildPunctuation(tokParens, 3, 40, 5)
-              .buildPunctuation(tokCurlyBraces, 2, 41, 3)
+              .buildPunctuation(tokParens, 2, 41, 3)
               .build(tokWord, 0, 41, 1)
               .build(tokWord, 0, 43, 1)
         }
@@ -587,8 +587,8 @@ inner class LexOperatorTest {
 
     @Test
     fun `Operators list`() {
-        testInpOutp("+ - / * ^ && || <- ? => >=< ><") {
-            it.build(tokStmt, 12, 0, 30)
+        testInpOutp("+ - / * ^ && || ~ ? => >=< ><") {
+            it.build(tokStmt, 12, 0, 29)
               .buildOperator(opTPlus, false, false, 0, 1)
               .buildOperator(opTMinus, false, false, 2, 1)
               .buildOperator(opTDivBy, false, false, 4, 1)
@@ -596,11 +596,11 @@ inner class LexOperatorTest {
               .buildOperator(opTExponentiation, false, false, 8, 1)
               .buildOperator(opTBoolAnd, false, false, 10, 2)
               .buildOperator(opTBoolOr, false, false, 13, 2)
-              .buildOperator(opTArrowLeft, false, false, 16, 2)
-              .buildOperator(opTQuestionMark, false, false, 19, 1)
-              .buildOperator(opTArrowRight, false, false, 21, 2)
-              .buildOperator(opTIntervalLeftInclusive, false, false, 24, 3)
-              .buildOperator(opTIntervalExclusive, false, false, 28, 2)
+              .buildOperator(opTIsEmpty, false, false, 16, 1)
+              .buildOperator(opTQuestionMark, false, false, 18, 1)
+              .buildOperator(opTArrowRight, false, false, 20, 2)
+              .buildOperator(opTIntervalLeftInclusive, false, false, 23, 3)
+              .buildOperator(opTIntervalExclusive, false, false, 27, 2)
         }
     }
 

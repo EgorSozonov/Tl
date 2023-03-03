@@ -63,6 +63,8 @@ const val tokAccessor = 14 // the [] in x[5]
 const val tokStmtAssignment = 15 // payload1 = like in tokOperator
 const val tokStmtTypeDecl = 16
 const val tokLexScope = 17
+
+// Core syntax form Token types
 const val tokStmtFn = 18
 const val tokStmtFor = 19
 const val tokStmtReturn = 20
@@ -70,17 +72,19 @@ const val tokStmtIf = 21
 const val tokStmtIfEq = 22
 const val tokStmtIfPr = 23
 const val tokStmtBreak = 24
-const val tokStmtExport = 35
-const val tokStmtMatch = 25
-const val tokStmtMut = 26
-const val tokStmtStruct = 27
-const val tokStmtAlias = 28
-const val tokStmtCatch = 29
-const val tokStmtContinue = 30
-const val tokStmtEmbed = 31
-const val tokStmtImpl = 32
-const val tokStmtTry = 33
-const val tokStmtType = 34
+const val tokStmtExport = 25
+const val tokStmtMatch = 26
+const val tokStmtMut = 27
+const val tokStmtStruct = 28
+const val tokStmtAlias = 29
+const val tokStmtAwait = 30
+const val tokStmtCatch = 31
+const val tokStmtContinue = 32
+const val tokStmtEmbed = 33
+const val tokStmtImpl = 34
+const val tokStmtNodestruct = 35
+const val tokStmtTry = 36
+const val tokStmtType = 37
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 const val tokColonOpened = 43
@@ -89,10 +93,12 @@ const val tokColonOpened = 43
 const val firstPunctTok = tokCompoundString
 const val firstCoreFormTok = tokStmtAssignment
 
-/** Order must agree with the tok... constants above */
+/** Order must agree with the tok... constants above. This is for debugging purposes */
 val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Word", "Reserved", "Op",
-"Comp Str", "{", "[", "(", "access", "assign", "typeDecl", "lexScope", "Stmt", "fn", "for", "return",
-"if", "ifEq", "ifPr", "break", "export", "match", "struct", "alias", "catch", "continue", "embed", "impl", "try", "type")
+"Stmt", "(", "[", "Comp Str", ".[", "assign", "typeDecl", "lexScope",
+"fn", "for", "return",
+"if", "ifEq", "ifPr", "break", "export", "match", "struct", "alias", "await", "catch", "continue", "embed", "impl",
+"nodestruct", "try", "type")
 
 
 /** 2**53 */
@@ -106,6 +112,7 @@ enum class FileType {
     executable,
     library,
     tests,
+    bindings,
 }
 
 
