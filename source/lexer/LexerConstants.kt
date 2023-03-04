@@ -25,6 +25,7 @@ const val errorOperatorUnknown            = "Unknown operator"
 const val errorOperatorAssignmentPunct    = "Incorrect assignment operator placement: must be directly inside an ordinary statement, after the binding name!"
 const val errorOperatorTypeDeclPunct      = "Incorrect type declaration operator placement: must be the first in a statement!"
 const val errorOperatorMultipleAssignment = "Multiple assignment / type declaration operators within one statement are not allowed!"
+const val errorOperatorMultipleLambda     = "Multiple lambda / generator operators within one statement are not allowed!"
 const val errorDocComment                 = "Doc comments must have the syntax (;; comment .)"
 
 /**
@@ -65,40 +66,42 @@ const val tokStmtTypeDecl = 16
 const val tokLexScope = 17
 
 // Core syntax form Token types
-const val tokStmtFn = 18
-const val tokStmtFor = 19
-const val tokStmtReturn = 20
-const val tokStmtIf = 21
-const val tokStmtIfEq = 22
-const val tokStmtIfPr = 23
-const val tokStmtBreak = 24
-const val tokStmtExport = 25
-const val tokStmtMatch = 26
-const val tokStmtMut = 27
-const val tokStmtStruct = 28
-const val tokStmtAlias = 29
-const val tokStmtAwait = 30
-const val tokStmtCatch = 31
-const val tokStmtContinue = 32
-const val tokStmtEmbed = 33
-const val tokStmtImpl = 34
-const val tokStmtNodestruct = 35
-const val tokStmtTry = 36
-const val tokStmtType = 37
+const val tokStmtAlias = 18
+const val tokStmtAwait = 19
+const val tokStmtBreak = 20
+const val tokStmtCatch = 21
+const val tokStmtContinue = 22
+const val tokStmtEmbed = 23
+const val tokStmtExport = 24
+const val tokStmtFor = 25
+const val tokStmtGenerator = 26
+const val tokStmtIf = 27
+const val tokStmtIfEq = 28
+const val tokStmtIfPr = 29
+const val tokStmtImpl = 30
+const val tokStmtLambda = 31
+const val tokStmtMatch = 32
+const val tokStmtMut = 33
+const val tokStmtNodestruct = 34
+const val tokStmtReturn = 35
+const val tokStmtStruct = 36
+const val tokStmtTry = 37
+const val tokStmtType = 38
+const val tokStmtYield = 39
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 const val tokColonOpened = 43
 
 // First punctuation/scoped type of token
-const val firstPunctTok = tokCompoundString
-const val firstCoreFormTok = tokStmtAssignment
+const val firstPunctTok = tokStmt
+const val firstCoreFormTok = tokStmtAlias
 
 /** Order must agree with the tok... constants above. This is for debugging purposes */
 val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Word", "Reserved", "Op",
-"Stmt", "(", "[", "Comp Str", ".[", "assign", "typeDecl", "lexScope",
-"fn", "for", "return",
-"if", "ifEq", "ifPr", "break", "export", "match", "struct", "alias", "await", "catch", "continue", "embed", "impl",
-"nodestruct", "try", "type")
+    "Stmt", "(", "[", "Comp Str", ".[", "assign", "typeDecl", "lexScope",
+    "alias", "await", "break", "catch", "continue", "embed", "export", "fn", "for", "generator",
+    "if", "ifEq", "ifPr", "impl", "match", "nodestruct", "return", "struct", "try", "type", "yield"
+)
 
 
 /** 2**53 */
@@ -134,7 +137,7 @@ const val aDigit9: Byte = 57
 
 const val aPlus: Byte = 43
 const val aMinus: Byte = 45
-const val aTimes: Byte = 42
+const val aAsterisk: Byte = 42
 const val aDivBy: Byte = 47
 const val aDot: Byte = 46
 const val aPercent: Byte = 37
@@ -170,3 +173,4 @@ const val aEqual: Byte = 61
 const val aLessThan: Byte = 60
 const val aGreaterThan: Byte = 62
 
+data class LexFrame(var tokType: Int, val startTokInd: Int, val wasOriginallyColon: Boolean = false)

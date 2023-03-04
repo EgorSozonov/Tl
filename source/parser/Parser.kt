@@ -54,17 +54,16 @@ fun parse(imports: ArrayList<Import>) {
 
             val currFrame = currFnDef.spanStack.peek()
             val tokType = lx.currTokenType()
-
-            val lenTokens = lx.currPayload2()
             val startByte = lx.currStartByte()
             val lenBytes = lx.currLenBytes()
 
             val tableColumn = currFrame.spanType - firstSpanASTType
             if (tokType >= firstPunctTok) {
+                val lenTokens = lx.currPayload2()
                 lx.nextToken()
                 parseTable[tokType - firstPunctTok + 1 ][tableColumn](lenTokens, currFrame, startByte, lenBytes)
             } else {
-                parseTable[0][tableColumn](lenTokens, currFrame, startByte, lenBytes)
+                parseTable[0][tableColumn](0, currFrame, startByte, lenBytes)
             }
             maybeCloseSpans()
         }
@@ -108,7 +107,7 @@ private fun detectNestedFunctions(newScope: LexicalScope, lenTokensScope: Int) {
             exitWithError(errorScope)
         }
         val lenTokensSpan = (currToken.payload and LOWER32BITS).toInt()
-        if (currToken.tType == tokStmtFn) {
+        if (currToken.tType == tokStmtLambda) {
             lx.nextToken() // fn token
             var consumedTokens = 0
 
@@ -892,7 +891,7 @@ private fun createExpr(exprType: Int, lenTokens: Int, startByte: Int, lenBytes: 
  * flatten all internal parens into a single "Reverse Polish Notation" stream.
  * I.e. into a post-order traversal of a function call tree. In the resulting AST nodes, the function names are
  * annotated with arities.
- * TODO also flatten dataInits and dataIndexers (i.e. {} and [])
+ * TODO also flatten dataInits and dataIndexers (i.e. [] and a[])
  */
 private fun expression(parseFrame: ParseFrame) {
     val functionStack = currFnDef.subexprs.last()
@@ -1445,29 +1444,36 @@ companion object {
      * positive number if it is context-dependent (custom function)
      */
     private fun structureOfDispatch(): Array<Array<Int>> {
-                 // scope  expr  funDef funDPtr assig ret tyDecl  if  ifCl loop break
+                 // scope  funDef funDPtr assig  if  ifCl for
         return arrayOf(
-            // RegularToken row
-            arrayOf(  0,     -1,     0,      0,   -1,   -1,    1,  3,   5,    0,    1),
+            arrayOf(  0,     0,      0,   -1,    3,   5,    0), // RegularTokens
 
-            arrayOf(  0,     -1,     0,      0,   -1,   -1,    0,  0,   0,    0,    0), // curlyBrace
-            arrayOf(  0,      0,     0,      0,    0,    0,    0,  0,   0,    0,    0), // brackets
-            arrayOf(  -1,     0,     0,      0,   -1,   -1,    2,  4,   0,   -1,    0), // parens
-            arrayOf(  -1,     0,     0,      0,    0,    0,    0,  0,   0,    0,    0), // stmtAssignment
-            arrayOf(  -1,     0,     0,      0,    0,    0,    0,  0,   0,    0,    0), // stmtTypeDecl
-            arrayOf(  -1,     0,     0,      0,   -1,    0,    0,  0,   0,   -1,    0), // lexScope
+            arrayOf(  0,     0,      0,   -1,    0,   0,    0), // Stmt
+            arrayOf( -1,     0,      0,   -1,    4,   0,   -1), // parens
+            arrayOf(  0,     0,      0,    0,    0,   0,    0), // brackets
+            arrayOf(  0,     0,      0,    0,    0,   0,    0), // compound string
+            arrayOf(  0,     0,      0,    0,    0,   0,    0), // accessor
+            arrayOf( -1,     0,      0,    0,    0,   0,    0), // stmtAssignment
+            arrayOf( -1,     0,      0,    0,    0,   0,    0), // stmtTypeDecl
+            arrayOf( -1,     0,      0,   -1,    0,   0,   -1), // lexScope
 
-            // core spans
-            arrayOf(  -1,     0,     0,      0,    0,    0,    0,  0,   0,    0,    0), // fn
-            arrayOf(  -1,     0,     0,      0,    0,    0,    0,  0,   0,    0,    0), // return
-            arrayOf(  -1,     0,     0,      0,   -1,    0,    0,  0,   0,    0,    0), // if
-            arrayOf(  -1,     0,     0,      0,    0,    0,    0,  0,   0,   -1,    0), // loop
-            arrayOf(  -1,     0,     0,      0,    0,    0,    0,  0,   0,   -1,    0), // break
-            arrayOf(  -1,     0,     0,      0,    0,    0,    0,  0,   0,    0,    0), // ifEq
-            arrayOf(  -1,     0,     0,      0,    0,    0,    0,  0,   0,    0,    0), // ifPred
+            arrayOf(  -1,    0,      0,    0,    0,   0,    0), // fn
+            arrayOf(  -1,    0,      0,    0,    0,   0,    0), // return
+            arrayOf(  -1,    0,      0,   -1,    0,   0,    0), // if
+            arrayOf(  -1,    0,      0,    0,    0,   0,   -1), // loop
+            arrayOf(  -1,    0,      0,    0,    0,   0,   -1), // break
+            arrayOf(  -1,    0,      0,    0,    0,   0,    0), // ifEq
+            arrayOf(  -1,    0,      0,    0,    0,   0,    0), // ifPred
         )
-
     }
+//    const val nodScope = 16             // payload1 = 1 if this scope is the right-hand side of an assignment
+//    const val nodFunctionDef = 17       // payload1 = index in the 'functions' table of AST
+//    const val nodFnDefPlaceholder = 18  // payload1 = index in the 'functions' table of AST
+//    const val nodStmtAssignment = 19
+//    const val nodIfSpan = 20            // payload1 = number of clauses
+//    const val nodIfClause = 21
+//    const val nodFor = 22
+
 
     private fun createParseTable(): ArrayList<ArrayList<Parser.(Int, ParseFrame, Int, Int) -> Unit>> {
         val structure = structureOfDispatch()

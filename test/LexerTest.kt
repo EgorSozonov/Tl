@@ -694,6 +694,29 @@ inner class LexOperatorTest {
     }
 }
 
+@Nested
+inner class LexFunctionTest {
+    @Test
+    fun `Function simple 1`() {
+        testInpOutp("foo = (\\x y. x - y)") {
+            it.buildAll(tokStmtAssignment shl 26, 20, opTImmDefinition shl 2, 7)
+              .build(tokWord, 0, 0, 3)
+              .buildPunctuation(tokStmtLambda, 7, 7, 11)
+              .buildPunctuation(tokStmt, 2, 8, 3)
+              .build(tokWord, 0, 8, 1)
+              .build(tokWord, 0, 10, 1)
+              .buildPunctuation(tokStmt, 3, 13, 5)
+              .build(tokWord, 0, 13, 1)
+              .buildOperator(opTMinus, false, false, 15, 1)
+              .build(tokWord, 0, 17, 1)
+        }
+    }
+}
+
+
+// Int Int => Int
+// foo = (\x y. x - y)
+
 
 private fun testInpOutp(inp: String, transform: (Lexer) -> Unit) {
     val testSpecimen = Lexer(inp.toByteArray(), FileType.executable)

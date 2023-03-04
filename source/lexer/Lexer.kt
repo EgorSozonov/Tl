@@ -30,7 +30,7 @@ var errMsg: String
     private set
 private var i: Int                                           // current index inside input byte array
 
-private val backtrack = Stack<Pair<Int, Int>>() // The stack of [tokPunctuation startTokInd]
+private val backtrack = Stack<LexFrame>() // The stack of [tokPunctuation startTokInd wasOriginallyColon]
 private val numeric: LexerNumerics = LexerNumerics()
 private val newLines: ArrayList<Int> = ArrayList<Int>(50)
 
@@ -382,6 +382,29 @@ private fun lexOperator() {
 }
 
 
+private fun lexLambda() {
+    val j = i + 1
+    if (j < inp.size && inp[j] == aAsterisk) {
+        lexGenerator()
+    } else {
+        i++
+        val top = backtrack.peek()
+        setSpanLambda(top.startTokInd, tokStmtLambda)
+        backtrack.push(LexFrame(tokStmt, i))
+        appendPunctuation(tokStmt, i)
+    }
+}
+
+
+private fun lexGenerator() {
+    i += 2
+    val top = backtrack.peek()
+    setSpanLambda(top.startTokInd, tokStmtGenerator)
+    backtrack.push(LexFrame(tokStmt, i))
+    appendPunctuation(tokStmt, i)
+}
+
+
 private fun lexMinus() {
     val j = i + 1
     if (j < inp.size && isDigit(inp[j])) {
@@ -398,29 +421,16 @@ private fun lexMinus() {
 private fun processAssignmentOperator(opType: Int, isExtensionAssignment: Int) {
     val currSpan = backtrack.last()
 
-    if (currSpan.first == tokStmtAssignment) {
+    if (currSpan.tokType == tokStmtAssignment) {
         exitWithError(errorOperatorMultipleAssignment)
-    } else if (currSpan.first != tokStmt) {
+    } else if (currSpan.tokType != tokStmt) {
         exitWithError(errorOperatorAssignmentPunct)
     }
     validateNotInsideTypeDecl()
     convertGrandparentToScope()
 
-    setSpanAssignment(currSpan.second, isExtensionAssignment, opType)
-    backtrack[backtrack.size - 1] = Pair(tokStmtAssignment, currSpan.second)
-}
-
-/**
- * Lexer action for "::" the type declaration operator. Implements the validations 2 and 3 from Syntax.txt
- */
-private fun processTypeDeclOperator() {
-    val currSpan = backtrack.last()
-    if (currSpan.first != tokParens) exitWithError(errorOperatorTypeDeclPunct)
-    validateNotInsideTypeDecl()
-    convertGrandparentToScope()
-
-    setSpanType(currSpan.second, tokStmtTypeDecl)
-    backtrack[backtrack.size - 1] = Pair(tokStmtTypeDecl, currSpan.second)
+    setSpanAssignment(currSpan.startTokInd, isExtensionAssignment, opType)
+    backtrack[backtrack.size - 1] = LexFrame(tokStmtAssignment, currSpan.startTokInd)
 }
 
 /**
@@ -433,13 +443,13 @@ private fun lexReservedWord(reservedWordType: Int, startInd: Int) {
         appendPunctuationFull(tokStmtBreak, 0, 0, startInd, 5)
         return
     }
-    if (backtrack.isEmpty() || backtrack.last().second < (totalTokens - 1)) {
+    if (backtrack.isEmpty() || backtrack.last().startTokInd < (totalTokens - 1)) {
         appendToken(tokReserved, reservedWordType, startInd, i - startInd)
         return
     }
 
     val currSpan = backtrack.last()
-    if (backtrack.last().second < (totalTokens - 1) || backtrack.last().first >= firstCoreFormTok) {
+    if (backtrack.last().startTokInd < (totalTokens - 1) || backtrack.last().tokType >= firstCoreFormTok) {
         // if this is not the first token inside this span, or if it's already been converted to core form, add
         // the reserved word as a token
         appendToken(tokReserved, reservedWordType, startInd, i - startInd)
@@ -447,19 +457,19 @@ private fun lexReservedWord(reservedWordType: Int, startInd: Int) {
     }
     validateNotInsideTypeDecl()
 
-    setSpanCore(currSpan.second, reservedWordType)
+    setSpanCore(currSpan.startTokInd, reservedWordType)
     if (reservedWordType == tokStmtReturn) {
         convertGrandparentToScope()
     }
-    backtrack[backtrack.size - 1] = Pair(reservedWordType, currSpan.second)
+    backtrack[backtrack.size - 1] = LexFrame(reservedWordType, currSpan.startTokInd)
 }
 
 
 private fun convertGrandparentToScope() {
     val indPenultimate = backtrack.size - 2
-    if (indPenultimate > -1 && backtrack[indPenultimate].first != tokLexScope) {
-        backtrack[indPenultimate] = Pair(tokLexScope, backtrack[indPenultimate].second)
-        setSpanType(backtrack[indPenultimate].second, tokLexScope)
+    if (indPenultimate > -1 && backtrack[indPenultimate].tokType != tokLexScope) {
+        backtrack[indPenultimate].tokType = tokLexScope
+        setSpanType(backtrack[indPenultimate].startTokInd, tokLexScope)
     }
 }
 
@@ -598,7 +608,7 @@ private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray) {
  * token length of 1.
  */
 private fun openPunctuation(tType: Int) {
-    backtrack.add(Pair(tType, totalTokens))
+    backtrack.add(LexFrame(tType, totalTokens, tType == tokColonOpened))
     appendPunctuation(tType, i + 1)
     i++
 }
@@ -615,18 +625,18 @@ private fun closeRegularPunctuation(closingType: Int) {
     }
 
     val top = backtrack.pop()
-    validateClosingPunct(closingType, top.first)
+    validateClosingPunct(closingType, top.tokType)
 
-    setSpanLength(top.second)
+    setSpanLength(top.startTokInd)
 
     i++
 }
 
 /** For all the colons at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
 private fun closeColons() {
-    while (backtrack.isNotEmpty() && backtrack.peek().first == tokColonOpened) {
+    while (backtrack.isNotEmpty() && backtrack.peek().wasOriginallyColon) {
         val top = backtrack.pop()
-        val tokenInd = top.second
+        val tokenInd = top.startTokInd
         val j = tokenInd * 4
         tokens[j    ] = (tokens[j] and LOWER26BITS) + (tokParens shl 26)
         tokens[j + 1] = i - (tokens[j] and LOWER26BITS) // lenBytes
@@ -640,7 +650,9 @@ private fun closeColons() {
 private fun validateClosingPunct(closingType: Int, openType: Int) {
     when (closingType) {
         tokParens -> {
-            if (openType != tokParens && openType != tokColonOpened) exitWithError(errorPunctuationUnmatched)
+            if (openType < firstCoreFormTok && openType != tokParens && openType != tokColonOpened) {
+                exitWithError(errorPunctuationUnmatched)
+            }
         }
         tokBrackets -> {
             if (openType != tokBrackets && openType != tokAccessor) exitWithError(errorPunctuationUnmatched)
@@ -729,6 +741,12 @@ private fun setSpanAssignment(tokenInd: Int, isExtensionAssignment: Int, opType:
     tokens[j + 2] = isExtensionAssignment + (opType shl 2)
 }
 
+
+private fun setSpanLambda(tokenInd: Int, spanType: Int) {
+    val j = tokenInd * 4
+    tokens[j] = (tokens[j] and LOWER26BITS) + (spanType shl 26)
+}
+
 /** Tests if the following several bytes in the input match an array. This is for reserved word detection */
 private fun testByteSequence(startByte: Int, letters: ByteArray): Boolean {
     if (startByte + letters.size > inp.size) return false
@@ -762,7 +780,7 @@ fun bError(msg: String): Lexer {
 private fun finalize() {
     if (backtrack.empty()) return
     closeColons()
-    val top = backtrack.peek().first
+    val top = backtrack.peek().tokType
     if (backtrack.size == 1 && (top == tokStmt || top == tokStmtAssignment)) {
         closeRegularPunctuation(tokStmt)
     } else {
@@ -944,6 +962,11 @@ private fun determineReservedT(startByte: Int, lenBytes: Int): Int {
     return 0
 }
 
+private fun determineReservedY(startByte: Int, lenBytes: Int): Int {
+    if (lenBytes == 5 && testByteSequence(startByte, reservedBytesYield)) return tokStmtYield
+    return 0
+}
+
 private fun determineUnreserved(startByte: Int, lenBytes: Int): Int {
     return 0
 }
@@ -1011,6 +1034,8 @@ companion object {
         dispatchTable[aNewline.toInt()] = Lexer::lexNewline
         dispatchTable[aDot.toInt()] = Lexer::lexDot
 
+        dispatchTable[aBackslash.toInt()] = Lexer::lexLambda
+
         dispatchTable[aQuote.toInt()] = Lexer::lexStringLiteral
         dispatchTable[aSharp.toInt()] = Lexer::lexComment
 
@@ -1023,7 +1048,7 @@ companion object {
      * Table for dispatch on the first letter of a word in case it might be a reserved word.
      * It's indexed on the diff between first byte and the letter "c" (the earliest letter a reserved word may start with)
      */
-    private val possiblyReservedDispatch: Array<Lexer.(Int, Int) -> Int> = Array(20) {
+    private val possiblyReservedDispatch: Array<Lexer.(Int, Int) -> Int> = Array(25) {
         i -> when(i) {
             0 -> Lexer::determineReservedA
             1 -> Lexer::determineReservedB
@@ -1036,6 +1061,7 @@ companion object {
             17 -> Lexer::determineReservedR
             18 -> Lexer::determineReservedS
             19 -> Lexer::determineReservedT
+            24 -> Lexer::determineReservedY
             else -> Lexer::determineUnreserved
         }
     }

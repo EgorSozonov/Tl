@@ -53,17 +53,21 @@ const val nodTypeId = 9             // payload1 = 1 if it's a type identifier (u
 const val nodTypeFunc = 10          // payload1 = 1 bit isOperator, 1 bit is a concrete type (uppercase), 30 bits arity
 const val nodAnnotation = 11        // index in the annotations table of parser
 
-const val nodScope = 12             // payload1 = 1 if this scope is the right-hand side of an assignment
-const val nodExpr = 13
-const val nodFunctionDef = 14       // payload1 = index in the 'functions' table of AST
-const val nodFnDefPlaceholder = 15  // payload1 = index in the 'functions' table of AST
-const val nodStmtAssignment = 16
-const val nodReturn = 17
-const val nodTypeDecl = 18
-const val nodIfSpan = 19            // payload1 = number of clauses
-const val nodIfClause = 20
-const val nodFor = 21
-const val nodBreak = 22
+// Spans that are still atomic node types. I.e. they are parsed in one go, and cannot contain sub-spans
+const val nodExpr = 12
+const val nodReturn = 13
+const val nodTypeDecl = 14
+const val nodBreak = 15
+
+// True spans
+const val nodScope = 16             // payload1 = 1 if this scope is the right-hand side of an assignment
+const val nodFunctionDef = 17       // payload1 = index in the 'functions' table of AST
+const val nodFnDefPlaceholder = 18  // payload1 = index in the 'functions' table of AST
+const val nodStmtAssignment = 19
+const val nodIfSpan = 20            // payload1 = number of clauses
+const val nodIfClause = 21
+const val nodFor = 22
+
 
 /** Must be the lowest value of the Span AST node types above */
 const val firstSpanASTType = nodScope

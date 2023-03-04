@@ -9,7 +9,7 @@ const val prefixPrec = 27
 /**
  * opT... operator types. Values must exactly agree with the operatorSymbols array. The order is the same.
  */
-const val countOperators = 36
+const val countOperators = 35
 const val opTNotEqual               =  0 // !=
 const val opTBoolNegation           =  1 // !
 const val opTSize                   =  2 // $
@@ -41,12 +41,10 @@ const val opTBitshiftRight          = 27 // >>
 const val opTGreaterThan            = 28 // >
 const val opTNullCoalescing         = 29 // ?:
 const val opTQuestionMark           = 30 // ?
-const val opTBackslash              = 31 // backslash
-const val opTGenerator              = 32 // \*
-const val opTExponentiation         = 33 // ^
-const val opTBoolOr                 = 34 // ||
-const val opTPipe                   = 35 // |
-const val opTIsEmpty                = 36 // ~
+const val opTExponentiation         = 31 // ^
+const val opTBoolOr                 = 32 // ||
+const val opTPipe                   = 33 // |
+const val opTIsEmpty                = 34 // ~
 
 
 
@@ -98,7 +96,7 @@ val operatorDefinitions = arrayListOf(
     OpDef("&&", 9, 2, false,             4, byteArrayOf(aAmpersand, aAmpersand, 0, 0), false, true),// boolean and
     OpDef("&", 9, 2, false,              5, byteArrayOf(aAmpersand, 0, 0, 0)),                      // bitwise and, type intersection
     OpDef("'", prefixPrec, 1, false,     6, byteArrayOf(aApostrophe, 0, 0, 0)),                     // is not empty/null
-    OpDef("*", 20, 2, true,              7, byteArrayOf(aTimes, 0, 0, 0)),                          // multiplication
+    OpDef("*", 20, 2, true,              7, byteArrayOf(aAsterisk, 0, 0, 0)),                          // multiplication
     OpDef("++", functionPrec, 1, false,  8, byteArrayOf(aPlus, aPlus, 0, 0), true),                 // increment
     OpDef("+", 17, 2, true,              9, byteArrayOf(aPlus, 0, 0, 0)),                           // addition
     OpDef("--", functionPrec, 1, false, 10, byteArrayOf(aMinus, aMinus, 0, 0), true),               // decrement
@@ -122,8 +120,6 @@ val operatorDefinitions = arrayListOf(
     OpDef(">", 12, 2, false,            25, byteArrayOf(aGreaterThan, 0, 0, 0)),                    // greater than
     OpDef("?:", 1, 2, false,            26, byteArrayOf(aQuestion, aColon, 0, 0)),                  // nullable coalescing operator
     OpDef("?", prefixPrec, 1, false,    27, byteArrayOf(aQuestion, 0, 0, 0)),                       // nullable type operator
-    OpDef("\\", 0, 0, false,            -1, byteArrayOf(aBackslash, 0, 0, 0)),                      // lambda
-    OpDef("\\*", 0, 0, false,           -1, byteArrayOf(aBackslash, aTimes, 0, 0)),                 // generator
     OpDef("^", 21, 2, true,             28, byteArrayOf(aCaret, 0, 0, 0)),                          // exponentiation
     OpDef("||", 3, 2, false,            29, byteArrayOf(aPipe, aPipe, 0, 0), false, true),          // boolean or
     OpDef("|", 9, 2, false,             30, byteArrayOf(aPipe, 0, 0, 0)),                           // bitwise xor
@@ -131,11 +127,11 @@ val operatorDefinitions = arrayListOf(
 )
 
 /** All the symbols an operator may start with. The : is absent because it's handled by "lexColon".
- * The - is is absent because it's handled by "lexMinus".
+ * The - is is absent because it's handled by "lexMinus". The \ is absent because it's handled by "lexLambda"
  */
 val operatorStartSymbols = byteArrayOf(
-    aExclamation, aDollar, aPercent, aAmpersand, aApostrophe, aTimes, aPlus, aDivBy, aSemicolon,
-    aLessThan, aEqual, aGreaterThan, aQuestion, aBackslash, aCaret, aPipe, aTilde
+    aExclamation, aDollar, aPercent, aAmpersand, aApostrophe, aAsterisk, aPlus, aDivBy, aSemicolon,
+    aLessThan, aEqual, aGreaterThan, aQuestion, aCaret, aPipe, aTilde
 )
 
 
