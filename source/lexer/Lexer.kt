@@ -67,13 +67,13 @@ fun lexicallyAnalyze() {
 /** Guarantees that all tokens are wrapped up at least into a statement */
 private fun wrapInAStatement() {
     if (backtrack.isEmpty()) {
-        backtrack.add(LexFrame(tokStmt, totalTokens))
-        appendPunctuation(tokStmt, i)
+        backtrack.add(LexFrame(tokStm, totalTokens))
+        appendPunctuation(tokStm, i)
     } else {
         val topType = backtrack.peek().tokType
         if (topType == tokLexScope || topType >= firstCoreFormTok) {
-            backtrack.add(LexFrame(tokStmt, totalTokens))
-            appendPunctuation(tokStmt, i)
+            backtrack.add(LexFrame(tokStm, totalTokens))
+            appendPunctuation(tokStm, i)
         }
     }
 }
@@ -420,8 +420,8 @@ private fun lexLambda() {
         setSpanLambda(top.startTokInd, tokStmtLambda)
         top.tokType = tokStmtLambda
 
-        backtrack.push(LexFrame(tokStmt, this.totalTokens))
-        appendPunctuation(tokStmt, i)
+        backtrack.push(LexFrame(tokStm, this.totalTokens))
+        appendPunctuation(tokStm, i)
 
     }
 }
@@ -433,8 +433,8 @@ private fun lexGenerator() {
     setSpanLambda(top.startTokInd, tokStmtGenerator)
     top.tokType = tokStmtGenerator
 
-    backtrack.push(LexFrame(tokStmt, i))
-    appendPunctuation(tokStmt, i)
+    backtrack.push(LexFrame(tokStm, i))
+    appendPunctuation(tokStm, i)
 }
 
 
@@ -458,7 +458,7 @@ private fun processAssignmentOperator(opType: Int, isExtensionAssignment: Int) {
 
     if (currSpan.tokType == tokStmtAssignment) {
         exitWithError(errorOperatorMultipleAssignment)
-    } else if (currSpan.tokType != tokStmt) {
+    } else if (currSpan.tokType != tokStm) {
         exitWithError(errorOperatorAssignmentPunct)
     }
     validateNotInsideTypeDecl()
@@ -552,7 +552,7 @@ private fun lexDot() {
     wrapInAStatement()
 
     convertGrandparentToScope()
-    closeRegularPunctuation(tokStmt)
+    closeRegularPunctuation(tokStm)
 }
 
 /**
@@ -674,7 +674,7 @@ private fun closeRegularPunctuation(closingType: Int) {
     }
 
     var top = backtrack.pop()
-    if (closingType == tokParens && top.tokType == tokStmt) {
+    if (closingType == tokParens && top.tokType == tokStm) {
         // since a closing parenthesis might be closing something with statements inside it, like a lex scope
         // or a core syntax form, we need to close the last statement before closing its parent
         setSpanLength(top.startTokInd)
@@ -712,8 +712,8 @@ private fun validateClosingPunct(closingType: Int, openType: Int) {
         tokBrackets -> {
             if (openType != tokBrackets && openType != tokAccessor) exitWithError(errorPunctuationUnmatched)
         }
-        tokStmt -> {
-            if (openType != tokStmt && openType != tokStmtAssignment) exitWithError(errorPunctuationUnmatched)
+        tokStm -> {
+            if (openType != tokStm && openType != tokStmtAssignment) exitWithError(errorPunctuationUnmatched)
         }
         else -> {}
     }
@@ -836,8 +836,8 @@ private fun finalize() {
     if (backtrack.empty()) return
     closeColons()
     val top = backtrack.peek().tokType
-    if (backtrack.size == 1 && (top == tokStmt || top == tokStmtAssignment)) {
-        closeRegularPunctuation(tokStmt)
+    if (backtrack.size == 1 && (top == tokStm || top == tokStmtAssignment)) {
+        closeRegularPunctuation(tokStm)
     } else {
         exitWithError(errorPunctuationExtraOpening)
     }

@@ -45,13 +45,15 @@ const val nodForClause = 24
 
 
 /** Must be the lowest value of the Span AST node types above */
-const val firstSpanASTType = nodScope
+const val firstSpanASTType = nodExpr
 
 
 /** Order must agree with the tok... constants above */
-val nodeNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Ident", "Func", "Binding", "Type",
-    "TypeCons", "Annot", "Scope", "Expr", "FunDef", "FunDef=>", "Assign", "Return", "TypeDecl", "If", "IfClause",
-    "For", "Break")
+val nodeNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm",
+    "Ident", "Func", "Binding", "Type", "TypeCons", "Annot", "FunDef=>",
+    "TypeDecl", "Break", "Assign", "Lambda", "Return", "FunDef", "If",  "For",
+    "Expr", "Scope", "IfClause", "ForClause"
+    )
 
 
 

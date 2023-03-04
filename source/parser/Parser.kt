@@ -1430,8 +1430,6 @@ init {
 }
 
 companion object {
-
-
     /** Rows:
      * 1) first row for RegularTokens
      * 2) a row for every PunctuationToken except stmtCore
@@ -1468,22 +1466,18 @@ companion object {
     }
 
 
-
-// x = foldl (\x y. return max x y) array.
-
-
     private fun createParseTable(): ArrayList<ArrayList<Parser.(Int, ParseFrame, Int, Int) -> Unit>> {
         val structure = structureOfDispatch()
 
         val rowFunctions = arrayOf(
-         // leafNode                statement                   brackets            parens
-            Parser::spErr,          Parser::spErr,               Parser::spErr,     Parser::expressionInit,
-         // stmtAssig               typeDecl                     lexScope           fn
-            Parser::assignmentInit, Parser::typeDeclarationInit, Parser::scopeInit, Parser::coreFnInit,
-         // return                  if                           for loop                 break
-            Parser::coreReturnInit, Parser::coreIfInit,          Parser::coreLoopInit,    Parser::coreBreakInit,
-         // ifEq                    ifPred
-            Parser::spErr,          Parser::spErr,
+         // leafNode                statement                   parens                  brackets
+            Parser::spErr,          Parser::spErr,              Parser::expressionInit, Parser::spErr,
+         // compoundString          accessor           stmtAssig               typeDecl                     lexScope
+            Parser::spErr,          Parser::spErr,     Parser::assignmentInit, Parser::typeDeclarationInit, Parser::scopeInit,
+         // lambda                  return          if              for
+            Parser::coreFnInit,     Parser::spErr,  Parser::spErr,  Parser::spErr,
+         //  break                  ifEq                    ifPred
+            Parser::coreBreakInit,  Parser::spErr,          Parser::spErr,
         )
 
         val columnFunctions = arrayOf(

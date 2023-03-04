@@ -839,7 +839,7 @@ inner class IfTest {
         {
             it.buildSpan(nodFunctionDef, 5, 0, 13)
               .buildSpan(nodScope, 4, 0, 13)
-              .buildSpan(nodIfSpan, 3, 1, 11)
+              .buildSpan(nodIf, 3, 1, 11)
               .buildSpan(nodIfClause, 2, 3, 9)
               .buildNode(nodBool, 0, 1, 3, 4)
               .buildIntNode(6, 11, 1)
@@ -859,7 +859,7 @@ inner class IfTest {
               .buildSpan(nodStmtAssignment, 2, 1, 9)
               .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
               .buildNode(nodBool, 0, 0, 5, 5)
-              .buildSpan(nodIfSpan, 3, 13, 9)
+              .buildSpan(nodIf, 3, 13, 9)
               .buildSpan(nodIfClause, 2, 15, 7)
               .buildNode(nodId, 0, it.indFirstName, 15, 1)
               .buildIntNode(88, 20, 2)
@@ -879,7 +879,7 @@ inner class IfTest {
               .buildSpan(nodStmtAssignment, 2, 1, 9)
               .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
               .buildNode(nodBool, 0, 0, 5, 5)
-              .buildSpan(nodIfSpan, 5, 13, 10)
+              .buildSpan(nodIf, 5, 13, 10)
               .buildSpan(nodIfClause, 4, 15, 8)
               .buildSpan(nodExpr, 2, 15, 2)
               .buildNode(nodId, 0, it.indFirstName, 16, 1)
@@ -901,7 +901,7 @@ inner class IfTest {
               .buildSpan(nodStmtAssignment, 2, 1, 9)
               .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
               .buildNode(nodBool, 0, 0, 5, 5)
-              .buildSpan(nodIfSpan, 8, 13, 14)
+              .buildSpan(nodIf, 8, 13, 14)
               .buildSpan(nodIfClause, 4, 15, 8)
               .buildSpan(nodExpr, 2, 15, 2)
               .buildNode(nodId, 0, it.indFirstName, 16, 1)
@@ -930,7 +930,7 @@ inner class IfTest {
               .buildNode(nodBinding, 0, it.indFirstName, 1, 1)
               .buildIntNode(10, 5, 2)
 
-              .buildSpan(nodIfSpan, 15, 10, 49)
+              .buildSpan(nodIf, 15, 10, 49)
 
               .buildSpan(nodIfClause, 5, 13, 12)
               .buildSpan(nodExpr, 3, 13, 5)
@@ -1012,6 +1012,9 @@ private fun testParseWithEnvironment(inp: String, imports: ArrayList<Import>, re
         println(lr.errMsg)
         assertEquals(true, false)
     }
+
+    println(lr.toDebugString())
+
 
     val testSpecimen = Parser(lr)
     val controlParser = Parser(lr)

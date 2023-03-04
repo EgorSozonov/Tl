@@ -59,7 +59,7 @@ const val tokOperator = 9 // payload1 = opT... constant (30 bits) + isExtension 
 const val tokColon = 10
 
 // Punctuation (inner node) Token types
-const val tokStmt = 11
+const val tokStm = 11
 const val tokParens = 12
 const val tokBrackets = 13
 const val tokCompoundString = 14
@@ -94,12 +94,12 @@ const val tokStmtYield = 40
 
 
 // First punctuation/scoped type of token
-const val firstPunctTok = tokStmt
+const val firstPunctTok = tokStm
 const val firstCoreFormTok = tokStmtAlias
 
 /** Order must agree with the tok... constants above. This is for debugging purposes */
 val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Word", "Reserved", "Op",
-    "Stmt", "(", "[", "Comp Str", ".[", "assign", "typeDecl", "lexScope", ":",
+    ":", "Stmt", "(", "[", "Comp Str", ".[", "assign", "typeDecl", "lexScope",
     "alias", "await", "break", "catch", "continue", "embed", "export", "for", "generator",
     "if", "ifEq", "ifPr", "impl", "lambda", "match", "mut", "nodestruct", "return", "struct", "try", "type", "yield"
 )
