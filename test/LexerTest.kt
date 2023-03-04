@@ -364,7 +364,7 @@ inner class LexCommentTest {
     @Test
     fun `Comment simple`() {
         testInpOutp("# this is a comment") {
-            it.build(tokStmt, 0, 0, 19)
+
         }
     }
 
@@ -372,7 +372,7 @@ inner class LexCommentTest {
     @Test
     fun `Doc comment`() {
         testInpOutp("## Documentation comment ") {
-            it.build(tokStmt, 1, 0, 25).build(tokDocComment, 0, 2, 23)
+            it.build(tokDocComment, 0, 2, 23)
         }
     }
 
@@ -380,8 +380,8 @@ inner class LexCommentTest {
     fun `Doc comment before something`() {
         testInpOutp("""## Documentation comment
 print "hw" """) {
-            it.build(tokStmt, 3, 0, 36)
-              .build(tokDocComment, 0, 2, 22)
+            it.build(tokDocComment, 0, 2, 22)
+              .build(tokStmt, 2, 25, 11)
               .build(tokWord, 0, 25, 5)
               .build(tokString, 0, 32, 2)
         }
@@ -391,7 +391,7 @@ print "hw" """) {
     fun `Doc comment empty`() {
         testInpOutp("""##
 print "hw" """) {
-            it.build(tokStmt, 2, 0, 14)
+            it.build(tokStmt, 2, 3, 11)
               .build(tokWord, 0, 3, 5)
               .build(tokString, 0, 10, 2)
         }
@@ -699,7 +699,7 @@ inner class LexFunctionTest {
     @Test
     fun `Function simple 1`() {
         testInpOutp("foo = (\\x y. x - y)") {
-            it.buildAll(tokStmtAssignment shl 26, 20, opTImmDefinition shl 2, 7)
+            it.buildAll(tokStmtAssignment shl 26, 19, opTImmDefinition shl 2, 9)
               .build(tokWord, 0, 0, 3)
               .buildPunctuation(tokStmtLambda, 7, 7, 11)
               .buildPunctuation(tokStmt, 2, 8, 3)

@@ -1,7 +1,6 @@
 package lexer
 
 
-const val errorLengthOverflow             = "Token length overflow"
 const val errorNonAscii                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!"
 const val errorPrematureEndOfInput        = "Premature end of input"
 const val errorUnrecognizedByte           = "Unrecognized byte in source code!"
@@ -18,6 +17,7 @@ const val errorNumericMultipleDots        = "Multiple dots in numeric literals a
 const val errorNumericIntWidthExceeded    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!"
 const val errorPunctuationExtraOpening    = "Extra opening punctuation"
 const val errorPunctuationUnmatched       = "Unmatched closing punctuation"
+const val errorPunctuationInsideColon     = "Inside a colon, statements are not allowed (only expressions)"
 const val errorPunctuationExtraClosing    = "Extra closing punctuation"
 const val errorPunctuationWrongOpen       = "Wrong opening punctuation"
 const val errorPunctuationDoubleSplit     = "An expression or statement may contain only one '->' splitting symbol!"
@@ -26,7 +26,7 @@ const val errorOperatorAssignmentPunct    = "Incorrect assignment operator place
 const val errorOperatorTypeDeclPunct      = "Incorrect type declaration operator placement: must be the first in a statement!"
 const val errorOperatorMultipleAssignment = "Multiple assignment / type declaration operators within one statement are not allowed!"
 const val errorOperatorMultipleLambda     = "Multiple lambda / generator operators within one statement are not allowed!"
-const val errorDocComment                 = "Doc comments must have the syntax (;; comment .)"
+const val errorDocComment                 = "Doc comments must have the syntax ## comment"
 
 /**
  * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
@@ -90,7 +90,7 @@ const val tokStmtType = 38
 const val tokStmtYield = 39
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-const val tokColonOpened = 43
+const val tokColonOpened = 40
 
 // First punctuation/scoped type of token
 const val firstPunctTok = tokStmt
@@ -99,8 +99,9 @@ const val firstCoreFormTok = tokStmtAlias
 /** Order must agree with the tok... constants above. This is for debugging purposes */
 val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Word", "Reserved", "Op",
     "Stmt", "(", "[", "Comp Str", ".[", "assign", "typeDecl", "lexScope",
-    "alias", "await", "break", "catch", "continue", "embed", "export", "fn", "for", "generator",
-    "if", "ifEq", "ifPr", "impl", "match", "nodestruct", "return", "struct", "try", "type", "yield"
+    "alias", "await", "break", "catch", "continue", "embed", "export", "for", "generator",
+    "if", "ifEq", "ifPr", "impl", "lambda", "match", "nodestruct", "return", "struct", "try", "type", "yield",
+    ":"
 )
 
 
@@ -122,11 +123,9 @@ enum class FileType {
 
 const val aALower: Byte = 97
 const val aBLower: Byte = 98
-const val aCLower: Byte = 99
 const val aFLower: Byte = 102
-const val aNLower: Byte = 110
-const val aTLower: Byte = 116
 const val aXLower: Byte = 120
+const val aYLower: Byte = 121
 const val aZLower: Byte = 122
 const val aAUpper: Byte = 65
 const val aFUpper: Byte = 70
@@ -173,4 +172,8 @@ const val aEqual: Byte = 61
 const val aLessThan: Byte = 60
 const val aGreaterThan: Byte = 62
 
-data class LexFrame(var tokType: Int, val startTokInd: Int, val wasOriginallyColon: Boolean = false)
+data class LexFrame(var tokType: Int, val startTokInd: Int, val wasOriginallyColon: Boolean = false) {
+    override fun toString(): String {
+        return tokNames[tokType] + " " + startTokInd + (if (wasOriginallyColon) {" wasColon"} else {""})
+    }
+}

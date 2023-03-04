@@ -47,15 +47,14 @@ fun lexicallyAnalyze() {
         if (inp.size >= 67_108_864) { // 2^26 is the largest byte index representable in a token
             exitWithError("Source code file size is too big, 2^26 bytes is the largest allowed size")
         }
-        i = -1
+        i = 0
         // Check for UTF-8 BOM at start of file
         if (inp.size >= 3 && inp[0] == 0xEF.toByte() && inp[1] == 0xBB.toByte() && inp[2] == 0xBF.toByte()) {
-            i = 2
+            i = 3
         }
 
         // Main loop over the input
         while (i < inp.size) {
-            guaranteeAStatement()
             dispatchTable[inp[i].toInt()]()
         }
 
@@ -67,12 +66,21 @@ fun lexicallyAnalyze() {
 
 /** Guarantees that all tokens are wrapped up at least into a statement */
 private fun guaranteeAStatement() {
-    if (backtrack.isNotEmpty()) return;
-    openPunctuation(tokStmt)
+    if (backtrack.isEmpty()) {
+        backtrack.add(LexFrame(tokStmt, totalTokens))
+        appendPunctuation(tokStmt, i)
+    } else {
+        val topType = backtrack.peek().tokType
+        if (topType == tokLexScope || topType >= firstCoreFormTok) {
+            backtrack.add(LexFrame(tokStmt, totalTokens))
+            appendPunctuation(tokStmt, i)
+        }
+    }
 }
 
 
 private fun lexWord() {
+    guaranteeAStatement()
     lexWordInternal(tokWord)
 }
 
@@ -87,15 +95,28 @@ private fun lexWord() {
 private fun lexWordInternal(wordType: Int) {
     val startInd = i
     var wasCapitalized = lexWordChunk()
-    while (i < (inp.size - 1) && inp[i] == aDot && inp[i + 1] != aBracketLeft) {
-        i += 1
-        val isCurrCapitalized = lexWordChunk()
-        if (wasCapitalized && isCurrCapitalized) {
-            exitWithError(errorWordCapitalizationOrder)
+    var isAlsoAccessor = false
+    while (i < (inp.size - 1)) {
+        val currBt = inp[i]
+        if (currBt == aBracketLeft) {
+            isAlsoAccessor = true // data accessor like a[5]
+            break
+        } else if (currBt == aDot) {
+            val nextBt = inp[i + 1]
+            if (isLetter(nextBt) || nextBt == aUnderscore) {
+                i++
+                val isCurrCapitalized = lexWordChunk()
+                if (wasCapitalized && isCurrCapitalized) {
+                    exitWithError(errorWordCapitalizationOrder)
+                }
+                wasCapitalized = isCurrCapitalized
+            } else {
+                break
+            }
+        } else {
+            break
         }
-        wasCapitalized = isCurrCapitalized
     }
-    val isAlsoAccessor = (i < inp.size && inp[i] == aBracketLeft) // data accessor like a[5]
 
     val realStartInd = if (wordType == tokWord) { startInd } else {startInd - 1} // accounting for the @ at the start
     val paylCapitalized = if (wasCapitalized) { 1 } else { 0 }
@@ -103,7 +124,7 @@ private fun lexWordInternal(wordType: Int) {
     val firstByte = inp[startInd]
     val lenBytes = i - realStartInd
     if (wordType != tokWord && isAlsoAccessor) exitWithError(errorWordWrongAccessor)
-    if (wordType == tokAtWord || firstByte < aALower || firstByte > aTLower) {
+    if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
         appendToken(wordType, paylCapitalized, realStartInd, lenBytes)
         if (isAlsoAccessor) {
             openPunctuation(tokAccessor)
@@ -163,6 +184,7 @@ private fun lexWordChunk(): Boolean {
 
 
 private fun lexAtWord() {
+    guaranteeAStatement()
     checkPrematureEnd(2, inp)
     if (wasError) return
 
@@ -176,6 +198,8 @@ private fun lexAtWord() {
  * This function can handle being called on the last byte of input.
  */
 private fun lexNumber() {
+    guaranteeAStatement()
+
     val cByte = inp[i]
     if (i == inp.size - 1 && isDigit(cByte)) {
         appendLitIntToken((cByte - aDigit0).toLong(), i, 1, )
@@ -317,6 +341,8 @@ private fun lexBinNumber() {
 
 
 private fun lexOperator() {
+    guaranteeAStatement()
+
     val firstSymbol = inp[i]
     val secondSymbol = if (inp.size > i + 1) { inp[i + 1] } else { 0 }
     val thirdSymbol = if (inp.size > i + 2) { inp[i + 2] } else { 0 }
@@ -383,6 +409,8 @@ private fun lexOperator() {
 
 
 private fun lexLambda() {
+    guaranteeAStatement()
+
     val j = i + 1
     if (j < inp.size && inp[j] == aAsterisk) {
         lexGenerator()
@@ -390,8 +418,11 @@ private fun lexLambda() {
         i++
         val top = backtrack.peek()
         setSpanLambda(top.startTokInd, tokStmtLambda)
-        backtrack.push(LexFrame(tokStmt, i))
+        top.tokType = tokStmtLambda
+
+        backtrack.push(LexFrame(tokStmt, this.totalTokens))
         appendPunctuation(tokStmt, i)
+
     }
 }
 
@@ -400,12 +431,16 @@ private fun lexGenerator() {
     i += 2
     val top = backtrack.peek()
     setSpanLambda(top.startTokInd, tokStmtGenerator)
+    top.tokType = tokStmtGenerator
+
     backtrack.push(LexFrame(tokStmt, i))
     appendPunctuation(tokStmt, i)
 }
 
 
 private fun lexMinus() {
+    guaranteeAStatement()
+
     val j = i + 1
     if (j < inp.size && isDigit(inp[j])) {
         lexDecNumber(true)
@@ -467,9 +502,13 @@ private fun lexReservedWord(reservedWordType: Int, startInd: Int) {
 
 private fun convertGrandparentToScope() {
     val indPenultimate = backtrack.size - 2
-    if (indPenultimate > -1 && backtrack[indPenultimate].tokType != tokLexScope) {
-        backtrack[indPenultimate].tokType = tokLexScope
-        setSpanType(backtrack[indPenultimate].startTokInd, tokLexScope)
+    if (indPenultimate > -1) {
+        val gpType = backtrack[indPenultimate].tokType
+        if (gpType == tokColonOpened) exitWithError(errorPunctuationInsideColon)
+        if (gpType == tokParens) {
+            backtrack[indPenultimate].tokType = tokLexScope
+            setSpanType(backtrack[indPenultimate].startTokInd, tokLexScope)
+        }
     }
 }
 
@@ -481,6 +520,8 @@ private fun validateNotInsideTypeDecl() {
 }
 
 private fun lexParenLeft() {
+    guaranteeAStatement()
+
     openPunctuation(tokParens)
 }
 
@@ -489,6 +530,8 @@ private fun lexParenRight() {
 }
 
 private fun lexBracketLeft() {
+    guaranteeAStatement()
+
     openPunctuation(tokBrackets)
 }
 
@@ -506,8 +549,10 @@ private fun lexNewline() {
 }
 
 private fun lexDot() {
-    i++
-    // TODO
+    guaranteeAStatement()
+
+    convertGrandparentToScope()
+    closeRegularPunctuation(tokStmt)
 }
 
 /**
@@ -516,6 +561,8 @@ private fun lexDot() {
  * TODO probably need to count UTF-8 codepoints, or worse - grapheme clusters - in order to correctly report to LSP
  */
 private fun lexStringLiteral() {
+    guaranteeAStatement()
+
     var j = i + 1
     while (j < inp.size) {
         val cByte = inp[j]
@@ -614,9 +661,10 @@ private fun openPunctuation(tType: Int) {
 }
 
 /**
- * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a }, a ], or a ;.
+ * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a ] or a dot.
  * This doesn't actually add any tokens to the array, just performs validation and sets the token length
  * for the opener token.
+ * TODO handle syntax like ").field" and "].field"
  */
 private fun closeRegularPunctuation(closingType: Int) {
     closeColons()
@@ -624,9 +672,15 @@ private fun closeRegularPunctuation(closingType: Int) {
         exitWithError(errorPunctuationExtraClosing)
     }
 
-    val top = backtrack.pop()
-    validateClosingPunct(closingType, top.tokType)
+    var top = backtrack.pop()
+    if (closingType == tokParens && top.tokType == tokStmt) {
+        // since a closing parenthesis might be closing something with statements inside it, like a lex scope
+        // or a core syntax form, we need to close the last statement before closing its parent
+        setSpanLength(top.startTokInd)
+        top = backtrack.pop()
+    }
 
+    validateClosingPunct(closingType, top.tokType)
     setSpanLength(top.startTokInd)
 
     i++
@@ -723,7 +777,7 @@ private fun setSpanLength(tokenInd: Int) {
  */
 private fun setSpanType(tokenInd: Int, tType: Int) {
     val j = tokenInd * 4
-    tokens[j    ] = tType shl 26
+    tokens[j] = (tokens[j] and LOWER26BITS) + (tType shl 26)
 }
 
 /**
@@ -1142,7 +1196,7 @@ companion object {
         }
         for (i in len until b.totalTokens) {
             result.append(" | ")
-            printToken(b.tokens, i, result)
+            printToken(b.tokens, i*4, result)
             result.appendLine("")
         }
 
