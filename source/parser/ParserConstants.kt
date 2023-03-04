@@ -1,5 +1,59 @@
 package parser
 
+import lexer.*
+
+data class BuiltinOperator(val name: String, val arity: Int)
+
+data class Import(val name: String, val nativeName: String, val arity: Int)
+
+class FunctionCall(var nameStringId: Int, var precedence: Int, var arity: Int, var maxArity: Int,
+                   /** Used to distinguish concrete type constructors from type parameters that are constructors */
+                   var isCapitalized: Boolean,
+                   var startByte: Int)
+
+const val nodInt = tokInt
+const val nodFloat = tokFloat
+const val nodBool = tokBool // payload2 = 1 or 0
+const val nodString = tokString
+const val nodUnderscore = tokUnderscore
+const val nodDocComment = tokDocComment
+
+const val nodId = 6                 // payload2 = index in the identifiers table of AST
+const val nodFunc = 7               // payload1 = arity, negated if it's an operator. payload2 = index in the identifiers table
+const val nodBinding = 8            // payload2 = index in the identifiers table
+const val nodTypeId = 9             // payload1 = 1 if it's a type identifier (uppercase), 0 if it's a param. payload2 = index in the identifiers table
+const val nodTypeFunc = 10          // payload1 = 1 bit isOperator, 1 bit is a concrete type (uppercase), 30 bits arity
+const val nodAnnotation = 11        // index in the annotations table of parser
+const val nodFnDefPlaceholder = 12  // payload1 = index in the 'functions' table of AST
+
+// Spans that are still atomic. I.e. they are parsed in one go, they're not re-entrant, and contain 0 or 1 sub-spans
+const val nodTypeDecl = 13
+const val nodBreak = 14
+const val nodStmtAssignment = 15
+const val nodLambda = 16
+const val nodReturn = 17
+const val nodFunctionDef = 18       // payload1 = index in the 'functions' table of AST
+const val nodIf = 19            // payload1 = number of clauses
+const val nodFor = 20
+
+// True spans
+const val nodExpr = 21
+const val nodScope = 22             // payload1 = 1 if this scope is the right-hand side of an assignment
+const val nodIfClause = 23
+const val nodForClause = 24
+
+
+
+/** Must be the lowest value of the Span AST node types above */
+const val firstSpanASTType = nodScope
+
+
+/** Order must agree with the tok... constants above */
+val nodeNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Ident", "Func", "Binding", "Type",
+    "TypeCons", "Annot", "Scope", "Expr", "FunDef", "FunDef=>", "Assign", "Return", "TypeDecl", "If", "IfClause",
+    "For", "Break")
+
+
 
 const val errorImportsNonUnique            = "Import names must be unique!"
 const val errorLengthOverflow              = "AST nodes length overflow"

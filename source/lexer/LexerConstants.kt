@@ -55,18 +55,18 @@ const val tokAtWord = 7
 const val tokReserved = 8  // payload2: value of a constant from the 'reserved*' group
 const val tokOperator = 9 // payload1 = opT... constant (30 bits) + isExtension (1 bit) + isAssignment (1 bit)
 
-// Punctuation (inner node) Token types
-const val tokStmt = 10
-const val tokParens = 11
-const val tokBrackets = 12
-const val tokCompoundString = 13
-const val tokAccessor = 14 // the [] in x[5]
-const val tokStmtAssignment = 15 // payload1 = like in tokOperator
-const val tokStmtTypeDecl = 16
-const val tokLexScope = 17
-
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-const val tokColon = 18
+const val tokColon = 10
+
+// Punctuation (inner node) Token types
+const val tokStmt = 11
+const val tokParens = 12
+const val tokBrackets = 13
+const val tokCompoundString = 14
+const val tokAccessor = 15 // the [] in x[5]
+const val tokStmtAssignment = 16 // payload1 = like in tokOperator
+const val tokStmtTypeDecl = 17
+const val tokLexScope = 18
 
 // Core syntax form Token types
 const val tokStmtAlias = 19
