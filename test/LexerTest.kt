@@ -396,6 +396,19 @@ print "hw" """) {
               .build(tokString, 0, 10, 2)
         }
     }
+
+    @Test
+    fun `Doc comment multiline`() {
+        testInpOutp("""## First line
+## Second line
+## Third line
+print "hw" """) {
+            it.build(tokDocComment, 0, 2, 40)
+              .build(tokStmt, 2, 43, 11)
+              .build(tokWord, 0, 43, 5)
+              .build(tokString, 0, 50, 2)
+        }
+    }
 }
 
 

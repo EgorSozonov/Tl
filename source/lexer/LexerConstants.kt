@@ -65,32 +65,33 @@ const val tokStmtAssignment = 15 // payload1 = like in tokOperator
 const val tokStmtTypeDecl = 16
 const val tokLexScope = 17
 
-// Core syntax form Token types
-const val tokStmtAlias = 18
-const val tokStmtAwait = 19
-const val tokStmtBreak = 20
-const val tokStmtCatch = 21
-const val tokStmtContinue = 22
-const val tokStmtEmbed = 23
-const val tokStmtExport = 24
-const val tokStmtFor = 25
-const val tokStmtGenerator = 26
-const val tokStmtIf = 27
-const val tokStmtIfEq = 28
-const val tokStmtIfPr = 29
-const val tokStmtImpl = 30
-const val tokStmtLambda = 31
-const val tokStmtMatch = 32
-const val tokStmtMut = 33
-const val tokStmtNodestruct = 34
-const val tokStmtReturn = 35
-const val tokStmtStruct = 36
-const val tokStmtTry = 37
-const val tokStmtType = 38
-const val tokStmtYield = 39
-
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-const val tokColonOpened = 40
+const val tokColon = 18
+
+// Core syntax form Token types
+const val tokStmtAlias = 19
+const val tokStmtAwait = 20
+const val tokStmtBreak = 21
+const val tokStmtCatch = 22
+const val tokStmtContinue = 23
+const val tokStmtEmbed = 24
+const val tokStmtExport = 25
+const val tokStmtFor = 26
+const val tokStmtGenerator = 27
+const val tokStmtIf = 28
+const val tokStmtIfEq = 29
+const val tokStmtIfPr = 30
+const val tokStmtImpl = 31
+const val tokStmtLambda = 32
+const val tokStmtMatch = 33
+const val tokStmtMut = 34
+const val tokStmtNodestruct = 35
+const val tokStmtReturn = 36
+const val tokStmtStruct = 37
+const val tokStmtTry = 38
+const val tokStmtType = 39
+const val tokStmtYield = 40
+
 
 // First punctuation/scoped type of token
 const val firstPunctTok = tokStmt
@@ -98,10 +99,9 @@ const val firstCoreFormTok = tokStmtAlias
 
 /** Order must agree with the tok... constants above. This is for debugging purposes */
 val tokNames = arrayOf("Int", "Flo", "Bool", "String", "_", "Comm", "Word", "@Word", "Reserved", "Op",
-    "Stmt", "(", "[", "Comp Str", ".[", "assign", "typeDecl", "lexScope",
+    "Stmt", "(", "[", "Comp Str", ".[", "assign", "typeDecl", "lexScope", ":",
     "alias", "await", "break", "catch", "continue", "embed", "export", "for", "generator",
-    "if", "ifEq", "ifPr", "impl", "lambda", "match", "nodestruct", "return", "struct", "try", "type", "yield",
-    ":"
+    "if", "ifEq", "ifPr", "impl", "lambda", "match", "mut", "nodestruct", "return", "struct", "try", "type", "yield"
 )
 
 

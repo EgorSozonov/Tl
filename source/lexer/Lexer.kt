@@ -65,7 +65,7 @@ fun lexicallyAnalyze() {
 }
 
 /** Guarantees that all tokens are wrapped up at least into a statement */
-private fun guaranteeAStatement() {
+private fun wrapInAStatement() {
     if (backtrack.isEmpty()) {
         backtrack.add(LexFrame(tokStmt, totalTokens))
         appendPunctuation(tokStmt, i)
@@ -80,7 +80,7 @@ private fun guaranteeAStatement() {
 
 
 private fun lexWord() {
-    guaranteeAStatement()
+    wrapInAStatement()
     lexWordInternal(tokWord)
 }
 
@@ -184,7 +184,7 @@ private fun lexWordChunk(): Boolean {
 
 
 private fun lexAtWord() {
-    guaranteeAStatement()
+    wrapInAStatement()
     checkPrematureEnd(2, inp)
     if (wasError) return
 
@@ -198,7 +198,7 @@ private fun lexAtWord() {
  * This function can handle being called on the last byte of input.
  */
 private fun lexNumber() {
-    guaranteeAStatement()
+    wrapInAStatement()
 
     val cByte = inp[i]
     if (i == inp.size - 1 && isDigit(cByte)) {
@@ -341,7 +341,7 @@ private fun lexBinNumber() {
 
 
 private fun lexOperator() {
-    guaranteeAStatement()
+    wrapInAStatement()
 
     val firstSymbol = inp[i]
     val secondSymbol = if (inp.size > i + 1) { inp[i + 1] } else { 0 }
@@ -409,7 +409,7 @@ private fun lexOperator() {
 
 
 private fun lexLambda() {
-    guaranteeAStatement()
+    wrapInAStatement()
 
     val j = i + 1
     if (j < inp.size && inp[j] == aAsterisk) {
@@ -439,7 +439,7 @@ private fun lexGenerator() {
 
 
 private fun lexMinus() {
-    guaranteeAStatement()
+    wrapInAStatement()
 
     val j = i + 1
     if (j < inp.size && isDigit(inp[j])) {
@@ -504,7 +504,7 @@ private fun convertGrandparentToScope() {
     val indPenultimate = backtrack.size - 2
     if (indPenultimate > -1) {
         val gpType = backtrack[indPenultimate].tokType
-        if (gpType == tokColonOpened) exitWithError(errorPunctuationInsideColon)
+        if (gpType == tokColon) exitWithError(errorPunctuationInsideColon)
         if (gpType == tokParens) {
             backtrack[indPenultimate].tokType = tokLexScope
             setSpanType(backtrack[indPenultimate].startTokInd, tokLexScope)
@@ -520,7 +520,7 @@ private fun validateNotInsideTypeDecl() {
 }
 
 private fun lexParenLeft() {
-    guaranteeAStatement()
+    wrapInAStatement()
 
     openPunctuation(tokParens)
 }
@@ -530,7 +530,7 @@ private fun lexParenRight() {
 }
 
 private fun lexBracketLeft() {
-    guaranteeAStatement()
+    wrapInAStatement()
 
     openPunctuation(tokBrackets)
 }
@@ -549,7 +549,7 @@ private fun lexNewline() {
 }
 
 private fun lexDot() {
-    guaranteeAStatement()
+    wrapInAStatement()
 
     convertGrandparentToScope()
     closeRegularPunctuation(tokStmt)
@@ -561,7 +561,7 @@ private fun lexDot() {
  * TODO probably need to count UTF-8 codepoints, or worse - grapheme clusters - in order to correctly report to LSP
  */
 private fun lexStringLiteral() {
-    guaranteeAStatement()
+    wrapInAStatement()
 
     var j = i + 1
     while (j < inp.size) {
@@ -582,7 +582,8 @@ private fun lexUnrecognizedSymbol() {
 }
 
 /**
- * Doc-comments start with ;; and are included as a single token. Simple comments start with ; and are excluded from the lexing result.
+ * Doc-comments start with ## and are included as a single token.
+ * Simple comments start with # and are excluded from the lexing result.
  * All comments go until the end of line.
  */
 private fun lexComment() {
@@ -612,7 +613,7 @@ private fun lexColon() {
     if (i + 1 < inp.size && inp[i + 1] == aEqual) {
         lexOperator()
     } else {
-        openPunctuation(tokColonOpened)
+        openPunctuation(tokColon)
     }
 }
 
@@ -655,7 +656,7 @@ private fun checkPrematureEnd(requiredSymbols: Int, inp: ByteArray) {
  * token length of 1.
  */
 private fun openPunctuation(tType: Int) {
-    backtrack.add(LexFrame(tType, totalTokens, tType == tokColonOpened))
+    backtrack.add(LexFrame(tType, totalTokens, tType == tokColon))
     appendPunctuation(tType, i + 1)
     i++
 }
@@ -704,7 +705,7 @@ private fun closeColons() {
 private fun validateClosingPunct(closingType: Int, openType: Int) {
     when (closingType) {
         tokParens -> {
-            if (openType < firstCoreFormTok && openType != tokParens && openType != tokColonOpened) {
+            if (openType < firstCoreFormTok && openType != tokParens && openType != tokColon) {
                 exitWithError(errorPunctuationUnmatched)
             }
         }
@@ -861,7 +862,7 @@ private fun appendDocComment(startByte: Int, endByte: Int) {
     if (nextInd == 0 || tokens[nextInd - 4] ushr 26 != tokDocComment) {
         add((tokDocComment shl 26) + startByte, endByte - startByte + 1, 0, 0)
     } else {
-        tokens[nextInd - 4] = (tokDocComment shl 26) + endByte - tokens[nextInd - 3] + 1
+        tokens[nextInd - 3] = endByte - (tokens[nextInd - 4] and LOWER26BITS) + 1 // lenBytes
     }
 }
 
