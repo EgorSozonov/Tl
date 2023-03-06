@@ -108,28 +108,30 @@ extern const int operatorStartSymbols[];
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         19 // length of the interval of letters that may be init for reserved words
 #define countReservedWords           21 // count of different reserved words below
+static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
+static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
 static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
 static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
 static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
-static const byte reservedBytesFn[]          = { 102, 110 };
 static const byte reservedBytesFor[]         = { 102, 111, 114 };
 static const byte reservedBytesIf[]          = { 105, 102 };
 static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
 static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
 static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
 static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
-static const byte reservedBytesOpen[]        = { 111, 112, 101, 110 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
+static const byte reservedBytesMut[]         = { 109, 117, 116 };
+static const byte reservedBytesNodestruct[]  = { 110, 111, 100, 101, 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
 static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesTest[]        = { 116, 101, 115, 116 };
 static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
 static const byte reservedBytesTry[]         = { 116, 114, 121 };
 static const byte reservedBytesType[]        = { 116, 121, 112, 101 };
-
+static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 
 
 #define topVerbatimTokenVariant = 4
@@ -148,30 +150,31 @@ static const byte reservedBytesType[]        = { 116, 121, 112, 101 };
 
 // This group requires analysis in the parser
 #define tokDocComment 5
-#define tokCompoundString 6
-#define tokWord 7              // payload2: 1 if the word is all capitals
-#define tokDotWord 8           // payload2: 1 if the word is all capitals
-#define tokAtWord 9
-#define tokReserved 10         // payload2: value of a constant from the 'reserved*' group
-#define tokOperator 11         // payload2: OperatorToken encoded as an Int
+#define tokWord 6              // payload2: 1 if the word is all capitals
+#define tokDotWord 7           // payload2: 1 if the word is all capitals
+#define tokAtWord 8
+#define tokReserved 9         // payload2: value of a constant from the 'reserved*' group
+#define tokOperator 10         // payload2: OperatorToken encoded as an Int
 
 /**
  * Punctuation (inner node) Token types
  */
-#define tokCurlyBraces 12
-#define tokBrackets 13
-#define tokParens 14
-#define tokAddresser 15
-#define tokStmtAssignment 16 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
-#define tokStmtTypeDecl 17
-#define tokLexScope 18
-#define tokStmtFn 19
-#define tokStmtReturn 20
-#define tokStmtIf 21
-#define tokStmtLoop 22
-#define tokStmtBreak 23
-#define tokStmtIfEq 24
-#define tokStmtIfPred 25
+#define tokCurlyBraces 11
+#define tokBrackets 12
+#define tokParens 13
+#define tokAddresser 14
+#define tokStmtAssignment 15 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
+#define tokStmtTypeDecl 16
+#define tokLexScope 17
+#define tokStmtFn 18
+#define tokStmtReturn 19
+#define tokStmtIf 20
+#define tokStmtLoop 21
+#define tokStmtBreak 22
+#define tokStmtIfEq 23
+#define tokStmtIfPred 24
+#define tokStmtAlias 25
+#define tokStmtAwait 26
 
 
 /** Must be the lowest value in the PunctuationToken enum */
@@ -190,7 +193,7 @@ static const byte reservedBytesType[]        = { 116, 121, 112, 101 };
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators            35 // must be equal to the count of following constants
+#define countOperators            34 // must be equal to the count of following constants
 #define opTNotEqual                0 // !=
 #define opTBoolNegation            1 // !
 #define opTNotEmpty                2 // $
@@ -210,22 +213,21 @@ static const byte reservedBytesType[]        = { 116, 121, 112, 101 };
 #define opTLessThanEq             16 // <=
 #define opTBitShiftLeft           17 // <<
 #define opTLessThan               18 // <
-#define opTArrowRight             19 // =>
-#define opTEquality               20 // ==
-#define opTImmDefinition          21 // =
-#define opTIntervalBothInclusive  22 // >=<=
-#define opTIntervalLeftInclusive  23 // >=<
-#define opTIntervalRightInclusive 24 // ><=
-#define opTIntervalExclusive      25 // ><
-#define opTGreaterThanEq          26 // >=
-#define opTBitshiftRight          27 // >>
-#define opTGreaterThan            28 // >
-#define opTNullCoalescing         29 // ?:
-#define opTQuestionMark           30 // ?
-#define opTExponentiation         31 // ^
-#define opTBoolOr                 32 // ||
-#define opTPipe                   33 // |
-#define opTIsEmpty                34 // ~
+#define opTEquality               19 // ==
+#define opTImmDefinition          20 // =
+#define opTIntervalBothInclusive  21 // >=<=
+#define opTIntervalLeftInclusive  22 // >=<
+#define opTIntervalRightInclusive 23 // ><=
+#define opTIntervalExclusive      24 // ><
+#define opTGreaterThanEq          25 // >=
+#define opTBitshiftRight          26 // >>
+#define opTGreaterThan            27 // >
+#define opTNullCoalescing         28 // ?:
+#define opTQuestionMark           29 // ?
+#define opTExponentiation         30 // ^
+#define opTBoolOr                 31 // ||
+#define opTPipe                   32 // |
+#define opTIsEmpty                33 // ~
 
 
 

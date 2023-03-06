@@ -81,88 +81,98 @@ const OpDef noFun = {
 };
 
 
-#define TESTRESERVED(reservedBytesName)    \
+#define PROBERESERVED(reservedBytesName, returnVarName)    \
     lenReser = sizeof(reservedBytesName); \
     if (lenBytes == lenReser && testByteSequence(lr->inp, startByte, reservedBytesCatch, lenReser)) \
-        return tokStmtBreak;
+        return returnVarName;
 
+
+private int determineReservedA(int startByte, int lenBytes, Lexer* lr) {
+    int lenReser;
+    PROBERESERVED(reservedBytesAlias, tokStmtAlias)
+    PROBERESERVED(reservedBytesAwait, tokStmtAwait)
+    return 0;
+}
 
 private int determineReservedB(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesBreak)
+    PROBERESERVED(reservedBytesBreak)
+    return 0;
+}
+private int determineReservedB(int startByte, int lenBytes, Lexer* lr) {
+    int lenReser;
+    PROBERESERVED(reservedBytesBreak)
     return 0;
 }
 
 
 private int determineReservedC(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesCatch)
-    TESTRESERVED(reservedBytesContinue)
+    PROBERESERVED(reservedBytesCatch)
+    PROBERESERVED(reservedBytesContinue)
     return 0;
 }
 
 
 private int determineReservedE(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesEmbed)
+    PROBERESERVED(reservedBytesEmbed)
     return 0;
 }
 
 
 private int determineReservedF(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesFalse)
-    TESTRESERVED(reservedBytesFn)
-    TESTRESERVED(reservedBytesFor)
+    PROBERESERVED(reservedBytesFalse)
+    PROBERESERVED(reservedBytesFor)
     return 0;
 }
 
 
 private int determineReservedI(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesIf)
-    TESTRESERVED(reservedBytesIfEq)
-    TESTRESERVED(reservedBytesIfPr)
-    TESTRESERVED(reservedBytesImpl)
-    TESTRESERVED(reservedBytesInterface)
+    PROBERESERVED(reservedBytesIf)
+    PROBERESERVED(reservedBytesIfEq)
+    PROBERESERVED(reservedBytesIfPr)
+    PROBERESERVED(reservedBytesImpl)
+    PROBERESERVED(reservedBytesInterface)
     return 0;
 }
 
 
 private int determineReservedM(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesMatch)
-    return 0;
-}
-
-
-private int determineReservedO(int startByte, int lenBytes, Lexer* lr) {
-    int lenReser;
-    TESTRESERVED(reservedBytesOpen)
+    PROBERESERVED(reservedBytesMatch)
     return 0;
 }
 
 
 private int determineReservedR(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesReturn)
+    PROBERESERVED(reservedBytesReturn, tokStmtReturn)
     return 0;
 }
 
 
 private int determineReservedS(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesStruct)
+    PROBERESERVED(reservedBytesStruct)
     return 0;
 }
 
 
 private int determineReservedT(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    TESTRESERVED(reservedBytesTest)
-    TESTRESERVED(reservedBytesTrue)
-    TESTRESERVED(reservedBytesTry)
-    TESTRESERVED(reservedBytesType)
+    PROBERESERVED(reservedBytesTest)
+    PROBERESERVED(reservedBytesTrue)
+    PROBERESERVED(reservedBytesTry)
+    PROBERESERVED(reservedBytesType)
+    return 0;
+}
+
+private int determineReservedY(int startByte, int lenBytes, Lexer* lr) {
+    int lenReser;
+    PROBERESERVED(reservedBytesYield)
     return 0;
 }
 
@@ -475,26 +485,26 @@ private OpDef (*buildOperators(Arena* a))[countOperators] {
     p[14] = (OpDef){ .name=allocLit(a, ";<"), .precedence=1, .arity=2, .binding=13, .bytes={aSemicolon, aLT, 0, 0 }, .overloadable=true };
     p[15] = (OpDef){ .name=allocLit(a, ";"), .precedence=1, .arity=2, .binding=14, .bytes={aSemicolon, 0, 0, 0 }, .overloadable=true };
     p[16] = (OpDef){ .name=allocLit(a, "<="), .precedence=12, .arity=2, .binding=15, .bytes={aLT, aEqual, 0, 0 } };
-    p[17] = (OpDef){ .name=allocLit(a, "<<"), .precedence=14, .arity=2, .extensible=true, .binding=16, .bytes={aTimes, 0, 0, 0 } };
+    p[17] = (OpDef){ .name=allocLit(a, "<<"), .precedence=14, .arity=2, .binding=16, .extensible=true, .bytes={aTimes, 0, 0, 0 } };
     p[18] = (OpDef){ .name=allocLit(a, "<"), .precedence=12, .arity=2, .binding=17, .bytes={aLT, 0, 0, 0 } };
-    p[19] = (OpDef){ .name=allocLit(a, "=>"), .precedence=0, .arity=0, .binding=-1, .bytes={aEqual, aGT, 0, 0 } };
-    p[20] = (OpDef){ .name=allocLit(a, "=="), .precedence=11, .arity=2, .binding=18, .bytes={aEqual, aEqual, 0, 0 } };
-    p[21] = (OpDef){ .name=allocLit(a, "="), .precedence=0, .arity=0, .binding=-1, .bytes={aEqual, 0, 0, 0 } };
-    p[22] = (OpDef){ .name=allocLit(a, ">=<="), .precedence=12, .arity=3, .binding=19, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[23] = (OpDef){ .name=allocLit(a, ">=<"), .precedence=12, .arity=3, .binding=20, .bytes={aGT, aEqual, aLT, 0 } };
-    p[24] = (OpDef){ .name=allocLit(a, "><="), .precedence=12, .arity=3, .binding=21, .bytes={aGT, aLT, aEqual, 0 } };
-    p[25] = (OpDef){ .name=allocLit(a, "><"), .precedence=12, .arity=3, .binding=22, .bytes={aGT, aLT, 0, 0 } };
-    p[26] = (OpDef){ .name=allocLit(a, ">="), .precedence=12, .arity=2, .binding=23, .bytes={aGT, aEqual, 0, 0 } };
-    p[27] = (OpDef){ .name=allocLit(a, ">>"), .precedence=14, .arity=2, .extensible=true, .binding=24, .bytes={aGT, aGT, 0, 0 } };
-    p[28] = (OpDef){ .name=allocLit(a, ">"), .precedence=12, .arity=2, .binding=25, .bytes={aGT, 0, 0, 0 } };
-    p[29] = (OpDef){ .name=allocLit(a, "?:"), .precedence=1, .arity=2, .binding=26, .bytes={aQuestion, aColon, 0, 0 } };    
-    p[30] = (OpDef){ .name=allocLit(a, "?"), .precedence=prefixPrec, .arity=1, .binding=27, .bytes={aQuestion, 0, 0, 0 } };
-    p[31] = (OpDef){ .name=allocLit(a, "^"), .precedence=21, .arity=2, .binding=28, .bytes={aCaret, 0, 0, 0 } };
-    p[32] = (OpDef){ .name=allocLit(a, "||"), .precedence=3, .arity=2, .binding=29, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
-    p[33] = (OpDef){ .name=allocLit(a, "|"), .precedence=9, .arity=2, .binding=30, .bytes={aPipe, 0, 0, 0 } };
-    p[34] = (OpDef){ .name=allocLit(a, "~"), .precedence=[prefixPrec], .arity=1, .binding=31, .bytes={aTilde, 0, 0, 0 } };    
+    p[19] = (OpDef){ .name=allocLit(a, "=="), .precedence=11, .arity=2, .binding=18, .bytes={aEqual, aEqual, 0, 0 } };
+    p[20] = (OpDef){ .name=allocLit(a, "="), .precedence=0, .arity=0, .binding=-1, .bytes={aEqual, 0, 0, 0 } };
+    p[21] = (OpDef){ .name=allocLit(a, ">=<="), .precedence=12, .arity=3, .binding=19, .bytes={aGT, aEqual, aLT, aEqual } };
+    p[22] = (OpDef){ .name=allocLit(a, ">=<"), .precedence=12, .arity=3, .binding=20, .bytes={aGT, aEqual, aLT, 0 } };
+    p[23] = (OpDef){ .name=allocLit(a, "><="), .precedence=12, .arity=3, .binding=21, .bytes={aGT, aLT, aEqual, 0 } };
+    p[24] = (OpDef){ .name=allocLit(a, "><"), .precedence=12, .arity=3, .binding=22, .bytes={aGT, aLT, 0, 0 } };
+    p[25] = (OpDef){ .name=allocLit(a, ">="), .precedence=12, .arity=2, .binding=23, .bytes={aGT, aEqual, 0, 0 } };
+    p[26] = (OpDef){ .name=allocLit(a, ">>"), .precedence=14, .arity=2, .binding=24, .extensible=true, .bytes={aGT, aGT, 0, 0 } };
+    p[27] = (OpDef){ .name=allocLit(a, ">"), .precedence=12, .arity=2, .binding=25, .bytes={aGT, 0, 0, 0 } };
+    p[28] = (OpDef){ .name=allocLit(a, "?:"), .precedence=1, .arity=2, .binding=26, .bytes={aQuestion, aColon, 0, 0 } };
+    p[29] = (OpDef){ .name=allocLit(a, "?"), .precedence=prefixPrec, .arity=1, .binding=27, .bytes={aQuestion, 0, 0, 0 } };
+    p[30] = (OpDef){ .name=allocLit(a, "^"), .precedence=21, .arity=2, .binding=28, .bytes={aCaret, 0, 0, 0 } };
+    p[31] = (OpDef){ .name=allocLit(a, "||"), .precedence=3, .arity=2, .binding=29, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
+    p[32] = (OpDef){ .name=allocLit(a, "|"), .precedence=9, .arity=2, .binding=30, .bytes={aPipe, 0, 0, 0 } };
+    p[33] = (OpDef){ .name=allocLit(a, "~"), .precedence=[prefixPrec], .arity=1, .binding=31, .bytes={aTilde, 0, 0, 0 } };
     return result;
 }
+
 
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a) {
@@ -550,16 +560,16 @@ void addToken(Token t, Lexer* lexer) {
 private Lexer* buildLexer(int totalTokens, String* inp, Arena *a, /* Tokens */ ...) {
     Lexer* result = createLexer(inp, a);
     if (result == NULL) return result;
-    
+
     result->totalTokens = totalTokens;
-    
+
     va_list tokens;
     va_start (tokens, a);
-    
+
     for (int i = 0; i < totalTokens; i++) {
         addToken(va_arg(tokens, Token), result);
     }
-    
+
     va_end(tokens);
     return result;
 }
@@ -621,4 +631,3 @@ Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar) {
     //~ }
     //~ return result;
 //~ }
-
