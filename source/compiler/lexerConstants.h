@@ -105,35 +105,6 @@ extern const int operatorStartSymbols[];
 
 
 
-/** Reserved words of Tl in ASCII byte form */
-#define countReservedLetters         19 // length of the interval of letters that may be init for reserved words
-#define countReservedWords           21 // count of different reserved words below
-static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
-static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
-static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
-static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
-static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
-static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
-static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
-static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
-static const byte reservedBytesFor[]         = { 102, 111, 114 };
-static const byte reservedBytesIf[]          = { 105, 102 };
-static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
-static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
-static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
-static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
-static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
-static const byte reservedBytesMut[]         = { 109, 117, 116 };
-static const byte reservedBytesNodestruct[]  = { 110, 111, 100, 101, 115, 116, 114, 117, 99, 116 };
-static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
-static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
-static const byte reservedBytesTest[]        = { 116, 101, 115, 116 };
-static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
-static const byte reservedBytesTry[]         = { 116, 114, 121 };
-static const byte reservedBytesType[]        = { 116, 121, 112, 101 };
-static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
-
-
 #define topVerbatimTokenVariant = 4
 
 /**
@@ -147,34 +118,51 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define tokBool 2
 #define tokString 3
 #define tokUnderscore 4
+#define tokDocComment 5
 
 // This group requires analysis in the parser
-#define tokDocComment 5
 #define tokWord 6              // payload2: 1 if the word is all capitals
 #define tokDotWord 7           // payload2: 1 if the word is all capitals
 #define tokAtWord 8
 #define tokReserved 9         // payload2: value of a constant from the 'reserved*' group
 #define tokOperator 10         // payload2: OperatorToken encoded as an Int
 
-/**
- * Punctuation (inner node) Token types
- */
-#define tokCurlyBraces 11
-#define tokBrackets 12
+// This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
+#define tokColon 11
+
+// Punctuation (inner node) Token types
+#define tokStmt 12
 #define tokParens 13
-#define tokAddresser 14
-#define tokStmtAssignment 15 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
-#define tokStmtTypeDecl 16
-#define tokLexScope 17
-#define tokStmtFn 18
-#define tokStmtReturn 19
-#define tokStmtIf 20
-#define tokStmtLoop 21
+#define tokBrackets 14
+#define tokCompoundString 15
+#define tokAccessor 16
+#define tokStmtAssignment 17 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
+#define tokStmtTypeDecl 18
+#define tokLexScope 19
+
+// Core syntax form Token types
+#define tokStmtAlias 20
+#define tokStmtAwait 21
 #define tokStmtBreak 22
-#define tokStmtIfEq 23
-#define tokStmtIfPred 24
-#define tokStmtAlias 25
-#define tokStmtAwait 26
+#define tokStmtCatch 23
+#define tokStmtContinue 24
+#define tokStmtEmbed 25
+#define tokStmtExport 26
+#define tokStmtFor 27
+#define tokStmtGenerator 28
+#define tokStmtIf 29
+#define tokStmtIfEq 30
+#define tokStmtIfPr 31
+#define tokStmtImpl 32
+#define tokStmtLambda 33
+#define tokStmtMatch 34
+#define tokStmtMut 35
+#define tokStmtNodestruct 36
+#define tokStmtReturn 37
+#define tokStmtStruct 38
+#define tokStmtTry 39
+#define tokStmtType 40
+#define tokStmtYield 41
 
 
 /** Must be the lowest value in the PunctuationToken enum */
@@ -230,6 +218,33 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define opTIsEmpty                33 // ~
 
 
+/** Reserved words of Tl in ASCII byte form */
+#define countReservedLetters         19 // length of the interval of letters that may be init for reserved words
+#define countReservedWords           21 // count of different reserved words below
+static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
+static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
+static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
+static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
+static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
+static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
+static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
+static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
+static const byte reservedBytesFor[]         = { 102, 111, 114 };
+static const byte reservedBytesIf[]          = { 105, 102 };
+static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
+static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
+static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
+static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
+static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
+static const byte reservedBytesMut[]         = { 109, 117, 116 };
+static const byte reservedBytesNodestruct[]  = { 110, 111, 100, 101, 115, 116, 114, 117, 99, 116 };
+static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
+static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
+static const byte reservedBytesTest[]        = { 116, 101, 115, 116 };
+static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
+static const byte reservedBytesTry[]         = { 116, 114, 121 };
+static const byte reservedBytesType[]        = { 116, 121, 112, 101 };
+static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 
 
 /** Function precedence must be higher than that of any infix operator, yet lower than the prefix operators */
