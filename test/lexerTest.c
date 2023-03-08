@@ -500,30 +500,42 @@ LexerTestSet* stringTests(Arena* ar) {
 LexerTestSet* commentTests(Arena* ar) {
     return createTestSet(allocLit(ar, "Comments lexer tests"), 5, ar,
         (LexerTest) { .name = allocLit(ar, "Comment simple"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "# this is a comment"),
             .expectedOutput = buildLexer(2, ar
         )},     
         (LexerTest) { .name = allocLit(ar, "Doc comment"),
-            .input = allocLit(ar, "\"hello мир\""),
+            .input = allocLit(ar, "## Documentation comment "),
             .expectedOutput = buildLexer(2, ar, 
-                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
-                (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
+                (Token){ .tp = tokDocComment, .payload2 = 0, .startByte = 2, .lenBytes = 23 }
         )},  
         (LexerTest) { .name = allocLit(ar, "Doc comment before something"),
-            .input = allocLit(ar, "\"asdf"),
+            .input = allocLit(ar, "## Documentation comment\n" 
+                                  "print \"hw\" "
+            ),
             .expectedOutput = buildLexer(2, ar, 
-                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
-                (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
+                (Token){ .tp = tokDocComment, .payload2 = 0, .startByte = 2, .lenBytes = 22 },
+                (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 25, .lenBytes = 11 },
+                (Token){ .tp = tokWord, .startByte = 25, .lenBytes = 5 },
+                (Token){ .tp = tokString, .startByte = 32, .lenBytes = 2 }
         )},
         (LexerTest) { .name = allocLit(ar, "Doc comment empty"),
-            .input = allocLit(ar, "\"asdf\""),
-            .expectedOutput = buildLexer(2, ar
+            .input = allocLit(ar, "##\n" "print \"hw\" "),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 3, .lenBytes = 11 },
+                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 3, .lenBytes = 5 },
+                (Token){ .tp = tokString, .startByte = 10, .lenBytes = 2 }
         )},     
         (LexerTest) { .name = allocLit(ar, "Doc comment multiline"),
-            .input = allocLit(ar, "\"hello мир\""),
+            .input = allocLit(ar, "## First line\n" 
+                                  "## Second line\n" 
+                                  "## Third line\n" 
+                                  "print \"hw\" "
+            ),
             .expectedOutput = buildLexer(2, ar, 
-                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
-                (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
+                (Token){ .tp = tokDocComment, .payload2 = 0, .startByte = 2, .lenBytes = 40 },
+                (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 43, .lenBytes = 11 },
+                (Token){ .tp = tokWord, .startByte = 43, .lenBytes = 5 },
+                (Token){ .tp = tokString, .startByte = 50, .lenBytes = 2 }
         )}            
     );
 }
@@ -531,53 +543,62 @@ LexerTestSet* commentTests(Arena* ar) {
 LexerTestSet* punctuationTests(Arena* ar) {
     return createTestSet(allocLit(ar, "Punctuation lexer tests"), 5, ar,
         (LexerTest) { .name = allocLit(ar, "Parens simple"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "(car cdr)"),
             .expectedOutput = buildLexer(2, ar
         )},             
         (LexerTest) { .name = allocLit(ar, "Parens nested"),
-            .input = allocLit(ar, "\"hello мир\""),
+            .input = allocLit(ar, "(car (other car) cdr)"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
         )},
         (LexerTest) { .name = allocLit(ar, "Parens unclosed"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "(car (other car) cdr"),
             .expectedOutput = buildLexer(2, ar
         )},
         (LexerTest) { .name = allocLit(ar, "Brackets simple"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "[car cdr]"),
             .expectedOutput = buildLexer(2, ar
         )},              
         (LexerTest) { .name = allocLit(ar, "Brackets nested"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "[car [other car] cdr]"),
             .expectedOutput = buildLexer(2, ar
         )},             
         (LexerTest) { .name = allocLit(ar, "Brackets mismatched"),
-            .input = allocLit(ar, "\"hello мир\""),
+            .input = allocLit(ar, "(asdf QWERT]"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
         )},
         (LexerTest) { .name = allocLit(ar, "Data accessor"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "asdf[5]"),
             .expectedOutput = buildLexer(2, ar
         )},
         (LexerTest) { .name = allocLit(ar, "Punctuation scope inside statement 1"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "foo bar ( asdf )"),
             .expectedOutput = buildLexer(2, ar
         )}, 
         (LexerTest) { .name = allocLit(ar, "Punctuation scope inside statement 2"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "foo bar (\n"
+                                  "asdf\n"
+                                  "bcj\n"
+                                  ")"
+                             ),
             .expectedOutput = buildLexer(2, ar
         )},             
         (LexerTest) { .name = allocLit(ar, "Punctuation all types"),
-            .input = allocLit(ar, "\"hello мир\""),
+            .input = allocLit(ar, "(\n"
+                                  "asdf (b [d ef (y z)] c d[x y])\n"
+                                  "\n"
+                                  "bcjk ((a b))\n"
+                                  ")"
+            ),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
         )},
         (LexerTest) { .name = allocLit(ar, "Colon punctuation 1"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "Foo : Bar 4"),
             .expectedOutput = buildLexer(2, ar
         )}                        
     );
@@ -587,55 +608,59 @@ LexerTestSet* punctuationTests(Arena* ar) {
 LexerTestSet* operatorTests(Arena* ar) {
     return createTestSet(allocLit(ar, "Operator lexer tests"), 5, ar,
         (LexerTest) { .name = allocLit(ar, "Operator simple 1"),
-            .input = allocLit(ar, "\"asdf\""),
+            .input = allocLit(ar, "+"),
             .expectedOutput = buildLexer(2, ar
         )},             
-        (LexerTest) { .name = allocLit(ar, "Parens nested"),
-            .input = allocLit(ar, "\"hello мир\""),
+        (LexerTest) { .name = allocLit(ar, "Operator extensible"),
+            .input = allocLit(ar, "+. -. >>. %. *. 5 <<. ^."),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
         )},
-        (LexerTest) { .name = allocLit(ar, "Parens unclosed"),
-            .input = allocLit(ar, "\"asdf\""),
+        (LexerTest) { .name = allocLit(ar, "Operators list"),
+            .input = allocLit(ar, "+ - / * ^ && || ~ ? => >=< ><"),
             .expectedOutput = buildLexer(2, ar
         )},
-        (LexerTest) { .name = allocLit(ar, "Brackets simple"),
-            .input = allocLit(ar, "\"asdf\""),
+        (LexerTest) { .name = allocLit(ar, "Operator expression"),
+            .input = allocLit(ar, "a - b"),
             .expectedOutput = buildLexer(2, ar
         )},              
-        (LexerTest) { .name = allocLit(ar, "Brackets nested"),
-            .input = allocLit(ar, "\"asdf\""),
+        (LexerTest) { .name = allocLit(ar, "Operator assignment 1"),
+            .input = allocLit(ar, "a += b"),
             .expectedOutput = buildLexer(2, ar
         )},             
-        (LexerTest) { .name = allocLit(ar, "Brackets mismatched"),
-            .input = allocLit(ar, "\"hello мир\""),
+        (LexerTest) { .name = allocLit(ar, "Operator assignment 2"),
+            .input = allocLit(ar, "a ||= b"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
         )},
-        (LexerTest) { .name = allocLit(ar, "Data accessor"),
-            .input = allocLit(ar, "\"asdf\""),
+        (LexerTest) { .name = allocLit(ar, "Operator assignment 3"),
+            .input = allocLit(ar, "a *.= b"),
             .expectedOutput = buildLexer(2, ar
         )},
-        (LexerTest) { .name = allocLit(ar, "Punctuation scope inside statement 1"),
-            .input = allocLit(ar, "\"asdf\""),
+        (LexerTest) { .name = allocLit(ar, "Operator assignment 4"),
+            .input = allocLit(ar, "a ^= b"),
             .expectedOutput = buildLexer(2, ar
         )}, 
-        (LexerTest) { .name = allocLit(ar, "Punctuation scope inside statement 2"),
-            .input = allocLit(ar, "\"asdf\""),
+        (LexerTest) { .name = allocLit(ar, "Operator assignment in parens error"),
+            .input = allocLit(ar, "(x += y + 5)"),
             .expectedOutput = buildLexer(2, ar
         )},             
-        (LexerTest) { .name = allocLit(ar, "Punctuation all types"),
-            .input = allocLit(ar, "\"hello мир\""),
+        (LexerTest) { .name = allocLit(ar, "Operator assignment with parens"),
+            .input = allocLit(ar, "x +.= (y + 5)"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokString, .startByte = 0, .lenBytes = 6 }
         )},
-        (LexerTest) { .name = allocLit(ar, "Colon punctuation 1"),
-            .input = allocLit(ar, "\"asdf\""),
+        (LexerTest) { .name = allocLit(ar, "Operator assignment in parens error 1"),
+            .input = allocLit(ar, "x (+= y) + 5"),
             .expectedOutput = buildLexer(2, ar
-        )}                        
+        )},
+        (LexerTest) { .name = allocLit(ar, "Operator assignment multiple error 1"),
+            .input = allocLit(ar, "x := y := 7"),
+            .expectedOutput = buildLexer(2, ar
+        )}         
     );
 }
 
@@ -643,8 +668,19 @@ LexerTestSet* operatorTests(Arena* ar) {
 LexerTestSet* functionTests(Arena* ar) {
     return createTestSet(allocLit(ar, "Function lexer tests"), 1, ar,
         (LexerTest) { .name = allocLit(ar, "Function simple 1"),
-            .input = allocLit(ar, "foo = (\x y. x - y)"),
-            .expectedOutput = buildLexer(2, ar
+            .input = allocLit(ar, "foo = (.x y. x - y)"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmtAssignment, .payload2 = opTImmDefinition << 2, .startByte = 0, .lenBytes = 19 },
+                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 3 },
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
+                (Token){ .tp = tokStmtLambda, .payload2 = 7, .startByte = 7, .lenBytes = 11 },           
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
+                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 8, .lenBytes = 1 },
+                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 10, .lenBytes = 1 },
+                (Token){ .tp = tokStmt, .payload2 = 3, .startByte = 13, .lenBytes = 5 },                     
+                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 13, .lenBytes = 1 },                
+                (Token){ .tp = tokOperator, .payload2 = opTMinus, .startByte = 15, .lenBytes = 1 },                
+                (Token){ .tp = tokWord, .startByte = 17, .lenBytes = 1 }
         )},  
     );
 }
