@@ -124,8 +124,8 @@ extern const int operatorStartSymbols[];
 #define tokWord 6              // payload2: 1 if the word is all capitals
 #define tokDotWord 7           // payload2: 1 if the word is all capitals
 #define tokAtWord 8
-#define tokReserved 9         // payload2: value of a constant from the 'reserved*' group
-#define tokOperator 10         // payload2: OperatorToken encoded as an Int
+#define tokReserved 9          // payload2: value of a constant from the 'reserved*' group
+#define tokOperator 10         // payload1: OperatorToken encoded as an Int
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon 11
@@ -136,7 +136,7 @@ extern const int operatorStartSymbols[];
 #define tokBrackets 14
 #define tokCompoundString 15
 #define tokAccessor 16
-#define tokStmtAssignment 17 // payload1: (number of tokens before the assignment operator) shl 16 + (OperatorType)
+#define tokAssignment 17       // payload1: as in tokOperator
 #define tokStmtTypeDecl 18
 #define tokLexScope 19
 
@@ -145,19 +145,19 @@ extern const int operatorStartSymbols[];
 #define tokStmtAwait 21
 #define tokStmtBreak 22
 #define tokStmtCatch 23
-#define tokStmtContinue 24
+#define tokContinue 24
 #define tokStmtEmbed 25
 #define tokStmtExport 26
 #define tokStmtFor 27
-#define tokStmtGenerator 28
+#define tokGenerator 28
 #define tokStmtIf 29
 #define tokStmtIfEq 30
 #define tokStmtIfPr 31
 #define tokStmtImpl 32
-#define tokStmtLambda 33
+#define tokLambda 33
 #define tokStmtMatch 34
 #define tokStmtMut 35
-#define tokStmtNodestruct 36
+#define tokNodestruct 36
 #define tokStmtReturn 37
 #define tokStmtStruct 38
 #define tokStmtTry 39
@@ -181,41 +181,43 @@ extern const int operatorStartSymbols[];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators            34 // must be equal to the count of following constants
-#define opTNotEqual                0 // !=
-#define opTBoolNegation            1 // !
-#define opTNotEmpty                2 // $
-#define opTRemainder               3 // %
-#define opTBoolAnd                 4 // &&
-#define opTPointer                 5 // &
-#define opTPointer                 6 // '
-#define opTTimes                   7 // *
-#define opTIncrement               8 // ++
-#define opTPlus                    9 // +
-#define opTDecrement              10 // --
-#define opTMinus                  11 // -
-#define opTDivBy                  12 // /
-#define opTMutation               13 // :=
-#define opTRangeHalf              14 // ;<
-#define opTRange                  15 // ;
-#define opTLessThanEq             16 // <=
-#define opTBitShiftLeft           17 // <<
-#define opTLessThan               18 // <
-#define opTEquality               19 // ==
-#define opTImmDefinition          20 // =
-#define opTIntervalBothInclusive  21 // >=<=
-#define opTIntervalLeftInclusive  22 // >=<
-#define opTIntervalRightInclusive 23 // ><=
-#define opTIntervalExclusive      24 // ><
-#define opTGreaterThanEq          25 // >=
-#define opTBitshiftRight          26 // >>
-#define opTGreaterThan            27 // >
-#define opTNullCoalescing         28 // ?:
-#define opTQuestionMark           29 // ?
-#define opTExponentiation         30 // ^
-#define opTBoolOr                 31 // ||
-#define opTPipe                   32 // |
-#define opTIsEmpty                33 // ~
+#define countOperators    36 // must be equal to the count of following constants
+#define opTNotEqual        0 // !=
+#define opTBoolNegation    1 // !
+#define opTNotEmpty        2 // $
+#define opTRemainder       3 // %
+#define opTBoolAnd         4 // &&
+#define opTPointer         5 // &
+#define opTPointer         6 // '
+#define opTTimes           7 // *
+#define opTIncrement       8 // ++
+#define opTPlus            9 // +
+#define opTDecrement      10 // --
+#define opTMinus          11 // -
+#define opTDivBy          12 // /
+#define opTMutation       13 // :=
+#define opTRangeHalf      14 // ;<
+#define opTRange          15 // ;
+#define opTArrowLeft      16 // <-
+#define opTLTEQ           17 // <=
+#define opTBitShiftLeft   18 // <<
+#define opTLessThan       19 // <
+#define opTEquality       20 // ==
+#define opTDefinition     21 // =
+#define opTIntervalBoth   22 // >=<=
+#define opTIntervalLeft   23 // >=<
+#define opTIntervalRight  24 // ><=
+#define opTIntervalExcl   25 // ><
+#define opTGTEQ           26 // >=
+#define opTBitshiftRight  27 // >>
+#define opTGreaterThan    28 // >
+#define opTNullCoalesc    29 // ?:
+#define opTQuestionMark   30 // ?
+#define opTIsEmpty        31 // backslash
+#define opTExponent       32 // ^
+#define opTBoolOr         33 // ||
+#define opTPipe           34 // |
+#define opTNotEmpty       35 // ~
 
 
 /** Reserved words of Tl in ASCII byte form */
