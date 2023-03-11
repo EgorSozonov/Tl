@@ -6,6 +6,7 @@ const char errorUnrecognizedByte[]           = "Unrecognized byte in source code
 const char errorWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
 const char errorWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
 const char errorWordUnderscoresOnlyAtStart[] = "Underscores are only allowed at start of word (snake case is forbidden)!";
+const char errorWordWrongAccessor[]          = "Only regular identifier words may be used for data access with []!";
 const char errorWordReservedWithDot[]        = "Reserved words may not be called like functions!";
 const char errorNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
 const char errorNumericWidthExceeded[]       = "Numeric literal width is exceeded!";

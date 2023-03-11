@@ -143,6 +143,14 @@ private int determineReservedI(int startByte, int lenBytes, Lexer* lr) {
 private int determineReservedM(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesMatch)
+    PROBERESERVED(reservedBytesMut)
+    return 0;
+}
+
+
+private int determineReservedN(int startByte, int lenBytes, Lexer* lr) {
+    int lenReser;
+    PROBERESERVED(reservedBytesNodestruct)
     return 0;
 }
 
@@ -180,6 +188,19 @@ private int determineUnreserved(int startByte, int lenBytes, Lexer* lr) {
     return 0;
 }
 
+private void wrapInAStatement(Lexer* lr) {
+    if (hasValuesRememberedToken(lr->backtrack.isEmpty())) {
+        unsigned int topType = peekRememberedToken(lr->backtrack).tp;
+        if (topType == tokLexScope || topType >= firstCoreFormTok) {
+            pushRememberedToken(lr->backtrack.add, (RembemberedToken){.tp = tokStmt, .numberOfToken = lr->totalTokens});
+            addToken((Token) .tp = tokStmt, .startByte = i},  lr);
+        }                
+    } else {
+        pushRememberedToken(lr->backtrack.add, (RembemberedToken){.tp = tokStmt, .numberOfToken = lr->totalTokens});
+        addToken((Token) .tp = tokStmt, .startByte = i},  lr);
+    }
+}
+
 
 void lexDotSomething(Lexer* lr) {
     exitWithError(errorUnrecognizedByte, lr);
@@ -194,6 +215,30 @@ private void lexNumber(Lexer* lr) {
  */
 private void setSpanType(int tokenInd, unsigned int tType, Lexer* lr) {
     lr->tokens[tokenInd].tp = tType;
+}
+
+/** Append a punctuation token */
+private void appendPunctuation(unsigned int tType, int startByte, Lexer* lr) {
+    addToken((Token) {.tp = tType, .startByte = startByte}, lr);
+}
+
+/**
+ * Adds a token which serves punctuation purposes, i.e. either a (, a {, a [, a .[ or a $
+ * These tokens are used to define the structure, that is, nesting within the AST.
+ * Upon addition, they are saved to the backtracking stack to be updated with their length
+ * once it is known.
+ * The startByte & lengthBytes don't include the opening and closing delimiters, and
+ * the lenTokens also doesn't include the punctuation token itself - only the insides of the
+ * scope. Thus, for '(asdf)', the opening paren token will have a byte length of 4 and a
+ * token length of 1.
+ */
+private void openPunctuation(unsigned int tType, Lexer* lr) {
+    pushRememberedToken( 
+        (RememberedToken){ .tp = tType, .numberOfToken = lr->totalTokens, .wasOriginallyColon = tType == tokColon}
+    );
+
+    appendPunctuation(tType, i + 1, lr);
+    lr->i++;
 }
 
 
@@ -243,12 +288,12 @@ private void lexReservedWord(int reservedWordType, int startInd, Lexer* lr) {
 /**
  * Lexes a single chunk of a word, i.e. the characters between two dots
  * (or the whole word if there are no dots).
- * Returns True if the lexed chunk was uncapitalized
+ * Returns True if the lexed chunk was capitalized
  */
 private bool lexWordChunk(Lexer* lr) {
     bool result = false;
 
-    if (lr->inp->content[lr->i] == aUnderscore) {
+    if (CURR_BT == aUnderscore) {
         checkPrematureEnd(2, lr);
         lr->i++;
     } else {
@@ -256,9 +301,9 @@ private bool lexWordChunk(Lexer* lr) {
     }
     if (lr->wasError) return false;
 
-    if (isLowercaseLetter(CURR_BT)) {
+    if (isCapitalLetter(CURR_BT)) {
         result = true;
-    } else if (!isCapitalLetter(CURR_BT)) {
+    } else if (!isLowercaseLetter(CURR_BT)) {
         exitWithError(errorWordChunkStart, lr);
     }
     lr->i++;
@@ -279,22 +324,41 @@ private bool lexWordChunk(Lexer* lr) {
  */
 private void lexWordInternal(unsigned int wordType, Lexer* lr) {
     int startInd = lr->i;
-    bool metUncapitalized = lexWordChunk(lr);
-    while (lr->i < (lr->inp->length - 1) && CURR_BT == aDot && NEXT_BT != aBracketLeft && !lr->wasError) {
-        lr->i++;
-        bool isCurrUncapitalized = lexWordChunk(lr);
-        if (metUncapitalized && !isCurrUncapitalized) {
-            exitWithError(errorWordCapitalizationOrder, lr);
-        }
-        metUncapitalized = isCurrUncapitalized;
+    bool wasCapitalized = lexWordChunk(lr);
+    bool isAlsoAccessor = false;
+    while (lr->i < (lr->inp->length - 1)) {
+        byte currBt = CURR_BT;
+        if (currBt == aBracketLeft) {
+            isAlsoAccessor = true; // data accessor like a[5]
+            break;
+        } else if (currBt == aDot) {
+            byte nextBt = NEXT_BT;
+            if (isLetter(nextBt) || nextBt == aUnderscore) {
+                lr->i++;
+                bool isCurrCapitalized = lexWordChunk(lr);
+                if (wasCapitalized && isCurrCapitalized) {
+                    exitWithError(errorWordCapitalizationOrder, lr);
+                }
+                wasCapitalized = isCurrCapitalized;
+            } else {
+                break;
+            }
+        } else {
+            break;
+        }        
     }
+    
     int realStartInd = (wordType == tokWord) ? startInd : (startInd - 1); // accounting for the . or @ at the start
-    bool paylCapitalized = metUncapitalized ? 0 : 1;
+    bool paylCapitalized = wasCapitalized ? 1 : 0;
 
     byte firstByte = lr->inp->content[startInd];
     int lenBytes = lr->i - realStartInd;
-    if (wordType == tokAtWord || firstByte < aBLower || firstByte > aWLower) {
+    if (wordType != tokWord && isAlsoAccessor) exitWithError(errorWordWrongAccessor, lr);
+    if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
         addToken((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
+        if (isAlsoAccessor) {
+            openPunctuation(tokAccessor);
+        }
     } else {
         int mbReservedWord = (*lr->possiblyReservedDispatch)[(firstByte - aBLower)](startInd, lr->i - startInd, lr);
         if (mbReservedWord > 0) {
@@ -315,6 +379,7 @@ private void lexWordInternal(unsigned int wordType, Lexer* lr) {
 
 
 private void lexWord(Lexer* lr) {
+    wrapInAStatement(lr);
     lexWordInternal(tokWord, lr);
 }
 
@@ -442,19 +507,22 @@ private LexerFunc (*buildDispatch(Arena* a))[256] {
 private ReservedProbe (*buildReserved(Arena* a))[countReservedLetters] {
     ReservedProbe (*result)[countReservedLetters] = allocateOnArena(a, countReservedLetters*sizeof(ReservedProbe));
     ReservedProbe* p = *result;
-    for (int i = 2; i < 18; i++) {
+    for (int i = 2; i < 25; i++) {
         p[i] = determineUnreserved;
     }
-    p[0] = determineReservedB;
-    p[1] = determineReservedC;
-    p[3] = determineReservedE;
-    p[4] = determineReservedF;
-    p[6] = determineReservedI;
-    p[11] = determineReservedM;
-    p[13] = determineReservedO;
-    p[16] = determineReservedR;
-    p[17] = determineReservedS;
-    p[18] = determineReservedT;
+    p[0] = determineReservedA;
+    p[1] = determineReservedB;
+    p[2] = determineReservedC;
+    p[4] = determineReservedE;
+    p[5] = determineReservedF;
+    p[7] = determineReservedI;
+    p[12] = determineReservedM;
+    p[13] = determineReservedN;
+    p[14] = determineReservedO;
+    p[17] = determineReservedR;
+    p[18] = determineReservedS;
+    p[19] = determineReservedT;
+    p[24] = determineReservedY;
     return result;
 }
 
@@ -506,7 +574,6 @@ private OpDef (*buildOperators(Arena* a))[countOperators] {
     p[35] = (OpDef){ .name=allocLit(a, "~"), .precedence=[prefixPrec], .arity=1, .binding=32, .bytes={aTilde, 0, 0, 0 } };
     return result;
 }
-
 
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a) {

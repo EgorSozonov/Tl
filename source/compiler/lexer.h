@@ -21,6 +21,7 @@ typedef struct {
 typedef struct {
     unsigned int tp;
     int numberOfToken;
+    bool wasOriginallyColon;
 } RememberedToken;
 
 

@@ -13,6 +13,7 @@ extern const char errorUnrecognizedByte[];
 extern const char errorWordChunkStart[];
 extern const char errorWordCapitalizationOrder[];
 extern const char errorWordUnderscoresOnlyAtStart[];
+extern const char errorWordWrongAccessor[];
 extern const char errorWordReservedWithDot[];
 extern const char errorNumericEndUnderscore[];
 extern const char errorNumericWidthExceeded[];
@@ -48,7 +49,7 @@ extern const unsigned char maximumPreciselyRepresentedFloatingInt[];
 #define aFLower 102
 #define aNLower 110
 #define aXLower 120
-#define aWLower 119
+#define aYLower 121
 #define aZLower 122
 #define aAUpper 65
 #define aFUpper 70
@@ -221,8 +222,8 @@ extern const int operatorStartSymbols[];
 
 
 /** Reserved words of Tl in ASCII byte form */
-#define countReservedLetters         19 // length of the interval of letters that may be init for reserved words
-#define countReservedWords           21 // count of different reserved words below
+#define countReservedLetters         25 // length of the interval of letters that may be init for reserved words
+#define countReservedWords           24 // count of different reserved words below
 static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
 static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
