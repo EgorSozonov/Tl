@@ -17,6 +17,7 @@ const char errorNumericMultipleDots[]        = "Multiple dots in numeric literal
 const char errorNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
 const char errorPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errorPunctuationUnmatched[]       = "Unmatched closing punctuation";
+const char errorPunctuationInsideColon[]     = "Inside a colon, statements are not allowed (only expressions)";
 const char errorPunctuationExtraClosing[]    = "Extra closing punctuation";
 const char errorPunctuationWrongOpen[]       = "Wrong opening punctuation";
 const char errorPunctuationDoubleSplit[]     = "An expression or statement may contain only one '->' splitting symbol!";
@@ -39,7 +40,7 @@ const int operatorStartSymbols[] = {
 /**
  * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
  */
-const int maxInt[] = {
+byte* maxInt[] = (byte []){
     9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
     8, 5, 4, 7, 7, 5, 8, 0, 7
 };

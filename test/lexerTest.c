@@ -45,21 +45,8 @@ static Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
 }
 
 
-union {
-    uint64_t i;
-    double   d;
-} FloatingBits;
-
-
-private uint64_t bitsOf(double dbl) {
-    union FloatingBits fb;
-    fb.d = dbl;
-    return fb.i;
-}
-
-
 Lexer* buildLexerWithError(String* errMsg, int totalTokens, Arena *ar, /* Tokens */ ...) {
-    Lexer* result = allocateOnArena(ar, sizeof(Lexer));
+    Lexer* result = allocateOnArena(sizeof(Lexer), ar);
     result->wasError = true;
     result->errMsg = errMsg;
     result->totalTokens = totalTokens;
@@ -67,7 +54,7 @@ Lexer* buildLexerWithError(String* errMsg, int totalTokens, Arena *ar, /* Tokens
     va_list tokens;
     va_start (tokens, ar);
     
-    result->tokens = allocateOnArena(ar, totalTokens*sizeof(Token));
+    result->tokens = allocateOnArena(totalTokens*sizeof(Token), ar);
     if (result == NULL) return result;
     
     for (int i = 0; i < totalTokens; i++) {
@@ -80,14 +67,14 @@ Lexer* buildLexerWithError(String* errMsg, int totalTokens, Arena *ar, /* Tokens
 
 
 LexerTestSet* createTestSet(String* name, int count, Arena *ar, ...) {
-    LexerTestSet* result = allocateOnArena(ar, sizeof(LexerTestSet));
+    LexerTestSet* result = allocateOnArena(sizeof(LexerTestSet), ar);
     result->name = name;
     result->totalTests = count;
     
     va_list tests;
     va_start (tests, ar);
     
-    result->tests = allocateOnArena(ar, count*sizeof(LexerTest));
+    result->tests = allocateOnArena(count*sizeof(LexerTest), ar);
     if (result->tests == NULL) return result;
     
     for (int i = 0; i < count; i++) {
@@ -247,7 +234,7 @@ LexerTestSet* numericTests(Arena* ar) {
         (LexerTest) { .name = allocLit(ar, "Binary numeric basic"),
             .input = allocLit(ar, "0b0101"),
             .expectedOutput = buildLexer(2, ar, 
-                (Token){ .tp = tokStmt, .payload2 = 1, startByte = 0, .lenBytes = 6 },
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokInt, .payload2 = 5, .startByte = 0, .lenBytes = 6 }
             )},        
         (LexerTest) { .name = allocLit(ar, "Binary numeric 64-bit positive"),
@@ -269,7 +256,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .name = allocLit(ar, "Binary numeric 65-bit error"),
             .input = allocLit(ar, "0b0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_0000_01110"),
             .expectedOutput = buildLexerWithError(allocLit(ar, errorNumericBinWidthExceeded), 1, ar, 
-                (Token){ .tp = tokStmt },
+                (Token){ .tp = tokStmt }
             )
         },
         (LexerTest) { 
@@ -318,7 +305,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .input = allocLit(ar, "1.234"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 5 },
-                (Token){ .tp = tokFloat, .payload1 = bitsOf(1.234) >> 32, .payload2 = bitsOf(1.234) & LOWER32BITS, 
+                (Token){ .tp = tokFloat, .payload1 = longOfDoubleBits(1.234) >> 32, .payload2 = longOfDoubleBits(1.234) & LOWER32BITS, 
                             .startByte = 0, .lenBytes = 5 }
             )
         },
@@ -327,7 +314,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .input = allocLit(ar, "00001.234"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 9 },
-                (Token){ .tp = tokFloat, .payload1 = bitsOf(1.234) >> 32, .payload2 = bitsOf(1.234) & LOWER32BITS, 
+                (Token){ .tp = tokFloat, .payload1 = longOfDoubleBits(1.234) >> 32, .payload2 = longOfDoubleBits(1.234) & LOWER32BITS, 
                             .startByte = 0, .lenBytes = 9 }
             )
         },
@@ -336,7 +323,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .input = allocLit(ar, "10500.01"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 8 },
-                (Token){ .tp = tokFloat, .payload1 = bitsOf(10500.01) >> 32, .payload2 = bitsOf(10500.01) & LOWER32BITS, 
+                (Token){ .tp = tokFloat, .payload1 = longOfDoubleBits(10500.01) >> 32, .payload2 = longOfDoubleBits(10500.01) & LOWER32BITS, 
                         .startByte = 0, .lenBytes = 8 }
             )
         },
@@ -345,7 +332,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .input = allocLit(ar, "0.9"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 3 },
-                (Token){ .tp = tokFloat, .payload1 = bitsOf(0.9) >> 32, .payload2 = bitsOf(0.9) & LOWER32BITS,  
+                (Token){ .tp = tokFloat, .payload1 = longOfDoubleBits(0.9) >> 32, .payload2 = longOfDoubleBits(0.9) & LOWER32BITS,  
                         .startByte = 0, .lenBytes = 3 }                
             )
         },
@@ -354,7 +341,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .input = allocLit(ar, "100500.123456"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 13 },
-                (Token){ .tp = tokFloat, .payload1 = bitsOf(100500.123456) >> 32, .payload2 = bitsOf(100500.123456) & LOWER32BITS, 
+                (Token){ .tp = tokFloat, .payload1 = longOfDoubleBits(100500.123456) >> 32, .payload2 = longOfDoubleBits(100500.123456) & LOWER32BITS, 
                         .startByte = 0, .lenBytes = 13 }
             )
         },
@@ -364,7 +351,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 18 },
                 (Token){ .tp = tokWord, 
-                    .payload1 = bitsOf(9007199254740992.0) >> 32, .payload2 = bitsOf(9007199254740992.0) & LOWER32BITS,
+                    .payload1 = longOfDoubleBits(9007199254740992.0) >> 32, .payload2 = longOfDoubleBits(9007199254740992.0) & LOWER32BITS,
                     .startByte = 0, .lenBytes = 18 }
             )
         },
@@ -381,8 +368,8 @@ LexerTestSet* numericTests(Arena* ar) {
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 24 },
                 (Token){ .tp = tokWord, 
-                        .payload1 = bitsOf(1005001234560000000000.0) >> 32,  
-                        .payload2 = bitsOf(1005001234560000000000.0) & LOWER32BITS, 
+                        .payload1 = longOfDoubleBits(1005001234560000000000.0) >> 32,  
+                        .payload2 = longOfDoubleBits(1005001234560000000000.0) & LOWER32BITS, 
                         .startByte = 0, .lenBytes = 24 }
             )
         },
@@ -392,8 +379,8 @@ LexerTestSet* numericTests(Arena* ar) {
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 24 },
                 (Token){ .tp = tokWord, 
-                        .payload1 = bitsOf(0.0000000000000000000003) >> 32,  
-                        .payload2 = bitsOf(0.0000000000000000000003) & LOWER32BITS, 
+                        .payload1 = longOfDoubleBits(0.0000000000000000000003) >> 32,  
+                        .payload2 = longOfDoubleBits(0.0000000000000000000003) & LOWER32BITS, 
                         .startByte = 0, .lenBytes = 24 }
             )
         },
@@ -402,7 +389,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .input = allocLit(ar, "-9.0"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 4 },
-                (Token){ .tp = tokFloat, .payload1 = bitsOf(-9.0) >> 32, .payload2 = bitsOf(-9.0) & LOWER32BITS, 
+                (Token){ .tp = tokFloat, .payload1 = longOfDoubleBits(-9.0) >> 32, .payload2 = longOfDoubleBits(-9.0) & LOWER32BITS, 
                         .startByte = 0, .lenBytes = 4 }
             )
         },              
@@ -411,7 +398,7 @@ LexerTestSet* numericTests(Arena* ar) {
             .input = allocLit(ar, "-8.775_807"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 10 },
-                (Token){ .tp = tokFloat, .payload1 = bitsOf(-8.775807) >> 32, .payload2 = bitsOf(-8.775807) & LOWER32BITS, 
+                (Token){ .tp = tokFloat, .payload1 = longOfDoubleBits(-8.775807) >> 32, .payload2 = longOfDoubleBits(-8.775807) & LOWER32BITS, 
                         .startByte = 0, .lenBytes = 10 }
             )
         },       
@@ -420,8 +407,8 @@ LexerTestSet* numericTests(Arena* ar) {
             .input = allocLit(ar, "-1005001234560000000000.0"),
             .expectedOutput = buildLexer(2, ar, 
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 25 },
-                (Token){ .tp = tokFloat, .payload1 = bitsOf(-1005001234560000000000.0) >> 32, 
-                          .payload2 = bitsOf(-1005001234560000000000.0) & LOWER32BITS, 
+                (Token){ .tp = tokFloat, .payload1 = longOfDoubleBits(-1005001234560000000000.0) >> 32, 
+                          .payload2 = longOfDoubleBits(-1005001234560000000000.0) & LOWER32BITS, 
                         .startByte = 0, .lenBytes = 25 }
             )
         },        
@@ -518,7 +505,7 @@ LexerTestSet* stringTests(Arena* ar) {
         )},
         (LexerTest) { .name = allocLit(ar, "String literal unclosed"),
             .input = allocLit(ar, "\"asdf"),
-            .expectedOutput = buildLexerWithError(allocLit(ar, buildLexerWithError), 1, ar, 
+            .expectedOutput = buildLexerWithError(allocLit(ar, errorPrematureEndOfInput), 1, ar, 
                 (Token){ .tp = tokStmt }
         )}
     );
@@ -666,8 +653,8 @@ LexerTestSet* punctuationTests(Arena* ar) {
                                   ")"
             ),
             .expectedOutput = buildLexer(21, ar, 
-                (Token){ .tp = tokLexScope, payload2 = 20, .startByte = 0, .lenBytes = 46 },
-                (Token){ .tp = tokStmt, payload2 = 19, .startByte = 2, .lenBytes = 30 },
+                (Token){ .tp = tokLexScope, .payload2 = 20, .startByte = 0, .lenBytes = 46 },
+                (Token){ .tp = tokStmt, .payload2 = 19, .startByte = 2, .lenBytes = 30 },
                 (Token){ .tp = tokWord, .startByte = 2, .lenBytes = 4 },                      // asdf                               
                 (Token){ .tp = tokParens, .payload2 = 2, .startByte = 8, .lenBytes = 23 },                                
                 (Token){ .tp = tokWord, .startByte = 8, .lenBytes = 1 },                      // b                
@@ -691,11 +678,11 @@ LexerTestSet* punctuationTests(Arena* ar) {
         (LexerTest) { .name = allocLit(ar, "Colon punctuation 1"),
             .input = allocLit(ar, "Foo : Bar 4"),
             .expectedOutput = buildLexer(5, ar,
-                (Token){ .tp = tokStmt, payload2 = 4, .startByte = 0, .lenBytes = 11 },
+                (Token){ .tp = tokStmt, .payload2 = 4, .startByte = 0, .lenBytes = 11 },
                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 0, .lenBytes = 3 },
                 (Token){ .tp = tokParens, .payload2 = 2, .startByte = 5, .lenBytes = 6 },                
                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 6, .lenBytes = 3 },
-                (Token){ .tp = tokInt, .payload2 = 4, .startByte = 10, .lenBytes = 1 },
+                (Token){ .tp = tokInt, .payload2 = 4, .startByte = 10, .lenBytes = 1 }
         )}                        
     );
 }
@@ -706,37 +693,37 @@ LexerTestSet* operatorTests(Arena* ar) {
         (LexerTest) { .name = allocLit(ar, "Operator simple 1"),
             .input = allocLit(ar, "+"),
             .expectedOutput = buildLexer(2, ar,
-                (Token){ .tp = tokStmt, payload2 = 1, .startByte = 0, .lenBytes = 1 },
-                (Token){ .tp = tokOperator, .payload1 = opTPlus << 2, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = opTPlus << 2, .startByte = 0, .lenBytes = 1 }
         )},             
         (LexerTest) { .name = allocLit(ar, "Operator extensible"),
             .input = allocLit(ar, "+. -. >>. %. *. 5 <<. ^."),
             .expectedOutput = buildLexer(9, ar, 
-                (Token){ .tp = tokStmt, payload2 = 18, .startByte = 0, .lenBytes = 24 },
+                (Token){ .tp = tokStmt, .payload2 = 18, .startByte = 0, .lenBytes = 24 },
                 (Token){ .tp = tokOperator, .payload1 = 2 + (opTPlus << 2), .startByte = 0, .lenBytes = 2 },
                 (Token){ .tp = tokOperator, .payload1 = 2 + (opTMinus << 2), .startByte = 3, .lenBytes = 2 },                
-                (Token){ .tp = tokOperator, .payload1 = 2 + (opTBitshiftRight shl 2), .startByte = 6, .lenBytes = 3 },
-                (Token){ .tp = tokOperator, .payload1 = 2 + (opTRemainder shl 2), .startByte = 10, .lenBytes = 2 },
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTBitshiftRight << 2), .startByte = 6, .lenBytes = 3 },
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTRemainder << 2), .startByte = 10, .lenBytes = 2 },
                 (Token){ .tp = tokOperator, .payload1 = 2 + (opTTimes << 2), .startByte = 13, .lenBytes = 2 },
                 (Token){ .tp = tokInt, .payload2 = 5, .startByte = 16, .lenBytes = 2 }, 
-                (Token){ .tp = tokOperator, .payload1 = 2 + (opTBitShiftLeft shl 2), .startByte = 18, .lenBytes = 3 }, 
-                (Token){ .tp = tokOperator, .payload1 = 2 + (opTExponent shl 2), .startByte = 22, .lenBytes = 2 }
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTBitShiftLeft << 2), .startByte = 18, .lenBytes = 3 }, 
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTExponent << 2), .startByte = 22, .lenBytes = 2 }
         )},
         (LexerTest) { .name = allocLit(ar, "Operators list"),
             .input = allocLit(ar, "+ - / * ^ && || ~ ? <- >=< >< \\"),
             .expectedOutput = buildLexer(14, ar,
-                (Token){ .tp = tokStmt, payload2 = 13, .startByte = 0, .lenBytes = 31 },
+                (Token){ .tp = tokStmt, .payload2 = 13, .startByte = 0, .lenBytes = 31 },
                 (Token){ .tp = tokOperator, .payload1 = (opTPlus << 2), .startByte = 0, .lenBytes = 1 },
                 (Token){ .tp = tokOperator, .payload1 = (opTMinus << 2), .startByte = 2, .lenBytes = 1 },                
-                (Token){ .tp = tokOperator, .payload1 = (opTDivBy shl 2), .startByte = 4, .lenBytes = 1 },
-                (Token){ .tp = tokOperator, .payload1 = (opTTimes shl 2), .startByte = 6, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTDivBy << 2), .startByte = 4, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTTimes << 2), .startByte = 6, .lenBytes = 1 },
                 (Token){ .tp = tokOperator, .payload1 = (opTExponent << 2), .startByte = 8, .lenBytes = 1 },
-                (Token){ .tp = tokOperator, .payload1 = (opTBoolAnd shl 2), .startByte = 10, .lenBytes = 2 }, 
-                (Token){ .tp = tokOperator, .payload1 = (opTBoolOr shl 2), .startByte = 13, .lenBytes = 2 }, 
-                (Token){ .tp = tokOperator, .payload1 = (opTNotEmpty shl 2), .startByte = 16, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTBoolAnd << 2), .startByte = 10, .lenBytes = 2 }, 
+                (Token){ .tp = tokOperator, .payload1 = (opTBoolOr << 2), .startByte = 13, .lenBytes = 2 }, 
+                (Token){ .tp = tokOperator, .payload1 = (opTNotEmpty << 2), .startByte = 16, .lenBytes = 1 },
                 (Token){ .tp = tokOperator, .payload1 = (opTQuestionMark << 2), .startByte = 18, .lenBytes = 1 },
-                (Token){ .tp = tokOperator, .payload1 = (opTArrowLeft shl 2), .startByte = 20, .lenBytes = 2 },                
-                (Token){ .tp = tokOperator, .payload1 = (opTIntervalLeft shl 2), .startByte = 23, .lenBytes = 3 },
+                (Token){ .tp = tokOperator, .payload1 = (opTArrowLeft << 2), .startByte = 20, .lenBytes = 2 },                
+                (Token){ .tp = tokOperator, .payload1 = (opTIntervalLeft << 2), .startByte = 23, .lenBytes = 3 },
                 (Token){ .tp = tokOperator, .payload1 = (opTIntervalExcl << 2), .startByte = 27, .lenBytes = 2 },
                 (Token){ .tp = tokOperator, .payload1 = (opTIsEmpty << 2), .startByte = 30, .lenBytes = 1 }                   
         )},
@@ -745,7 +732,7 @@ LexerTestSet* operatorTests(Arena* ar) {
             .expectedOutput = buildLexer(4, ar,
                 (Token){ .tp = tokStmt, .payload2 = 3, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
-                (Token){ .tp = tokOperator, .payload1 = (opTMinus shl 2), .startByte = 2, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTMinus << 2), .startByte = 2, .lenBytes = 1 },
                 (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 }                
         )},              
         (LexerTest) { .name = allocLit(ar, "Operator assignment 1"),
@@ -776,9 +763,9 @@ LexerTestSet* operatorTests(Arena* ar) {
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
                 (Token){ .tp = tokWord, .payload2 = 3, .startByte = 5, .lenBytes = 1 }            
         )}, 
-        (LexerTest) { .name = buildLexerWithError(ar, "Operator assignment in parens error"),
+        (LexerTest) { .name = allocLit(ar, "Operator assignment in parens error"),
             .input = allocLit(ar, "(x += y + 5)"),
-            .expectedOutput = buildLexer(errorOperatorAssignmentPunct, 3, ar,
+            .expectedOutput = buildLexerWithError(allocLit(ar, errorOperatorAssignmentPunct), 3, ar,
                 (Token){ .tp = tokStmt },
                 (Token){ .tp = tokParens, .startByte = 1},
                 (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 1 }
@@ -803,7 +790,7 @@ LexerTestSet* operatorTests(Arena* ar) {
         (LexerTest) { .name = allocLit(ar, "Operator assignment multiple error 1"),
             .input = allocLit(ar, "x := y := 7"),
             .expectedOutput = buildLexerWithError(allocLit(ar, errorOperatorMultipleAssignment), 3, ar,
-                (Token){ .tp = tokAssignment, .payload1 = opTDefinition shl 2, .payload2 = 9, .startByte = 0, .lenBytes = 19 },
+                (Token){ .tp = tokAssignment, .payload1 = opTDefinition << 2, .payload2 = 9, .startByte = 0, .lenBytes = 19 },
                 (Token){ .tp = tokStmt, .startByte = 0, .lenBytes = 1 },
                 (Token){ .tp = tokStmt, .startByte = 5, .lenBytes = 1 }
         )}         
@@ -827,7 +814,7 @@ LexerTestSet* functionTests(Arena* ar) {
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 13, .lenBytes = 1 },                
                 (Token){ .tp = tokOperator, .payload2 = opTMinus, .startByte = 15, .lenBytes = 1 },                
                 (Token){ .tp = tokWord, .startByte = 17, .lenBytes = 1 }
-        )},  
+        )}  
     );
 }
 

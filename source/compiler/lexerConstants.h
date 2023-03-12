@@ -24,6 +24,7 @@ extern const char errorNumericMultipleDots[];
 extern const char errorNumericIntWidthExceeded[];
 extern const char errorPunctuationExtraOpening[];
 extern const char errorPunctuationUnmatched[];
+extern const char errorPunctuationInsideColon[];
 extern const char errorPunctuationExtraClosing[];
 extern const char errorPunctuationWrongOpen[];
 extern const char errorPunctuationDoubleSplit[];
@@ -36,7 +37,7 @@ extern const char errorDocComment[];
 /**
  * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
  */
-extern const int maxInt[];
+extern const byte* maxInt[];
 
 
 /** 2**53 */
@@ -77,43 +78,45 @@ extern const int operatorStartSymbols[];
 
 // Punctuation (inner node) Token types
 #define tokStmt        12
-#define tokParens      14
-#define tokBrackets    15
-#define tokCompoundStr 16
-#define tokAccessor    17
-#define tokAssignment  18      // payload1: as in tokOperator
-#define tokTypeDecl    19
-#define tokLexScope    20
+#define tokParens      13
+#define tokBrackets    14
+#define tokCompoundStr 15
+#define tokAccessor    16
+#define tokAssignment  17      // payload1: as in tokOperator
+#define tokTypeDecl    18
+#define tokLexScope    19
 
 // Core syntax form Token types
-#define tokStmtAlias   21
-#define tokStmtAwait   22
-#define tokStmtBreak   23
-#define tokStmtCatch   24
-#define tokContinue    25
-#define tokStmtEmbed   26       // embed a text file as a string literal
-#define tokStmtExport  27
-#define tokStmtFor     28
-#define tokGenerator   29       // generator (like a function but yields instead of returning)
-#define tokStmtIf      30
-#define tokStmtIfEq    31       // like if, but every branch is a value compared using standard equality
-#define tokStmtIfPr    32       // like if, but every branch is a value compared using custom predicate
-#define tokStmtImpl    33
+#define tokStmtAlias   20
+#define tokStmtAwait   21
+#define tokStmtBreak   22
+#define tokStmtCatch   23
+#define tokContinue    24
+#define tokStmtEmbed   25       // embed a text file as a string literal
+#define tokStmtExport  26
+#define tokStmtFor     27
+#define tokGenerator   28       // generator (like a function but yields instead of returning)
+#define tokStmtIf      29
+#define tokStmtIfEq    30       // like if, but every branch is a value compared using standard equality
+#define tokStmtIfPr    31       // like if, but every branch is a value compared using custom predicate
+#define tokStmtImpl    32
+#define tokStmtIface   33
 #define tokLambda      34
 #define tokStmtMatch   35       // pattern matching sum type
 #define tokStmtMut     36
 #define tokNodestruct  37       // signaling that the value doesn't need its destructor called at scope end
 #define tokStmtReturn  38
 #define tokStmtStruct  39
-#define tokStmtTry     40
-#define tokStmtType    41
-#define tokStmtYield   42
+#define tokStmtTest    40
+#define tokStmtTry     41
+#define tokStmtType    42
+#define tokYield       43
 
 
 /** Must be the lowest value in the PunctuationToken enum */
-#define firstPunctuationTokenType tokCurlyBraces
+#define firstPunctuationTokenType tokStmt
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
-#define firstCoreFormTokenType tokStmtFn
+#define firstCoreFormTokenType tokStmtAlias
 
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique
  * and below "firstPunctuationTokenType"
@@ -129,11 +132,11 @@ extern const int operatorStartSymbols[];
 #define countOperators    36 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
-#define opTNotEmpty        2 // $
+#define opTSize            2 // $
 #define opTRemainder       3 // %
 #define opTBoolAnd         4 // &&
-#define opTPointer         5 // &
-#define opTPointer         6 // '
+#define opTBinaryAnd       5 // &
+#define opTToString        6 // '
 #define opTTimes           7 // *
 #define opTIncrement       8 // ++
 #define opTPlus            9 // +

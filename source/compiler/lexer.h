@@ -77,7 +77,7 @@ typedef struct {
 
 
 typedef struct _Lexer Lexer;
-typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
+typedef void (*LexerFunc)(Lexer*, Arr(byte)); // LexerFunc = &(Lexer* => void)
 typedef int (*ReservedProbe)(int, int, Lexer*);
 
 
@@ -88,7 +88,6 @@ struct _Lexer {
     int totalTokens;
     
     LanguageDefinition* langDef;
-    
     
     Arr(Token) tokens;
     int capacity; // current capacity of token storage
@@ -117,5 +116,11 @@ void addToken(Token t, Lexer* lexer);
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* a);
+typedef union {
+    uint64_t i;
+    double   d;
+} FloatingBits;
+
+int64_t longOfDoubleBits(double d);
 
 #endif
