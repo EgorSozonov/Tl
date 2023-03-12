@@ -59,7 +59,7 @@ size_t calculateChunkSize(size_t allocSize) {
 /**
  * Allocate memory in the arena, malloc'ing a new chunk if needed
  */
-void* allocateOnArena(Arena* ar, size_t allocSize) {
+void* allocateOnArena(size_t allocSize, Arena* ar) {
     if (ar->currInd + allocSize >= ar->currChunk->size) {
         size_t newSize = calculateChunkSize(allocSize);
 

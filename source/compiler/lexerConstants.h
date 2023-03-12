@@ -43,61 +43,6 @@ extern const int maxInt[];
 extern const unsigned char maximumPreciselyRepresentedFloatingInt[];
 
 
-#define aALower 97
-#define aBLower 98
-#define aCLower 99
-#define aFLower 102
-#define aNLower 110
-#define aXLower 120
-#define aYLower 121
-#define aZLower 122
-#define aAUpper 65
-#define aFUpper 70
-#define aZUpper 90
-#define aDigit0 48
-#define aDigit1 49
-#define aDigit9 57
-
-#define aPlus 43
-#define aMinus 45
-#define aTimes 42
-#define aDivBy 47
-#define aDot 46
-#define aPercent 37
-
-#define aParenLeft 40
-#define aParenRight 41
-#define aCurlyLeft 123
-#define aCurlyRight 125
-#define aBracketLeft 91
-#define aBracketRight 93
-#define aPipe 124
-#define aAmp 38
-#define aTilde 126
-#define aBackslash 92
-
-#define aSpace 32
-#define aNewline 10
-#define aCarriageReturn 13
-
-#define aApostrophe 39
-#define aQuote 34
-#define aSharp 35
-#define aDollar 36
-#define aUnderscore 95
-#define aCaret 94
-#define aAt 64
-#define aColon 58
-#define aSemicolon 59
-#define aExclamation 33
-#define aQuestion 63
-#define aEqual 61
-
-#define aLT 60
-#define aGT 62
-
-
-
 /** All the symbols an operator may start with. The ':' is absent because it's handled by lexColon.
 * The '-' is absent because it's handled by 'lexMinus'.
 */
@@ -105,8 +50,7 @@ extern const unsigned char maximumPreciselyRepresentedFloatingInt[];
 extern const int operatorStartSymbols[];
 
 
-
-#define topVerbatimTokenVariant = 4
+#define topVerbatimTokenVariant = 5
 
 /**
  * Regular (leaf) Token types
@@ -114,56 +58,56 @@ extern const int operatorStartSymbols[];
 // The following group of variants are transferred to the AST byte for byte, with no analysis
 // Their values must exactly correspond with the initial group of variants in "RegularAST"
 // The largest value must be stored in "topVerbatimTokenVariant" constant
-#define tokInt 0
-#define tokFloat 1
-#define tokBool 2
-#define tokString 3
-#define tokUnderscore 4
-#define tokDocComment 5
+#define tokInt          0
+#define tokFloat        1
+#define tokBool         2
+#define tokString       3
+#define tokUnderscore   4
+#define tokDocComment   5
 
 // This group requires analysis in the parser
-#define tokWord 6              // payload2: 1 if the word is all capitals
-#define tokDotWord 7           // payload2: 1 if the word is all capitals
-#define tokAtWord 8
-#define tokReserved 9          // payload2: value of a constant from the 'reserved*' group
-#define tokOperator 10         // payload1: OperatorToken encoded as an Int
+#define tokWord         6      // payload2: 1 if the word is all capitals
+#define tokDotWord      7      // payload2: 1 if the word is all capitals
+#define tokAtWord       8
+#define tokReserved     9      // payload2: value of a constant from the 'reserved*' group
+#define tokOperator    10      // payload1: OperatorToken encoded as an Int
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon 11
+#define tokColon       11
 
 // Punctuation (inner node) Token types
-#define tokStmt 12
-#define tokParens 13
-#define tokBrackets 14
-#define tokCompoundString 15
-#define tokAccessor 16
-#define tokAssignment 17       // payload1: as in tokOperator
-#define tokStmtTypeDecl 18
-#define tokLexScope 19
+#define tokStmt        12
+#define tokParens      14
+#define tokBrackets    15
+#define tokCompoundStr 16
+#define tokAccessor    17
+#define tokAssignment  18      // payload1: as in tokOperator
+#define tokTypeDecl    19
+#define tokLexScope    20
 
 // Core syntax form Token types
-#define tokStmtAlias 20
-#define tokStmtAwait 21
-#define tokStmtBreak 22
-#define tokStmtCatch 23
-#define tokContinue 24
-#define tokStmtEmbed 25
-#define tokStmtExport 26
-#define tokStmtFor 27
-#define tokGenerator 28
-#define tokStmtIf 29
-#define tokStmtIfEq 30
-#define tokStmtIfPr 31
-#define tokStmtImpl 32
-#define tokLambda 33
-#define tokStmtMatch 34
-#define tokStmtMut 35
-#define tokNodestruct 36
-#define tokStmtReturn 37
-#define tokStmtStruct 38
-#define tokStmtTry 39
-#define tokStmtType 40
-#define tokStmtYield 41
+#define tokStmtAlias   21
+#define tokStmtAwait   22
+#define tokStmtBreak   23
+#define tokStmtCatch   24
+#define tokContinue    25
+#define tokStmtEmbed   26       // embed a text file as a string literal
+#define tokStmtExport  27
+#define tokStmtFor     28
+#define tokGenerator   29       // generator (like a function but yields instead of returning)
+#define tokStmtIf      30
+#define tokStmtIfEq    31       // like if, but every branch is a value compared using standard equality
+#define tokStmtIfPr    32       // like if, but every branch is a value compared using custom predicate
+#define tokStmtImpl    33
+#define tokLambda      34
+#define tokStmtMatch   35       // pattern matching sum type
+#define tokStmtMut     36
+#define tokNodestruct  37       // signaling that the value doesn't need its destructor called at scope end
+#define tokStmtReturn  38
+#define tokStmtStruct  39
+#define tokStmtTry     40
+#define tokStmtType    41
+#define tokStmtYield   42
 
 
 /** Must be the lowest value in the PunctuationToken enum */
@@ -255,5 +199,57 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define prefixPrec 27
 
 
+#define aALower 97
+#define aBLower 98
+#define aCLower 99
+#define aFLower 102
+#define aNLower 110
+#define aXLower 120
+#define aYLower 121
+#define aZLower 122
+#define aAUpper 65
+#define aFUpper 70
+#define aZUpper 90
+#define aDigit0 48
+#define aDigit1 49
+#define aDigit9 57
+
+#define aPlus 43
+#define aMinus 45
+#define aTimes 42
+#define aDivBy 47
+#define aDot 46
+#define aPercent 37
+
+#define aParenLeft 40
+#define aParenRight 41
+#define aCurlyLeft 123
+#define aCurlyRight 125
+#define aBracketLeft 91
+#define aBracketRight 93
+#define aPipe 124
+#define aAmp 38
+#define aTilde 126
+#define aBackslash 92
+
+#define aSpace 32
+#define aNewline 10
+#define aCarriageReturn 13
+
+#define aApostrophe 39
+#define aQuote 34
+#define aSharp 35
+#define aDollar 36
+#define aUnderscore 95
+#define aCaret 94
+#define aAt 64
+#define aColon 58
+#define aSemicolon 59
+#define aExclamation 33
+#define aQuestion 63
+#define aEqual 61
+
+#define aLT 60
+#define aGT 62
 
 #endif

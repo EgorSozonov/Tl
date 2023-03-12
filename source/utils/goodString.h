@@ -10,7 +10,7 @@
  */
 typedef struct {
     int length;
-    unsigned char content[];
+    byte content[];
 } String;
 
 String* allocLit(Arena* ar, const char* content);

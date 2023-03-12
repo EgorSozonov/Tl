@@ -3,13 +3,13 @@
 
 
 #define DEFINE_STACK(T)                                                                  \
-    Stack ## T * createStack ## T (Arena* ar, int initCapacity) {                        \
+    Stack ## T * createStack ## T (int initCapacity, Arena* a) {                        \
         int capacity = initCapacity < 4 ? 4 : initCapacity;                              \
-        Stack ## T * result = allocateOnArena(ar, sizeof(Stack ## T));                   \
+        Stack ## T * result = allocateOnArena(sizeof(Stack ## T), a);                    \
         result->capacity = capacity;                                                     \
         result->length = 0;                                                              \
-        result->arena = ar;                                                              \
-        T (* arr)[] = allocateOnArena(ar, capacity*sizeof(T));                           \
+        result->arena = a;                                                               \
+        T (* arr)[] = allocateOnArena(capacity*sizeof(T), a);                            \
         result->content = arr;                                                           \
         return result;                                                                   \
     }                                                                                    \
@@ -23,12 +23,12 @@
     T peek ## T(Stack ## T * st) {                                                       \
         return (*st->content)[st->length];                                               \
     }                                                                                    \
-    void push ## T (Stack ## T * st, T newItem) {                                        \
+    void push ## T (T newItem, Stack ## T * st) {                                        \
         if (st->length < st->capacity) {                                                 \
             memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));               \
             st->length++;                                                                \
         } else {                                                                         \
-            T (* newContent)[] = allocateOnArena(st->arena, 2*(st->capacity)*sizeof(T)); \
+            T (* newContent)[] = allocateOnArena(2*(st->capacity)*sizeof(T), st->arena); \
             memcpy(newContent, st->content, st->length*sizeof(T));                       \
             memcpy((T*)(newContent) + (st->length), &newItem, sizeof(T));                \
             st->capacity *= 2;                                                           \

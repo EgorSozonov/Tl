@@ -37,7 +37,7 @@ static Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
     va_start (tokens, ar);
     
     for (int i = 0; i < totalTokens; i++) {
-        addToken(va_arg(tokens, Token), result);
+        add(va_arg(tokens, Token), result);
     }
     
     va_end(tokens);

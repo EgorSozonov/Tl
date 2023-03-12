@@ -9,11 +9,11 @@
         Arena* arena;                                           \
         T (* content)[];                                        \
     } Stack ## T;                                               \
-    Stack ## T * createStack ## T (Arena* ar, int initCapacity);\
+    Stack ## T * createStack ## T (int initCapacity, Arena* ar);\
     bool hasValues ## T (Stack ## T * st);                      \
     T pop ## T (Stack ## T * st);                               \
     T peek ## T(Stack ## T * st);                               \
-    void push ## T (Stack ## T * st, T newItem);                \
+    void push ## T (T newItem, Stack ## T * st);                \
     void clear ## T (Stack ## T * st);
 
 

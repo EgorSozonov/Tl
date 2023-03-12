@@ -11,14 +11,14 @@
 /**
  * Allocates a C string literal into an arena. The length of the literal is determined in O(N).
  */
-String* allocLit(Arena* ar, const char* content) {
+String* allocLit(Arena* a, const char* content) {
     if (content == NULL) return NULL;
     const char* ind = content;
     int len = 0;
     for (; *ind != '\0'; ind++)
         len++;
 
-    String* result = allocateOnArena(ar, len + 1 + sizeof(String));
+    String* result = allocateOnArena(len + 1 + sizeof(String), a);
     result->length = len;
     memcpy(result->content, content, len + 1);
     return result;
@@ -28,8 +28,8 @@ String* allocLit(Arena* ar, const char* content) {
  * Allocates a C string of set length to use as scratch space.
  * WARNING: does not zero out its contents.
  */
-String* allocateScratchSpace(Arena* ar, uint64_t len) {
-    String* result = allocateOnArena(ar, len + 1 + sizeof(String));
+String* allocateScratchSpace(Arena* a, uint64_t len) {
+    String* result = allocateOnArena(len + 1 + sizeof(String), a);
     result->length = len;
     return result;
 }
@@ -37,7 +37,7 @@ String* allocateScratchSpace(Arena* ar, uint64_t len) {
 /**
  * Allocates a C string literal into an arena from a piece of another string.
  */
-String* allocateFromSubstring(Arena* ar, char* content, int start, int length) {
+String* allocateFromSubstring(Arena* a, char* content, int start, int length) {
     if (length <= 0 || start < 0) return NULL;
     int i = 0;
     while (content[i] != '\0') {
@@ -46,7 +46,7 @@ String* allocateFromSubstring(Arena* ar, char* content, int start, int length) {
     if (i < start) return NULL;
     int realLength = MIN(i - start, length);
 
-    String* result = allocateOnArena(ar, realLength + 1 + sizeof(String));
+    String* result = allocateOnArena(realLength + 1 + sizeof(String), a);
     result->length = realLength;
     memcpy(result->content, content, realLength);
     result->content[realLength] = '\0';

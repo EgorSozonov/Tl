@@ -9,8 +9,8 @@
 #include "../utils/stack.h"
 
 
-#define CURR_BT lr->inp->content[lr->i]
-#define NEXT_BT lr->inp->content[lr->i + 1]
+#define CURR_BT inp[lr->i]
+#define NEXT_BT inp[lr->i + 1]
 
 DEFINE_STACK(RememberedToken)
 DEFINE_STACK(int)
@@ -65,7 +65,7 @@ private void exitWithError(const char errMsg[], Lexer* res) {
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
 private void checkPrematureEnd(int requiredSymbols, Lexer* lr) {
-    if (lr->i > lr->inp->length - requiredSymbols) {
+    if (lr->i > (lr->inpLength - requiredSymbols)) {
         exitWithError(errorPrematureEndOfInput, lr);
     }
 }
@@ -188,25 +188,40 @@ private int determineUnreserved(int startByte, int lenBytes, Lexer* lr) {
     return 0;
 }
 
-private void wrapInAStatement(Lexer* lr) {
+private void addNewLine(int j, Lexer* lr) {
+    lr->newlines[lr->newlinesNextInd] = j;
+    lr->newlinesNextInd++;
+    if (lr->newlinesNextInd == lr->newlinesCapacity) {
+        Arr(int) newNewlines = allocateOnArena(lr->newlinesCapacity*2*sizeof(int), lr->arena);
+        memcpy(newNewlines, lr->newlines, lr->newlinesCapacity);
+        lr->newlines = newNewlines;
+        lr->newlinesCapacity *= 2;
+    }
+}
+
+/** A paren starts a multi-line statement, anything else - a regular statement. */
+private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
+    bool isMultiline = CURR_BT == aParenLeft;
     if (hasValuesRememberedToken(lr->backtrack.isEmpty())) {
         unsigned int topType = peekRememberedToken(lr->backtrack).tp;
         if (topType == tokLexScope || topType >= firstCoreFormTok) {
-            pushRememberedToken(lr->backtrack.add, (RembemberedToken){.tp = tokStmt, .numberOfToken = lr->totalTokens});
-            addToken((Token) .tp = tokStmt, .startByte = i},  lr);
+            pushRememberedToken((RembemberedToken){.tp = tokStmt, .numberOfToken = lr->totalTokens, 
+                                                                  .isMultiline=isMultiline }, lr->backtrack);
+            add((Token) .tp = tokStmt, .startByte = i},  lr);
         }                
     } else {
-        pushRememberedToken(lr->backtrack.add, (RembemberedToken){.tp = tokStmt, .numberOfToken = lr->totalTokens});
-        addToken((Token) .tp = tokStmt, .startByte = i},  lr);
+        pushRememberedToken((RembemberedToken){.tp = tokStmt, .isMultiline=isMultiline, 
+                                                              .numberOfToken = lr->totalTokens}, lr->backtrack);
+        add((Token) .tp = tokStmt, .startByte = i},  lr);
     }
 }
 
 
-void lexDotSomething(Lexer* lr) {
+private void lexDot(Lexer* lr, Arr(byte) inp) {
     exitWithError(errorUnrecognizedByte, lr);
 }
 
-private void lexNumber(Lexer* lr) {
+private void lexNumber(Lexer* lr, Arr(byte) inp) {
     exitWithError(errorUnrecognizedByte, lr);
 }
 
@@ -219,7 +234,7 @@ private void setSpanType(int tokenInd, unsigned int tType, Lexer* lr) {
 
 /** Append a punctuation token */
 private void appendPunctuation(unsigned int tType, int startByte, Lexer* lr) {
-    addToken((Token) {.tp = tType, .startByte = startByte}, lr);
+    add((Token) {.tp = tType, .startByte = startByte}, lr);
 }
 
 /**
@@ -234,7 +249,8 @@ private void appendPunctuation(unsigned int tType, int startByte, Lexer* lr) {
  */
 private void openPunctuation(unsigned int tType, Lexer* lr) {
     pushRememberedToken( 
-        (RememberedToken){ .tp = tType, .numberOfToken = lr->totalTokens, .wasOriginallyColon = tType == tokColon}
+        (RememberedToken){ .tp = tType, .numberOfToken = lr->totalTokens, .wasOriginallyColon = tType == tokColon},
+        lr->backtrack
     );
 
     appendPunctuation(tType, i + 1, lr);
@@ -260,11 +276,11 @@ private void convertGrandparentToScope(Lexer* lr) {
  */
 private void lexReservedWord(int reservedWordType, int startInd, Lexer* lr) {
     if (reservedWordType == tokStmtBreak) {
-        addToken((Token){.tp=tokStmtBreak, .startByte=startInd, .lenBytes=5}, lr);
+        add((Token){.tp=tokStmtBreak, .startByte=startInd, .lenBytes=5}, lr);
         return;
     }
     if (!hasValuesRememberedToken(lr->backtrack) || popRememberedToken(lr->backtrack).numberOfToken < (lr->totalTokens - 1)) {
-        addToken((Token){.tp=tokReserved, .payload2=reservedWordType, .startByte=startInd, .lenBytes=(lr->i - startInd)}, lr);
+        add((Token){.tp=tokReserved, .payload2=reservedWordType, .startByte=startInd, .lenBytes=(lr->i - startInd)}, lr);
         return;
     }
 
@@ -272,7 +288,7 @@ private void lexReservedWord(int reservedWordType, int startInd, Lexer* lr) {
     if (currSpan.numberOfToken < (lr->totalTokens - 1) || currSpan.tp >= firstCoreFormTokenType) {
         // if this is not the first token inside this span, or if it's already been converted to core form, add
         // the reserved word as a token
-        addToken((Token){ .tp=tokReserved, .payload2=reservedWordType, .startByte=startInd, .lenBytes=lr->i - startInd}, lr);
+        add((Token){ .tp=tokReserved, .payload2=reservedWordType, .startByte=startInd, .lenBytes=lr->i - startInd}, lr);
         return;
     }
 
@@ -290,7 +306,7 @@ private void lexReservedWord(int reservedWordType, int startInd, Lexer* lr) {
  * (or the whole word if there are no dots).
  * Returns True if the lexed chunk was capitalized
  */
-private bool lexWordChunk(Lexer* lr) {
+private bool wordChunk(Lexer* lr, Arr(byte) inp) {
     bool result = false;
 
     if (CURR_BT == aUnderscore) {
@@ -308,10 +324,10 @@ private bool lexWordChunk(Lexer* lr) {
     }
     lr->i++;
 
-    while (lr->i < lr->inp->length && isAlphanumeric(CURR_BT)) {
+    while (lr->i < lr->inpLength && isAlphanumeric(CURR_BT)) {
         lr->i++;
     }
-    if (lr->i < lr->inp->length && CURR_BT == aUnderscore) {
+    if (lr->i < lr->inpLength && CURR_BT == aUnderscore) {
         exitWithError(errorWordUnderscoresOnlyAtStart, lr);
     }
     return result;
@@ -322,11 +338,11 @@ private bool lexWordChunk(Lexer* lr) {
  * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45
  * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
-private void lexWordInternal(unsigned int wordType, Lexer* lr) {
+private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
     int startInd = lr->i;
-    bool wasCapitalized = lexWordChunk(lr);
+    bool wasCapitalized = wordChunk(lr, inp);
     bool isAlsoAccessor = false;
-    while (lr->i < (lr->inp->length - 1)) {
+    while (lr->i < (lr->inpLength - 1)) {
         byte currBt = CURR_BT;
         if (currBt == aBracketLeft) {
             isAlsoAccessor = true; // data accessor like a[5]
@@ -335,7 +351,7 @@ private void lexWordInternal(unsigned int wordType, Lexer* lr) {
             byte nextBt = NEXT_BT;
             if (isLetter(nextBt) || nextBt == aUnderscore) {
                 lr->i++;
-                bool isCurrCapitalized = lexWordChunk(lr);
+                bool isCurrCapitalized = wordChunk(lr, inp);
                 if (wasCapitalized && isCurrCapitalized) {
                     exitWithError(errorWordCapitalizationOrder, lr);
                 }
@@ -355,7 +371,7 @@ private void lexWordInternal(unsigned int wordType, Lexer* lr) {
     int lenBytes = lr->i - realStartInd;
     if (wordType != tokWord && isAlsoAccessor) exitWithError(errorWordWrongAccessor, lr);
     if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
-        addToken((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
+        add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
         if (isAlsoAccessor) {
             openPunctuation(tokAccessor);
         }
@@ -365,100 +381,177 @@ private void lexWordInternal(unsigned int wordType, Lexer* lr) {
             if (wordType == tokDotWord) {
                 exitWithError(errorWordReservedWithDot, lr);
             } else if (mbReservedWord == reservedTrue) {
-                addToken((Token){.tp=tokBool, .payload2=1, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
+                add((Token){.tp=tokBool, .payload2=1, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
             } else if (mbReservedWord == reservedFalse) {
-                addToken((Token){.tp=tokBool, .payload2=0, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
+                add((Token){.tp=tokBool, .payload2=0, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
             } else {
                 lexReservedWord(mbReservedWord, realStartInd, lr);
             }
         } else  {
-            addToken((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes }, lr);
+            add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes }, lr);
         }
     }
 }
 
 
-private void lexWord(Lexer* lr) {
-    wrapInAStatement(lr);
-    lexWordInternal(tokWord, lr);
+private void lexWord(Lexer* lr, Arr(byte) inp) {
+    wrapInAStatement(lr, inp);
+    wordInternal(tokWord, lr, inp);
 }
 
-void lexAtWord(Lexer* lr) {
-    exitWithError(errorUnrecognizedByte, lr);
-}
 
-void lexOperator(Lexer* lr) {
-
-}
-
-void lexMinus(Lexer* lr) {
-
-}
-
-void lexColon(Lexer* lr) {
-
-}
-
-void lexParenLeft(Lexer* lr) {
-
-}
-
-void lexParenRight(Lexer* lr) {
-
-}
-
-void lexCurlyLeft(Lexer* lr) {
-
-}
-
-void lexCurlyRight(Lexer* lr) {
-
-}
-
-void lexBracketLeft(Lexer* lr) {
-    exitWithError(errorUnrecognizedByte, lr);
-}
-
-void lexBracketRight(Lexer* lr) {
-    exitWithError(errorUnrecognizedByte, lr);
-}
-
-void lexSpace(Lexer* lr) {
+void lexAtWord(Lexer* lr, Arr(byte) inp) {
+    wrapInAStatement(lr, inp);
+    checkPrematureEnd(2, inp);
     lr->i++;
-    while (lr->i < lr->inp->length) {
+    wordInternal(tokAtWord, lr, inp);
+}
+
+
+void lexOperator(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+
+void lexMinus(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+
+void lexColon(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+
+void lexParenLeft(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+
+void lexParenRight(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+
+void lexCurlyLeft(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+
+void lexCurlyRight(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+void lexBracketLeft(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+void lexBracketRight(Lexer* lr, Arr(byte) inp) {
+    exitWithError(errorUnrecognizedByte, lr);
+}
+
+void lexSpace(Lexer* lr, Arr(byte) inp) {
+    lr->i++;
+    while (lr->i < lr->inpLength) {
         if (CURR_BT != aSpace) return;
         lr->i++;
     }
 }
 
-void lexNewline(Lexer* lr) {
+/** A newline in a Stmt ends it. A newline in a StmtMulti, or in something nested within it, has no effect.  */
+void lexNewline(Lexer* lr, Arr(byte) inp) {
+    addNewLine(lr->i);
     lr->i++;
-    while (lr->i < lr->inp->length) {
+    // TODO check statement type to maybe end it
+    while (lr->i < lr->inpLength) {
         if (CURR_BT != aSpace) return;
         lr->i++;
+    }    
+}
+
+void lexStringLiteral(Lexer* lr, Arr(byte) inp) {
+    wrapInAStatement(lr, inp);
+    
+    int j = lr->i + 1;
+    while (j < lr->inpLength) {
+        byte cByte = inp[j];
+        if (cByte == aQuote) {
+            add((Token){.tp=tokString, .startByte=(lr->i + 1), .lenBytes=(j - lr->i - 1)}, lr);
+            lr->i = j + 1;
+            return;
+        } else {
+            j++;
+        }
+    }
+    exitWithError(errorPrematureEndOfInput, lr);
+}
+
+/**
+ * Appends a doc comment token if it's the first one, or elongates the existing token if there was already
+ * a doc comment on the previous line.
+ * This logic handles multiple consecutive lines of doc comments.
+ * NOTE: this is the only function in the whole lexer that needs the endByte instead of lenBytes!
+ */
+private void appendDocComment(int startByte, int endByte, Lexer* lr) {
+    if (lr->nextInd == 0 || lr->tokens[lr->nextInd - 1].tp != tokDocComment) {
+        add((Token){.tp = tokDocComment, .startByte = startByte, .lenBytes = endByte - startByte + 1});
+    } else {        
+        lr->tokens[nextInd - 1].lenBytes = endByte - (tokens[nextInd - 1].startByte) + 1;
     }
 }
 
-void lexStringLiteral(Lexer* lr) {
+/**
+ *  Doc comments, syntax is ## Doc comment
+ */
+private void docComment(Lexer* lr, Arr(byte) inp) {
+    int startByte = lr->i + 2; // +2 for the '##'
+    for (int j = startByte; j < lr->inpLength; j++) {
+        if (inp[j] == aNewline) {
+            addNewLine(j, lr);
+            if (j > startByte) {
+                appendDocComment(startByte, j - 1, lr);
+            }
+            lr->i = j + 1;
+            return;
+        }
+    }
+    lr->i = lr->inpLength; // if we're here, then we haven't met a newline, hence we are at the document's end
+    appendDocComment(startByte, lr->inpLength - 1, lr);
+}
+
+/**
+ *  Doc comments, syntax is # The comment
+ */
+private void lexComment(Lexer* lr, Arr(byte) inp) {
+    int j = lr->i + 1;
+    if (j < lr->inpLength && inp[j] == aSharp) {
+        lexDocComment(lr, inp);
+        return;
+    }
+    while (j < lr->inpLength) {
+        byte cByte = inp[j];
+        if (cByte == aNewline) {
+            lr->i = j + 1;
+            return;
+        } else {
+            j++;
+        }
+    }
+    lr->i = j;
+}
+
+void lexUnexpectedSymbol(Lexer* lr, Arr(byte) inp) {
     exitWithError(errorUnrecognizedByte, lr);
 }
 
-void lexComment(Lexer* lr) {
-    exitWithError(errorUnrecognizedByte, lr);
-}
-
-void lexUnexpectedSymbol(Lexer* lr) {
-    exitWithError(errorUnrecognizedByte, lr);
-}
-
-void lexNonAsciiError(Lexer* lr) {
+void lexNonAsciiError(Lexer* lr, Arr(byte) inp) {
     exitWithError(errorNonAscii, lr);
 }
 
 
 
 private LexerFunc (*buildDispatch(Arena* a))[256] {
-    LexerFunc (*result)[256] = allocateOnArena(a, 256*sizeof(LexerFunc));
+    LexerFunc (*result)[256] = allocateOnArena(256*sizeof(LexerFunc), a);
     LexerFunc* p = *result;
     for (int i = 0; i < 128; i++) {
         p[i] = lexUnexpectedSymbol;
@@ -477,7 +570,7 @@ private LexerFunc (*buildDispatch(Arena* a))[256] {
         p[i] = lexWord;
     }
     p[aUnderscore] = lexWord;
-    p[aDot] = lexDotSomething;
+    p[aDot] = lexDot;
     p[aAt] = lexAtWord;
 
 
@@ -502,10 +595,10 @@ private LexerFunc (*buildDispatch(Arena* a))[256] {
 
 /**
  * Table for dispatch on the first letter of a word in case it might be a reserved word.
- * It's indexed on the diff between first byte and the letter "c" (the earliest letter a reserved word may start with)
+ * It's indexed on the diff between first byte and the letter "a" (the earliest letter a reserved word may start with)
  */
 private ReservedProbe (*buildReserved(Arena* a))[countReservedLetters] {
-    ReservedProbe (*result)[countReservedLetters] = allocateOnArena(a, countReservedLetters*sizeof(ReservedProbe));
+    ReservedProbe (*result)[countReservedLetters] = allocateOnArena(countReservedLetters*sizeof(ReservedProbe), a);
     ReservedProbe* p = *result;
     for (int i = 2; i < 25; i++) {
         p[i] = determineUnreserved;
@@ -526,9 +619,9 @@ private ReservedProbe (*buildReserved(Arena* a))[countReservedLetters] {
     return result;
 }
 
-/** The set of operators for the language */
+/** The set of base operators in the language */
 private OpDef (*buildOperators(Arena* a))[countOperators] {
-    OpDef (*result)[countOperators] = allocateOnArena(a, countOperators*sizeof(OpDef));
+    OpDef (*result)[countOperators] = allocateOnArena(countOperators*sizeof(OpDef), a);
 
     OpDef* p = *result;
     /**
@@ -575,13 +668,11 @@ private OpDef (*buildOperators(Arena* a))[countOperators] {
     return result;
 }
 
-
+/*
+* Definition of the operators, reserved words and lexer dispatch for the lexer.
+*/
 LanguageDefinition* buildLanguageDefinitions(Arena* a) {
-    LanguageDefinition* result = allocateOnArena(a, sizeof(LanguageDefinition));
-    /*
-    * Definition of the operators with info for those that act as functions. The order must be exactly the same as
-    * OperatorType.
-    */
+    LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
 
     result->possiblyReservedDispatch = buildReserved(a);
     result->dispatchTable = buildDispatch(a);
@@ -592,13 +683,17 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 
 Lexer* createLexer(String* inp, Arena* a) {
-    Lexer* result = allocateOnArena(a, sizeof(Lexer));
+    Lexer* result = allocateOnArena(sizeof(Lexer), a);
 
     result->inp = inp;
+    result->inpLength = inp->length;
+    result->tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a);
     result->capacity = LEXER_INIT_SIZE;
-    result->tokens = allocateOnArena(a, LEXER_INIT_SIZE*sizeof(Token));
-
-    result->backtrack = createStackRememberedToken(a, 8);
+    
+    result->newlines = allocateOnArena(a, 1000*sizeof(int));
+    result->newlinesCapacity = 1000;
+    
+    result->backtrack = createStackRememberedToken(16, a);
 
     result->errMsg = &empty;
 
@@ -609,7 +704,7 @@ Lexer* createLexer(String* inp, Arena* a) {
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
 private void handleFullChunk(Lexer* lexer) {
-    Token* newStorage = allocateOnArena(lexer->arena, lexer->capacity*2*sizeof(Token));
+    Token* newStorage = allocateOnArena(lexer->capacity*2*sizeof(Token), lexer->arena);
     memcpy(newStorage, lexer->tokens, (lexer->capacity)*(sizeof(Token)));
     lexer->tokens = newStorage;
 
@@ -617,7 +712,7 @@ private void handleFullChunk(Lexer* lexer) {
 }
 
 
-void addToken(Token t, Lexer* lexer) {
+void add(Token t, Lexer* lexer) {
     lexer->tokens[lexer->nextInd] = t;
     lexer->nextInd++;
     if (lexer->nextInd == lexer->capacity) {
@@ -636,7 +731,7 @@ private Lexer* buildLexer(int totalTokens, String* inp, Arena *a, /* Tokens */ .
     va_start (tokens, a);
 
     for (int i = 0; i < totalTokens; i++) {
-        addToken(va_arg(tokens, Token), result);
+        add(va_arg(tokens, Token), result);
     }
 
     va_end(tokens);
@@ -651,24 +746,28 @@ private void finalize(Lexer* this) {
 }
 
 
-Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar) {
-    Lexer* result = createLexer(inp, ar);
-    if (inp->length == 0) {
+Lexer* lexicallyAnalyze(String* input, LanguageDefinition* lang, Arena* ar) {
+    Lexer* result = createLexer(input, ar);
+    int inpLength = input->length;
+    Arr(byte) inp = input->content;
+    
+    if (inpLength == 0) {
         exitWithError("Empty input", result);
     }
 
     // Check for UTF-8 BOM at start of file
-    if (inp->length >= 3
-        && (unsigned char)inp->content[0] == 0xEF
-        && (unsigned char)inp->content[1] == 0xBB
-        && (unsigned char)inp->content[2] == 0xBF) {
+    if (inpLength >= 3
+        && (unsigned char)inp[0] == 0xEF
+        && (unsigned char)inp[1] == 0xBB
+        && (unsigned char)inp[2] == 0xBF) {
         result->i = 3;
     }
     LexerFunc (*dispatch)[256] = lang->dispatchTable;
     result->possiblyReservedDispatch = lang->possiblyReservedDispatch;
+
     // Main loop over the input
-    while (result->i < inp->length) {
-        ((*dispatch)[inp->content[result->i]])(result);
+    while (result->i < inpLength) {
+        ((*dispatch)[inp[result->i]])(result, inp);
     }
 
     finalize(result);

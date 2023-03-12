@@ -21,6 +21,7 @@ typedef struct {
 typedef struct {
     unsigned int tp;
     int numberOfToken;
+    bool isMultiline;
     bool wasOriginallyColon;
 } RememberedToken;
 
@@ -35,18 +36,24 @@ typedef int (*ReservedProbe)(int, int, Lexer*);
 struct _Lexer {
     int i;
     String* inp;
+    int inpLength;
     int totalTokens;
     bool wasError;
     String* errMsg;
     
     Arr(Token) tokens;
+    int capacity; // current capacity of token storage    
+    
+    Arr(int) newlines;
+    int newlinesCapacity;
+    int newlinesNextInd;
 
     StackRememberedToken* backtrack;
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
     Stackint* newlines;
     int nextInd; // the  index for the next token to be added
-    int capacity; // current capacity of token storage
+
     Arena* arena;
 };
 
