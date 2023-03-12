@@ -29,41 +29,6 @@ typedef struct {
 DEFINE_STACK_HEADER(RememberedToken)
 DEFINE_STACK_HEADER(int)
 
-typedef struct _Lexer Lexer;
-typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
-typedef int (*ReservedProbe)(int, int, Lexer*);
-
-struct _Lexer {
-    int i;
-    String* inp;
-    int inpLength;
-    int totalTokens;
-    bool wasError;
-    String* errMsg;
-    
-    Arr(Token) tokens;
-    int capacity; // current capacity of token storage    
-    
-    Arr(int) newlines;
-    int newlinesCapacity;
-    int newlinesNextInd;
-
-    StackRememberedToken* backtrack;
-    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
-    
-    Stackint* newlines;
-    int nextInd; // the  index for the next token to be added
-
-    Arena* arena;
-};
-
-
-
-Lexer* createLexer(String* inp, Arena* ar);
-void addToken(Token t, Lexer* lexer);
-
-
-
 /**
  * There is a closed set of operators in the language.
  *
@@ -87,6 +52,7 @@ typedef struct {
     unsigned int isAssignment: 1;
 } OperatorToken;
 
+
 typedef struct {
     String* name;
     byte bytes[4];
@@ -103,7 +69,6 @@ typedef struct {
 } OpDef;
 
 
-
 typedef struct {
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
@@ -111,7 +76,46 @@ typedef struct {
 } LanguageDefinition;
 
 
-LanguageDefinition* buildLanguageDefinitions(Arena* ar);
-Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* ar);
+typedef struct _Lexer Lexer;
+typedef void (*LexerFunc)(Lexer*); // LexerFunc = &(Lexer* => void)
+typedef int (*ReservedProbe)(int, int, Lexer*);
+
+
+struct _Lexer {
+    int i;
+    String* inp;
+    int inpLength;
+    int totalTokens;
+    
+    LanguageDefinition* langDef;
+    
+    
+    Arr(Token) tokens;
+    int capacity; // current capacity of token storage
+    int nextInd; // the  index for the next token to be added    
+    
+    Arr(int) newlines;
+    int newlinesCapacity;
+    int newlinesNextInd;
+    
+    Arr(byte) numeric;
+    int numericCapacity;
+    int numericNextInd;
+
+    StackRememberedToken* backtrack;
+    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
+    
+    bool wasError;
+    String* errMsg;
+
+    Arena* arena;
+};
+
+Lexer* createLexer(String* inp, Arena* ar);
+void addToken(Token t, Lexer* lexer);
+
+
+LanguageDefinition* buildLanguageDefinitions(Arena* a);
+Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* a);
 
 #endif

@@ -70,6 +70,68 @@ private void checkPrematureEnd(int requiredSymbols, Lexer* lr) {
     }
 }
 
+
+/** For all the colons at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
+private void closeColons(Lexer* lr) {
+    while (backtrack.isNotEmpty() && backtrack.peek().wasOriginallyColon) {
+        RememberedToken top = popRememberedToken(lr->backtrack);
+        int j = top.numberOfToken;
+        tokens[j].tp = tokParens;
+        tokens[j].lenBytes = lr->i - tokens[j].startByte;
+        tokens[j].payload2 = lr->totalTokens - j - 1;
+    }
+}
+
+/**
+ * Finds the top-level punctuation opener by its index, and sets its lengths.
+ * Called when the matching closer is lexed.
+ */
+private void setSpanLength(int tokenInd, Lexer* lr) {    
+    lr->tokens[tokenInd].lenBytes = lr->i - lr->tokens[tokenInd].startByte;
+    lr->tokens[tokenInd].payload2 = lr->totalTokens - tokenInd - 1;
+}
+
+/**
+ * Validation to catch unmatched closing punctuation
+ */
+private void validateClosingPunct(uint closingType, uint openType, Lexer* lr) {
+    if (closingType == tokParens) {
+        if (openType < firstCoreFormTok && openType != tokParens && openType != tokColon) {
+                exitWithError(errorPunctuationUnmatched, lr);
+        }
+    } else if (closingType == tokBrackets) {
+        if (openType != tokBrackets && openType != tokAccessor) exitWithError(errorPunctuationUnmatched, lr);
+    } else if (closingType == tokStmt) {
+        if (openType != tokStmt && openType != tokAssignment) exitWithError(errorPunctuationUnmatched, lr);
+    }
+}
+
+/**
+ * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a ] or a dot.
+ * This doesn't actually add any tokens to the array, just performs validation and sets the token length
+ * for the opener token.
+ * TODO correctly check if it's a multi-line statement or not, and whether it should be ended
+ */
+private void closeRegularPunctuation(int closingType, Lexer* lr) {
+    closeColons(lr);
+    if (!hasValuesRememberedToken(lr->backtrack)) {
+        exitWithError(errorPunctuationExtraClosing, lr);
+    }
+
+    RememberedToken top = popRememberedToken(lr->backtrack);
+    if (closingType == tokParens && top.tp == tokStmt) {
+        // since a closing parenthesis might be closing something with statements inside it, like a lex scope
+        // or a core syntax form, we need to close the last statement before closing its parent
+        setSpanLength(top.startTokInd, lr);
+        top = popRememberedToken(lr->backtrack);
+    }
+
+    validateClosingPunct(closingType, top.tp);
+    setSpanLength(top.startTokInd, lr);
+
+    lr->i++;
+}
+
 const OpDef noFun = {
     .name = &empty,
     .bytes = {0, 0, 0, 0},
@@ -188,6 +250,26 @@ private int determineUnreserved(int startByte, int lenBytes, Lexer* lr) {
     return 0;
 }
 
+/**
+ * Mutates a statement to a more precise type of statement (assignment, type declaration).
+ */
+private void setSpanType(int tokenInd, unsigned int tType, Lexer* lr) {
+    lr->tokens[tokenInd].tp = tType;
+}
+
+
+private void convertGrandparentToScope() {
+    int indPenultimate = lr->backtrack.length - 2;
+    if (indPenultimate > -1) {
+        uint gpType = lr->backtrack[indPenultimate].tokType;
+        if (gpType == tokColon) exitWithError(errorPunctuationInsideColon, lr);
+        if (gpType == tokParens) {
+            lr->backtrack[indPenultimate].tokType = tokLexScope;
+            setSpanType(backtrack[indPenultimate].startTokInd, tokLexScope, lr);
+        }
+    }
+}
+
 private void addNewLine(int j, Lexer* lr) {
     lr->newlines[lr->newlinesNextInd] = j;
     lr->newlinesNextInd++;
@@ -216,25 +298,154 @@ private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
     }
 }
 
+/** 
+ *  TODO handle syntax like "(foo 5).field" and "foo[5].field"
+ */
 
 private void lexDot(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
-}
-
-private void lexNumber(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
+    wrapInAStatement(lr, inp);
+    convertGrandparentToScope();
+    closeRegularPunctuation(tokStm);
 }
 
 /**
- * Mutates a statement to a more precise type of statement (assignment, type declaration).
+ * Lexes a hexadecimal numeric literal (integer or floating-point).
+ * Examples of accepted expressions: 0xCAFE_BABE, 0xdeadbeef, 0x123_45A
+ * Examples of NOT accepted expressions: 0xCAFE_babe, 0x_deadbeef, 0x123_
+ * Checks that the input fits into a signed 64-bit fixnum.
+ * TODO add floating-point literals like 0x12FA.
  */
-private void setSpanType(int tokenInd, unsigned int tType, Lexer* lr) {
-    lr->tokens[tokenInd].tp = tType;
+private void hexNumber(Lexer* lr, Arr(byte) inp) {
+    checkPrematureEnd(2, inp)
+    numeric.clear()
+    var j = i + 2
+    while (j < inp.size) {
+        val cByte = inp[j]
+        if (isDigit(cByte)) {
+
+            numeric.add((cByte - aDigit0).toByte())
+        } else if ((cByte >= aALower && cByte <= aFLower)) {
+            numeric.add((cByte - aALower + 10).toByte())
+        } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
+            numeric.add((cByte - aAUpper + 10).toByte())
+        } else if (cByte == aUnderscore) {
+            if (j == inp.size - 1 || isHexDigit(inp[j + 1])) {
+                exitWithError(errorNumericEndUnderscore)
+            }
+        } else {
+            break
+        }
+        if (numeric.ind > 16) {
+            exitWithError(errorNumericBinWidthExceeded)
+        }
+        j++
+    }
+    val resultValue = numeric.calcHexNumber()
+    appendLitIntToken(resultValue, i, j - i)
+    numeric.clear()
+    i = j
 }
 
-/** Append a punctuation token */
-private void appendPunctuation(unsigned int tType, int startByte, Lexer* lr) {
-    add((Token) {.tp = tType, .startByte = startByte}, lr);
+private void binNumber(Lexer* lr, Arr(byte) inp) {
+    numeric.clear()
+
+    var j = i + 2
+    while (j < inp.size) {
+        val cByte = inp[j]
+        if (cByte == aDigit0) {
+            numeric.add(0)
+        } else if (cByte == aDigit1) {
+            numeric.add(1)
+        } else if (cByte == aUnderscore) {
+            if ((j == inp.size - 1 || (inp[j + 1] != aDigit0 && inp[j + 1] != aDigit1))) {
+                exitWithError(errorNumericEndUnderscore)
+            }
+        } else {
+            break
+        }
+        if (numeric.ind > 64) {
+            exitWithError(errorNumericBinWidthExceeded)
+        }
+        j++
+    }
+    if (j == i + 2) {
+        exitWithError(errorNumericEmpty)
+    }
+
+    val resultValue = numeric.calcBinNumber()
+    appendLitIntToken(resultValue, i, j - i)
+    i = j    
+}
+
+/**
+ * Lexes a decimal numeric literal (integer or floating-point).
+ * TODO: add support for the '1.23E4' format
+ */
+private void decNumber(bool isNegative, Lexer* lr, Arr(byte) inp) {
+    var j = if (isNegative) { i + 1 } else { i }
+    var digitsAfterDot = 0 // this is relative to first digit, so it includes the leading zeroes
+    var metDot = false
+    var metNonzero = false
+    val maximumInd = i + 40 .coerceAtMost(inp.size)
+    while (j < maximumInd) {
+        val cByte = inp[j]
+
+        if (isDigit(cByte)) {
+            if (metNonzero) {
+                numeric.add((cByte - aDigit0).toByte())
+            } else if (cByte != aDigit0) {
+                metNonzero = true
+                numeric.add((cByte - aDigit0).toByte())
+            }
+            if (metDot) { digitsAfterDot++ }
+        } else if (cByte == aUnderscore) {
+            if (j == (inp.size - 1) || !isDigit(inp[j + 1])) {
+                exitWithError(errorNumericEndUnderscore)
+            }
+        } else if (cByte == aDot) {
+            if (metDot) {
+                exitWithError(errorNumericMultipleDots)
+            }
+            metDot = true
+        } else {
+            break
+        }
+        j++
+    }
+
+    if (j < inp.size && isDigit(inp[j])) {
+        exitWithError(errorNumericWidthExceeded)
+    }
+
+    if (metDot) {
+        val resultValue = numeric.calcFloating(-digitsAfterDot) ?: exitWithError(errorNumericFloatWidthExceeded)
+
+        appendFloatToken(if (isNegative) { -resultValue } else { resultValue }, i, j - i)
+    } else {
+        val resultValue = numeric.calcInteger() ?: exitWithError(errorNumericIntWidthExceeded)
+        appendLitIntToken(if (isNegative) { -resultValue } else { resultValue }, i, j - i)
+    }
+    i = j    
+}
+
+private void lexNumber(Lexer* lr, Arr(byte) inp) {
+    wrapInAStatement(lr, inp);
+    byte cByte = CURR_BT;
+    if (lr->i == lr->inpLength - 1 && isDigit(cByte)) {
+        add((Token){ .tp = tokInt, .payload2 = cByte - aDigit0}, .startByte = lr.i, .lenBytes = 1 }, lr);
+        lr->i++;
+        return;
+    }
+    
+    byte nByte = NEXT_BT;
+    if (nByte == aXLower) {
+        hexNumber(lr, inp);
+    } else if (nByte == aBLower) {
+        binNumber(lr, inp);
+    } else {
+        decNumber(false, lr, inp);
+    }
+    lr->numericNextInd = 0;
 }
 
 /**
@@ -252,8 +463,7 @@ private void openPunctuation(unsigned int tType, Lexer* lr) {
         (RememberedToken){ .tp = tType, .numberOfToken = lr->totalTokens, .wasOriginallyColon = tType == tokColon},
         lr->backtrack
     );
-
-    appendPunctuation(tType, i + 1, lr);
+    add((Token) {.tp = tType, .startByte = (lr->i + 1) }, lr);
     lr->i++;
 }
 
@@ -373,7 +583,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
     if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
         add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
         if (isAlsoAccessor) {
-            openPunctuation(tokAccessor);
+            openPunctuation(tokAccessor, lr);
         }
     } else {
         int mbReservedWord = (*lr->possiblyReservedDispatch)[(firstByte - aBLower)](startInd, lr->i - startInd, lr);
@@ -400,21 +610,104 @@ private void lexWord(Lexer* lr, Arr(byte) inp) {
 }
 
 
-void lexAtWord(Lexer* lr, Arr(byte) inp) {
+private void lexAtWord(Lexer* lr, Arr(byte) inp) {
     wrapInAStatement(lr, inp);
     checkPrematureEnd(2, inp);
     lr->i++;
     wordInternal(tokAtWord, lr, inp);
 }
 
+private void addOperator(int opType, int isExtensionAssignment, int startByte, int lenBytes, Lexer* lr) {
+    add((Token){ .tp = tokOperator, .payload1 = (isExtensionAssignment + (opType << 2)), 
+                .startByte = startByte, .lenBytes = lenBytes }, lr);
+}
 
-void lexOperator(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
+private void processAssignmentOperator(uint opType, int isExtensionAssignment, Lexer* lr) {
+    RememberedToken currSpan = peekRememberedToken(lr->backtrack);
+
+    if (currSpan.tp == tokStmtAssignment) {
+        exitWithError(errorOperatorMultipleAssignment, lr);
+        return;
+    } else if (currSpan.tp != tokStmt) {
+        exitWithError(errorOperatorAssignmentPunct, lr);
+        return;
+    }
+    convertGrandparentToScope(lr);
+
+    setSpanAssignment(currSpan.numberOfToken, isExtensionAssignment, opType, lr);
+    lr->backtrack[lr->backtrack.length - 1] = (RememberedToken){.tp = tokAssignment, .numberOfToken = currSpan.startTokInd};
+}
+
+private void lexOperator(Lexer* lr, Arr(byte) inp) {
+    wrapInAStatement(lr, inp);
+    
+    byte firstSymbol = CURR_BT;
+    byte secondSymbol = (lr->inpLength > i + 1) ? inp[lr->i + 1] : 0;
+    byte thirdSymbol = (lr->inpLength > i + 2) ? inp[lr->i + 2] : 0;
+    byte fourthSymbol = (lr->inpLength > i + 3) ? inp[lr->i + 3] : 0;
+    int k = 0;
+    int opType = -1; // corresponds to the opT... operator types
+    OpDef (*operators)[countOperators] = lr->langDef->operators;
+    while (k < countOperators && operators[k].bytes[0] != firstSymbol) {
+        k++;
+    }
+    while (k < countOperators && operators[k].bytes[0] == firstSymbol) {
+        OpDef opDef = operators[k];
+        byte secondTentative = opDef.bytes[1];
+        if (secondTentative != 0 && secondTentative != secondSymbol) {
+            k++;
+            continue;
+        }
+        byte thirdTentative = opDef.bytes[2];
+        if (thirdTentative != 0 && thirdTentative != thirdSymbol) {
+            k++;
+            continue;
+        }
+        byte fourthTentative = opDef.bytes[3];
+        if (fourthTentative != 0 && fourthTentative != fourthSymbol) {
+            k++;
+            continue;
+        }
+        opType = k;
+        break;
+    }
+    if (opType < 0) {
+        exitWithError(errorOperatorUnknown, lr);
+        return;
+    }
+    
+    OpDef opDef = operators[opType];
+    bool isExtensible = opDef.isExtensible;
+    int isExtensionAssignment = 0;
+    
+    int lengthOfBaseOper = (opDef.bytes[1] == 0) ? 1 : (opDef.bytes[2] == 0 ? 2 : (opDef.bytes[3] == 0 ? 3 : 4));
+    int j = lr->i + lengthOfBaseOper;
+    if (isExtensible && j < lr->inpLength && inp[j] == aDot) {
+        isExtensionAssignment += 2;
+        j++;        
+    }
+    if ((isExtensible || opDef[k].assignable) && j < lr->inpLength && inp[j] == aEqual) {
+        isExtensionAssignment++;
+        j++;
+    }
+    if (opType == opTDefinition || opType == opTMutation || (isExtensionAssignment & 1 > 0)) {
+        processAssignmentOperator(opType, isExtensionAssignment, lr);
+    } else {
+        addOperator(opType, isExtensionAssignment, lr->i, j - i, lr);
+    }
+    lr->i = j;
 }
 
 
 void lexMinus(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
+    wrapInAStatement(lr);
+    int j = lr->i + 1;
+    if (j < lr->inpLength && isDigit(inp[j])) {
+        decimalNumber(true, lr, inp);
+        lr->numericNextInd = 0;
+    } else {
+        lexOperator(lr, inp);
+    }
 }
 
 
@@ -424,52 +717,56 @@ void lexColon(Lexer* lr, Arr(byte) inp) {
 
 
 void lexParenLeft(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
+    if (lr->i < lr->inpLength - 1) {
+        byte nextBt = NEXT_BT;
+        if (nextBt == aDot) {
+            lambda(lr, inp);
+            return;
+        } // TODO generator, (=) lambda
+    }
+    wrapInAStatement(lr, inp);
+    openPunctuation(tokParens, lr);
 }
 
 
 void lexParenRight(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
+    closeRegularPunctuation(tokParens, lr);
 }
 
-
-void lexCurlyLeft(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
-}
-
-
-void lexCurlyRight(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
-}
 
 void lexBracketLeft(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
+    wrapInAStatement(lr, inp);
+    openPunctuation(tokBrackets, lr);
 }
 
 void lexBracketRight(Lexer* lr, Arr(byte) inp) {
-    exitWithError(errorUnrecognizedByte, lr);
+    closeRegularPunctuation(tokBrackets, lr);
 }
+
 
 void lexSpace(Lexer* lr, Arr(byte) inp) {
     lr->i++;
-    while (lr->i < lr->inpLength) {
+    while (lr->i < lr->inpLength && CURR_BT == aSpace) {
         if (CURR_BT != aSpace) return;
         lr->i++;
     }
 }
 
 /** A newline in a Stmt ends it. A newline in a StmtMulti, or in something nested within it, has no effect.  */
-void lexNewline(Lexer* lr, Arr(byte) inp) {
+private void lexNewline(Lexer* lr, Arr(byte) inp) {
     addNewLine(lr->i);
     lr->i++;
-    // TODO check statement type to maybe end it
-    while (lr->i < lr->inpLength) {
-        if (CURR_BT != aSpace) return;
+
+    RememberedToken top = peekRememberedToken(lr->backtrack);
+    if (top.tp == tokStmt && !top.isMultiline) {
+        closeRegularPunctuation(tokStmt, lr);
+    }
+    while (lr->i < lr->inpLength && CURR_BT == aSpace) {
         lr->i++;
     }    
 }
 
-void lexStringLiteral(Lexer* lr, Arr(byte) inp) {
+private void lexStringLiteral(Lexer* lr, Arr(byte) inp) {
     wrapInAStatement(lr, inp);
     
     int j = lr->i + 1;
@@ -538,6 +835,20 @@ private void lexComment(Lexer* lr, Arr(byte) inp) {
         }
     }
     lr->i = j;
+}
+
+private void lambda(Lexer* lr, Arr(byte) inp) {
+    wrapInAStatement(lr);
+
+    int j = lr->i + 1;
+    
+    lr->i++;
+    RememberedToken top = peekRememberedToken(lr->backtrack);
+    setSpanLambda(top.startTokInd, tokStmtLambda, lr);
+    top.tp = tokLambda;
+
+    pushRememberedToken(LexFrame(tokStm, this.totalTokens), lr->backtrack);    
+    add((Token){ .tp = tokStm, .startByte = lr->i }, lr);
 }
 
 void lexUnexpectedSymbol(Lexer* lr, Arr(byte) inp) {
@@ -683,7 +994,11 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 
 Lexer* createLexer(String* inp, Arena* a) {
-    Lexer* result = allocateOnArena(sizeof(Lexer), a);
+    Lexer* result = allocateOnArena(sizeof(Lexer), a);    
+
+    result->langDef = buildLanguageDefinitions(a);
+    
+    result->arena = a;
 
     result->inp = inp;
     result->inpLength = inp->length;
@@ -693,11 +1008,12 @@ Lexer* createLexer(String* inp, Arena* a) {
     result->newlines = allocateOnArena(a, 1000*sizeof(int));
     result->newlinesCapacity = 1000;
     
+    result->numeric = allocateOnArena(a, 50*sizeof(int));
+    result->numericCapacity = 50;
+    
     result->backtrack = createStackRememberedToken(16, a);
 
     result->errMsg = &empty;
-
-    result->arena = a;
 
     return result;
 }
@@ -738,11 +1054,18 @@ private Lexer* buildLexer(int totalTokens, String* inp, Arena *a, /* Tokens */ .
     return result;
 }
 
-
-private void finalize(Lexer* this) {
-    if (!this->wasError && !hasValuesRememberedToken(this->backtrack)) {
-        exitWithError(errorPunctuationExtraOpening, this);
-    }
+/**
+ * Finalizes the lexing of a single input: checks for unclosed scopes, and closes an open statement, if any.
+ */
+private void finalize(Lexer* lr) {
+    if (!hasValuesRememberedToken(lr->backtrack.empty) return;
+    closeColons(lr);
+    RememberedToken top = peekRememberedToken(lr->backtrack).tp;
+    if (lr->backtrack.length == 1 && (top == tokStmt || top == tokAssignment)) {
+        closeRegularPunctuation(tokStmt, lr);
+    } else {
+        exitWithError(errorPunctuationExtraOpening, lr);
+    }    
 }
 
 
