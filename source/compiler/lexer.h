@@ -68,20 +68,13 @@ typedef struct {
     bool assignable;
 } OpDef;
 
-
-typedef struct {
-    OpDef (*operators)[countOperators];
-    LexerFunc (*dispatchTable)[256];
-    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
-} LanguageDefinition;
-
-
-typedef struct _Lexer Lexer;
+typedef struct LanguageDefinition LanguageDefinition;
+typedef struct Lexer Lexer;
 typedef void (*LexerFunc)(Lexer*, Arr(byte)); // LexerFunc = &(Lexer* => void)
-typedef int (*ReservedProbe)(int, int, Lexer*);
+typedef int (*ReservedProbe)(int, int, struct Lexer*);
 
 
-struct _Lexer {
+struct Lexer {
     int i;
     String* inp;
     int inpLength;
@@ -110,8 +103,16 @@ struct _Lexer {
     Arena* arena;
 };
 
+struct LanguageDefinition {
+    OpDef (*operators)[countOperators];
+    LexerFunc (*dispatchTable)[256];
+    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
+};
+
+
+
 Lexer* createLexer(String* inp, Arena* ar);
-void addToken(Token t, Lexer* lexer);
+void add(Token t, Lexer* lexer);
 
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a);

@@ -298,8 +298,10 @@ private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
             add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
         }                
     } else {
+        printf("pushing\n");
         pushRememberedToken((RememberedToken){ .tp = tokStmt, .isMultiline=isMultiline, 
                                                               .numberOfToken = lr->totalTokens}, lr->backtrack);
+        printf("tp = %d\n", (*lr->backtrack->content)[0].tp);
         add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
     }
 }
@@ -392,7 +394,7 @@ private int64_t calcBinNumber(Lexer* lr){
         j--;
     }
     if (lr->numericNextInd == 64 && lr->numeric[0] > 0) {
-        result += (int64_t)(-9223372036854775808);
+        result += (int64_t)(-9223372036854775807-1);
     }
     return result;
 }
@@ -596,7 +598,7 @@ private void decNumber(bool isNegative, Lexer* lr, Arr(byte) inp) {
             return;
         }
 
-        int64_t bitsOfFloat = longOfDouble((isNegative) ? (-resultValue) : resultValue);
+        int64_t bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
         add((Token){ .tp = tokFloat, .payload1 = (bitsOfFloat >> 32), .payload2 = (bitsOfFloat & LOWER32BITS),
                     .startByte = lr->i, .lenBytes = j - lr->i}, lr);
     } else {
@@ -759,7 +761,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
             openPunctuation(tokAccessor, lr);
         }
     } else {
-        int mbReservedWord = (*lr->possiblyReservedDispatch)[(firstByte - aBLower)](startInd, lr->i - startInd, lr);
+        int mbReservedWord = (*lr->possiblyReservedDispatch)[(firstByte - aALower)](startInd, lr->i - startInd, lr);
         if (mbReservedWord > 0) {
             if (wordType == tokDotWord) {
                 exitWithError(errorWordReservedWithDot, lr);
@@ -1219,6 +1221,7 @@ private void finalize(Lexer* lr) {
     if (!hasValuesRememberedToken(lr->backtrack)) return;
     closeColons(lr);
     uint top = peekRememberedToken(lr->backtrack).tp;
+    printf("length = %d, top %d\n", lr->backtrack->length, top);
     if (lr->backtrack->length == 1 && (top == tokStmt || top == tokAssignment)) {
         closeRegularPunctuation(tokStmt, lr);
     } else {
@@ -1228,7 +1231,9 @@ private void finalize(Lexer* lr) {
 
 
 Lexer* lexicallyAnalyze(String* input, LanguageDefinition* lang, Arena* ar) {
+
     Lexer* result = createLexer(input, ar);
+
     int inpLength = input->length;
     Arr(byte) inp = input->content;
     
@@ -1245,7 +1250,6 @@ Lexer* lexicallyAnalyze(String* input, LanguageDefinition* lang, Arena* ar) {
     }
     LexerFunc (*dispatch)[256] = lang->dispatchTable;
     result->possiblyReservedDispatch = lang->possiblyReservedDispatch;
-
     // Main loop over the input
     while (result->i < inpLength) {
         ((*dispatch)[inp[result->i]])(result, inp);

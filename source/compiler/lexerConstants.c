@@ -40,11 +40,11 @@ const int operatorStartSymbols[] = {
 /**
  * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
  */
-byte* maxInt[] = (byte []){
+const byte maxInt[19] = (byte []){
     9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
     8, 5, 4, 7, 7, 5, 8, 0, 7
 };
 
 
 /** 2**53 */
-const unsigned char maximumPreciselyRepresentedFloatingInt[] = { 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
+const byte maximumPreciselyRepresentedFloatingInt[16] = (byte []){ 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };

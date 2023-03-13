@@ -37,18 +37,18 @@ extern const char errorDocComment[];
 /**
  * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
  */
-extern const byte* maxInt[];
+extern const byte maxInt[19];
 
 
 /** 2**53 */
-extern const unsigned char maximumPreciselyRepresentedFloatingInt[];
+extern const byte maximumPreciselyRepresentedFloatingInt[16];
 
 
 /** All the symbols an operator may start with. The ':' is absent because it's handled by lexColon.
 * The '-' is absent because it's handled by 'lexMinus'.
 */
 #define countOperatorStartSymbols 16
-extern const int operatorStartSymbols[];
+extern const int operatorStartSymbols[16];
 
 
 #define topVerbatimTokenVariant = 5
