@@ -22,9 +22,14 @@ typedef struct {
     LexerTest* tests;
 } LexerTestSet;
 
-/** Must agree in order with token types in Lexer.h */
+/** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
-    "int", "float", "bool", "string", "_", "docComment", "compoundString", "word", ".word", "@word", "reserved", "operator"
+    "int", "float", "bool", "string", "_", "docComment", 
+    "word", ".word", "@word", "reserved", "operator", ":", 
+    "stmt", "()", "[]", "compoundString", "accessor", "assignment", "typeDecl", "lexScope", 
+    "alias", "await", "break", "catch", "continue", "embed", "export", "for",
+    "generator", "if", "ifEq", "ifPr", "impl", "interface", "lambda", "match", "mut",
+    "nodestruct", "return", "struct", "test", "try", "type", "yield"
 };
 
 static Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
@@ -97,6 +102,21 @@ int equalityLexer(Lexer a, Lexer b) {
         Token tokB = b.tokens[i];
         if (tokA.tp != tokB.tp || tokA.lenBytes != tokB.lenBytes || tokA.startByte != tokB.startByte 
             || tokA.payload1 != tokB.payload1 || tokA.payload2 != tokB.payload2) {
+            if (tokA.tp != tokB.tp) {
+                printf("Diff in tp, %s but was expected %s\n", tokNames[tokA.tp], tokNames[tokB.tp]);
+            }
+            if (tokA.lenBytes != tokB.lenBytes) {
+                printf("Diff in lenBytes, %d but was expected %d\n", tokA.lenBytes, tokB.lenBytes);
+            }
+            if (tokA.startByte != tokB.startByte) {
+                printf("Diff in startByte, %d but was expected %d\n", tokA.startByte, tokB.startByte);
+            }
+            if (tokA.payload1 != tokB.payload1) {
+                printf("Diff in payload1, %d but was expected %d\n", tokA.payload1, tokB.payload1);
+            }
+            if (tokA.payload2 != tokB.payload2) {
+                printf("Diff in payload2, %d but was expected %d\n", tokA.payload2, tokB.payload2);
+            }            
             return i;
         }
     }
@@ -109,6 +129,7 @@ void printLexer(Lexer* a) {
         printf("Error: ");
         printString(a->errMsg);
     }
+    printf("Total tokens: %d \n", a->totalTokens);
     for (int i = 0; i < a->totalTokens; i++) {
         printf("%s [%d; %d]\n", tokNames[a->tokens[i].tp], a->tokens[i].startByte, a->tokens[i].lenBytes);
     }
@@ -135,90 +156,106 @@ void runLexerTest(LexerTest test, int* countPassed, int* countTests, LanguageDef
         printf("ERROR IN ");
         printString(test.name);
         printf("On token %d\n\n", equalityStatus);
+        printLexer(result);
     }
 }
 
 
 LexerTestSet* wordTests(Arena* ar) {
-    return createTestSet(allocLit(ar, "Word lexer test"), 1, ar,
+    return createTestSet(allocLit(ar, "Word lexer test"), 12, ar,
         (LexerTest) { 
             .name = allocLit(ar, "Simple word lexing"),
-            .input = allocLit(ar, "asdf Abc"),
-            .expectedOutput = buildLexer(2, ar, 
+            .input = allocLit(ar, "asdf abc"),
+            .expectedOutput = buildLexer(3, ar, 
+                (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Token){ .tp = tokWord, .startByte = 5, .lenBytes = 3, .payload2 = 1 }
+                (Token){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
             )
-        }//,
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word snake case"),
-            //~ .input = allocLit(ar, "asdf_abc"),
-            //~ .expectedOutput = buildLexerWithError(allocLit(ar, errorWordUnderscoresOnlyAtStart), 0, ar)
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word correct capitalization 1"),
-            //~ .input = allocLit(ar, "Asdf.abc"),
-            //~ .expectedOutput = buildLexer(1, ar,
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 8  }
-            //~ )
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word correct capitalization 2"),
-            //~ .input = allocLit(ar, "asdf.abcd.zyui"),
-            //~ .expectedOutput = buildLexer(1, ar,
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
-            //~ )
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word correct capitalization 3"),
-            //~ .input = allocLit(ar, "Asdf.Abcd"),
-            //~ .expectedOutput = buildLexer(1, ar,
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 9, .payload2 = 1  }
-            //~ )
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word incorrect capitalization"),
-            //~ .input = allocLit(ar, "Asdf.Abcd"),
-            //~ .expectedOutput = buildLexerWithError(allocLit(ar, errorWordCapitalizationOrder), 0, ar)
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word starts with underscore and lowercase letter"),
-            //~ .input = allocLit(ar, "_abc"),
-            //~ .expectedOutput = buildLexer(1, ar,
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 4 }
-            //~ )
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word starts with underscore and capital letter"),
-            //~ .input = allocLit(ar, "_Abc"),
-            //~ .expectedOutput = buildLexer(1, ar,
-                //~ (Token){ .tp = tokWord, .payload2 = 1, .startByte = 0, .lenBytes = 4 }
-            //~ )
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word starts with 2 underscores"),
-            //~ .input = allocLit(ar, "__abc"),
-            //~ .expectedOutput = buildLexerWithError(allocLit(ar, errorWordChunkStart), 0, ar)
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Word starts with underscore and digit"),
-            //~ .input = allocLit(ar, "_1abc"),
-            //~ .expectedOutput = buildLexerWithError(allocLit(ar, errorWordChunkStart), 0, ar)
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "Dotword & @-word"),
-            //~ .input = allocLit(ar, "@a123 .Abc "),
-            //~ .expectedOutput = buildLexer(2, ar,
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 5 },
-                //~ (Token){ .tp = tokWord, .startByte = 6, .lenBytes = 4, .payload2 = 1 }
-            //~ )
-        //~ },
-        //~ (LexerTest) {
-            //~ .name = allocLit(ar, "At-reserved word"),
-            //~ .input = allocLit(ar, "@if"),
-                        //~ .expectedOutput = buildLexer(1, ar,
-                //~ (Token){ .tp = tokAtWord, .startByte = 0, .lenBytes = 3 }
-            //~ )
-        //~ }
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word snake case"),
+            .input = allocLit(ar, "asdf_abc"),
+            .expectedOutput = buildLexerWithError(allocLit(ar, errorWordUnderscoresOnlyAtStart), 1, ar,
+                (Token){ .tp = tokStmt }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word correct capitalization 1"),
+            .input = allocLit(ar, "Asdf.abc"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 8  },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 8  }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word correct capitalization 2"),
+            .input = allocLit(ar, "asdf.abcd.zyui"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 14  },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word correct capitalization 3"),
+            .input = allocLit(ar, "asdf.Abcd"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 9 },
+                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 0, .lenBytes = 9 }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word incorrect capitalization"),
+            .input = allocLit(ar, "Asdf.Abcd"),
+            .expectedOutput = buildLexerWithError(allocLit(ar, errorWordCapitalizationOrder), 1, ar,
+                (Token){ .tp = tokStmt }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word starts with underscore and lowercase letter"),
+            .input = allocLit(ar, "_abc"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 4 },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 4 }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word starts with underscore and capital letter"),
+            .input = allocLit(ar, "_Abc"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 4 },
+                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 0, .lenBytes = 4 }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word starts with 2 underscores"),
+            .input = allocLit(ar, "__abc"),
+            .expectedOutput = buildLexerWithError(allocLit(ar, errorWordChunkStart), 1, ar,
+                (Token){ .tp = tokStmt }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Word starts with underscore and digit"),
+            .input = allocLit(ar, "_1abc"),
+            .expectedOutput = buildLexerWithError(allocLit(ar, errorWordChunkStart), 1, ar,
+                (Token){ .tp = tokStmt }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "Dotword"),
+            .input = allocLit(ar, "@a123"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 5 },
+                (Token){ .tp = tokAtWord, .startByte = 0, .lenBytes = 5 }
+            )
+        },
+        (LexerTest) {
+            .name = allocLit(ar, "At-reserved word"),
+            .input = allocLit(ar, "@if"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 3 },
+                (Token){ .tp = tokAtWord, .startByte = 0, .lenBytes = 3 }
+            )
+        }
     );
 }
 
@@ -824,13 +861,19 @@ int main() {
     printf("Lexer test\n");
     printf("----------------------------\n");
     Arena *ar = mkArena();
-        
-    LexerTestSet* wordSet = wordTests(ar);
     LanguageDefinition* lang = buildLanguageDefinitions(ar);
+            
+    LexerTestSet* wordSet = wordTests(ar);
+    LexerTestSet* stringSet = stringTests(ar);
+
     int countPassed = 0;
     int countTests = 0;
     for (int j = 0; j < wordSet->totalTests; j++) {
         LexerTest test = wordSet->tests[j];
+        runLexerTest(test, &countPassed, &countTests, lang, ar);
+    }
+    for (int j = 0; j < stringSet->totalTests; j++) {
+        LexerTest test = stringSet->tests[j];
         runLexerTest(test, &countPassed, &countTests, lang, ar);
     }
     if (countTests == 0) {

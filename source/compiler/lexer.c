@@ -298,10 +298,8 @@ private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
             add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
         }                
     } else {
-        printf("pushing\n");
         pushRememberedToken((RememberedToken){ .tp = tokStmt, .isMultiline=isMultiline, 
                                                               .numberOfToken = lr->totalTokens}, lr->backtrack);
-        printf("tp = %d\n", (*lr->backtrack->content)[0].tp);
         add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
     }
 }
@@ -726,6 +724,7 @@ private bool wordChunk(Lexer* lr, Arr(byte) inp) {
 private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
     int startInd = lr->i;
     bool wasCapitalized = wordChunk(lr, inp);
+    if (lr->wasError) return;
     bool isAlsoAccessor = false;
     while (lr->i < (lr->inpLength - 1)) {
         byte currBt = CURR_BT;
@@ -737,8 +736,9 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
             if (isLetter(nextBt) || nextBt == aUnderscore) {
                 lr->i++;
                 bool isCurrCapitalized = wordChunk(lr, inp);
-                if (wasCapitalized && isCurrCapitalized) {
+                if (lr->wasError || wasCapitalized && isCurrCapitalized) {
                     exitWithError(errorWordCapitalizationOrder, lr);
+                    return;
                 }
                 wasCapitalized = isCurrCapitalized;
             } else {
@@ -754,7 +754,10 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
 
     byte firstByte = lr->inp->content[startInd];
     int lenBytes = lr->i - realStartInd;
-    if (wordType != tokWord && isAlsoAccessor) exitWithError(errorWordWrongAccessor, lr);
+    if (wordType != tokWord && isAlsoAccessor) {
+        exitWithError(errorWordWrongAccessor, lr);
+        return;
+    }
     if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
         add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
         if (isAlsoAccessor) {
@@ -765,6 +768,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
         if (mbReservedWord > 0) {
             if (wordType == tokDotWord) {
                 exitWithError(errorWordReservedWithDot, lr);
+                return;
             } else if (mbReservedWord == reservedTrue) {
                 add((Token){.tp=tokBool, .payload2=1, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
             } else if (mbReservedWord == reservedFalse) {
@@ -1218,10 +1222,11 @@ private Lexer* buildLexer(int totalTokens, String* inp, Arena *a, /* Tokens */ .
  * Finalizes the lexing of a single input: checks for unclosed scopes, and closes an open statement, if any.
  */
 private void finalize(Lexer* lr) {
+    lr->totalTokens = lr->nextInd;
+    if(lr->wasError) return;
     if (!hasValuesRememberedToken(lr->backtrack)) return;
     closeColons(lr);
     uint top = peekRememberedToken(lr->backtrack).tp;
-    printf("length = %d, top %d\n", lr->backtrack->length, top);
     if (lr->backtrack->length == 1 && (top == tokStmt || top == tokAssignment)) {
         closeRegularPunctuation(tokStmt, lr);
     } else {

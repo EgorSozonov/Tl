@@ -32,12 +32,12 @@ DEFINE_STACK_HEADER(int)
 /**
  * There is a closed set of operators in the language.
  *
- * For added flexibility, most operators are extended into two more planes,
+ * For added flexibility, some operators may be extended into one more planes,
  * for example '+' may be extended into '+.', while '/' may be extended into '/.'.
  * These extended operators are declared by the language, and may be defined
  * for any type by the user, with the return type being arbitrary.
  * For example, the type of 3D vectors may have two different multiplication
- * operators: * for vector product and *. for scalar product.
+ * operators: *. for vector product and * for scalar product.
  *
  * Plus, all the extensible operators (and only them) have automatic assignment counterparts.
  * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
@@ -108,8 +108,6 @@ struct LanguageDefinition {
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
 };
-
-
 
 Lexer* createLexer(String* inp, Arena* ar);
 void add(Token t, Lexer* lexer);
