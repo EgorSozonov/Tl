@@ -32,8 +32,8 @@ const char errorDocComment[]                 = "Doc comments must have the synta
 * The '-' is absent because it's handled by 'lexMinus'.
 */
 const int operatorStartSymbols[] = {
-    aExclamation, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDivBy, aSemicolon,
-    aLT, aEqual, aGT, aQuestion, aCaret, aPipe, aTilde
+    aExclamation, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDot, aDivBy, 
+    aLT, aEqual, aGT, aQuestion, aCaret, aPipe
 };
 
 

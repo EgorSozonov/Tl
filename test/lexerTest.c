@@ -553,26 +553,26 @@ LexerTestSet* commentTests(Arena* ar) {
     return createTestSet(allocLit(ar, "Comments lexer tests"), 5, ar,
         (LexerTest) { .name = allocLit(ar, "Comment simple"),
             .input = allocLit(ar, "# this is a comment"),
-            .expectedOutput = buildLexer(2, ar
+            .expectedOutput = buildLexer(0, ar
         )},     
         (LexerTest) { .name = allocLit(ar, "Doc comment"),
             .input = allocLit(ar, "## Documentation comment "),
-            .expectedOutput = buildLexer(2, ar, 
+            .expectedOutput = buildLexer(1, ar, 
                 (Token){ .tp = tokDocComment, .payload2 = 0, .startByte = 2, .lenBytes = 23 }
         )},  
         (LexerTest) { .name = allocLit(ar, "Doc comment before something"),
             .input = allocLit(ar, "## Documentation comment\n" 
                                   "print \"hw\" "
             ),
-            .expectedOutput = buildLexer(2, ar, 
-                (Token){ .tp = tokDocComment, .payload2 = 0, .startByte = 2, .lenBytes = 22 },
+            .expectedOutput = buildLexer(4, ar, 
+                (Token){ .tp = tokDocComment, .startByte = 2, .lenBytes = 22 },
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 25, .lenBytes = 11 },
                 (Token){ .tp = tokWord, .startByte = 25, .lenBytes = 5 },
                 (Token){ .tp = tokString, .startByte = 32, .lenBytes = 2 }
         )},
         (LexerTest) { .name = allocLit(ar, "Doc comment empty"),
             .input = allocLit(ar, "##\n" "print \"hw\" "),
-            .expectedOutput = buildLexer(2, ar,
+            .expectedOutput = buildLexer(3, ar,
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 3, .lenBytes = 11 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 3, .lenBytes = 5 },
                 (Token){ .tp = tokString, .startByte = 10, .lenBytes = 2 }
@@ -583,7 +583,7 @@ LexerTestSet* commentTests(Arena* ar) {
                                   "## Third line\n" 
                                   "print \"hw\" "
             ),
-            .expectedOutput = buildLexer(2, ar, 
+            .expectedOutput = buildLexer(4, ar, 
                 (Token){ .tp = tokDocComment, .payload2 = 0, .startByte = 2, .lenBytes = 40 },
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 43, .lenBytes = 11 },
                 (Token){ .tp = tokWord, .startByte = 43, .lenBytes = 5 },
@@ -762,7 +762,7 @@ LexerTestSet* operatorTests(Arena* ar) {
                 (Token){ .tp = tokOperator, .payload1 = (opTArrowLeft << 2), .startByte = 20, .lenBytes = 2 },                
                 (Token){ .tp = tokOperator, .payload1 = (opTIntervalLeft << 2), .startByte = 23, .lenBytes = 3 },
                 (Token){ .tp = tokOperator, .payload1 = (opTIntervalExcl << 2), .startByte = 27, .lenBytes = 2 },
-                (Token){ .tp = tokOperator, .payload1 = (opTIsEmpty << 2), .startByte = 30, .lenBytes = 1 }                   
+                (Token){ .tp = tokOperator, .payload1 = (opTToString << 2), .startByte = 30, .lenBytes = 1 }                   
         )},
         (LexerTest) { .name = allocLit(ar, "Operator expression"),
             .input = allocLit(ar, "a - b"),
@@ -856,26 +856,29 @@ LexerTestSet* functionTests(Arena* ar) {
 }
 
 
+void runATestSet(LexerTestSet* (*testGenerator)(Arena*), int* countPassed, int* countTests, LanguageDefinition* lang, Arena* a) {
+    LexerTestSet* testSet = (testGenerator)(a);
+    for (int j = 0; j < testSet->totalTests; j++) {
+        LexerTest test = testSet->tests[j];
+        runLexerTest(test, countPassed, countTests, lang, a);
+    }
+}
+
+
 int main() {
     printf("----------------------------\n");
     printf("Lexer test\n");
     printf("----------------------------\n");
-    Arena *ar = mkArena();
-    LanguageDefinition* lang = buildLanguageDefinitions(ar);
-            
-    LexerTestSet* wordSet = wordTests(ar);
-    LexerTestSet* stringSet = stringTests(ar);
+    Arena *a = mkArena();
+    LanguageDefinition* lang = buildLanguageDefinitions(a);
 
     int countPassed = 0;
     int countTests = 0;
-    for (int j = 0; j < wordSet->totalTests; j++) {
-        LexerTest test = wordSet->tests[j];
-        runLexerTest(test, &countPassed, &countTests, lang, ar);
-    }
-    for (int j = 0; j < stringSet->totalTests; j++) {
-        LexerTest test = stringSet->tests[j];
-        runLexerTest(test, &countPassed, &countTests, lang, ar);
-    }
+    runATestSet(&wordTests, &countPassed, &countTests, lang, a);
+    runATestSet(&stringTests, &countPassed, &countTests, lang, a);
+    runATestSet(&commentTests, &countPassed, &countTests, lang, a);
+    //runATestSet(&operatorTests, &countPassed, &countTests, lang, a);
+    
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {
@@ -884,5 +887,5 @@ int main() {
         printf("\nFailed %d tests out of %d!\n", (countTests - countPassed), countTests);
     }
     
-    deleteArena(ar);
+    deleteArena(a);
 }

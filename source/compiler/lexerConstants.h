@@ -129,23 +129,23 @@ extern const int operatorStartSymbols[16];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    36 // must be equal to the count of following constants
+#define countOperators    35 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
 #define opTSize            2 // $
 #define opTRemainder       3 // %
 #define opTBoolAnd         4 // &&
 #define opTBinaryAnd       5 // &
-#define opTToString        6 // '
+#define opTNotEmpty        6 // '
 #define opTTimes           7 // *
 #define opTIncrement       8 // ++
 #define opTPlus            9 // +
 #define opTDecrement      10 // --
 #define opTMinus          11 // -
-#define opTDivBy          12 // /
-#define opTMutation       13 // :=
-#define opTRangeHalf      14 // ;<
-#define opTRange          15 // ;
+#define opTRangeHalf      12 // ..<
+#define opTRange          13 // ..
+#define opTDivBy          14 // /
+#define opTMutation       15 // :=
 #define opTArrowLeft      16 // <-
 #define opTLTEQ           17 // <=
 #define opTBitShiftLeft   18 // <<
@@ -161,11 +161,10 @@ extern const int operatorStartSymbols[16];
 #define opTGreaterThan    28 // >
 #define opTNullCoalesc    29 // ?:
 #define opTQuestionMark   30 // ?
-#define opTIsEmpty        31 // backslash
+#define opTToString       31 // backslash
 #define opTExponent       32 // ^
 #define opTBoolOr         33 // ||
 #define opTPipe           34 // |
-#define opTNotEmpty       35 // ~
 
 
 /** Reserved words of Tl in ASCII byte form */
