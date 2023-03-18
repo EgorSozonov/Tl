@@ -24,13 +24,14 @@ typedef struct {
 
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
-    "int", "float", "bool", "string", "_", "docComment", 
-    "word", ".word", "@word", "reserved", "operator", ":", 
-    "stmt", "()", "[]", "compoundString", "accessor", "assignment", "typeDecl", "lexScope", 
-    "alias", "await", "break", "catch", "continue", "embed", "export", "for",
-    "generator", "if", "ifEq", "ifPr", "impl", "interface", "lambda", "match", "mut",
-    "nodestruct", "return", "struct", "test", "try", "type", "yield"
+    "Int", "Float", "Bool", "String", "_", "DocComment", 
+    "word", ".word", "@word", ":func", "reserved", "operator", "\\", 
+    "stmt", "()", "[]", "accessor", "funcExpr", "assignment", "typeDecl", "lexScope", 
+    "alias", "await", "catch", "continue", "embed", "export", "fn",
+    "generator", "if", "ifEq", "ifPr", "impl", "interface", "lambda", "loop", "match", "mut",
+    "nodestruct", "return", "struct", "try", "type", "yield"
 };
+
 
 static Lexer* buildLexer(int totalTokens, Arena *ar, /* Tokens */ ...) {
     Lexer* result = createLexer(&empty, ar);
@@ -132,7 +133,13 @@ void printLexer(Lexer* a) {
     }
     printf("Total tokens: %d \n", a->totalTokens);
     for (int i = 0; i < a->totalTokens; i++) {
-        printf("%s [%d; %d]\n", tokNames[a->tokens[i].tp], a->tokens[i].startByte, a->tokens[i].lenBytes);
+        Token tok = a->tokens[i];
+        if (tok.payload1 != 0 || tok.payload2 != 0) {
+            printf("%s %d %d [%d; %d]\n", tokNames[tok.tp], tok.payload1, tok.payload2, tok.startByte, tok.lenBytes);
+        } else {
+            printf("%s [%d; %d]\n", tokNames[tok.tp], tok.startByte, tok.lenBytes);
+        }
+        
     }
 }
 
@@ -728,87 +735,87 @@ LexerTestSet* punctuationTests(Arena* ar) {
 
 
 LexerTestSet* operatorTests(Arena* ar) {
-    return createTestSet(allocLit(ar, "Operator lexer tests"), 3, ar,
-        //~ (LexerTest) { .name = allocLit(ar, "Operator simple 1"),
-            //~ .input = allocLit(ar, "+"),
-            //~ .expectedOutput = buildLexer(2, ar,
-                //~ (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
-                //~ (Token){ .tp = tokOperator, .payload1 = opTPlus << 2, .startByte = 0, .lenBytes = 1 }
-        //~ )},             
-        //~ (LexerTest) { .name = allocLit(ar, "Operator extensible"),
-            //~ .input = allocLit(ar, "+. -. >>. %. *. 5 <<. ^."),
-            //~ .expectedOutput = buildLexer(9, ar, 
-                //~ (Token){ .tp = tokStmt, .payload2 = 18, .startByte = 0, .lenBytes = 24 },
-                //~ (Token){ .tp = tokOperator, .payload1 = 2 + (opTPlus << 2), .startByte = 0, .lenBytes = 2 },
-                //~ (Token){ .tp = tokOperator, .payload1 = 2 + (opTMinus << 2), .startByte = 3, .lenBytes = 2 },                
-                //~ (Token){ .tp = tokOperator, .payload1 = 2 + (opTBitshiftRight << 2), .startByte = 6, .lenBytes = 3 },
-                //~ (Token){ .tp = tokOperator, .payload1 = 2 + (opTRemainder << 2), .startByte = 10, .lenBytes = 2 },
-                //~ (Token){ .tp = tokOperator, .payload1 = 2 + (opTTimes << 2), .startByte = 13, .lenBytes = 2 },
-                //~ (Token){ .tp = tokInt, .payload2 = 5, .startByte = 16, .lenBytes = 2 }, 
-                //~ (Token){ .tp = tokOperator, .payload1 = 2 + (opTBitShiftLeft << 2), .startByte = 18, .lenBytes = 3 }, 
-                //~ (Token){ .tp = tokOperator, .payload1 = 2 + (opTExponent << 2), .startByte = 22, .lenBytes = 2 }
-        //~ )},
-        //~ (LexerTest) { .name = allocLit(ar, "Operators list"),
-            //~ .input = allocLit(ar, "+ - / * ^ && || "),//~ ? <- >=< >< \\"),
-            //~ .expectedOutput = buildLexer(14, ar,
-                //~ (Token){ .tp = tokStmt, .payload2 = 13, .startByte = 0, .lenBytes = 31 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTPlus << 2), .startByte = 0, .lenBytes = 1 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTMinus << 2), .startByte = 2, .lenBytes = 1 },                
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTDivBy << 2), .startByte = 4, .lenBytes = 1 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTTimes << 2), .startByte = 6, .lenBytes = 1 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTExponent << 2), .startByte = 8, .lenBytes = 1 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTBoolAnd << 2), .startByte = 10, .lenBytes = 2 }, 
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTBoolOr << 2), .startByte = 13, .lenBytes = 2 }, 
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTNotEmpty << 2), .startByte = 16, .lenBytes = 1 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTQuestionMark << 2), .startByte = 18, .lenBytes = 1 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTArrowLeft << 2), .startByte = 20, .lenBytes = 2 },                
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTIntervalLeft << 2), .startByte = 23, .lenBytes = 3 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTIntervalExcl << 2), .startByte = 27, .lenBytes = 2 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTToString << 2), .startByte = 30, .lenBytes = 1 }                   
-        //~ )},
-        //~ (LexerTest) { .name = allocLit(ar, "Operator expression"),
-            //~ .input = allocLit(ar, "a - b"),
-            //~ .expectedOutput = buildLexer(4, ar,
-                //~ (Token){ .tp = tokStmt, .payload2 = 3, .startByte = 0, .lenBytes = 5 },
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
-                //~ (Token){ .tp = tokOperator, .payload1 = (opTMinus << 2), .startByte = 2, .lenBytes = 1 },
-                //~ (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 }                
-        //~ )},              
-        //~ (LexerTest) { .name = allocLit(ar, "Operator assignment 1"),
-            //~ .input = allocLit(ar, "a += b"),
-            //~ .expectedOutput = buildLexer(3, ar,
-                //~ (Token){ .tp = tokAssignment, .payload1 = 1 + (opTPlus << 2), .payload2 = 2, .startByte = 0, .lenBytes = 6 },
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
-                //~ (Token){ .tp = tokWord, .startByte = 5, .lenBytes = 1 }    
-        //~ )},             
-        //~ (LexerTest) { .name = allocLit(ar, "Operator assignment 2"),
-            //~ .input = allocLit(ar, "a ||= b"),
-            //~ .expectedOutput = buildLexer(3, ar, 
-                //~ (Token){ .tp = tokAssignment, .payload1 = 1 + (opTBoolOr << 2), .payload2 = 2, .startByte = 0, .lenBytes = 7 },
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
-                //~ (Token){ .tp = tokWord, .startByte = 6, .lenBytes = 1 }    
-        //~ )},
-        //~ (LexerTest) { .name = allocLit(ar, "Operator assignment 3"),
-            //~ .input = allocLit(ar, "a *.= b"),
-            //~ .expectedOutput = buildLexer(3, ar,
-                //~ (Token){ .tp = tokAssignment, .payload1 = 3 + (opTTimes << 2), .payload2 = 2, .startByte = 0, .lenBytes = 7 },
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
-                //~ (Token){ .tp = tokWord, .startByte = 6, .lenBytes = 1 }               
-        //~ )},
-        //~ (LexerTest) { .name = allocLit(ar, "Operator assignment 4"),
-            //~ .input = allocLit(ar, "a ^= b"),
-            //~ .expectedOutput = buildLexer(3, ar,
-                //~ (Token){ .tp = tokAssignment, .payload1 = 1 + (opTExponent << 2), .payload2 = 2, .startByte = 0, .lenBytes = 6 },
-                //~ (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
-                //~ (Token){ .tp = tokWord, .payload2 = 3, .startByte = 5, .lenBytes = 1 }            
-        //~ )}, 
-        //~ (LexerTest) { .name = allocLit(ar, "Operator assignment in parens error"),
-            //~ .input = allocLit(ar, "(x += y + 5)"),
-            //~ .expectedOutput = buildLexerWithError(allocLit(ar, errorOperatorAssignmentPunct), 3, ar,
-                //~ (Token){ .tp = tokStmt },
-                //~ (Token){ .tp = tokParens, .startByte = 1},
-                //~ (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 1 }
-        //~ )},             
+    return createTestSet(allocLit(ar, "Operator lexer tests"), 12, ar,
+        (LexerTest) { .name = allocLit(ar, "Operator simple 1"),
+            .input = allocLit(ar, "+"),
+            .expectedOutput = buildLexer(2, ar,
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = opTPlus << 2, .startByte = 0, .lenBytes = 1 }
+        )},             
+        (LexerTest) { .name = allocLit(ar, "Operator extensible"),
+            .input = allocLit(ar, "+. -. >>. %. *. 5 <<. ^."),
+            .expectedOutput = buildLexer(9, ar, 
+                (Token){ .tp = tokStmt, .payload2 = 8, .lenBytes = 24 },
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTPlus << 2), .startByte = 0, .lenBytes = 2 },
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTMinus << 2), .startByte = 3, .lenBytes = 2 },                
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTBitshiftRight << 2), .startByte = 6, .lenBytes = 3 },
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTRemainder << 2), .startByte = 10, .lenBytes = 2 },
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTTimes << 2), .startByte = 13, .lenBytes = 2 },
+                (Token){ .tp = tokInt, .payload2 = 5, .startByte = 16, .lenBytes = 1 }, 
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTBitShiftLeft << 2), .startByte = 18, .lenBytes = 3 }, 
+                (Token){ .tp = tokOperator, .payload1 = 2 + (opTExponent << 2), .startByte = 22, .lenBytes = 2 }
+        )},
+        (LexerTest) { .name = allocLit(ar, "Operators list"),
+            .input = allocLit(ar, "+ - / * ^ && || ' ? <- >=< >< $"),
+            .expectedOutput = buildLexer(14, ar,
+                (Token){ .tp = tokStmt, .payload2 = 13, .startByte = 0, .lenBytes = 31 },
+                (Token){ .tp = tokOperator, .payload1 = (opTPlus << 2), .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTMinus << 2), .startByte = 2, .lenBytes = 1 },                
+                (Token){ .tp = tokOperator, .payload1 = (opTDivBy << 2), .startByte = 4, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTTimes << 2), .startByte = 6, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTExponent << 2), .startByte = 8, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTBoolAnd << 2), .startByte = 10, .lenBytes = 2 }, 
+                (Token){ .tp = tokOperator, .payload1 = (opTBoolOr << 2), .startByte = 13, .lenBytes = 2 }, 
+                (Token){ .tp = tokOperator, .payload1 = (opTNotEmpty << 2), .startByte = 16, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTQuestionMark << 2), .startByte = 18, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTArrowLeft << 2), .startByte = 20, .lenBytes = 2 },                
+                (Token){ .tp = tokOperator, .payload1 = (opTIntervalLeft << 2), .startByte = 23, .lenBytes = 3 },
+                (Token){ .tp = tokOperator, .payload1 = (opTIntervalExcl << 2), .startByte = 27, .lenBytes = 2 },
+                (Token){ .tp = tokOperator, .payload1 = (opTToString << 2), .startByte = 30, .lenBytes = 1 }                   
+        )},
+        (LexerTest) { .name = allocLit(ar, "Operator expression"),
+            .input = allocLit(ar, "a - b"),
+            .expectedOutput = buildLexer(4, ar,
+                (Token){ .tp = tokStmt, .payload2 = 3, .startByte = 0, .lenBytes = 5 },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTMinus << 2), .startByte = 2, .lenBytes = 1 },
+                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 }                
+        )},              
+        (LexerTest) { .name = allocLit(ar, "Operator assignment 1"),
+            .input = allocLit(ar, "a += b"),
+            .expectedOutput = buildLexer(3, ar,
+                (Token){ .tp = tokAssignment, .payload1 = 1 + (opTPlus << 2), .payload2 = 2, .startByte = 0, .lenBytes = 6 },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokWord, .startByte = 5, .lenBytes = 1 }    
+        )},             
+        (LexerTest) { .name = allocLit(ar, "Operator assignment 2"),
+            .input = allocLit(ar, "a ||= b"),
+            .expectedOutput = buildLexer(3, ar, 
+                (Token){ .tp = tokAssignment, .payload1 = 1 + (opTBoolOr << 2), .payload2 = 2, .startByte = 0, .lenBytes = 7 },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokWord, .startByte = 6, .lenBytes = 1 }    
+        )},
+        (LexerTest) { .name = allocLit(ar, "Operator assignment 3"),
+            .input = allocLit(ar, "a *.= b"),
+            .expectedOutput = buildLexer(3, ar,
+                (Token){ .tp = tokAssignment, .payload1 = 3 + (opTTimes << 2), .payload2 = 2, .startByte = 0, .lenBytes = 7 },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokWord, .startByte = 6, .lenBytes = 1 }               
+        )},
+        (LexerTest) { .name = allocLit(ar, "Operator assignment 4"),
+            .input = allocLit(ar, "a ^= b"),
+            .expectedOutput = buildLexer(3, ar,
+                (Token){ .tp = tokAssignment, .payload1 = 1 + (opTExponent << 2), .payload2 = 2, .startByte = 0, .lenBytes = 6 },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokWord, .startByte = 5, .lenBytes = 1 }            
+        )}, 
+        (LexerTest) { .name = allocLit(ar, "Operator assignment in parens error"),
+            .input = allocLit(ar, "(x += y + 5)"),
+            .expectedOutput = buildLexerWithError(allocLit(ar, errorOperatorAssignmentPunct), 3, ar,
+                (Token){ .tp = tokStmt },
+                (Token){ .tp = tokParens, .startByte = 1},
+                (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 1 }
+        )},             
         (LexerTest) { .name = allocLit(ar, "Operator assignment with parens"),
             .input = allocLit(ar, "x +.= (y + 5)"),
             .expectedOutput = buildLexer(6, ar, 
@@ -829,9 +836,9 @@ LexerTestSet* operatorTests(Arena* ar) {
         (LexerTest) { .name = allocLit(ar, "Operator assignment multiple error 1"),
             .input = allocLit(ar, "x := y := 7"),
             .expectedOutput = buildLexerWithError(allocLit(ar, errorOperatorMultipleAssignment), 3, ar,
-                (Token){ .tp = tokAssignment, .payload1 = opTDefinition << 2, .payload2 = 9, .startByte = 0, .lenBytes = 19 },
-                (Token){ .tp = tokStmt, .startByte = 0, .lenBytes = 1 },
-                (Token){ .tp = tokStmt, .startByte = 5, .lenBytes = 1 }
+                (Token){ .tp = tokAssignment, .payload1 = 1 + (opTMutation << 2) },
+                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
+                (Token){ .tp = tokWord, .startByte = 5, .lenBytes = 1 }
         )}         
     );
 }
@@ -840,19 +847,19 @@ LexerTestSet* operatorTests(Arena* ar) {
 LexerTestSet* functionTests(Arena* ar) {
     return createTestSet(allocLit(ar, "Function lexer tests"), 1, ar,
         (LexerTest) { .name = allocLit(ar, "Function simple 1"),
-            .input = allocLit(ar, "foo = (- x y. x - y)"),
+            .input = allocLit(ar, "(fn foo Int(x Int y Int) x - y)"),
             .expectedOutput = buildLexer(2, ar,
-                (Token){ .tp = tokAssignment, .payload2 = opTDefinition << 2, .startByte = 0, .lenBytes = 19 },
-                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 3 },
-                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
-                (Token){ .tp = tokLambda, .payload2 = 7, .startByte = 7, .lenBytes = 11 },           
-                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 6 },
-                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 8, .lenBytes = 1 },
-                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 10, .lenBytes = 1 },
-                (Token){ .tp = tokStmt, .payload2 = 3, .startByte = 13, .lenBytes = 5 },                     
-                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 13, .lenBytes = 1 },                
-                (Token){ .tp = tokOperator, .payload2 = opTMinus, .startByte = 15, .lenBytes = 1 },                
-                (Token){ .tp = tokWord, .startByte = 17, .lenBytes = 1 }
+                (Token){ .tp = tokFnDef, .payload2 = 10, .startByte = 1, .lenBytes = 29 },
+                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 3 }, // foo
+                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 8, .lenBytes = 3 }, // Int
+                (Token){ .tp = tokParens, .payload2 = 4, .startByte = 12, .lenBytes = 11 },
+                (Token){ .tp = tokWord, .startByte = 12, .lenBytes = 1 },
+                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 14, .lenBytes = 3 },                
+                (Token){ .tp = tokWord, .startByte = 18, .lenBytes = 3 },
+                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 20, .lenBytes = 1 },    
+                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 25, .lenBytes = 1 },                
+                (Token){ .tp = tokOperator, .payload2 = (opTMinus << 2), .startByte = 27, .lenBytes = 1 },                
+                (Token){ .tp = tokWord, .startByte = 29, .lenBytes = 1 }
         )}  
     );
 }
@@ -876,10 +883,11 @@ int main() {
 
     int countPassed = 0;
     int countTests = 0;
-    //runATestSet(&wordTests, &countPassed, &countTests, lang, a);
-    //runATestSet(&stringTests, &countPassed, &countTests, lang, a);
-    //runATestSet(&commentTests, &countPassed, &countTests, lang, a);
-    runATestSet(&operatorTests, &countPassed, &countTests, lang, a);
+    //~ runATestSet(&wordTests, &countPassed, &countTests, lang, a);
+    //~ runATestSet(&stringTests, &countPassed, &countTests, lang, a);
+    //~ runATestSet(&commentTests, &countPassed, &countTests, lang, a);
+    //~ runATestSet(&operatorTests, &countPassed, &countTests, lang, a);
+    runATestSet(&functionTests, &countPassed, &countTests, lang, a);
 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");

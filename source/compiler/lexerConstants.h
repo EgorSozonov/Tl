@@ -67,34 +67,34 @@ extern const int operatorStartSymbols[16];
 #define tokDocComment   5
 
 // This group requires analysis in the parser
-#define tokWord         6      // payload2: 1 if the word is all capitals
-#define tokDotWord      7      // payload2: 1 if the word is all capitals
-#define tokAtWord       8
-#define tokReserved     9      // payload2: value of a constant from the 'reserved*' group
-#define tokOperator    10      // payload1: OperatorToken encoded as an Int
+#define tokWord         6      // payload2 = 1 if the last chunk of a word is capital
+#define tokDotWord      7      // payload2 = 1 if the last chunk of a word is capital
+#define tokAtWord       8      // "@annotation"
+#define tokFuncWord     9      // ":funcName"
+#define tokReserved    10      // payload2 = value of a constant from the 'reserved*' group
+#define tokOperator    11      // payload1 = OperatorToken encoded as an Int
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon       11
+#define tokBackslash   12
 
 // Punctuation (inner node) Token types
-#define tokStmt        12
-#define tokParens      13
-#define tokBrackets    14
-#define tokAccessor    15
-#define tokFuncExpr    16      // the ":(foo :bar)" kind of thing
-#define tokAssignment  17      // payload1: as in tokOperator
-#define tokTypeDecl    18
-#define tokLexScope    19
+#define tokStmt        13
+#define tokParens      14
+#define tokBrackets    15
+#define tokAccessor    16
+#define tokFuncExpr    17      // the ":(foo :bar)" kind of thing
+#define tokAssignment  18      // payload1 = as in tokOperator
+#define tokTypeDecl    19
+#define tokLexScope    20
 
 // Core syntax form Token types
-#define tokStmtAlias   20
-#define tokStmtAwait   21
-#define tokStmtBreak   22
+#define tokStmtAlias   21
+#define tokStmtAwait   22
 #define tokStmtCatch   23
 #define tokContinue    24
 #define tokStmtEmbed   25       // embed a text file as a string literal
 #define tokStmtExport  26
-#define tokStmtFor     27
+#define tokFnDef       27
 #define tokGenerator   28       // generator (like a function but yields instead of returning)
 #define tokStmtIf      29
 #define tokStmtIfEq    30       // like if, but every branch is a value compared using standard equality
@@ -108,10 +108,9 @@ extern const int operatorStartSymbols[16];
 #define tokNodestruct  38       // signaling that this value doesn't need its destructor called at scope end
 #define tokStmtReturn  39
 #define tokStmtStruct  40
-#define tokStmtTest    41
-#define tokStmtTry     42
-#define tokStmtType    43
-#define tokYield       44
+#define tokStmtTry     41
+#define tokStmtType    42
+#define tokYield       43
 
 
 /** Must be the lowest value in the PunctuationToken enum */
@@ -130,20 +129,20 @@ extern const int operatorStartSymbols[16];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    35 // must be equal to the count of following constants
+#define countOperators    34 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
-#define opTRemainder       2 // %
-#define opTBoolAnd         3 // &&
-#define opTBinaryAnd       4 // &
-#define opTNotEmpty        5 // '
-#define opTTimes           6 // *
-#define opTIncrement       7 // ++
-#define opTPlus            8 // +
-#define opTDecrement       9 // --
-#define opTMinus          10 // -
-#define opTDivBy          11 // /
-#define opTMutation       12 // :=
+#define opTToString        2 // $
+#define opTRemainder       3 // %
+#define opTBoolAnd         4 // &&
+#define opTBinaryAnd       5 // &
+#define opTNotEmpty        6 // '
+#define opTTimes           7 // *
+#define opTIncrement       8 // ++
+#define opTPlus            9 // +
+#define opTDecrement      10 // --
+#define opTMinus          11 // -
+#define opTDivBy          12 // /
 #define opTRangeHalf      13 // ;<
 #define opTRange          14 // ;
 #define opTArrowLeft      15 // <-
@@ -161,11 +160,11 @@ extern const int operatorStartSymbols[16];
 #define opTGreaterThan    27 // >
 #define opTNullCoalesc    28 // ?:
 #define opTQuestionMark   29 // ?
-#define opTToString       30 // backslash
-#define opTExponent       31 // ^
-#define opTBoolOr         32 // ||
-#define opTPipe           33 // |
-#define opTSize           34 // ~
+#define opTExponent       30 // ^
+#define opTBoolOr         31 // ||
+#define opTPipe           32 // |
+#define opTSize           33 // ~
+#define opTMutation       40 // Not a real operator, just a tag for :=
 
 
 /** Reserved words of Tl in ASCII byte form */
@@ -178,6 +177,7 @@ static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 11
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
+static const byte reservedBytesFn[]          = { 102, 110 };
 static const byte reservedBytesIf[]          = { 105, 102 };
 static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
 static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
@@ -189,7 +189,6 @@ static const byte reservedBytesMut[]         = { 109, 117, 116 };
 static const byte reservedBytesNodestruct[]  = { 110, 111, 100, 101, 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
 static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
-static const byte reservedBytesTest[]        = { 116, 101, 115, 116 };
 static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
 static const byte reservedBytesTry[]         = { 116, 114, 121 };
 static const byte reservedBytesType[]        = { 116, 121, 112, 101 };
