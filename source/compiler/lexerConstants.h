@@ -80,8 +80,8 @@ extern const int operatorStartSymbols[16];
 #define tokStmt        12
 #define tokParens      13
 #define tokBrackets    14
-#define tokCompoundStr 15
-#define tokAccessor    16
+#define tokAccessor    15
+#define tokFuncExpr    16      // the ":(foo :bar)" kind of thing
 #define tokAssignment  17      // payload1: as in tokOperator
 #define tokTypeDecl    18
 #define tokLexScope    19
@@ -102,15 +102,16 @@ extern const int operatorStartSymbols[16];
 #define tokStmtImpl    32
 #define tokStmtIface   33
 #define tokLambda      34
-#define tokStmtMatch   35       // pattern matching sum type
-#define tokStmtMut     36
-#define tokNodestruct  37       // signaling that the value doesn't need its destructor called at scope end
-#define tokStmtReturn  38
-#define tokStmtStruct  39
-#define tokStmtTest    40
-#define tokStmtTry     41
-#define tokStmtType    42
-#define tokYield       43
+#define tokLoop        35       // recur operator for tail recursion
+#define tokStmtMatch   36       // pattern matching on sum type tag
+#define tokStmtMut     37
+#define tokNodestruct  38       // signaling that this value doesn't need its destructor called at scope end
+#define tokStmtReturn  39
+#define tokStmtStruct  40
+#define tokStmtTest    41
+#define tokStmtTry     42
+#define tokStmtType    43
+#define tokYield       44
 
 
 /** Must be the lowest value in the PunctuationToken enum */
@@ -132,57 +133,56 @@ extern const int operatorStartSymbols[16];
 #define countOperators    35 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
-#define opTSize            2 // $
-#define opTRemainder       3 // %
-#define opTBoolAnd         4 // &&
-#define opTBinaryAnd       5 // &
-#define opTNotEmpty        6 // '
-#define opTTimes           7 // *
-#define opTIncrement       8 // ++
-#define opTPlus            9 // +
-#define opTDecrement      10 // --
-#define opTMinus          11 // -
-#define opTRangeHalf      12 // ..<
-#define opTRange          13 // ..
-#define opTDivBy          14 // /
-#define opTMutation       15 // :=
-#define opTArrowLeft      16 // <-
-#define opTLTEQ           17 // <=
-#define opTBitShiftLeft   18 // <<
-#define opTLessThan       19 // <
-#define opTEquality       20 // ==
-#define opTDefinition     21 // =
-#define opTIntervalBoth   22 // >=<=
-#define opTIntervalLeft   23 // >=<
-#define opTIntervalRight  24 // ><=
-#define opTIntervalExcl   25 // ><
-#define opTGTEQ           26 // >=
-#define opTBitshiftRight  27 // >>
-#define opTGreaterThan    28 // >
-#define opTNullCoalesc    29 // ?:
-#define opTQuestionMark   30 // ?
-#define opTToString       31 // backslash
-#define opTExponent       32 // ^
-#define opTBoolOr         33 // ||
-#define opTPipe           34 // |
+#define opTRemainder       2 // %
+#define opTBoolAnd         3 // &&
+#define opTBinaryAnd       4 // &
+#define opTNotEmpty        5 // '
+#define opTTimes           6 // *
+#define opTIncrement       7 // ++
+#define opTPlus            8 // +
+#define opTDecrement       9 // --
+#define opTMinus          10 // -
+#define opTDivBy          11 // /
+#define opTMutation       12 // :=
+#define opTRangeHalf      13 // ;<
+#define opTRange          14 // ;
+#define opTArrowLeft      15 // <-
+#define opTLTEQ           16 // <=
+#define opTBitShiftLeft   17 // <<
+#define opTLessThan       18 // <
+#define opTEquality       19 // ==
+#define opTDefinition     20 // =
+#define opTIntervalBoth   21 // >=<=
+#define opTIntervalLeft   22 // >=<
+#define opTIntervalRight  23 // ><=
+#define opTIntervalExcl   24 // ><
+#define opTGTEQ           25 // >=
+#define opTBitshiftRight  26 // >>
+#define opTGreaterThan    27 // >
+#define opTNullCoalesc    28 // ?:
+#define opTQuestionMark   29 // ?
+#define opTToString       30 // backslash
+#define opTExponent       31 // ^
+#define opTBoolOr         32 // ||
+#define opTPipe           33 // |
+#define opTSize           34 // ~
 
 
 /** Reserved words of Tl in ASCII byte form */
-#define countReservedLetters         25 // length of the interval of letters that may be init for reserved words
-#define countReservedWords           24 // count of different reserved words below
+#define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
+#define countReservedWords           23 // count of different reserved words below
 static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
-static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
 static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
 static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
-static const byte reservedBytesFor[]         = { 102, 111, 114 };
 static const byte reservedBytesIf[]          = { 105, 102 };
 static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
 static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
 static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
+static const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
 static const byte reservedBytesMut[]         = { 109, 117, 116 };

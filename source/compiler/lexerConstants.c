@@ -28,12 +28,12 @@ const char errorOperatorMultipleAssignment[] = "Multiple assignment / type decla
 const char errorDocComment[]                 = "Doc comments must have the syntax (;; comment .)";
 
 
-/** All the symbols an operator may start with. The ':' is absent because it's handled by lexColon.
-* The '-' is absent because it's handled by 'lexMinus'.
+/** All the symbols an operator may start with. The "$" is absent because it's handled by lexDollar.
+* ":" is absent because it's handled by lexColon. The "-" is absent because it's handled by lexMinus.
 */
 const int operatorStartSymbols[] = {
-    aExclamation, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDot, aDivBy, 
-    aLT, aEqual, aGT, aQuestion, aCaret, aPipe
+    aExclamation, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDot, aDivBy, 
+    aLT, aEqual, aGT, aQuestion, aCaret, aPipe, aTilde
 };
 
 
