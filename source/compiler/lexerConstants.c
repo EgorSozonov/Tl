@@ -25,6 +25,7 @@ const char errorOperatorUnknown[]            = "Unknown operator";
 const char errorOperatorAssignmentPunct[]    = "Incorrect assignment operator placement: must be directly inside an ordinary statement, after the binding name!";
 const char errorOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
 const char errorOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
+const char errorCoreMissingParen[]           = "Core form requires opening parenthesis after keyword!"; 
 const char errorDocComment[]                 = "Doc comments must have the syntax (;; comment .)";
 
 

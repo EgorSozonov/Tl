@@ -95,7 +95,7 @@ void add(Token t, Lexer* lexer) {
 
 /** For all the dollars at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
 private void closeDollars(Lexer* lr) {
-    while (hasValuesRememberedToken(lr->backtrack) && peekRememberedToken(lr->backtrack).wasOriginallyColon) {
+    while (hasValuesRememberedToken(lr->backtrack) && peekRememberedToken(lr->backtrack).wasOriginallyBackslash) {
         RememberedToken top = popRememberedToken(lr->backtrack);
         int j = top.numberOfToken;
         lr->tokens[j].tp = tokParens;
@@ -132,7 +132,6 @@ private void validateClosingPunct(uint closingType, uint openType, Lexer* lr) {
  * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a ] or a dot.
  * This doesn't actually add any tokens to the array, just performs validation and sets the token length
  * for the opener token.
- * TODO correctly check if it's a multi-line statement or not, and whether it should be ended
  */
 private void closeRegularPunctuation(int closingType, Lexer* lr) {
     closeDollars(lr);
@@ -568,7 +567,7 @@ private void lexNumber(Lexer* lr, Arr(byte) inp) {
  */
 private void openPunctuation(unsigned int tType, Lexer* lr) {
     pushRememberedToken( 
-        (RememberedToken){ .tp = tType, .numberOfToken = lr->nextInd, .wasOriginallyColon = tType == tokBackslash},
+        (RememberedToken){ .tp = tType, .numberOfToken = lr->nextInd, .wasOriginallyBackslash = tType == tokBackslash},
         lr->backtrack
     );
     add((Token) {.tp = tType, .startByte = (lr->i + 1) }, lr);
@@ -579,21 +578,26 @@ private void openPunctuation(unsigned int tType, Lexer* lr) {
  * Lexer action for a reserved word. If at the start of a statement/expression, it mutates the type of said expression,
  * otherwise it emits a corresponding token.
  */
-private void lexReservedWord(int reservedWordType, int startInd, Lexer* lr) {
-    if (!hasValuesRememberedToken(lr->backtrack) || popRememberedToken(lr->backtrack).numberOfToken < (lr->nextInd - 1)) {
+private void lexReservedWord(uint reservedWordType, int startInd, Lexer* lr) {
+    if (!hasValuesRememberedToken(lr->backtrack) || peekRememberedToken(lr->backtrack).numberOfToken < (lr->nextInd - 1)) {
         add((Token){.tp=tokReserved, .payload2=reservedWordType, .startByte=startInd, .lenBytes=(lr->i - startInd)}, lr);
         return;
     }
-
-    RememberedToken currSpan = peekRememberedToken(lr->backtrack);
-    if (currSpan.numberOfToken < (lr->nextInd - 1) || currSpan.tp >= firstCoreFormTokenType) {
-        // if this is not the first token inside this span, or if it's already been converted to core form, add
-        // the reserved word as a token
-        add((Token){ .tp=tokReserved, .payload2=reservedWordType, .startByte=startInd, .lenBytes=lr->i - startInd}, lr);
-        return;
+    int startByte = lr->i;
+    while (lr->i < lr->inpLength) {
+        byte currBt = CURR_BT;
+        if (currBt != aSpace && currBt != aNewline && currBt != aCarriageReturn) {
+            break;
+        }
+        lr->i++;
     }
-
-    setSpanType(currSpan.numberOfToken, reservedWordType, lr);
+    if (lr->langDef->reservedParensOrNot[reservedWordType - firstCoreFormTokenType]) {
+        if (lr->i >= lr->inpLength || CURR_BT != aParenLeft) {
+            throwExc(errorCoreMissingParen, lr);
+        }
+        lr->i++; // the "("
+    }
+    add((Token){ .tp=tokReserved, .payload2=reservedWordType, .startByte=startByte }, lr);
     (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
         .tp=reservedWordType, .numberOfToken=currSpan.numberOfToken
     };
@@ -672,6 +676,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
     }
         
     if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
+        wrapInAStatement(lr, inp);
         add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
         if (isAlsoAccessor) {
             openPunctuation(tokAccessor, lr);
@@ -682,14 +687,16 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
             if (wordType == tokDotWord) {
                 throwExc(errorWordReservedWithDot, lr);
             } else if (mbReservedWord == reservedTrue) {
+                wrapInAStatement(lr, inp);
                 add((Token){.tp=tokBool, .payload2=1, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
             } else if (mbReservedWord == reservedFalse) {
+                wrapInAStatement(lr, inp);
                 add((Token){.tp=tokBool, .payload2=0, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
-            } else {
+            } else {                
                 lexReservedWord(mbReservedWord, realStartInd, lr);
             }
         } else  {
-            
+            wrapInAStatement(lr, inp);
             add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes }, lr);
         }
     }
@@ -697,7 +704,6 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
 
 
 private void lexWord(Lexer* lr, Arr(byte) inp) {    
-    wrapInAStatement(lr, inp);
     wordInternal(tokWord, lr, inp);
 }
 
@@ -842,6 +848,7 @@ private void lambda(Lexer* lr, Arr(byte) inp) {
 
 
 void lexParenLeft(Lexer* lr, Arr(byte) inp) {
+    // if parent is "fn", increment
     if (lr->i < lr->inpLength - 1) {
         byte nextBt = NEXT_BT;
         if (nextBt == aDot) {
@@ -855,6 +862,7 @@ void lexParenLeft(Lexer* lr, Arr(byte) inp) {
 
 
 void lexParenRight(Lexer* lr, Arr(byte) inp) {
+        // if parent is "fn", check its count
     closeRegularPunctuation(tokParens, lr);
 }
 
@@ -877,14 +885,12 @@ void lexSpace(Lexer* lr, Arr(byte) inp) {
     }
 }
 
-/** A newline in a Stmt ends it. A newline in a StmtMulti, or in something nested within it, has no effect.  */
+/** Does nothing. Tl is not whitespace-sensitive */
 private void lexNewline(Lexer* lr, Arr(byte) inp) {
     addNewLine(lr->i, lr);
-    lr->i++;
-
-    RememberedToken top = peekRememberedToken(lr->backtrack);
-    if (top.tp == tokStmt && !top.isMultiline) {
-        closeRegularPunctuation(tokStmt, lr);
+    lr->i++;      // the CR or LF
+    if (lr->i < lr->inpLength && CURR_BT == aSpace) {
+        lr->i++;  // the LF if there was a CR
     }
     while (lr->i < lr->inpLength && CURR_BT == aSpace) {
         lr->i++;
@@ -1018,7 +1024,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
  * Table for dispatch on the first letter of a word in case it might be a reserved word.
  * It's indexed on the diff between first byte and the letter "a" (the earliest letter a reserved word may start with)
  */
-private ReservedProbe (*tabulateReserved(Arena* a))[countReservedLetters] {
+private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
     ReservedProbe (*result)[countReservedLetters] = allocateOnArena(countReservedLetters*sizeof(ReservedProbe), a);
     ReservedProbe* p = *result;
     for (int i = 1; i < 25; i++) {
@@ -1036,6 +1042,18 @@ private ReservedProbe (*tabulateReserved(Arena* a))[countReservedLetters] {
     p[18] = determineReservedS;
     p[19] = determineReservedT;
     p[24] = determineReservedY;
+    return result;
+}
+
+/**
+ * Table for properties of core syntax forms, organized by reserved word.
+ * It's indexed on the diff between token id and firstCoreFormTokenType.
+ * It contains true for all parenthesizedcore forms
+ */
+private bool (*tabulateReserved(Arena* a))[countCoreForms] {
+    bool (*result)[countCoreForms] = allocateOnArena(countReservedLetters*sizeof(bool), a);
+    bool* p = *result;        
+    p[tokStmtIf - firstCoreFormTokenType] = true;
     return result;
 }
 
@@ -1091,10 +1109,10 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
 */
 LanguageDefinition* buildLanguageDefinitions(Arena* a) {
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
-    result->possiblyReservedDispatch = tabulateReserved(a);
+    result->possiblyReservedDispatch = tabulateReservedBytes(a);
     result->dispatchTable = tabulateDispatch(a);
     result->operators = tabulateOperators(a);
-
+    result->reservedParensOrNot = tabulateReserved(a);
     return result;
 }
 
@@ -1154,7 +1172,7 @@ private void finalize(Lexer* lr) {
         throwExc(errorPunctuationExtraOpening, lr);
     }    
 }
-
+// fn foo List Float(inp List Int. flag Bool. msg ?String)(msg:map print. inp:map floatOf)
 
 Lexer* lexicallyAnalyze(String* input, LanguageDefinition* lang, Arena* ar) {
     Lexer* result = createLexer(input, ar);

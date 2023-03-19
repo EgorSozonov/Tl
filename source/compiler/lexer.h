@@ -21,8 +21,8 @@ typedef struct {
 typedef struct {
     unsigned int tp;
     int numberOfToken;
-    bool isMultiline;
-    bool wasOriginallyColon;
+    int countClauses;
+    bool wasOriginallyBackslash;
 } RememberedToken;
 
 
@@ -107,6 +107,7 @@ struct LanguageDefinition {
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
+    int (*reservedParensOrNot)[countReservedWords];
 };
 
 Lexer* createLexer(String* inp, Arena* ar);

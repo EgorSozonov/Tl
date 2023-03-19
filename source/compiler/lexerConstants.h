@@ -32,6 +32,7 @@ extern const char errorOperatorUnknown[];
 extern const char errorOperatorAssignmentPunct[];
 extern const char errorOperatorTypeDeclPunct[];
 extern const char errorOperatorMultipleAssignment[];
+extern const char errorCoreMissingParen[];
 extern const char errorDocComment[];
 
 /**
@@ -88,18 +89,18 @@ extern const int operatorStartSymbols[16];
 #define tokLexScope    20
 
 // Core syntax form Token types
-#define tokStmtAlias   21
-#define tokStmtAwait   22
-#define tokStmtCatch   23
-#define tokContinue    24
-#define tokStmtEmbed   25       // embed a text file as a string literal
-#define tokStmtExport  26
-#define tokFnDef       27
-#define tokGenerator   28       // generator (like a function but yields instead of returning)
-#define tokStmtIf      29
+#define tokStmtAlias   21       // noParen
+#define tokStmtAwait   22       // noParen
+#define tokStmtCatch   23       // paren "catch(e.msg:print)"
+#define tokContinue    24       // noParen
+#define tokStmtEmbed   25       // noParen. Embed a text file as a string literal, or a binary resource file
+#define tokStmtExport  26       // paren
+#define tokFnDef       27       // specialCase
+#define tokGenerator   28       // specialCase. generator (like a function but yields instead of returning)
+#define tokStmtIf      29       // paren
 #define tokStmtIfEq    30       // like if, but every branch is a value compared using standard equality
 #define tokStmtIfPr    31       // like if, but every branch is a value compared using custom predicate
-#define tokStmtImpl    32
+#define tokStmtImpl    32       // paren
 #define tokStmtIface   33
 #define tokLambda      34
 #define tokLoop        35       // recur operator for tail recursion
@@ -111,13 +112,13 @@ extern const int operatorStartSymbols[16];
 #define tokStmtTry     41
 #define tokStmtType    42
 #define tokYield       43
-
-
+// if(x > 5. x:print. "err":print)
+// impl(Foo Serializable. mth serialize(...))
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType tokStmt
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType tokStmtAlias
-
+#define countCoreForms 23
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique
  * and below "firstPunctuationTokenType"
  */
