@@ -43,15 +43,14 @@ private bool isHexDigit(byte a) {
 }
 
 /** Predicate for an element of a scope, which can be any type of statement, or a split statement (such as an "if" or "match" form) */
-bool isParensElement(unsigned int tType) {
-    return  tType == tokLexScope || tType == tokTypeDecl || tType == tokParens
+private bool isParensElement(unsigned int tType) {
+    return  tType == tokTypeDecl || tType == tokParens
             || tType == tokAssignment;
 }
 
 /** Predicate for an element of a scope, which can be any type of statement, or a split statement (such as an "if" or "match" form) */
-bool isScopeElementVal(unsigned int tType) {
-    return tType == tokLexScope
-            || tType == tokTypeDecl
+private bool isScopeElementVal(unsigned int tType) {
+    return tType == tokTypeDecl
             || tType == tokParens
             || tType == tokAssignment;
 }
@@ -94,7 +93,7 @@ void add(Token t, Lexer* lexer) {
 }
 
 /** For all the dollars at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
-private void closeDollars(Lexer* lr) {
+private void closeBackslashes(Lexer* lr) {
     while (hasValuesRememberedToken(lr->backtrack) && peekRememberedToken(lr->backtrack).wasOriginallyBackslash) {
         RememberedToken top = popRememberedToken(lr->backtrack);
         int j = top.numberOfToken;
@@ -113,6 +112,16 @@ private void setSpanLength(int tokenInd, Lexer* lr) {
     lr->tokens[tokenInd].payload2 = lr->nextInd - tokenInd - 1;
 }
 
+private void skipSpaces(Lexer* lr, Arr(byte) inp) {
+    while (lr->i < lr->inpLength) {
+        byte currBt = CURR_BT;
+        if (currBt != aSpace && currBt != aNewline && currBt != aCarriageReturn) {
+            return;
+        }
+        lr->i++;
+    }
+}
+
 /**
  * Validation to catch unmatched closing punctuation
  */
@@ -128,35 +137,10 @@ private void validateClosingPunct(uint closingType, uint openType, Lexer* lr) {
     }
 }
 
-/**
- * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a ] or a dot.
- * This doesn't actually add any tokens to the array, just performs validation and sets the token length
- * for the opener token.
- */
-private void closeRegularPunctuation(int closingType, Lexer* lr) {
-    closeDollars(lr);
-    if (!hasValuesRememberedToken(lr->backtrack)) {
-        throwExc(errorPunctuationExtraClosing, lr);
-    }
-
-    RememberedToken top = popRememberedToken(lr->backtrack);
-    if (closingType == tokParens && top.tp == tokStmt) {
-        // since a closing parenthesis might be closing something with statements inside it, like a lex scope
-        // or a core syntax form, we need to close the last statement before closing its parent
-        setSpanLength(top.numberOfToken, lr);
-        top = popRememberedToken(lr->backtrack);
-    }
-
-    validateClosingPunct(closingType, top.tp, lr);
-    setSpanLength(top.numberOfToken, lr);
-
-    lr->i++;
-}
-
 
 #define PROBERESERVED(reservedBytesName, returnVarName)    \
     lenReser = sizeof(reservedBytesName); \
-    if (lenBytes == lenReser && testByteSequence(lr->inp, startByte, reservedBytesCatch, lenReser)) \
+    if (lenBytes == lenReser && testByteSequence(lr->inp, startByte, reservedBytesName, lenReser)) \
         return returnVarName;
 
 
@@ -282,19 +266,41 @@ private void addNewLine(int j, Lexer* lr) {
 
 /** A paren starts a multi-line statement, anything else - a regular statement. */
 private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
-    bool isMultiline = CURR_BT == aParenLeft;
     if (hasValuesRememberedToken(lr->backtrack)) {
         uint topType = peekRememberedToken(lr->backtrack).tp;
-        if (topType == tokLexScope || topType >= firstCoreFormTokenType) {
-            pushRememberedToken((RememberedToken){ .tp = tokStmt, .numberOfToken = lr->nextInd, 
-                                                                  .isMultiline=isMultiline }, lr->backtrack);
+        if (topType == tokParens) {
+            pushRememberedToken((RememberedToken){ .tp = tokStmt, .numberOfToken = lr->nextInd }, lr->backtrack);
             add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
         }                
     } else {
-        pushRememberedToken((RememberedToken){ .tp = tokStmt, .isMultiline=isMultiline, 
-                                                              .numberOfToken = lr->nextInd}, lr->backtrack);
+        pushRememberedToken((RememberedToken){ .tp = tokStmt, .numberOfToken = lr->nextInd}, lr->backtrack);
         add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
     }
+}
+
+/**
+ * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a ] or a dot.
+ * This doesn't actually add any tokens to the array, just performs validation and sets the token length
+ * for the opener token.
+ */
+private void closeRegularPunctuation(int closingType, Lexer* lr) {
+    closeBackslashes(lr);
+    if (!hasValuesRememberedToken(lr->backtrack)) {
+        throwExc(errorPunctuationExtraClosing, lr);
+    }
+
+    RememberedToken top = popRememberedToken(lr->backtrack);
+    if (closingType == tokParens && top.tp == tokStmt) {
+        // since a closing parenthesis might be closing something with statements inside it, like a lex scope
+        // or a core syntax form, we need to close the last statement before closing its parent
+        setSpanLength(top.numberOfToken, lr);
+        top = popRememberedToken(lr->backtrack);
+    }
+
+    validateClosingPunct(closingType, top.tp, lr);
+    setSpanLength(top.numberOfToken, lr);
+
+    lr->i++;
 }
 
 /** 
@@ -568,29 +574,24 @@ private void openPunctuation(unsigned int tType, Lexer* lr) {
  * Lexer action for a reserved word. If at the start of a statement/expression, it mutates the type of said expression,
  * otherwise it emits a corresponding token.
  */
-private void lexReservedWord(uint reservedWordType, int startInd, Lexer* lr) {
-    if (!hasValuesRememberedToken(lr->backtrack) || peekRememberedToken(lr->backtrack).numberOfToken < (lr->nextInd - 1)) {
-        add((Token){.tp=tokReserved, .payload2=reservedWordType, .startByte=startInd, .lenBytes=(lr->i - startInd)}, lr);
-        return;
-    }
-    int startByte = lr->i;
-    while (lr->i < lr->inpLength) {
-        byte currBt = CURR_BT;
-        if (currBt != aSpace && currBt != aNewline && currBt != aCarriageReturn) {
-            break;
-        }
-        lr->i++;
-    }
-    if (lr->langDef->reservedParensOrNot[reservedWordType - firstCoreFormTokenType]) {
+private void lexReservedWord(uint reservedWordType, int startInd, Lexer* lr, Arr(byte) inp) {
+    skipSpaces(lr, inp);
+    int reservedExpectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
+    if (reservedExpectations == 1) { // the reserved word expects a parenthesis next
         if (lr->i >= lr->inpLength || CURR_BT != aParenLeft) {
             throwExc(errorCoreMissingParen, lr);
         }
         lr->i++; // the "("
+        skipSpaces(lr, inp);
     }
-    add((Token){ .tp=tokReserved, .payload2=reservedWordType, .startByte=startByte }, lr);
-    (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
-        .tp=reservedWordType, .numberOfToken=currSpan.numberOfToken
-    };
+    printf("reserved type = %d\n", reservedWordType);
+    add((Token){ .tp=reservedWordType, .startByte=startInd }, lr);
+    
+    pushRememberedToken( 
+        (RememberedToken){ .tp = reservedWordType, .numberOfToken = lr->nextInd },
+        lr->backtrack
+    );
+    printf("backtrack size = %d\n", lr->backtrack->length);
 }
 
 /**
@@ -674,6 +675,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
     } else {
         int mbReservedWord = (*lr->possiblyReservedDispatch)[firstByte - aALower](startInd, lr->i - startInd, lr);
         if (mbReservedWord > 0) {
+            printf("res word %d\n", mbReservedWord);
             if (wordType == tokDotWord) {
                 throwExc(errorWordReservedWithDot, lr);
             } else if (mbReservedWord == reservedTrue) {
@@ -683,7 +685,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
                 wrapInAStatement(lr, inp);
                 add((Token){.tp=tokBool, .payload2=0, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
             } else {                
-                lexReservedWord(mbReservedWord, realStartInd, lr);
+                lexReservedWord(mbReservedWord, realStartInd, lr, inp);
             }
         } else  {
             wrapInAStatement(lr, inp);
@@ -741,18 +743,6 @@ private void lexColon(Lexer* lr, Arr(byte) inp) {
     } else {
         wordInternal(tokFuncWord, lr, inp);
     }    
-}
-
-
-private void lexEqual(Lexer* lr, Arr(byte) inp) {       
-    checkPrematureEnd(2, lr);
-    byte nextBt = NEXT_BT;
-    if (nextBt == aEqual) {
-        lexOperator(lr, inp); // ==        
-    } else {
-        processAssignmentOperator(opTDefinition, 1, lr);
-        lr->i++; // =
-    }
 }
 
 
@@ -822,6 +812,18 @@ private void lexOperator(Lexer* lr, Arr(byte) inp) {
 }
 
 
+private void lexEqual(Lexer* lr, Arr(byte) inp) {       
+    checkPrematureEnd(2, lr);
+    byte nextBt = NEXT_BT;
+    if (nextBt == aEqual) {
+        lexOperator(lr, inp); // ==        
+    } else {
+        processAssignmentOperator(opTDefinition, 1, lr);
+        lr->i++; // =
+    }
+}
+
+
 void lexMinus(Lexer* lr, Arr(byte) inp) {
     wrapInAStatement(lr, inp);
     int j = lr->i + 1;
@@ -850,22 +852,42 @@ private void lambda(Lexer* lr, Arr(byte) inp) {
 
 
 void lexParenLeft(Lexer* lr, Arr(byte) inp) {
-    // if parent is "fn", increment
+    if (hasValuesRememberedToken(lr->backtrack)) {
+        RememberedToken top = peekRememberedToken(lr->backtrack);
+        if (top.tp >= firstCoreFormTokenType && (*lr->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
+            (*lr->backtrack->content)[lr->backtrack->length - 1].countClauses++;
+            goto commonPart;
+        }
+    }
+
     if (lr->i < lr->inpLength - 1) {
         byte nextBt = NEXT_BT;
-        if (nextBt == aDot) {
+        if (nextBt == aMinus) {
             lambda(lr, inp);
             return;
-        } // TODO generator, (=) lambda
+        } // TODO (=) lambda
     }
     wrapInAStatement(lr, inp);
+    commonPart:
     openPunctuation(tokParens, lr);
 }
 
 
 void lexParenRight(Lexer* lr, Arr(byte) inp) {
-        // if parent is "fn", check its count
+        printf("p0\n");
     closeRegularPunctuation(tokParens, lr);
+    printf("p1\n");
+    if (!hasValuesRememberedToken(lr->backtrack)) return;
+
+    RememberedToken top = peekRememberedToken(lr->backtrack);
+        printf("p2 top.tp %d\n", top.tp);
+    if (top.tp >= firstCoreFormTokenType && (*lr->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
+        printf("top.countclauses %d\n", top.countClauses);
+        if (top.countClauses == 2) {
+            setSpanLength(top.numberOfToken, lr);
+            popRememberedToken(lr->backtrack);
+        }
+    }
 }
 
 
@@ -1086,23 +1108,24 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[12] = (OpDef){ .name=allocLit(a, "/"), .precedence=20, .arity=2, .extensible=true, .bytes={aDivBy, 0, 0, 0 } };
     p[13] = (OpDef){ .name=allocLit(a, ";<"), .precedence=1, .arity=2, .bytes={aSemicolon, aLT, 0, 0 }, .overloadable=true };
     p[14] = (OpDef){ .name=allocLit(a, ";"), .precedence=1, .arity=2, .bytes={aSemicolon, 0, 0, 0 }, .overloadable=true };
-    p[15] = (OpDef){ .name=allocLit(a, "<="), .precedence=12, .arity=2, .bytes={aLT, aEqual, 0, 0 } };    
-    p[16] = (OpDef){ .name=allocLit(a, "<<"), .precedence=14, .arity=2, .extensible=true, .bytes={aLT, aLT, 0, 0 } };
-    p[17] = (OpDef){ .name=allocLit(a, "<"), .precedence=12, .arity=2, .bytes={aLT, 0, 0, 0 } };
-    p[18] = (OpDef){ .name=allocLit(a, "=="), .precedence=11, .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
-    p[19] = (OpDef){ .name=allocLit(a, ">=<="), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[20] = (OpDef){ .name=allocLit(a, ">=<"), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
-    p[21] = (OpDef){ .name=allocLit(a, "><="), .precedence=12, .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
-    p[22] = (OpDef){ .name=allocLit(a, "><"), .precedence=12, .arity=3, .bytes={aGT, aLT, 0, 0 } };
-    p[23] = (OpDef){ .name=allocLit(a, ">="), .precedence=12, .arity=2, .bytes={aGT, aEqual, 0, 0 } };
-    p[24] = (OpDef){ .name=allocLit(a, ">>"), .precedence=14, .arity=2, .extensible=true, .bytes={aGT, aGT, 0, 0 } };
-    p[25] = (OpDef){ .name=allocLit(a, ">"), .precedence=12, .arity=2, .bytes={aGT, 0, 0, 0 } };
-    p[26] = (OpDef){ .name=allocLit(a, "?:"), .precedence=1, .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
-    p[27] = (OpDef){ .name=allocLit(a, "?"), .precedence=prefixPrec, .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[28] = (OpDef){ .name=allocLit(a, "^"), .precedence=21, .arity=2, .extensible=true, .bytes={aCaret, 0, 0, 0 } };
-    p[29] = (OpDef){ .name=allocLit(a, "||"), .precedence=3, .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
-    p[30] = (OpDef){ .name=allocLit(a, "|"), .precedence=9, .arity=2, .bytes={aPipe, 0, 0, 0 } };    
-    p[31] = (OpDef){ .name=allocLit(a, "~"), .precedence=prefixPrec, .bytes={aTilde, 0, 0, 0 } };    
+    p[15] = (OpDef){ .name=allocLit(a, "<-"), .precedence=1, .arity=2, .bytes={aLT, aMinus, 0, 0 } };
+    p[16] = (OpDef){ .name=allocLit(a, "<="), .precedence=12, .arity=2, .bytes={aLT, aEqual, 0, 0 } };    
+    p[17] = (OpDef){ .name=allocLit(a, "<<"), .precedence=14, .arity=2, .extensible=true, .bytes={aLT, aLT, 0, 0 } };
+    p[18] = (OpDef){ .name=allocLit(a, "<"), .precedence=12, .arity=2, .bytes={aLT, 0, 0, 0 } };
+    p[19] = (OpDef){ .name=allocLit(a, "=="), .precedence=11, .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
+    p[20] = (OpDef){ .name=allocLit(a, ">=<="), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
+    p[21] = (OpDef){ .name=allocLit(a, ">=<"), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
+    p[22] = (OpDef){ .name=allocLit(a, "><="), .precedence=12, .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
+    p[23] = (OpDef){ .name=allocLit(a, "><"), .precedence=12, .arity=3, .bytes={aGT, aLT, 0, 0 } };
+    p[24] = (OpDef){ .name=allocLit(a, ">="), .precedence=12, .arity=2, .bytes={aGT, aEqual, 0, 0 } };
+    p[25] = (OpDef){ .name=allocLit(a, ">>"), .precedence=14, .arity=2, .extensible=true, .bytes={aGT, aGT, 0, 0 } };
+    p[26] = (OpDef){ .name=allocLit(a, ">"), .precedence=12, .arity=2, .bytes={aGT, 0, 0, 0 } };
+    p[27] = (OpDef){ .name=allocLit(a, "?:"), .precedence=1, .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
+    p[28] = (OpDef){ .name=allocLit(a, "?"), .precedence=prefixPrec, .arity=1, .bytes={aQuestion, 0, 0, 0 } };
+    p[29] = (OpDef){ .name=allocLit(a, "^"), .precedence=21, .arity=2, .extensible=true, .bytes={aCaret, 0, 0, 0 } };
+    p[30] = (OpDef){ .name=allocLit(a, "||"), .precedence=3, .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
+    p[31] = (OpDef){ .name=allocLit(a, "|"), .precedence=9, .arity=2, .bytes={aPipe, 0, 0, 0 } };    
+    p[32] = (OpDef){ .name=allocLit(a, "~"), .precedence=prefixPrec, .bytes={aTilde, 0, 0, 0 } };    
     return result;
 }
 
@@ -1166,7 +1189,7 @@ private Lexer* buildLexer(int totalTokens, String* inp, Arena *a, /* Tokens */ .
  */
 private void finalize(Lexer* lr) {
     if (!hasValuesRememberedToken(lr->backtrack)) return;
-    closeDollars(lr);
+    closeBackslashes(lr);
     uint top = peekRememberedToken(lr->backtrack).tp;    
     if (lr->backtrack->length == 1 && (top == tokStmt || top == tokAssignment)) {
         closeRegularPunctuation(tokStmt, lr);

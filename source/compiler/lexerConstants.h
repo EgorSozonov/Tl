@@ -72,7 +72,6 @@ extern const int operatorStartSymbols[16];
 #define tokDotWord      7      // payload2 = 1 if the last chunk of a word is capital
 #define tokAtWord       8      // "@annotation"
 #define tokFuncWord     9      // ":funcName"
-#define tokReserved    10      // payload2 = value of a constant from the 'reserved*' group
 #define tokOperator    11      // payload1 = OperatorToken encoded as an Int
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
@@ -86,7 +85,6 @@ extern const int operatorStartSymbols[16];
 #define tokFuncExpr    17      // the ":(foo :bar)" kind of thing
 #define tokAssignment  18      // payload1 = as in tokOperator
 #define tokTypeDecl    19
-#define tokLexScope    20
 
 // Core syntax form Token types
 #define tokStmtAlias   21       // noParen
@@ -129,7 +127,7 @@ extern const int operatorStartSymbols[16];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    32 // must be equal to the count of following constants
+#define countOperators    33 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
 #define opTToString        2 // $
@@ -145,23 +143,24 @@ extern const int operatorStartSymbols[16];
 #define opTDivBy          12 // /
 #define opTRangeHalf      13 // ;<
 #define opTRange          14 // ;
-#define opTLTEQ           15 // <=
-#define opTBitShiftLeft   16 // <<
-#define opTLessThan       17 // <
-#define opTEquality       18 // ==
-#define opTIntervalBoth   19 // >=<=
-#define opTIntervalLeft   20 // >=<
-#define opTIntervalRight  21 // ><=
-#define opTIntervalExcl   22 // ><
-#define opTGTEQ           23 // >=
-#define opTBitshiftRight  24 // >>
-#define opTGreaterThan    25 // >
-#define opTNullCoalesc    26 // ?:
-#define opTQuestionMark   27 // ?
-#define opTExponent       28 // ^
-#define opTBoolOr         29 // ||
-#define opTPipe           30 // |
-#define opTSize           31 // ~
+#define opTArrowLeft      15 // <-
+#define opTLTEQ           16 // <=
+#define opTBitShiftLeft   17 // <<
+#define opTLessThan       18 // <
+#define opTEquality       19 // ==
+#define opTIntervalBoth   20 // >=<=
+#define opTIntervalLeft   21 // >=<
+#define opTIntervalRight  22 // ><=
+#define opTIntervalExcl   23 // ><
+#define opTGTEQ           24 // >=
+#define opTBitshiftRight  25 // >>
+#define opTGreaterThan    26 // >
+#define opTNullCoalesc    27 // ?:
+#define opTQuestionMark   28 // ?
+#define opTExponent       29 // ^
+#define opTBoolOr         30 // ||
+#define opTPipe           31 // |
+#define opTSize           32 // ~
 
 #define opTMutation       40 // Not a real operator, just a tag for :=
 #define opTDefinition     41 // Not a real operator, just a tag for  =

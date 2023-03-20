@@ -699,7 +699,7 @@ LexerTestSet* punctuationTests(Arena* ar) {
                                   ")"
             ),
             .expectedOutput = buildLexer(21, ar, 
-                (Token){ .tp = tokLexScope, .payload2 = 20, .startByte = 0, .lenBytes = 46 },
+                (Token){ .tp = tokParens, .payload2 = 20, .startByte = 0, .lenBytes = 46 },
                 (Token){ .tp = tokStmt, .payload2 = 19, .startByte = 2, .lenBytes = 30 },
                 (Token){ .tp = tokWord, .startByte = 2, .lenBytes = 4 },                      // asdf                               
                 (Token){ .tp = tokParens, .payload2 = 2, .startByte = 8, .lenBytes = 23 },                                
@@ -847,16 +847,17 @@ LexerTestSet* operatorTests(Arena* ar) {
 LexerTestSet* functionTests(Arena* ar) {
     return createTestSet(allocLit(ar, "Function lexer tests"), 1, ar,
         (LexerTest) { .name = allocLit(ar, "Function simple 1"),
-            .input = allocLit(ar, "(fn foo Int(x Int y Int) x - y)"),
+            .input = allocLit(ar, "fn foo Int(x Int y Int)(x - y)"),
             .expectedOutput = buildLexer(2, ar,
-                (Token){ .tp = tokFnDef, .payload2 = 10, .startByte = 1, .lenBytes = 29 },
-                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 3 }, // foo
-                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 8, .lenBytes = 3 }, // Int
-                (Token){ .tp = tokParens, .payload2 = 4, .startByte = 12, .lenBytes = 11 },
+                (Token){ .tp = tokFnDef, .payload2 = 10, .startByte = 0, .lenBytes = 30 },
+                (Token){ .tp = tokWord, .startByte = 3, .lenBytes = 3 }, // foo
+                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 7, .lenBytes = 3 }, // Int
+                (Token){ .tp = tokParens, .payload2 = 4, .startByte = 11, .lenBytes = 11 },
                 (Token){ .tp = tokWord, .startByte = 12, .lenBytes = 1 },
                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 14, .lenBytes = 3 },                
                 (Token){ .tp = tokWord, .startByte = 18, .lenBytes = 3 },
-                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 20, .lenBytes = 1 },    
+                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 20, .lenBytes = 1 },
+                (Token){ .tp = tokParens, .payload2 = 3, .startByte = 24, .lenBytes = 5 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 25, .lenBytes = 1 },                
                 (Token){ .tp = tokOperator, .payload2 = (opTMinus << 2), .startByte = 27, .lenBytes = 1 },                
                 (Token){ .tp = tokWord, .startByte = 29, .lenBytes = 1 }
