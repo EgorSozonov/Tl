@@ -60,10 +60,6 @@ typedef struct {
     int arity;
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool extensible;
-    /* Indices of operators that act as functions in the built-in bindings array.
-     * Contains -1 for non-functional operators
-     */
-    int binding;
     bool overloadable;
     bool assignable;
 } OpDef;

@@ -34,7 +34,7 @@ const char errorDocComment[]                 = "Doc comments must have the synta
  */
 const int operatorStartSymbols[] = {
     aExclamation, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDot, aDivBy, 
-    aLT, aEqual, aGT, aQuestion, aCaret, aPipe, aTilde
+    aLT, aGT, aQuestion, aCaret, aPipe, aTilde
 };
 
 

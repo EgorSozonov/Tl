@@ -112,8 +112,7 @@ extern const int operatorStartSymbols[16];
 #define tokStmtTry     41
 #define tokStmtType    42
 #define tokYield       43
-// if(x > 5. x:print. "err":print)
-// impl(Foo Serializable. mth serialize(...))
+
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType tokStmt
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
@@ -130,7 +129,7 @@ extern const int operatorStartSymbols[16];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    34 // must be equal to the count of following constants
+#define countOperators    32 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
 #define opTToString        2 // $
@@ -146,27 +145,26 @@ extern const int operatorStartSymbols[16];
 #define opTDivBy          12 // /
 #define opTRangeHalf      13 // ;<
 #define opTRange          14 // ;
-#define opTArrowLeft      15 // <-
-#define opTLTEQ           16 // <=
-#define opTBitShiftLeft   17 // <<
-#define opTLessThan       18 // <
-#define opTEquality       19 // ==
-#define opTDefinition     20 // =
-#define opTIntervalBoth   21 // >=<=
-#define opTIntervalLeft   22 // >=<
-#define opTIntervalRight  23 // ><=
-#define opTIntervalExcl   24 // ><
-#define opTGTEQ           25 // >=
-#define opTBitshiftRight  26 // >>
-#define opTGreaterThan    27 // >
-#define opTNullCoalesc    28 // ?:
-#define opTQuestionMark   29 // ?
-#define opTExponent       30 // ^
-#define opTBoolOr         31 // ||
-#define opTPipe           32 // |
-#define opTSize           33 // ~
-#define opTMutation       40 // Not a real operator, just a tag for :=
+#define opTLTEQ           15 // <=
+#define opTBitShiftLeft   16 // <<
+#define opTLessThan       17 // <
+#define opTEquality       18 // ==
+#define opTIntervalBoth   19 // >=<=
+#define opTIntervalLeft   20 // >=<
+#define opTIntervalRight  21 // ><=
+#define opTIntervalExcl   22 // ><
+#define opTGTEQ           23 // >=
+#define opTBitshiftRight  24 // >>
+#define opTGreaterThan    25 // >
+#define opTNullCoalesc    26 // ?:
+#define opTQuestionMark   27 // ?
+#define opTExponent       28 // ^
+#define opTBoolOr         29 // ||
+#define opTPipe           30 // |
+#define opTSize           31 // ~
 
+#define opTMutation       40 // Not a real operator, just a tag for :=
+#define opTDefinition     41 // Not a real operator, just a tag for  =
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
