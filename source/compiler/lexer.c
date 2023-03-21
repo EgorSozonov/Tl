@@ -836,21 +836,6 @@ void lexMinus(Lexer* lr, Arr(byte) inp) {
 }
 
 
-private void lambda(Lexer* lr, Arr(byte) inp) {
-    wrapInAStatement(lr, inp);
-
-    int j = lr->i + 1;
-    
-    lr->i++;
-    RememberedToken top = peekRememberedToken(lr->backtrack);
-    setSpanLambda(top.numberOfToken, tokLambda, lr);
-    top.tp = tokLambda;
-
-    pushRememberedToken((RememberedToken){.tp=tokStmt, .numberOfToken=lr->nextInd}, lr->backtrack);    
-    add((Token){ .tp = tokStmt, .startByte = lr->i }, lr);
-}
-
-
 void lexParenLeft(Lexer* lr, Arr(byte) inp) {
     if (hasValuesRememberedToken(lr->backtrack)) {
         RememberedToken top = peekRememberedToken(lr->backtrack);
@@ -859,17 +844,20 @@ void lexParenLeft(Lexer* lr, Arr(byte) inp) {
             goto commonPart;
         }
     }
+    uint tokType = tokParens;
 
     if (lr->i < lr->inpLength - 1) {
         byte nextBt = NEXT_BT;
         if (nextBt == aMinus) {
-            lambda(lr, inp);
-            return;
-        } // TODO (=) lambda
+            tokType = tokLambda;
+        } else if (nextBt == aEqual) {
+            tokType = tokLambDefArgs;
+        }
     }
-    wrapInAStatement(lr, inp);
+    
     commonPart:
-    openPunctuation(tokParens, lr);
+    openPunctuation(tokType, lr);
+    openPunctuation(tokStmt, lr);
 }
 
 

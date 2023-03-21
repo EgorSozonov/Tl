@@ -72,44 +72,43 @@ extern const int operatorStartSymbols[16];
 #define tokDotWord      7      // payload2 = 1 if the last chunk of a word is capital
 #define tokAtWord       8      // "@annotation"
 #define tokFuncWord     9      // ":funcName"
-#define tokOperator    11      // payload1 = OperatorToken encoded as an Int
+#define tokOperator    10      // payload1 = OperatorToken encoded as an Int
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokBackslash   12
+#define tokBackslash   11
 
 // Punctuation (inner node) Token types
-#define tokStmt        13
-#define tokParens      14
-#define tokBrackets    15
-#define tokAccessor    16
-#define tokFuncExpr    17      // the ":(foo :bar)" kind of thing
-#define tokAssignment  18      // payload1 = as in tokOperator
-#define tokTypeDecl    19
+#define tokStmt        12
+#define tokParens      13
+#define tokBrackets    14
+#define tokAccessor    15
+#define tokFuncExpr    16      // the ":(foo :bar)" kind of thing
+#define tokAssignment  17      // payload1 = as in tokOperator
 
 // Core syntax form Token types
-#define tokStmtAlias   21       // noParen
-#define tokStmtAwait   22       // noParen
-#define tokStmtCatch   23       // paren "catch(e.msg:print)"
-#define tokContinue    24       // noParen
-#define tokStmtEmbed   25       // noParen. Embed a text file as a string literal, or a binary resource file
-#define tokStmtExport  26       // paren
-#define tokFnDef       27       // specialCase
-#define tokGenerator   28       // specialCase. generator (like a function but yields instead of returning)
-#define tokStmtIf      29       // paren
-#define tokStmtIfEq    30       // like if, but every branch is a value compared using standard equality
-#define tokStmtIfPr    31       // like if, but every branch is a value compared using custom predicate
-#define tokStmtImpl    32       // paren
-#define tokStmtIface   33
-#define tokLambda      34
-#define tokLoop        35       // recur operator for tail recursion
-#define tokStmtMatch   36       // pattern matching on sum type tag
-#define tokStmtMut     37
-#define tokNodestruct  38       // signaling that this value doesn't need its destructor called at scope end
-#define tokStmtReturn  39
-#define tokStmtStruct  40
-#define tokStmtTry     41
-#define tokStmtType    42
-#define tokYield       43
+#define tokStmtAlias   18       // noParen
+#define tokStmtAwait   19       // noParen
+#define tokStmtCatch   20       // paren "catch(e.msg:print)"
+#define tokContinue    21       // noParen
+#define tokStmtEmbed   22       // noParen. Embed a text file as a string literal, or a binary resource file
+#define tokStmtExport  23       // paren
+#define tokFnDef       24       // specialCase
+#define tokStmtIf      25       // paren
+#define tokStmtIfEq    26       // like if, but every branch is a value compared using standard equality
+#define tokStmtIfPr    27       // like if, but every branch is a value compared using custom predicate
+#define tokStmtImpl    28       // paren
+#define tokStmtIface   29
+#define tokLambda      30
+#define tokLambDefArgs 31
+#define tokLoop        32       // recur operator for tail recursion
+#define tokStmtMatch   33       // pattern matching on sum type tag
+#define tokStmtMut     34
+#define tokNodestruct  35       // signaling that this value doesn't need its destructor called at scope end
+#define tokStmtReturn  36
+#define tokStmtStruct  37
+#define tokStmtTry     38
+#define tokStmtType    39
+#define tokYield       40
 
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType tokStmt

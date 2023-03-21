@@ -25,11 +25,11 @@ typedef struct {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "word", ".word", "@word", ":func", "reserved", "operator", "\\", 
-    "stmt", "()", "[]", "accessor", "funcExpr", "assignment", "typeDecl", "lexScope", 
+    "word", ".word", "@word", ":func", "operator", "\\", 
+    "stmt", "()", "[]", "accessor", "funcExpr", "assignment", 
     "alias", "await", "catch", "continue", "embed", "export", "fn",
-    "generator", "if", "ifEq", "ifPr", "impl", "interface", "lambda", "loop", "match", "mut",
-    "nodestruct", "return", "struct", "try", "type", "yield"
+    "if", "ifEq", "ifPr", "impl", "interface", "lambda", "lambdaDefArgs", 
+    "loop", "match", "mut", "nodestruct", "return", "struct", "try", "type", "yield"
 };
 
 
