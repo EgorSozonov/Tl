@@ -54,6 +54,7 @@ extern const int operatorStartSymbols[16];
 
 #define topVerbatimTokenVariant = 5
 
+
 /**
  * Regular (leaf) Token types
  */
@@ -75,40 +76,41 @@ extern const int operatorStartSymbols[16];
 #define tokOperator    10      // payload1 = OperatorToken encoded as an Int
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokBackslash   11
+#define tokSemicolon   11
 
 // Punctuation (inner node) Token types
-#define tokStmt        12
-#define tokParens      13
-#define tokBrackets    14
-#define tokAccessor    15
-#define tokFuncExpr    16      // the ":(foo :bar)" kind of thing
-#define tokAssignment  17      // payload1 = as in tokOperator
+#define tokCurly       12
+#define tokStmt        13
+#define tokParens      14
+#define tokBrackets    15
+#define tokAccessor    16
+#define tokFuncExpr    17      // the ":(foo :bar)" kind of thing
+#define tokAssignment  18      // payload1 = as in tokOperator
 
 // Core syntax form Token types
-#define tokStmtAlias   18       // noParen
-#define tokStmtAwait   19       // noParen
-#define tokStmtCatch   20       // paren "catch(e.msg:print)"
-#define tokContinue    21       // noParen
-#define tokStmtEmbed   22       // noParen. Embed a text file as a string literal, or a binary resource file
-#define tokStmtExport  23       // paren
-#define tokFnDef       24       // specialCase
-#define tokStmtIf      25       // paren
-#define tokStmtIfEq    26       // like if, but every branch is a value compared using standard equality
-#define tokStmtIfPr    27       // like if, but every branch is a value compared using custom predicate
-#define tokStmtImpl    28       // paren
-#define tokStmtIface   29
-#define tokLambda      30
-#define tokLambDefArgs 31
-#define tokLoop        32       // recur operator for tail recursion
-#define tokStmtMatch   33       // pattern matching on sum type tag
-#define tokStmtMut     34
-#define tokNodestruct  35       // signaling that this value doesn't need its destructor called at scope end
-#define tokStmtReturn  36
-#define tokStmtStruct  37
-#define tokStmtTry     38
-#define tokStmtType    39
-#define tokYield       40
+#define tokStmtAlias   19       // noParen
+#define tokStmtAwait   20       // noParen
+#define tokStmtCatch   21       // paren "catch(e.msg:print)"
+#define tokContinue    22       // noParen
+#define tokStmtEmbed   23       // noParen. Embed a text file as a string literal, or a binary resource file
+#define tokStmtExport  24       // paren
+#define tokFnDef       25       // specialCase
+#define tokStmtIf      26       // paren
+#define tokStmtIfEq    27       // like if, but every branch is a value compared using standard equality
+#define tokStmtIfPr    28       // like if, but every branch is a value compared using custom predicate
+#define tokStmtImpl    29       // paren
+#define tokStmtIface   30
+#define tokLambda      31
+#define tokLambDefArgs 32
+#define tokLoop        33       // recur operator for tail recursion
+#define tokStmtMatch   34       // pattern matching on sum type tag
+#define tokStmtMut     35
+#define tokNodestruct  36       // signaling that this value doesn't need its destructor called at scope end
+#define tokStmtReturn  37
+#define tokStmtStruct  38
+#define tokStmtTry     39
+#define tokStmtType    40
+#define tokYield       41
 
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType tokStmt
@@ -137,29 +139,30 @@ extern const int operatorStartSymbols[16];
 #define opTTimes           7 // *
 #define opTIncrement       8 // ++
 #define opTPlus            9 // +
-#define opTDecrement      10 // --
-#define opTMinus          11 // -
-#define opTDivBy          12 // /
-#define opTRangeHalf      13 // ;<
-#define opTRange          14 // ;
+#define opTRangeHalf      10 // ,<
+#define opTRange          11 // ,
+#define opTDecrement      12 // --
+#define opTMinus          13 // -
+#define opTDivBy          14 // /
 #define opTArrowLeft      15 // <-
-#define opTLTEQ           16 // <=
-#define opTBitShiftLeft   17 // <<
-#define opTLessThan       18 // <
-#define opTEquality       19 // ==
-#define opTIntervalBoth   20 // >=<=
-#define opTIntervalLeft   21 // >=<
-#define opTIntervalRight  22 // ><=
-#define opTIntervalExcl   23 // ><
-#define opTGTEQ           24 // >=
-#define opTBitshiftRight  25 // >>
-#define opTGreaterThan    26 // >
-#define opTNullCoalesc    27 // ?:
-#define opTQuestionMark   28 // ?
-#define opTExponent       29 // ^
-#define opTBoolOr         30 // ||
-#define opTPipe           31 // |
-#define opTSize           32 // ~
+#define opTBitShiftLeft   16 // <<
+#define opTLTEQ           17 // <=
+#define opTComparator     18 // <>
+#define opTLessThan       19 // <
+#define opTEquality       20 // ==
+#define opTIntervalBoth   21 // >=<=
+#define opTIntervalLeft   22 // >=<
+#define opTIntervalRight  23 // ><=
+#define opTIntervalExcl   24 // ><
+#define opTGTEQ           25 // >=
+#define opTBitshiftRight  26 // >>
+#define opTGreaterThan    27 // >
+#define opTNullCoalesc    28 // ?:
+#define opTQuestionMark   29 // ?
+#define opTExponent       30 // ^
+#define opTBoolOr         31 // ||
+#define opTPipe           32 // |
+#define opTSize           33 // ~
 
 #define opTMutation       40 // Not a real operator, just a tag for :=
 #define opTDefinition     41 // Not a real operator, just a tag for  =
@@ -167,6 +170,7 @@ extern const int operatorStartSymbols[16];
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
 #define countReservedWords           23 // count of different reserved words below
+
 static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
 static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };

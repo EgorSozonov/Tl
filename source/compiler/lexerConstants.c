@@ -33,7 +33,7 @@ const char errorDocComment[]                 = "Doc comments must have the synta
  * "-" is absent because it's handled by lexMinus. "\" is absent because it's handled by lexBackslash
  */
 const int operatorStartSymbols[] = {
-    aExclamation, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDot, aDivBy, 
+    aExclamation, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aComma, aDivBy, 
     aLT, aGT, aQuestion, aCaret, aPipe, aTilde
 };
 

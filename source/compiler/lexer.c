@@ -127,7 +127,7 @@ private void skipSpaces(Lexer* lr, Arr(byte) inp) {
  */
 private void validateClosingPunct(uint closingType, uint openType, Lexer* lr) {
     if (closingType == tokParens) {
-        if (openType < firstCoreFormTokenType && openType != tokParens && openType != tokBackslash) {
+        if (openType < firstCoreFormTokenType && openType != tokParens && openType != tokSemicolon) {
             throwExc(errorPunctuationUnmatched, lr);
         }
     } else if (closingType == tokBrackets) {
@@ -563,7 +563,7 @@ private void lexNumber(Lexer* lr, Arr(byte) inp) {
  */
 private void openPunctuation(unsigned int tType, Lexer* lr) {
     pushRememberedToken( 
-        (RememberedToken){ .tp = tType, .numberOfToken = lr->nextInd, .wasOriginallyBackslash = tType == tokBackslash},
+        (RememberedToken){ .tp = tType, .numberOfToken = lr->nextInd, .wasOriginallyBackslash = tType == tokSemicolon},
         lr->backtrack
     );
     add((Token) {.tp = tType, .startByte = (lr->i + 1) }, lr);
@@ -1014,6 +1014,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aDot] = &lexDot;
     p[aAt] = &lexAtWord;
     p[aColon] = &lexColon;
+    p[aSemicolon] = &lexSemicolon;
     p[aEqual] = &lexEqual;
 
     for (int i = 0; i < countOperatorStartSymbols; i++) {
@@ -1024,6 +1025,8 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aParenRight] = &lexParenRight;
     p[aBracketLeft] = &lexBracketLeft;
     p[aBracketRight] = &lexBracketRight;
+    p[aCurlyLeft] = &lexCurlyLeft;
+    p[aCurlyRight] = &lexCurlyRight;
     p[aSpace] = &lexSpace;
     p[aCarriageReturn] = &lexSpace;
     p[aNewline] = &lexNewline;
@@ -1091,11 +1094,12 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[ 7] = (OpDef){ .name=allocLit(a, "*"), .precedence=20, .arity=2, .extensible=true, .bytes={aTimes, 0, 0, 0 } };
     p[ 8] = (OpDef){ .name=allocLit(a, "++"), .precedence=functionPrec, .arity=1, .bytes={aPlus, aPlus, 0, 0 }, .overloadable=true };
     p[ 9] = (OpDef){ .name=allocLit(a, "+"), .precedence=17, .arity=2, .extensible=true, .bytes={aPlus, 0, 0, 0 } };
-    p[10] = (OpDef){ .name=allocLit(a, "--"), .precedence=functionPrec, .arity=1, .bytes={aMinus, aMinus, 0, 0 }, .overloadable=true };
-    p[11] = (OpDef){ .name=allocLit(a, "-"), .precedence=17, .arity=2, .extensible=true, .bytes={aMinus, 0, 0, 0 } };
-    p[12] = (OpDef){ .name=allocLit(a, "/"), .precedence=20, .arity=2, .extensible=true, .bytes={aDivBy, 0, 0, 0 } };
-    p[13] = (OpDef){ .name=allocLit(a, ";<"), .precedence=1, .arity=2, .bytes={aSemicolon, aLT, 0, 0 }, .overloadable=true };
-    p[14] = (OpDef){ .name=allocLit(a, ";"), .precedence=1, .arity=2, .bytes={aSemicolon, 0, 0, 0 }, .overloadable=true };
+    p[10] = (OpDef){ .name=allocLit(a, ",<"), .precedence=1, .arity=2, .bytes={aComma, aLT, 0, 0 }, .overloadable=true };
+    p[11] = (OpDef){ .name=allocLit(a, ","), .precedence=1, .arity=2, .bytes={aComma, 0, 0, 0 }, .overloadable=true };    
+    p[12] = (OpDef){ .name=allocLit(a, "--"), .precedence=functionPrec, .arity=1, .bytes={aMinus, aMinus, 0, 0 }, .overloadable=true };
+    p[13] = (OpDef){ .name=allocLit(a, "-"), .precedence=17, .arity=2, .extensible=true, .bytes={aMinus, 0, 0, 0 } };
+    p[14] = (OpDef){ .name=allocLit(a, "/"), .precedence=20, .arity=2, .extensible=true, .bytes={aDivBy, 0, 0, 0 } };
+
     p[15] = (OpDef){ .name=allocLit(a, "<-"), .precedence=1, .arity=2, .bytes={aLT, aMinus, 0, 0 } };
     p[16] = (OpDef){ .name=allocLit(a, "<="), .precedence=12, .arity=2, .bytes={aLT, aEqual, 0, 0 } };    
     p[17] = (OpDef){ .name=allocLit(a, "<<"), .precedence=14, .arity=2, .extensible=true, .bytes={aLT, aLT, 0, 0 } };
