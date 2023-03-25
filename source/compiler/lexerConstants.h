@@ -34,6 +34,8 @@ extern const char errorOperatorAssignmentPunct[];
 extern const char errorOperatorTypeDeclPunct[];
 extern const char errorOperatorMultipleAssignment[];
 extern const char errorCoreMissingParen[];
+extern const char errorCoreNotAtSpanStart[];
+extern const char errorCoreNotInsideStmt[];
 extern const char errorDocComment[];
 
 /**

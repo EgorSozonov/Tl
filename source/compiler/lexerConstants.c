@@ -27,6 +27,8 @@ const char errorOperatorAssignmentPunct[]    = "Incorrect assignment operator pl
 const char errorOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
 const char errorOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
 const char errorCoreMissingParen[]           = "Core form requires opening parenthesis after keyword!"; 
+const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of the span";
+const char errorCoreNotInsideStmt[]          = "Core form must be directly inside statement";
 const char errorDocComment[]                 = "Doc comments must have the syntax (;; comment .)";
 
 

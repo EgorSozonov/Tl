@@ -278,6 +278,11 @@ private void addNewLine(int j, Lexer* lr) {
     }
 }
 
+private void addStatement(uint stmtType, int startByte, Lexer* lr) {
+    pushRememberedToken((RememberedToken){ .tp = stmtType, .tokenInd = lr->nextInd}, lr->backtrack);
+    add((Token){ .tp = stmtType, .startByte = startByte}, lr);
+}
+
 /** A curly brace starts a multi-line statement, anything else => a regular statement. */
 private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {    
     if (hasValuesRememberedToken(lr->backtrack)) {
@@ -286,22 +291,19 @@ private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
             add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
         }
     } else {
-        pushRememberedToken((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd}, lr->backtrack);
-        add((Token){ .tp = tokStmt, .startByte = lr->i}, lr);
+        addStatement(tokStmt, lr->i, lr);
     }
 }
 
 /** A curly brace starts a multi-line statement, anything else => a regular statement. */
 private void wrapInAStatementStarting(int startByte, Lexer* lr, Arr(byte) inp) {
-
     if (hasValuesRememberedToken(lr->backtrack)) {
         if (peekRememberedToken(lr->backtrack).isMultiline) {
             pushRememberedToken((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }, lr->backtrack);
             add((Token){ .tp = tokStmt, .startByte = startByte},  lr);
-        }                
+        }
     } else {
-        pushRememberedToken((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd}, lr->backtrack);
-        add((Token){ .tp = tokStmt, .startByte = startByte},  lr);
+        addStatement(tokStmt, startByte, lr);
     }
 }
 
@@ -622,27 +624,28 @@ private void openPunctuation(unsigned int tType, Lexer* lr) {
 }
 
 /**
- * Lexer action for a reserved word. If at the start of a statement/expression, it mutates the type of said expression,
- * otherwise it emits a corresponding token.
+ * Lexer action for a reserved word. It mutates the type of current span.
  */
-private void lexReservedWord(uint reservedWordType, int startInd, Lexer* lr, Arr(byte) inp) {
-    skipSpaces(lr, inp);
+private void lexReservedWord(uint reservedWordType, int startInd, Lexer* lr, Arr(byte) inp) {    
     int reservedExpectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
-    if (reservedExpectations == 1) { // the reserved word expects a parenthesis next
-        if (lr->i >= lr->inpLength || CURR_BT != aParenLeft) {
+    //errorCoreNotAtSpanStart
+    if (reservedExpectations == 0 || reservedExpectations == 2) { // the reserved words that live at the start of a statement
+        if (!hasValuesRememberedToken(lr->backtrack) || peekRememberedToken(lr->backtrack).isMultiline) {
+            addStatement(reservedWordType, startInd, lr);
+        } else {            
+            throwExc(errorCoreNotInsideStmt, lr);
+        }
+    } else if (reservedExpectations == 1) { // the "(reserved" or "{reserved" cases
+        if (!hasValuesRememberedToken(lr->backtrack)) {
             throwExc(errorCoreMissingParen, lr);
         }
-        lr->i++; // the "("
-        skipSpaces(lr, inp);
+        RememberedToken top = peekRememberedToken(lr->backtrack);
+        if (top.tokenInd + 1 != lr->nextInd) {
+            throwExc(errorCoreNotAtSpanStart, lr);
+        }
+        setSpanType(top.tokenInd, reservedWordType, lr);
+        (*lr->backtrack->content)[lr->backtrack->length - 1].tp = reservedWordType;
     }
-    printf("when add res word, the num of tokens is %d\n", lr->nextInd - 1);
-    pushRememberedToken( 
-        (RememberedToken){ .tp = reservedWordType, .tokenInd = lr->nextInd },
-        lr->backtrack
-    );
-    add((Token){ .tp=reservedWordType, .startByte=startInd }, lr);
-    
-
 }
 
 /**
@@ -906,9 +909,7 @@ private void mbIncrementClauseCount(Lexer* lr) {
 private void mbCloseCompoundCoreForm(Lexer* lr) {
     RememberedToken top = peekRememberedToken(lr->backtrack);
     if (top.tp >= firstCoreFormTokenType && (*lr->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
-        printf("count of clauses = %d\n", top.countClauses);
         if (top.countClauses == 2) {
-            printf("setting span length of token %d type of it is %d \n", top.tokenInd, top.tp);
             setSpanLength(top.tokenInd, lr);
             popRememberedToken(lr->backtrack);
         }
