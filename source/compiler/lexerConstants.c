@@ -16,6 +16,7 @@ const char errorNumericEmpty[]               = "Could not lex a numeric literal,
 const char errorNumericMultipleDots[]        = "Multiple dots in numeric literals are not allowed!";
 const char errorNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
 const char errorPunctuationExtraOpening[]    = "Extra opening punctuation";
+const char errorPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like {}";
 const char errorPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errorPunctuationInsideColon[]     = "Inside a colon, statements are not allowed (only expressions)";
 const char errorPunctuationExtraClosing[]    = "Extra closing punctuation";

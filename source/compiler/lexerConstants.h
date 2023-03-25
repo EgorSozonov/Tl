@@ -23,6 +23,7 @@ extern const char errorNumericEmpty[];
 extern const char errorNumericMultipleDots[];
 extern const char errorNumericIntWidthExceeded[];
 extern const char errorPunctuationExtraOpening[];
+extern const char errorPunctuationOnlyInMultiline[];
 extern const char errorPunctuationUnmatched[];
 extern const char errorPunctuationInsideColon[];
 extern const char errorPunctuationExtraClosing[];
@@ -88,35 +89,44 @@ extern const int operatorStartSymbols[16];
 #define tokAssignment  18      // payload1 = as in tokOperator
 
 // Core syntax form Token types
-#define tokStmtAlias   19       // noParen
-#define tokStmtAwait   20       // noParen
-#define tokStmtCatch   21       // paren "catch(e.msg:print)"
-#define tokContinue    22       // noParen
-#define tokStmtEmbed   23       // noParen. Embed a text file as a string literal, or a binary resource file
-#define tokStmtExport  24       // paren
-#define tokFnDef       25       // specialCase
-#define tokStmtIf      26       // paren
-#define tokStmtIfEq    27       // like if, but every branch is a value compared using standard equality
-#define tokStmtIfPr    28       // like if, but every branch is a value compared using custom predicate
-#define tokStmtImpl    29       // paren
-#define tokStmtIface   30
-#define tokLambda      31
-#define tokLambDefArgs 32
-#define tokLoop        33       // recur operator for tail recursion
-#define tokStmtMatch   34       // pattern matching on sum type tag
-#define tokStmtMut     35
-#define tokNodestruct  36       // signaling that this value doesn't need its destructor called at scope end
-#define tokStmtReturn  37
-#define tokStmtStruct  38
-#define tokStmtTry     39
-#define tokStmtType    40
-#define tokYield       41
+#define tokAlias       19       // noParen
+#define tokAssert      20       // noParen
+#define tokAssertDbg   21       // noParen
+#define tokAwait       22       // noParen
+#define tokCatch       23       // paren "catch(e.msg:print)"
+#define tokContinue    24       // noParen
+#define tokContinueIf  25       // noParen
+#define tokEmbed       26       // noParen. Embed a text file as a string literal, or a binary resource file
+#define tokExport      27       // paren
+#define tokFinally     28       // paren
+#define tokFnDef       29       // specialCase
+#define tokIf          30       // paren
+#define tokIfEq        31       // like if, but every branch is a value compared using standard equality
+#define tokIfPr        32       // like if, but every branch is a value compared using custom predicate
+#define tokImpl        33       // paren
+#define tokIface       34
+#define tokLambda      35
+#define tokLambda1     36
+#define tokLambda2     37
+#define tokLambda3     38
+#define tokLoop        39       // recur operator for tail recursion
+#define tokMatch       40       // pattern matching on sum type tag
+#define tokMut         41
+#define tokNodestruct  42       // signaling that this value doesn't need its destructor called at scope end
+#define tokReturn      43
+#define tokReturnIf    44
+#define tokStruct      45
+#define tokTry         46
+#define tokTypeDef     47
+#define tokYield       48
+
+/** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
+#define firstCoreFormTokenType tokAlias
 
 /** Must be the lowest value in the PunctuationToken enum */
-#define firstPunctuationTokenType tokStmt
-/** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
-#define firstCoreFormTokenType tokStmtAlias
-#define countCoreForms 23
+#define firstPunctuationTokenType tokCurly
+#define countCoreForms 30
+
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique
  * and below "firstPunctuationTokenType"
  */
@@ -128,7 +138,7 @@ extern const int operatorStartSymbols[16];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    33 // must be equal to the count of following constants
+#define countOperators    34 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
 #define opTToString        2 // $
@@ -172,23 +182,32 @@ extern const int operatorStartSymbols[16];
 #define countReservedWords           23 // count of different reserved words below
 
 static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
+static const byte reservedBytesAssert[]      = { 97, 115, 115, 101, 114, 116 };
+static const byte reservedBytesAssertDbg[]   = { 97, 115, 115, 101, 114, 116, 68, 98, 103 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
 static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
 static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
+static const byte reservedBytesContinueIf[]  = { 99, 111, 110, 116, 105, 110, 117, 101, 73, 102 };
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
+static const byte reservedBytesFinally[]     = { 102, 105, 110, 97, 108, 108, 121 };
 static const byte reservedBytesFn[]          = { 102, 110 };
 static const byte reservedBytesIf[]          = { 105, 102 };
 static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
 static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
 static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
-static const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
+static const byte reservedBytesLambda[]      = { 108, 97, 109 };
+static const byte reservedBytesLambda1[]     = { 108, 97, 109, 49 };
+static const byte reservedBytesLambda2[]     = { 108, 97, 109, 50 };
+static const byte reservedBytesLambda3[]     = { 108, 97, 109, 51 };
+static const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
 static const byte reservedBytesMut[]         = { 109, 117, 116 };
 static const byte reservedBytesNodestruct[]  = { 110, 111, 100, 101, 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
+static const byte reservedBytesReturnIf[]    = { 114, 101, 116, 117, 114, 110, 73, 102 };
 static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
 static const byte reservedBytesTry[]         = { 116, 114, 121 };
@@ -199,7 +218,6 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 /** Function precedence must be higher than that of any infix operator, yet lower than the prefix operators */
 #define functionPrec 26
 #define prefixPrec 27
-
 
 #define aALower 97
 #define aBLower 98
@@ -249,6 +267,7 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define aSemicolon 59
 #define aExclamation 33
 #define aQuestion 63
+#define aComma 44
 #define aEqual 61
 
 #define aLT 60

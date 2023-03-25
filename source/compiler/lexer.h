@@ -20,9 +20,10 @@ typedef struct {
 
 typedef struct {
     unsigned int tp;
-    int numberOfToken;
+    int tokenInd;
     int countClauses;
-    bool wasOriginallyBackslash;
+    int isMultiline;
+    bool wasOriginallyColon;
 } RememberedToken;
 
 
@@ -75,6 +76,7 @@ struct Lexer {
     String* inp;
     int inpLength;
     int totalTokens;
+    int lastClosingPunctInd; // the index of the last encountered closing punctuation sign, used for statement length
     
     LanguageDefinition* langDef;
     
@@ -103,7 +105,7 @@ struct LanguageDefinition {
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
-    int (*reservedParensOrNot)[countReservedWords];
+    int (*reservedParensOrNot)[countCoreForms];
 };
 
 Lexer* createLexer(String* inp, Arena* ar);
