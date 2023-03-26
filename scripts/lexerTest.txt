@@ -1,4 +1,4 @@
-gcc -g -DTRACE -Wfatal-errors --std=c11 -o _bin/lexerTest \
+gcc -g -Wfatal-errors --std=c11 -o _bin/lexerTest \
 -Isource/utils -Isource/compiler  \
 test/lexerTest.c source/utils/goodString.c source/utils/arena.c source/compiler/lexerConstants.c source/compiler/lexer.c \
 -lm

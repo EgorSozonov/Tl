@@ -16,19 +16,18 @@ const char errorNumericEmpty[]               = "Could not lex a numeric literal,
 const char errorNumericMultipleDots[]        = "Multiple dots in numeric literals are not allowed!";
 const char errorNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
 const char errorPunctuationExtraOpening[]    = "Extra opening punctuation";
+const char errorPunctuationExtraClosing[]    = "Extra closing punctuation";
 const char errorPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like {}";
 const char errorPunctuationUnmatched[]       = "Unmatched closing punctuation";
-const char errorPunctuationInsideColon[]     = "Inside a colon, statements are not allowed (only expressions)";
-const char errorPunctuationExtraClosing[]    = "Extra closing punctuation";
 const char errorPunctuationWrongOpen[]       = "Wrong opening punctuation";
 const char errorPunctuationDoubleSplit[]     = "An expression or statement may contain only one '->' splitting symbol!";
 const char errorOperatorUnknown[]            = "Unknown operator";
 const char errorOperatorAssignmentPunct[]    = "Incorrect assignment operator placement: must be directly inside an ordinary statement, after the binding name!";
 const char errorOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
 const char errorOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
-const char errorCoreMissingParen[]           = "Core form requires opening parenthesis after keyword!"; 
-const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of the span";
 const char errorCoreNotInsideStmt[]          = "Core form must be directly inside statement";
+const char errorCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
+const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
 const char errorDocComment[]                 = "Doc comments must have the syntax (;; comment .)";
 
 

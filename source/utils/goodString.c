@@ -11,7 +11,7 @@
 /**
  * Allocates a C string literal into an arena. The length of the literal is determined in O(N).
  */
-String* allocLit(Arena* a, const char* content) {
+String* allocLit(const char* content, Arena* a) {
     if (content == NULL) return NULL;
     const char* ind = content;
     int len = 0;

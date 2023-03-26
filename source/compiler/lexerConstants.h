@@ -23,19 +23,18 @@ extern const char errorNumericEmpty[];
 extern const char errorNumericMultipleDots[];
 extern const char errorNumericIntWidthExceeded[];
 extern const char errorPunctuationExtraOpening[];
+extern const char errorPunctuationExtraClosing[];
 extern const char errorPunctuationOnlyInMultiline[];
 extern const char errorPunctuationUnmatched[];
-extern const char errorPunctuationInsideColon[];
-extern const char errorPunctuationExtraClosing[];
 extern const char errorPunctuationWrongOpen[];
 extern const char errorPunctuationDoubleSplit[];
 extern const char errorOperatorUnknown[];
 extern const char errorOperatorAssignmentPunct[];
 extern const char errorOperatorTypeDeclPunct[];
 extern const char errorOperatorMultipleAssignment[];
+extern const char errorCoreNotInsideStmt[];
 extern const char errorCoreMissingParen[];
 extern const char errorCoreNotAtSpanStart[];
-extern const char errorCoreNotInsideStmt[];
 extern const char errorDocComment[];
 
 /**
@@ -43,10 +42,8 @@ extern const char errorDocComment[];
  */
 extern const byte maxInt[19];
 
-
 /** 2**53 */
 extern const byte maximumPreciselyRepresentedFloatingInt[16];
-
 
 /** All the symbols an operator may start with. The ':' is absent because it's handled by lexColon.
 * The '-' is absent because it's handled by 'lexMinus'.
@@ -54,9 +51,7 @@ extern const byte maximumPreciselyRepresentedFloatingInt[16];
 #define countOperatorStartSymbols 16
 extern const int operatorStartSymbols[16];
 
-
 #define topVerbatimTokenVariant = 5
-
 
 /**
  * Regular (leaf) Token types
@@ -132,8 +127,8 @@ extern const int operatorStartSymbols[16];
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique
  * and below "firstPunctuationTokenType"
  */
-#define reservedFalse 2
-#define reservedTrue  1
+#define reservedFalse   2
+#define reservedTrue    1
 
 /**
  * OperatorType
@@ -218,61 +213,60 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 
 
 /** Function precedence must be higher than that of any infix operator, yet lower than the prefix operators */
-#define functionPrec 26
-#define prefixPrec 27
+#define functionPrec  26
+#define prefixPrec    27
 
-#define aALower 97
-#define aBLower 98
-#define aCLower 99
-#define aFLower 102
-#define aNLower 110
-#define aXLower 120
-#define aYLower 121
-#define aZLower 122
-#define aAUpper 65
-#define aFUpper 70
-#define aZUpper 90
-#define aDigit0 48
-#define aDigit1 49
-#define aDigit9 57
+#define aALower       97
+#define aBLower       98
+#define aCLower       99
+#define aFLower      102
+#define aNLower      110
+#define aXLower      120
+#define aYLower      121
+#define aZLower      122
+#define aAUpper       65
+#define aFUpper       70
+#define aZUpper       90
+#define aDigit0       48
+#define aDigit1       49
+#define aDigit9       57
 
-#define aPlus 43
-#define aMinus 45
-#define aTimes 42
-#define aDivBy 47
-#define aDot 46
-#define aPercent 37
+#define aPlus         43
+#define aMinus        45
+#define aTimes        42
+#define aDivBy        47
+#define aDot          46
+#define aPercent      37
 
-#define aParenLeft 40
-#define aParenRight 41
-#define aCurlyLeft 123
-#define aCurlyRight 125
-#define aBracketLeft 91
+#define aParenLeft    40
+#define aParenRight   41
+#define aCurlyLeft   123
+#define aCurlyRight  125
+#define aBracketLeft  91
 #define aBracketRight 93
-#define aPipe 124
-#define aAmp 38
-#define aTilde 126
-#define aBackslash 92
+#define aPipe        124
+#define aAmp          38
+#define aTilde       126
+#define aBackslash    92
 
-#define aSpace 32
-#define aNewline 10
-#define aCarriageReturn 13
+#define aSpace        32
+#define aNewline      10
+#define aCarrReturn   13
 
-#define aApostrophe 39
-#define aQuote 34
-#define aSharp 35
-#define aDollar 36
-#define aUnderscore 95
-#define aCaret 94
-#define aAt 64
-#define aColon 58
-#define aSemicolon 59
-#define aExclamation 33
-#define aQuestion 63
-#define aComma 44
-#define aEqual 61
-
-#define aLT 60
-#define aGT 62
+#define aApostrophe   39
+#define aQuote        34
+#define aSharp        35
+#define aDollar       36
+#define aUnderscore   95
+#define aCaret        94
+#define aAt           64
+#define aColon        58
+#define aSemicolon    59
+#define aExclamation  33
+#define aQuestion     63
+#define aComma        44
+#define aEqual        61
+#define aLT           60
+#define aGT           62
 
 #endif

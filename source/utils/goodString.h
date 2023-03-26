@@ -13,7 +13,7 @@ typedef struct {
     byte content[];
 } String;
 
-String* allocLit(Arena* ar, const char* content);
+String* allocLit(const char* content, Arena* ar);
 String* allocateScratchSpace(Arena* ar, uint64_t len);
 String* allocateFromSubstring(Arena* ar, char* content, int start, int length);
 bool endsWith(String* a, String* b);
