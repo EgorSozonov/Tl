@@ -16,6 +16,23 @@
 DEFINE_STACK(RememberedToken)
 DEFINE_STACK(int)
 
+#define pop(X) _Generic((X), \
+    StackRememberedToken*: popRememberedToken \
+    )(X)
+
+#define peek(X) _Generic((X), \
+    StackRememberedToken*: peekRememberedToken \
+    )(X)
+
+#define push(A, X) _Generic((X), \
+    StackRememberedToken*: pushRememberedToken \
+    )(A, X)
+    
+#define hasValues(X) _Generic((X), \
+    StackRememberedToken*: hasValuesRememberedToken \
+    )(X)    
+    
+ 
 jmp_buf excBuf;
 
 private bool isLetter(byte a) {
@@ -81,8 +98,8 @@ void add(Token t, Lexer* lexer) {
 
 /** For all the dollars at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
 private void closeSemicolons(Lexer* lr) {
-    while (hasValuesRememberedToken(lr->backtrack) && peekRememberedToken(lr->backtrack).wasOriginallyColon) {
-        RememberedToken top = popRememberedToken(lr->backtrack);
+    while (hasValues(lr->backtrack) && peek(lr->backtrack).wasOriginallyColon) {
+        RememberedToken top = pop(lr->backtrack);
         int j = top.tokenInd;
         lr->tokens[j].tp = tokParens;
         lr->tokens[j].lenBytes = lr->i - lr->tokens[j].startByte;
@@ -264,15 +281,15 @@ private void addNewLine(int j, Lexer* lr) {
 }
 
 private void addStatement(uint stmtType, int startByte, Lexer* lr) {
-    pushRememberedToken((RememberedToken){ .tp = stmtType, .tokenInd = lr->nextInd}, lr->backtrack);
+    push(((RememberedToken){ .tp = stmtType, .tokenInd = lr->nextInd}), lr->backtrack);
     add((Token){ .tp = stmtType, .startByte = startByte}, lr);
 }
 
 /** A curly brace starts a multi-line statement, anything else => a regular statement. */
 private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {    
-    if (hasValuesRememberedToken(lr->backtrack)) {
-        if (peekRememberedToken(lr->backtrack).isMultiline) {
-            pushRememberedToken((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }, lr->backtrack);
+    if (hasValues(lr->backtrack)) {
+        if (peek(lr->backtrack).isMultiline) {
+            push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
             add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
         }
     } else {
@@ -282,9 +299,9 @@ private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
 
 /** A curly brace starts a multi-line statement, anything else => a regular statement. */
 private void wrapInAStatementStarting(int startByte, Lexer* lr, Arr(byte) inp) {
-    if (hasValuesRememberedToken(lr->backtrack)) {
-        if (peekRememberedToken(lr->backtrack).isMultiline) {
-            pushRememberedToken((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }, lr->backtrack);
+    if (hasValues(lr->backtrack)) {
+        if (peek(lr->backtrack).isMultiline) {
+            push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
             add((Token){ .tp = tokStmt, .startByte = startByte},  lr);
         }
     } else {
@@ -299,15 +316,15 @@ private void wrapInAStatementStarting(int startByte, Lexer* lr, Arr(byte) inp) {
  */
 private void closeRegularPunctuation(int closingType, Lexer* lr) {
     closeSemicolons(lr);
-    if (!hasValuesRememberedToken(lr->backtrack)) {
+    if (!hasValues(lr->backtrack)) {
         throwExc(errorPunctuationExtraClosing, lr);
     }
-    RememberedToken top = popRememberedToken(lr->backtrack);
+    RememberedToken top = pop(lr->backtrack);
     if (closingType == tokCurly && !top.isMultiline) {
         // since a closing parenthesis might be closing something with statements inside it, like a lex scope
         // or a core syntax form, we need to close the last statement before closing its parent
         setStmtSpanLength(top.tokenInd, lr);
-        top = popRememberedToken(lr->backtrack);
+        top = pop(lr->backtrack);
     }
     validateClosingPunct(closingType, top.tp, lr);
     setSpanLength(top.tokenInd, lr);
@@ -320,7 +337,7 @@ private void closeRegularPunctuation(int closingType, Lexer* lr) {
  */
 private void lexDot(Lexer* lr, Arr(byte) inp) {
     int multiLineMode = 0;
-    if (!hasValuesRememberedToken(lr->backtrack) || peekRememberedToken(lr->backtrack).isMultiline) {
+    if (!hasValues(lr->backtrack) || peek(lr->backtrack).isMultiline) {
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
         lr->i++;
         return;
@@ -329,9 +346,9 @@ private void lexDot(Lexer* lr, Arr(byte) inp) {
         // Otherwise, error                
         int len = lr->backtrack->length;
         if (len == 1 || len >= 2 && (*lr->backtrack->content)[len - 2].isMultiline) {
-            RememberedToken top = peekRememberedToken(lr->backtrack);
+            RememberedToken top = peek(lr->backtrack);
             setStmtSpanLength(top.tokenInd, lr);
-            popRememberedToken(lr->backtrack);
+            pop(lr->backtrack);
             lr->i++;
             return;
         }
@@ -591,9 +608,9 @@ private void lexNumber(Lexer* lr, Arr(byte) inp) {
  */
 private void openPunctuation(unsigned int tType, Lexer* lr) {
     lr->i++;
-    pushRememberedToken( (RememberedToken){ 
+    push( ((RememberedToken){ 
         .tp = tType, .tokenInd = lr->nextInd, .isMultiline = tType == tokCurly
-    }, lr->backtrack);
+    }), lr->backtrack);
     add((Token) {.tp = tType, .startByte = lr->i }, lr);    
 }
 
@@ -603,16 +620,16 @@ private void openPunctuation(unsigned int tType, Lexer* lr) {
 private void lexReservedWord(uint reservedWordType, int startInd, Lexer* lr, Arr(byte) inp) {    
     int reservedExpectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (reservedExpectations == 0 || reservedExpectations == 2) { // the reserved words that live at the start of a statement
-        if (!hasValuesRememberedToken(lr->backtrack) || peekRememberedToken(lr->backtrack).isMultiline) {
+        if (!hasValues(lr->backtrack) || peek(lr->backtrack).isMultiline) {
             addStatement(reservedWordType, startInd, lr);
         } else {            
             throwExc(errorCoreNotInsideStmt, lr);
         }
     } else if (reservedExpectations == 1) { // the "(reserved" or "{reserved" cases
-        if (!hasValuesRememberedToken(lr->backtrack)) {
+        if (!hasValues(lr->backtrack)) {
             throwExc(errorCoreMissingParen, lr);
         }
-        RememberedToken top = peekRememberedToken(lr->backtrack);
+        RememberedToken top = peek(lr->backtrack);
         if (top.tokenInd + 1 != lr->nextInd) {
             throwExc(errorCoreNotAtSpanStart, lr);
         }
@@ -745,7 +762,7 @@ private void setSpanAssignment(int tokenInd, int isExtensionAssignment, uint opT
 
 /** Changes existing tokens and parent span to accout for the fact that we met an assignment operator */
 private void processAssignmentOperator(uint opType, int isExtensionAssignment, Lexer* lr) {
-    RememberedToken currSpan = peekRememberedToken(lr->backtrack);
+    RememberedToken currSpan = peek(lr->backtrack);
 
     if (currSpan.tp == tokAssignment) {
         throwExc(errorOperatorMultipleAssignment, lr);
@@ -776,7 +793,7 @@ private void lexColon(Lexer* lr, Arr(byte) inp) {
 
 private void lexSemicolon(Lexer* lr, Arr(byte) inp) {   
     lr->i++;
-    pushRememberedToken((RememberedToken){ .tp = tokParens, .tokenInd = lr->nextInd, .wasOriginallyColon = true},
+    push(((RememberedToken){ .tp = tokParens, .tokenInd = lr->nextInd, .wasOriginallyColon = true}),
         lr->backtrack
     );
     add((Token) {.tp = tokParens, .startByte = lr->i }, lr);
@@ -874,8 +891,8 @@ private void lexMinus(Lexer* lr, Arr(byte) inp) {
 
 /** If we are inside a compound (=2) core form, we need to increment the clause count */ 
 private void mbIncrementClauseCount(Lexer* lr) {
-    if (hasValuesRememberedToken(lr->backtrack)) {
-        RememberedToken top = peekRememberedToken(lr->backtrack);
+    if (hasValues(lr->backtrack)) {
+        RememberedToken top = peek(lr->backtrack);
         if (top.tp >= firstCoreFormTokenType && (*lr->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
             (*lr->backtrack->content)[lr->backtrack->length - 1].countClauses++;
         }
@@ -884,11 +901,11 @@ private void mbIncrementClauseCount(Lexer* lr) {
 
 /** If we're inside a compound (=2) core form, we need to check if its clause count is saturated */ 
 private void mbCloseCompoundCoreForm(Lexer* lr) {
-    RememberedToken top = peekRememberedToken(lr->backtrack);
+    RememberedToken top = peek(lr->backtrack);
     if (top.tp >= firstCoreFormTokenType && (*lr->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
         if (top.countClauses == 2) {
             setSpanLength(top.tokenInd, lr);
-            popRememberedToken(lr->backtrack);
+            pop(lr->backtrack);
         }
     }
 }
@@ -906,7 +923,7 @@ private void lexParenRight(Lexer* lr, Arr(byte) inp) {
     int startInd = lr->i;
     closeRegularPunctuation(tokParens, lr);
     
-    if (!hasValuesRememberedToken(lr->backtrack)) return;
+    if (!hasValues(lr->backtrack)) return;
     mbCloseCompoundCoreForm(lr);
     
     lr->lastClosingPunctInd = startInd;    
@@ -1227,10 +1244,10 @@ private Lexer* buildLexer(int totalTokens, String* inp, Arena *a, /* Tokens */ .
  * Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and an open statement, if any.
  */
 private void finalize(Lexer* lr) {
-    if (!hasValuesRememberedToken(lr->backtrack)) return;
+    if (!hasValues(lr->backtrack)) return;
     closeSemicolons(lr);
-    RememberedToken top = popRememberedToken(lr->backtrack);
-    if (top.isMultiline || hasValuesRememberedToken(lr->backtrack)) {
+    RememberedToken top = pop(lr->backtrack);
+    if (top.isMultiline || hasValues(lr->backtrack)) {
         throwExc(errorPunctuationExtraOpening, lr);
     }
     setStmtSpanLength(top.tokenInd, lr);    
