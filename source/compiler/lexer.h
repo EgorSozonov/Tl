@@ -28,7 +28,6 @@ typedef struct {
 
 
 DEFINE_STACK_HEADER(RememberedToken)
-DEFINE_STACK_HEADER(int)
 
 /**
  * There is a closed set of operators in the language.

@@ -14,7 +14,6 @@
 #define NEXT_BT inp[lr->i + 1]
 
 DEFINE_STACK(RememberedToken)
-DEFINE_STACK(int)
 
 #define pop(X) _Generic((X), \
     StackRememberedToken*: popRememberedToken \
