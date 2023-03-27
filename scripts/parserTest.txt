@@ -1,0 +1,5 @@
+gcc -g -Wfatal-errors --std=c11 -o _bin/lexerTest \
+-Isource/utils -Isource/compiler  \
+test/parserTest.c source/utils/goodString.c source/utils/arena.c source/compiler/lexerConstants.c source/compiler/lexer.c \
+source/compiler/parserConstants.c source/compiler/parser.c \
+-lm
