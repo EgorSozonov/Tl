@@ -1,0 +1,3 @@
+gcc -g -Wfatal-errors --std=c11 -o _bin/utilsTest \
+-Isource/utils \
+test/utilsTest.c source/utils/goodString.c source/utils/arena.c source/utils/hashMap.c

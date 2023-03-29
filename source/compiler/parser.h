@@ -38,6 +38,12 @@ typedef struct {
 typedef struct {
 } FunctionDef;
 
+
+// ParseFrame = spanType, startNode, sentinelToken, currClause
+// LexicalScope = funDefs, bindings, functions, types, typeFuncs
+// Stack Stack Subexpr | Subexpr = Stack FunctionCall, sentinelToken, isInHeadPosition
+// FunctionCall = nameId, prec, arity, maxArity, startByte
+
 typedef struct {
     int i;
     String* code;
