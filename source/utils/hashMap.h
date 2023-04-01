@@ -8,7 +8,7 @@
 
 /** HashMap Int Int with non-negative keys */
 typedef struct {
-    Arr(int*)* dict;
+    Arr(int*) dict;
     int dictSize;
     int length;    
     Arena* a;

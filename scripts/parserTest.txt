@@ -1,4 +1,4 @@
-gcc -g -Wfatal-errors --std=c11 -o _bin/parserTest \
+gcc -g -Wfatal-errors -Werror=implicit-function-declaration --std=c11 -o _bin/parserTest \
 -Isource/utils -Isource/compiler  \
 test/parserTest.c source/utils/goodString.c source/utils/arena.c source/compiler/lexerConstants.c source/compiler/lexer.c \
 source/compiler/parserConstants.c source/compiler/parser.c \

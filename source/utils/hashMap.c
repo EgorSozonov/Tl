@@ -6,9 +6,9 @@
 HashMap* createHashMap(int initSize, Arena* a) {
     HashMap* result = allocateOnArena(sizeof(HashMap), a);
     int realInitSize = (initSize >= 4 && initSize < 1024) ? initSize : (initSize >= 4 ? 1024 : 4);
-    Arr(int*)* dict = allocateOnArena(sizeof(int*)*realInitSize, a);
+    Arr(int*) dict = allocateOnArena(sizeof(int*)*realInitSize, a);
     
-    int*** d = dict;
+    int** d = dict;
 
     for (int i = 0; i < realInitSize; i++) {
         d[i] = NULL;
@@ -25,7 +25,7 @@ void add(int key, int value, HashMap* hm) {
 
     int hash = key % (hm->dictSize);
     printf("when adding, hash = %d\n", hash);
-    if ((*hm->dict)[hash] == NULL) {
+    if ((*hm->dict + hash) == NULL) {
         Arr(int) newBucket = allocateOnArena(9*sizeof(int), hm->a);
         printf("here\n");
         newBucket[0] = (8 << 16) + 1; // u16 = capacity, u16 = length
