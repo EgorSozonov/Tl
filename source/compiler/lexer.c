@@ -221,7 +221,7 @@ private int determineReservedM(int startByte, int lenBytes, Lexer* lr) {
 
 private int determineReservedN(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
-    PROBERESERVED(reservedBytesNodestruct, tokNodestruct)
+    PROBERESERVED(reservedBytesNoDispose, tokNodispose)
     return 0;
 }
 
@@ -1023,11 +1023,11 @@ private void docComment(Lexer* lr, Arr(byte) inp) {
 }
 
 /**
- *  Doc comments, syntax is # The comment
+ *  Doc comments, syntax is ; The comment
  */
 private void lexComment(Lexer* lr, Arr(byte) inp) {
     int j = lr->i + 1;
-    if (j < lr->inpLength && inp[j] == aSharp) {
+    if (j < lr->inpLength && inp[j] == aSemicolon) {
         docComment(lr, inp);
         return;
     }
@@ -1076,7 +1076,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aDot] = &lexDot;
     p[aAt] = &lexAtWord;
     p[aColon] = &lexColon;
-    p[aSemicolon] = &lexSemicolon;
+    p[aSemicolon] = &lexComment;
     p[aEqual] = &lexEqual;
 
     for (int i = 0; i < countOperatorStartSymbols; i++) {
@@ -1148,39 +1148,36 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     */
     p[ 0] = (OpDef){ .name=allocLit("!=", a), .precedence=11, .arity=2, .bytes={aExclamation, aEqual, 0, 0 } };
     p[ 1] = (OpDef){ .name=allocLit("!", a), .precedence=prefixPrec, .arity=1, .bytes={aExclamation, 0, 0, 0 } };
-    p[ 2] = (OpDef){ .name=allocLit("$", a), .precedence=prefixPrec, .arity=1, .overloadable = true, .bytes={aDollar, 0, 0, 0 } };    
-    p[ 3] = (OpDef){ .name=allocLit("%", a), .precedence=20, .arity=2, .extensible=true, .bytes={aPercent, 0, 0, 0 } };
-    p[ 4] = (OpDef){ .name=allocLit("&&", a), .precedence=9, .arity=2, .bytes={aAmp, aAmp, 0, 0 }, .assignable=true };
-    p[ 5] = (OpDef){ .name=allocLit("&", a), .precedence=prefixPrec, .arity=1, .bytes={aAmp, 0, 0, 0 } };
-    p[ 6] = (OpDef){ .name=allocLit("'", a), .precedence=prefixPrec, .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
-    p[ 7] = (OpDef){ .name=allocLit("*", a), .precedence=20, .arity=2, .extensible=true, .bytes={aTimes, 0, 0, 0 } };
-    p[ 8] = (OpDef){ .name=allocLit("++", a), .precedence=functionPrec, .arity=1, .bytes={aPlus, aPlus, 0, 0 }, .overloadable=true };
-    p[ 9] = (OpDef){ .name=allocLit("+", a), .precedence=17, .arity=2, .extensible=true, .bytes={aPlus, 0, 0, 0 } };
-    p[10] = (OpDef){ .name=allocLit(",<", a), .precedence=1, .arity=2, .bytes={aComma, aLT, 0, 0 }, .overloadable=true };
-    p[11] = (OpDef){ .name=allocLit(",", a), .precedence=1, .arity=2, .bytes={aComma, 0, 0, 0 }, .overloadable=true };    
-    p[12] = (OpDef){ .name=allocLit("--", a), .precedence=functionPrec, .arity=1, .bytes={aMinus, aMinus, 0, 0 }, .overloadable=true };
-    p[13] = (OpDef){ .name=allocLit("-", a), .precedence=17, .arity=2, .extensible=true, .bytes={aMinus, 0, 0, 0 } };
-    p[14] = (OpDef){ .name=allocLit("/", a), .precedence=20, .arity=2, .extensible=true, .bytes={aDivBy, 0, 0, 0 } };
-
-    p[15] = (OpDef){ .name=allocLit("<-", a), .precedence=1, .arity=2, .bytes={aLT, aMinus, 0, 0 } };
-    p[16] = (OpDef){ .name=allocLit("<<", a), .precedence=14, .arity=2, .extensible=true, .bytes={aLT, aLT, 0, 0 } };    
-    p[17] = (OpDef){ .name=allocLit("<=", a), .precedence=12, .arity=2, .bytes={aLT, aEqual, 0, 0 } };    
-    p[18] = (OpDef){ .name=allocLit("<>", a), .precedence=12, .arity=2, .bytes={aLT, aGT, 0, 0 } };    
-    p[19] = (OpDef){ .name=allocLit("<", a), .precedence=12, .arity=2, .bytes={aLT, 0, 0, 0 } };
-    p[20] = (OpDef){ .name=allocLit("==", a), .precedence=11, .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
-    p[21] = (OpDef){ .name=allocLit(">=<=", a), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[22] = (OpDef){ .name=allocLit(">=<", a), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
-    p[23] = (OpDef){ .name=allocLit("><=", a), .precedence=12, .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
-    p[24] = (OpDef){ .name=allocLit("><", a), .precedence=12, .arity=3, .bytes={aGT, aLT, 0, 0 } };
-    p[25] = (OpDef){ .name=allocLit(">=", a), .precedence=12, .arity=2, .bytes={aGT, aEqual, 0, 0 } };
-    p[26] = (OpDef){ .name=allocLit(">>", a), .precedence=14, .arity=2, .extensible=true, .bytes={aGT, aGT, 0, 0 } };
-    p[27] = (OpDef){ .name=allocLit(">", a), .precedence=12, .arity=2, .bytes={aGT, 0, 0, 0 } };
-    p[28] = (OpDef){ .name=allocLit("?:", a), .precedence=1, .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
-    p[29] = (OpDef){ .name=allocLit("?", a), .precedence=prefixPrec, .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[30] = (OpDef){ .name=allocLit("^", a), .precedence=21, .arity=2, .extensible=true, .bytes={aCaret, 0, 0, 0 } };
-    p[31] = (OpDef){ .name=allocLit("||", a), .precedence=3, .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
-    p[32] = (OpDef){ .name=allocLit("|", a), .precedence=9, .arity=2, .bytes={aPipe, 0, 0, 0 } };    
-    p[33] = (OpDef){ .name=allocLit("~", a), .precedence=prefixPrec, .bytes={aTilde, 0, 0, 0 } };    
+    p[ 2] = (OpDef){ .name=allocLit("#", a), .precedence=prefixPrec, .arity=1, .overloadable = true, .bytes={aSharp, 0, 0, 0 } };    
+    p[ 3] = (OpDef){ .name=allocLit("$", a), .precedence=prefixPrec, .arity=1, .overloadable = true, .bytes={aDollar, 0, 0, 0 } };    
+    p[ 4] = (OpDef){ .name=allocLit("%", a), .precedence=20, .arity=2, .extensible=true, .bytes={aPercent, 0, 0, 0 } };
+    p[ 5] = (OpDef){ .name=allocLit("&&", a), .precedence=9, .arity=2, .bytes={aAmp, aAmp, 0, 0 }, .assignable=true };
+    p[ 6] = (OpDef){ .name=allocLit("&", a), .precedence=prefixPrec, .arity=1, .bytes={aAmp, 0, 0, 0 } };
+    p[ 7] = (OpDef){ .name=allocLit("'", a), .precedence=prefixPrec, .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
+    p[ 8] = (OpDef){ .name=allocLit("*", a), .precedence=20, .arity=2, .extensible=true, .bytes={aTimes, 0, 0, 0 } };
+    p[ 9] = (OpDef){ .name=allocLit("++", a), .precedence=functionPrec, .arity=1, .bytes={aPlus, aPlus, 0, 0 }, .overloadable=true };
+    p[10] = (OpDef){ .name=allocLit("+", a), .precedence=17, .arity=2, .extensible=true, .bytes={aPlus, 0, 0, 0 } };
+    p[11] = (OpDef){ .name=allocLit("--", a), .precedence=functionPrec, .arity=1, .bytes={aMinus, aMinus, 0, 0 }, .overloadable=true };
+    p[12] = (OpDef){ .name=allocLit("-", a), .precedence=17, .arity=2, .extensible=true, .bytes={aMinus, 0, 0, 0 } };
+    p[13] = (OpDef){ .name=allocLit("/", a), .precedence=20, .arity=2, .extensible=true, .bytes={aDivBy, 0, 0, 0 } };
+    p[14] = (OpDef){ .name=allocLit("<-", a), .precedence=1, .arity=2, .bytes={aLT, aMinus, 0, 0 } };
+    p[15] = (OpDef){ .name=allocLit("<<", a), .precedence=14, .arity=2, .extensible=true, .bytes={aLT, aLT, 0, 0 } };    
+    p[16] = (OpDef){ .name=allocLit("<=", a), .precedence=12, .arity=2, .bytes={aLT, aEqual, 0, 0 } };    
+    p[17] = (OpDef){ .name=allocLit("<>", a), .precedence=12, .arity=2, .bytes={aLT, aGT, 0, 0 } };    
+    p[18] = (OpDef){ .name=allocLit("<", a), .precedence=12, .arity=2, .bytes={aLT, 0, 0, 0 } };
+    p[19] = (OpDef){ .name=allocLit("==", a), .precedence=11, .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
+    p[20] = (OpDef){ .name=allocLit(">=<=", a), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
+    p[21] = (OpDef){ .name=allocLit(">=<", a), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
+    p[22] = (OpDef){ .name=allocLit("><=", a), .precedence=12, .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
+    p[23] = (OpDef){ .name=allocLit("><", a), .precedence=12, .arity=3, .bytes={aGT, aLT, 0, 0 } };
+    p[24] = (OpDef){ .name=allocLit(">=", a), .precedence=12, .arity=2, .bytes={aGT, aEqual, 0, 0 } };
+    p[25] = (OpDef){ .name=allocLit(">>", a), .precedence=14, .arity=2, .extensible=true, .bytes={aGT, aGT, 0, 0 } };
+    p[26] = (OpDef){ .name=allocLit(">", a), .precedence=12, .arity=2, .bytes={aGT, 0, 0, 0 } };
+    p[27] = (OpDef){ .name=allocLit("?:", a), .precedence=1, .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
+    p[28] = (OpDef){ .name=allocLit("?", a), .precedence=prefixPrec, .arity=1, .bytes={aQuestion, 0, 0, 0 } };
+    p[29] = (OpDef){ .name=allocLit("^", a), .precedence=21, .arity=2, .extensible=true, .bytes={aCaret, 0, 0, 0 } };
+    p[30] = (OpDef){ .name=allocLit("||", a), .precedence=3, .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
+    p[31] = (OpDef){ .name=allocLit("|", a), .precedence=9, .arity=2, .bytes={aPipe, 0, 0, 0 } };    
     return result;
 }
 

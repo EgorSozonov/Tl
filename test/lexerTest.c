@@ -25,11 +25,12 @@ typedef struct {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "word", ".word", "@word", ":func", "operator", ";", 
+    "word", ".word", "@word", ":func", "operator", ":", 
     "{}", ".", "()", "[]", "accessor", "funcExpr", "assignment", 
-    "alias", "assert", "assertDbg", "await", "catch", "continue", "continueIf", "embed", "export",
-    "finally", "fn", "if", "ifEq", "ifPr", "impl", "interface", "lambda", "lam1", "lam2", "lam3", 
-    "loop", "match", "mut", "nodestruct", "return", "returnIf", "struct", "try", "type", "yield"
+    "alias", "assert", "assertDbg", "await", "break", "breakIf", "catch", "continue", "continueIf", 
+    "dispose", "embed", "export", "finally", "fn", "if", "ifEq", "ifPr", "impl", "interface", 
+    "lambda", "lam1", "lam2", "lam3", "loop", "match", "mut", "nodestruct", "return", "returnIf", 
+    "struct", "try", "type", "yield"
 };
 
 static Lexer* buildLexer(int totalTokens, Arena *a, /* Tokens */ ...) {

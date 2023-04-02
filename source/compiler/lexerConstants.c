@@ -31,12 +31,11 @@ const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the sta
 const char errorDocComment[]                 = "Doc comments must have the syntax (;; comment .)";
 
 
-/** All the symbols an operator may start with. ":" is absent because it's handled by lexColon. 
- * "-" is absent because it's handled by lexMinus. "\" is absent because it's handled by lexBackslash
+/** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus.
  */
 const int operatorStartSymbols[] = {
-    aExclamation, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aComma, aDivBy, 
-    aLT, aGT, aQuestion, aCaret, aPipe, aTilde
+    aExclamation, aSharp, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDivBy, 
+    aLT, aGT, aQuestion, aCaret, aPipe
 };
 
 

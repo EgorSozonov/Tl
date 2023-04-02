@@ -87,7 +87,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokParens      14  // 200
 #define tokBrackets    15  // 200
 #define tokAccessor    16  // 200
-#define tokFuncExpr    17      // the ":(foo :bar)" kind of thing  // 200
+#define tokFuncExpr    17      // the ",(foo,bar)" kind of thing  // 200
 #define tokAssignment  18      // payload1 = as in tokOperator     // 400
 
 // Core syntax form Token types
@@ -95,32 +95,35 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokAssert      20       // noParen   // 300
 #define tokAssertDbg   21       // noParen   // 300
 #define tokAwait       22       // noParen   // 300
-#define tokCatch       23       // paren "catch(e.msg:print)"  // 500
-#define tokContinue    24       // noParen   // 300
-#define tokContinueIf  25       // noParen   // 300
-#define tokEmbed       26       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      27       // paren     // 600
-#define tokFinally     28       // paren     // 500
-#define tokFnDef       29       // specialCase // 400
-#define tokIf          30       // paren    // 200/500
-#define tokIfEq        31       // like if, but every branch is a value compared using standard equality // 200/500
-#define tokIfPr        32       // like if, but every branch is a value compared using custom predicate  // 200/500
-#define tokImpl        33       // paren // 400
-#define tokIface       34       // 400
-#define tokLambda      35       // 500
-#define tokLambda1     36       // 500
-#define tokLambda2     37       // 500
-#define tokLambda3     38       // 500
-#define tokLoop        39       // recur operator for tail recursion // 300
-#define tokMatch       40       // pattern matching on sum type tag  // 200/500
-#define tokMut         41       // 400
-#define tokNodestruct  42       // signaling that this value doesn't need its destructor called at scope end // ???
-#define tokReturn      43       // 300
-#define tokReturnIf    44       // 300
-#define tokStruct      45       // 400
-#define tokTry         46       // 500
-#define tokTypeDef     47       // 400
-#define tokYield       48       // 300
+#define tokBreak       23       // noParen   // 300
+#define tokBreakIf     24       // noParen   // 300
+#define tokCatch       25       // paren "catch(e.msg,print)"  // 500
+#define tokContinue    26       // noParen   // 300
+#define tokContinueIf  27       // noParen   // 300
+#define tokDispose     28       // noParen   // 300
+#define tokEmbed       29       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      30       // paren     // 600
+#define tokFinally     31       // paren     // 500
+#define tokFnDef       32       // specialCase // 400
+#define tokIf          33       // paren    // 200/500
+#define tokIfEq        34       // like if, but every branch is a value compared using standard equality // 200/500
+#define tokIfPr        36       // like if, but every branch is a value compared using custom predicate  // 200/500
+#define tokImpl        37       // paren // 400
+#define tokIface       38       // 400
+#define tokLambda      39       // 500
+#define tokLambda1     40       // 500
+#define tokLambda2     41       // 500
+#define tokLambda3     42       // 500
+#define tokLoop        43       // recur operator for tail recursion // 300
+#define tokMatch       44       // pattern matching on sum type tag  // 200/500
+#define tokMut         45       // 400
+#define tokNodispose   46       // signaling that this value doesn't need its destructor called at scope end // ???
+#define tokReturn      47       // 300
+#define tokReturnIf    48       // 300
+#define tokStruct      49       // 400
+#define tokTry         50       // 500
+#define tokTypeDef     51       // 400
+#define tokYield       52       // 300
 
 #define topVerbatimTokenVariant = 5
 
@@ -142,41 +145,39 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    34 // must be equal to the count of following constants
+#define countOperators    32 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
-#define opTToString        2 // $
-#define opTRemainder       3 // %
-#define opTBoolAnd         4 // &&
-#define opTBinaryAnd       5 // &
-#define opTNotEmpty        6 // '
-#define opTTimes           7 // *
-#define opTIncrement       8 // ++
-#define opTPlus            9 // +
-#define opTRangeHalf      10 // ,<
-#define opTRange          11 // ,
-#define opTDecrement      12 // --
-#define opTMinus          13 // -
-#define opTDivBy          14 // /
-#define opTArrowLeft      15 // <-
-#define opTBitShiftLeft   16 // <<
-#define opTLTEQ           17 // <=
-#define opTComparator     18 // <>
-#define opTLessThan       19 // <
-#define opTEquality       20 // ==
-#define opTIntervalBoth   21 // >=<=
-#define opTIntervalLeft   22 // >=<
-#define opTIntervalRight  23 // ><=
-#define opTIntervalExcl   24 // ><
-#define opTGTEQ           25 // >=
-#define opTBitshiftRight  26 // >>
-#define opTGreaterThan    27 // >
-#define opTNullCoalesc    28 // ?:
-#define opTQuestionMark   29 // ?
-#define opTExponent       30 // ^
-#define opTBoolOr         31 // ||
-#define opTPipe           32 // |
-#define opTSize           33 // ~
+#define opTSize            2 // #
+#define opTToString        3 // $
+#define opTRemainder       4 // %
+#define opTBoolAnd         5 // &&
+#define opTBinaryAnd       6 // &
+#define opTNotEmpty        7 // '
+#define opTTimes           8 // *
+#define opTIncrement       9 // ++
+#define opTPlus           10 // +
+#define opTDecrement      11 // --
+#define opTMinus          12 // -
+#define opTDivBy          13 // /
+#define opTArrowLeft      14 // <-
+#define opTBitShiftLeft   15 // <<
+#define opTLTEQ           16 // <=
+#define opTComparator     17 // <>
+#define opTLessThan       18 // <
+#define opTEquality       19 // ==
+#define opTIntervalBoth   20 // >=<=
+#define opTIntervalLeft   21 // >=<
+#define opTIntervalRight  22 // ><=
+#define opTIntervalExcl   23 // ><
+#define opTGTEQ           24 // >=
+#define opTBitshiftRight  25 // >>
+#define opTGreaterThan    26 // >
+#define opTNullCoalesc    27 // ?:
+#define opTQuestionMark   28 // ?
+#define opTExponent       29 // ^
+#define opTBoolOr         30 // ||
+#define opTPipe           31 // |
 
 #define opTMutation       40 // Not a real operator, just a tag for :=
 #define opTDefinition     41 // Not a real operator, just a tag for  =
@@ -190,6 +191,7 @@ static const byte reservedBytesAssert[]      = { 97, 115, 115, 101, 114, 116 };
 static const byte reservedBytesAssertDbg[]   = { 97, 115, 115, 101, 114, 116, 68, 98, 103 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
 static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
+static const byte reservedBytesDispose[]     = { 100, 105, 115, 112, 111, 115, 101 };
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
@@ -208,7 +210,7 @@ static const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 static const byte reservedBytesLoopIf[]      = { 108, 111, 111, 112, 73, 102 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
 static const byte reservedBytesMut[]         = { 109, 117, 116 };
-static const byte reservedBytesNoDtor[]      = { 110, 111, ??};
+static const byte reservedBytesNoDispose[]   = { 110, 111, 68, 105, 115, 112, 111, 115, 101};
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
 static const byte reservedBytesReturnIf[]    = { 114, 101, 116, 117, 114, 110, 73, 102 };
 static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
