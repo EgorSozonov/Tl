@@ -163,6 +163,12 @@ private int determineReservedA(int startByte, int lenBytes, Lexer* lr) {
     return 0;
 }
 
+private int determineReservedB(int startByte, int lenBytes, Lexer* lr) {
+    int lenReser;
+    PROBERESERVED(reservedBytesBreak, tokBreak)
+    PROBERESERVED(reservedBytesBreakIf, tokBreakIf)
+    return 0;
+}
 
 private int determineReservedC(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
@@ -776,26 +782,29 @@ private void processAssignmentOperator(uint opType, int isExtensionAssignment, L
 }
 
 
-private void lexColon(Lexer* lr, Arr(byte) inp) {       
+private void lexComma(Lexer* lr, Arr(byte) inp) {       
     checkPrematureEnd(2, lr);
     lr->i++;
     byte nextBt = CURR_BT;
-    if (nextBt == aEqual) {
-        lr->i++;
-        processAssignmentOperator(opTMutation, 1, lr);
-    } else if (nextBt == aParenLeft) {
+    if (nextBt == aParenLeft) {
         // TODO tokFuncExpr
     } else {
         wordInternal(tokFuncWord, lr, inp);
     }    
 }
 
-private void lexSemicolon(Lexer* lr, Arr(byte) inp) {   
+private void lexColon(Lexer* lr, Arr(byte) inp) {   
     lr->i++;
-    push(((RememberedToken){ .tp = tokParens, .tokenInd = lr->nextInd, .wasOriginallyColon = true}),
-        lr->backtrack
-    );
-    add((Token) {.tp = tokParens, .startByte = lr->i }, lr);
+    byte nextBt = CURR_BT;
+    if (nextBt == aEqual) { // mutation assignment, :=
+        lr->i++;
+        processAssignmentOperator(opTMutation, 1, lr);
+    } else {
+        push(((RememberedToken){ .tp = tokParens, .tokenInd = lr->nextInd, .wasOriginallyColon = true}),
+            lr->backtrack
+        );
+        add((Token) {.tp = tokParens, .startByte = lr->i }, lr);
+    }    
 }
 
 
@@ -880,12 +889,19 @@ private void lexEqual(Lexer* lr, Arr(byte) inp) {
 private void lexMinus(Lexer* lr, Arr(byte) inp) {
     wrapInAStatement(lr, inp);
     int j = lr->i + 1;
-    if (j < lr->inpLength && isDigit(inp[j])) {
-        decNumber(true, lr, inp);
-        lr->numericNextInd = 0;
-    } else {
-        lexOperator(lr, inp);
+    if (j < lr->inpLength) {
+        byte nextBt = inp[j];
+        if (isDigit(nextBt)) {
+            decNumber(true, lr, inp);
+            lr->numericNextInd = 0;
+            return;
+        } else if (nextBt == aMinus) {
+            lexComment(lr, inp);
+            return;
+        }
+        
     }
+    lexOperator(lr, inp);    
 }
 
 /** If we are inside a compound (=2) core form, we need to increment the clause count */ 
@@ -1073,10 +1089,10 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
         p[i] = &lexWord;
     }
     p[aUnderscore] = lexWord;
+    p[aComma] = &lexComma;
     p[aDot] = &lexDot;
     p[aAt] = &lexAtWord;
     p[aColon] = &lexColon;
-    p[aSemicolon] = &lexComment;
     p[aEqual] = &lexEqual;
 
     for (int i = 0; i < countOperatorStartSymbols; i++) {
@@ -1093,7 +1109,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aCarrReturn] = &lexSpace;
     p[aNewline] = &lexNewline;
     p[aQuote] = &lexStringLiteral;
-    p[aSharp] = &lexComment;
     return result;
 }
 
@@ -1108,6 +1123,7 @@ private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
         p[i] = determineUnreserved;
     }
     p[0] = determineReservedA;
+    p[1] = determineReservedB;
     p[2] = determineReservedC;
     p[4] = determineReservedE;
     p[5] = determineReservedF;
@@ -1206,10 +1222,11 @@ Lexer* createLexer(String* inp, Arena* a) {
     result->capacity = LEXER_INIT_SIZE;
         
     result->newlines = allocateOnArena(1000*sizeof(int), a);
-    result->newlinesCapacity = 1000;
+    result->newlinesCapacity = 500;
     
     result->numeric = allocateOnArena(50*sizeof(int), a);
     result->numericCapacity = 50;
+
     
     result->backtrack = createStackRememberedToken(16, a);
 

@@ -29,8 +29,8 @@ const char* tokNames[] = {
     "{}", ".", "()", "[]", "accessor", "funcExpr", "assignment", 
     "alias", "assert", "assertDbg", "await", "break", "breakIf", "catch", "continue", "continueIf", 
     "dispose", "embed", "export", "finally", "fn", "if", "ifEq", "ifPr", "impl", "interface", 
-    "lambda", "lam1", "lam2", "lam3", "loop", "match", "mut", "nodestruct", "return", "returnIf", 
-    "struct", "try", "type", "yield"
+    "lambda", "lam1", "lam2", "lam3", "loop", "match", "mut", "noDispose", "return", "returnIf", 
+    "struct", "try", "typeDef", "yield"
 };
 
 static Lexer* buildLexer(int totalTokens, Arena *a, /* Tokens */ ...) {
@@ -252,7 +252,7 @@ LexerTestSet* wordTests(Arena* a) {
         },
         (LexerTest) {
             .name = allocLit("Function call", a),
-            .input = allocLit("a :func", a),
+            .input = allocLit("a ,func", a),
             .expectedOutput = buildLexer(3, a,
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 7 },
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
@@ -261,7 +261,7 @@ LexerTestSet* wordTests(Arena* a) {
         },
         (LexerTest) {
             .name = allocLit("Function call with no space", a),
-            .input = allocLit("b:func", a),
+            .input = allocLit("b,func", a),
             .expectedOutput = buildLexer(3, a,
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },
@@ -529,16 +529,16 @@ LexerTestSet* stringTests(Arena* a) {
 LexerTestSet* commentTests(Arena* a) {
     return createTestSet(allocLit("Comments lexer tests", a), 5, a,
         (LexerTest) { .name = allocLit("Comment simple", a),
-            .input = allocLit("# this is a comment", a),
+            .input = allocLit("; this is a comment", a),
             .expectedOutput = buildLexer(0, a
         )},     
         (LexerTest) { .name = allocLit("Doc comment", a),
-            .input = allocLit("## Documentation comment ", a),
+            .input = allocLit(";; Documentation comment ", a),
             .expectedOutput = buildLexer(1, a, 
                 (Token){ .tp = tokDocComment, .payload2 = 0, .startByte = 2, .lenBytes = 23 }
         )},  
         (LexerTest) { .name = allocLit("Doc comment before something", a),
-            .input = allocLit("## Documentation comment\nprint \"hw\" ", a),
+            .input = allocLit(";; Documentation comment\nprint \"hw\" ", a),
             .expectedOutput = buildLexer(4, a, 
                 (Token){ .tp = tokDocComment, .startByte = 2, .lenBytes = 22 },
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 25, .lenBytes = 10 },
@@ -546,14 +546,14 @@ LexerTestSet* commentTests(Arena* a) {
                 (Token){ .tp = tokString, .startByte = 31, .lenBytes = 4 }
         )},
         (LexerTest) { .name = allocLit("Doc comment empty", a),
-            .input = allocLit("##\n" "print \"hw\" ", a),
+            .input = allocLit(";;\n" "print \"hw\" ", a),
             .expectedOutput = buildLexer(3, a,
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 3, .lenBytes = 10 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 3, .lenBytes = 5 },
                 (Token){ .tp = tokString, .startByte = 9, .lenBytes = 4 }
         )},     
         (LexerTest) { .name = allocLit("Doc comment multiline", a),
-            .input = allocLit("## First line\n" 
+            .input = allocLit(";; First line\n" 
                                   "## Second line\n" 
                                   "## Third line\n" 
                                   "print \"hw\" "

@@ -28,14 +28,14 @@ const char errorOperatorMultipleAssignment[] = "Multiple assignment / type decla
 const char errorCoreNotInsideStmt[]          = "Core form must be directly inside statement";
 const char errorCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
 const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
-const char errorDocComment[]                 = "Doc comments must have the syntax (;; comment .)";
+const char errorDocComment[]                 = "Doc comments must have the syntax: ---comment";
 
 
 /** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus.
  */
 const int operatorStartSymbols[] = {
     aExclamation, aSharp, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDivBy, 
-    aLT, aGT, aQuestion, aCaret, aPipe
+    aSemicolon, aLT, aGT, aQuestion, aCaret, aPipe
 };
 
 

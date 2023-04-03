@@ -151,8 +151,8 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTSize            2 // #
 #define opTToString        3 // $
 #define opTRemainder       4 // %
-#define opTBoolAnd         5 // &&
-#define opTBinaryAnd       6 // &
+#define opTBinaryAnd       5 // && bitwise and
+#define opTTypeAnd       6 // & interface intersection
 #define opTNotEmpty        7 // '
 #define opTTimes           8 // *
 #define opTIncrement       9 // ++
@@ -166,18 +166,18 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTComparator     17 // <>
 #define opTLessThan       18 // <
 #define opTEquality       19 // ==
-#define opTIntervalBoth   20 // >=<=
-#define opTIntervalLeft   21 // >=<
-#define opTIntervalRight  22 // ><=
-#define opTIntervalExcl   23 // ><
+#define opTIntervalBoth   20 // >=<= inclusive interval check
+#define opTIntervalLeft   21 // >=<  left-inclusive interval check
+#define opTIntervalRight  22 // ><=  right-inclusive interval check
+#define opTIntervalExcl   23 // ><   exclusive interval check
 #define opTGTEQ           24 // >=
-#define opTBitshiftRight  25 // >>
+#define opTBitshiftRight  25 // >>   right bit shift
 #define opTGreaterThan    26 // >
-#define opTNullCoalesc    27 // ?:
-#define opTQuestionMark   28 // ?
-#define opTExponent       29 // ^
-#define opTBoolOr         30 // ||
-#define opTPipe           31 // |
+#define opTNullCoalesc    27 // ?:   null coalescing operator
+#define opTQuestionMark   28 // ?    nullable type operator
+#define opTExponent       29 // ^    exponentiation
+#define opTBoolOr         30 // ||   bitwise or
+#define opTXor            11 // |    bitwise xor
 
 #define opTMutation       40 // Not a real operator, just a tag for :=
 #define opTDefinition     41 // Not a real operator, just a tag for  =
@@ -190,7 +190,11 @@ static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
 static const byte reservedBytesAssert[]      = { 97, 115, 115, 101, 114, 116 };
 static const byte reservedBytesAssertDbg[]   = { 97, 115, 115, 101, 114, 116, 68, 98, 103 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
+static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
+static const byte reservedBytesBreakIf[]     = { 99, 114, 101, 97, 107, 73, 102};
 static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
+static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
+static const byte reservedBytesContinueIf[]  = { 99, 111, 110, 116, 105, 110, 117, 101, 73, 102 };
 static const byte reservedBytesDispose[]     = { 100, 105, 115, 112, 111, 115, 101 };
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
