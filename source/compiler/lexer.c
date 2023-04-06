@@ -793,6 +793,10 @@ private void lexComma(Lexer* lr, Arr(byte) inp) {
     }    
 }
 
+/**
+ * A single colon is the "parens until end" symbol,
+ * a double colon :: is the "else clause" symbol.
+ */
 private void lexColon(Lexer* lr, Arr(byte) inp) {   
     lr->i++;
     byte nextBt = CURR_BT;
@@ -904,6 +908,20 @@ private void lexMinus(Lexer* lr, Arr(byte) inp) {
     lexOperator(lr, inp);    
 }
 
+private void lexDivBy(Lexer* lr, Arr(byte) inp) {
+    int j = lr->i + 1;
+    if (j < lr->inpLength) {
+        byte nextBt = inp[j];
+        if (nextBt == aDivBy) {
+            lr->i += 2;
+            comment(lr, inp);
+            return;
+        }        
+    }
+    lexOperator(lr, inp);    
+}
+
+
 /** If we are inside a compound (=2) core form, we need to increment the clause count */ 
 private void mbIncrementClauseCount(Lexer* lr) {
     if (hasValues(lr->backtrack)) {
@@ -928,8 +946,13 @@ private void mbCloseCompoundCoreForm(Lexer* lr) {
 
 private void lexParenLeft(Lexer* lr, Arr(byte) inp) {
     mbIncrementClauseCount(lr);
-    wrapInAStatement(lr, inp);
-    openPunctuation(tokParens, lr);
+    int j = lr->i + 1;
+    if (j < lr->inpLength && inp[j] == aColon) { // "(:" starts a new lexical scope
+        openPunctuation(tokCurly, lr);
+    } else {
+        wrapInAStatement(lr, inp);
+        openPunctuation(tokParens, lr);
+    }    
 }
 
 
@@ -944,33 +967,12 @@ private void lexParenRight(Lexer* lr, Arr(byte) inp) {
     lr->lastClosingPunctInd = startInd;    
 }
 
-
-void lexBracketLeft(Lexer* lr, Arr(byte) inp) {
-    wrapInAStatement(lr, inp);
-    openPunctuation(tokBrackets, lr);
-}
-
-
 void lexBracketRight(Lexer* lr, Arr(byte) inp) {
     // TODO handle syntax like "foo[5].field"    
     int startInd = lr->i;
     closeRegularPunctuation(tokBrackets, lr);
     mbCloseCompoundCoreForm(lr);
     
-    lr->lastClosingPunctInd = startInd;
-}
-
-
-void lexCurlyLeft(Lexer* lr, Arr(byte) inp) {
-    mbIncrementClauseCount(lr);
-    openPunctuation(tokCurly, lr);
-}
-
-
-void lexCurlyRight(Lexer* lr, Arr(byte) inp) {
-    // TODO handle syntax like "{foo}.field"
-    int startInd = lr->i;
-    closeRegularPunctuation(tokCurly, lr);
     lr->lastClosingPunctInd = startInd;
 }
 
@@ -983,7 +985,7 @@ void lexSpace(Lexer* lr, Arr(byte) inp) {
     }
 }
 
-/** Does nothing. Tl is not indentation-sensitive. Since this function */
+/** Does nothing. Tl is not indentation-sensitive. */
 private void lexNewline(Lexer* lr, Arr(byte) inp) {
     addNewLine(lr->i, lr);
     lr->i++;      // the LF
@@ -1039,26 +1041,26 @@ private void docComment(Lexer* lr, Arr(byte) inp) {
 }
 
 /**
- *  Doc comments, syntax is ; The comment
+ *  Doc comments, syntax is // The comment or /// Doc comment
+ * Precondition: we are past the "//"
  */
-private void lexComment(Lexer* lr, Arr(byte) inp) {
-    int j = lr->i + 1;
-    if (j < lr->inpLength && inp[j] == aSemicolon) {
+private void comment(Lexer* lr, Arr(byte) inp) {    
+    if (lr->i < lr->inpLength && CURR_BT == aDivBy) {
         docComment(lr, inp);
-        return;
-    }
-    while (j < lr->inpLength) {
-        byte cByte = inp[j];
-        if (cByte == aNewline) {
-            lr->i = j + 1;
-            return;
-        } else {
-            j++;
+    } else {
+        int j = lr->i;
+        while (j < lr->inpLength) {
+            byte cByte = inp[j];
+            if (cByte == aNewline) {
+                lr->i = j + 1;
+                return;
+            } else {
+                j++;
+            }
         }
-    }
-    lr->i = j;
+        lr->i = j;
+    }    
 }
-
 
 void lexUnexpectedSymbol(Lexer* lr, Arr(byte) inp) {
     throwExc(errorUnrecognizedByte, lr);
@@ -1099,12 +1101,11 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
         p[operatorStartSymbols[i]] = &lexOperator;
     }
     p[aMinus] = &lexMinus;
+    p[aDivBy] = &lexDivBy;
     p[aParenLeft] = &lexParenLeft;
     p[aParenRight] = &lexParenRight;
     p[aBracketLeft] = &lexBracketLeft;
     p[aBracketRight] = &lexBracketRight;
-    p[aCurlyLeft] = &lexCurlyLeft;
-    p[aCurlyRight] = &lexCurlyRight;
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
     p[aNewline] = &lexNewline;
