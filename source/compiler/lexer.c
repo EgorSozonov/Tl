@@ -134,16 +134,9 @@ private void setStmtSpanLength(int topTokenInd, Lexer* lr) {
  * Validation to catch unmatched closing punctuation
  */
 private void validateClosingPunct(uint closingType, uint openType, Lexer* lr) {
-    if (closingType == tokParens) {
-        if (openType < firstCoreFormTokenType && openType != tokParens && openType != tokSemicolon) {
+    if ((closingType == tokParens && openType == tokBrackets) 
+        || (closingType == tokBrackets && openType != tokBrackets)) {
             throwExc(errorPunctuationUnmatched, lr);
-        }
-    } else if (closingType == tokCurly) {
-        
-    } else if (closingType == tokBrackets) {
-        if (openType != tokBrackets && openType != tokAccessor) throwExc(errorPunctuationUnmatched, lr);
-    } else if (closingType == tokStmt) {
-        if (openType != tokStmt && openType != tokAssignment) throwExc(errorPunctuationUnmatched, lr);
     }
 }
 
@@ -166,7 +159,6 @@ private int determineReservedA(int startByte, int lenBytes, Lexer* lr) {
 private int determineReservedB(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesBreak, tokBreak)
-    PROBERESERVED(reservedBytesBreakIf, tokBreakIf)
     return 0;
 }
 
@@ -174,7 +166,6 @@ private int determineReservedC(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesCatch, tokCatch)
     PROBERESERVED(reservedBytesContinue, tokContinue)
-    PROBERESERVED(reservedBytesContinueIf, tokContinueIf)
     return 0;
 }
 
@@ -235,7 +226,6 @@ private int determineReservedN(int startByte, int lenBytes, Lexer* lr) {
 private int determineReservedR(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesReturn, tokReturn)
-    PROBERESERVED(reservedBytesReturnIf, tokReturnIf)
     return 0;
 }
 
@@ -251,7 +241,6 @@ private int determineReservedT(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesTrue, reservedTrue)
     PROBERESERVED(reservedBytesTry, tokTry)
-    PROBERESERVED(reservedBytesType, tokTypeDef)
     return 0;
 }
 
@@ -264,13 +253,6 @@ private int determineReservedY(int startByte, int lenBytes, Lexer* lr) {
 
 private int determineUnreserved(int startByte, int lenBytes, Lexer* lr) {
     return -1;
-}
-
-/**
- * Mutates a statement to a more precise type of statement (assignment, type declaration).
- */
-private void setSpanType(int tokenInd, unsigned int tType, Lexer* lr) {
-    lr->tokens[tokenInd].tp = tType;
 }
 
 
@@ -290,19 +272,7 @@ private void addStatement(uint stmtType, int startByte, Lexer* lr) {
     add((Token){ .tp = stmtType, .startByte = startByte}, lr);
 }
 
-/** A curly brace starts a multi-line statement, anything else => a regular statement. */
-private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {    
-    if (hasValues(lr->backtrack)) {
-        if (peek(lr->backtrack).isMultiline) {
-            push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
-            add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
-        }
-    } else {
-        addStatement(tokStmt, lr->i, lr);
-    }
-}
 
-/** A curly brace starts a multi-line statement, anything else => a regular statement. */
 private void wrapInAStatementStarting(int startByte, Lexer* lr, Arr(byte) inp) {
     if (hasValues(lr->backtrack)) {
         if (peek(lr->backtrack).isMultiline) {
@@ -314,8 +284,20 @@ private void wrapInAStatementStarting(int startByte, Lexer* lr, Arr(byte) inp) {
     }
 }
 
+
+private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {    
+    if (hasValues(lr->backtrack)) {
+        if (peek(lr->backtrack).isMultiline) {
+            push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
+            add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
+        }
+    } else {
+        addStatement(tokStmt, lr->i, lr);
+    }
+}
+
 /**
- * Processes a token which serves as the closer of a punctuation scope, i.e. either a ), a ] or a dot.
+ * Processes a token which serves as the closer of a punctuation scope, i.e. either a ) or a ] .
  * This doesn't actually add any tokens to the array, just performs validation and sets the token length
  * for the opener token.
  */
@@ -325,7 +307,7 @@ private void closeRegularPunctuation(int closingType, Lexer* lr) {
         throwExc(errorPunctuationExtraClosing, lr);
     }
     RememberedToken top = pop(lr->backtrack);
-    if (closingType == tokCurly && !top.isMultiline) {
+    if (closingType == tokParens && !top.isMultiline) {
         // since a closing parenthesis might be closing something with statements inside it, like a lex scope
         // or a core syntax form, we need to close the last statement before closing its parent
         setStmtSpanLength(top.tokenInd, lr);
@@ -614,32 +596,47 @@ private void lexNumber(Lexer* lr, Arr(byte) inp) {
 private void openPunctuation(unsigned int tType, Lexer* lr) {
     lr->i++;
     push( ((RememberedToken){ 
-        .tp = tType, .tokenInd = lr->nextInd, .isMultiline = tType == tokCurly
+        .tp = tType, .tokenInd = lr->nextInd, .isMultiline = tType == tokScope
     }), lr->backtrack);
     add((Token) {.tp = tType, .startByte = lr->i }, lr);    
 }
 
 /**
- * Lexer action for a reserved word. It mutates the type of current span.
+ * Lexer action for a reserved word. It mutates the type of current span and.
+ * If necessary (parens inside statement) it also deletes last token and removes the top frame
  */
-private void lexReservedWord(uint reservedWordType, int startInd, Lexer* lr, Arr(byte) inp) {    
-    int reservedExpectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
-    if (reservedExpectations == 0 || reservedExpectations == 2) { // the reserved words that live at the start of a statement
-        if (!hasValues(lr->backtrack) || peek(lr->backtrack).isMultiline) {
-            addStatement(reservedWordType, startInd, lr);
+private void lexReservedWord(uint reservedWordType, int startByte, Lexer* lr, Arr(byte) inp) {    
+    StackRememberedToken* bt = lr->backtrack;
+    
+    int expectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
+    if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
+        if (!hasValues(bt) || peek(bt).isMultiline) {
+            addStatement(reservedWordType, startByte, lr);
         } else {            
             throwExc(errorCoreNotInsideStmt, lr);
         }
-    } else if (reservedExpectations == 1) { // the "(reserved" or "{reserved" cases
-        if (!hasValues(lr->backtrack)) {
+    } else if (expectations == 1) { // the "(reserved" case
+        if (!hasValues(bt)) {
             throwExc(errorCoreMissingParen, lr);
         }
-        RememberedToken top = peek(lr->backtrack);
+        RememberedToken top = peek(bt);
         if (top.tokenInd + 1 != lr->nextInd) {
             throwExc(errorCoreNotAtSpanStart, lr);
         }
-        setSpanType(top.tokenInd, reservedWordType, lr);
-        (*lr->backtrack->content)[lr->backtrack->length - 1].tp = reservedWordType;
+        
+        if (bt->length > 1 && (*bt->content)[bt->length - 2].tp == tokStmt) {
+            // Parens are wrapped in statements because we didn't know that the next token will be a reserved word.
+            // So when meeting a reserved word at start of parens, we need to delete the paren token & frame.
+            pop(bt);
+            lr->nextInd--;
+            top = peek(bt);
+            lr->tokens[top.tokenInd].startByte = startByte;
+        }
+        
+        // update the token type and the corresponding frame type
+        lr->tokens[top.tokenInd].tp = reservedWordType;
+        (*bt->content)[bt->length - 1].tp = reservedWordType;
+        (*bt->content)[bt->length - 1].isMultiline = true;
     }
 }
 
@@ -679,7 +676,7 @@ private bool wordChunk(Lexer* lr, Arr(byte) inp) {
  * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
 private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
-    int startInd = lr->i;
+    int startByte = lr->i;
 
     bool wasCapitalized = wordChunk(lr, inp);
 
@@ -706,44 +703,54 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
         }        
     }
 
-    int realStartInd = (wordType == tokWord) ? startInd : (startInd - 1); // accounting for the . or @ at the start
+    int realStartByte = (wordType == tokWord) ? startByte : (startByte - 1); // accounting for the . or @ at the start
     bool paylCapitalized = wasCapitalized ? 1 : 0;
 
-    byte firstByte = lr->inp->content[startInd];
-    int lenBytes = lr->i - realStartInd;
+    byte firstByte = lr->inp->content[startByte];
+    int lenBytes = lr->i - realStartByte;
     if (wordType != tokWord && isAlsoAccessor) {
         throwExc(errorWordWrongAccessor, lr);
     }
         
     if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
-        wrapInAStatementStarting(startInd, lr, inp);
-        add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
+        wrapInAStatementStarting(startByte, lr, inp);
+        add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartByte, .lenBytes=lenBytes}, lr);
         if (isAlsoAccessor) {
             openPunctuation(tokAccessor, lr);
         }
     } else {
-        int mbReservedWord = (*lr->possiblyReservedDispatch)[firstByte - aALower](startInd, lr->i - startInd, lr);
-        if (mbReservedWord > 0) {           
+        int mbReservedWord = (*lr->possiblyReservedDispatch)[firstByte - aALower](startByte, lr->i - startByte, lr);
+        if (mbReservedWord > 0) {
             if (wordType == tokDotWord) {
                 throwExc(errorWordReservedWithDot, lr);
-            } else if (mbReservedWord == reservedTrue) {
-                wrapInAStatementStarting(startInd, lr, inp);
-                add((Token){.tp=tokBool, .payload2=1, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
-            } else if (mbReservedWord == reservedFalse) {
-                wrapInAStatementStarting(startInd, lr, inp);
-                add((Token){.tp=tokBool, .payload2=0, .startByte=realStartInd, .lenBytes=lenBytes}, lr);
-            } else {                
-                lexReservedWord(mbReservedWord, realStartInd, lr, inp);
+            } else if (mbReservedWord < firstCoreFormTokenType) {
+                if (mbReservedWord == tokNodispose) {
+                    add((Token){.tp=tokNodispose, .startByte=realStartByte, .lenBytes=9}, lr);
+                } else if (mbReservedWord == tokAnd) {
+                    add((Token){.tp=tokAnd, .startByte=realStartByte, .lenBytes=3}, lr);
+                } else if (mbReservedWord == tokOr) {
+                    add((Token){.tp=tokOr, .startByte=realStartByte, .lenBytes=2}, lr);
+                } else if (mbReservedWord == reservedTrue) {
+                    wrapInAStatementStarting(startByte, lr, inp);
+                    add((Token){.tp=tokBool, .payload2=1, .startByte=realStartByte, .lenBytes=lenBytes}, lr);
+                } else if (mbReservedWord == reservedFalse) {
+                    wrapInAStatementStarting(startByte, lr, inp);
+                    add((Token){.tp=tokBool, .payload2=0, .startByte=realStartByte, .lenBytes=lenBytes}, lr);
+                }
+            } else {
+                lexReservedWord(mbReservedWord, realStartByte, lr, inp);
             }
         } else  {            
-            wrapInAStatementStarting(startInd, lr, inp);
-            add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartInd, .lenBytes=lenBytes }, lr);
+            wrapInAStatementStarting(startByte, lr, inp);
+            add((Token){.tp=wordType, .payload2=paylCapitalized, .startByte=realStartByte, .lenBytes=lenBytes }, lr);
             if (isAlsoAccessor) {
                 openPunctuation(tokAccessor, lr);
             }
         }
     }
 }
+
+
 
 
 private void lexWord(Lexer* lr, Arr(byte) inp) {    
@@ -889,38 +896,83 @@ private void lexEqual(Lexer* lr, Arr(byte) inp) {
     }
 }
 
+/**
+ * Appends a doc comment token if it's the first one, or elongates the existing token if there was already
+ * a doc comment on the previous line.
+ * This logic handles multiple consecutive lines of doc comments.
+ * NOTE: this is the only function in the whole lexer that needs the endByte instead of lenBytes!
+ */
+private void appendDocComment(int startByte, int endByte, Lexer* lr) {
+    if (lr->nextInd == 0 || lr->tokens[lr->nextInd - 1].tp != tokDocComment) {
+        add((Token){.tp = tokDocComment, .startByte = startByte, .lenBytes = endByte - startByte + 1}, lr);
+    } else {        
+        lr->tokens[lr->nextInd - 1].lenBytes = endByte - (lr->tokens[lr->nextInd - 1].startByte) + 1;
+    }
+}
+
+/**
+ *  Doc comments, syntax is ## Doc comment
+ */
+private void docComment(Lexer* lr, Arr(byte) inp) {
+    int startByte = lr->i + 1; // +1 for the third slash in "///"
+    for (int j = startByte; j < lr->inpLength; j++) {
+        if (inp[j] == aNewline) {
+            addNewLine(j, lr);
+            if (j > startByte) {
+                appendDocComment(startByte, j - 1, lr);
+            }
+            lr->i = j + 1;
+            return;
+        }
+    }
+    lr->i = lr->inpLength; // if we're here, then we haven't met a newline, hence we are at the document's end
+    appendDocComment(startByte, lr->inpLength - 1, lr);
+}
+
+/**
+ * Doc comments, syntax is // The comment or /// Doc comment
+ * Precondition: we are past the "//"
+ */
+private void comment(Lexer* lr, Arr(byte) inp) {    
+    if (lr->i < lr->inpLength && CURR_BT == aDivBy) {
+        docComment(lr, inp);
+    } else {
+        int j = lr->i;
+        while (j < lr->inpLength) {
+            byte cByte = inp[j];
+            if (cByte == aNewline) {
+                lr->i = j + 1;
+                return;
+            } else {
+                j++;
+            }
+        }
+        lr->i = j;
+    }    
+}
+
 
 private void lexMinus(Lexer* lr, Arr(byte) inp) {
     wrapInAStatement(lr, inp);
     int j = lr->i + 1;
-    if (j < lr->inpLength) {
-        byte nextBt = inp[j];
-        if (isDigit(nextBt)) {
-            decNumber(true, lr, inp);
-            lr->numericNextInd = 0;
-            return;
-        } else if (nextBt == aMinus) {
-            lexComment(lr, inp);
-            return;
-        }
-        
-    }
-    lexOperator(lr, inp);    
+    if (j < lr->inpLength && isDigit(NEXT_BT)) {
+        decNumber(true, lr, inp);
+        lr->numericNextInd = 0;
+    } else {
+        lexOperator(lr, inp);
+    }    
 }
+
 
 private void lexDivBy(Lexer* lr, Arr(byte) inp) {
     int j = lr->i + 1;
-    if (j < lr->inpLength) {
-        byte nextBt = inp[j];
-        if (nextBt == aDivBy) {
-            lr->i += 2;
-            comment(lr, inp);
-            return;
-        }        
-    }
-    lexOperator(lr, inp);    
+    if (j < lr->inpLength && NEXT_BT == aDivBy) {
+        lr->i += 2;
+        comment(lr, inp);
+    } else {
+        lexOperator(lr, inp);    
+    }    
 }
-
 
 /** If we are inside a compound (=2) core form, we need to increment the clause count */ 
 private void mbIncrementClauseCount(Lexer* lr) {
@@ -948,7 +1000,7 @@ private void lexParenLeft(Lexer* lr, Arr(byte) inp) {
     mbIncrementClauseCount(lr);
     int j = lr->i + 1;
     if (j < lr->inpLength && inp[j] == aColon) { // "(:" starts a new lexical scope
-        openPunctuation(tokCurly, lr);
+        openPunctuation(tokScope, lr);
     } else {
         wrapInAStatement(lr, inp);
         openPunctuation(tokParens, lr);
@@ -966,6 +1018,13 @@ private void lexParenRight(Lexer* lr, Arr(byte) inp) {
     
     lr->lastClosingPunctInd = startInd;    
 }
+
+
+void lexBracketLeft(Lexer* lr, Arr(byte) inp) {
+    wrapInAStatement(lr, inp);
+    openPunctuation(tokBrackets, lr);
+}
+
 
 void lexBracketRight(Lexer* lr, Arr(byte) inp) {
     // TODO handle syntax like "foo[5].field"    
@@ -1007,60 +1066,6 @@ private void lexStringLiteral(Lexer* lr, Arr(byte) inp) {
     lr->i = j + 1;
 }
 
-/**
- * Appends a doc comment token if it's the first one, or elongates the existing token if there was already
- * a doc comment on the previous line.
- * This logic handles multiple consecutive lines of doc comments.
- * NOTE: this is the only function in the whole lexer that needs the endByte instead of lenBytes!
- */
-private void appendDocComment(int startByte, int endByte, Lexer* lr) {
-    if (lr->nextInd == 0 || lr->tokens[lr->nextInd - 1].tp != tokDocComment) {
-        add((Token){.tp = tokDocComment, .startByte = startByte, .lenBytes = endByte - startByte + 1}, lr);
-    } else {        
-        lr->tokens[lr->nextInd - 1].lenBytes = endByte - (lr->tokens[lr->nextInd - 1].startByte) + 1;
-    }
-}
-
-/**
- *  Doc comments, syntax is ## Doc comment
- */
-private void docComment(Lexer* lr, Arr(byte) inp) {
-    int startByte = lr->i + 2; // +2 for the '##'
-    for (int j = startByte; j < lr->inpLength; j++) {
-        if (inp[j] == aNewline) {
-            addNewLine(j, lr);
-            if (j > startByte) {
-                appendDocComment(startByte, j - 1, lr);
-            }
-            lr->i = j + 1;
-            return;
-        }
-    }
-    lr->i = lr->inpLength; // if we're here, then we haven't met a newline, hence we are at the document's end
-    appendDocComment(startByte, lr->inpLength - 1, lr);
-}
-
-/**
- *  Doc comments, syntax is // The comment or /// Doc comment
- * Precondition: we are past the "//"
- */
-private void comment(Lexer* lr, Arr(byte) inp) {    
-    if (lr->i < lr->inpLength && CURR_BT == aDivBy) {
-        docComment(lr, inp);
-    } else {
-        int j = lr->i;
-        while (j < lr->inpLength) {
-            byte cByte = inp[j];
-            if (cByte == aNewline) {
-                lr->i = j + 1;
-                return;
-            } else {
-                j++;
-            }
-        }
-        lr->i = j;
-    }    
-}
 
 void lexUnexpectedSymbol(Lexer* lr, Arr(byte) inp) {
     throwExc(errorUnrecognizedByte, lr);

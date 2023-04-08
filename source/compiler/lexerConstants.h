@@ -70,9 +70,12 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokAtWord       8      // "@annotation"
 #define tokFuncWord     9      // ":funcName"
 #define tokOperator    10      // payload1 = OperatorToken encoded as an Int
+#define tokAnd         11
+#define tokOr          12
+#define tokNodispose   13       // signaling that this value doesn't need its destructor called at scope end // ???
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokSemicolon   11 
+#define tokColon       14 
 
 // 100 atom
 // 200 expr
@@ -82,56 +85,57 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 // 600 only at start
 
 // Punctuation (inner node) Token types
-#define tokCurly       12  // 500
-#define tokStmt        13  // 200
-#define tokParens      14  // 200
-#define tokBrackets    15  // 200
-#define tokAccessor    16  // 200
-#define tokFuncExpr    17      // the ",(foo,bar)" kind of thing  // 200
-#define tokAssignment  18      // payload1 = as in tokOperator     // 400
+#define tokScope       15       // (:
+#define tokStmt        16
+#define tokParens      17
+#define tokBrackets    18
+#define tokAccessor    19
+#define tokFuncExpr    20       // the ",(foo,bar)" kind of thing  // 200
+#define tokAssignment  21       // payload1 = as in tokOperator     // 400
+#define tokElse        22       // the "::" which signifies the "else" clause in if-type things
+#define tokSemicolon   23       // separates type conditions from function params. "(x T; T Serializable)"
 
 // Core syntax form Token types
-#define tokAlias       19       // noParen   // 400
-#define tokAssert      20       // noParen   // 300
-#define tokAssertDbg   21       // noParen   // 300
-#define tokAwait       22       // noParen   // 300
-#define tokBreak       23       // noParen   // 300
-#define tokCatch       24       // paren "catch(e.msg,print)"  // 500
-#define tokContinue    25       // noParen   // 300
-#define tokDispose     26       // noParen   // 300
-#define tokEmbed       27       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      28       // paren     // 600
-#define tokFinally     29       // paren     // 500
-#define tokFnDef       30       // specialCase // 400
-#define tokIf          31       // paren    // 200/500
-#define tokIfEq        32       // like if, but every branch is a value compared using standard equality // 200/500
-#define tokIfPr        33       // like if, but every branch is a value compared using custom predicate  // 200/500
-#define tokImpl        34       // paren // 400
-#define tokIface       35       // 400
-#define tokLambda      36       // 500
-#define tokLambda1     37       // 500
-#define tokLambda2     38       // 500
-#define tokLambda3     39       // 500
-#define tokLoop        40       // recur operator for tail recursion // 300
-#define tokMatch       41       // pattern matching on sum type tag  // 200/500
-#define tokMut         42       // 400
-#define tokNodispose   43       // signaling that this value doesn't need its destructor called at scope end // ???
-#define tokReturn      44       // 300
-#define tokStruct      45       // 400
-#define tokTry         46       // 500
-#define tokYield       47       // 300
+#define tokAlias       24       // noParen   // 400
+#define tokAssert      25       // noParen   // 300
+#define tokAssertDbg   26       // noParen   // 300
+#define tokAwait       27       // noParen   // 300
+#define tokBreak       28       // noParen   // 300
+#define tokCatch       29       // paren "(catch e.msg,print)"  // 500
+#define tokContinue    30       // noParen   // 300
+#define tokDispose     31       // noParen   // 300
+#define tokEmbed       32       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      33       // paren     // 600
+#define tokFinally     34       // paren     // 500
+#define tokFnDef       35       // specialCase // 400
+#define tokIf          36       // paren    // 200/500
+#define tokIfEq        37       // like if, but every branch is a value compared using standard equality // 200/500
+#define tokIfPr        38       // like if, but every branch is a value compared using custom predicate  // 200/500
+#define tokImpl        39       // paren // 400
+#define tokIface       40       // 400
+#define tokLambda      41       // 500
+#define tokLambda1     42       // 500
+#define tokLambda2     43       // 500
+#define tokLambda3     44       // 500
+#define tokLoop        45       // recur operator for tail recursion // 300
+#define tokMatch       46       // pattern matching on sum type tag  // 200/500
+#define tokMut         47       // 400
+#define tokReturn      48       // 300
+#define tokStruct      49       // 400
+#define tokTry         50       // 500
+#define tokYield       51       // 300
 
-#define topVerbatimTokenVariant = 5
+#define topVerbatimTokenVariant tokDocComment
 
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType tokAlias
 
 /** Must be the lowest value in the PunctuationToken enum */
-#define firstPunctuationTokenType tokCurly
-#define countCoreForms 28
+#define firstPunctuationTokenType tokScope
+#define countCoreForms 28 // tokYield - tokAlias + 1
 
-/** The indices of reserved words that are stored in token payload2. Must be positive, unique
- * and below "firstPunctuationTokenType"
+/** The indices of reserved words that are stored in token payload2. Must be positive, unique,
+ * below "firstPunctuationTokenType" and not clashing with "tokAnd", "tokOr" and "tokNodispose"
  */
 #define reservedFalse   2
 #define reservedTrue    1
@@ -169,7 +173,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTGTEQ           24 // >=
 #define opTBitshiftRight  25 // >>   right bit shift
 #define opTGreaterThan    26 // >
-#define opTNullCoalesc    27 // ?:   null coalescing operator
+#define opTNullCoalesce   27 // ?:   null coalescing operator
 #define opTQuestionMark   28 // ?    nullable type operator
 #define opTExponent       29 // ^    exponentiation
 #define opTBoolOr         30 // ||   bitwise or
