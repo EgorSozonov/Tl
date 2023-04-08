@@ -33,6 +33,7 @@ extern const char errorOperatorAssignmentPunct[];
 extern const char errorOperatorTypeDeclPunct[];
 extern const char errorOperatorMultipleAssignment[];
 extern const char errorCoreNotInsideStmt[];
+extern const char errorCoreMisplacedElse[];
 extern const char errorCoreMissingParen[];
 extern const char errorCoreNotAtSpanStart[];
 extern const char errorDocComment[];
@@ -59,7 +60,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 // The largest value must be stored in "topVerbatimTokenVariant" constant
 #define tokInt          0
 #define tokFloat        1
-#define tokBool         2
+#define tokBool         2      // payload2 = value (1 or 0)
 #define tokString       3
 #define tokUnderscore   4
 #define tokDocComment   5
@@ -187,6 +188,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define countReservedWords           31 // count of different reserved words below
 
 static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
+static const byte reservedBytesAnd[]         = { 97, 110, 100 };
 static const byte reservedBytesAssert[]      = { 97, 115, 115, 101, 114, 116 };
 static const byte reservedBytesAssertDbg[]   = { 97, 115, 115, 101, 114, 116, 68, 98, 103 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
@@ -211,7 +213,8 @@ static const byte reservedBytesLambda3[]     = { 108, 97, 109, 51 };
 static const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
 static const byte reservedBytesMut[]         = { 109, 117, 116 };
-static const byte reservedBytesNoDispose[]   = { 110, 111, 68, 105, 115, 112, 111, 115, 101}; // record?
+static const byte reservedBytesNoDispose[]   = { 110, 111, 68, 105, 115, 112, 111, 115, 101};
+static const byte reservedBytesOr[]          = { 111, 114 };
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
 static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };

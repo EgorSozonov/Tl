@@ -96,11 +96,10 @@ void add(Token t, Lexer* lexer) {
 }
 
 /** For all the dollars at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
-private void closeSemicolons(Lexer* lr) {
+private void closeColons(Lexer* lr) {
     while (hasValues(lr->backtrack) && peek(lr->backtrack).wasOriginallyColon) {
         RememberedToken top = pop(lr->backtrack);
-        int j = top.tokenInd;
-        lr->tokens[j].tp = tokParens;
+        int j = top.tokenInd;        
         lr->tokens[j].lenBytes = lr->i - lr->tokens[j].startByte;
         lr->tokens[j].payload2 = lr->nextInd - j - 1;
     }
@@ -135,7 +134,7 @@ private void setStmtSpanLength(int topTokenInd, Lexer* lr) {
  */
 private void validateClosingPunct(uint closingType, uint openType, Lexer* lr) {
     if ((closingType == tokParens && openType == tokBrackets) 
-        || (closingType == tokBrackets && openType != tokBrackets)) {
+        || (closingType == tokBrackets && openType != tokBrackets && openType != tokAccessor)) {
             throwExc(errorPunctuationUnmatched, lr);
     }
 }
@@ -150,6 +149,7 @@ private void validateClosingPunct(uint closingType, uint openType, Lexer* lr) {
 private int determineReservedA(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesAlias, tokAlias)
+    PROBERESERVED(reservedBytesAnd, tokAnd)
     PROBERESERVED(reservedBytesAwait, tokAwait)
     PROBERESERVED(reservedBytesAssert, tokAssert)
     PROBERESERVED(reservedBytesAssertDbg, tokAssertDbg)
@@ -223,6 +223,13 @@ private int determineReservedN(int startByte, int lenBytes, Lexer* lr) {
 }
 
 
+private int determineReservedO(int startByte, int lenBytes, Lexer* lr) {
+    int lenReser;
+    PROBERESERVED(reservedBytesOr, tokOr)
+    return 0;
+}
+
+
 private int determineReservedR(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesReturn, tokReturn)
@@ -273,9 +280,9 @@ private void addStatement(uint stmtType, int startByte, Lexer* lr) {
 }
 
 
-private void wrapInAStatementStarting(int startByte, Lexer* lr, Arr(byte) inp) {
+private void wrapInAStatementStarting(int startByte, Lexer* lr, Arr(byte) inp) {    
     if (hasValues(lr->backtrack)) {
-        if (peek(lr->backtrack).isMultiline) {
+        if (peek(lr->backtrack).isMultiline) {            
             push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
             add((Token){ .tp = tokStmt, .startByte = startByte},  lr);
         }
@@ -285,7 +292,7 @@ private void wrapInAStatementStarting(int startByte, Lexer* lr, Arr(byte) inp) {
 }
 
 
-private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {    
+private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
     if (hasValues(lr->backtrack)) {
         if (peek(lr->backtrack).isMultiline) {
             push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
@@ -302,16 +309,17 @@ private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
  * for the opener token.
  */
 private void closeRegularPunctuation(int closingType, Lexer* lr) {
-    closeSemicolons(lr);
-    if (!hasValues(lr->backtrack)) {
+    StackRememberedToken* bt = lr->backtrack;
+    closeColons(lr);
+    if (!hasValues(bt)) {
         throwExc(errorPunctuationExtraClosing, lr);
     }
-    RememberedToken top = pop(lr->backtrack);
-    if (closingType == tokParens && !top.isMultiline) {
+    RememberedToken top = pop(bt);
+    if (bt->length > 0 && closingType == tokParens && !top.isMultiline && ((*bt->content)[bt->length - 1].isMultiline)) {
         // since a closing parenthesis might be closing something with statements inside it, like a lex scope
         // or a core syntax form, we need to close the last statement before closing its parent
         setStmtSpanLength(top.tokenInd, lr);
-        top = pop(lr->backtrack);
+        top = pop(bt);
     }
     validateClosingPunct(closingType, top.tp, lr);
     setSpanLength(top.tokenInd, lr);
@@ -636,7 +644,7 @@ private void lexReservedWord(uint reservedWordType, int startByte, Lexer* lr, Ar
         // update the token type and the corresponding frame type
         lr->tokens[top.tokenInd].tp = reservedWordType;
         (*bt->content)[bt->length - 1].tp = reservedWordType;
-        (*bt->content)[bt->length - 1].isMultiline = true;
+        (*bt->content)[bt->length - 1].isMultiline = true; // all parenthetical core forms are considered multiline
     }
 }
 
@@ -724,6 +732,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
             if (wordType == tokDotWord) {
                 throwExc(errorWordReservedWithDot, lr);
             } else if (mbReservedWord < firstCoreFormTokenType) {
+                
                 if (mbReservedWord == tokNodispose) {
                     add((Token){.tp=tokNodispose, .startByte=realStartByte, .lenBytes=9}, lr);
                 } else if (mbReservedWord == tokAnd) {
@@ -805,11 +814,31 @@ private void lexComma(Lexer* lr, Arr(byte) inp) {
  * a double colon :: is the "else clause" symbol.
  */
 private void lexColon(Lexer* lr, Arr(byte) inp) {   
-    lr->i++;
+    lr->i++; // the ":"
     byte nextBt = CURR_BT;
     if (nextBt == aEqual) { // mutation assignment, :=
-        lr->i++;
+        lr->i++; // the "="
         processAssignmentOperator(opTMutation, 1, lr);
+    } else if (nextBt == aColon) {
+        lr->i++; // the second ":"
+        
+        int len = lr->backtrack->length;
+        if (len >= 2 && (*lr->backtrack->content)[len - 2].tp) {
+            uint parentType = (*lr->backtrack->content)[len - 2].tp;
+            if (parentType == tokIf || parentType == tokIfEq || parentType == tokIfPr || parentType == tokMatch) {
+                RememberedToken top = peek(lr->backtrack);
+                setStmtSpanLength(top.tokenInd, lr);
+                pop(lr->backtrack);
+            } else {
+                throwExc(errorCoreMisplacedElse, lr);
+            }        
+        } else {
+            throwExc(errorCoreMisplacedElse, lr);
+        }                
+        push(((RememberedToken){ .tp = tokElse, .tokenInd = lr->nextInd }),
+            lr->backtrack
+        );
+        add((Token) {.tp = tokElse, .startByte = lr->i }, lr);
     } else {
         push(((RememberedToken){ .tp = tokParens, .tokenInd = lr->nextInd, .wasOriginallyColon = true}),
             lr->backtrack
@@ -1000,7 +1029,8 @@ private void lexParenLeft(Lexer* lr, Arr(byte) inp) {
     mbIncrementClauseCount(lr);
     int j = lr->i + 1;
     if (j < lr->inpLength && inp[j] == aColon) { // "(:" starts a new lexical scope
-        openPunctuation(tokScope, lr);
+        lr->i++; // the ":"
+        openPunctuation(tokScope, lr);        
     } else {
         wrapInAStatement(lr, inp);
         openPunctuation(tokParens, lr);
@@ -1013,7 +1043,7 @@ private void lexParenRight(Lexer* lr, Arr(byte) inp) {
     int startInd = lr->i;
     closeRegularPunctuation(tokParens, lr);
     
-    if (!hasValues(lr->backtrack)) return;
+    if (!hasValues(lr->backtrack)) return;    
     mbCloseCompoundCoreForm(lr);
     
     lr->lastClosingPunctInd = startInd;    
@@ -1137,6 +1167,7 @@ private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
     p[11] = determineReservedL;
     p[12] = determineReservedM;
     p[13] = determineReservedN;
+    p[14] = determineReservedO;
     p[17] = determineReservedR;
     p[18] = determineReservedS;
     p[19] = determineReservedT;
@@ -1264,7 +1295,7 @@ private Lexer* buildLexer(int totalTokens, String* inp, Arena *a, /* Tokens */ .
  */
 private void finalize(Lexer* lr) {
     if (!hasValues(lr->backtrack)) return;
-    closeSemicolons(lr);
+    closeColons(lr);
     RememberedToken top = pop(lr->backtrack);
     if (top.isMultiline || hasValues(lr->backtrack)) {
         throwExc(errorPunctuationExtraOpening, lr);
