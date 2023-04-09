@@ -70,4 +70,4 @@ typedef struct {
     Arena* arena;
 } Parser;
 
-
+Parser* parse(Lexer*, LanguageDefinition*, Arena*);

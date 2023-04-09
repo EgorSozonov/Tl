@@ -731,8 +731,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
         if (mbReservedWord > 0) {
             if (wordType == tokDotWord) {
                 throwExc(errorWordReservedWithDot, lr);
-            } else if (mbReservedWord < firstCoreFormTokenType) {
-                
+            } else if (mbReservedWord < firstCoreFormTokenType) {               
                 if (mbReservedWord == tokNodispose) {
                     add((Token){.tp=tokNodispose, .startByte=realStartByte, .lenBytes=9}, lr);
                 } else if (mbReservedWord == tokAnd) {
@@ -758,8 +757,6 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
         }
     }
 }
-
-
 
 
 private void lexWord(Lexer* lr, Arr(byte) inp) {    

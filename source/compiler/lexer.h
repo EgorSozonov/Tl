@@ -112,12 +112,12 @@ void add(Token t, Lexer* lexer);
 
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
-Lexer* lexicallyAnalyze(String* inp, LanguageDefinition* lang, Arena* a);
+Lexer* lexicallyAnalyze(String*, LanguageDefinition*, Arena*);
 typedef union {
     uint64_t i;
     double   d;
 } FloatingBits;
 
-int64_t longOfDoubleBits(double d);
+int64_t longOfDoubleBits(double);
 
 #endif

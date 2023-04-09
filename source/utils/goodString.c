@@ -66,11 +66,23 @@ bool endsWith(String* a, String* b) {
     return cmpResult == 0;
 }
 
+
+bool equal(String* a, String* b) {
+    if (a->length != b->length) {
+        return false;
+    }
+    
+    int cmpResult = memcmp(a->content, b->content, b->length);
+    return cmpResult == 0;
+}
+
+
 void printString(String* s) {
     if (s->length == 0) return;
     fwrite(s->content, 1, s->length, stdout);
     printf("\n");
 }
+
 
 void printStringNoLn(String* s) {
     if (s->length == 0) return;
