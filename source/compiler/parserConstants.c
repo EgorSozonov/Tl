@@ -1,5 +1,5 @@
 
-const char errorImportsNonUnique[]            = "Import names must be unique!"
+ const char errorImportsNonUnique[]            = "Import names must be unique!"
 ;const char errorLengthOverflow[]              = "AST nodes length overflow"
 ;const char errorUnexpectedToken[]             = "Unexpected token"
 ;const char errorInconsistentSpan[]            = "Inconsistent span length / structure of token scopes!"

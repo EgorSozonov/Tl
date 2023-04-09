@@ -27,25 +27,45 @@ jmp_buf excBuf;
     IntMap*: getUnsafeIntMap, \
     StringMap*: getUnsafeStringMap \
     )(A, X) 
+    
+    
 
 private void testStringMap(Arena* a) {
     StringMap* sm = createStringMap(1024, a);
     String* foo = allocLit("foo", a);
     String* bar = allocLit("barr", a);
+    String* baz = allocLit("baz", a);
+    String* notAdded = allocLit("notAdded", a);
+    
     add(foo, 100, sm);
     add(bar, 200, sm);
+    add(baz, 78, sm);
     int valueFromMap = 0;
     int errCode = get(foo, &valueFromMap, sm);
     if (errCode != 0 || valueFromMap != 100) {
-        printf("Error when getting string ");
         printString(foo);
+        longjmp(excBuf, 1);
     }
     
+    int valueBar = getUnsafe(bar, sm);
+    if (valueBar != 200) {
+        printString(bar);
+        longjmp(excBuf, 1);
+    }
     
+    errCode = get(notAdded, &valueFromMap, sm);
+    if (errCode != 1) {
+        printString(notAdded);
+        longjmp(excBuf, 1);
+    }    
     
-    
-    
+    errCode = get(baz, &valueFromMap, sm);
+    if (errCode != 0 || valueFromMap != 78) {
+        printString(baz);
+        longjmp(excBuf, 1);
+    }    
 }
+
 
 private void testIntMap(Arena* a) {
     IntMap* hm = createIntMap(150, a);

@@ -53,8 +53,7 @@ void addStringMap(String* key, int value, StringMap* hm) {
         ValueList* newBucket = allocateOnArena(sizeof(ValueList) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (8 << 16) + 1; // left u16 = capacity, right u16 = length
         StringValue* firstElem = (StringValue*)newBucket->content;
-        firstElem->length = key->length;
-        firstElem->string = key;
+        *firstElem = (StringValue){.length = keyLen, .value = value, .string = key};
         *(hm->dict + hash) = newBucket;
     } else {
         ValueList* p = *(hm->dict + hash);
