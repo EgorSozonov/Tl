@@ -6,6 +6,7 @@ extern jmp_buf excBuf;
 
 #define initBucketSize 8
 
+
 typedef struct {
     int length;
     int value;
@@ -87,36 +88,36 @@ bool hasKeyStringMap(String* key, StringMap* hm) {
     int keyLen = key->length;
     if (*(hm->dict + hash) == NULL) {
         return false;
-    } else {
-        ValueList* p = *(hm->dict + hash);
-        int lenBucket = (p->capAndLen & 0xFFFF);
-        Arr(StringValue) stringValues = (StringValue*)p->content;
-        for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == keyLen && equal(stringValues[i].string, key)) { // key already present                
-                return true;
-            }
-        }
-        return false;        
     }
+    ValueList* p = *(hm->dict + hash);
+    int lenBucket = (p->capAndLen & 0xFFFF);
+    Arr(StringValue) stringValues = (StringValue*)p->content;
+    for (int i = 0; i < lenBucket; i++) {
+        if (stringValues[i].length == keyLen && equal(stringValues[i].string, key)) { // key already present                
+            return true;
+        }
+    }
+    return false;    
 }
 
-/** Returns 1 if key not found, 0 if found (then the value is written into the result argument) */
+/** Returns 1 if key is not found, 0 if found (then the value is written into the result argument) */
 int getStringMap(String* key, int* result, StringMap* hm) {
     int hash = (key->length) % (hm->dictSize);
     int keyLen = key->length;
     if (*(hm->dict + hash) == NULL) {
         return 1;
-    } else {
-        ValueList* p = *(hm->dict + hash);
-        int lenBucket = (p->capAndLen & 0xFFFF);
-        Arr(StringValue) stringValues = (StringValue*)p->content;
-        for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == keyLen && equal(stringValues[i].string, key)) {                                
-                *result = stringValues[i].value;
-                return 0;
-            }
+    } 
+
+    ValueList* p = *(hm->dict + hash);
+    int lenBucket = (p->capAndLen & 0xFFFF);
+    Arr(StringValue) stringValues = (StringValue*)p->content;
+    for (int i = 0; i < lenBucket; i++) {
+        if (stringValues[i].length == keyLen && equal(stringValues[i].string, key)) {                                
+            *result = stringValues[i].value;
+            return 0;
         }
     }
+    
     return 1;
 }
 
@@ -127,15 +128,16 @@ int getUnsafeStringMap(String* key, StringMap* hm) {
     int keyLen = key->length;
     if (*(hm->dict + hash) == NULL) {
         longjmp(excBuf, 1);
-    } else {
-        ValueList* p = *(hm->dict + hash);
-        int lenBucket = (p->capAndLen & 0xFFFF);
-        Arr(StringValue) stringValues = (StringValue*)p->content;
-        for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == keyLen && equal(stringValues[i].string, key)) { // key already present                                
-                return stringValues[i].value; 
-            }
+    } 
+
+    ValueList* p = *(hm->dict + hash);
+    int lenBucket = (p->capAndLen & 0xFFFF);
+    Arr(StringValue) stringValues = (StringValue*)p->content;
+    for (int i = 0; i < lenBucket; i++) {
+        if (stringValues[i].length == keyLen && equal(stringValues[i].string, key)) { // key already present                                
+            return stringValues[i].value; 
         }
     }
+    
     longjmp(excBuf, 1);
 }

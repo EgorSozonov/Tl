@@ -81,33 +81,33 @@ int getIntMap(int key, int* value, IntMap* hm) {
     int hash = key % (hm->dictSize);
     if (*(hm->dict + hash) == NULL) {
         return 1;
-    } else {
-        int* p = *(hm->dict + hash);
-        int maxInd = 2*((*p) & 0xFFFF) + 1;
-        for (int i = 1; i < maxInd; i += 2) {
-            if (p[i] == key) { // key already present
-                *value = p[i + 1]; 
-                return 0;
-            }
-        }
     }
+
+    int* p = *(hm->dict + hash);
+    int maxInd = 2*((*p) & 0xFFFF) + 1;
+    for (int i = 1; i < maxInd; i += 2) {
+        if (p[i] == key) { // key already present
+            *value = p[i + 1]; 
+            return 0;
+        }
+    }    
     return 1;
 }
 
-
+/** Throws an exception when key is absent */
 int getUnsafeIntMap(int key, IntMap* hm) {
     int hash = key % (hm->dictSize);
     if (*(hm->dict + hash) == NULL) {
         longjmp(excBuf, 1);
-    } else {
-        int* p = *(hm->dict + hash);
-        int maxInd = 2*((*p) & 0xFFFF) + 1;
-        for (int i = 1; i < maxInd; i += 2) {
-            if (p[i] == key) { // key already present
-                return p[i + 1]; 
-            }
-        }
     }
+
+    int* p = *(hm->dict + hash);
+    int maxInd = 2*((*p) & 0xFFFF) + 1;
+    for (int i = 1; i < maxInd; i += 2) {
+        if (p[i] == key) { // key already present
+            return p[i + 1]; 
+        }
+    }    
     longjmp(excBuf, 1);
 }
 
