@@ -1,10 +1,10 @@
 #include <stdio.h>
 #include <setjmp.h>
 #include "../source/utils/arena.h"
-#include "../source/utils/goodString.h"
-#include "../source/utils/intMap.h"
-#include "../source/utils/stringMap.h"
 #include "../source/utils/aliases.h"
+#include "../source/utils/goodString.h"
+#include "../source/utils/structures/intMap.h"
+#include "../source/utils/structures/stringMap.h"
 
 jmp_buf excBuf;
 

@@ -3,7 +3,7 @@
 #include "../utils/aliases.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
-#include "../utils/stackHeader.h"
+#include "../utils/structures/stackHeader.h"
 
 typedef struct {
     uint tp : 6
@@ -33,13 +33,6 @@ typedef struct {
    ;unsigned int payload2
    ;
 } Node;
-
-typedef struct {
-    
-} AST;
-
-typedef struct {
-} FunctionDef;
 
 
 // ParseFrame = spanType, startNode, sentinelToken, currClause
@@ -73,6 +66,16 @@ typedef struct {
     //~ val typeFuncs: HashMap<String, ArrayList<IntPair>> = HashMap(12)
 //~ }
 
+
+
+
+typedef struct {
+    Arr(ValueList*) dict
+   ;int dictSize
+   ;int length
+   ;
+} BindingMap;
+
 typedef struct {
     int i
     ;String* code
@@ -95,9 +98,9 @@ typedef struct {
 
     ;Arena* arena
     ;
-} Parser
+} Parser;
 
-;Parser* parse(Lexer*, LanguageDefinition*, Arena*)
-
+Parser* parse(Lexer*, LanguageDefinition*, Arena*)
+;
 
 
