@@ -22,9 +22,9 @@ struct ScopeChunk{
  * Either currChunk->next == NULL or currChunk->next->next == NULL
  */
 typedef struct {
-    ScopeChunk *firstChunk
-   ;ScopeChunk *currChunk
-   ;ScopeChunk *lastChunk
+    ScopeChunk* firstChunk
+   ;ScopeChunk* currChunk
+   ;ScopeChunk* lastChunk
    ;BindingMap* topScope
    ;int nextInd
    ;

@@ -1,5 +1,5 @@
 #include "scopeStack.h"
-#define CHUNK_QUANT 32768
+#define CHUNK_SIZE 65536
 
 
 typedef struct {
@@ -23,32 +23,32 @@ struct BindingMap {
    ;
 };
 
-private size_t floor8(size_t sz) {
-    return 0;
-}
 
-
-private size_t minChunkSize() {
-    return (size_t)(CHUNK_QUANT - 32);
+private size_t ceiling8(size_t sz) {
+    size_t rem = sz % 8;
+    return sz + 8 - rem;
 }
 
 
 ScopeStack* createScopeStack() {
-    ScopeStack* result = malloc(sizeof(ScopeStack));
+    ScopeStack* result = malloc(sizeof(ScopeStack))
 
-    size_t firstChunkSize = minChunkSize();
+   ;ScopeChunk* firstChunk = malloc(CHUNK_SIZE)
 
-    ScopeChunk* firstChunk = malloc(firstChunkSize);
+   ;firstChunk->length = CHUNK_SIZE - sizeof(ScopeChunk)
+   ;firstChunk->next = NULL
 
-    firstChunk->length = firstChunkSize - sizeof(ScopeChunk);
-    firstChunk->next = NULL;
+   ;result->firstChunk = firstChunk
+   ;result->currChunk = firstChunk
+   ;result->lastChunk = firstChunk
+   ;result->topScope = (BindingMap*)firstChunk->content
+   ;result->topScope->dictLength = 64
+   ;result->topScope->previous = NULL
+   ;result->topScope->dict = (Arr(ValueList*))(firstChunk->content + ceiling8(sizeof(BindingMap)))   
+   ;result->nextInd = ceiling8(sizeof(BindingMap) + sizeof(ValueList*) * 64)
 
-    result->firstChunk = firstChunk;
-    result->currChunk = firstChunk;
-    result->lastChunk = firstChunk;
-    result->nextInd = 0;
-
-    return result;
+   ;return result
+   ;
 }
 
 void addBinding(String* name, int id, ScopeStack* scopeStack) {

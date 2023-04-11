@@ -75,8 +75,12 @@ private void testIntMap(Arena* a) {
     printf("Find key 1? %d Find key 3? %d\n", hasKey(1, hm), hasKey(3, hm));
 }
 
-private void testScopeStack() {
-    ScopeStack* st = createScopeStack();
+private void testScopeStack(Arena* a) {
+    ScopeStack* st = createScopeStack()
+    
+   ;String* foo = allocLit("foo", a)
+   ;addBinding(foo, 10, st)
+   ;
 }
 
 
@@ -88,7 +92,7 @@ int main() {
     
     if (setjmp(excBuf) == 0) {
         //testStringMap(a);
-        testScopeStack();
+        testScopeStack(a);
 
     } else {
         printf("there was a test failure!\n");

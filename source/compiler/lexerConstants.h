@@ -146,7 +146,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    32 // must be equal to the count of following constants
+#define countOperators    30 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
 #define opTSize            2 // #
@@ -156,29 +156,27 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTTypeAnd         6 // & interface intersection
 #define opTNotEmpty        7 // '
 #define opTTimes           8 // *
-#define opTIncrement       9 // ++
-#define opTPlus           10 // +
-#define opTDecrement      11 // --
-#define opTMinus          12 // -
-#define opTDivBy          13 // /
-#define opTArrowLeft      14 // <-
-#define opTBitShiftLeft   15 // <<
-#define opTLTEQ           16 // <=
-#define opTComparator     17 // <>
-#define opTLessThan       18 // <
-#define opTEquality       19 // ==
-#define opTIntervalBoth   20 // >=<= inclusive interval check
-#define opTIntervalLeft   21 // >=<  left-inclusive interval check
-#define opTIntervalRight  22 // ><=  right-inclusive interval check
-#define opTIntervalExcl   23 // ><   exclusive interval check
-#define opTGTEQ           24 // >=
-#define opTBitshiftRight  25 // >>   right bit shift
-#define opTGreaterThan    26 // >
-#define opTNullCoalesce   27 // ?:   null coalescing operator
-#define opTQuestionMark   28 // ?    nullable type operator
-#define opTExponent       29 // ^    exponentiation
-#define opTBoolOr         30 // ||   bitwise or
-#define opTXor            31 // |    bitwise xor
+#define opTPlus            9 // +
+#define opTMinus          10 // -
+#define opTDivBy          11 // /
+#define opTArrowLeft      12 // <-
+#define opTBitShiftLeft   13 // <<
+#define opTLTEQ           14 // <=
+#define opTComparator     15 // <>
+#define opTLessThan       16 // <
+#define opTEquality       17 // ==
+#define opTIntervalBoth   18 // >=<= inclusive interval check
+#define opTIntervalLeft   19 // >=<  left-inclusive interval check
+#define opTIntervalRight  20 // ><=  right-inclusive interval check
+#define opTIntervalExcl   21 // ><   exclusive interval check
+#define opTGTEQ           22 // >=
+#define opTBitshiftRight  23 // >>   right bit shift
+#define opTGreaterThan    24 // >
+#define opTNullCoalesce   25 // ?:   null coalescing operator
+#define opTQuestionMark   26 // ?    nullable type operator
+#define opTExponent       27 // ^    exponentiation
+#define opTBoolOr         28 // ||   bitwise or
+#define opTXor            29 // |    bitwise xor
 
 #define opTMutation       40 // Not a real operator, just a tag for :=
 #define opTDefinition     41 // Not a real operator, just a tag for  =

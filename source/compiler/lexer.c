@@ -7,7 +7,7 @@
 #include "../utils/aliases.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
-#include "../utils/stack.h"
+#include "../utils/structures/stack.h"
 #include <setjmp.h>
 
 #define CURR_BT inp[lr->i]
@@ -940,7 +940,7 @@ private void appendDocComment(int startByte, int endByte, Lexer* lr) {
  *  Doc comments, syntax is ## Doc comment
  */
 private void docComment(Lexer* lr, Arr(byte) inp) {
-    int startByte = lr->i + 1; // +1 for the third slash in "///"
+    int startByte = lr->i + 1; // +1 for the third dash in "---"
     for (int j = startByte; j < lr->inpLength; j++) {
         if (inp[j] == aNewline) {
             addNewLine(j, lr);
@@ -956,11 +956,13 @@ private void docComment(Lexer* lr, Arr(byte) inp) {
 }
 
 /**
- * Doc comments, syntax is // The comment or /// Doc comment
- * Precondition: we are past the "//"
+ * Doc comments, syntax is -- The comment or ---Doc comment
+ * Precondition: we are past the "--"
  */
-private void comment(Lexer* lr, Arr(byte) inp) {    
-    if (lr->i < lr->inpLength && CURR_BT == aDivBy) {
+private void comment(Lexer* lr, Arr(byte) inp) {
+    if (lr->i >= lr->inpLength) return;
+    
+    if (CURR_BT == aMinus) {
         docComment(lr, inp);
     } else {
         int j = lr->i;
@@ -974,29 +976,25 @@ private void comment(Lexer* lr, Arr(byte) inp) {
             }
         }
         lr->i = j;
-    }    
+    } 
 }
 
-
-private void lexMinus(Lexer* lr, Arr(byte) inp) {
-    wrapInAStatement(lr, inp);
+/** Handles the binary operator, the unary operator and the comments */
+private void lexMinus(Lexer* lr, Arr(byte) inp) {    
     int j = lr->i + 1;
-    if (j < lr->inpLength && isDigit(NEXT_BT)) {
+    if (j >= lr->inpLength) {
+        throwExc(errorPrematureEndOfInput, lr);
+    }
+    byte nextBt = NEXT_BT;
+    if (nextBt == aMinus) {
+        lr->i += 2;
+        comment(lr, inp);
+    } else if (isDigit(nextBt)) {
+        wrapInAStatement(lr, inp);
         decNumber(true, lr, inp);
         lr->numericNextInd = 0;
     } else {
         lexOperator(lr, inp);
-    }    
-}
-
-
-private void lexDivBy(Lexer* lr, Arr(byte) inp) {
-    int j = lr->i + 1;
-    if (j < lr->inpLength && NEXT_BT == aDivBy) {
-        lr->i += 2;
-        comment(lr, inp);
-    } else {
-        lexOperator(lr, inp);    
     }    
 }
 
@@ -1133,7 +1131,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
         p[operatorStartSymbols[i]] = &lexOperator;
     }
     p[aMinus] = &lexMinus;
-    p[aDivBy] = &lexDivBy;
     p[aParenLeft] = &lexParenLeft;
     p[aParenRight] = &lexParenRight;
     p[aBracketLeft] = &lexBracketLeft;
@@ -1205,29 +1202,27 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[ 6] = (OpDef){ .name=allocLit("&", a), .precedence=prefixPrec, .arity=1, .bytes={aAmp, 0, 0, 0 } };
     p[ 7] = (OpDef){ .name=allocLit("'", a), .precedence=prefixPrec, .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
     p[ 8] = (OpDef){ .name=allocLit("*", a), .precedence=20, .arity=2, .extensible=true, .bytes={aTimes, 0, 0, 0 } };
-    p[ 9] = (OpDef){ .name=allocLit("++", a), .precedence=functionPrec, .arity=1, .bytes={aPlus, aPlus, 0, 0 }, .overloadable=true };
-    p[10] = (OpDef){ .name=allocLit("+", a), .precedence=17, .arity=2, .extensible=true, .bytes={aPlus, 0, 0, 0 } };
-    p[11] = (OpDef){ .name=allocLit("--", a), .precedence=functionPrec, .arity=1, .bytes={aMinus, aMinus, 0, 0 }, .overloadable=true };
-    p[12] = (OpDef){ .name=allocLit("-", a), .precedence=17, .arity=2, .extensible=true, .bytes={aMinus, 0, 0, 0 } };
-    p[13] = (OpDef){ .name=allocLit("/", a), .precedence=20, .arity=2, .extensible=true, .bytes={aDivBy, 0, 0, 0 } };
-    p[14] = (OpDef){ .name=allocLit("<-", a), .precedence=1, .arity=2, .bytes={aLT, aMinus, 0, 0 } };
-    p[15] = (OpDef){ .name=allocLit("<<", a), .precedence=14, .arity=2, .extensible=true, .bytes={aLT, aLT, 0, 0 } };    
-    p[16] = (OpDef){ .name=allocLit("<=", a), .precedence=12, .arity=2, .bytes={aLT, aEqual, 0, 0 } };    
-    p[17] = (OpDef){ .name=allocLit("<>", a), .precedence=12, .arity=2, .bytes={aLT, aGT, 0, 0 } };    
-    p[18] = (OpDef){ .name=allocLit("<", a), .precedence=12, .arity=2, .bytes={aLT, 0, 0, 0 } };
-    p[19] = (OpDef){ .name=allocLit("==", a), .precedence=11, .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
-    p[20] = (OpDef){ .name=allocLit(">=<=", a), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[21] = (OpDef){ .name=allocLit(">=<", a), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
-    p[22] = (OpDef){ .name=allocLit("><=", a), .precedence=12, .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
-    p[23] = (OpDef){ .name=allocLit("><", a), .precedence=12, .arity=3, .bytes={aGT, aLT, 0, 0 } };
-    p[24] = (OpDef){ .name=allocLit(">=", a), .precedence=12, .arity=2, .bytes={aGT, aEqual, 0, 0 } };
-    p[25] = (OpDef){ .name=allocLit(">>", a), .precedence=14, .arity=2, .extensible=true, .bytes={aGT, aGT, 0, 0 } };
-    p[26] = (OpDef){ .name=allocLit(">", a), .precedence=12, .arity=2, .bytes={aGT, 0, 0, 0 } };
-    p[27] = (OpDef){ .name=allocLit("?:", a), .precedence=1, .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
-    p[28] = (OpDef){ .name=allocLit("?", a), .precedence=prefixPrec, .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[29] = (OpDef){ .name=allocLit("^", a), .precedence=21, .arity=2, .extensible=true, .bytes={aCaret, 0, 0, 0 } };
-    p[30] = (OpDef){ .name=allocLit("||", a), .precedence=3, .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
-    p[31] = (OpDef){ .name=allocLit("|", a), .precedence=9, .arity=2, .bytes={aPipe, 0, 0, 0 } };    
+    p[ 9] = (OpDef){ .name=allocLit("+", a), .precedence=17, .arity=2, .extensible=true, .bytes={aPlus, 0, 0, 0 } };
+    p[10] = (OpDef){ .name=allocLit("-", a), .precedence=17, .arity=2, .extensible=true, .bytes={aMinus, 0, 0, 0 } };
+    p[11] = (OpDef){ .name=allocLit("/", a), .precedence=20, .arity=2, .extensible=true, .bytes={aDivBy, 0, 0, 0 } };
+    p[12] = (OpDef){ .name=allocLit("<-", a), .precedence=1, .arity=2, .bytes={aLT, aMinus, 0, 0 } };
+    p[13] = (OpDef){ .name=allocLit("<<", a), .precedence=14, .arity=2, .extensible=true, .bytes={aLT, aLT, 0, 0 } };    
+    p[14] = (OpDef){ .name=allocLit("<=", a), .precedence=12, .arity=2, .bytes={aLT, aEqual, 0, 0 } };    
+    p[15] = (OpDef){ .name=allocLit("<>", a), .precedence=12, .arity=2, .bytes={aLT, aGT, 0, 0 } };    
+    p[16] = (OpDef){ .name=allocLit("<", a), .precedence=12, .arity=2, .bytes={aLT, 0, 0, 0 } };
+    p[17] = (OpDef){ .name=allocLit("==", a), .precedence=11, .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
+    p[18] = (OpDef){ .name=allocLit(">=<=", a), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
+    p[19] = (OpDef){ .name=allocLit(">=<", a), .precedence=12, .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
+    p[20] = (OpDef){ .name=allocLit("><=", a), .precedence=12, .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
+    p[21] = (OpDef){ .name=allocLit("><", a), .precedence=12, .arity=3, .bytes={aGT, aLT, 0, 0 } };
+    p[22] = (OpDef){ .name=allocLit(">=", a), .precedence=12, .arity=2, .bytes={aGT, aEqual, 0, 0 } };
+    p[23] = (OpDef){ .name=allocLit(">>", a), .precedence=14, .arity=2, .extensible=true, .bytes={aGT, aGT, 0, 0 } };
+    p[24] = (OpDef){ .name=allocLit(">", a), .precedence=12, .arity=2, .bytes={aGT, 0, 0, 0 } };
+    p[25] = (OpDef){ .name=allocLit("?:", a), .precedence=1, .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
+    p[26] = (OpDef){ .name=allocLit("?", a), .precedence=prefixPrec, .arity=1, .bytes={aQuestion, 0, 0, 0 } };
+    p[27] = (OpDef){ .name=allocLit("^", a), .precedence=21, .arity=2, .extensible=true, .bytes={aCaret, 0, 0, 0 } };
+    p[28] = (OpDef){ .name=allocLit("||", a), .precedence=3, .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
+    p[29] = (OpDef){ .name=allocLit("|", a), .precedence=9, .arity=2, .bytes={aPipe, 0, 0, 0 } };    
     return result;
 }
 

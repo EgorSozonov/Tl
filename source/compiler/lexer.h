@@ -6,7 +6,7 @@
 #include "../utils/aliases.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
-#include "../utils/stackHeader.h"
+#include "../utils/structures/stackHeader.h"
 #include "lexerConstants.h"
 
 typedef struct {
