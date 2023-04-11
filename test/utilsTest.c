@@ -5,6 +5,7 @@
 #include "../source/utils/goodString.h"
 #include "../source/utils/structures/intMap.h"
 #include "../source/utils/structures/stringMap.h"
+#include "../source/utils/structures/scopeStack.h"
 
 jmp_buf excBuf;
 
@@ -74,6 +75,10 @@ private void testIntMap(Arena* a) {
     printf("Find key 1? %d Find key 3? %d\n", hasKey(1, hm), hasKey(3, hm));
 }
 
+private void testScopeStack() {
+    ScopeStack* st = createScopeStack();
+}
+
 
 int main() {
     printf("----------------------------\n");
@@ -82,7 +87,9 @@ int main() {
     Arena *a = mkArena();
     
     if (setjmp(excBuf) == 0) {
-        testStringMap(a);
+        //testStringMap(a);
+        testScopeStack();
+
     } else {
         printf("there was a test failure!\n");
     }

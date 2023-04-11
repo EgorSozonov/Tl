@@ -1,6 +1,7 @@
 ﻿#include <stdio.h>
 #include <stdlib.h>
 #include "arena.h"
+#include "aliases.h"
 
 #define CHUNK_QUANT 32768
 
@@ -18,7 +19,7 @@ struct Arena {
 };
 
 
-size_t minChunkSize() {
+private size_t minChunkSize() {
     return (size_t)(CHUNK_QUANT - 32);
 }
 
@@ -42,7 +43,7 @@ Arena* mkArena() {
 /**
  * Calculates memory for a new chunk. Memory is quantized and is always 32 bytes less
  */
-size_t calculateChunkSize(size_t allocSize) {
+private size_t calculateChunkSize(size_t allocSize) {
     // 32 for any possible padding malloc might use internally,
     // so that the total allocation size is a good even number of OS memory pages.
     // TODO review

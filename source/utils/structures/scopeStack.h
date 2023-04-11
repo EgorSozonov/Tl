@@ -1,5 +1,5 @@
-#ifndef STACKMAP_H
-#define STACKMAP_H
+#ifndef SCOPESTACK_H
+#define SCOPESTACK_H
 #include <stdbool.h>
 #include "../arena.h"
 #include "../goodString.h"
@@ -8,17 +8,12 @@
 
 typedef struct BindingMap BindingMap;
 typedef struct ScopeChunk ScopeChunk;
-struct BindingMap{
-    Arr(ValueList*) dict
-   ;int dictSize
-   ;int length
-   ;BindingMap* previous;
-   ;
-};
+
+typedef struct BindingMap BindingMap;
 
 struct ScopeChunk{
     ScopeChunk *next
-   ;int length // size is divisible by 8
+   ;int length // length is divisible by 8
    ;byte content[]
    ;
 };
@@ -31,6 +26,7 @@ typedef struct {
    ;ScopeChunk *currChunk
    ;ScopeChunk *lastChunk
    ;BindingMap* topScope
+   ;int nextInd
    ;
 } ScopeStack;
 
@@ -40,9 +36,10 @@ typedef struct {
     BindingMap* topScope;
 } Parser;
 
- void addBinding(String* name, int id, ScopeStack* scopeStack)
+ ScopeStack* createScopeStack()
+;void addBinding(String* name, int id, ScopeStack* scopeStack)
 ;int lookupBinding(String* name, bool* wasInTopFunc, BindingMap* topScope)
-;void newFrame(bool isFunction, ScopeStack* scopeStack)
-;void popFrame(ScopeStack* scopeStack)
+;BindingMap* newFrame(bool isFunction, ScopeStack* scopeStack)
+;BindingMap* popFrame(ScopeStack* scopeStack)
 ;
 #endif
