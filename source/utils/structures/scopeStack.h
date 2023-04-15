@@ -6,14 +6,13 @@
 #include "../aliases.h"
 
 
-typedef struct BindingMap BindingMap;
+typedef struct BindingList BindingList;
 typedef struct ScopeChunk ScopeChunk;
 
-typedef struct BindingMap BindingMap;
 
 struct ScopeChunk{
     ScopeChunk *next
-   ;int length // length is divisible by 8
+   ;int length // length is divisible by 4
    ;byte content[]
    ;
 };
@@ -22,24 +21,23 @@ struct ScopeChunk{
  * Either currChunk->next == NULL or currChunk->next->next == NULL
  */
 typedef struct {
-    ScopeChunk* firstChunk
-   ;ScopeChunk* currChunk
-   ;ScopeChunk* lastChunk
-   ;BindingMap* topScope
-   ;int nextInd
-   ;
+    ScopeChunk* firstChunk;
+    ScopeChunk* currChunk;
+    ScopeChunk* lastChunk;
+    BindingList* topScope;
+    int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
 } ScopeStack;
 
 
 typedef struct {
     ScopeStack* scopes;
-    BindingMap* topScope;
+    BindingList* topScope;
 } Parser;
 
  ScopeStack* createScopeStack()
 ;void addBinding(String* name, int id, ScopeStack* scopeStack)
-;int lookupBinding(String* name, bool* wasInTopFunc, BindingMap* topScope)
-;BindingMap* newFrame(bool isFunction, ScopeStack* scopeStack)
-;BindingMap* popFrame(ScopeStack* scopeStack)
+;int lookupBinding(String* name, bool* wasInTopFunc, BindingList* topScope)
+;BindingList* newFrame(bool isFunction, ScopeStack* scopeStack)
+;BindingList* popFrame(ScopeStack* scopeStack)
 ;
 #endif

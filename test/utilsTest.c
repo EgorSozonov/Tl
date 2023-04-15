@@ -76,11 +76,11 @@ private void testIntMap(Arena* a) {
 }
 
 private void testScopeStack(Arena* a) {
-    ScopeStack* st = createScopeStack()
+    ScopeStack* st = createScopeStack();
     
-   ;String* foo = allocLit("foo", a)
-   ;addBinding(foo, 10, st)
-   ;
+    String* foo = allocLit("foo", a);
+    addBinding(foo, 10, st);   
+    
 }
 
 
