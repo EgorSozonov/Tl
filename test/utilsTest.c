@@ -77,8 +77,27 @@ private void testIntMap(Arena* a) {
 
 private void testScopeStack(Arena* a) {
     ScopeStack* st = createScopeStack();
+    Arr(int) bindingsInScope = allocateOnArena(1000*sizeof(int), a);
     
-    addBinding(10, st);   
+    addBinding(10, 1, bindingsInScope, st);
+    
+    pushScope(st);
+    
+    addBinding(20, 2, bindingsInScope, st);    
+    printf("Lookup of nameId = %d is bindingId = %d\n", 20, bindingsInScope[20]);
+    
+    pushScope(st);
+    addBinding(30, 3, bindingsInScope, st);    
+    
+    printf("After extra scope push, lookup of nameId = %d is bindingId = %d\n", 20, bindingsInScope[20]);
+    
+    popScope(bindingsInScope, st);
+    
+    printf("After extra scope was removed, lookup of nameId = %d is bindingId = %d\n", 20, bindingsInScope[20]);
+    
+    popScope(bindingsInScope, st);
+    
+    printf("Finally, lookup of nameId = %d is bindingId = %d\n", 20, bindingsInScope[20]);
     
 }
 

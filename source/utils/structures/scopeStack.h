@@ -33,9 +33,10 @@ typedef struct {
     BindingList* topScope;
 } Parser;
 
+
 ScopeStack* createScopeStack();
-void addBinding(int id, ScopeStack* scopeStack);
-BindingList* newScope(bool isFunction, ScopeStack* scopeStack);
-BindingList* popScope(ScopeStack* scopeStack);
+void addBinding(int, int, Arr(int), ScopeStack*);
+BindingList* pushScope(ScopeStack*);
+BindingList* popScope(Arr(int), ScopeStack*);
 
 #endif

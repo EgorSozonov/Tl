@@ -11,8 +11,9 @@ extern jmp_buf excBuf;
 struct BindingList {
     int length;                // number of elements in hash map
     ScopeChunk* previousChunk;
-    int previousInd; // index of the start of previous frame
-    bool wasEnlarged; // if false, capacity = 64, if true = 256
+    int previousInd; // index of the start of previous frame within its chunk    
+    ScopeChunk* thisChunk;
+    int thisInd; // index of the start of this frame within this chunk
     Arr(int) content;
 };
 
@@ -43,9 +44,11 @@ ScopeStack* createScopeStack() {
     result->topScope = (BindingList*)firstChunk->content;
     result->nextInd = ceiling4(sizeof(BindingList))/4;
     Arr(int) firstFrame = (int*)firstChunk->content + result->nextInd;
+        
+    (*result->topScope) = (BindingList){.length = 0, .previousChunk = NULL, .thisChunk = result->currChunk, 
+        .thisInd = result->nextInd, .content = firstFrame };
+        
     result->nextInd += 64;
-    
-    (*result->topScope) = (BindingList){.length = 0, .previousChunk = NULL, .wasEnlarged = false, .content = firstFrame };
    
     printf("FirstChunk %p TopScope %p \n", firstChunk, result->topScope);
     printf("FirstChunk length %d nextInd %d \n", firstChunk->length, result->nextInd);
@@ -65,10 +68,10 @@ private void mbNewChunk(ScopeStack* scopeStack) {
     scopeStack->lastChunk;    
 }
 
-void addBinding(int nameId, ScopeStack* scopeStack) {
+void addBinding(int nameId, int bindingId, Arr(int) scopeBindings, ScopeStack* scopeStack) {
     BindingList* topScope = scopeStack->topScope;
     int newLength = topScope->length + 1;
-    if (!topScope->wasEnlarged && newLength == 64) {
+    if (newLength == 64) {
         int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
         if (remainingSpace < 192) {            
             mbNewChunk(scopeStack);
@@ -77,16 +80,17 @@ void addBinding(int nameId, ScopeStack* scopeStack) {
             memcpy(topScope->content, newContent, 64*sizeof(int));
             topScope->content = newContent;            
         }
-        topScope->wasEnlarged = true;
     } else if (newLength == 256) {
         longjmp(excBuf, 1);
     }
     topScope->content[topScope->length] = nameId;
     topScope->length++;
+    
+    scopeBindings[nameId] = bindingId;
 }
 
 /** Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within a brand new chunk */
-BindingList* newScope(bool isFunction, ScopeStack* scopeStack) {
+BindingList* pushScope(ScopeStack* scopeStack) {
     // check whether the free space in currChunk is enough for the hashmap header + dict
     // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
     int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
@@ -97,19 +101,26 @@ BindingList* newScope(bool isFunction, ScopeStack* scopeStack) {
         mbNewChunk(scopeStack);
         scopeStack->currChunk = scopeStack->currChunk->next;
         scopeStack->nextInd = necessarySpace;
-        newScope = scopeStack->currChunk->content;        
+        newScope = (BindingList*)scopeStack->currChunk->content;        
     } else {
-        newScope = (int*)scopeStack->currChunk->content + scopeStack->nextInd;
+        newScope = (BindingList*)((int*)scopeStack->currChunk->content + scopeStack->nextInd);
     }
     newScope->content = (int*)newScope + ceiling4(sizeof(BindingList));            
     newScope->previousChunk = oldChunk;
-    newScope->previousInd = scopeStack->topScope - ;
+    newScope->previousInd = scopeStack->topScope->thisInd;
+    scopeStack->topScope = newScope;
 }
 
 /** Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any */
-BindingList* popScope(ScopeStack* scopeStack) {
+BindingList* popScope(Arr(int) scopeBindings, ScopeStack* scopeStack) {  
     BindingList* topScope = scopeStack->topScope;
-    scopeStack->currChunk = topScope->previousChunk;
+    for (int i = 0; i < topScope->length; i++) {
+        int ind = *(topScope->content + i);
+        printf("deleting ind = %d\n", ind);
+        scopeBindings[ind] = 0;
+    }    
+    
+    scopeStack->currChunk = topScope->previousChunk;    
     scopeStack->topScope = (BindingList*)(scopeStack->currChunk->content + topScope->previousInd);
     scopeStack->lastChunk = scopeStack->currChunk->next;
     
