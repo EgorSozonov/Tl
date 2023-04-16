@@ -45,7 +45,7 @@ ScopeStack* createScopeStack() {
     result->nextInd = ceiling4(sizeof(BindingList))/4;
     Arr(int) firstFrame = (int*)firstChunk->content + result->nextInd;
         
-    (*result->topScope) = (BindingList){.length = 0, .previousChunk = NULL, .thisChunk = result->currChunk, 
+    (*result->topScope) = (BindingList){.length = 0, .previousChunk = NULL, .thisChunk = firstChunk, 
         .thisInd = result->nextInd, .content = firstFrame };
         
     result->nextInd += 64;
@@ -94,35 +94,42 @@ BindingList* pushScope(ScopeStack* scopeStack) {
     // check whether the free space in currChunk is enough for the hashmap header + dict
     // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
     int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
-    int necessarySpace = ceiling4(sizeof(BindingList)) + 64*sizeof(int);
-    ScopeChunk* oldChunk = scopeStack->currChunk;
+    int necessarySpace = ceiling4(sizeof(BindingList))/4 + 64;
+    
+    ScopeChunk* oldChunk = scopeStack->topScope->thisChunk;
+    int oldInd = scopeStack->topScope->thisInd;
     BindingList* newScope;
+    int newInd;
     if (remainingSpace < necessarySpace) {        
         mbNewChunk(scopeStack);
         scopeStack->currChunk = scopeStack->currChunk->next;
         scopeStack->nextInd = necessarySpace;
         newScope = (BindingList*)scopeStack->currChunk->content;        
+        newInd = 0;
     } else {
         newScope = (BindingList*)((int*)scopeStack->currChunk->content + scopeStack->nextInd);
+        newInd = scopeStack->nextInd;
+        scopeStack->nextInd += necessarySpace;        
     }
-    newScope->content = (int*)newScope + ceiling4(sizeof(BindingList));            
-    newScope->previousChunk = oldChunk;
-    newScope->previousInd = scopeStack->topScope->thisInd;
+    (*newScope) = (BindingList){.previousChunk = oldChunk, .previousInd = oldInd,
+        .thisChunk = scopeStack->currChunk, .thisInd = newInd,
+        .content = (int*)newScope + ceiling4(sizeof(BindingList))};
+    
     scopeStack->topScope = newScope;
 }
 
 /** Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any */
 BindingList* popScope(Arr(int) scopeBindings, ScopeStack* scopeStack) {  
+
     BindingList* topScope = scopeStack->topScope;
     for (int i = 0; i < topScope->length; i++) {
         int ind = *(topScope->content + i);
-        printf("deleting ind = %d\n", ind);
         scopeBindings[ind] = 0;
     }    
     
     scopeStack->currChunk = topScope->previousChunk;    
-    scopeStack->topScope = (BindingList*)(scopeStack->currChunk->content + topScope->previousInd);
     scopeStack->lastChunk = scopeStack->currChunk->next;
+    scopeStack->topScope = (BindingList*)(topScope->previousChunk->content + topScope->previousInd);
     
     // if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but everything after it needs to go
     if (scopeStack->lastChunk != NULL) {
