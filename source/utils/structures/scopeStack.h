@@ -11,10 +11,9 @@ typedef struct ScopeChunk ScopeChunk;
 
 
 struct ScopeChunk{
-    ScopeChunk *next
-   ;int length // length is divisible by 4
-   ;byte content[]
-   ;
+    ScopeChunk *next;
+    int length; // length is divisible by 4
+    int content[];   
 };
 
 /** 
@@ -34,10 +33,9 @@ typedef struct {
     BindingList* topScope;
 } Parser;
 
- ScopeStack* createScopeStack()
-;void addBinding(String* name, int id, ScopeStack* scopeStack)
-;int lookupBinding(String* name, bool* wasInTopFunc, BindingList* topScope)
-;BindingList* newFrame(bool isFunction, ScopeStack* scopeStack)
-;BindingList* popFrame(ScopeStack* scopeStack)
-;
+ScopeStack* createScopeStack();
+void addBinding(int id, ScopeStack* scopeStack);
+BindingList* newScope(bool isFunction, ScopeStack* scopeStack);
+BindingList* popScope(ScopeStack* scopeStack);
+
 #endif
