@@ -36,7 +36,7 @@ typedef struct {
 
 ScopeStack* createScopeStack();
 void addBinding(int, int, Arr(int), ScopeStack*);
-BindingList* pushScope(ScopeStack*);
-BindingList* popScope(Arr(int), ScopeStack*);
+void pushScope(ScopeStack*);
+void popScope(Arr(int), ScopeStack*);
 
 #endif
