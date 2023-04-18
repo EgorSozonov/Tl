@@ -29,13 +29,15 @@ private size_t floor4(size_t sz) {
     return sz - rem;
 }
 
+#define FRESH_CHUNK_LEN floor4(CHUNK_SIZE - sizeof(ScopeChunk))/4
+
 
 ScopeStack* createScopeStack() {    
     ScopeStack* result = malloc(sizeof(ScopeStack));
 
     ScopeChunk* firstChunk = malloc(CHUNK_SIZE);
 
-    firstChunk->length = floor4(CHUNK_SIZE - sizeof(ScopeChunk))/4;
+    firstChunk->length = FRESH_CHUNK_LEN;
     firstChunk->next = NULL;
 
     result->firstChunk = firstChunk;
@@ -48,12 +50,7 @@ ScopeStack* createScopeStack() {
     (*result->topScope) = (BindingList){.length = 0, .previousChunk = NULL, .thisChunk = firstChunk, 
         .thisInd = result->nextInd, .content = firstFrame };
         
-    result->nextInd += 64;
-   
-    printf("FirstChunk %p TopScope %p \n", firstChunk, result->topScope);
-    printf("FirstChunk length %d nextInd %d \n", firstChunk->length, result->nextInd);
-    printf("sizeof(BindingList) = %d bytes sizeof(ScopeChunk) = %d bytes\n", sizeof(BindingList), sizeof(ScopeChunk));
-   
+    result->nextInd += 64;  
     
     return result;
 }
@@ -62,8 +59,8 @@ private void mbNewChunk(ScopeStack* scopeStack) {
     if (scopeStack->currChunk->next != NULL) {
         return;
     }
-    printf("malloc\n");
     ScopeChunk* newChunk = malloc(CHUNK_SIZE);
+    newChunk->length = FRESH_CHUNK_LEN;
     newChunk->next = NULL;
     scopeStack->currChunk->next = newChunk;
     scopeStack->lastChunk = NULL;
@@ -101,7 +98,7 @@ void pushScope(ScopeStack* scopeStack) {
     int oldInd = scopeStack->topScope->thisInd;
     BindingList* newScope;
     int newInd;
-    if (remainingSpace < necessarySpace) {        
+    if (remainingSpace < necessarySpace) {  
         mbNewChunk(scopeStack);
         scopeStack->currChunk = scopeStack->currChunk->next;
         scopeStack->nextInd = necessarySpace;
@@ -132,16 +129,21 @@ void popScope(Arr(int) scopeBindings, ScopeStack* scopeStack) {
     
     // if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but everything after it needs to go
     if (scopeStack->lastChunk != NULL) {
+        
         ScopeChunk* ch = scopeStack->lastChunk->next;
-        while (ch != NULL) {
+        if (ch != NULL) {
+            scopeStack->lastChunk->next = NULL;
+            do {
+                ScopeChunk* nextToDelete = ch->next;
+                printf("ScopeStack is freeing a chunk of memory at %p next = %p\n", ch, nextToDelete);
+                free(ch);
+                printf("p50\n");
+                
+                if (nextToDelete == NULL) break;
+                printf("p51\n");
+                ch = nextToDelete;
 
-            ScopeChunk* nextToDelete = ch->next;
-            printf("ScopeStack is freeing a chunk of memory next = %p\n", nextToDelete);
-            free(ch);
-            if (nextToDelete == NULL) return;
-            ch = nextToDelete;
-
-        }
-    }
-   
+            } while (ch != NULL);
+        }                
+    }   
 }

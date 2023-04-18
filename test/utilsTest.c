@@ -91,8 +91,9 @@ private void testScopeStack(Arena* a) {
         popScope(bindingsInScope, st);
     } 
     
-    
+    printf("p1\n");
     popScope(bindingsInScope, st);
+    printf("p2\n");
     
     printf("Finally, lookup of nameId = %d is bindingId = %d, should be = 0\n", 999, bindingsInScope[999]);
     

@@ -9,27 +9,11 @@
 #include "../utils/goodString.h"
 #include "../utils/structures/stack.h"
 #include <setjmp.h>
+#include "lexer.internal.h"
+
 
 #define CURR_BT inp[lr->i]
 #define NEXT_BT inp[lr->i + 1]
-
-DEFINE_STACK(RememberedToken)
-
-#define pop(X) _Generic((X), \
-    StackRememberedToken*: popRememberedToken \
-    )(X)
-
-#define peek(X) _Generic((X), \
-    StackRememberedToken*: peekRememberedToken \
-    )(X)
-
-#define push(A, X) _Generic((X), \
-    StackRememberedToken*: pushRememberedToken \
-    )(A, X)
-    
-#define hasValues(X) _Generic((X), \
-    StackRememberedToken*: hasValuesRememberedToken \
-    )(X)    
     
  
 jmp_buf excBuf;
@@ -1261,24 +1245,6 @@ Lexer* createLexer(String* inp, Arena* a) {
 
     result->errMsg = &empty;
 
-    return result;
-}
-
-
-private Lexer* buildLexer(int totalTokens, String* inp, Arena *a, /* Tokens */ ...) {
-    Lexer* result = createLexer(inp, a);
-    if (result == NULL) return result;
-
-    result->totalTokens = totalTokens;
-
-    va_list tokens;
-    va_start (tokens, a);
-
-    for (int i = 0; i < totalTokens; i++) {
-        add(va_arg(tokens, Token), result);
-    }
-
-    va_end(tokens);
     return result;
 }
 

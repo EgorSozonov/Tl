@@ -28,12 +28,6 @@ typedef struct {
 } ScopeStack;
 
 
-typedef struct {
-    ScopeStack* scopes;
-    BindingList* topScope;
-} Parser;
-
-
 ScopeStack* createScopeStack();
 void addBinding(int, int, Arr(int), ScopeStack*);
 void pushScope(ScopeStack*);
