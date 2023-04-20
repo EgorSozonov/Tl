@@ -1,4 +1,4 @@
-gcc -g -Wfatal-errors -Werror=implicit-function-declaration --std=c11 -o _bin/lexerTest \
--Isource/utils -Isource/compiler  \
+gcc -g -Wfatal-errors -Werror=implicit-function-declaration --std=c17 -o _bin/lexerTest \
+-iquote source/utils -iquote source/compiler  \
 test/lexerTest.c source/utils/goodString.c source/utils/arena.c source/compiler/lexerConstants.c source/compiler/lexer.c \
 -lm

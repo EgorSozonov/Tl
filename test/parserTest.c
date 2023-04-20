@@ -32,7 +32,7 @@ const char* nodeNames[] = {
 };
 
 
-static Lexer* buildLexer(int totalTokens, Arena *a, /* Tokens */ ...) {
+static Lexer* buildParser(int totalTokens, Arena *a, /* Tokens */ ...) {
     Lexer* result = createLexer(&empty, a);
     if (result == NULL) return result;
     
@@ -50,7 +50,7 @@ static Lexer* buildLexer(int totalTokens, Arena *a, /* Tokens */ ...) {
 }
 
 
-Lexer* buildLexerWithError(String* errMsg, int totalTokens, Arena *a, /* Tokens */ ...) {
+Lexer* buildParserWithError(String* errMsg, int totalTokens, Arena *a, /* Tokens */ ...) {
     Lexer* result = allocateOnArena(sizeof(Lexer), a);
     result->wasError = true;
     result->errMsg = errMsg;
