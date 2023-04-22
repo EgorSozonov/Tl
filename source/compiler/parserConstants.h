@@ -1,4 +1,4 @@
-
+extern const char errorBareAtom[];
 extern const char errorImportsNonUnique[]
 ;extern const char errorLengthOverflow[]
 ;extern const char errorUnexpectedToken[]

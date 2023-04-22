@@ -69,6 +69,7 @@ private Lexer* buildLexerWithError0(String* errMsg, Arena *a, int totalTokens, A
 
 #define buildLexerWithError(msg, a, toks) buildLexerWithError0(msg, a, sizeof(toks)/sizeof(Token), toks)
 
+
 private LexerTestSet* createTestSet0(String* name, Arena *a, int count, Arr(LexerTest) tests) {
     LexerTestSet* result = allocateOnArena(sizeof(LexerTestSet), a);
     result->name = name;
@@ -957,7 +958,7 @@ void runATestSet(LexerTestSet* (*testGenerator)(Arena*), int* countPassed, int* 
 
 int main() {
     printf("----------------------------\n");
-    printf("Lexer test\n");
+    printf("--  LEXER TEST  --\n");
     printf("----------------------------\n");
     Arena *a = mkArena();
     LanguageDefinition* lang = buildLanguageDefinitions(a);
@@ -973,11 +974,11 @@ int main() {
     runATestSet(&coreFormTests, &countPassed, &countTests, lang, a);
 
     if (countTests == 0) {
-        printf("\nThere were no tests to run!\n");
+        print("\nThere were no tests to run!");
     } else if (countPassed == countTests) {
-        printf("\nAll %d tests passed!\n", countTests);
+        print("\nAll %d tests passed!", countTests);
     } else {
-        printf("\nFailed %d tests out of %d!\n", (countTests - countPassed), countTests);
+        print("\nFailed %d tests out of %d!", (countTests - countPassed), countTests);
     }
     
     deleteArena(a);

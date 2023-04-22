@@ -32,63 +32,55 @@ const char* nodeNames[] = {
 };
 
 
-static Lexer* buildParser(int totalTokens, Arena *a, /* Tokens */ ...) {
-    Lexer* result = createLexer(&empty, a);
+private Parser* buildParser0(Arena *a, int totalNodes, Arr(Node) nodes) {
+    Parser* result = createParser(&empty, a);
     if (result == NULL) return result;
     
-    result->totalTokens = totalTokens;
-    
-    va_list tokens;
-    va_start (tokens, a);
-    
-    for (int i = 0; i < totalTokens; i++) {
-        add(va_arg(tokens, Token), result);
+    result->totalNodes = totalNodes;
+        
+    for (int i = 0; i < totalNodes; i++) {
+        add(nodes[i], result);
     }
     
-    va_end(tokens);
     return result;
 }
 
+// Macro wrapper to get array length
+#define buildParser(a, nodes) buildParser0(a, sizeof(nodes)/sizeof(Node), nodes)
 
-Lexer* buildParserWithError(String* errMsg, int totalTokens, Arena *a, /* Tokens */ ...) {
-    Lexer* result = allocateOnArena(sizeof(Lexer), a);
+private Parser* buildParserWithError0(String* errMsg, Arena *a, int totalNodes, Arr(Node) nodes) {
+    Parser* result = allocateOnArena(sizeof(Parser), a);
     result->wasError = true;
     result->errMsg = errMsg;
-    result->totalTokens = totalTokens;
-    
-    va_list tokens;
-    va_start (tokens, a);
+    result->totalNodes = totalNodes;    
     
     result->tokens = allocateOnArena(totalTokens*sizeof(Token), a);
     if (result == NULL) return result;
     
-    for (int i = 0; i < totalTokens; i++) {
-        result->tokens[i] = va_arg(tokens, Token);
+    for (int i = 0; i < totalNodes; i++) {
+        result->nodes[i] = nodes[i];
     }
     
-    va_end(tokens);
     return result;
 }
 
+#define buildParserWithError(msg, a, nodes) buildParserWithError0(msg, a, sizeof(nodes)/sizeof(Node), nodes)
 
-ParserTestSet* createTestSet(String* name, int count, Arena *a, ...) {
-    ParserTestSet* result = allocateOnArena(sizeof(LexerTestSet), a);
+
+private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
+    ParserTestSet* result = allocateOnArena(sizeof(ParserTestSet), a);
     result->name = name;
-    result->totalTests = count;
-    
-    va_list tests;
-    va_start (tests, a);
-    
-    result->tests = allocateOnArena(count*sizeof(LexerTest), a);
+    result->totalTests = count;    
+    result->tests = allocateOnArena(count*sizeof(ParserTest), a);
     if (result->tests == NULL) return result;
     
     for (int i = 0; i < count; i++) {
-        result->tests[i] = va_arg(tests, LexerTest);
-    }
-    
-    va_end(tests);
+        result->tests[i] = tests[i];
+    }    
     return result;
 }
+
+#define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(ParserTest), tests)
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
 int equalityParser(Parser a, Parser b) {
@@ -144,9 +136,15 @@ void printParser(Parser* a) {
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
 void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageDefinition* lang, Arena *a) {
     (*countTests)++;
-    Parser* result = lexicallyAnalyze(test.input, lang, a);
+    Lexer* lr = lexicallyAnalyze(test.input, lang, a);
+    if (lr->wasError) {
+        print("Lexer was not without error");
+        printLexer(lr);
+        return;
+    }    
+    Parser* pr = parse(lr, lang, a);
         
-    int equalityStatus = equalityLexer(*result, *test.expectedOutput);
+    int equalityStatus = equalityParser(*result, *test.expectedOutput);
     if (equalityStatus == -2) {
         (*countPassed)++;
         return;
@@ -154,498 +152,509 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
         printf("\n\nERROR IN [");
         printStringNoLn(test.name);
         printf("]\nError msg: ");
-        printString(result->errMsg);
+        printString(lr->errMsg);
         printf("\nBut was expected: ");
         printString(test.expectedOutput->errMsg);
 
     } else {
         printf("ERROR IN ");
         printString(test.name);
-        printf("On token %d\n", equalityStatus);
+        printf("On node %d\n", equalityStatus);
         printLexer(result);
     }
 }
 
 
 ParserTestSet* expressionTests(Arena* a) {
-    return createTestSet(allocLit("Expression test set", a), 21, a,
+    return createTestSet(allocLit("Expression test set", a), a, ((Parser[]){
         (ParserTest) { 
             .name = allocLit("Simple function call", a),
-            .input = allocLit("10:foo 2 3", a),
+            .input = allocLit("10,foo 2 3", a),
             .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
+            .expectedOutput = buildParser(a, ((Node[]) {
+                (Node){ .tp = nodFnDef, .payload2 = 6, .startByte = 0, .lenBytes = 8 },
+                (Node){ .tp = nodScope, .payload2 = 5, .startByte = 0, .lenBytes = 4 },
+                (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 5, .lenBytes = 3 },
+                (Node){ .tp = nodInt, .payload2 = 10, .startByte = 0, .lenBytes = 2 },
+                (Node){ .tp = nodInt, .startByte = 7, .lenBytes = 1 },
+                (Node){ .tp = nodInt, .startByte = 9, .lenBytes = 1 },
+                (Node){ .tp = nodFunc, .payload1 = 3, .startByte = 3, .lenBytes = 3 }
+            }))
         },
         (ParserTest) { 
             .name = allocLit("Double function call", a),
-            .input = allocLit("10:foo 2 3", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Triple function call", a),
-            .input = allocLit("c:foo b a :bar 5 :baz 7.2", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Operator precedence simple", a),
-            .input = allocLit("a + b*c", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Operator precedence simple 2", a),
-            .input = allocLit("a + b*c", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Operator precedence simple 3", a),
-            .input = allocLit("a + b*c", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Operator prefix 1", a),
-            .input = allocLit("a + b*c", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Operator prefix 2", a),
-            .input = allocLit("a + b*c", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },       
-        (ParserTest) { 
-            .name = allocLit("Operator prefix 3", a),
-            .input = allocLit("a + b*c", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Operator airthmetic 1", a),
-            .input = allocLit("(a + (b - c % 2)^11)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Operator airthmetic 2", a),
-            .input = allocLit("a + -5", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },       
-        (ParserTest) { 
-            .name = allocLit("Operator airthmetic 3", a),
-            .input = allocLit("a + !(-5)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Operator airthmetic 4", a),
-            .input = allocLit("a + !!(-3)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },             
-        (ParserTest) { 
-            .name = allocLit("Operator arity error", a),
-            .input = allocLit("a + 5 100", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },    
-        (ParserTest) { 
-            .name = allocLit("Single-item expr 1", a),
-            .input = allocLit("a + 5 100", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Single-item expr 2", a),
-            .input = allocLit("a + 5 100", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },    
-        (ParserTest) { 
-            .name = allocLit("Unknown function arity", a),
-            .input = allocLit("a + 5 100", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },        
-        (ParserTest) { 
-            .name = allocLit("Func-expr 1", a),
-            .input = allocLit("(4:(a:g)):f", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },            
-        (ParserTest) { 
-            .name = allocLit("Partial application?", a),
-            .input = allocLit("5:(1 + )", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },          
-        (ParserTest) { 
-            .name = allocLit("Partial application 2?", a),
-            .input = allocLit("5:(3*a +)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },    
-        (ParserTest) { 
-            .name = allocLit("Partial application error?", a),
-            .input = allocLit("5:(3+ a*)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        }
-    );
+            .input = allocLit("a,foo ,buzz b c d", a),
+            .imports = {(Import){"foo", 3}, (Import){"buzz", "buzz"},
+                (Import){"a", "", -1},(Import){"b", "", -1},(Import){"c", "", -1},(Import){"d", "", -1}},
+            .expectedOutput = buildParser(a, ((Node[]) {
+                (Node){ .tp = nodFnDef, .payload2 = 8, .startByte = 0, .lenBytes = 8 },
+                (Node){ .tp = nodScope, .payload2 = 7, .startByte = 0, .lenBytes = 4 },
+                (Node){ .tp = nodExpr,  .payload2 = 6, .startByte = 5, .lenBytes = 3 },
+                (Node){ .tp = nodId, .payload2 = 2, .startByte = 0, .lenBytes = 2 },
+                (Node){ .tp = nodId, .payload2 = 3, .startByte = 7, .lenBytes = 1 },
+                (Node){ .tp = nodId, .payload2 = 4, .startByte = 9, .lenBytes = 1 },
+                (Node){ .tp = nodId, .payload2 = 5, .startByte = 7, .lenBytes = 1 },
+                (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 1, .startByte = 9, .lenBytes = 1 },     // buzz
+                (Node){ .tp = nodFunc, .payload1 = 2, .startByte = 3, .lenBytes = 3 }  // foo
+            }))
+        }//,
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Triple function call", a),
+            //~ .input = allocLit("c:foo b a :bar 5 :baz 7.2", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(a, ((Node[]) {
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ }))
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator precedence simple", a),
+            //~ .input = allocLit("a + b*c", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ }))
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator precedence simple 2", a),
+            //~ .input = allocLit("a + b*c", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ }))
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator precedence simple 3", a),
+            //~ .input = allocLit("a + b*c", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ }))
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator prefix 1", a),
+            //~ .input = allocLit("a + b*c", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ }))
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator prefix 2", a),
+            //~ .input = allocLit("a + b*c", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ }))
+        //~ },       
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator prefix 3", a),
+            //~ .input = allocLit("a + b*c", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator airthmetic 1", a),
+            //~ .input = allocLit("(a + (b - c % 2)^11)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator airthmetic 2", a),
+            //~ .input = allocLit("a + -5", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },       
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator airthmetic 3", a),
+            //~ .input = allocLit("a + !(-5)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator airthmetic 4", a),
+            //~ .input = allocLit("a + !!(-3)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },             
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Operator arity error", a),
+            //~ .input = allocLit("a + 5 100", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },    
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Single-item expr 1", a),
+            //~ .input = allocLit("a + 5 100", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Single-item expr 2", a),
+            //~ .input = allocLit("a + 5 100", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },    
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Unknown function arity", a),
+            //~ .input = allocLit("a + 5 100", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },        
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Func-expr 1", a),
+            //~ .input = allocLit("(4:(a:g)):f", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },            
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Partial application?", a),
+            //~ .input = allocLit("5:(1 + )", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },          
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Partial application 2?", a),
+            //~ .input = allocLit("5:(3*a +)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },    
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Partial application error?", a),
+            //~ .input = allocLit("5:(3+ a*)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ }
+    }));
 }
 
 
-ParserTestSet* assignmentTests(Arena* a) {
-    return createTestSet(allocLit("Assignment test set", a), 2, a,
-        (ParserTest) { 
-            .name = allocLit("Simple assignment 1", a),
-            .input = allocLit("a = 1 + 5", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Simple assignment 2", a),
-            .input = allocLit("a += 9", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        }
-    );
-}
+//~ ParserTestSet* assignmentTests(Arena* a) {
+    //~ return createTestSet(allocLit("Assignment test set", a), 2, a,
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple assignment 1", a),
+            //~ .input = allocLit("a = 1 + 5", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple assignment 2", a),
+            //~ .input = allocLit("a += 9", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ }
+    //~ );
+//~ }
 
 
-ParserTestSet* scopeTests(Arena* a) {
-    return createTestSet(allocLit("Scopes test set", a), 4, a,
-        (ParserTest) { 
-            .name = allocLit("Simple scope 1", a),
-            .input = allocLit("x = 5"
-                              "x:print"
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Simple scope 2", a),
-            .input = allocLit("x = 123"
-                              "yy = x * 10"  
-                              "yy:print"
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Scope with curly braces 1", a),
-            .input = allocLit("x = 123\n"
-                              "{\n"
-                              "yy = x * 10\n"  
-                              ".yy:print\n"
-                              "}"
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },   
-        (ParserTest) { 
-            .name = allocLit("Scope inside statement error", a),
-            .input = allocLit("x = 123 +(\n"
-                              "{\n"
-                              "yy = x * 10\n"  
-                              ".yy:print\n"
-                              "})"
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        }             
-    );
-}
+//~ ParserTestSet* scopeTests(Arena* a) {
+    //~ return createTestSet(allocLit("Scopes test set", a), 4, a,
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple scope 1", a),
+            //~ .input = allocLit("x = 5"
+                              //~ "x:print"
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple scope 2", a),
+            //~ .input = allocLit("x = 123"
+                              //~ "yy = x * 10"  
+                              //~ "yy:print"
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Scope with curly braces 1", a),
+            //~ .input = allocLit("x = 123\n"
+                              //~ "{\n"
+                              //~ "yy = x * 10\n"  
+                              //~ ".yy:print\n"
+                              //~ "}"
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },   
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Scope inside statement error", a),
+            //~ .input = allocLit("x = 123 +(\n"
+                              //~ "{\n"
+                              //~ "yy = x * 10\n"  
+                              //~ ".yy:print\n"
+                              //~ "})"
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ }             
+    //~ );
+//~ }
 
 
-ParserTestSet* typesTest(Arena* a) {
-    return createTestSet(allocLit("Types test set", a), 2, a,
-        (ParserTest) { 
-            .name = allocLit("Simple type 1", a),
-            .input = allocLit("Int"
-                              "x:print"
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Simple type 2", a),
-            .input = allocLit("List Int"
-                              "yy = x * 10"  
-                              "yy:print"
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        }           
-    );
-}
+//~ ParserTestSet* typesTest(Arena* a) {
+    //~ return createTestSet(allocLit("Types test set", a), 2, a,
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple type 1", a),
+            //~ .input = allocLit("Int"
+                              //~ "x:print"
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple type 2", a),
+            //~ .input = allocLit("List Int"
+                              //~ "yy = x * 10"  
+                              //~ "yy:print"
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ }           
+    //~ );
+//~ }
 
-ParserTestSet* functionsTest(Arena* a) {
-    return createTestSet(allocLit("Functions test set", a), 5, a,
-        (ParserTest) { 
-            .name = allocLit("Simple function def", a),
-            .input = allocLit("fn newFn Int(x Int y Float)(return x + y)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Nested function def", a),
-            .input = allocLit("fn foo Int(x Int y Int) {\n"
-                              "z = x*y\n"
-                              ".return (z + x):inner 5 2\n"
-                              "fn inner Int(a Int b Int c Int)(return a - 2*b + 3*c)"
-                              "}\n"
+//~ ParserTestSet* functionsTest(Arena* a) {
+    //~ return createTestSet(allocLit("Functions test set", a), 5, a,
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple function def", a),
+            //~ .input = allocLit("fn newFn Int(x Int y Float)(return x + y)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Nested function def", a),
+            //~ .input = allocLit("fn foo Int(x Int y Int) {\n"
+                              //~ "z = x*y\n"
+                              //~ ".return (z + x):inner 5 2\n"
+                              //~ "fn inner Int(a Int b Int c Int)(return a - 2*b + 3*c)"
+                              //~ "}\n"
                               
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },    
-        (ParserTest) { 
-            .name = allocLit("Function def error 1", a),
-            .input = allocLit("fn newFn Int(x Int newFn Float)(return x + y)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Function def error 3", a),
-            .input = allocLit("fn foo Int(x Int x Int) {\n"
-                              "z = x*y\n"
-                              ".return (z + x):inner 5 2\n"
-                              "fn inner Int(a Int b Int c Int)(return a - 2*b + 3*c)"
-                              "}\n"
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },    
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Function def error 1", a),
+            //~ .input = allocLit("fn newFn Int(x Int newFn Float)(return x + y)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Function def error 3", a),
+            //~ .input = allocLit("fn foo Int(x Int x Int) {\n"
+                              //~ "z = x*y\n"
+                              //~ ".return (z + x):inner 5 2\n"
+                              //~ "fn inner Int(a Int b Int c Int)(return a - 2*b + 3*c)"
+                              //~ "}\n"
                               
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },        
-        (ParserTest) { 
-            .name = allocLit("Function def error 3", a),
-            .input = allocLit("fn foo Int(x Int y Int)"
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },        
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Function def error 3", a),
+            //~ .input = allocLit("fn foo Int(x Int y Int)"
                               
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        } 
-    );
-}
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ } 
+    //~ );
+//~ }
 
 
-ParserTestSet* ifTest(Arena* a) {
-    return createTestSet(allocLit("Functions test set", a), 5, a,
-        (ParserTest) { 
-            .name = allocLit("Simple if 1", a),
-            .input = allocLit("(if true .6)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("Simple if 2", a),
-            .input = allocLit("x = false\n"
-                              ".(if x .88)"                              
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },    
-        (ParserTest) { 
-            .name = allocLit("Simple if 3", a),
-            .input = allocLit("x = false .(if !x .88)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },
-        (ParserTest) { 
-            .name = allocLit("If-else 1", a),
-            .input = allocLit("x = false .(if !x .88 .1)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        },        
-        (ParserTest) { 
-            .name = allocLit("If-else 2", a),
-            .input = allocLit("x = 10\n"
-                              ".(if x > 8 .88\n"
-                              "     x > 7 .77\n"
-                              "           .1\n"
-                              ")"                              
-            , a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        } 
-    );
-}
+//~ ParserTestSet* ifTest(Arena* a) {
+    //~ return createTestSet(allocLit("Functions test set", a), 5, a,
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple if 1", a),
+            //~ .input = allocLit("(if true .6)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple if 2", a),
+            //~ .input = allocLit("x = false\n"
+                              //~ ".(if x .88)"                              
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },    
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple if 3", a),
+            //~ .input = allocLit("x = false .(if !x .88)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },
+        //~ (ParserTest) { 
+            //~ .name = allocLit("If-else 1", a),
+            //~ .input = allocLit("x = false .(if !x .88 .1)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ },        
+        //~ (ParserTest) { 
+            //~ .name = allocLit("If-else 2", a),
+            //~ .input = allocLit("x = 10\n"
+                              //~ ".(if x > 8 .88\n"
+                              //~ "     x > 7 .77\n"
+                              //~ "           .1\n"
+                              //~ ")"                              
+            //~ , a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ } 
+    //~ );
+//~ }
 
-ParserTestSet* loopTest(Arena* a) {
-    return createTestSet(allocLit("Functions test set", a), 1, a,
-        (ParserTest) { 
-            .name = allocLit("Simple loop 1", a),
-            .input = allocLit("(if true .6)", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(3, a, 
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            )
-        }
-    );
-}
+//~ ParserTestSet* loopTest(Arena* a) {
+    //~ return createTestSet(allocLit("Functions test set", a), 1, a,
+        //~ (ParserTest) { 
+            //~ .name = allocLit("Simple loop 1", a),
+            //~ .input = allocLit("(if true .6)", a),
+            //~ .imports = {(Import){"foo", 3}},
+            //~ .expectedOutput = buildParser(3, a, 
+                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            //~ )
+        //~ }
+    //~ );
+//~ }
 
 void runATestSet(ParserTestSet* (*testGenerator)(Arena*), int* countPassed, int* countTests, LanguageDefinition* lang, Arena* a) {
     ParserTestSet* testSet = (testGenerator)(a);
@@ -658,7 +667,7 @@ void runATestSet(ParserTestSet* (*testGenerator)(Arena*), int* countPassed, int*
 
 int main() {
     printf("----------------------------\n");
-    printf("Parser test\n");
+    printf("--  PARSER TEST  --\n");
     printf("----------------------------\n");
     Arena *a = mkArena();
     LanguageDefinition* lang = buildLanguageDefinitions(a);

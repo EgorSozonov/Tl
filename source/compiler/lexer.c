@@ -43,7 +43,7 @@ private bool isHexDigit(byte a) {
 }
 
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
-private void throwExc(const char errMsg[], Lexer* lr) {   
+_Noreturn private void throwExc(const char errMsg[], Lexer* lr) {   
     lr->wasError = true;
 #ifdef TRACE    
     printf("Error on i = %d\n", lr->i);
@@ -792,13 +792,12 @@ private void processAssignment(int mutType, uint opType, Lexer* lr) {
 
     if (currSpan.tp == tokAssignment || currSpan.tp == tokReassign || currSpan.tp == tokMutation) {
         throwExc(errorOperatorMultipleAssignment, lr);
-    } else if (currSpan.tp == tokMutTemp && mutType == 0) { // the "mut x = ..." definition
-        setSpanAssignment(currSpan.tokenInd, mutType, opType, lr);
+    } else if (currSpan.tp == tokMutTemp) { // the "mut x = ..." definition
+        if (mutType != 0) throwExc(errorOperatorMutableDef, lr);    
     } else if (currSpan.tp != tokStmt) {
         throwExc(errorOperatorAssignmentPunct, lr);
-    } else {
-        setSpanAssignment(currSpan.tokenInd, mutType, opType, lr);
     }
+    setSpanAssignment(currSpan.tokenInd, mutType, opType, lr);    
 }
 
 

@@ -38,20 +38,28 @@ typedef struct {
     int length;
 } BindingMap;
 
+typedef void (*ParserFunc)(Lexer*, Arr(byte), Parser*);
+typedef void (*ResumeFunc)(uint, Lexer*, Arr(byte), Parser*);
+
+
+struct ParserDefinition {
+    ParserFunc (*nonresumableTable)[countNonresumableForms];
+    ResumeFunc (*resumableTable)[countResumableForms];
+};
 
 // PARSER DATA
 
-// -- Arena for the results
+// a -- Arena for the results
 // AST (i.e. the resulting code)
 // Strings
 // Bindings
 // Types
 
-// -- Arena for the temporary stuff (freed after end of parsing)
+// aTemp -- Arena for the temporary stuff (freed after end of parsing)
 // Functions (stack of pieces of code currently being parsed)
 // ParseFrames (stack of 
 
-// -- ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
+// ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
 typedef struct {
     int i;
     String* text;
@@ -59,7 +67,7 @@ typedef struct {
     
 
     
-    
+    ParserDefinition* parDef;
     
     
     

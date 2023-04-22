@@ -1,7 +1,7 @@
 #ifndef ALIASES_H
 #define ALIASES_H
 
-
+#define int int32_t
 #define private static
 #define byte unsigned char
 #define Arr(T) T*
@@ -19,6 +19,10 @@
                                 __LINE__, __func__, __VA_ARGS__); } while (0)
 #else
 #define DBG(fmt, ...) // empty
-#endif                                
+#endif      
+
+#define print(...) \
+  printf(__VA_ARGS__);\
+  printf("\n");
 
 #endif
