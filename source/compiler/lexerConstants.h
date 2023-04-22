@@ -32,6 +32,7 @@ extern const char errorOperatorUnknown[];
 extern const char errorOperatorAssignmentPunct[];
 extern const char errorOperatorTypeDeclPunct[];
 extern const char errorOperatorMultipleAssignment[];
+extern const char errorOperatorMutableDef[];
 extern const char errorCoreNotInsideStmt[];
 extern const char errorCoreMisplacedElse[];
 extern const char errorCoreMissingParen[];
@@ -69,15 +70,15 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokWord         6      // payload2 = 1 if the last chunk of a word is capital
 #define tokDotWord      7      // payload2 = 1 if the last chunk of a word is capital
 #define tokAtWord       8      // "@annotation"
-#define tokFuncWord     9      // ":funcName"
+#define tokFuncWord     9      // ",funcName"
 #define tokOperator    10      // payload1 = OperatorToken encoded as an Int
 #define tokAnd         11
 #define tokOr          12
-#define tokNodispose   13       // signaling that this value doesn't need its destructor called at scope end // ???
+#define tokDispose     13       // noParen   // 300
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon       14 
-
+#define tokMutTemp     15 // In the final token stream, it's replaced by tokAssignment
 // 100 atom
 // 200 expr
 // 300 stmt with control flow
@@ -86,45 +87,50 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 // 600 only at start
 
 // Punctuation (inner node) Token types
-#define tokScope       15       // (:
-#define tokStmt        16
-#define tokParens      17
-#define tokBrackets    18
-#define tokAccessor    19
-#define tokFuncExpr    20       // the ",(foo,bar)" kind of thing  // 200
-#define tokAssignment  21       // payload1 = as in tokOperator     // 400
-#define tokElse        22       // the "::" which signifies the "else" clause in if-type things
-#define tokSemicolon   23       // separates type conditions from function params. "(x T; T Serializable)"
+#define tokScope       16       // (: This is resumable but trivially so, that's why it's not grouped with the others
+#define tokStmt        17
+#define tokParens      18
+#define tokBrackets    19
+#define tokAccessor    20
+#define tokFuncExpr    21       // the ",(foo,bar)" kind of thing  // 200
+#define tokAssignment  22       // payload1 = 1 if mutable assignment, 0 if immutable    // 400
+#define tokReassign    23       // :=
+#define tokMutation    24       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokElse        25       // the "::" which signifies the "else" clause in if-type things
+#define tokSemicolon   26       // separates type conditions from function params. "(x T; T Serializable)"
 
-// Core syntax form Token types
-#define tokAlias       24       // noParen   // 400
-#define tokAssert      25       // noParen   // 300
-#define tokAssertDbg   26       // noParen   // 300
-#define tokAwait       27       // noParen   // 300
-#define tokBreak       28       // noParen   // 300
-#define tokCatch       29       // paren "(catch e.msg,print)"  // 500
-#define tokContinue    30       // noParen   // 300
-#define tokDispose     31       // noParen   // 300
-#define tokEmbed       32       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      33       // paren     // 600
-#define tokFinally     34       // paren     // 500
-#define tokFnDef       35       // specialCase // 400
-#define tokIf          36       // paren    // 200/500
-#define tokIfEq        37       // like if, but every branch is a value compared using standard equality // 200/500
-#define tokIfPr        38       // like if, but every branch is a value compared using custom predicate  // 200/500
-#define tokImpl        39       // paren // 400
-#define tokIface       40       // 400
-#define tokLambda      41       // 500
-#define tokLambda1     42       // 500
-#define tokLambda2     43       // 500
-#define tokLambda3     44       // 500
-#define tokLoop        45       // recur operator for tail recursion // 300
-#define tokMatch       46       // pattern matching on sum type tag  // 200/500
-#define tokMut         47       // 400
-#define tokReturn      48       // 300
-#define tokStruct      49       // 400
-#define tokTry         50       // 500
-#define tokYield       51       // 300
+// Single-shot core syntax forms
+#define tokAlias       27       // noParen   // 400
+#define tokAssert      28       // noParen   // 300
+#define tokAssertDbg   29       // noParen   // 300
+#define tokAwait       30       // noParen   // 300
+#define tokBreak       31       // noParen   // 300
+#define tokCatch       32       // paren "(catch e. e,print)"  // 500
+#define tokContinue    33       // noParen   // 300
+#define tokDefer       34       // noParen   // 300
+#define tokEmbed       35       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      36       // paren     // 600
+#define tokExposePriv  37       // paren     // 600
+#define tokFnDef       38       // specialCase // 400
+#define tokIface       39       // 400
+#define tokLambda      40       // 500
+#define tokLambda1     41       // 500
+#define tokLambda2     42       // 500
+#define tokLambda3     43       // 500
+#define tokPackage     44       // 500 // for single-file packages
+#define tokReturn      45       // 300
+#define tokStruct      46       // 400
+#define tokTry         47       // 500
+#define tokYield       48       // 300
+
+// Resumable core forms
+#define tokIf          49       // paren    // 200/500
+#define tokIfEq        50       // like if, but every branch is a value compared using standard equality // 200/500
+#define tokIfPr        51       // like if, but every branch is a value compared using custom predicate  // 200/500
+#define tokImpl        52       // paren // 400
+#define tokMatch       53       // pattern matching on sum type tag  // 200/500
+#define tokLoop        54       // 
+#define tokMut         55       // 400
 
 #define topVerbatimTokenVariant tokDocComment
 
@@ -133,7 +139,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType tokScope
-#define countCoreForms 28 // tokYield - tokAlias + 1
+#define countCoreForms 28 // tokLoop - tokAlias + 1
 
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique,
  * below "firstPunctuationTokenType" and not clashing with "tokAnd", "tokOr" and "tokNodispose"
@@ -178,8 +184,6 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTBoolOr         28 // ||   bitwise or
 #define opTXor            29 // |    bitwise xor
 
-#define opTMutation       40 // Not a real operator, just a tag for :=
-#define opTDefinition     41 // Not a real operator, just a tag for  =
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
@@ -197,7 +201,6 @@ static const byte reservedBytesDispose[]     = { 100, 105, 115, 112, 111, 115, 1
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
-static const byte reservedBytesFinally[]     = { 102, 105, 110, 97, 108, 108, 121 };
 static const byte reservedBytesFn[]          = { 102, 110 };
 static const byte reservedBytesIf[]          = { 105, 102 };
 static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
@@ -211,7 +214,6 @@ static const byte reservedBytesLambda3[]     = { 108, 97, 109, 51 };
 static const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
 static const byte reservedBytesMut[]         = { 109, 117, 116 };
-static const byte reservedBytesNoDispose[]   = { 110, 111, 68, 105, 115, 112, 111, 115, 101};
 static const byte reservedBytesOr[]          = { 111, 114 };
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
 static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };

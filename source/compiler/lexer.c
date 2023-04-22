@@ -164,7 +164,6 @@ private int determineReservedE(int startByte, int lenBytes, Lexer* lr) {
 private int determineReservedF(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesFalse, reservedFalse)
-    PROBERESERVED(reservedBytesFinally, tokFinally)
     PROBERESERVED(reservedBytesFn, tokFnDef)
     return 0;
 }
@@ -196,13 +195,6 @@ private int determineReservedM(int startByte, int lenBytes, Lexer* lr) {
     int lenReser;
     PROBERESERVED(reservedBytesMatch, tokMatch)
     PROBERESERVED(reservedBytesMut, tokMut)
-    return 0;
-}
-
-
-private int determineReservedN(int startByte, int lenBytes, Lexer* lr) {
-    int lenReser;
-    PROBERESERVED(reservedBytesNoDispose, tokNodispose)
     return 0;
 }
 
@@ -600,6 +592,11 @@ private void openPunctuation(unsigned int tType, Lexer* lr) {
 private void lexReservedWord(uint reservedWordType, int startByte, Lexer* lr, Arr(byte) inp) {    
     StackRememberedToken* bt = lr->backtrack;
     
+    if (reservedWordType == tokMut && (!hasValues(bt) || peek(bt).isMultiline)) {
+        addStatement(tokMutTemp, startByte, lr);
+        return;
+    }
+    
     int expectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
         if (!hasValues(bt) || peek(bt).isMultiline) {
@@ -612,13 +609,14 @@ private void lexReservedWord(uint reservedWordType, int startByte, Lexer* lr, Ar
             throwExc(errorCoreMissingParen, lr);
         }
         RememberedToken top = peek(bt);
-        if (top.tokenInd + 1 != lr->nextInd) {
+        if (top.tokenInd + 1 != lr->nextInd) { // if this isn't the first token inside the parens
             throwExc(errorCoreNotAtSpanStart, lr);
         }
         
         if (bt->length > 1 && (*bt->content)[bt->length - 2].tp == tokStmt) {
-            // Parens are wrapped in statements because we didn't know that the next token will be a reserved word.
-            // So when meeting a reserved word at start of parens, we need to delete the paren token & frame.
+            // Parens are wrapped in statements because we didn't know that the following token is a reserved word.
+            // So when meeting a reserved word at start of parens, we need to delete the paren token & lex frame.
+            // The new reserved token type will be written over the tokStmt that precedes the tokParen.
             pop(bt);
             lr->nextInd--;
             top = peek(bt);
@@ -716,9 +714,7 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
             if (wordType == tokDotWord) {
                 throwExc(errorWordReservedWithDot, lr);
             } else if (mbReservedWord < firstCoreFormTokenType) {               
-                if (mbReservedWord == tokNodispose) {
-                    add((Token){.tp=tokNodispose, .startByte=realStartByte, .lenBytes=9}, lr);
-                } else if (mbReservedWord == tokAnd) {
+                if (mbReservedWord == tokAnd) {
                     add((Token){.tp=tokAnd, .startByte=realStartByte, .lenBytes=3}, lr);
                 } else if (mbReservedWord == tokOr) {
                     add((Token){.tp=tokOr, .startByte=realStartByte, .lenBytes=2}, lr);
@@ -728,6 +724,9 @@ private void wordInternal(uint wordType, Lexer* lr, Arr(byte) inp) {
                 } else if (mbReservedWord == reservedFalse) {
                     wrapInAStatementStarting(startByte, lr, inp);
                     add((Token){.tp=tokBool, .payload2=0, .startByte=realStartByte, .lenBytes=lenBytes}, lr);
+                } else if (mbReservedWord == tokDispose) {
+                    wrapInAStatementStarting(startByte, lr, inp);
+                    add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lr);
                 }
             } else {
                 lexReservedWord(mbReservedWord, realStartByte, lr, inp);
@@ -756,26 +755,50 @@ private void lexAtWord(Lexer* lr, Arr(byte) inp) {
 }
 
 
-private void setSpanAssignment(int tokenInd, int isExtensionAssignment, uint opType, Lexer* lr) {
-    int j = tokenInd;
-    lr->tokens[j].tp = tokAssignment;
-    lr->tokens[j].payload1 = isExtensionAssignment + (opType << 2);
+private void setSpanAssignment(int tokenInd, int mutType, uint opType, Lexer* lr) {
+    Token* tok = (lr->tokens + tokenInd);
+    uint tp;
+    if (mutType == 0) {
+        if (tok->tp == tokMutTemp) {
+            tok->payload1 = 1;
+        }
+        tok->tp = tokAssignment;        
+
+        (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
+            .tp = tokAssignment, .tokenInd = tokenInd
+        };  
+    } else if (mutType == 1) {
+        tok->tp = tokReassign;
+        (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
+            .tp = tokReassign, .tokenInd = tokenInd
+        };
+    } else {
+        tok->tp = tokMutation;
+        tok->payload1 = (mutType == 3 ? 1 : 0)  + (opType << 1);
+        (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
+            .tp = tokMutation, .tokenInd = tokenInd
+        }; 
+    }
 }
 
-/** Changes existing tokens and parent span to accout for the fact that we met an assignment operator */
-private void processAssignmentOperator(uint opType, int isExtensionAssignment, Lexer* lr) {
+/**
+ * Handles the "=", ":=" and "+=" forms. 
+ * Changes existing tokens and parent span to accout for the fact that we met an assignment operator 
+ * mutType = 0 if it's immutable assignment, 1 if it's ":=", 2 if it's a regular operator mut ("+="),
+ * 3 if it's an extended operator mut ("+.=")
+ */
+private void processAssignment(int mutType, uint opType, Lexer* lr) {
     RememberedToken currSpan = peek(lr->backtrack);
 
-    if (currSpan.tp == tokAssignment) {
+    if (currSpan.tp == tokAssignment || currSpan.tp == tokReassign || currSpan.tp == tokMutation) {
         throwExc(errorOperatorMultipleAssignment, lr);
+    } else if (currSpan.tp == tokMutTemp && mutType == 0) { // the "mut x = ..." definition
+        setSpanAssignment(currSpan.tokenInd, mutType, opType, lr);
     } else if (currSpan.tp != tokStmt) {
         throwExc(errorOperatorAssignmentPunct, lr);
+    } else {
+        setSpanAssignment(currSpan.tokenInd, mutType, opType, lr);
     }
-
-    setSpanAssignment(currSpan.tokenInd, isExtensionAssignment, opType, lr);
-    (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
-        .tp = tokAssignment, .tokenInd = currSpan.tokenInd
-    };
 }
 
 
@@ -799,7 +822,7 @@ private void lexColon(Lexer* lr, Arr(byte) inp) {
     byte nextBt = CURR_BT;
     if (nextBt == aEqual) { // mutation assignment, :=
         lr->i++; // the "="
-        processAssignmentOperator(opTMutation, 1, lr);
+        processAssignment(1, 0, lr);
     } else if (nextBt == aColon) {
         lr->i++; // the second ":"
         
@@ -830,7 +853,7 @@ private void lexColon(Lexer* lr, Arr(byte) inp) {
 
 
 private void addOperator(int opType, int isExtensionAssignment, int startByte, int lenBytes, Lexer* lr) {
-    add((Token){ .tp = tokOperator, .payload1 = (isExtensionAssignment + (opType << 2)), 
+    add((Token){ .tp = tokOperator, .payload1 = (isExtensionAssignment & 1) + (opType << 1), 
                 .startByte = startByte, .lenBytes = lenBytes }, lr);
 }
 
@@ -879,15 +902,15 @@ private void lexOperator(Lexer* lr, Arr(byte) inp) {
     int lengthOfBaseOper = (opDef.bytes[1] == 0) ? 1 : (opDef.bytes[2] == 0 ? 2 : (opDef.bytes[3] == 0 ? 3 : 4));
     int j = lr->i + lengthOfBaseOper;
     if (isExtensible && j < lr->inpLength && inp[j] == aDot) {
-        isExtensionAssignment += 2;
+        isExtensionAssignment += 1;
         j++;        
     }
     if ((isExtensible || opDef.assignable) && j < lr->inpLength && inp[j] == aEqual) {
-        isExtensionAssignment++;
+        isExtensionAssignment += 2;
         j++;
     }
-    if (opType == opTDefinition || (isExtensionAssignment & 1 > 0)) {
-        processAssignmentOperator(opType, isExtensionAssignment, lr);
+    if ((isExtensionAssignment & 2) > 0) { // mutation operators like "*=" or "*.="
+        processAssignment(isExtensionAssignment & 1 > 0 ? 3 : 2, opType, lr);
     } else {
         addOperator(opType, isExtensionAssignment, lr->i, j - lr->i, lr);
     }
@@ -901,7 +924,7 @@ private void lexEqual(Lexer* lr, Arr(byte) inp) {
     if (nextBt == aEqual) {
         lexOperator(lr, inp); // ==        
     } else {
-        processAssignmentOperator(opTDefinition, 1, lr);
+        processAssignment(0, 0, lr);
         lr->i++; // =
     }
 }
@@ -1144,7 +1167,6 @@ private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
     p[8] = determineReservedI;
     p[11] = determineReservedL;
     p[12] = determineReservedM;
-    p[13] = determineReservedN;
     p[14] = determineReservedO;
     p[17] = determineReservedR;
     p[18] = determineReservedS;

@@ -71,8 +71,8 @@ Lexer* buildParserWithError(String* errMsg, int totalTokens, Arena *a, /* Tokens
 }
 
 
-LexerTestSet* createTestSet(String* name, int count, Arena *a, ...) {
-    LexerTestSet* result = allocateOnArena(sizeof(LexerTestSet), a);
+ParserTestSet* createTestSet(String* name, int count, Arena *a, ...) {
+    ParserTestSet* result = allocateOnArena(sizeof(LexerTestSet), a);
     result->name = name;
     result->totalTests = count;
     
@@ -91,7 +91,7 @@ LexerTestSet* createTestSet(String* name, int count, Arena *a, ...) {
 }
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
-int equalityLexer(Lexer a, Lexer b) {
+int equalityParser(Parser a, Parser b) {
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }

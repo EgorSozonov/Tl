@@ -30,38 +30,6 @@ typedef struct {
 } Node;
 
 
-// ParseFrame = spanType, startNode, sentinelToken, currClause
-// LexicalScope = funDefs, bindings, functions, types, typeFuncs
-// Stack Stack Subexpr | Subexpr = Stack FunctionCall, sentinelToken, isInHeadPosition
-// FunctionCall = nameId, prec, arity, maxArity, startByte
-
-
-                   
-//~ data class ParseFrame(val spanType: Int, val indStartNode: Int, val sentinelToken: Int, val coreType: Int = 0) {
-    //~ var clauseInd: Int = 0
-//~ }
-
-//~ data class Subexpr(var operators: ArrayList<FunctionCall>,
-                   //~ val sentinelToken: Int,
-                   //~ var isStillPrefix: Boolean,
-                   //~ val isInHeadPosition: Boolean)
-                   
-                                
-//~ class LexicalScope() {
-    //~ /** Array funcId - these are the function definitions in this scope (see 'detectNestedFunctions'). */
-    //~ val funDefs: ArrayList<Int> = ArrayList(4)
-    //~ /** Map [name -> identifierId] **/
-    //~ val bindings: HashMap<String, Int> = HashMap(12)
-    //~ /** Map [name -> List (functionId arity)] */
-    //~ val functions: HashMap<String, ArrayList<IntPair>> = HashMap(12)
-
-    //~ /** Map [name -> identifierId] **/
-    //~ val types: HashMap<String, Int> = HashMap(12)
-    //~ /** Map [name -> List (functionId arity)] */
-    //~ val typeFuncs: HashMap<String, ArrayList<IntPair>> = HashMap(12)
-//~ }
-
-
 
 
 typedef struct {
@@ -70,23 +38,26 @@ typedef struct {
     int length;
 } BindingMap;
 
+
+// PARSER DATA
+
+// -- Arena for the results
+// AST (i.e. the resulting code)
+// Strings
+// Bindings
+// Types
+
+// -- Arena for the temporary stuff (freed after end of parsing)
+// Functions (stack of pieces of code currently being parsed)
+// ParseFrames (stack of 
+
+// -- ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
 typedef struct {
     int i;
     String* text;
     Lexer* inp;
     
-    // -- Arena for the results
-    // AST (i.e. the resulting code)
-    // Strings
-    // Bindings
-    // Types
-    
-    // -- Arena for the temporary stuff (freed after end of parsing)
-    // Functions (stack of pieces of code currently being parsed)
-    // ParseFrames (stack of 
-    
-    
-    // -- ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
+
     
     
     
