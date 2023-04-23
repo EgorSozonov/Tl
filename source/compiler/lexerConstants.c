@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include "lexerConstants.h"
 
 const char errorNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";

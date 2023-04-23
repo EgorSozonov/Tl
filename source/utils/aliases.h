@@ -1,11 +1,13 @@
 #ifndef ALIASES_H
 #define ALIASES_H
 
-#define int int32_t
+
+
+#define intt int32_t
 #define private static
 #define byte unsigned char
 #define Arr(T) T*
-#define uint int
+#define untt uint32_t
 
 #define LOWER24BITS 0x00FFFFFF
 #define LOWER26BITS 0x03FFFFFF

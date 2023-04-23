@@ -1,13 +1,27 @@
+#include <stdbool.h>
 #include "parser.h"
+#include "parser.internal.h"
 #include "../utils/aliases.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
 #include "../utils/stringMap.h"
 #include "../utils/structures/scopeStack.h"
-#include <stdbool.h>
+
 
 
 jmp_buf excBuf;
+
+_Noreturn private void throwExc0(const char errMsg[], Parser* pr) {   
+    pr->wasError = true;
+#ifdef TRACE    
+    printf("Error on i = %d\n", pr->i);
+#endif    
+    pr->errMsg = str(errMsg, pr->arena);
+    longjmp(excBuf, 1);
+}
+
+#define throwExc(msg) throwExc0(msg, pr)
+
 
 typedef struct ScopeStack ScopeStack;
 
@@ -19,12 +33,45 @@ private void parseErrorBareAtom(Lexer* lr, Arr(byte) text, Parser* pr) {
     throwExc(errorTemp, pr);
 }
 
-private void parseExpr(Lexer* lr, Arr(byte) text, Parser* pr) {
+private void parseExpr(Lexer* lr, Parser* pr) {
     throwExc(errorTemp, pr);
 }
 
-private void parseAssignment(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseAssignment(Lexer* lr, Parser* pr) {
+    if (lenTokens < 2) {
+        throwExc(errorAssignment);
+    }
+    intt sentinelToken = lr->currInd + lenTokens;
+    untt fstTokenType = lr->tokens[lr->currInd].tp;
+    if (fstTokenType != tokWord) {
+        throwExc(errorAssignment);        
+    }
+    
+    String bindingName = readString(tokWord);
+    nextToken(lr);
+    
+    intt mbBinding = lookupBinding(bindingName, pr->stringMap);
+    if (mbBinding > -1) {
+        throwExc(errorAssignmentShadowing);
+    }
+    intt strId = addString(bindingName, pr);
+    pr->bindings[newBinding] = strId;
+    
+    openAssignment();
+    appendNode((Node){});
+    
+    untt tokType = currTokenType(lr);
+    if (tokType == tokScope) {
+        createScope();
+    } else {
+        if (remainingLen == 1) {
+            parseLiteralOrIdentifier(tokType);
+        } else if (tokType == tokOperator) {
+            parsePrefixFollowedByAtom(sentinelToken);
+        } else {
+            createExpr(nodExpr, lenTokens - 1, startOfExpr, lenBytes - startOfExpr + startByte);
+        }
+    }
 }
 
 private void parseReassignment(Lexer* lr, Arr(byte) text, Parser* pr) {
@@ -196,15 +243,6 @@ private void resumeMut(uint tokType, Lexer* lr, Arr(byte) text, Parser* pr) {
 }
 
 
-_Noreturn private void throwExc(const char errMsg[], Parser* pr) {   
-    pr->wasError = true;
-#ifdef TRACE    
-    printf("Error on i = %d\n", pr->i);
-#endif    
-    pr->errMsg = allocLit(errMsg, pr->arena);
-    longjmp(excBuf, 1);
-}
-
 private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countNonresumableForms] {
     ParserFunc (*result)[countNonresumableForms] = allocateOnArena(countNonresumableForms*sizeof(ParserFunc), a);
     ParserFunc* p = *result;
@@ -275,60 +313,73 @@ ParserDefinition* buildParserDefinitions(Arena* a) {
     return result;
 }
 
-Parser* createParser(Lexer* inp, Arena* a) {
+Parser* createParser(Lexer* lr, Arena* a) {
     Parser* result = allocateOnArena(sizeof(Parser), a);    
-
-    result->parDef = buildParserDefinitions(a);    
-    result->arena = a;
-    result->inp = inp;
-    result->inpLength = inp->length;    
+    Arena* aBt = mkArena();
     
-    result->tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a);
-    result->capacity = LEXER_INIT_SIZE;
-        
-    result->newlines = allocateOnArena(1000*sizeof(int), a);
-    result->newlinesCapacity = 500;
-    
-    result->numeric = allocateOnArena(50*sizeof(int), a);
-    result->numericCapacity = 50;
+    (*result) = (Parser) {.text = lr->inp, .inp = lr, .parDef = buildParserDefinitions(a),
+        .scopeStack = createScopeStack(),
+        .backtrack = createStackParseFrame(aBt), .i = 0,
+        .strings = allocateOnArena(sizeof(String)*64, a), .strNext = 0, .strCap = 64,
+        .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 0, .bindCap = 64,
+        .nodes = allocateOnArena(sizeof(Node)*64, a), .nextInd = 0, .capacity = 64,
+        .wasError = false, .errMsg = &empty, .a = a, .aBt = aBt
+        };    
 
-    
-    result->backtrack = createStackRememberedToken(16, a);
-
-    result->errMsg = &empty;
-
-    return result;
+    return result;    
 }
 
+private void maybeCloseSpans(Parser* pr) {
+    while(hasValues(pr->currFnDef->backtrack)) {
+    }
+}
 
-Parser* parse(Lexer* lr, Arr(byte) text, ParserDefinition* pDef, Arena* a) {
-    Parser* pr = createParser(lr, a);
-    int inpLength = lr->totalTokens;
-    int i = 0;
-    ParserFunc (*dispatch)[countResumableForms] = pDef->nonresumableTable;
-    ResumeFunc (*dispatchResumable)[countNonresumableForms] = pDef->resumableTable;
+/** Parses top-level types but not functions and adds their bindings to the scope */
+private void parseToplevelTypes(Lexer* lr, Parser* pr) {
+}
+
+/** Parses top-level constants but not functions and adds their bindings to the scope */
+private void parseToplevelConstants(Lexer* lr, Parser* pr) {
+    // walk over all tokens
+    // when seeing something that is neither an immutable assignment nor a func definition, error out
+    // skip the func definitions but parse the assignments
+}
+
+/** Parses top-level function names and adds their bindings to the scope */
+private void parseToplevelFunctionNames(Lexer* lr, Parser* pr) {
+}
+
+/** Parses top-level function bodies */
+private void parseFunctionBodies(Lexer* lr, Parser* pr) {
     if (setjmp(excBuf) == 0) {
         while (i < inpLength) {
             currTok = (*lr->tokens)[i].tp;
             contextTok = peek(pr->backtrack).tp;
             if (contextTok >= firstResumableForm) {                
-                ((*dispatchResumable)[contextTok - firstResumableForm])(currTok, text, inp, pr);
+                ((*dispatchResumable)[contextTok - firstResumableForm])(currTok, inp, pr);
             } else {
                 ((*dispatch)[currTok])(text, inp, pr);
             }
+            maybeCloseSpans(pr);
         }
         finalize(result);
     }
-    result->totalTokens = result->nextInd;
-    return result;
+    pr->totalTokens = result->nextInd;
 }
 
-
-
-
-/** Returns the non-negative binding id if this name is in scope, -1 otherwise.
- * If the name is found in the current function, the boolean param is set to false, otherwise to true.
- */
-int searchForBinding(String* name, bool* foundInOuterFunction, ScopeStack* scSt) {
+/** Parses a single file in 4 passes, see docs/parser.txt */
+Parser* parse(Lexer* lr, ParserDefinition* pDef, Arena* a) {
+    Parser* pr = createParser(lr, a);
+    int inpLength = lr->totalTokens;
+    int i = 0;
     
+    ParserFunc (*dispatch)[countResumableForms] = pDef->nonresumableTable;
+    ResumeFunc (*dispatchResumable)[countNonresumableForms] = pDef->resumableTable;
+    
+    parseToplevelTypes(lr, pr);    
+    parseToplevelConstants(lr, pr);
+    parseToplevelFunctionNames(lr, pr);
+    parseFunctionBodies(lr, pr);
+            
+    return pr;
 }

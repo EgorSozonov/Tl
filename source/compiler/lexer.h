@@ -1,7 +1,6 @@
 ﻿#ifndef LEXER_H
 #define LEXER_H
 
-#include <stdint.h>
 #include <stdbool.h>
 #include "../utils/aliases.h"
 #include "../utils/arena.h"
@@ -10,19 +9,19 @@
 #include "lexerConstants.h"
 
 typedef struct {
-    unsigned int tp : 6;
-    unsigned int lenBytes: 26;
-    unsigned int startByte;
-    unsigned int payload1;
-    unsigned int payload2;
+    untt tp : 6;
+    untt lenBytes: 26;
+    untt startByte;
+    untt payload1;
+    untt payload2;
 } Token;
 
 
 typedef struct {
-    unsigned int tp;
-    int tokenInd;
-    int countClauses;
-    int isMultiline;
+    untt tp;
+    intt tokenInd;
+    intt countClauses;
+    intt isMultiline;
     bool wasOriginallyColon;
 } RememberedToken;
 
@@ -47,17 +46,17 @@ DEFINE_STACK_HEADER(RememberedToken)
  * In the token stream, both of these values are stored inside the 32-bit payload2 of the Token.
  */
 typedef struct {
-    unsigned int opType : 6;
-    unsigned int extended : 2;
-    unsigned int isAssignment: 1;
+    untt opType : 6;
+    untt extended : 2;
+    untt isAssignment: 1;
 } OperatorToken;
 
 
 typedef struct {
     String* name;
     byte bytes[4];
-    int precedence;
-    int arity;
+    intt precedence;
+    intt arity;
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool extensible;
     bool overloadable;
@@ -67,29 +66,29 @@ typedef struct {
 typedef struct LanguageDefinition LanguageDefinition;
 typedef struct Lexer Lexer;
 typedef void (*LexerFunc)(Lexer*, Arr(byte)); // LexerFunc = &(Lexer* => void)
-typedef int (*ReservedProbe)(int, int, struct Lexer*);
+typedef intt (*ReservedProbe)(int, int, struct Lexer*);
 
 
 struct Lexer {
-    int i;
+    intt i;                     // index in the input text
     String* inp;
-    int inpLength;
-    int totalTokens;
-    int lastClosingPunctInd; // the index of the last encountered closing punctuation sign, used for statement length
+    intt inpLength;
+    intt totalTokens;
+    intt lastClosingPunctInd;   // the index of the last encountered closing punctuation sign, used for statement length
     
     LanguageDefinition* langDef;
     
     Arr(Token) tokens;
-    int capacity; // current capacity of token storage
-    int nextInd; // the  index for the next token to be added    
+    intt capacity;              // current capacity of token storage
+    intt nextInd;               // the  index for the next token to be added    
     
     Arr(int) newlines;
-    int newlinesCapacity;
-    int newlinesNextInd;
+    intt newlinesCapacity;
+    intt newlinesNextInd;
     
     Arr(byte) numeric;
-    int numericCapacity;
-    int numericNextInd;
+    intt numericCapacity;
+    intt numericNextInd;
 
     StackRememberedToken* backtrack;
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
@@ -104,7 +103,7 @@ struct LanguageDefinition {
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
-    int (*reservedParensOrNot)[countCoreForms];
+    intt (*reservedParensOrNot)[countCoreForms];
 };
 
 Lexer* createLexer(String* inp, Arena* ar);
