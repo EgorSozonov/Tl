@@ -31,11 +31,11 @@ typedef struct {
 } Node;
 
 typedef struct {
-    untt flavor : 6;  // mutable, immutable, callable?
+    untt flavor : 6;        // mutable, immutable, callable?
     untt typeId : 26;
-    untt defStart;            // start token of the definition
-    untt defSentinel;         // the first ind of token after definition
-    untt extentSentinel;      // the first ind of token after the scope of this binding has ended
+    untt defStart;          // start token of the definition
+    untt defSentinel;       // the first ind of token after definition
+    untt extentSentinel;    // the first ind of token after the scope of this binding has ended
 } Binding;
 
 
@@ -72,13 +72,13 @@ typedef struct {
     intt strCap;
     StringMap* stringMap;
     
-    Arr(Binding) bindings; // current bindings in scope, array of nameId -> bindingId
+    Arr(Binding) bindings;      // current bindings in scope, array of nameId -> bindingId
     intt bindNext;
     intt bindCap;
     
     Arr(Node) nodes; 
-    intt capacity; // current capacity of node storage
-    intt nextInd; // the  index for the next token to be added    
+    intt capacity;              // current capacity of node storage
+    intt nextInd;               // the  index for the next token to be added    
     
     bool wasError;
     String* errMsg;
