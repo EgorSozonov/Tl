@@ -5,6 +5,7 @@
 #include "../source/utils/goodString.h"
 #include "../source/utils/structures/intMap.h"
 #include "../source/utils/structures/stringMap.h"
+#include "../source/utils/structures/stringStore.h"
 #include "../source/utils/structures/scopeStack.h"
 
 jmp_buf excBuf;
@@ -33,10 +34,10 @@ jmp_buf excBuf;
 
 private void testStringMap(Arena* a) {
     StringMap* sm = createStringMap(1024, a);
-    String* foo = allocLit("foo", a);
-    String* bar = allocLit("barr", a);
-    String* baz = allocLit("baz", a);
-    String* notAdded = allocLit("notAdded", a);
+    String* foo = str("foo", a);
+    String* bar = str("barr", a);
+    String* baz = str("baz", a);
+    String* notAdded = str("notAdded", a);
     
     add(foo, 100, sm);
     add(bar, 200, sm);
@@ -65,6 +66,20 @@ private void testStringMap(Arena* a) {
         printString(baz);
         longjmp(excBuf, 1);
     }    
+}
+
+private void testStringStore(Arena* a) {
+    const char* input = "foo bar asdf qwerty asdf bar foo";
+    StringStore* ss = createStringStore(16, a);
+    StackStringRef* stringTable = createStackStringRef(16, a);
+    addStringStore(input, 0, 3, stringTable, ss);
+    addStringStore(input, 4, 3, stringTable, ss);
+    addStringStore(input, 8, 4, stringTable, ss);
+    intt indQwerty = addStringStore(input, 13, 5, stringTable, ss);
+    intt indAsdf = addStringStore(input, 20, 4, stringTable, ss);
+    intt indBar = addStringStore(input, 25, 3, stringTable, ss);
+    intt indFoo = addStringStore(input, 29, 3, stringTable, ss);
+    print("indQwerty %d indAsdf %d indBar %d indFoo %d", indQwerty, indAsdf, indBar, indFoo);
 }
 
 
@@ -108,7 +123,8 @@ int main() {
     
     if (setjmp(excBuf) == 0) {
         //testStringMap(a);
-        testScopeStack(a);
+        testStringStore(a);
+        //testScopeStack(a);
 
     } else {
         printf("there was a test failure!\n");

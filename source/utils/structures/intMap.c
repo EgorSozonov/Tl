@@ -1,5 +1,6 @@
 #include "intMap.h"
 #include <stdio.h>
+#include <stdint.h>
 #include <string.h>
 #include <setjmp.h>
 extern jmp_buf excBuf;
@@ -35,14 +36,14 @@ void addIntMap(int key, int value, IntMap* hm) {
         newBucket[2] = value;
         *(hm->dict + hash) = newBucket;
     } else {
-        int* p = *(hm->dict + hash);
-        int maxInd = 2*((*p) & 0xFFFF) + 1;
-        for (int i = 1; i < maxInd; i += 2) {
+        intt* p = *(hm->dict + hash);
+        intt maxInd = 2*((*p) & 0xFFFF) + 1;
+        for (intt i = 1; i < maxInd; i += 2) {
             if (p[i] == key) { // key already present
                 return; 
             }
         }
-        int capacity = (uint)(*p) >> 16;
+        intt capacity = (untt)(*p) >> 16;
         if (maxInd - 1 < capacity) {
             p[maxInd] = key;
             p[maxInd + 1] = value;

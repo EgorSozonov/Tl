@@ -1,4 +1,4 @@
 gcc -g -pg -Wfatal-errors -Werror=implicit-function-declaration --std=c17 -o _bin/utilsTest \
 -iquote source/utils -iquote source/utils/structures \
 test/utilsTest.c source/utils/goodString.c source/utils/arena.c source/utils/structures/intMap.c \
-source/utils/structures/stringMap.c source/utils/structures/scopeStack.c
+source/utils/structures/stringMap.c source/utils/structures/stringStore.c source/utils/structures/scopeStack.c

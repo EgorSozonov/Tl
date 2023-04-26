@@ -15,7 +15,7 @@ typedef struct {
 
 
 typedef struct {
-    uint capAndLen;
+    untt capAndLen;
     StringValue content[];
 } ValueList;
 
@@ -46,9 +46,22 @@ StringMap* createStringMap(int initSize, Arena* a) {
     return result;
 }
 
+private intt hashCode(String* s) {        
+    intt result = 5381;
+    int c;
+
+    byte* p = (byte*)s->content;
+    const intt len = s->length;
+    for (int i = 0; i < len; i++) {        
+        result = ((result << 5) + result) + p[i]; /* hash * 33 + c */
+    }
+
+    return result;
+}
+
 
 void addStringMap(String* key, int value, StringMap* hm) {
-    int hash = (key->length) % (hm->dictSize);
+    int hash = hashCode(key) % (hm->dictSize);
     int keyLen = key->length;
     if (*(hm->dict + hash) == NULL) {
         ValueList* newBucket = allocateOnArena(sizeof(ValueList) + initBucketSize*sizeof(StringValue), hm->a);
@@ -84,7 +97,7 @@ void addStringMap(String* key, int value, StringMap* hm) {
 
 
 bool hasKeyStringMap(String* key, StringMap* hm) {   
-    int hash = (key->length) % (hm->dictSize);
+    int hash = hashCode(key) % (hm->dictSize);
     int keyLen = key->length;
     if (*(hm->dict + hash) == NULL) {
         return false;
@@ -102,7 +115,7 @@ bool hasKeyStringMap(String* key, StringMap* hm) {
 
 /** Returns 1 if key is not found, 0 if found (then the value is written into the result argument) */
 int getStringMap(String* key, int* result, StringMap* hm) {
-    int hash = (key->length) % (hm->dictSize);
+    int hash = hashCode(key) % (hm->dictSize);
     int keyLen = key->length;
     if (*(hm->dict + hash) == NULL) {
         return 1;
@@ -124,7 +137,7 @@ int getStringMap(String* key, int* result, StringMap* hm) {
 
 /** Throws an exception when key is absent */
 int getUnsafeStringMap(String* key, StringMap* hm) {
-    int hash = (key->length) % (hm->dictSize);
+    int hash = hashCode(key) % (hm->dictSize);
     int keyLen = key->length;
     if (*(hm->dict + hash) == NULL) {
         longjmp(excBuf, 1);
