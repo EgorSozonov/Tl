@@ -3,7 +3,7 @@
 
 
 
-#define intt int32_t
+#define Int int32_t
 #define private static
 #define byte unsigned char
 #define Arr(T) T*

@@ -19,14 +19,16 @@ typedef struct {
 
 typedef struct {
     untt tp;
-    intt tokenInd;
-    intt countClauses;
-    intt isMultiline;
+    Int tokenInd;
+    Int countClauses;
+    Int isMultiline;
     bool wasOriginallyColon;
 } RememberedToken;
 
 
+DEFINE_STACK_HEADER(int32_t)
 DEFINE_STACK_HEADER(RememberedToken)
+
 
 /**
  * There is a closed set of operators in the language.
@@ -55,55 +57,69 @@ typedef struct {
 typedef struct {
     String* name;
     byte bytes[4];
-    intt precedence;
-    intt arity;
+    Int precedence;
+    Int arity;
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool extensible;
     bool overloadable;
     bool assignable;
 } OpDef;
 
+
 typedef struct LanguageDefinition LanguageDefinition;
 typedef struct Lexer Lexer;
 typedef void (*LexerFunc)(Lexer*, Arr(byte)); // LexerFunc = &(Lexer* => void)
-typedef intt (*ReservedProbe)(int, int, struct Lexer*);
+typedef Int (*ReservedProbe)(int, int, struct Lexer*);
 
+
+typedef struct Bucket Bucket;
+typedef struct StringStore StringStore;
+
+/** Reference to first occurrence of a string identifier within input text */
+typedef struct {
+    Int startByte;
+    Int length;
+} StringRef;
 
 struct Lexer {
-    intt i;                     // index in the input text
+    Int i;                     // index in the input text
     String* inp;
-    intt inpLength;
-    intt totalTokens;
-    intt lastClosingPunctInd;   // the index of the last encountered closing punctuation sign, used for statement length
+    Int inpLength;
+    Int totalTokens;
+    Int lastClosingPunctInd;   // the index of the last encountered closing punctuation sign, used for statement length
     
     LanguageDefinition* langDef;
     
     Arr(Token) tokens;
-    intt capacity;              // current capacity of token storage
-    intt nextInd;               // the  index for the next token to be added    
+    Int capacity;              // current capacity of token storage
+    Int nextInd;               // the  index for the next token to be added    
     
     Arr(int) newlines;
-    intt newlinesCapacity;
-    intt newlinesNextInd;
+    Int newlinesCapacity;
+    Int newlinesNextInd;
     
     Arr(byte) numeric;
-    intt numericCapacity;
-    intt numericNextInd;
+    Int numericCapacity;
+    Int numericNextInd;
 
     StackRememberedToken* backtrack;
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
+    
+    Stackint32_t* stringTable;   // The table of unique strings from code
+    StringStore* stringStore; // A hash table for quickly deduplicating strings. Points in to stringTable    
     
     bool wasError;
     String* errMsg;
 
     Arena* arena;
+    Arena* aTemp;
 };
 
 struct LanguageDefinition {
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
-    intt (*reservedParensOrNot)[countCoreForms];
+    Int (*reservedParensOrNot)[countCoreForms];
 };
 
 Lexer* createLexer(String* inp, Arena* ar);

@@ -62,15 +62,15 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokInt          0
 #define tokFloat        1
 #define tokBool         2      // payload2 = value (1 or 0)
-#define tokString       3
+#define tokString       3      
 #define tokUnderscore   4
 #define tokDocComment   5
 
 // This group requires analysis in the parser
-#define tokWord         6      // payload2 = 1 if the last chunk of a word is capital
-#define tokDotWord      7      // payload2 = 1 if the last chunk of a word is capital
-#define tokAtWord       8      // "@annotation"
-#define tokFuncWord     9      // ",funcName"
+#define tokWord         6      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
+#define tokDotWord      7      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
+#define tokAtWord       8      // "@annotation", payloads same as tokWord
+#define tokFuncWord     9      // ",funcName", payloads same as tokWord
 #define tokOperator    10      // payload1 = OperatorToken encoded as an Int
 #define tokAnd         11
 #define tokOr          12

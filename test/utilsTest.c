@@ -69,17 +69,17 @@ private void testStringMap(Arena* a) {
 }
 
 private void testStringStore(Arena* a) {
-    const char* input = "foo bar asdf qwerty asdf bar foo";
+    char* input = "foo bar asdf qwerty asdf bar foo";
     StringStore* ss = createStringStore(16, a);
-    StackStringRef* stringTable = createStackStringRef(16, a);
+    StackInt* stringTable = createStackintt(16, a);
     addStringStore(input, 0, 3, stringTable, ss);
     addStringStore(input, 4, 3, stringTable, ss);
     addStringStore(input, 8, 4, stringTable, ss);
-    intt indQwerty = addStringStore(input, 13, 5, stringTable, ss);
-    intt indAsdf = addStringStore(input, 20, 4, stringTable, ss);
-    intt indBar = addStringStore(input, 25, 3, stringTable, ss);
-    intt indFoo = addStringStore(input, 29, 3, stringTable, ss);
-    print("indQwerty %d indAsdf %d indBar %d indFoo %d", indQwerty, indAsdf, indBar, indFoo);
+    Int indQwerty = addStringStore(input, 13, 5, stringTable, ss);
+    Int indAsdf = addStringStore(input, 20, 4, stringTable, ss);
+    Int indBar = addStringStore(input, 25, 3, stringTable, ss);
+    Int indFoo = addStringStore(input, 29, 3, stringTable, ss);
+    print("RESULT: indQwerty %d indAsdf %d indBar %d indFoo %d, should be 3 2 1 0", indQwerty, indAsdf, indBar, indFoo);
 }
 
 

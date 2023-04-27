@@ -94,6 +94,6 @@ void deleteArena(Arena* ar) {
         free(curr);
         curr = nextToFree;
     }
-    printf("freeing arena itself\n");
+    //printf("freeing arena itself\n");
     free(ar);
 }
