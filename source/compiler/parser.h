@@ -5,17 +5,17 @@
 #include "../utils/structures/stringMap.h"
 
 typedef struct {
-    uintt tp : 6;
-    intt startNodeInd;
-    intt sentinelToken;
-    intt coreType;
-    intt clauseInd;   
+    untt tp : 6;
+    Int startNodeInd;
+    Int sentinelToken;
+    Int coreType;
+    Int clauseInd;   
 } ParseFrame;
 
 
 typedef struct {
     Arr(FunctionCall) operators;
-    intt sentinelToken;
+    Int sentinelToken;
     bool isStillPrefix;
     bool isInHeadPosition;   
 } Subexpr;
@@ -65,20 +65,18 @@ typedef struct {
     ParserDefinition* parDef;
     ScopeStack* scopeStack;
     StackParseFrame* backtrack;
-    intt i;
+    Int i;
     
-    Arr(String) strings;
-    intt strNext;
-    intt strCap;
-    StringMap* stringMap;
+    Arr(Int) stringTable;
+    Int strLength;
     
     Arr(Binding) bindings;      // current bindings in scope, array of nameId -> bindingId
-    intt bindNext;
-    intt bindCap;
+    Int bindNext;
+    Int bindCap;
     
     Arr(Node) nodes; 
-    intt capacity;              // current capacity of node storage
-    intt nextInd;               // the  index for the next token to be added    
+    Int capacity;              // current capacity of node storage
+    Int nextInd;               // the  index for the next token to be added    
     
     bool wasError;
     String* errMsg;

@@ -1,8 +1,8 @@
 #include "../source/utils/arena.h"
 #include "../source/utils/goodString.h"
-#include "../source/utils/stack.h"
-#include "../source/compiler/lexer.h"
-#include "../source/compiler/lexerConstants.h"
+#include "../source/utils/structures/stack.h"
+#include "../source/compiler/parser.h"
+#include "../source/compiler/parserConstants.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -17,7 +17,7 @@ typedef struct {
 
 typedef struct {
     String* name;
-    int totalTests;
+    Int totalTests;
     ParserTest* tests;
 } ParserTestSet;
 
@@ -38,7 +38,7 @@ private Parser* buildParser0(Arena *a, int totalNodes, Arr(Node) nodes) {
     
     result->totalNodes = totalNodes;
         
-    for (int i = 0; i < totalNodes; i++) {
+    for (Int i = 0; i < totalNodes; i++) {
         add(nodes[i], result);
     }
     

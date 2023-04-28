@@ -1266,10 +1266,10 @@ Lexer* createLexer(String* inp, Arena* a) {
     result->newlines = allocateOnArena(1000*sizeof(int), a);
     result->newlinesCapacity = 500;
     
-    result->numeric = allocateOnArena(50*sizeof(int), a);
+    result->numeric = allocateOnArena(50*sizeof(int), result->aTemp);
     result->numericCapacity = 50;
     
-    result->backtrack = createStackRememberedToken(16, a);
+    result->backtrack = createStackRememberedToken(16, result->aTemp);
     
     result->stringTable = createStackint32_t(16, a);
     result->stringStore = createStringStore(100, result->aTemp);

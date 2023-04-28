@@ -98,15 +98,15 @@ struct Lexer {
     Int newlinesCapacity;
     Int newlinesNextInd;
     
-    Arr(byte) numeric;
+    Arr(byte) numeric;         // lives in aTemp
     Int numericCapacity;
     Int numericNextInd;
 
-    StackRememberedToken* backtrack;
+    StackRememberedToken* backtrack; // lives in aTemp
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
     Stackint32_t* stringTable;   // The table of unique strings from code
-    StringStore* stringStore; // A hash table for quickly deduplicating strings. Points in to stringTable    
+    StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points in to stringTable    
     
     bool wasError;
     String* errMsg;

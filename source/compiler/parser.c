@@ -320,7 +320,7 @@ Parser* createParser(Lexer* lr, Arena* a) {
     (*result) = (Parser) {.text = lr->inp, .inp = lr, .parDef = buildParserDefinitions(a),
         .scopeStack = createScopeStack(),
         .backtrack = createStackParseFrame(aBt), .i = 0,
-        .strings = allocateOnArena(sizeof(String)*64, a), .strNext = 0, .strCap = 64,
+        .stringTable = (Arr(Int))lr->stringTable->content, .strLength = lr->stringTable->length,
         .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 0, .bindCap = 64,
         .nodes = allocateOnArena(sizeof(Node)*64, a), .nextInd = 0, .capacity = 64,
         .wasError = false, .errMsg = &empty, .a = a, .aBt = aBt
