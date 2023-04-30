@@ -23,7 +23,7 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 #define throwExc(msg) throwExc0(msg, pr)
 
 
-typedef struct ScopeStack ScopeStack;
+//typedef struct ScopeStack ScopeStack;
 
 private void parseVerbatim(Lexer* lr, Arr(byte) text, Parser* pr) {
     throwExc(errorTemp, pr);
@@ -41,7 +41,7 @@ private void parseAssignment(Lexer* lr, Parser* pr) {
     if (lenTokens < 2) {
         throwExc(errorAssignment);
     }
-    intt sentinelToken = lr->currInd + lenTokens;
+    Int sentinelToken = lr->currInd + lenTokens;
     untt fstTokenType = lr->tokens[lr->currInd].tp;
     if (fstTokenType != tokWord) {
         throwExc(errorAssignment);        
@@ -50,11 +50,11 @@ private void parseAssignment(Lexer* lr, Parser* pr) {
     String bindingName = readString(tokWord);
     nextToken(lr);
     
-    intt mbBinding = lookupBinding(bindingName, pr->stringMap);
+    Int mbBinding = lookupBinding(bindingName, pr->stringMap);
     if (mbBinding > -1) {
         throwExc(errorAssignmentShadowing);
     }
-    intt strId = addString(bindingName, pr);
+    Int strId = addString(bindingName, pr);
     pr->bindings[newBinding] = strId;
     
     openAssignment();

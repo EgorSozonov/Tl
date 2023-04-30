@@ -5,7 +5,6 @@
 #include "../source/utils/goodString.h"
 #include "../source/utils/structures/intMap.h"
 #include "../source/utils/structures/stringMap.h"
-#include "../source/utils/structures/stringStore.h"
 #include "../source/utils/structures/scopeStack.h"
 
 jmp_buf excBuf;
@@ -68,20 +67,6 @@ private void testStringMap(Arena* a) {
     }    
 }
 
-private void testStringStore(Arena* a) {
-    char* input = "foo bar asdf qwerty asdf bar foo";
-    StringStore* ss = createStringStore(16, a);
-    StackInt* stringTable = createStackintt(16, a);
-    addStringStore(input, 0, 3, stringTable, ss);
-    addStringStore(input, 4, 3, stringTable, ss);
-    addStringStore(input, 8, 4, stringTable, ss);
-    Int indQwerty = addStringStore(input, 13, 5, stringTable, ss);
-    Int indAsdf = addStringStore(input, 20, 4, stringTable, ss);
-    Int indBar = addStringStore(input, 25, 3, stringTable, ss);
-    Int indFoo = addStringStore(input, 29, 3, stringTable, ss);
-    print("RESULT: indQwerty %d indAsdf %d indBar %d indFoo %d, should be 3 2 1 0", indQwerty, indAsdf, indBar, indFoo);
-}
-
 
 private void testIntMap(Arena* a) {
     IntMap* hm = createIntMap(150, a);
@@ -102,12 +87,17 @@ private void testScopeStack(Arena* a) {
         addBinding(i, i + 1, bindingsInScope, st);
     }    
     printf("500 scopes in, lookup of nameId = %d is bindingId = %d, expected = 1\n", 999, bindingsInScope[999]);
+    
+    pushSubexpr(st);
+    addFunCall((FunctionCall){.startByte = 10, .lenBytes = 15, .bindingId = 7}, st);
+    popScopeFrame(bindingsInScope, st);
+    
     for (int i = 0; i < 500; i++) {
-        popScope(bindingsInScope, st);
+        popScopeFrame(bindingsInScope, st);
     } 
     
     printf("p1\n");
-    popScope(bindingsInScope, st);
+    popScopeFrame(bindingsInScope, st);
     printf("p2\n");
     
     printf("Finally, lookup of nameId = %d is bindingId = %d, should be = 0\n", 999, bindingsInScope[999]);
@@ -123,8 +113,8 @@ int main() {
     
     if (setjmp(excBuf) == 0) {
         //testStringMap(a);
-        testStringStore(a);
-        //testScopeStack(a);
+        
+        testScopeStack(a);
 
     } else {
         printf("there was a test failure!\n");

@@ -105,7 +105,7 @@ struct Lexer {
     StackRememberedToken* backtrack; // lives in aTemp
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
-    Stackint32_t* stringTable;   // The table of unique strings from code
+    Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
     StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points in to stringTable    
     
     bool wasError;

@@ -59,6 +59,18 @@ struct ParserDefinition {
 // 2) aBt = Arena for the temporary stuff (backtrack). Freed after end of parsing
 //
 // 3) ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
+//
+// WORKFLOW
+// The "stringTable" is frozen, it was filled by the lexer. The "bindings" table is growing
+// with every new assignment form encountered. "Nodes" is obviously growing with the new AST nodes
+// emitted.
+// Any new span (scope, expression, assignment etc) means 
+// - pushing a ParseFrame onto the "backtrack" stack
+// - if the new frame is a lexical scope, also pushing a scope onto the "scopeStack"
+// - else if the new frame is an expression, pushing a subexpr onto the "scopeStack"
+// The scopeStack order is always: some scopes, then maybe some subexpressions.
+// The end of a span means popping from "backtrack" and also, if needed, popping from "scopeStack".
+//
 typedef struct {
     String* text;
     Lexer* inp;      

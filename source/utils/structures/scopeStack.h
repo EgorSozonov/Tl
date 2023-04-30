@@ -6,14 +6,21 @@
 #include "../aliases.h"
 
 
-typedef struct BindingList BindingList;
+typedef struct ScopeStackFrame ScopeStackFrame;
+typedef struct {
+    Int bindingId;
+    Int precedence;
+    Int arity;
+    Int startByte;
+    Int lenBytes;   
+} FunctionCall;
 typedef struct ScopeChunk ScopeChunk;
 
 
-struct ScopeChunk{
+struct ScopeChunk {
     ScopeChunk *next;
     int length; // length is divisible by 4
-    int content[];   
+    Int content[];   
 };
 
 /** 
@@ -23,14 +30,16 @@ typedef struct {
     ScopeChunk* firstChunk;
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
-    BindingList* topScope;
+    ScopeStackFrame* topScope;
     int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
 } ScopeStack;
 
 
 ScopeStack* createScopeStack();
-void addBinding(int, int, Arr(int), ScopeStack*);
+void addBinding(Int nameId, Int bindingId, Arr(int) activeBindings, ScopeStack*);
+void addFunCall(FunctionCall, ScopeStack*);
 void pushScope(ScopeStack*);
-void popScope(Arr(int), ScopeStack*);
+void pushSubexpr(ScopeStack*);
+void popScopeFrame(Arr(int), ScopeStack*);
 
 #endif

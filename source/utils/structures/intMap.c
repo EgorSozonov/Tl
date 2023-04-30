@@ -36,14 +36,14 @@ void addIntMap(int key, int value, IntMap* hm) {
         newBucket[2] = value;
         *(hm->dict + hash) = newBucket;
     } else {
-        intt* p = *(hm->dict + hash);
-        intt maxInd = 2*((*p) & 0xFFFF) + 1;
-        for (intt i = 1; i < maxInd; i += 2) {
+        Int* p = *(hm->dict + hash);
+        Int maxInd = 2*((*p) & 0xFFFF) + 1;
+        for (Int i = 1; i < maxInd; i += 2) {
             if (p[i] == key) { // key already present
                 return; 
             }
         }
-        intt capacity = (untt)(*p) >> 16;
+        Int capacity = (untt)(*p) >> 16;
         if (maxInd - 1 < capacity) {
             p[maxInd] = key;
             p[maxInd + 1] = value;

@@ -59,6 +59,7 @@ StringStore* createStringStore(int initSize, Arena* a) {
     return result;
 }
 
+
 private Int hashCode(byte* start, Int len) {        
     Int result = 5381;
 
@@ -70,13 +71,13 @@ private Int hashCode(byte* start, Int len) {
     return result;
 }
 
+
 private bool equalStringRefs(byte* text, Int a, Int b, Int len) {
     return memcmp(text + a, text + b, len) == 0;
 }
 
 
-private void addValueToBucket(Bucket** ptrToBucket, Int startByte, Int lenBytes, Int newIndString, 
-                                Arena* a) {    
+private void addValueToBucket(Bucket** ptrToBucket, Int startByte, Int lenBytes, Int newIndString, Arena* a) {    
     Bucket* p = *ptrToBucket;                                        
     Int capacity = (p->capAndLen) >> 16;
     Int lenBucket = (p->capAndLen & 0xFFFF);
@@ -94,6 +95,7 @@ private void addValueToBucket(Bucket** ptrToBucket, Int startByte, Int lenBytes,
         newBucket->capAndLen = ((2*capacity) << 16) + capacity + 1;      
     }
 }
+
 
 Int addStringStore(byte* text, Int startByte, Int lenBytes, Stackint32_t* stringTable, StringStore* hm) {
     Int hash = hashCode(text + startByte, lenBytes) % (hm->dictSize);

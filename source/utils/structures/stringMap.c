@@ -46,12 +46,12 @@ StringMap* createStringMap(int initSize, Arena* a) {
     return result;
 }
 
-private intt hashCode(String* s) {        
-    intt result = 5381;
+private Int hashCode(String* s) {        
+    Int result = 5381;
     int c;
 
     byte* p = (byte*)s->content;
-    const intt len = s->length;
+    const Int len = s->length;
     for (int i = 0; i < len; i++) {        
         result = ((result << 5) + result) + p[i]; /* hash * 33 + c */
     }
