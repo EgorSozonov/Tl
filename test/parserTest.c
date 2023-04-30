@@ -1,3 +1,4 @@
+#include "../source/utils/aliases.h"
 #include "../source/utils/arena.h"
 #include "../source/utils/goodString.h"
 #include "../source/utils/structures/stack.h"
@@ -31,14 +32,21 @@ const char* nodeNames[] = {
     "loop", "match", "mut", "nodestruct", "return", "returnIf", "struct", "try", "type", "yield"
 };
 
-
-private void initializeBindings0(Arr(String) strings, Int stringsLen, Parser* pr) {
+/** A programmatic way of importing bindings into scope, to be used for testing */
+private Parser* insertBindings0(Arr(Int) stringIds, Arr(Binding) bindings, Int len, Parser* pr) {
+    print("insertBindings");
+    for (int i = 0; i < len; i++) {
+        createBinding(bindings[i], pr);
+        pr->activeBindings[i] = i;
+    }
+    return pr;
 }
 
-#define initializeBindings(bindings, pr) initializeBindings0(bindings, sizeof(bindings)/sizeof(String), pr)
+#define insertBindings(strs, bindings, pr) insertBindings0(strs, bindings, sizeof(strs)/sizeof(Int), pr)
 
 
 private Parser* buildParser0(Arena *a, int nextInd, Arr(Node) nodes) {
+    print("buildParser0");
     Parser* result = allocateOnArena(sizeof(Parser), a);
     if (result == NULL) return result;
     
@@ -73,6 +81,7 @@ private Parser* buildParserWithError0(String* errMsg, Arena *a, int nextInd, Arr
 
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
+    print("createTestSet0");
     ParserTestSet* result = allocateOnArena(sizeof(ParserTestSet), a);
     result->name = name;
     result->totalTests = count;    
@@ -138,7 +147,9 @@ void printParser(Parser* a) {
 }
 
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
-void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageDefinition* lang, Arena *a) {
+void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageDefinition* lang, 
+                   ParserDefinition* parsDef, Arena *a) {
+    print("runParserTest");
     (*countTests)++;
     Lexer* lr = lexicallyAnalyze(test.input, lang, a);
     if (lr->wasError) {
@@ -146,7 +157,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
         printLexer(lr);
         return;
     }    
-    Parser* pr = parse(lr, lang, a);
+    Parser* pr = parse(lr, parsDef, a);
         
     int equalityStatus = equalityParser(*pr, *test.expectedOutput);
     if (equalityStatus == -2) {
@@ -171,38 +182,39 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
 
 
 ParserTestSet* expressionTests(Arena* a) {
-    return createTestSet(str("Expression test set", a), a, ((Parser[]){
+    print("expression tests");
+    return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         (ParserTest) { 
-            .name = str("Simple function call", a),
-            .input = str("10,foo 2 3", a),
-            .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(((Node[]) {
-                (Node){ .tp = nodFnDef, .payload2 = 6, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = nodScope, .payload2 = 5, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 5, .lenBytes = 3 },
-                (Node){ .tp = nodInt, .payload2 = 10, .startByte = 0, .lenBytes = 2 },
-                (Node){ .tp = nodInt, .startByte = 7, .lenBytes = 1 },
-                (Node){ .tp = nodInt, .startByte = 9, .lenBytes = 1 },
-                (Node){ .tp = nodFunc, .payload1 = 3, .startByte = 3, .lenBytes = 3 }
-            }))
-        },
-        (ParserTest) { 
-            .name = str("Double function call", a),
-            .input = str("a,foo ,buzz b c d", a),
-            .imports = {(Import){"foo", 3}, (Import){"buzz", "buzz"},
-                (Import){"a", "", -1},(Import){"b", "", -1},(Import){"c", "", -1},(Import){"d", "", -1}},
-            .expectedOutput = buildParser(((Node[]) {
-                (Node){ .tp = nodFnDef, .payload2 = 8, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = nodScope, .payload2 = 7, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = nodExpr,  .payload2 = 6, .startByte = 5, .lenBytes = 3 },
-                (Node){ .tp = nodId, .payload2 = 2, .startByte = 0, .lenBytes = 2 },
-                (Node){ .tp = nodId, .payload2 = 3, .startByte = 7, .lenBytes = 1 },
-                (Node){ .tp = nodId, .payload2 = 4, .startByte = 9, .lenBytes = 1 },
-                (Node){ .tp = nodId, .payload2 = 5, .startByte = 7, .lenBytes = 1 },
-                (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 1, .startByte = 9, .lenBytes = 1 },     // buzz
-                (Node){ .tp = nodFunc, .payload1 = 2, .startByte = 3, .lenBytes = 3 }  // foo
-            }))
+            .name = s("Simple function call"),
+            .input = s("10,foo 2 3"),
+            .expectedOutput = insertBindings(
+                ((Int[]) {0}), 
+                ((Binding[]) {(Binding){.flavor = 0, .typeId = 0, }}), 
+                (buildParser(((Node[]) {
+                    (Node){ .tp = nodFnDef, .payload2 = 6, .startByte = 0, .lenBytes = 8 },
+                    (Node){ .tp = nodScope, .payload2 = 5, .startByte = 0, .lenBytes = 4 },
+                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 5, .lenBytes = 3 },
+                    (Node){ .tp = nodInt, .payload2 = 10, .startByte = 0, .lenBytes = 2 },
+                    (Node){ .tp = nodInt, .startByte = 7, .lenBytes = 1 },
+                    (Node){ .tp = nodInt, .startByte = 9, .lenBytes = 1 },
+                    (Node){ .tp = nodFunc, .payload1 = 3, .startByte = 3, .lenBytes = 3 }
+            }))))
         }//,
+        //~ (ParserTest) { 
+            //~ .name = str("Double function call", a),
+            //~ .input = str("a,foo ,buzz b c d", a),
+            //~ .expectedOutput = buildParser(((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .payload2 = 8, .startByte = 0, .lenBytes = 8 },
+                //~ (Node){ .tp = nodScope, .payload2 = 7, .startByte = 0, .lenBytes = 4 },
+                //~ (Node){ .tp = nodExpr,  .payload2 = 6, .startByte = 5, .lenBytes = 3 },
+                //~ (Node){ .tp = nodId, .payload2 = 2, .startByte = 0, .lenBytes = 2 },
+                //~ (Node){ .tp = nodId, .payload2 = 3, .startByte = 7, .lenBytes = 1 },
+                //~ (Node){ .tp = nodId, .payload2 = 4, .startByte = 9, .lenBytes = 1 },
+                //~ (Node){ .tp = nodId, .payload2 = 5, .startByte = 7, .lenBytes = 1 },
+                //~ (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 1, .startByte = 9, .lenBytes = 1 },     // buzz
+                //~ (Node){ .tp = nodFunc, .payload1 = 2, .startByte = 3, .lenBytes = 3 }  // foo
+            //~ }))
+        //~ },
         //~ (ParserTest) { 
             //~ .name = str("Triple function call", a),
             //~ .input = str("c:foo b a :bar 5 :baz 7.2", a),
@@ -661,11 +673,15 @@ ParserTestSet* expressionTests(Arena* a) {
     //~ );
 //~ }
 
-void runATestSet(ParserTestSet* (*testGenerator)(Arena*), int* countPassed, int* countTests, LanguageDefinition* lang, Arena* a) {
+void runATestSet(ParserTestSet* (*testGenerator)(Arena*), int* countPassed, int* countTests, 
+        LanguageDefinition* lang, ParserDefinition* parsDef, Arena* a) {
+    print("runATestSet");
     ParserTestSet* testSet = (testGenerator)(a);
+    print("runATestSet2");
     for (int j = 0; j < testSet->totalTests; j++) {
+        print("test %d", j);
         ParserTest test = testSet->tests[j];
-        runParserTest(test, countPassed, countTests, lang, a);
+        runParserTest(test, countPassed, countTests, lang, parsDef, a);
     }
 }
 
@@ -676,10 +692,11 @@ int main() {
     printf("----------------------------\n");
     Arena *a = mkArena();
     LanguageDefinition* lang = buildLanguageDefinitions(a);
+    ParserDefinition* parsDef = buildParserDefinitions(a);
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&expressionTests, &countPassed, &countTests, lang, a);
+    runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
 
 
     if (countTests == 0) {

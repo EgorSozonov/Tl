@@ -1,8 +1,6 @@
 #ifndef ALIASES_H
 #define ALIASES_H
 
-
-
 #define Int int32_t
 #define private static
 #define byte unsigned char
@@ -14,6 +12,10 @@
 #define LOWER32BITS 0x00000000FFFFFFFF
 #define THIRTYFIRSTBIT 0x40000000
 #define MAXTOKENLEN = 67108864 // 2**26
+#define print(...) \
+  printf(__VA_ARGS__);\
+  printf("\n");
+
 
 #ifdef DEBUG
 #define DBG(fmt, ...) \
@@ -23,8 +25,9 @@
 #define DBG(fmt, ...) // empty
 #endif      
 
-#define print(...) \
-  printf(__VA_ARGS__);\
-  printf("\n");
+
+
+
+#define s(lit) str(lit, a)
 
 #endif

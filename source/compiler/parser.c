@@ -1,245 +1,304 @@
 #include <stdbool.h>
+#include <string.h>
 #include "parser.h"
 #include "parser.internal.h"
-#include "../utils/aliases.h"
-#include "../utils/arena.h"
-#include "../utils/goodString.h"
-#include "../utils/stringMap.h"
-#include "../utils/structures/scopeStack.h"
 
 
 
-jmp_buf excBuf;
+extern jmp_buf excBuf; // defined in lexer.c
 
 _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {   
     pr->wasError = true;
 #ifdef TRACE    
     printf("Error on i = %d\n", pr->i);
 #endif    
-    pr->errMsg = str(errMsg, pr->arena);
+    pr->errMsg = str(errMsg, pr->a);
     longjmp(excBuf, 1);
 }
 
 #define throwExc(msg) throwExc0(msg, pr)
 
 
-//typedef struct ScopeStack ScopeStack;
-
-private void parseVerbatim(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+Int createBinding(Binding b, Parser* pr) {
+    pr->bindings[pr->bindNext] = b;
+    pr->bindNext++;
+    if (pr->bindNext == pr->bindCap) {
+        Arr(Binding) newBindings = allocateOnArena(2*pr->bindCap*sizeof(Binding), pr->a);
+        memcpy(newBindings, pr->bindings, pr->bindCap*sizeof(Binding));
+        pr->bindings = newBindings;
+        pr->bindNext++;
+        pr->bindCap *= 2;
+    }
+    return pr->bindNext - 1;
 }
 
-private void parseErrorBareAtom(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+/** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
+private void handleFullChunk(Parser* pr) {
+    Node* newStorage = allocateOnArena(pr->capacity*2*sizeof(Node), pr->a);
+    memcpy(newStorage, pr->nodes, (pr->capacity)*(sizeof(Node)));
+    pr->nodes = newStorage;
+    pr->capacity *= 2;
 }
 
-private void parseExpr(Lexer* lr, Parser* pr) {
-    throwExc(errorTemp, pr);
+
+void addNode(Node n, Parser* pr) {
+    pr->nodes[pr->nextInd] = n;
+    pr->nextInd++;
+    if (pr->nextInd == pr->capacity) {
+        handleFullChunk(pr);
+    }
 }
 
-private void parseAssignment(Lexer* lr, Parser* pr) {
-    if (lenTokens < 2) {
+
+private void parseVerbatim(Token tok, Parser* pr) {
+    addNode((Node){.tp = tok.tp, .startByte = tok.startByte, .lenBytes = tok.lenBytes, 
+        .payload1 = tok.payload1, .payload2 = tok.payload2}, pr);
+}
+
+private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
+}
+
+private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
+}
+
+private void openFrame(ParseFrame fr, Parser* pr) {
+}
+
+/** Consumes 1 token */
+private void parseIdent(Token tok, Parser* pr) {
+    Int nameId = tok.payload2;
+    Int mbBinding = pr->activeBindings[nameId];
+    if (mbBinding == 0) {
+        throwExc(errorUnknownBinding);
+    }
+    addNode((Node){.tp = nodId, .payload1 = mbBinding, .payload2 = nameId,
+                   .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    pr->i++; // the identifier token
+}
+
+/** Consumes 0 or 1 tokens. Returns false if didn't parse anything. */
+private bool parseLiteralOrIdentifier(Token tok, Parser* pr) {
+    if (tok.tp <= topVerbatimTokenVariant) {
+        parseVerbatim(tok, pr);
+    } else if (tok.tp == tokWord) {        
+        parseIdent(tok, pr);
+    } else {
+        return false;        
+    }
+    pr->i++; // the literal or ident token
+    return true;
+}
+
+
+private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
+    const Int rightSideLen = tok.payload2 - 1;
+    if (rightSideLen < 1) {
         throwExc(errorAssignment);
     }
-    Int sentinelToken = lr->currInd + lenTokens;
-    untt fstTokenType = lr->tokens[lr->currInd].tp;
-    if (fstTokenType != tokWord) {
-        throwExc(errorAssignment);        
+    Int sentinelToken = pr->i + tok.payload2;
+        
+    Token bindingToken = tokens[pr->i];
+    if (bindingToken.tp != tokWord) {
+        throwExc(errorAssignment);
     }
-    
-    String bindingName = readString(tokWord);
-    nextToken(lr);
-    
-    Int mbBinding = lookupBinding(bindingName, pr->stringMap);
-    if (mbBinding > -1) {
+    Int mbBinding = pr->activeBindings[bindingToken.payload2];
+    if (mbBinding > 0) {
         throwExc(errorAssignmentShadowing);
     }
-    Int strId = addString(bindingName, pr);
-    pr->bindings[newBinding] = strId;
+    Int newBindingId = createBinding((Binding){.flavor = 0, .defStart = pr->i - 1, .defSentinel = sentinelToken}, pr);
+    pr->activeBindings[bindingToken.payload2] = newBindingId;
     
-    openAssignment();
-    appendNode((Node){});
+    openFrame((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }, pr);
+    addNode((Node){.tp = nodAssignment, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     
-    untt tokType = currTokenType(lr);
-    if (tokType == tokScope) {
-        createScope();
+    pr->i++; // the word token before the assignment sign
+    
+    Token rightSideToken = tokens[pr->i];
+    if (rightSideToken.tp == tokScope) {
+        //openScope(pr);
     } else {
-        if (remainingLen == 1) {
-            parseLiteralOrIdentifier(tokType);
-        } else if (tokType == tokOperator) {
-            parsePrefixFollowedByAtom(sentinelToken);
+        if (rightSideLen == 1) {
+            if (!parseLiteralOrIdentifier(rightSideToken, pr)) {
+                throwExc(errorAssignment);
+            }
+        } else if (rightSideToken.tp == tokOperator) {
+            //parsePrefixFollowedByAtom(sentinelToken);
         } else {
-            createExpr(nodExpr, lenTokens - 1, startOfExpr, lenBytes - startOfExpr + startByte);
+            //createExpr(nodExpr, lenTokens - 1, startOfExpr, lenBytes - startOfExpr + startByte);
         }
     }
 }
 
-private void parseReassignment(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseReassignment(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void parseMutation(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseMutation(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void parseAlias(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseAlias(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void parseAssert(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
-}
-
-
-private void parseAssertDbg(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseAssert(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseAwait(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseAssertDbg(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseBreak(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseAwait(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseCatch(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseBreak(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseContinue(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseCatch(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseDefer(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseContinue(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseDispose(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseDefer(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseExport(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseDispose(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseExposePrivates(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseElse(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseFnDef(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseExposePrivates(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseInterface(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseFnDef(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
+}
+
+private void parseFuncExpr(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
+}
+
+private void parseInterface(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseImpl(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseImpl(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseLambda(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseLambda(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseLambda1(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseLambda1(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseLambda2(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseLambda2(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseLambda3(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseLambda3(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parsePackage(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parsePackage(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
+}
+
+private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseReturn(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseStruct(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseStruct(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseTry(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void parseTry(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
-}
-
-
-private void parseYield(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseYield(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
 
-private void parseIf(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void ifResume(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void ifResume(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void parseLoop(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void parseLoop(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void loopResume(Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void loopResume(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
-private void resumeIf(uint tokType, Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void resumeIf(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void resumeIfEq(uint tokType, Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void resumeIfEq(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void resumeIfPr(uint tokType, Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void resumeIfPr(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void resumeImpl(uint tokType, Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void resumeImpl(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void resumeMatch(uint tokType, Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void resumeMatch(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void resumeLoop(uint tokType, Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void resumeLoop(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
-private void resumeMut(uint tokType, Lexer* lr, Arr(byte) text, Parser* pr) {
-    throwExc(errorTemp, pr);
+private void resumeMut(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
 }
 
 
@@ -251,21 +310,21 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countNonresumableFo
         p[i] = &parseErrorBareAtom;
         i++;
     }
-    p[tokScope] = &parseScope;
+    p[tokScope] = &parseAlias;
     p[tokStmt] = &parseExpr;
     p[tokParens] = &parseErrorBareAtom;
     p[tokBrackets] = &parseErrorBareAtom;
     p[tokAccessor] = &parseErrorBareAtom;
     p[tokFuncExpr] = &parseFuncExpr;
     p[tokAssignment] = &parseAssignment;
-    p[tokReassign] = &parseReassign;
+    p[tokReassign] = &parseReassignment;
     p[tokMutation] = &parseMutation;
     p[tokElse] = &parseElse;
-    p[tokSemicolon] = &parseSemicolon;
+    p[tokSemicolon] = &parseAlias;
     
     p[tokAlias] = &parseAlias;
     p[tokAssert] = &parseAssert;
-    p[tokAssertDbg] = &tokAssertDbg;
+    p[tokAssertDbg] = &parseAssertDbg;
     p[tokAwait] = &parseAlias;
     p[tokBreak] = &parseAlias;
     p[tokCatch] = &parseAlias;
@@ -309,28 +368,33 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
 ParserDefinition* buildParserDefinitions(Arena* a) {
     ParserDefinition* result = allocateOnArena(sizeof(ParserDefinition), a);
     result->resumableTable = tabulateResumableDispatch(a);
-    result->nonresumableTable = tabulateNonresumableDispatch(a);
+    result->nonResumableTable = tabulateNonresumableDispatch(a);
     return result;
 }
+
 
 Parser* createParser(Lexer* lr, Arena* a) {
     Parser* result = allocateOnArena(sizeof(Parser), a);    
     Arena* aBt = mkArena();
-    
+    Int stringTableLength = lr->stringTable->length;
     (*result) = (Parser) {.text = lr->inp, .inp = lr, .parDef = buildParserDefinitions(a),
         .scopeStack = createScopeStack(),
-        .backtrack = createStackParseFrame(aBt), .i = 0,
-        .stringTable = (Arr(Int))lr->stringTable->content, .strLength = lr->stringTable->length,
-        .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 0, .bindCap = 64,
+        .backtrack = createStackParseFrame(16, aBt), .i = 0,
+        .stringTable = (Arr(Int))lr->stringTable->content, .strLength = stringTableLength,
+        .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 1, .bindCap = 64, // 0th binding is reserved
+        .activeBindings = allocateOnArena(sizeof(Int)*stringTableLength, a),
         .nodes = allocateOnArena(sizeof(Node)*64, a), .nextInd = 0, .capacity = 64,
         .wasError = false, .errMsg = &empty, .a = a, .aBt = aBt
-        };    
+        };
+    if (stringTableLength > 0) {
+        memset(result->activeBindings, 0, stringTableLength*sizeof(Int));
+    }
 
     return result;    
 }
 
 private void maybeCloseSpans(Parser* pr) {
-    while(hasValues(pr->currFnDef->backtrack)) {
+    while(hasValues(pr->backtrack)) {
     }
 }
 
@@ -338,12 +402,18 @@ private void maybeCloseSpans(Parser* pr) {
 private void parseToplevelTypes(Lexer* lr, Parser* pr) {
 }
 
-/** Parses top-level constants but not functions and adds their bindings to the scope */
+/** Parses top-level constants but not functions, and adds their bindings to the scope */
 private void parseToplevelConstants(Lexer* lr, Parser* pr) {
-    // walk over all tokens
-    // when seeing something that is neither an immutable assignment nor a func definition, error out
-    // skip the func definitions but parse the assignments
-    
+    lr->i = 0;
+    const Int len = lr->totalTokens;
+    while (lr->i < len) {
+        Token tok = lr->tokens[pr->i];
+        if (tok.tp == tokAssignment) {
+            parseAssignment(tok, lr->tokens, pr);    
+        } else {
+            lr->i += (tok.payload2 + 1);
+        }
+    }    
 }
 
 /** Parses top-level function names and adds their bindings to the scope */
@@ -352,20 +422,20 @@ private void parseToplevelFunctionNames(Lexer* lr, Parser* pr) {
 
 /** Parses top-level function bodies */
 private void parseFunctionBodies(Lexer* lr, Parser* pr) {
-    if (setjmp(excBuf) == 0) {
-        while (i < inpLength) {
-            currTok = (*lr->tokens)[i].tp;
-            contextTok = peek(pr->backtrack).tp;
-            if (contextTok >= firstResumableForm) {                
-                ((*dispatchResumable)[contextTok - firstResumableForm])(currTok, inp, pr);
-            } else {
-                ((*dispatch)[currTok])(text, inp, pr);
-            }
-            maybeCloseSpans(pr);
-        }
-        finalize(result);
-    }
-    pr->totalTokens = result->nextInd;
+    //~ if (setjmp(excBuf) == 0) {
+        //~ while (pr->i < inpLength) {
+            //~ currTok = (*lr->tokens)[i].tp;
+            //~ contextTok = peek(pr->backtrack).tp;
+            //~ if (contextTok >= firstResumableForm) {                
+                //~ ((*dispatchResumable)[contextTok - firstResumableForm])(currTok, inp, pr);
+            //~ } else {
+                //~ ((*dispatch)[currTok])(text, inp, pr);
+            //~ }
+            //~ maybeCloseSpans(pr);
+        //~ }
+        //~ finalize(result);
+    //~ }
+    //~ pr->totalTokens = result->nextInd;
 }
 
 /** Parses a single file in 4 passes, see docs/parser.txt */
@@ -374,8 +444,8 @@ Parser* parse(Lexer* lr, ParserDefinition* pDef, Arena* a) {
     int inpLength = lr->totalTokens;
     int i = 0;
     
-    ParserFunc (*dispatch)[countResumableForms] = pDef->nonresumableTable;
-    ResumeFunc (*dispatchResumable)[countNonresumableForms] = pDef->resumableTable;
+    ParserFunc (*dispatch)[countNonresumableForms] = pDef->nonResumableTable;
+    ResumeFunc (*dispatchResumable)[countResumableForms] = pDef->resumableTable;
     
     parseToplevelTypes(lr, pr);    
     parseToplevelConstants(lr, pr);

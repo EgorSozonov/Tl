@@ -1,5 +1,43 @@
+#define CHUNK_SIZE 65536
 
-DEFINE_STACK(ParseFrame)
+
+StackParseFrame * createStackParseFrame (int initCapacity, Arena* a) {                         
+    int capacity = initCapacity < 4 ? 4 : initCapacity;                              
+    StackParseFrame * result = allocateOnArena(sizeof(StackParseFrame), a);                    
+    result->capacity = capacity;                                                     
+    result->length = 0;                                                              
+    result->arena = a;                                                               
+    ParseFrame (* arr)[] = allocateOnArena(capacity*sizeof(ParseFrame), a);                            
+    result->content = arr;                                                           
+    return result;                                                                   
+}                                                                                    
+bool hasValuesParseFrame (StackParseFrame * st) {                                              
+    return st->length > 0;                                                           
+}                                                                                    
+ParseFrame popParseFrame (StackParseFrame * st) {                                                       
+    st->length--;                                                                    
+    return (*st->content)[st->length];                                               
+}                                                                                    
+ParseFrame peekParseFrame(StackParseFrame * st) {                                                       
+    return (*st->content)[st->length - 1];                                           
+}                                                                                    
+void pushParseFrame (ParseFrame newItem, StackParseFrame * st) {                                        
+    if (st->length < st->capacity) {                                                 
+        memcpy((ParseFrame*)(st->content) + (st->length), &newItem, sizeof(ParseFrame));               
+    } else {                                                                         
+        ParseFrame (* newContent)[] = allocateOnArena(2*(st->capacity)*sizeof(ParseFrame), st->arena); 
+        memcpy(newContent, st->content, st->length*sizeof(ParseFrame));                       
+        memcpy((ParseFrame*)(newContent) + (st->length), &newItem, sizeof(ParseFrame));                
+        st->capacity *= 2;                                                           
+        st->content = (ParseFrame(*)[])newContent;                                            
+    }                                                                                
+    st->length++;                                                                    
+}                                                                                    
+void clearParseFrame (StackParseFrame * st) {                                                  
+    st->length = 0;                                                                  
+}                                                                                    
+
+                                            
 
 #define pop(X) _Generic((X), \
     StackParseFrame*: popParseFrame \
@@ -20,11 +58,10 @@ DEFINE_STACK(ParseFrame)
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct {
     Int bindingId;
-    Int precedence;
-    Int arity;
-    Int startByte;
-    Int lenBytes;   
+    untt precedenceArity; // u16 precedence, u16 arity 
+    Int tokId;
 } FunctionCall;
+
 typedef struct ScopeChunk ScopeChunk;
 
 
@@ -37,26 +74,26 @@ struct ScopeChunk {
 /** 
  * Either currChunk->next == NULL or currChunk->next->next == NULL
  */
-typedef struct {
+struct ScopeStack {
     ScopeChunk* firstChunk;
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
     ScopeStackFrame* topScope;
     int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
-} ScopeStack;
-
-
-
+} ;
 
 /** The list of string ids introduced in the current scope. It's not used for lookups, only for frame popping. */
 struct ScopeStackFrame {
     int length;                // number of elements in hash map
+    
     ScopeChunk* previousChunk;
-    int previousInd; // index of the start of previous frame within its chunk    
+    int previousInd;           // index of the start of previous frame within its chunk    
+    
     ScopeChunk* thisChunk;
-    int thisInd; // index of the start of this frame within this chunk
-    bool isSubexpr; // tag for the union. If true, it's Arr(FunctionCall). Otherwise Arr(int)
-    union {        
+    int thisInd;               // index of the start of this frame within this chunk
+    
+    bool isSubexpr;            // tag for the union. If true, it's Arr(FunctionCall). Otherwise Arr(int)
+    union {
         Arr(int) bindings;
         Arr(FunctionCall) funCalls;
     };

@@ -1,3 +1,5 @@
+#include <setjmp.h>
+#include <stdio.h>
 #include "../utils/aliases.h"
 #include "lexerConstants.h"
 #include "lexer.h"
@@ -7,16 +9,22 @@
 #include "../utils/structures/stackHeader.h"
 #include "../utils/structures/stringMap.h"
 
+extern jmp_buf excBuf;
 
 typedef struct {
     untt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
-    Int coreType;
     Int clauseInd;   
 } ParseFrame;
 
-DEFINE_STACK_HEADER(ParseFrame)
+//DEFINE_STACK_HEADER(ParseFrame)
+typedef struct {                                            
+    Int capacity;                                           
+    Int length;                                             
+    Arena* arena;                                           
+    ParseFrame (* content)[];                                        
+} StackParseFrame;     
 
 typedef struct Lexer Lexer;
 typedef struct Parser Parser;
@@ -33,21 +41,21 @@ typedef struct {
 typedef struct {
     untt flavor : 6;        // mutable, immutable, callable?
     untt typeId : 26;
-    untt defStart;          // start token of the definition
-    untt defSentinel;       // the first ind of token after definition
-    untt extentSentinel;    // the first ind of token after the scope of this binding has ended
+    Int defStart;          // start token of the definition
+    Int defSentinel;       // the first ind of token after definition
+    Int extentSentinel;    // the first ind of token after the scope of this binding has ended
 } Binding;
 
 
-typedef void (*ParserFunc)(Lexer*, Arr(byte), Parser*);
-typedef void (*ResumeFunc)(untt, Lexer*, Arr(byte), Parser*);
+typedef void (*ParserFunc)(Token, Arr(Token), Parser*);
+typedef void (*ResumeFunc)(untt, Token, Arr(Token), Parser*);
 
 #define countNonresumableForms (tokYield + 1)
 #define firstResumableForm tokIf
 #define countResumableForms (tokMut - tokIf + 1)
 
 typedef struct {
-    ParserFunc (*nonresumableTable)[countNonresumableForms];
+    ParserFunc (*nonResumableTable)[countNonresumableForms];
     ResumeFunc (*resumableTable)[countResumableForms];
 } ParserDefinition;
 
@@ -85,9 +93,11 @@ struct Parser {
     Arr(Int) stringTable;
     Int strLength;
     
-    Arr(Binding) bindings;      // current bindings in scope, array of nameId -> bindingId
+    Arr(Binding) bindings;      // growing array of tokens ever encountered
     Int bindNext;
     Int bindCap;
+    
+    Arr(int) activeBindings;    // current bindings in scope, array of nameId -> bindingId
     
     Arr(Node) nodes; 
     Int capacity;               // current capacity of node storage
@@ -99,7 +109,9 @@ struct Parser {
     Arena* aBt;
 };
 
+ParserDefinition* buildParserDefinitions(Arena*);
 Parser* createParser(Lexer*, Arena*);
-Parser* parse(Lexer*, LanguageDefinition*, Arena*);
+Int createBinding(Binding b, Parser* pr);
+Parser* parse(Lexer*, ParserDefinition*, Arena*);
 void addNode(Node t, Parser* lexer);
 

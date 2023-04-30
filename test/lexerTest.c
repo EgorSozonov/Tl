@@ -24,9 +24,6 @@ typedef struct {
 } LexerTestSet;
 
 
-#define s(lit) str(lit, a)
-
-
 private Lexer* buildLexer0(Arena *a, LanguageDefinition* langDef, int totalTokens, Arr(Token) tokens) {
     Lexer* result = createLexer(&empty, langDef, a);
     if (result == NULL) return result;
