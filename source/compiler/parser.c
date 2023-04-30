@@ -343,6 +343,7 @@ private void parseToplevelConstants(Lexer* lr, Parser* pr) {
     // walk over all tokens
     // when seeing something that is neither an immutable assignment nor a func definition, error out
     // skip the func definitions but parse the assignments
+    
 }
 
 /** Parses top-level function names and adds their bindings to the scope */

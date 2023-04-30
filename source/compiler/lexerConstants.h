@@ -139,10 +139,6 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType tokAlias
 
-#define countNonresumableForms (tokYield + 1)
-#define firstResumableForm tokIf
-#define countResumableForms (tokMut - tokIf + 1)
-
 #define countCoreForms 28 // tokLoop - tokAlias + 1
 
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique,

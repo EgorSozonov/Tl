@@ -1112,6 +1112,68 @@ void lexNonAsciiError(Lexer* lr, Arr(byte) inp) {
     throwExc(errorNonAscii, lr);
 }
 
+/** Must agree in order with token types in LexerConstants.h */
+const char* tokNames[] = {
+    "Int", "Float", "Bool", "String", "_", "DocComment", 
+    "word", ".word", "@word", ",func", "operator", "and", "or", "dispose", ":",  "mutTemp",
+    "(:", ".", "()", "[]", "accessor[]", "funcExpr", "assign", ":=", "mutation", "else", ";",
+    "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
+    "defer", "embed", "export", "exposePriv", "fn", "interface", 
+    "lambda", "lam1", "lam2", "lam3", "package", "return", "struct", "try", "yield",
+    "if", "ifEq", "ifPr", "impl", "match", "loop", "mut"
+};
+
+
+void printLexer(Lexer* a) {
+    if (a->wasError) {
+        printf("Error: ");
+        printString(a->errMsg);
+    }
+    for (int i = 0; i < a->totalTokens; i++) {
+        Token tok = a->tokens[i];
+        if (tok.payload1 != 0 || tok.payload2 != 0) {
+            printf("%s %d %d [%d; %d]\n", tokNames[tok.tp], tok.payload1, tok.payload2, tok.startByte, tok.lenBytes);
+        } else {
+            printf("%s [%d; %d]\n", tokNames[tok.tp], tok.startByte, tok.lenBytes);
+        }
+        
+    }
+}
+
+/** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
+int equalityLexer(Lexer a, Lexer b) {
+    if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
+        return -1;
+    }
+    int commonLength = a.totalTokens < b.totalTokens ? a.totalTokens : b.totalTokens;
+    int i = 0;
+    for (; i < commonLength; i++) {
+        Token tokA = a.tokens[i];
+        Token tokB = b.tokens[i];
+        if (tokA.tp != tokB.tp || tokA.lenBytes != tokB.lenBytes || tokA.startByte != tokB.startByte 
+            || tokA.payload1 != tokB.payload1 || tokA.payload2 != tokB.payload2) {
+            printf("\n\nUNEQUAL RESULTS\n", i);
+            if (tokA.tp != tokB.tp) {
+                printf("Diff in tp, %s but was expected %s\n", tokNames[tokA.tp], tokNames[tokB.tp]);
+            }
+            if (tokA.lenBytes != tokB.lenBytes) {
+                printf("Diff in lenBytes, %d but was expected %d\n", tokA.lenBytes, tokB.lenBytes);
+            }
+            if (tokA.startByte != tokB.startByte) {
+                printf("Diff in startByte, %d but was expected %d\n", tokA.startByte, tokB.startByte);
+            }
+            if (tokA.payload1 != tokB.payload1) {
+                printf("Diff in payload1, %d but was expected %d\n", tokA.payload1, tokB.payload1);
+            }
+            if (tokA.payload2 != tokB.payload2) {
+                printf("Diff in payload2, %d but was expected %d\n", tokA.payload2, tokB.payload2);
+            }            
+            return i;
+        }
+    }
+    return (a.totalTokens == b.totalTokens) ? -2 : i;        
+}
+
 
 private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     LexerFunc (*result)[256] = allocateOnArena(256*sizeof(LexerFunc), a);
@@ -1250,10 +1312,10 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 }
 
 
-Lexer* createLexer(String* inp, Arena* a) {
+Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* a) {
     Lexer* result = allocateOnArena(sizeof(Lexer), a);    
 
-    result->langDef = buildLanguageDefinitions(a);    
+    result->langDef = langDef;
     result->arena = a;
     result->aTemp = mkArena();
     
@@ -1294,8 +1356,8 @@ private void finalize(Lexer* lr) {
 }
 
 
-Lexer* lexicallyAnalyze(String* input, LanguageDefinition* lang, Arena* ar) {
-    Lexer* result = createLexer(input, ar);
+Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
+    Lexer* result = createLexer(input, langDef, a);
 
     Int inpLength = input->length;
     Arr(byte) inp = input->content;
@@ -1311,8 +1373,8 @@ Lexer* lexicallyAnalyze(String* input, LanguageDefinition* lang, Arena* ar) {
         && (unsigned char)inp[2] == 0xBF) {
         result->i = 3;
     }
-    LexerFunc (*dispatch)[256] = lang->dispatchTable;
-    result->possiblyReservedDispatch = lang->possiblyReservedDispatch;
+    LexerFunc (*dispatch)[256] = langDef->dispatchTable;
+    result->possiblyReservedDispatch = langDef->possiblyReservedDispatch;
     // Main loop over the input
     if (setjmp(excBuf) == 0) {
         while (result->i < inpLength) {

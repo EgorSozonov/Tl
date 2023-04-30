@@ -122,7 +122,7 @@ struct LanguageDefinition {
     Int (*reservedParensOrNot)[countCoreForms];
 };
 
-Lexer* createLexer(String* inp, Arena* ar);
+Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 void add(Token t, Lexer* lexer);
 
 
@@ -134,5 +134,8 @@ typedef union {
 } FloatingBits;
 
 int64_t longOfDoubleBits(double);
+
+void printLexer(Lexer*);
+int equalityLexer(Lexer a, Lexer b);
 
 #endif

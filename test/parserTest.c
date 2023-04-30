@@ -32,32 +32,37 @@ const char* nodeNames[] = {
 };
 
 
-private Parser* buildParser0(Arena *a, int totalNodes, Arr(Node) nodes) {
-    Parser* result = createParser(&empty, a);
+private void initializeBindings0(Arr(String) strings, Int stringsLen, Parser* pr) {
+}
+
+#define initializeBindings(bindings, pr) initializeBindings0(bindings, sizeof(bindings)/sizeof(String), pr)
+
+
+private Parser* buildParser0(Arena *a, int nextInd, Arr(Node) nodes) {
+    Parser* result = allocateOnArena(sizeof(Parser), a);
     if (result == NULL) return result;
     
-    result->totalNodes = totalNodes;
+    result->nextInd = nextInd;
         
-    for (Int i = 0; i < totalNodes; i++) {
-        add(nodes[i], result);
+    for (Int i = 0; i < nextInd; i++) {
+        addNode(nodes[i], result);
     }
     
     return result;
 }
 
 // Macro wrapper to get array length
-#define buildParser(a, nodes) buildParser0(a, sizeof(nodes)/sizeof(Node), nodes)
+#define buildParser(nodes) buildParser0(a, sizeof(nodes)/sizeof(Node), nodes)
 
-private Parser* buildParserWithError0(String* errMsg, Arena *a, int totalNodes, Arr(Node) nodes) {
+private Parser* buildParserWithError0(String* errMsg, Arena *a, int nextInd, Arr(Node) nodes) {
     Parser* result = allocateOnArena(sizeof(Parser), a);
     result->wasError = true;
     result->errMsg = errMsg;
-    result->totalNodes = totalNodes;    
-    
-    result->tokens = allocateOnArena(totalTokens*sizeof(Token), a);
+    result->nextInd = nextInd;        
+    result->nodes = allocateOnArena(nextInd*sizeof(Token), a);
     if (result == NULL) return result;
     
-    for (int i = 0; i < totalNodes; i++) {
+    for (int i = 0; i < nextInd; i++) {
         result->nodes[i] = nodes[i];
     }
     
@@ -87,33 +92,33 @@ int equalityParser(Parser a, Parser b) {
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
-    int commonLength = a.totalTokens < b.totalTokens ? a.totalTokens : b.totalTokens;
+    int commonLength = a.nextInd < b.nextInd ? a.nextInd : b.nextInd;
     int i = 0;
     for (; i < commonLength; i++) {
-        Token tokA = a.tokens[i];
-        Token tokB = b.tokens[i];
-        if (tokA.tp != tokB.tp || tokA.lenBytes != tokB.lenBytes || tokA.startByte != tokB.startByte 
-            || tokA.payload1 != tokB.payload1 || tokA.payload2 != tokB.payload2) {
+        Node nodA = a.nodes[i];
+        Node nodB = b.nodes[i];
+        if (nodA.tp != nodB.tp || nodA.lenBytes != nodB.lenBytes || nodA.startByte != nodB.startByte 
+            || nodA.payload1 != nodB.payload1 || nodA.payload2 != nodB.payload2) {
             printf("\n\nUNEQUAL RESULTS\n", i);
-            if (tokA.tp != tokB.tp) {
-                printf("Diff in tp, %s but was expected %s\n", nodeNames[tokA.tp], nodeNames[tokB.tp]);
+            if (nodA.tp != nodB.tp) {
+                printf("Diff in tp, %s but was expected %s\n", nodeNames[nodA.tp], nodeNames[nodB.tp]);
             }
-            if (tokA.lenBytes != tokB.lenBytes) {
-                printf("Diff in lenBytes, %d but was expected %d\n", tokA.lenBytes, tokB.lenBytes);
+            if (nodA.lenBytes != nodB.lenBytes) {
+                printf("Diff in lenBytes, %d but was expected %d\n", nodA.lenBytes, nodB.lenBytes);
             }
-            if (tokA.startByte != tokB.startByte) {
-                printf("Diff in startByte, %d but was expected %d\n", tokA.startByte, tokB.startByte);
+            if (nodA.startByte != nodB.startByte) {
+                printf("Diff in startByte, %d but was expected %d\n", nodA.startByte, nodB.startByte);
             }
-            if (tokA.payload1 != tokB.payload1) {
-                printf("Diff in payload1, %d but was expected %d\n", tokA.payload1, tokB.payload1);
+            if (nodA.payload1 != nodB.payload1) {
+                printf("Diff in payload1, %d but was expected %d\n", nodA.payload1, nodB.payload1);
             }
-            if (tokA.payload2 != tokB.payload2) {
-                printf("Diff in payload2, %d but was expected %d\n", tokA.payload2, tokB.payload2);
+            if (nodA.payload2 != nodB.payload2) {
+                printf("Diff in payload2, %d but was expected %d\n", nodA.payload2, nodB.payload2);
             }            
             return i;
         }
     }
-    return (a.totalTokens == b.totalTokens) ? -2 : i;        
+    return (a.nextInd == b.nextInd) ? -2 : i;        
 }
 
 
@@ -122,14 +127,13 @@ void printParser(Parser* a) {
         printf("Error: ");
         printString(a->errMsg);
     }
-    for (int i = 0; i < a->totalNodes; i++) {
-        Token tok = a->tokens[i];
-        if (tok.payload1 != 0 || tok.payload2 != 0) {
-            printf("%s %d %d [%d; %d]\n", nodeNames[tok.tp], tok.payload1, tok.payload2, tok.startByte, tok.lenBytes);
+    for (int i = 0; i < a->nextInd; i++) {
+        Node nod = a->nodes[i];
+        if (nod.payload1 != 0 || nod.payload2 != 0) {
+            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.payload1, nod.payload2, nod.startByte, nod.lenBytes);
         } else {
-            printf("%s [%d; %d]\n", nodeNames[tok.tp], tok.startByte, tok.lenBytes);
-        }
-        
+            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startByte, nod.lenBytes);
+        }        
     }
 }
 
@@ -144,7 +148,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
     }    
     Parser* pr = parse(lr, lang, a);
         
-    int equalityStatus = equalityParser(*result, *test.expectedOutput);
+    int equalityStatus = equalityParser(*pr, *test.expectedOutput);
     if (equalityStatus == -2) {
         (*countPassed)++;
         return;
@@ -160,7 +164,8 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
         printf("ERROR IN ");
         printString(test.name);
         printf("On node %d\n", equalityStatus);
-        printLexer(result);
+        printLexer(lr);
+        printParser(pr);
     }
 }
 
@@ -171,7 +176,7 @@ ParserTestSet* expressionTests(Arena* a) {
             .name = str("Simple function call", a),
             .input = str("10,foo 2 3", a),
             .imports = {(Import){"foo", 3}},
-            .expectedOutput = buildParser(a, ((Node[]) {
+            .expectedOutput = buildParser(((Node[]) {
                 (Node){ .tp = nodFnDef, .payload2 = 6, .startByte = 0, .lenBytes = 8 },
                 (Node){ .tp = nodScope, .payload2 = 5, .startByte = 0, .lenBytes = 4 },
                 (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 5, .lenBytes = 3 },
@@ -186,7 +191,7 @@ ParserTestSet* expressionTests(Arena* a) {
             .input = str("a,foo ,buzz b c d", a),
             .imports = {(Import){"foo", 3}, (Import){"buzz", "buzz"},
                 (Import){"a", "", -1},(Import){"b", "", -1},(Import){"c", "", -1},(Import){"d", "", -1}},
-            .expectedOutput = buildParser(a, ((Node[]) {
+            .expectedOutput = buildParser(((Node[]) {
                 (Node){ .tp = nodFnDef, .payload2 = 8, .startByte = 0, .lenBytes = 8 },
                 (Node){ .tp = nodScope, .payload2 = 7, .startByte = 0, .lenBytes = 4 },
                 (Node){ .tp = nodExpr,  .payload2 = 6, .startByte = 5, .lenBytes = 3 },
@@ -202,7 +207,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Triple function call", a),
             //~ .input = str("c:foo b a :bar 5 :baz 7.2", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(a, ((Node[]) {
+            //~ .expectedOutput = buildParser(((Node[]) {
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -212,7 +217,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator precedence simple", a),
             //~ .input = str("a + b*c", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -222,7 +227,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator precedence simple 2", a),
             //~ .input = str("a + b*c", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -232,7 +237,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator precedence simple 3", a),
             //~ .input = str("a + b*c", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -242,7 +247,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator prefix 1", a),
             //~ .input = str("a + b*c", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -252,7 +257,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator prefix 2", a),
             //~ .input = str("a + b*c", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -262,7 +267,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator prefix 3", a),
             //~ .input = str("a + b*c", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -272,7 +277,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator airthmetic 1", a),
             //~ .input = str("(a + (b - c % 2)^11)", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -282,7 +287,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator airthmetic 2", a),
             //~ .input = str("a + -5", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -292,7 +297,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator airthmetic 3", a),
             //~ .input = str("a + !(-5)", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -302,7 +307,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator airthmetic 4", a),
             //~ .input = str("a + !!(-3)", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -312,7 +317,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Operator arity error", a),
             //~ .input = str("a + 5 100", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -322,7 +327,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Single-item expr 1", a),
             //~ .input = str("a + 5 100", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -332,7 +337,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Single-item expr 2", a),
             //~ .input = str("a + 5 100", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -342,7 +347,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Unknown function arity", a),
             //~ .input = str("a + 5 100", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -352,7 +357,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Func-expr 1", a),
             //~ .input = str("(4:(a:g)):f", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -362,7 +367,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Partial application?", a),
             //~ .input = str("5:(1 + )", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -372,7 +377,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Partial application 2?", a),
             //~ .input = str("5:(3*a +)", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -382,7 +387,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Partial application error?", a),
             //~ .input = str("5:(3+ a*)", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -398,7 +403,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Simple assignment 1", a),
             //~ .input = str("a = 1 + 5", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
@@ -408,7 +413,7 @@ ParserTestSet* expressionTests(Arena* a) {
             //~ .name = str("Simple assignment 2", a),
             //~ .input = str("a += 9", a),
             //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
+            //~ .expectedOutput = buildParser(((Node[]) 
                 //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }

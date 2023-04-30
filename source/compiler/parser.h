@@ -1,8 +1,12 @@
 #include "../utils/aliases.h"
+#include "lexerConstants.h"
+#include "lexer.h"
+#include "parserConstants.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
 #include "../utils/structures/stackHeader.h"
 #include "../utils/structures/stringMap.h"
+
 
 typedef struct {
     untt tp : 6;
@@ -12,16 +16,11 @@ typedef struct {
     Int clauseInd;   
 } ParseFrame;
 
-
-typedef struct {
-    Arr(FunctionCall) operators;
-    Int sentinelToken;
-    bool isStillPrefix;
-    bool isInHeadPosition;   
-} Subexpr;
-
 DEFINE_STACK_HEADER(ParseFrame)
 
+typedef struct Lexer Lexer;
+typedef struct Parser Parser;
+typedef struct ScopeStack ScopeStack;
 typedef struct {
     untt tp : 6;
     untt lenBytes: 26;
@@ -29,6 +28,7 @@ typedef struct {
     untt payload1;
     untt payload2;   
 } Node;
+
 
 typedef struct {
     untt flavor : 6;        // mutable, immutable, callable?
@@ -40,13 +40,16 @@ typedef struct {
 
 
 typedef void (*ParserFunc)(Lexer*, Arr(byte), Parser*);
-typedef void (*ResumeFunc)(uint, Lexer*, Arr(byte), Parser*);
+typedef void (*ResumeFunc)(untt, Lexer*, Arr(byte), Parser*);
 
+#define countNonresumableForms (tokYield + 1)
+#define firstResumableForm tokIf
+#define countResumableForms (tokMut - tokIf + 1)
 
-struct ParserDefinition {
+typedef struct {
     ParserFunc (*nonresumableTable)[countNonresumableForms];
     ResumeFunc (*resumableTable)[countResumableForms];
-};
+} ParserDefinition;
 
 // PARSER DATA
 // 
@@ -71,13 +74,13 @@ struct ParserDefinition {
 // The scopeStack order is always: some scopes, then maybe some subexpressions.
 // The end of a span means popping from "backtrack" and also, if needed, popping from "scopeStack".
 //
-typedef struct {
+struct Parser {
     String* text;
     Lexer* inp;      
     ParserDefinition* parDef;
     ScopeStack* scopeStack;
     StackParseFrame* backtrack;
-    Int i;
+    Int i;                      // index of current token in the input
     
     Arr(Int) stringTable;
     Int strLength;
@@ -87,15 +90,16 @@ typedef struct {
     Int bindCap;
     
     Arr(Node) nodes; 
-    Int capacity;              // current capacity of node storage
-    Int nextInd;               // the  index for the next token to be added    
+    Int capacity;               // current capacity of node storage
+    Int nextInd;                // the  index for the next token to be added    
     
     bool wasError;
     String* errMsg;
     Arena* a;
     Arena* aBt;
-} Parser;
+};
 
+Parser* createParser(Lexer*, Arena*);
 Parser* parse(Lexer*, LanguageDefinition*, Arena*);
-
+void addNode(Node t, Parser* lexer);
 
