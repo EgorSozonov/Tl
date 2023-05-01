@@ -67,6 +67,57 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
 private void openFrame(ParseFrame fr, Parser* pr) {
 }
 
+/**
+ * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
+ * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
+ * in which case this function handles all the corresponding stack poppin'.
+ * It also always handles updating all inner frames with consumed tokens.
+ */
+private void maybeCloseSpans(Parser* pr) {    
+    while (hasValues(pr->backtrack)) { // loop over subscopes and expressions inside FunctionDef
+        ParseFrame frame = peek(pr->backtrack);
+        if (lx.currTokInd < frame.sentinelToken) return;
+        if (lx.currTokInd > frame.sentinelToken) {
+            exitWithError(errorInconsistentSpan)
+        }
+        if (frame.spanType == nodScope) {
+            currFnDef.subscopes.removeLast()
+        } else if (frame.spanType == nodExpr) {
+            currFnDef.subexprs.removeLast()
+        }
+        currFnDef.spanStack.pop()
+        currFnDef.setSpanLength(frame.indStartNode)
+    }
+
+    val freshlyMintedFn = fnDefBacktrack.pop()
+    ast.storeFreshFunction(freshlyMintedFn)
+
+    if (fnDefBacktrack.isNotEmpty()) {
+        currFnDef = fnDefBacktrack.peek()
+    }    
+}
+
+/** Parses top-level function bodies */
+private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {     
+    while (pr->i < sentinelToken) {
+        currTok = tokens[pr->i];
+        contextType = peek(pr->backtrack).tp;
+        if (contextType >= firstResumableForm) {                
+            ((*dispatchResumable)[contextType - firstResumableForm])(
+                currTok, tokens, pr
+            );
+        } else {
+            ((*dispatch)[currTok.tp])(
+                contextType, currTok, tokens, pr
+            );
+        }
+        maybeCloseSpans(pr);
+    }
+    finalizeUpTo(result);
+    
+    pr->totalTokens = result->nextInd;
+}
+
 /** Consumes 1 token */
 private void parseIdent(Token tok, Parser* pr) {
     Int nameId = tok.payload2;
@@ -360,13 +411,13 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     ResumeFunc (*result)[countResumableForms] = allocateOnArena(countResumableForms*sizeof(ResumeFunc), a);
     ResumeFunc* p = *result;
     int i = 0;
-    p[tokIf - firstResumableForm] = &resumeIf;
-    p[tokIfEq - firstResumableForm] = &resumeIfEq;
-    p[tokIfPr - firstResumableForm] = &resumeIfPr;
-    p[tokImpl - firstResumableForm] = &resumeImpl;
+    p[tokIf    - firstResumableForm] = &resumeIf;
+    p[tokIfEq  - firstResumableForm] = &resumeIfEq;
+    p[tokIfPr  - firstResumableForm] = &resumeIfPr;
+    p[tokImpl  - firstResumableForm] = &resumeImpl;
     p[tokMatch - firstResumableForm] = &resumeMatch;
-    p[tokLoop - firstResumableForm] = &resumeLoop;
-    p[tokMut - firstResumableForm] = &resumeMut;
+    p[tokLoop  - firstResumableForm] = &resumeLoop;
+    p[tokMut   - firstResumableForm] = &resumeMut;
     
     return result;
 }
@@ -418,16 +469,16 @@ private void parseToplevelTypes(Lexer* lr, Parser* pr) {
 }
 
 /** Parses top-level constants but not functions, and adds their bindings to the scope */
-private void parseToplevelConstants(Lexer* lr, Parser* pr) {
+private void parseToplevelConstants(Lexer* lx, Parser* pr) {
     lr->i = 0;
-    const Int len = lr->totalTokens;
-    while (lr->i < len) {
-        Token tok = lr->tokens[pr->i];
+    const Int len = lx->totalTokens;
+    while (lx->i < len) {
+        Token tok = lx->tokens[pr->i];
         if (tok.tp == tokAssignment) {
             pr->i++;
-            parseAssignment(tok, lr->tokens, pr);    
+            parseUpTo(pr->i + tok.payload2, lx->tokens, pr);
         } else {
-            lr->i += (tok.payload2 + 1);
+            lx->i += (tok.payload2 + 1);
         }
     }    
 }
@@ -438,20 +489,20 @@ private void parseToplevelFunctionNames(Lexer* lr, Parser* pr) {
 
 /** Parses top-level function bodies */
 private void parseFunctionBodies(Lexer* lr, Parser* pr) {
-    //~ if (setjmp(excBuf) == 0) {
-        //~ while (pr->i < inpLength) {
-            //~ currTok = (*lr->tokens)[i].tp;
-            //~ contextTok = peek(pr->backtrack).tp;
-            //~ if (contextTok >= firstResumableForm) {                
-                //~ ((*dispatchResumable)[contextTok - firstResumableForm])(currTok, inp, pr);
-            //~ } else {
-                //~ ((*dispatch)[currTok])(text, inp, pr);
-            //~ }
-            //~ maybeCloseSpans(pr);
-        //~ }
-        //~ finalize(result);
-    //~ }
-    //~ pr->totalTokens = result->nextInd;
+    if (setjmp(excBuf) == 0) {
+        while (pr->i < inpLength) {
+            currTok = (*lr->tokens)[i].tp;
+            contextTok = peek(pr->backtrack).tp;
+            if (contextTok >= firstResumableForm) {                
+                ((*dispatchResumable)[contextTok - firstResumableForm])(currTok, inp, pr);
+            } else {
+                ((*dispatch)[currTok])(text, inp, pr);
+            }
+            maybeCloseSpans(pr);
+        }
+        finalize(result);
+    }
+    pr->totalTokens = result->nextInd;
 }
 
 /** Parses a single file in 4 passes, see docs/parser.txt */
@@ -462,11 +513,12 @@ Parser* parse(Lexer* lr, ParserDefinition* pDef, Arena* a) {
     
     ParserFunc (*dispatch)[countNonresumableForms] = pDef->nonResumableTable;
     ResumeFunc (*dispatchResumable)[countResumableForms] = pDef->resumableTable;
-    
-    parseToplevelTypes(lr, pr);    
-    parseToplevelConstants(lr, pr);
-    parseToplevelFunctionNames(lr, pr);
-    parseFunctionBodies(lr, pr);
-            
+    if (setjmp(excBuf) == 0) {
+        parseToplevelTypes(lr, pr);    
+        parseToplevelConstants(lr, pr);
+        parseToplevelFunctionNames(lr, pr);
+        parseFunctionBodies(lr, pr);
+    }
+    pr->totalTokens = result->nextInd;
     return pr;
 }
