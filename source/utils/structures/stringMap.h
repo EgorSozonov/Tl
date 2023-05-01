@@ -1,9 +1,9 @@
 #ifndef STRINGMAP_H
 #define STRINGMAP_H
 #include <stdbool.h>
-#include "arena.h"
-#include "goodString.h"
-#include "aliases.h"
+#include "../arena.h"
+#include "../goodString.h"
+#include "../aliases.h"
 
 
 /** HashMap String Int that is insert-only */

@@ -1,41 +1,6 @@
 #define CHUNK_SIZE 65536
 
-
-StackParseFrame * createStackParseFrame (int initCapacity, Arena* a) {                         
-    int capacity = initCapacity < 4 ? 4 : initCapacity;                              
-    StackParseFrame * result = allocateOnArena(sizeof(StackParseFrame), a);                    
-    result->capacity = capacity;                                                     
-    result->length = 0;                                                              
-    result->arena = a;                                                               
-    ParseFrame (* arr)[] = allocateOnArena(capacity*sizeof(ParseFrame), a);                            
-    result->content = arr;                                                           
-    return result;                                                                   
-}                                                                                    
-bool hasValuesParseFrame (StackParseFrame * st) {                                              
-    return st->length > 0;                                                           
-}                                                                                    
-ParseFrame popParseFrame (StackParseFrame * st) {                                                       
-    st->length--;                                                                    
-    return (*st->content)[st->length];                                               
-}                                                                                    
-ParseFrame peekParseFrame(StackParseFrame * st) {                                                       
-    return (*st->content)[st->length - 1];                                           
-}                                                                                    
-void pushParseFrame (ParseFrame newItem, StackParseFrame * st) {                                        
-    if (st->length < st->capacity) {                                                 
-        memcpy((ParseFrame*)(st->content) + (st->length), &newItem, sizeof(ParseFrame));               
-    } else {                                                                         
-        ParseFrame (* newContent)[] = allocateOnArena(2*(st->capacity)*sizeof(ParseFrame), st->arena); 
-        memcpy(newContent, st->content, st->length*sizeof(ParseFrame));                       
-        memcpy((ParseFrame*)(newContent) + (st->length), &newItem, sizeof(ParseFrame));                
-        st->capacity *= 2;                                                           
-        st->content = (ParseFrame(*)[])newContent;                                            
-    }                                                                                
-    st->length++;                                                                    
-}                                                                                    
-void clearParseFrame (StackParseFrame * st) {                                                  
-    st->length = 0;                                                                  
-}                                                                                    
+DEFINE_STACK(ParseFrame)                                                                    
 
                                             
 

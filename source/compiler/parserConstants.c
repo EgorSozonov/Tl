@@ -28,7 +28,7 @@ const char errorUnknownBinding[]              = "Unknown binding!";
 const char errorUnknownFunction[]             = "Unknown function!";
 const char errorIncorrectPrefixSequence[]     = "A prefix atom-expression must look like `!!a`, that is, only prefix operators followed by one ident or literal";
 const char errorOperatorUsedInappropriately[] = "Operator used in an inappropriate location!";
-const char errorAssignment[]                  = "Cannot parse assignment, it must look like [freshIdentifier] = [expression]";
+const char errorAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
 const char errorAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
 const char errorScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
 const char errorLoopBreakOutside[]            = "The break keyword can only be used outside a loop scope!";

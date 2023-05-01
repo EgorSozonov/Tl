@@ -1,6 +1,8 @@
-Like most mainstream languages, Tl considers it prudent to make a strict distinction between top-level declarations and functions' internals. This is necessary to support free order of function declarations at .
+Like most mainstream languages, Tl considers it prudent to make a strict distinction between 
+top-level declarations and functions' internals. This is necessary to support free order of function declarations 
+in a file.
 
-The layout of data after parsing a file goes like this:
+The layout of AST data after parsing a file goes like this:
 
 1. All the const non-function declarations (and of course, at top-level only immutables are allowed)
 2. All the signatures of top-level functions
@@ -16,10 +18,10 @@ Name resolution always (at top-level and inside a function) proceeds top to bott
 the current point, and to reference any top-level const as well as any local variable that is lexically before
 current point
 
-OK example:
+An OK example:
 
     fn foo()(:
-        _,bar    -- bar is a top-level function, so it's in scope despite being defined lower below
+        :bar    -- bar is a top-level function, so it's in scope despite being defined lower below
     )
 
     fn bar()(:
@@ -27,15 +29,15 @@ OK example:
         x = 10
         fn nested(n Int)(:
         )
-        _,foo 
-        x,nested    
+        :foo 
+        x:nested    
     )
 
-Bad example:
+A bad example:
 
     fn bar()(:
         x = 10
-        x,nested    -- nested function's definition is lexically after this point, so it's not in scope yet
+        x:nested    -- nested function's definition is lexically after this point, so it's not in scope yet
         fn nested(n Int)(:
         )            
     )

@@ -8,6 +8,7 @@
 extern jmp_buf excBuf; // defined in lexer.c
 
 _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {   
+    
     pr->wasError = true;
 #ifdef TRACE    
     printf("Error on i = %d\n", pr->i);
@@ -94,13 +95,16 @@ private bool parseLiteralOrIdentifier(Token tok, Parser* pr) {
 
 private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     const Int rightSideLen = tok.payload2 - 1;
+    printf("right side len %d", rightSideLen);
     if (rightSideLen < 1) {
+        print("here right side len %d", rightSideLen);
         throwExc(errorAssignment);
     }
     Int sentinelToken = pr->i + tok.payload2;
         
     Token bindingToken = tokens[pr->i];
     if (bindingToken.tp != tokWord) {
+        print("not a word but %d", bindingToken.tp);
         throwExc(errorAssignment);
     }
     Int mbBinding = pr->activeBindings[bindingToken.payload2];
@@ -112,15 +116,20 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     
     openFrame((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }, pr);
     addNode((Node){.tp = nodAssignment, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    addNode((Node){.tp = nodBinding, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     
     pr->i++; // the word token before the assignment sign
     
     Token rightSideToken = tokens[pr->i];
     if (rightSideToken.tp == tokScope) {
+        print("scope %d", rightSideToken.tp);
         //openScope(pr);
     } else {
+        
         if (rightSideLen == 1) {
+            print("here before literal");
             if (!parseLiteralOrIdentifier(rightSideToken, pr)) {
+                
                 throwExc(errorAssignment);
             }
         } else if (rightSideToken.tp == tokOperator) {
@@ -374,7 +383,13 @@ ParserDefinition* buildParserDefinitions(Arena* a) {
 
 
 Parser* createParser(Lexer* lr, Arena* a) {
-    Parser* result = allocateOnArena(sizeof(Parser), a);    
+    if (lr->wasError) {
+        Parser* result = allocateOnArena(sizeof(Parser), a);
+        result->wasError = true;
+        return result;
+    }
+    
+    Parser* result = allocateOnArena(sizeof(Parser), a);
     Arena* aBt = mkArena();
     Int stringTableLength = lr->stringTable->length;
     (*result) = (Parser) {.text = lr->inp, .inp = lr, .parDef = buildParserDefinitions(a),
@@ -409,6 +424,7 @@ private void parseToplevelConstants(Lexer* lr, Parser* pr) {
     while (lr->i < len) {
         Token tok = lr->tokens[pr->i];
         if (tok.tp == tokAssignment) {
+            pr->i++;
             parseAssignment(tok, lr->tokens, pr);    
         } else {
             lr->i += (tok.payload2 + 1);

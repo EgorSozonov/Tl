@@ -6,6 +6,7 @@
 #include "parserConstants.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
+#include "../utils/structures/stack.h"
 #include "../utils/structures/stackHeader.h"
 #include "../utils/structures/stringMap.h"
 

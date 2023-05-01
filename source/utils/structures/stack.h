@@ -3,9 +3,9 @@
 
 
 #define DEFINE_STACK(T)                                                                  \
-    Stack ## T * createStack ## T (int initCapacity, Arena* a) {                         \
+    Stack##T * createStack##T (int initCapacity, Arena* a) {                             \
         int capacity = initCapacity < 4 ? 4 : initCapacity;                              \
-        Stack ## T * result = allocateOnArena(sizeof(Stack ## T), a);                    \
+        Stack##T * result = allocateOnArena(sizeof(Stack##T), a);                        \
         result->capacity = capacity;                                                     \
         result->length = 0;                                                              \
         result->arena = a;                                                               \
@@ -16,14 +16,14 @@
     bool hasValues ## T (Stack ## T * st) {                                              \
         return st->length > 0;                                                           \
     }                                                                                    \
-    T pop ## T (Stack ## T * st) {                                                       \
+    T pop##T (Stack ## T * st) {                                                         \
         st->length--;                                                                    \
         return (*st->content)[st->length];                                               \
     }                                                                                    \
-    T peek ## T(Stack ## T * st) {                                                       \
+    T peek##T(Stack##T * st) {                                                           \
         return (*st->content)[st->length - 1];                                           \
     }                                                                                    \
-    void push ## T (T newItem, Stack ## T * st) {                                        \
+    void push##T (T newItem, Stack ## T * st) {                                          \
         if (st->length < st->capacity) {                                                 \
             memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));               \
         } else {                                                                         \
@@ -35,7 +35,7 @@
         }                                                                                \
         st->length++;                                                                    \
     }                                                                                    \
-    void clear ## T (Stack ## T * st) {                                                  \
+    void clear##T (Stack##T * st) {                                                      \
         st->length = 0;                                                                  \
     }                                                                                    \
 

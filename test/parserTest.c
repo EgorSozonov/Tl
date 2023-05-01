@@ -22,19 +22,21 @@ typedef struct {
     ParserTest* tests;
 } ParserTestSet;
 
-/** Must agree in order with token types in ParserConstants.h */
+/** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "word", ".word", "@word", ":func", "operator", ";", 
-    "{}", ".", "()", "[]", "accessor", "funcExpr", "assignment", 
+    "id", "func", "bind", "type", "@annot", "and", "or", 
+    "(:)", "expr", "accessor", "=", ":=", "mutation", "whereClause",
     "alias", "assert", "assertDbg", "await", "catch", "continue", "continueIf", "embed", "export",
     "finally", "fn", "if", "ifEq", "ifPr", "impl", "interface", "lambda", "lam1", "lam2", "lam3", 
     "loop", "match", "mut", "nodestruct", "return", "returnIf", "struct", "try", "type", "yield"
 };
 
+
+
+
 /** A programmatic way of importing bindings into scope, to be used for testing */
 private Parser* insertBindings0(Arr(Int) stringIds, Arr(Binding) bindings, Int len, Parser* pr) {
-    print("insertBindings");
     for (int i = 0; i < len; i++) {
         createBinding(bindings[i], pr);
         pr->activeBindings[i] = i;
@@ -45,25 +47,8 @@ private Parser* insertBindings0(Arr(Int) stringIds, Arr(Binding) bindings, Int l
 #define insertBindings(strs, bindings, pr) insertBindings0(strs, bindings, sizeof(strs)/sizeof(Int), pr)
 
 
-private Parser* buildParser0(Arena *a, int nextInd, Arr(Node) nodes) {
-    print("buildParser0");
-    Parser* result = allocateOnArena(sizeof(Parser), a);
-    if (result == NULL) return result;
-    
-    result->nextInd = nextInd;
-        
-    for (Int i = 0; i < nextInd; i++) {
-        addNode(nodes[i], result);
-    }
-    
-    return result;
-}
-
-// Macro wrapper to get array length
-#define buildParser(nodes) buildParser0(a, sizeof(nodes)/sizeof(Node), nodes)
-
-private Parser* buildParserWithError0(String* errMsg, Arena *a, int nextInd, Arr(Node) nodes) {
-    Parser* result = allocateOnArena(sizeof(Parser), a);
+private Parser* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int nextInd, Arr(Node) nodes) {
+    Parser* result = createParser(lx, a);
     result->wasError = true;
     result->errMsg = errMsg;
     result->nextInd = nextInd;        
@@ -77,7 +62,7 @@ private Parser* buildParserWithError0(String* errMsg, Arena *a, int nextInd, Arr
     return result;
 }
 
-#define buildParserWithError(msg, a, nodes) buildParserWithError0(msg, a, sizeof(nodes)/sizeof(Node), nodes)
+#define buildParserWithError(msg, lx, a, nodes) buildParserWithError0(msg, lx, a, sizeof(nodes)/sizeof(Node), nodes)
 
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
@@ -95,6 +80,26 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
 }
 
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(ParserTest), tests)
+
+
+private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int countNodes,  
+                              Arr(Int) stringIds, Arr(Binding) bindings, Int countBindings, 
+                              LanguageDefinition* langDef, Arena* a) {
+    Lexer* lx = lexicallyAnalyze(input, langDef, a);    
+    Parser* expectedParser = createParser(lx, a);
+    for (Int i = 0; i < countNodes; i++) {
+        addNode(nodes[i], expectedParser);
+    }   
+    for (int i = 0; i < countBindings; i++) {
+        createBinding(bindings[i], expectedParser);
+        expectedParser->activeBindings[i] = i;
+    }
+    return (ParserTest){ .name = name, .input = input, .expectedOutput = expectedParser };
+}
+
+#define createTest(name, input, nodes, bindingStrs, bindingNodes) createTest0((name), (input), \
+    (nodes), sizeof(nodes)/sizeof(Node), bindingStrs, bindingNodes, sizeof(bindingStrs)/sizeof(String), langDef, a)
+
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
 int equalityParser(Parser a, Parser b) {
@@ -148,16 +153,15 @@ void printParser(Parser* a) {
 
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
 void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageDefinition* lang, 
-                   ParserDefinition* parsDef, Arena *a) {
-    print("runParserTest");
+                   ParserDefinition* parsDef, Arena *a) {    
     (*countTests)++;
-    Lexer* lr = lexicallyAnalyze(test.input, lang, a);
-    if (lr->wasError) {
+    Lexer* lx = lexicallyAnalyze(test.input, lang, a);
+    if (lx->wasError) {
         print("Lexer was not without error");
-        printLexer(lr);
+        printLexer(lx);
         return;
     }    
-    Parser* pr = parse(lr, parsDef, a);
+    Parser* pr = parse(lx, parsDef, a);
         
     int equalityStatus = equalityParser(*pr, *test.expectedOutput);
     if (equalityStatus == -2) {
@@ -167,7 +171,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
         printf("\n\nERROR IN [");
         printStringNoLn(test.name);
         printf("]\nError msg: ");
-        printString(lr->errMsg);
+        printString(pr->errMsg);
         printf("\nBut was expected: ");
         printString(test.expectedOutput->errMsg);
 
@@ -175,22 +179,38 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
         printf("ERROR IN ");
         printString(test.name);
         printf("On node %d\n", equalityStatus);
-        printLexer(lr);
+        print("    LEXER:")
+        printLexer(lx);
+        print("    PARSER:")
         printParser(pr);
     }
 }
 
 
-ParserTestSet* expressionTests(Arena* a) {
+ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
+    return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
+        createTest(
+            s("Simple assignment"), 
+            s("x = 12"),
+            ((Node[]) {
+                    (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
+                    (Node){ .tp = nodBinding, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
+                    (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 }
+            }),
+            ((Int[]) {}), 
+            ((Binding[]) {})
+        )        
+    }));
+}
+
+
+ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
     print("expression tests");
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
-        (ParserTest) { 
-            .name = s("Simple function call"),
-            .input = s("10,foo 2 3"),
-            .expectedOutput = insertBindings(
-                ((Int[]) {0}), 
-                ((Binding[]) {(Binding){.flavor = 0, .typeId = 0, }}), 
-                (buildParser(((Node[]) {
+        createTest(
+            s("Simple function call"), 
+            s("10,foo 2 3"),
+            (((Node[]) {
                     (Node){ .tp = nodFnDef, .payload2 = 6, .startByte = 0, .lenBytes = 8 },
                     (Node){ .tp = nodScope, .payload2 = 5, .startByte = 0, .lenBytes = 4 },
                     (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 5, .lenBytes = 3 },
@@ -198,8 +218,13 @@ ParserTestSet* expressionTests(Arena* a) {
                     (Node){ .tp = nodInt, .startByte = 7, .lenBytes = 1 },
                     (Node){ .tp = nodInt, .startByte = 9, .lenBytes = 1 },
                     (Node){ .tp = nodFunc, .payload1 = 3, .startByte = 3, .lenBytes = 3 }
-            }))))
-        }//,
+            })),
+            ((Int[]) {0}), 
+            ((Binding[]) {(Binding){.flavor = 0, .typeId = 0, }})
+        )        
+    }));
+}
+
         //~ (ParserTest) { 
             //~ .name = str("Double function call", a),
             //~ .input = str("a,foo ,buzz b c d", a),
@@ -405,8 +430,10 @@ ParserTestSet* expressionTests(Arena* a) {
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
             //~ )
         //~ }
-    }));
-}
+        
+        
+        
+        
 
 
 //~ ParserTestSet* assignmentTests(Arena* a) {
@@ -673,13 +700,10 @@ ParserTestSet* expressionTests(Arena* a) {
     //~ );
 //~ }
 
-void runATestSet(ParserTestSet* (*testGenerator)(Arena*), int* countPassed, int* countTests, 
+void runATestSet(ParserTestSet* (*testGenerator)(LanguageDefinition*, Arena*), int* countPassed, int* countTests, 
         LanguageDefinition* lang, ParserDefinition* parsDef, Arena* a) {
-    print("runATestSet");
-    ParserTestSet* testSet = (testGenerator)(a);
-    print("runATestSet2");
+    ParserTestSet* testSet = (testGenerator)(lang, a);
     for (int j = 0; j < testSet->totalTests; j++) {
-        print("test %d", j);
         ParserTest test = testSet->tests[j];
         runParserTest(test, countPassed, countTests, lang, parsDef, a);
     }
@@ -696,7 +720,9 @@ int main() {
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
+    
+    runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
+    //runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
 
 
     if (countTests == 0) {

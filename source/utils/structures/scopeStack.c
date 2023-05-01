@@ -8,16 +8,16 @@
 extern jmp_buf excBuf;
 
 
-/** The list of string ids introduced in the current scope. It's not used for lookups, only for frame popping. */
+/** The list of string ids Introduced in the current scope. It's not used for lookups, only for frame popping. */
 struct ScopeStackFrame {
-    int length;                // number of elements in hash map
+    Int length;                // number of elements in hash map
     ScopeChunk* previousChunk;
-    int previousInd; // index of the start of previous frame within its chunk    
+    Int previousInd; // index of the start of previous frame within its chunk    
     ScopeChunk* thisChunk;
-    int thisInd; // index of the start of this frame within this chunk
-    bool isSubexpr; // tag for the union. If true, it's Arr(FunctionCall). Otherwise Arr(int)
+    Int thisInd; // index of the start of this frame within this chunk
+    bool isSubexpr; // tag for the union. If true, it's Arr(FunctionCall). Otherwise Arr(Int)
     union {        
-        Arr(int) bindings;
+        Arr(Int) bindings;
         Arr(FunctionCall) funCalls;
     };
 };
@@ -50,7 +50,7 @@ ScopeStack* createScopeStack() {
     result->lastChunk = firstChunk;
     result->topScope = (ScopeStackFrame*)firstChunk->content;
     result->nextInd = ceiling4(sizeof(ScopeStackFrame))/4;
-    Arr(int) firstFrame = (int*)firstChunk->content + result->nextInd;
+    Arr(Int) firstFrame = (Int*)firstChunk->content + result->nextInd;
         
     (*result->topScope) = (ScopeStackFrame){.length = 0, .previousChunk = NULL, .thisChunk = firstChunk, 
         .thisInd = result->nextInd, .isSubexpr = false, .bindings = firstFrame };
@@ -78,13 +78,13 @@ private void mbNewChunk(ScopeStack* scopeStack) {
 void pushScope(ScopeStack* scopeStack) {
     // check whether the free space in currChunk is enough for the hashmap header + dict
     // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
-    int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
-    int necessarySpace = ceiling4(sizeof(ScopeStackFrame))/4 + 64;
+    Int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
+    Int necessarySpace = ceiling4(sizeof(ScopeStackFrame))/4 + 64;
     
     ScopeChunk* oldChunk = scopeStack->topScope->thisChunk;
-    int oldInd = scopeStack->topScope->thisInd;
+    Int oldInd = scopeStack->topScope->thisInd;
     ScopeStackFrame* newScope;
-    int newInd;
+    Int newInd;
     if (remainingSpace < necessarySpace) {  
         mbNewChunk(scopeStack);
         scopeStack->currChunk = scopeStack->currChunk->next;
@@ -92,14 +92,14 @@ void pushScope(ScopeStack* scopeStack) {
         newScope = (ScopeStackFrame*)scopeStack->currChunk->content;          
         newInd = 0;
     } else {
-        newScope = (ScopeStackFrame*)((int*)scopeStack->currChunk->content + scopeStack->nextInd);
+        newScope = (ScopeStackFrame*)((Int*)scopeStack->currChunk->content + scopeStack->nextInd);
         newInd = scopeStack->nextInd;
         scopeStack->nextInd += necessarySpace;        
     }
     (*newScope) = (ScopeStackFrame){.previousChunk = oldChunk, .previousInd = oldInd, .length = 0,
         .thisChunk = scopeStack->currChunk, .thisInd = newInd,
         .isSubexpr = false,
-        .bindings = (int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
+        .bindings = (Int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
     scopeStack->topScope = newScope;
 }
 
@@ -110,13 +110,13 @@ void pushScope(ScopeStack* scopeStack) {
 void pushSubexpr(ScopeStack* scopeStack) {
     // check whether the free space in currChunk is enough for the hashmap header + dict
     // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
-    int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
-    int necessarySpace = ceiling4(sizeof(ScopeStackFrame)+ 64*sizeof(FunctionCall))/4 ;
+    Int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
+    Int necessarySpace = ceiling4(sizeof(ScopeStackFrame)+ 64*sizeof(FunctionCall))/4 ;
     
     ScopeChunk* oldChunk = scopeStack->topScope->thisChunk;
-    int oldInd = scopeStack->topScope->thisInd;
+    Int oldInd = scopeStack->topScope->thisInd;
     ScopeStackFrame* newScope;
-    int newInd;
+    Int newInd;
     if (remainingSpace < necessarySpace) {  
         mbNewChunk(scopeStack);
         scopeStack->currChunk = scopeStack->currChunk->next;
@@ -124,27 +124,27 @@ void pushSubexpr(ScopeStack* scopeStack) {
         newScope = (ScopeStackFrame*)scopeStack->currChunk->content;          
         newInd = 0;
     } else {
-        newScope = (ScopeStackFrame*)((int*)scopeStack->currChunk->content + scopeStack->nextInd);
+        newScope = (ScopeStackFrame*)((Int*)scopeStack->currChunk->content + scopeStack->nextInd);
         newInd = scopeStack->nextInd;
         scopeStack->nextInd += necessarySpace;        
     }
     (*newScope) = (ScopeStackFrame){ .previousChunk = oldChunk, .previousInd = oldInd, .length = 0,
         .thisChunk = scopeStack->currChunk, .thisInd = newInd,
         .isSubexpr = true,
-        .funCalls = (FunctionCall*)((int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
+        .funCalls = (FunctionCall*)((Int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
     };
     scopeStack->topScope = newScope;
 }
 
 
 private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope, ScopeStack* scopeStack) {
-    int newLength = scopeStack->topScope->length + 1;
+    Int newLength = scopeStack->topScope->length + 1;
     if (newLength == initLength) {
-        int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
+        Int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
         if (remainingSpace + initLength < 256) {            
             mbNewChunk(scopeStack);
             scopeStack->currChunk = scopeStack->currChunk->next;
-            Arr(int) newContent = scopeStack->currChunk->content;
+            Arr(Int) newContent = scopeStack->currChunk->content;
             if (topScope->isSubexpr) {
                 memcpy(topScope->funCalls, newContent, initLength*sizeof(FunctionCall));
                 topScope->funCalls = (FunctionCall*)newContent;            
@@ -158,7 +158,7 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
     }
 }
 
-void addBinding(int nameId, int bindingId, Arr(int) activeBindings, ScopeStack* scopeStack) {
+void addBinding(Int nameId, Int bindingId, Arr(Int) activeBindings, ScopeStack* scopeStack) {
     ScopeStackFrame* topScope = scopeStack->topScope;
     resizeScopeArrayIfNecessary(64, topScope, scopeStack);
     
@@ -177,11 +177,11 @@ void addFunCall(FunctionCall funCall, ScopeStack* scopeStack) {
     topScope->length++;    
 }
 
-/** Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any */
-void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {  
+/** Returns poInter to previous frame (which will be top after this call) or NULL if there isn't any */
+void popScopeFrame(Arr(Int) activeBindings, ScopeStack* scopeStack) {  
     ScopeStackFrame* topScope = scopeStack->topScope;
     if (!topScope->isSubexpr) {
-        for (int i = 0; i < topScope->length; i++) {
+        for (Int i = 0; i < topScope->length; i++) {
             activeBindings[*(topScope->bindings + i)] = 0;
         }    
     }
@@ -191,21 +191,16 @@ void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {
     scopeStack->topScope = (ScopeStackFrame*)(topScope->previousChunk->content + topScope->previousInd);
     
     // if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but everything after it needs to go
-    if (scopeStack->lastChunk != NULL) {
-        
+    if (scopeStack->lastChunk != NULL) {        
         ScopeChunk* ch = scopeStack->lastChunk->next;
         if (ch != NULL) {
             scopeStack->lastChunk->next = NULL;
             do {
                 ScopeChunk* nextToDelete = ch->next;
-                printf("ScopeStack is freeing a chunk of memory at %p next = %p\n", ch, nextToDelete);
                 free(ch);
-                printf("p50\n");
                 
                 if (nextToDelete == NULL) break;
-                printf("p51\n");
                 ch = nextToDelete;
-
             } while (ch != NULL);
         }                
     }   
