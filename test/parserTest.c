@@ -32,9 +32,6 @@ const char* nodeNames[] = {
     "loop", "match", "mut", "nodestruct", "return", "returnIf", "struct", "try", "type", "yield"
 };
 
-
-
-
 /** A programmatic way of importing bindings into scope, to be used for testing */
 private Parser* insertBindings0(Arr(Int) stringIds, Arr(Binding) bindings, Int len, Parser* pr) {
     for (int i = 0; i < len; i++) {
@@ -66,7 +63,6 @@ private Parser* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int n
 
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
-    print("createTestSet0");
     ParserTestSet* result = allocateOnArena(sizeof(ParserTestSet), a);
     result->name = name;
     result->totalTests = count;    
@@ -87,6 +83,9 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
                               LanguageDefinition* langDef, Arena* a) {
     Lexer* lx = lexicallyAnalyze(input, langDef, a);    
     Parser* expectedParser = createParser(lx, a);
+    if (expectedParser->wasError) {
+        return (ParserTest){ .name = name, .input = input, .expectedOutput = expectedParser };
+    }
     for (Int i = 0; i < countNodes; i++) {
         addNode(nodes[i], expectedParser);
     }   
@@ -174,6 +173,10 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
         printString(pr->errMsg);
         printf("\nBut was expected: ");
         printString(test.expectedOutput->errMsg);
+        print("    LEXER:")
+        printLexer(lx);
+        print("    PARSER:")
+        printParser(pr);
 
     } else {
         printf("ERROR IN ");
@@ -199,7 +202,37 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
             }),
             ((Int[]) {}), 
             ((Binding[]) {})
-        )        
+        ),
+        createTest(
+            s("Double assignment"), 
+            s("x = 12\n"
+              ".second = x"  
+            ),
+            ((Node[]) {
+                    (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
+                    (Node){ .tp = nodBinding, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
+                    (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 },
+                    (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 8, .lenBytes = 10 },
+                    (Node){ .tp = nodBinding, .payload2 = 2, .startByte = 8, .lenBytes = 6 },
+                    (Node){ .tp = nodId, .payload1 = 1, .payload2 = 0, .startByte = 17, .lenBytes = 1 }
+            }),
+            ((Int[]) {}), 
+            ((Binding[]) {})
+        )//,
+        //~ createTestWithError(
+            //~ s("Assignment shadowing error"), 
+            //~ errorAssignmentShadowing,
+            //~ s("x = 12\n"
+              //~ ".x = 7"  
+            //~ ),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
+                    //~ (Node){ .tp = nodBinding, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
+                    //~ (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 }
+            //~ }),
+            //~ ((Int[]) {}), 
+            //~ ((Binding[]) {})
+        //~ )          
     }));
 }
 
@@ -221,7 +254,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
             })),
             ((Int[]) {0}), 
             ((Binding[]) {(Binding){.flavor = 0, .typeId = 0, }})
-        )        
+        ),        
     }));
 }
 

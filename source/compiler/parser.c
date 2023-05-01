@@ -64,7 +64,12 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
-private void openFrame(ParseFrame fr, Parser* pr) {
+/**
+ * Finds the top-level punctuation opener by its index, and sets its node length.
+ * Called when the parsing of a span is finished.
+ */
+private void setSpanLength(Int nodeInd, Parser* pr) {
+    pr->nodes[nodeInd].payload2 = pr->nextInd - nodeInd - 1;
 }
 
 /**
@@ -76,49 +81,39 @@ private void openFrame(ParseFrame fr, Parser* pr) {
 private void maybeCloseSpans(Parser* pr) {    
     while (hasValues(pr->backtrack)) { // loop over subscopes and expressions inside FunctionDef
         ParseFrame frame = peek(pr->backtrack);
-        if (lx.currTokInd < frame.sentinelToken) return;
-        if (lx.currTokInd > frame.sentinelToken) {
-            exitWithError(errorInconsistentSpan)
+        if (pr->i < frame.sentinelToken) return;
+        if (pr->i > frame.sentinelToken) {
+            print("i = %d sentinel = %d", pr->i, frame.sentinelToken);
+            throwExc(errorInconsistentSpan);
         }
-        if (frame.spanType == nodScope) {
-            currFnDef.subscopes.removeLast()
-        } else if (frame.spanType == nodExpr) {
-            currFnDef.subexprs.removeLast()
+        if (frame.tp == nodScope || frame.tp == nodExpr) {
+            popScopeFrame(pr->activeBindings, pr->scopeStack);
         }
-        currFnDef.spanStack.pop()
-        currFnDef.setSpanLength(frame.indStartNode)
+        pop(pr->backtrack);
+        setSpanLength(frame.startNodeInd, pr);
     }
-
-    val freshlyMintedFn = fnDefBacktrack.pop()
-    ast.storeFreshFunction(freshlyMintedFn)
-
-    if (fnDefBacktrack.isNotEmpty()) {
-        currFnDef = fnDefBacktrack.peek()
-    }    
 }
 
 /** Parses top-level function bodies */
 private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {     
     while (pr->i < sentinelToken) {
-        currTok = tokens[pr->i];
-        contextType = peek(pr->backtrack).tp;
+        Token currTok = tokens[pr->i];
+        untt contextType = peek(pr->backtrack).tp;
+        pr->i++;
         if (contextType >= firstResumableForm) {                
-            ((*dispatchResumable)[contextType - firstResumableForm])(
-                currTok, tokens, pr
+            ((*pr->parDef->resumableTable)[contextType - firstResumableForm])(
+                contextType, currTok, tokens, pr
             );
         } else {
-            ((*dispatch)[currTok.tp])(
-                contextType, currTok, tokens, pr
+            ((*pr->parDef->nonResumableTable)[currTok.tp])(
+                currTok, tokens, pr
             );
         }
         maybeCloseSpans(pr);
-    }
-    finalizeUpTo(result);
-    
-    pr->totalTokens = result->nextInd;
+    }    
 }
 
-/** Consumes 1 token */
+/** Consumes 0 tokens */
 private void parseIdent(Token tok, Parser* pr) {
     Int nameId = tok.payload2;
     Int mbBinding = pr->activeBindings[nameId];
@@ -127,7 +122,6 @@ private void parseIdent(Token tok, Parser* pr) {
     }
     addNode((Node){.tp = nodId, .payload1 = mbBinding, .payload2 = nameId,
                    .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
-    pr->i++; // the identifier token
 }
 
 /** Consumes 0 or 1 tokens. Returns false if didn't parse anything. */
@@ -146,16 +140,13 @@ private bool parseLiteralOrIdentifier(Token tok, Parser* pr) {
 
 private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     const Int rightSideLen = tok.payload2 - 1;
-    printf("right side len %d", rightSideLen);
     if (rightSideLen < 1) {
-        print("here right side len %d", rightSideLen);
         throwExc(errorAssignment);
     }
-    Int sentinelToken = pr->i + tok.payload2;
+    Int sentinelToken = pr->i + tok.payload2;   
         
     Token bindingToken = tokens[pr->i];
     if (bindingToken.tp != tokWord) {
-        print("not a word but %d", bindingToken.tp);
         throwExc(errorAssignment);
     }
     Int mbBinding = pr->activeBindings[bindingToken.payload2];
@@ -165,12 +156,14 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     Int newBindingId = createBinding((Binding){.flavor = 0, .defStart = pr->i - 1, .defSentinel = sentinelToken}, pr);
     pr->activeBindings[bindingToken.payload2] = newBindingId;
     
-    openFrame((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }, pr);
+    push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }), 
+            pr->backtrack);
+    
     addNode((Node){.tp = nodAssignment, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
-    addNode((Node){.tp = nodBinding, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    addNode((Node){.tp = nodBinding, .payload2 = newBindingId, 
+            .startByte = bindingToken.startByte, .lenBytes = bindingToken.lenBytes}, pr);
     
     pr->i++; // the word token before the assignment sign
-    
     Token rightSideToken = tokens[pr->i];
     if (rightSideToken.tp == tokScope) {
         print("scope %d", rightSideToken.tp);
@@ -178,9 +171,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     } else {
         
         if (rightSideLen == 1) {
-            print("here before literal");
-            if (!parseLiteralOrIdentifier(rightSideToken, pr)) {
-                
+            if (!parseLiteralOrIdentifier(rightSideToken, pr)) {               
                 throwExc(errorAssignment);
             }
         } else if (rightSideToken.tp == tokOperator) {
@@ -459,10 +450,6 @@ Parser* createParser(Lexer* lr, Arena* a) {
     return result;    
 }
 
-private void maybeCloseSpans(Parser* pr) {
-    while(hasValues(pr->backtrack)) {
-    }
-}
 
 /** Parses top-level types but not functions and adds their bindings to the scope */
 private void parseToplevelTypes(Lexer* lr, Parser* pr) {
@@ -470,15 +457,14 @@ private void parseToplevelTypes(Lexer* lr, Parser* pr) {
 
 /** Parses top-level constants but not functions, and adds their bindings to the scope */
 private void parseToplevelConstants(Lexer* lx, Parser* pr) {
-    lr->i = 0;
+    lx->i = 0;
     const Int len = lx->totalTokens;
-    while (lx->i < len) {
+    while (pr->i < len) {
         Token tok = lx->tokens[pr->i];
         if (tok.tp == tokAssignment) {
-            pr->i++;
             parseUpTo(pr->i + tok.payload2, lx->tokens, pr);
         } else {
-            lx->i += (tok.payload2 + 1);
+            pr->i += (tok.payload2 + 1);
         }
     }    
 }
@@ -489,20 +475,20 @@ private void parseToplevelFunctionNames(Lexer* lr, Parser* pr) {
 
 /** Parses top-level function bodies */
 private void parseFunctionBodies(Lexer* lr, Parser* pr) {
-    if (setjmp(excBuf) == 0) {
-        while (pr->i < inpLength) {
-            currTok = (*lr->tokens)[i].tp;
-            contextTok = peek(pr->backtrack).tp;
-            if (contextTok >= firstResumableForm) {                
-                ((*dispatchResumable)[contextTok - firstResumableForm])(currTok, inp, pr);
-            } else {
-                ((*dispatch)[currTok])(text, inp, pr);
-            }
-            maybeCloseSpans(pr);
-        }
-        finalize(result);
-    }
-    pr->totalTokens = result->nextInd;
+    //~ if (setjmp(excBuf) == 0) {
+        //~ while (pr->i < lr->totalTokens) {
+            //~ currTok = (*lr->tokens)[i].tp;
+            //~ contextTok = peek(pr->backtrack).tp;
+            //~ if (contextTok >= firstResumableForm) {                
+                //~ ((*dispatchResumable)[contextTok - firstResumableForm])(currTok, inp, pr);
+            //~ } else {
+                //~ ((*dispatch)[currTok])(text, inp, pr);
+            //~ }
+            //~ maybeCloseSpans(pr);
+        //~ }
+        //~ finalize(result);
+    //~ }
+    //~ pr->totalTokens = result->nextInd;
 }
 
 /** Parses a single file in 4 passes, see docs/parser.txt */
@@ -519,6 +505,5 @@ Parser* parse(Lexer* lr, ParserDefinition* pDef, Arena* a) {
         parseToplevelFunctionNames(lr, pr);
         parseFunctionBodies(lr, pr);
     }
-    pr->totalTokens = result->nextInd;
     return pr;
 }
