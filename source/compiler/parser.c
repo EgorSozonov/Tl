@@ -19,6 +19,9 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 
 #define throwExc(msg) throwExc0(msg, pr)
 
+// Forward declarations
+private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
+
 
 Int createBinding(Binding b, Parser* pr) {
     pr->bindings[pr->bindNext] = b;
@@ -60,8 +63,229 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
+
+/**
+ * A single-item subexpression, like "(5)" or "x". Cannot be a function call.
+ */
+private void exprSingleItem(Token theTok, Parser* pr) {
+    if (parseLiteralOrIdentifier(theTok.tp)) {
+    } else if (theTok.tp >= firstCoreFormTokenType) {
+        throwExc(errorCoreFormInappropriate)
+    } else {
+        throwExc(errorUnexpectedToken)
+    }
+}
+
+/**
+ * Adds a frame for a subexpression.
+ * Precondition: the current token must be 1 past the opening paren / statement token
+ * Examples: "foo 5 a"
+ *           "5 + !a"
+ * TODO: allow for core forms (but not scopes!)
+ */
+private void subexprInit(Int lenTokens, Arr(Token) tokens, Parser* pr) {
+    Token firstTok = tokens[pr->i];    
+    
+    if (lenTokens == 1) {
+        exprSingleItem(firstTok, pr);
+        return;
+    }
+    pushSubexpr(pr->scopeStack);    
+}
+
+
+/**
+ * Flushes the finished subexpr frames from the top of the funcall stack.
+ * A subexpr frame is finished iff current token equals its sentinel.
+ * Flushing includes appending its operators, clearing the operator stack, and appending
+ * prefix unaries from the previous subexpr frame, if any.
+ */
+private void subexprClose(Parser* pr) {
+    while (pr->scopeStack->length > 0) {
+        ScopeStackFrame currSubexpr = pr->scopeStack->topScope;
+        if (pr->i != currSubexpr.sentinelToken || !(currSubexpr->isSubexpr)) {
+            return;
+        }
+
+        if (currSubexpr.operators.size == 1) {
+            if (currSubexpr.isInHeadPosition) {
+                // this is cases like "((f 5) 1.2)" - the inner head-position operator gets moved out into the outer subexpr
+                val parentSubexpr = funCallStack[k - 1]
+                parentSubexpr.operators[0] = currSubexpr.operators[0]
+            } else if (currSubexpr.isStillPrefix) {
+                appendFnName(currSubexpr.operators[0], true)
+            } else if (currSubexpr.operators[0].nameStringId == -1
+                        && currSubexpr.operators[0].arity != 1) {
+                // this is cases like "(1 2 3)" or "(!x y)"
+                throwExc(errorExpressionFunctionless)
+            } else {
+                for (m in currSubexpr.operators.size - 1 downTo 0) {
+                    appendFnName(currSubexpr.operators[m], false)
+                }
+            }
+        } else if (currSubexpr.isInHeadPosition) {
+            throwExc(errorExpressionHeadFormOperators)
+        } else {
+            for (m in currSubexpr.operators.size - 1 downTo 0) {
+                appendFnName(currSubexpr.operators[m], false)
+            }
+        }
+
+        funCallStack.removeLast()
+
+        // flush parent's prefix opers, if any, because this subexp was their operand
+        if (funCallStack.isNotEmpty()) {
+            val opersPrev = funCallStack[k - 1].operators
+            for (n in (opersPrev.size - 1) downTo 0) {
+                if (opersPrev[n].precedence == prefixPrec) {
+                    appendFnName(opersPrev[n], false)
+                    opersPrev.removeLast()
+                } else {
+                    break
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * Increments the arity of the top non-prefix operator. The prefix ones are ignored because there is no
+ * need to track their arity: they are flushed on first operand or on closing of the first subexpr after them.
+ */
+private void exprIncrementArity(topFrame: Subexpr, Parser* pr) {
+    var n = topFrame.operators.size - 1
+    while (n > -1 && topFrame.operators[n].precedence == prefixPrec) {
+        n--;
+    }
+    if (n < 0) {
+        throwExc(errorExpressionError)
+    }
+    val oper = topFrame.operators[n]
+    if (oper.nameStringId == -1) return
+    oper.arity++
+    if (oper.maxArity > 0 && oper.arity > oper.maxArity) {
+        throwExc(errorOperatorWrongArity)
+    }
+}
+
+/**
+ * State modifier that must be called whenever an operand is encountered in an expression parse
+ */
+private fun exprOperand(topSubexpr: Subexpr) {
+    if (topSubexpr.operators.isEmpty()) return
+
+    // flush all unaries
+    val opers = topSubexpr.operators
+    while (opers.last().precedence == prefixPrec) {
+        appendFnName(opers.last(), false)
+        opers.removeLast()
+    }
+    exprIncrementArity(topSubexpr)
+}
+
+
+private fun exprOperator(topSubexpr: Subexpr) {
+    val operTypeIndex = lx.currPayload2()
+    val operInfo = operatorDefinitions[operTypeIndex]
+
+    if (operInfo.precedence == prefixPrec) {
+        val startByte = lx.currStartByte()
+        topSubexpr.operators.add(FunctionCall(-operInfo.bindingIndex - 2, prefixPrec, 1, 1, false, startByte))
+    } else {
+        exprFuncall(-operInfo.bindingIndex - 2, operInfo.precedence, operInfo.arity, topSubexpr)
+    }
+}
+
+
+
+/**
+ * For functions, the first param is the stringId of the name.
+ * For operators, it's the negative index of operator from its payload
+ */
+private void exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topSubexpr: Subexpr,
+                         Parser* pr) {
+    val startByte = lx.currStartByte()
+
+    if (topSubexpr.isStillPrefix) {
+        if (topSubexpr.operators.size != 1) throwExc(errorExpressionError)
+        val prefixFunction = topSubexpr.operators.removeLast()
+        appendFnName(prefixFunction, true)
+
+        val newFun = FunctionCall(nameStringId, precedence, 1, maxArity, false, startByte)
+        topSubexpr.isStillPrefix = false
+        topSubexpr.operators.add(newFun)
+    } else {
+        if (nameStringId < -1 && precedence != prefixPrec) {
+            // infix operator, need to check if it's the first in this subexpr
+            if (topSubexpr.operators.size == 1 && topSubexpr.operators[0].nameStringId == -1) {
+                if (topSubexpr.operators[0].arity != 0) throwExc(errorExpressionInfixNotSecond)
+
+                val newFun = FunctionCall(nameStringId, precedence, 1, maxArity, false, startByte)
+                topSubexpr.operators[0] = newFun
+                return
+            }
+        }
+        while (topSubexpr.operators.isNotEmpty() && topSubexpr.operators.last().precedence >= precedence) {
+            if (topSubexpr.operators.last().precedence == prefixPrec) {
+                throwExc(errorOperatorUsedInappropriately)
+            }
+            appendFnName(topSubexpr.operators.last(), false)
+            topSubexpr.operators.removeLast()
+        }
+        topSubexpr.operators.add(FunctionCall(nameStringId, precedence, 1, maxArity, false, startByte))
+    }
+}
+
+
 private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
+    appendSpan(nodExpr, 0, startByte, lenBytes)
+    val newFrame = ParseFrame(nodExpr, startNodeInd, sentinelToken)
+    spanStack.push(newFrame)
+    subexprs.add(ArrayList<Subexpr>())
+    
+    
+    val functionStack = currFnDef.subexprs.last()
+    while (lx.currTokInd < parseFrame.sentinelToken) {
+        val tokType = lx.currTokenType()
+        subexprClose(functionStack)
+        val topSubexpr = functionStack.last()
+        if (tokType == tokParens) {
+            val subExprLenTokens = lx.currPayload2()
+            exprIncrementArity(functionStack.last())
+            lx.nextToken() // the parens token
+            subexprInit(subExprLenTokens)
+            continue
+        } else if (tokType >= firstPunctTok) {
+            throwExc(errorExpressionCannotContain)
+        } else {
+            when (tokType) {
+                tokWord -> {
+                    exprWord(topSubexpr)
+                }
+                tokInt -> {
+                    exprOperand(topSubexpr)
+                    currFnDef.appendNode(
+                        nodInt, lx.currPayload1(), lx.currPayload2(),
+                        lx.currStartByte(), lx.currLenBytes()
+                    )
+                }
+                tokString -> {
+                    exprOperand(topSubexpr)
+                    currFnDef.appendNode(
+                        nodString, 0, 0,
+                        lx.currStartByte(), lx.currLenBytes()
+                    )
+                }
+                tokOperator -> {
+                    exprOperator(topSubexpr)
+                }
+            }
+            lx.nextToken() // any leaf token
+        }
+    }
+    subexprClose(functionStack)
+    
 }
 
 /**
