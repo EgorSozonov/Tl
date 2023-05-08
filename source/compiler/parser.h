@@ -58,6 +58,8 @@ typedef void (*ResumeFunc)(untt, Token, Arr(Token), Parser*);
 typedef struct {
     ParserFunc (*nonResumableTable)[countNonresumableForms];
     ResumeFunc (*resumableTable)[countResumableForms];
+    bool (*allowedSpanContexts)[countResumableForms + countNonresumableForms][countResumableForms];
+    OpDef (*operators)[countOperators];
 } ParserDefinition;
 
 // PARSER DATA
@@ -73,7 +75,7 @@ typedef struct {
 // 3) ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
 //
 // WORKFLOW
-// The "stringTable" is frozen, it was filled by the lexer. The "bindings" table is growing
+// The "stringTable" is frozen: it was filled by the lexer. The "bindings" table is growing
 // with every new assignment form encountered. "Nodes" is obviously growing with the new AST nodes
 // emitted.
 // Any new span (scope, expression, assignment etc) means 
@@ -87,8 +89,8 @@ struct Parser {
     String* text;
     Lexer* inp;      
     ParserDefinition* parDef;
+    StackParseFrame* backtrack;    
     ScopeStack* scopeStack;
-    StackParseFrame* backtrack;
     Int i;                      // index of current token in the input
     
     Arr(Int) stringTable;

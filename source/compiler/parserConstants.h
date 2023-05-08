@@ -43,7 +43,7 @@ extern const char errorTemp[];
 #define nodDocComment   5
 
 #define nodId           6      // payload1 = index of binding, payload2 = index of name
-#define nodFunc         7      // payload1 = arity, negated if it's an operator. payload2 = index nameId
+#define nodFunc         7      // payload1 = index of binding, payload2 = arity, negated if it's an operator. 
 #define nodBinding      8      // payload2 = index of binding
 #define nodTypeId       9      // payload2 = index of binding
 #define nodAnnotation  10      // "@annotation"

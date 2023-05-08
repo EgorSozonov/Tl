@@ -100,45 +100,37 @@ private void subexprInit(Int lenTokens, Arr(Token) tokens, Parser* pr) {
  * Flushing includes appending its operators, clearing the operator stack, and appending
  * prefix unaries from the previous subexpr frame, if any.
  */
-private void subexprClose(Parser* pr) {
+private void subexprClose(Arr(Token) tokens, Parser* pr) {
     while (pr->scopeStack->length > 0) {
         ScopeStackFrame currSubexpr = pr->scopeStack->topScope;
         if (pr->i != currSubexpr.sentinelToken || !(currSubexpr->isSubexpr)) {
             return;
         }
 
-        if (currSubexpr.operators.size == 1) {
-            if (currSubexpr.isInHeadPosition) {
-                // this is cases like "((f 5) 1.2)" - the inner head-position operator gets moved out into the outer subexpr
-                val parentSubexpr = funCallStack[k - 1]
-                parentSubexpr.operators[0] = currSubexpr.operators[0]
-            } else if (currSubexpr.isStillPrefix) {
-                appendFnName(currSubexpr.operators[0], true)
-            } else if (currSubexpr.operators[0].nameStringId == -1
+        if (currSubexpr.length == 1) {
+            if (currSubexpr.operators[0].nameStringId == -1
                         && currSubexpr.operators[0].arity != 1) {
                 // this is cases like "(1 2 3)" or "(!x y)"
                 throwExc(errorExpressionFunctionless)
             } else {
                 for (m in currSubexpr.operators.size - 1 downTo 0) {
-                    appendFnName(currSubexpr.operators[m], false)
+                    appendFnNode(currSubexpr.operators[m], tokens, pr)
                 }
             }
-        } else if (currSubexpr.isInHeadPosition) {
-            throwExc(errorExpressionHeadFormOperators)
         } else {
             for (m in currSubexpr.operators.size - 1 downTo 0) {
-                appendFnName(currSubexpr.operators[m], false)
+                appendFnNode(currSubexpr.operators[m], tokens, pr)
             }
         }
 
-        funCallStack.removeLast()
+        popScopeFrame(pr->scopeStack);
 
         // flush parent's prefix opers, if any, because this subexp was their operand
-        if (funCallStack.isNotEmpty()) {
+        if (pr->scopeStack->topScope->isSubexpr) {
             val opersPrev = funCallStack[k - 1].operators
             for (n in (opersPrev.size - 1) downTo 0) {
                 if (opersPrev[n].precedence == prefixPrec) {
-                    appendFnName(opersPrev[n], false)
+                    appendFnNode(opersPrev[n], tokens, pr)
                     opersPrev.removeLast()
                 } else {
                     break
@@ -151,41 +143,64 @@ private void subexprClose(Parser* pr) {
 
 /**
  * Increments the arity of the top non-prefix operator. The prefix ones are ignored because there is no
- * need to track their arity: they are flushed on first operand or on closing of the first subexpr after them.
+ * need to track their arity: they are flushed on first operand or upon closing the subExpr following them.
  */
-private void exprIncrementArity(topFrame: Subexpr, Parser* pr) {
-    var n = topFrame.operators.size - 1
-    while (n > -1 && topFrame.operators[n].precedence == prefixPrec) {
+private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
+    Int n = topSubexpr->length - 1;
+    while (n > -1 && topSubexpr->funCalls[n].precedenceArity >> 16 == prefixPrec) {
         n--;
     }
     if (n < 0) {
-        throwExc(errorExpressionError)
+        return;
     }
-    val oper = topFrame.operators[n]
-    if (oper.nameStringId == -1) return
-    oper.arity++
-    if (oper.maxArity > 0 && oper.arity > oper.maxArity) {
-        throwExc(errorOperatorWrongArity)
+    FunctionCall* funCall = topSubexpr->funCalls + n;
+    // The first bindings are always for the operators, and they have known arities, so no need to increment
+    if (funCall.bindingId <= countOperators) {
+        return;
     }
+    funcall->precedenceArity++;
+    if (funCall.bindingId <= countOperators) {
+        OpDef operDefinition = pr->parDef->operators[fnCall.bindingId];
+        if ((funcall.precedenceArity & LOWER16BITS) > operDefinition.arity) {
+            throwExc(errorOperatorWrongArity);
+        }
+    }
+}
+
+/**
+ * Appends a node that represents a function call in an expression.
+ */
+private fun appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr) {
+    Int arity = fnCall.precedenceArity & LOWER16BITS;
+    if (fnCall.bindingId < countOperators) {
+        // operators
+        OpDef operDefinition = pr->parDef->operators[fnCall.bindingId];
+        if (operDefinition.arity != arity) {
+            throwExc(errorOperatorWrongArity);
+        }   
+    }
+    Token tok = tokens[fnCall.tokId];       
+    addNode((Node){.tp = nodFunc, .payload1 = fnCall.bindingId, .payload2 = arity,
+                    .startByte = tok.startByte, .lenBytes = tok.lenBytes }, pr);
 }
 
 /**
  * State modifier that must be called whenever an operand is encountered in an expression parse
  */
-private fun exprOperand(topSubexpr: Subexpr) {
-    if (topSubexpr.operators.isEmpty()) return
+private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser* pr) {
+    if (topSubexpr->length == 0) return;
 
-    // flush all unaries
-    val opers = topSubexpr.operators
-    while (opers.last().precedence == prefixPrec) {
-        appendFnName(opers.last(), false)
-        opers.removeLast()
+    // flush all unaries off the top of the subExpr
+    Int i = topSubexpr->length - 1;
+    while (i > -1 && topSubexpr->funCalls[i].precedenceArity >> 16 == prefixPrec) {
+        appendFnNode(topSubexpr->funCalls[i], tokens, pr);
+        topSubexpr->length--;
     }
-    exprIncrementArity(topSubexpr)
+    exprIncrementArity(topSubexpr, pr);
 }
 
 
-private fun exprOperator(topSubexpr: Subexpr) {
+private void exprOperator(ScopeStackFrame* topSubexpr, Parser* pr) {
     val operTypeIndex = lx.currPayload2()
     val operInfo = operatorDefinitions[operTypeIndex]
 
@@ -210,7 +225,7 @@ private void exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topS
     if (topSubexpr.isStillPrefix) {
         if (topSubexpr.operators.size != 1) throwExc(errorExpressionError)
         val prefixFunction = topSubexpr.operators.removeLast()
-        appendFnName(prefixFunction, true)
+        appendFnNode(prefixFunction, true)
 
         val newFun = FunctionCall(nameStringId, precedence, 1, maxArity, false, startByte)
         topSubexpr.isStillPrefix = false
@@ -230,7 +245,7 @@ private void exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topS
             if (topSubexpr.operators.last().precedence == prefixPrec) {
                 throwExc(errorOperatorUsedInappropriately)
             }
-            appendFnName(topSubexpr.operators.last(), false)
+            appendFnNode(topSubexpr.operators.last(), pr)
             topSubexpr.operators.removeLast()
         }
         topSubexpr.operators.add(FunctionCall(nameStringId, precedence, 1, maxArity, false, startByte))
@@ -239,53 +254,66 @@ private void exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topS
 
 
 private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
-    appendSpan(nodExpr, 0, startByte, lenBytes)
-    val newFrame = ParseFrame(nodExpr, startNodeInd, sentinelToken)
-    spanStack.push(newFrame)
-    subexprs.add(ArrayList<Subexpr>())
+    addNode((Node){ .tp = nodExpr, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    ParseFrame newParseFrame = (ParseFrame){ .tp = nodExpr, .startNodeInd = pr->i - 1, 
+        .sentinelToken = pr->i + tok.payload2 };
+    push(newParseFrame, pr->backtrack);
+    pushSubexpr(pr->scopeStack);    
     
-    
-    val functionStack = currFnDef.subexprs.last()
-    while (lx.currTokInd < parseFrame.sentinelToken) {
-        val tokType = lx.currTokenType()
-        subexprClose(functionStack)
+    while (pr->i < newParseFrame.sentinelToken) {
+        untt tokType = tok.tp;
+        subexprClose(pr);
         val topSubexpr = functionStack.last()
         if (tokType == tokParens) {
-            val subExprLenTokens = lx.currPayload2()
+            Int subExprLenTokens = tokens[pr->i].payload2;
             exprIncrementArity(functionStack.last())
-            lx.nextToken() // the parens token
-            subexprInit(subExprLenTokens)
-            continue
+            pr->i++; // the parens token
+            subexprInit(subExprLenTokens, pr);
+            continue;
         } else if (tokType >= firstPunctTok) {
-            throwExc(errorExpressionCannotContain)
+            throwExc(errorExpressionCannotContain);
+        } else if (tokType <= topVerbatimTokenVariant) {
+            
         } else {
-            when (tokType) {
-                tokWord -> {
-                    exprWord(topSubexpr)
-                }
-                tokInt -> {
-                    exprOperand(topSubexpr)
+            
+            if (tokType == tokWord) {
+                
+                val theWord = readString(tokWord)
+
+                val binding = lookupBinding(theWord)
+                if (binding != null) {
                     currFnDef.appendNode(
-                        nodInt, lx.currPayload1(), lx.currPayload2(),
-                        lx.currStartByte(), lx.currLenBytes()
-                    )
+                        nodId, 0, binding,
+                        lx.currStartByte(), lx.currLenBytes())
+                    exprOperand(topSubexpr, pr);
+                } else {
+                    exitWithError(errorUnknownBinding);
                 }
-                tokString -> {
-                    exprOperand(topSubexpr)
-                    currFnDef.appendNode(
-                        nodString, 0, 0,
-                        lx.currStartByte(), lx.currLenBytes()
-                    )
-                }
-                tokOperator -> {
-                    exprOperator(topSubexpr)
-                }
+            } else if (tokType == tokInt) {                
+                exprOperand(topSubexpr, pr);
+                currFnDef.appendNode(
+                    nodInt, lx.currPayload1(), lx.currPayload2(),
+                    lx.currStartByte(), lx.currLenBytes()
+                )
+            } else if (tokType == tokFloat) {                
+                exprOperand(topSubexpr, pr);
+                currFnDef.appendNode(
+                    nodFloat, lx.currPayload1(), lx.currPayload2(),
+                    lx.currStartByte(), lx.currLenBytes()
+                )
+            } else if (tokType == tokString) {
+                exprOperand(topSubexpr, pr);
+                currFnDef.appendNode(
+                    nodString, 0, 0,
+                    lx.currStartByte(), lx.currLenBytes()
+                )
+            } else if (tokType == tokOperator) {
+                exprOperator(topSubexpr, pr);
             }
-            lx.nextToken() // any leaf token
+            pr->i++; // any leaf token
         }
     }
-    subexprClose(functionStack)
-    
+    subexprClose(pr);    
 }
 
 /**
@@ -640,16 +668,17 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
 /*
 * Definition of the operators, reserved words and lexer dispatch for the lexer.
 */
-ParserDefinition* buildParserDefinitions(Arena* a) {
+ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) {
     ParserDefinition* result = allocateOnArena(sizeof(ParserDefinition), a);
-    result->resumableTable = tabulateResumableDispatch(a);
+    result->resumableTable = tabulateResumableDispatch(a);    
     result->nonResumableTable = tabulateNonresumableDispatch(a);
+    result->operators = langDef->operators;
     return result;
 }
 
 
-Parser* createParser(Lexer* lr, Arena* a) {
-    if (lr->wasError) {
+Parser* createParser(Lexer* lx, Arena* a) {
+    if (lx->wasError) {
         Parser* result = allocateOnArena(sizeof(Parser), a);
         result->wasError = true;
         return result;
@@ -657,11 +686,11 @@ Parser* createParser(Lexer* lr, Arena* a) {
     
     Parser* result = allocateOnArena(sizeof(Parser), a);
     Arena* aBt = mkArena();
-    Int stringTableLength = lr->stringTable->length;
-    (*result) = (Parser) {.text = lr->inp, .inp = lr, .parDef = buildParserDefinitions(a),
+    Int stringTableLength = lx->stringTable->length;
+    (*result) = (Parser) {.text = lx->inp, .inp = lx, .parDef = buildParserDefinitions(lx->langDef, a),
         .scopeStack = createScopeStack(),
         .backtrack = createStackParseFrame(16, aBt), .i = 0,
-        .stringTable = (Arr(Int))lr->stringTable->content, .strLength = stringTableLength,
+        .stringTable = (Arr(Int))lx->stringTable->content, .strLength = stringTableLength,
         .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 1, .bindCap = 64, // 0th binding is reserved
         .activeBindings = allocateOnArena(sizeof(Int)*stringTableLength, a),
         .nodes = allocateOnArena(sizeof(Node)*64, a), .nextInd = 0, .capacity = 64,

@@ -45,11 +45,14 @@ struct ScopeStack {
     ScopeChunk* lastChunk;
     ScopeStackFrame* topScope;
     int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
-} ;
+};
 
-/** The list of string ids introduced in the current scope. It's not used for lookups, only for frame popping. */
+/** The list of additional parsing info; binding frames followed by function call frames.
+ * A binding frame contains string ids introduced in the current scope. Used not for lookups, but for frame popping. 
+ * A function call frame contains operators/functions encountered within a subexpression.
+ */
 struct ScopeStackFrame {
-    int length;                // number of elements in hash map
+    int length;                // number of elements in scope stack
     
     ScopeChunk* previousChunk;
     int previousInd;           // index of the start of previous frame within its chunk    
@@ -115,7 +118,7 @@ private void mbNewChunk(ScopeStack* scopeStack) {
 
 /** Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within a brand new chunk 
  * Scopes have a simple size policy: 64 elements at first, then 256, then throw exception. This is because
- * only 256 local variables are allowed in one function, so transitively in one scope, too.
+ * only 256 local variables are allowed in one function, and transitively in one scope.
  */
 void pushScope(ScopeStack* scopeStack) {
     // check whether the free space in currChunk is enough for the hashmap header + dict
@@ -210,7 +213,7 @@ void addBinding(int nameId, int bindingId, Arr(int) activeBindings, ScopeStack* 
     activeBindings[nameId] = bindingId;
 }
 
-
+/** Add function call to the stack of the current subexpression */
 void addFunCall(FunctionCall funCall, ScopeStack* scopeStack) {
     ScopeStackFrame* topScope = scopeStack->topScope;
     resizeScopeArrayIfNecessary(32, topScope, scopeStack);
