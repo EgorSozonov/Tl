@@ -21,6 +21,7 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 
 // Forward declarations
 private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
+private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr);
 
 
 Int createBinding(Binding b, Parser* pr) {
@@ -64,15 +65,21 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
+private void popFrame(Parser* pr) {
+    popScopeFrame(pr->activeBindings, pr->scopeStack);
+    pop(pr->backtrack);
+}
+
+
 /**
  * A single-item subexpression, like "(5)" or "x". Cannot be a function call.
  */
 private void exprSingleItem(Token theTok, Parser* pr) {
-    if (parseLiteralOrIdentifier(theTok.tp)) {
+    if (parseLiteralOrIdentifier(theTok, pr)) {
     } else if (theTok.tp >= firstCoreFormTokenType) {
-        throwExc(errorCoreFormInappropriate)
+        throwExc(errorCoreFormInappropriate);
     } else {
-        throwExc(errorUnexpectedToken)
+        throwExc(errorUnexpectedToken);
     }
 }
 
@@ -101,41 +108,31 @@ private void subexprInit(Int lenTokens, Arr(Token) tokens, Parser* pr) {
  * prefix unaries from the previous subexpr frame, if any.
  */
 private void subexprClose(Arr(Token) tokens, Parser* pr) {
-    while (pr->scopeStack->length > 0) {
-        ScopeStackFrame currSubexpr = pr->scopeStack->topScope;
-        if (pr->i != currSubexpr.sentinelToken || !(currSubexpr->isSubexpr)) {
+    ScopeStack* scStack = pr->scopeStack;
+    while (scStack->topScope->length > 0) {
+        ScopeStackFrame currSubexpr = *scStack->topScope;
+        ParseFrame pFrame = peek(pr->backtrack);
+        if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
             return;
+        } else if (currSubexpr.length == 0) {
+            throwExc(errorExpressionFunctionless);
         }
-
-        if (currSubexpr.length == 1) {
-            if (currSubexpr.operators[0].nameStringId == -1
-                        && currSubexpr.operators[0].arity != 1) {
-                // this is cases like "(1 2 3)" or "(!x y)"
-                throwExc(errorExpressionFunctionless)
-            } else {
-                for (m in currSubexpr.operators.size - 1 downTo 0) {
-                    appendFnNode(currSubexpr.operators[m], tokens, pr)
-                }
-            }
-        } else {
-            for (m in currSubexpr.operators.size - 1 downTo 0) {
-                appendFnNode(currSubexpr.operators[m], tokens, pr)
-            }
+                
+        for (int m = currSubexpr.length; m > -1; m--) {
+            appendFnNode(currSubexpr.funCalls[m], tokens, pr);
         }
-
-        popScopeFrame(pr->scopeStack);
+        
+        popFrame(pr);
 
         // flush parent's prefix opers, if any, because this subexp was their operand
-        if (pr->scopeStack->topScope->isSubexpr) {
-            val opersPrev = funCallStack[k - 1].operators
-            for (n in (opersPrev.size - 1) downTo 0) {
-                if (opersPrev[n].precedence == prefixPrec) {
-                    appendFnNode(opersPrev[n], tokens, pr)
-                    opersPrev.removeLast()
-                } else {
-                    break
-                }
+        if (scStack->topScope->isSubexpr) {
+            ScopeStackFrame parentFrame = *scStack->topScope;
+            Int n = parentFrame.length - 1;
+            while (n > -1 && (parentFrame.funCalls[n].precedenceArity >> 16) == prefixPrec) {                
+                appendFnNode(parentFrame.funCalls[n], tokens, pr);
+                n--;
             }
+            parentFrame.length = n;
         }
     }
 }
@@ -153,15 +150,15 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
     if (n < 0) {
         return;
     }
-    FunctionCall* funCall = topSubexpr->funCalls + n;
+    FunctionCall* fnCall = topSubexpr->funCalls + n;
     // The first bindings are always for the operators, and they have known arities, so no need to increment
-    if (funCall.bindingId <= countOperators) {
+    if (fnCall->bindingId <= countOperators) {
         return;
     }
-    funcall->precedenceArity++;
-    if (funCall.bindingId <= countOperators) {
-        OpDef operDefinition = pr->parDef->operators[fnCall.bindingId];
-        if ((funcall.precedenceArity & LOWER16BITS) > operDefinition.arity) {
+    fnCall->precedenceArity++;
+    if (fnCall->bindingId <= countOperators) {
+        OpDef operDefinition = (*pr->parDef->operators)[fnCall->bindingId];
+        if ((fnCall->precedenceArity & LOWER16BITS) > operDefinition.arity) {
             throwExc(errorOperatorWrongArity);
         }
     }
@@ -170,11 +167,11 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
 /**
  * Appends a node that represents a function call in an expression.
  */
-private fun appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr) {
+private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr) {
     Int arity = fnCall.precedenceArity & LOWER16BITS;
     if (fnCall.bindingId < countOperators) {
         // operators
-        OpDef operDefinition = pr->parDef->operators[fnCall.bindingId];
+        OpDef operDefinition = (*pr->parDef->operators)[fnCall.bindingId];
         if (operDefinition.arity != arity) {
             throwExc(errorOperatorWrongArity);
         }   
@@ -194,8 +191,9 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
     Int i = topSubexpr->length - 1;
     while (i > -1 && topSubexpr->funCalls[i].precedenceArity >> 16 == prefixPrec) {
         appendFnNode(topSubexpr->funCalls[i], tokens, pr);
-        topSubexpr->length--;
+        i--;
     }
+    topSubexpr->length = i;
     exprIncrementArity(topSubexpr, pr);
 }
 
@@ -339,7 +337,7 @@ private void maybeCloseSpans(Parser* pr) {
             throwExc(errorInconsistentSpan);
         }
         if (frame.tp == nodScope || frame.tp == nodExpr) {
-            popScopeFrame(pr->activeBindings, pr->scopeStack);
+            popFrame(pr);
         }
         pop(pr->backtrack);
         setSpanLength(frame.startNodeInd, pr);
