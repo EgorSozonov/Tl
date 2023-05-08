@@ -857,8 +857,8 @@ private void lexColon(Lexer* lr, Arr(byte) inp) {
 }
 
 
-private void addOperator(Int opType, Int isExtensionAssignment, Int startByte, Int lenBytes, Lexer* lr) {
-    add((Token){ .tp = tokOperator, .payload1 = (isExtensionAssignment & 1) + (opType << 1), 
+private void addOperator(Int opType, Int isExtension, Int startByte, Int lenBytes, Lexer* lr) {
+    add((Token){ .tp = tokOperator, .payload1 = (isExtension & 1) + (opType << 1), 
                 .startByte = startByte, .lenBytes = lenBytes }, lr);
 }
 

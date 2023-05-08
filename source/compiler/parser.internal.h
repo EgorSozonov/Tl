@@ -245,10 +245,8 @@ void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {
                 ScopeChunk* nextToDelete = ch->next;
                 printf("ScopeStack is freeing a chunk of memory at %p next = %p\n", ch, nextToDelete);
                 free(ch);
-                printf("p50\n");
                 
                 if (nextToDelete == NULL) break;
-                printf("p51\n");
                 ch = nextToDelete;
 
             } while (ch != NULL);

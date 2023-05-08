@@ -197,21 +197,6 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
     exprIncrementArity(topSubexpr, pr);
 }
 
-
-private void exprOperator(ScopeStackFrame* topSubexpr, Parser* pr) {
-    val operTypeIndex = lx.currPayload2()
-    val operInfo = operatorDefinitions[operTypeIndex]
-
-    if (operInfo.precedence == prefixPrec) {
-        val startByte = lx.currStartByte()
-        topSubexpr.operators.add(FunctionCall(-operInfo.bindingIndex - 2, prefixPrec, 1, 1, false, startByte))
-    } else {
-        exprFuncall(-operInfo.bindingIndex - 2, operInfo.precedence, operInfo.arity, topSubexpr)
-    }
-}
-
-
-
 /**
  * For functions, the first param is the stringId of the name.
  * For operators, it's the negative index of operator from its payload
@@ -226,7 +211,6 @@ private void exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topS
         appendFnNode(prefixFunction, true)
 
         val newFun = FunctionCall(nameStringId, precedence, 1, maxArity, false, startByte)
-        topSubexpr.isStillPrefix = false
         topSubexpr.operators.add(newFun)
     } else {
         if (nameStringId < -1 && precedence != prefixPrec) {
@@ -247,6 +231,18 @@ private void exprFuncall(nameStringId: Int, precedence: Int, maxArity: Int, topS
             topSubexpr.operators.removeLast()
         }
         topSubexpr.operators.add(FunctionCall(nameStringId, precedence, 1, maxArity, false, startByte))
+    }
+}
+
+
+private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Parser* pr) {    
+    OpDef operDefinition = (*pr->parDef->operators)[tok.payload1 >> 1];
+
+    if (operDefinition.precedence == prefixPrec) {
+        addFunCall((FunctionCall){.bindingId = , .precedenceArity = (prefixPrec << 16) + 1,
+            .tokId = lr->i}, pr->scopeStack);        
+    } else {
+        exprFuncall(-operInfo.bindingIndex - 2, operInfo.precedence, operInfo.arity, topSubexpr)
     }
 }
 
