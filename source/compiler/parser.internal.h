@@ -63,7 +63,7 @@ struct ScopeStackFrame {
     bool isSubexpr;            // tag for the union. If true, it's Arr(FunctionCall). Otherwise Arr(int)
     union {
         Arr(int) bindings;
-        Arr(FunctionCall) funCalls;
+        Arr(FunctionCall) fnCalls;
     };
 };
 
@@ -176,7 +176,7 @@ void pushSubexpr(ScopeStack* scopeStack) {
     (*newScope) = (ScopeStackFrame){ .previousChunk = oldChunk, .previousInd = oldInd, .length = 0,
         .thisChunk = scopeStack->currChunk, .thisInd = newInd,
         .isSubexpr = true,
-        .funCalls = (FunctionCall*)((int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
+        .fnCalls = (FunctionCall*)((int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
     };
     scopeStack->topScope = newScope;
 }
@@ -191,8 +191,8 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
             scopeStack->currChunk = scopeStack->currChunk->next;
             Arr(int) newContent = scopeStack->currChunk->content;
             if (topScope->isSubexpr) {
-                memcpy(topScope->funCalls, newContent, initLength*sizeof(FunctionCall));
-                topScope->funCalls = (FunctionCall*)newContent;            
+                memcpy(topScope->fnCalls, newContent, initLength*sizeof(FunctionCall));
+                topScope->fnCalls = (FunctionCall*)newContent;            
             } else {
                 memcpy(topScope->bindings, newContent, initLength*sizeof(Int));
                 topScope->bindings = newContent;            
@@ -214,12 +214,12 @@ void addBinding(int nameId, int bindingId, Arr(int) activeBindings, ScopeStack* 
 }
 
 /** Add function call to the stack of the current subexpression */
-void addFunCall(FunctionCall funCall, ScopeStack* scopeStack) {
+void addFnCall(FunctionCall fnCall, ScopeStack* scopeStack) {
     ScopeStackFrame* topScope = scopeStack->topScope;
     resizeScopeArrayIfNecessary(32, topScope, scopeStack);
     
-    topScope->funCalls[topScope->length] = funCall;
-    topScope->length++;    
+    topScope->fnCalls[topScope->length] = fnCall;
+    topScope->length++;
 }
 
 /** Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any */
@@ -227,7 +227,7 @@ void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {
     ScopeStackFrame* topScope = scopeStack->topScope;
     if (!topScope->isSubexpr) {
         for (int i = 0; i < topScope->length; i++) {
-            activeBindings[*(topScope->bindings + i)] = 0;
+            activeBindings[*(topScope->bindings + i)] = -1;
         }    
     }
         

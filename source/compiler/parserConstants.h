@@ -43,9 +43,9 @@ extern const char errorTemp[];
 #define nodDocComment   5
 
 #define nodId           6      // payload1 = index of binding, payload2 = index of name
-#define nodFunc         7      // payload1 = index of binding, payload2 = arity, negated if it's an operator. 
-#define nodBinding      8      // payload2 = index of binding
-#define nodTypeId       9      // payload2 = index of binding
+#define nodFunc         7      // payload1 = index of binding, payload2 = arity
+#define nodBinding      8      // payload1 = index of binding
+#define nodTypeId       9      // payload1 = index of binding
 #define nodAnnotation  10      // "@annotation"
 
 #define nodAnd         11
@@ -94,3 +94,8 @@ extern const char errorTemp[];
 #define nodMatch       47       // pattern matching on sum type tag  // 200/500
 #define nodLoop        48       // 
 #define nodMut         49       // 400
+
+
+#define bndMut          0
+#define bndImmut        1
+#define bndCallable     2

@@ -11,7 +11,8 @@
 
 typedef struct {
     String* name;
-    String* input;
+    Lexer* input;
+    Parser* initParser;    
     Parser* expectedOutput;
 } ParserTest;
 
@@ -25,8 +26,8 @@ typedef struct {
 /** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "id", "func", "bind", "type", "@annot", "and", "or", 
-    "(:)", "expr", "accessor", "=", ":=", "mutation", "whereClause",
+    "id", "func", "binding", "type", "@annot", "and", "or", 
+    "(:)", "expr", "accessor", "assign", "reAssign", "mutation", "whereClause",
     "alias", "assert", "assertDbg", "await", "catch", "continue", "continueIf", "embed", "export",
     "finally", "fn", "if", "ifEq", "ifPr", "impl", "interface", "lambda", "lam1", "lam2", "lam3", 
     "loop", "match", "mut", "nodestruct", "return", "returnIf", "struct", "try", "type", "yield"
@@ -77,23 +78,31 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
 
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(ParserTest), tests)
 
-
+/** Creates a test with two parser: one is the init parser (contains all the "imported" bindings)
+ *  and one is the output parser (with the bindings and the expected nodes). When the test is run,
+ *  the init parser will parse the tokens and then will be compared to the expected output parser.
+ */
 private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int countNodes,  
                               Arr(Int) stringIds, Arr(Binding) bindings, Int countBindings, 
                               LanguageDefinition* langDef, Arena* a) {
     Lexer* lx = lexicallyAnalyze(input, langDef, a);    
+    Parser* initParser = createParser(lx, a);
     Parser* expectedParser = createParser(lx, a);
     if (expectedParser->wasError) {
-        return (ParserTest){ .name = name, .input = input, .expectedOutput = expectedParser };
+        return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
     }
+    for (int i = 0; i < countBindings; i++) {
+        Int newBindingId = createBinding(bindings[i], expectedParser);
+        createBinding(bindings[i], initParser);
+    
+        expectedParser->activeBindings[stringIds[i]] = newBindingId;
+        initParser->activeBindings[stringIds[i]] = newBindingId;
+    }
+    
     for (Int i = 0; i < countNodes; i++) {
         addNode(nodes[i], expectedParser);
     }   
-    for (int i = 0; i < countBindings; i++) {
-        createBinding(bindings[i], expectedParser);
-        expectedParser->activeBindings[i] = i;
-    }
-    return (ParserTest){ .name = name, .input = input, .expectedOutput = expectedParser };
+    return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
 }
 
 #define createTest(name, input, nodes, bindingStrs, bindingNodes) createTest0((name), (input), \
@@ -151,18 +160,17 @@ void printParser(Parser* a) {
 }
 
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
-void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageDefinition* lang, 
-                   ParserDefinition* parsDef, Arena *a) {    
+void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {    
     (*countTests)++;
-    Lexer* lx = lexicallyAnalyze(test.input, lang, a);
-    if (lx->wasError) {
+
+    if (test.input->wasError) {
         print("Lexer was not without error");
-        printLexer(lx);
+        printLexer(test.input);
         return;
     }    
-    Parser* pr = parse(lx, parsDef, a);
+    Parser* resultParser = parseWithParser(test.input, test.initParser, a);
         
-    int equalityStatus = equalityParser(*pr, *test.expectedOutput);
+    int equalityStatus = equalityParser(*resultParser, *test.expectedOutput);
     if (equalityStatus == -2) {
         (*countPassed)++;
         return;
@@ -170,22 +178,22 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, LanguageD
         printf("\n\nERROR IN [");
         printStringNoLn(test.name);
         printf("]\nError msg: ");
-        printString(pr->errMsg);
+        printString(resultParser->errMsg);
         printf("\nBut was expected: ");
         printString(test.expectedOutput->errMsg);
         print("    LEXER:")
-        printLexer(lx);
+        printLexer(test.input);
         print("    PARSER:")
-        printParser(pr);
+        printParser(resultParser);
 
     } else {
         printf("ERROR IN ");
         printString(test.name);
         printf("On node %d\n", equalityStatus);
         print("    LEXER:")
-        printLexer(lx);
+        printLexer(test.input);
         print("    PARSER:")
-        printParser(pr);
+        printParser(resultParser);
     }
 }
 
@@ -242,19 +250,53 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function call"), 
-            s("10,foo 2 3"),
+            s("x = 10,foo 2 3"),
             (((Node[]) {
-                    (Node){ .tp = nodFnDef, .payload2 = 6, .startByte = 0, .lenBytes = 8 },
-                    (Node){ .tp = nodScope, .payload2 = 5, .startByte = 0, .lenBytes = 4 },
-                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 5, .lenBytes = 3 },
-                    (Node){ .tp = nodInt, .payload2 = 10, .startByte = 0, .lenBytes = 2 },
-                    (Node){ .tp = nodInt, .startByte = 7, .lenBytes = 1 },
-                    (Node){ .tp = nodInt, .startByte = 9, .lenBytes = 1 },
-                    (Node){ .tp = nodFunc, .payload1 = 3, .startByte = 3, .lenBytes = 3 }
+                    (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 14 },
+                    // " + 1" because the first binding is taken up by the "imported" function, "foo"
+                    (Node){ .tp = nodBinding, .payload1 = countOperators + 1, .startByte = 0, .lenBytes = 1 }, // x
+                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 10 },
+                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },
+                    (Node){ .tp = nodInt, .payload2 = 2,   .startByte = 11, .lenBytes = 1 },
+                    (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 13, .lenBytes = 1 },
+                    (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
             })),
-            ((Int[]) {0}), 
+            ((Int[]) {1}), 
             ((Binding[]) {(Binding){.flavor = 0, .typeId = 0, }})
-        ),        
+        ),      
+        createTest(
+            s("Nested function call 1"), 
+            s("x = 10,foo (,bar) 3"),
+            (((Node[]) {
+                    (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 19 },                    
+                    (Node){ .tp = nodBinding, .payload1 = countOperators + 2, .startByte = 0, .lenBytes = 1 }, // x
+                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 15 },
+                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },                    
+                    (Node){ .tp = nodFunc, .payload1 = 31,    .startByte = 12, .lenBytes = 4 },                    
+                    (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 18, .lenBytes = 1 },
+                    (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
+            })),
+            ((Int[]) {1, 2}), 
+            ((Binding[]) {(Binding){.flavor = bndCallable, .typeId = 0 }, (Binding){.flavor = bndCallable, .typeId = 0 }})
+        ),
+        createTest(
+            s("Nested function call 2"), 
+            s("x = 10,foo (,barr 3)"),
+            (((Node[]) {
+                    (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 19 },                    
+                    (Node){ .tp = nodBinding, .payload1 = countOperators + 2, .startByte = 0, .lenBytes = 1 }, // x
+                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 15 },
+                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 }, 
+                                       
+                    (Node){ .tp = nodExpr,  .payload2 = 2, .startByte = 12, .lenBytes = 7 },
+                    (Node){ .tp = nodInt,   .payload2 = 3, .startByte = 18, .lenBytes = 1 },
+                    (Node){ .tp = nodFunc, .payload1 = 31, .startByte = 12, .lenBytes = 5 },                    
+                    
+                    (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
+            })),
+            ((Int[]) {1, 2}), 
+            ((Binding[]) {(Binding){.flavor = bndCallable, .typeId = 0 }, (Binding){.flavor = bndCallable, .typeId = 0 }})
+        )   
     }));
 }
 
@@ -738,7 +780,7 @@ void runATestSet(ParserTestSet* (*testGenerator)(LanguageDefinition*, Arena*), i
     ParserTestSet* testSet = (testGenerator)(lang, a);
     for (int j = 0; j < testSet->totalTests; j++) {
         ParserTest test = testSet->tests[j];
-        runParserTest(test, countPassed, countTests, lang, parsDef, a);
+        runParserTest(test, countPassed, countTests, a);
     }
 }
 
@@ -749,13 +791,13 @@ int main() {
     printf("----------------------------\n");
     Arena *a = mkArena();
     LanguageDefinition* lang = buildLanguageDefinitions(a);
-    ParserDefinition* parsDef = buildParserDefinitions(a);
+    ParserDefinition* parsDef = buildParserDefinitions(lang, a);
 
     int countPassed = 0;
     int countTests = 0;
     
-    runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
-    //runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
+    //runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
+    runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
 
 
     if (countTests == 0) {

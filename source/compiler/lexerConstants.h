@@ -132,7 +132,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokLoop        54       // 
 #define tokMut         55       // 400
 
-#define topVerbatimTokenVariant tokDocComment
+#define topVerbatimTokenVariant tokUnderscore
 
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType tokScope

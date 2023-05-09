@@ -66,7 +66,6 @@ typedef struct {
 // 
 // 1) a = Arena for the results
 // AST (i.e. the resulting code)
-// Strings
 // Bindings
 // Types
 //
@@ -112,9 +111,10 @@ struct Parser {
     Arena* aBt;
 };
 
-ParserDefinition* buildParserDefinitions(Arena*);
+ParserDefinition* buildParserDefinitions(LanguageDefinition*, Arena*);
 Parser* createParser(Lexer*, Arena*);
 Int createBinding(Binding b, Parser* pr);
-Parser* parse(Lexer*, ParserDefinition*, Arena*);
+Parser* parse(Lexer*, Arena*);
+Parser* parseWithParser(Lexer*, Parser*, Arena*);
 void addNode(Node t, Parser* lexer);
 
