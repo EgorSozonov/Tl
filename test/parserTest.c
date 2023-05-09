@@ -205,7 +205,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
             s("x = 12"),
             ((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
-                    (Node){ .tp = nodBinding, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
+                    (Node){ .tp = nodBinding, .payload1 = countOperators, .startByte = 0, .lenBytes = 1 }, // x
                     (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 }
             }),
             ((Int[]) {}), 
@@ -218,11 +218,11 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
             ),
             ((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
-                    (Node){ .tp = nodBinding, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
+                    (Node){ .tp = nodBinding, .payload1 = countOperators, .startByte = 0, .lenBytes = 1 },     // x
                     (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 },
                     (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 8, .lenBytes = 10 },
-                    (Node){ .tp = nodBinding, .payload2 = 2, .startByte = 8, .lenBytes = 6 },
-                    (Node){ .tp = nodId, .payload1 = 1, .payload2 = 0, .startByte = 17, .lenBytes = 1 }
+                    (Node){ .tp = nodBinding, .payload1 = countOperators + 1, .startByte = 8, .lenBytes = 6 }, // second
+                    (Node){ .tp = nodId, .payload1 = countOperators, .payload2 = 0, .startByte = 17, .lenBytes = 1 }
             }),
             ((Int[]) {}), 
             ((Binding[]) {})
@@ -246,7 +246,6 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
 
 
 ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
-    print("expression tests");
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function call"), 
@@ -283,16 +282,16 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
             s("Nested function call 2"), 
             s("x = 10,foo (,barr 3)"),
             (((Node[]) {
-                    (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 19 },                    
+                    (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 20 },                    
                     (Node){ .tp = nodBinding, .payload1 = countOperators + 2, .startByte = 0, .lenBytes = 1 }, // x
-                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 15 },
+                    (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 16 },
                     (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 }, 
                                        
                     (Node){ .tp = nodExpr,  .payload2 = 2, .startByte = 12, .lenBytes = 7 },
                     (Node){ .tp = nodInt,   .payload2 = 3, .startByte = 18, .lenBytes = 1 },
-                    (Node){ .tp = nodFunc, .payload1 = 31, .startByte = 12, .lenBytes = 5 },                    
+                    (Node){ .tp = nodFunc, .payload1 = 31, .payload2 = 1, .startByte = 12, .lenBytes = 5 },                    
                     
-                    (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
+                    (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 2, .startByte = 6, .lenBytes = 4 }
             })),
             ((Int[]) {1, 2}), 
             ((Binding[]) {(Binding){.flavor = bndCallable, .typeId = 0 }, (Binding){.flavor = bndCallable, .typeId = 0 }})
@@ -796,7 +795,7 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     
-    //runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
+    runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
     runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
 
 

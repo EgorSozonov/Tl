@@ -14,7 +14,7 @@ DEFINE_STACK(ParseFrame)
 
 #define push(A, X) _Generic((X), \
     StackParseFrame*: pushParseFrame \
-    )(A, X)
+    )((A), X)
     
 #define hasValues(X) _Generic((X), \
     StackParseFrame*: hasValuesParseFrame \
@@ -44,6 +44,7 @@ struct ScopeStack {
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
     ScopeStackFrame* topScope;
+    Int length;
     int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
 };
 
@@ -146,6 +147,8 @@ void pushScope(ScopeStack* scopeStack) {
         .isSubexpr = false,
         .bindings = (int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
     scopeStack->topScope = newScope;
+    
+    scopeStack->length++;
 }
 
 /** Allocates a new subexpression.
@@ -179,6 +182,8 @@ void pushSubexpr(ScopeStack* scopeStack) {
         .fnCalls = (FunctionCall*)((int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
     };
     scopeStack->topScope = newScope;
+    
+    scopeStack->length++;
 }
 
 
@@ -252,4 +257,5 @@ void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {
             } while (ch != NULL);
         }                
     }   
+    scopeStack->length--;
 }

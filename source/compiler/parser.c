@@ -57,6 +57,14 @@ void addNode(Node n, Parser* pr) {
     }
 }
 
+/**
+ * Finds the top-level punctuation opener by its index, and sets its node length.
+ * Called when the parsing of a span is finished.
+ */
+private void setSpanLength(Int nodeInd, Parser* pr) {
+    pr->nodes[nodeInd].payload2 = pr->nextInd - nodeInd - 1;
+}
+
 
 private void parseVerbatim(Token tok, Parser* pr) {
     addNode((Node){.tp = tok.tp, .startByte = tok.startByte, .lenBytes = tok.lenBytes, 
@@ -70,9 +78,10 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Parser* pr) {
 
 private void popFrame(Parser* pr) {    
     ParseFrame frame = pop(pr->backtrack);
-    if (frame.tp == nodScope) {
+    if (frame.tp == nodScope || frame.tp == nodExpr) {
         popScopeFrame(pr->activeBindings, pr->scopeStack);    
     }
+    setSpanLength(frame.startNodeInd, pr);
 }
 
 
@@ -136,17 +145,20 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
  */
 private void exprSubexpr(Int lenTokens, Arr(Token) tokens, Parser* pr) {
     exprIncrementArity(pr->scopeStack->topScope, pr);
+    Token initTok = tokens[pr->i];
     pr->i++; // CONSUME the parens token      
     Token firstTok = tokens[pr->i];    
     
     if (lenTokens == 1) {
         exprSingleItem(tokens[pr->i], pr);
-        pr->i++;
+        pr->i++; // CONSUME the single item within parens
     } else {        
+        push(((ParseFrame){.tp = nodExpr, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + lenTokens }), 
+             pr->backtrack);        
         pushSubexpr(pr->scopeStack);
+        addNode((Node){ .tp = nodExpr, .startByte = initTok.startByte, .lenBytes = initTok.lenBytes }, pr);
     }
 }
-
 
 /**
  * Flushes the finished subexpr frames from the top of the funcall stack.
@@ -156,21 +168,21 @@ private void exprSubexpr(Int lenTokens, Arr(Token) tokens, Parser* pr) {
  */
 private void subexprClose(Arr(Token) tokens, Parser* pr) {    
     ScopeStack* scStack = pr->scopeStack;
-    while (scStack->topScope->length > 0) {
+    while (scStack->length > 0) {
         ScopeStackFrame currSubexpr = *scStack->topScope;
-        ParseFrame pFrame = peek(pr->backtrack);
-        
+        ParseFrame pFrame = peek(pr->backtrack);               
+
         
         if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
             return;
         } else if (currSubexpr.length == 0) {
             throwExc(errorExpressionFunctionless);
-        }            
+        }
                 
         for (int m = currSubexpr.length - 1; m > -1; m--) {
             appendFnNode(currSubexpr.fnCalls[m], tokens, pr);
         }
-        popScopeFrame(pr->activeBindings, pr->scopeStack);
+        popFrame(pr);        
 
         // flush parent's prefix opers, if any, because this subexp was their operand
         if (scStack->topScope->isSubexpr) {
@@ -273,20 +285,16 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
     addNode((Node){ .tp = nodExpr, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);    
         
     push(newParseFrame, pr->backtrack);
-    pushSubexpr(pr->scopeStack);        
-    
+    pushSubexpr(pr->scopeStack);
+        
     while (pr->i < newParseFrame.sentinelToken) {
         subexprClose(tokens, pr);
         Token currTok = tokens[pr->i];
         untt tokType = currTok.tp;
         
         ScopeStackFrame* topSubexpr = pr->scopeStack->topScope;
-        if (tokType == tokParens) {
-            Int newSubExprLen = tokens[pr->i].payload2;
-      
-            
-            exprSubexpr(newSubExprLen, tokens, pr);
-            continue;
+        if (tokType == tokParens) {                
+            exprSubexpr(tokens[pr->i].payload2, tokens, pr);
         } else if (tokType >= firstPunctuationTokenType) {
             throwExc(errorExpressionCannotContain);
         } else if (tokType <= topVerbatimTokenVariant) {
@@ -319,14 +327,6 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 /**
- * Finds the top-level punctuation opener by its index, and sets its node length.
- * Called when the parsing of a span is finished.
- */
-private void setSpanLength(Int nodeInd, Parser* pr) {
-    pr->nodes[nodeInd].payload2 = pr->nextInd - nodeInd - 1;
-}
-
-/**
  * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
  * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
  * in which case this function handles all the corresponding stack poppin'.
@@ -342,7 +342,6 @@ private void maybeCloseSpans(Parser* pr) {
             throwExc(errorInconsistentSpan);
         }
         popFrame(pr);
-        setSpanLength(frame.startNodeInd, pr);
     }
 }
 
