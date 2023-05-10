@@ -30,6 +30,7 @@ const char errorIncorrectPrefixSequence[]     = "A prefix atom-expression must l
 const char errorOperatorUsedInappropriately[] = "Operator used in an inappropriate location!";
 const char errorAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
 const char errorAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
+const char errorReturn[]                      = "Cannot parse return statement, it must look like `return ` {expression}";
 const char errorScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
 const char errorLoopBreakOutside[]            = "The break keyword can only be used outside a loop scope!";
 

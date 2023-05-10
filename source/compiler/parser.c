@@ -540,7 +540,30 @@ private void parsePackage(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
+    Int lenTokens = tok.payload2;
+    Int sentinelToken = pr->i + lenTokens;        
+    
+    push(((ParseFrame){ .tp = nodReturn, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }), 
+            pr->backtrack);
+    
+    addNode((Node){.tp = nodReturn, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    
+    Token rightSideToken = tokens[pr->i];
+    if (rightSideToken.tp == tokScope) {
+        print("scope %d", rightSideToken.tp);
+        //openScope(pr);
+    } else {        
+        if (lenTokens == 1) {
+            if (!parseLiteralOrIdentifier(rightSideToken, pr)) {               
+                throwExc(errorReturn);
+            }
+        } else {
+            parseExpr((Token){ .payload2 = lenTokens, .startByte = rightSideToken.startByte, 
+                               .lenBytes = tok.lenBytes - rightSideToken.startByte + tok.startByte
+                       }, 
+                       tokens, pr);
+        }
+    }
 }
 
 
@@ -715,7 +738,7 @@ private void parseToplevelTypes(Lexer* lr, Parser* pr) {
 
 /** Parses top-level constants but not functions, and adds their bindings to the scope */
 private void parseToplevelConstants(Lexer* lx, Parser* pr) {
-    lx->i = 0;
+    pr->i = 0;
     const Int len = lx->totalTokens;
     while (pr->i < len) {
         Token tok = lx->tokens[pr->i];
@@ -728,10 +751,28 @@ private void parseToplevelConstants(Lexer* lx, Parser* pr) {
 }
 
 /** Parses top-level function names and adds their bindings to the scope */
-private void parseToplevelFunctionNames(Lexer* lr, Parser* pr) {
+private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
+    pr->i = 0;
+    const Int len = lx->totalTokens;
+    while (pr->i < len) {
+        Token tok = lx->tokens[pr->i];
+        if (tok.tp == tokFnDef) {
+            Int lenTokens = tok.payload2;
+            if (lenTokens < 2) {
+                throwExc(errorFnNameAndParams);
+            }
+            Token fnName = lx->tokens[pr->i + 1];
+            if (fnName.tp != tokWord || fnName.payload1 > 0) { // function name must be a lowercase word
+                throwExc(errorFnNameAndParams);
+            }
+            Int newBinding = createBinding((Binding){ .flavor = bndCallable }, pr);
+            pr->activeBindings[fnName.payload2] = newBinding;
+        } 
+        pr->i += (tok.payload2 + 1);        
+    } 
 }
 
-/** Parses top-level function bodies */
+/** Parses top-level function params and bodies */
 private void parseFunctionBodies(Lexer* lr, Parser* pr) {
     //~ if (setjmp(excBuf) == 0) {
         //~ while (pr->i < lr->totalTokens) {

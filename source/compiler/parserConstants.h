@@ -30,6 +30,7 @@ extern const char errorIncorrectPrefixSequence[];
 extern const char errorOperatorUsedInappropriately[];
 extern const char errorAssignment[];
 extern const char errorAssignmentShadowing[];
+extern const char errorReturn[];
 extern const char errorScope[];
 extern const char errorLoopBreakOutside[];
 extern const char errorTemp[];
@@ -98,4 +99,5 @@ extern const char errorTemp[];
 
 #define bndMut          0
 #define bndImmut        1
-#define bndCallable     2
+#define bndCallable     2       // functions
+#define bndType         3       // types
