@@ -23,6 +23,12 @@ typedef struct {
     ParserTest* tests;
 } ParserTestSet;
 
+typedef struct {
+    Arr(byte) name;
+    Int nameLength;
+    Binding binding;
+} BindingImport;
+
 /** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
@@ -83,7 +89,7 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
  *  the init parser will parse the tokens and then will be compared to the expected output parser.
  */
 private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int countNodes,  
-                              Arr(Int) stringIds, Arr(Binding) bindings, Int countBindings, 
+                              Arr(BindingImport) bindings, Int countBindings, 
                               LanguageDefinition* langDef, Arena* a) {
     Lexer* lx = lexicallyAnalyze(input, langDef, a);    
     Parser* initParser = createParser(lx, a);
@@ -92,12 +98,17 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
         return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
     }
     for (int i = 0; i < countBindings; i++) {
-        Int newBindingId = createBinding(bindings[i], expectedParser);
-        createBinding(bindings[i], initParser);
-    
-        expectedParser->activeBindings[stringIds[i]] = newBindingId;
-        initParser->activeBindings[stringIds[i]] = newBindingId;
+        Int mbStringId = getStringStore(input->content, bindings[i].name, bindings[i].nameLength, 
+            initParser->stringTable, initParser->stringStore);
+        if (mbStringId > -1) {
+            Int newBindingId = createBinding(bindings[i].binding, expectedParser);
+            createBinding(bindings[i].binding, initParser);
+            expectedParser->activeBindings[mbStringId] = newBindingId;
+            initParser->activeBindings[mbStringId] = newBindingId;
+        }
     }
+    
+    //getStringStore(byte* text, byte* textToSearch, Int lenBytes, Stackint32_t* stringTable, StringStore* hm)
     
     for (Int i = 0; i < countNodes; i++) {
         addNode(nodes[i], expectedParser);
@@ -202,14 +213,13 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
         createTest(
             s("Simple assignment"), 
-            s("x = 12"),
+            s("x = 12"),            
             ((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
                     (Node){ .tp = nodBinding, .payload1 = countOperators, .startByte = 0, .lenBytes = 1 }, // x
                     (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 }
             }),
-            ((Int[]) {}), 
-            ((Binding[]) {})
+            ((BindingImport[]) {})
         ),
         createTest(
             s("Double assignment"), 
@@ -224,8 +234,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodBinding, .payload1 = countOperators + 1, .startByte = 8, .lenBytes = 6 }, // second
                     (Node){ .tp = nodId, .payload1 = countOperators, .payload2 = 0, .startByte = 17, .lenBytes = 1 }
             }),
-            ((Int[]) {}), 
-            ((Binding[]) {})
+            ((BindingImport[]) {})
         )//,
         //~ createTestWithError(
             //~ s("Assignment shadowing error"), 
@@ -260,8 +269,9 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 13, .lenBytes = 1 },
                     (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
             })),
-            ((Int[]) {1}), 
-            ((Binding[]) {(Binding){.flavor = 0, .typeId = 0, }})
+            ((BindingImport[]) {(BindingImport){ .name = "foo", .nameLength = 3, 
+                                                 .binding = (Binding){.flavor = bndCallable }
+            }})
         ),      
         createTest(
             s("Nested function call 1"), 
@@ -275,8 +285,12 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 18, .lenBytes = 1 },
                     (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
             })),
-            ((Int[]) {1, 2}), 
-            ((Binding[]) {(Binding){.flavor = bndCallable, .typeId = 0 }, (Binding){.flavor = bndCallable, .typeId = 0 }})
+            ((BindingImport[]) {(BindingImport){ .name = "foo", .nameLength = 3, 
+                                     .binding = (Binding){.flavor = bndCallable }},
+                                (BindingImport){ .name = "bar", .nameLength = 3, 
+                                     .binding = (Binding){.flavor = bndCallable }}
+            })
+
         ),
         createTest(
             s("Nested function call 2"), 
@@ -293,8 +307,11 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     
                     (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 2, .startByte = 6, .lenBytes = 4 }
             })),
-            ((Int[]) {1, 2}), 
-            ((Binding[]) {(Binding){.flavor = bndCallable, .typeId = 0 }, (Binding){.flavor = bndCallable, .typeId = 0 }})
+            ((BindingImport[]) {(BindingImport){ .name = "foo", .nameLength = 3, 
+                                     .binding = (Binding){.flavor = bndCallable }},
+                                (BindingImport){ .name = "barr", .nameLength = 4, 
+                                     .binding = (Binding){.flavor = bndCallable }}
+            })
         )   
     }));
 }

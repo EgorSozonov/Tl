@@ -91,10 +91,11 @@ struct Parser {
     StackParseFrame* backtrack;    
     ScopeStack* scopeStack;
     Int i;                      // index of current token in the input
-    
-    Arr(Int) stringTable;
+       
+    StringStore* stringStore;   // hash map of all unique string identifiers encountered within the input text
+    Arr(Int) stringTable;       // table of all unique string identifiers; points into stringStore
     Int strLength;
-    
+        
     Arr(Binding) bindings;      // growing array of tokens ever encountered
     Int bindNext;
     Int bindCap;

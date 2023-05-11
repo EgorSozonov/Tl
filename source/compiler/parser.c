@@ -714,6 +714,7 @@ Parser* createParser(Lexer* lx, Arena* a) {
     (*result) = (Parser) {.text = lx->inp, .inp = lx, .parDef = buildParserDefinitions(lx->langDef, a),
         .scopeStack = createScopeStack(),
         .backtrack = createStackParseFrame(16, aBt), .i = 0,
+        .stringStore = lx->stringStore,
         .stringTable = (Arr(Int))lx->stringTable->content, .strLength = stringTableLength,
         .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 0, .bindCap = 64, // 0th binding is reserved
         .activeBindings = allocateOnArena(sizeof(Int)*stringTableLength, a),

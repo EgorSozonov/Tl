@@ -21,26 +21,6 @@ DEFINE_STACK(int32_t)
     )(X)   
 
 
-typedef struct {
-    Int length;
-    Int indString; // index inside the stringTable
-} StringValue;
-
-
-struct Bucket {
-    untt capAndLen;
-    StringValue content[];
-};
-
-
-struct StringStore {
-    Arr(Bucket*) dict;
-    int dictSize;
-    int length;    
-    Arena* a;
-};
-
-
 StringStore* createStringStore(int initSize, Arena* a) {
     StringStore* result = allocateOnArena(sizeof(StringStore), a);
     int realInitSize = (initSize >= initBucketSize && initSize < 2048) ? initSize : (initSize >= initBucketSize ? 2048 : initBucketSize);
@@ -127,4 +107,25 @@ Int addStringStore(byte* text, Int startByte, Int lenBytes, Stackint32_t* string
         addValueToBucket((hm->dict + hash), startByte, lenBytes, newIndString, hm->a);
     }
     return newIndString;
+}
+
+/** Returns the index of a string within the string table, or -1 if it's not present */
+Int getStringStore(byte* text, byte* textToSearch, Int lenBytes, Stackint32_t* stringTable, StringStore* hm) {
+    Int hash = hashCode(text, lenBytes) % (hm->dictSize);
+    Int newIndString;
+    if (*(hm->dict + hash) == NULL) {
+        return -1;
+    } else {
+        Bucket* p = *(hm->dict + hash);
+        int lenBucket = (p->capAndLen & 0xFFFF);
+        Arr(StringValue) stringValues = (StringValue*)p->content;
+        for (int i = 0; i < lenBucket; i++) {
+            if (stringValues[i].length == lenBytes 
+                && memcmp(textToSearch, text + (*stringTable->content)[stringValues[i].indString], lenBytes) == 0) {
+                return stringValues[i].indString;
+            }
+        }
+        
+        return -1;
+    }
 }

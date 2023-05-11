@@ -71,15 +71,26 @@ typedef struct Lexer Lexer;
 typedef void (*LexerFunc)(Lexer*, Arr(byte)); // LexerFunc = &(Lexer* => void)
 typedef Int (*ReservedProbe)(int, int, struct Lexer*);
 
-
-typedef struct Bucket Bucket;
-typedef struct StringStore StringStore;
-
 /** Reference to first occurrence of a string identifier within input text */
 typedef struct {
-    Int startByte;
     Int length;
-} StringRef;
+    Int indString;
+} StringValue;
+
+
+typedef struct {
+    untt capAndLen;
+    StringValue content[];
+} Bucket;
+
+
+typedef struct {
+    Arr(Bucket*) dict;
+    int dictSize;
+    int length;    
+    Arena* a;
+} StringStore;
+
 
 struct Lexer {
     Int i;                     // index in the input text
@@ -106,7 +117,7 @@ struct Lexer {
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
     Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
-    StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points in to stringTable    
+    StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points into stringTable    
     
     bool wasError;
     String* errMsg;
@@ -121,6 +132,10 @@ struct LanguageDefinition {
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     Int (*reservedParensOrNot)[countCoreForms];
 };
+
+
+
+Int getStringStore(byte* text, byte* textToSearch, Int lenBytes, Stackint32_t* stringTable, StringStore* hm);
 
 Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 void add(Token t, Lexer* lexer);
