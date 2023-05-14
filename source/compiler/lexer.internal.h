@@ -110,8 +110,9 @@ Int addStringStore(byte* text, Int startByte, Int lenBytes, Stackint32_t* string
 }
 
 /** Returns the index of a string within the string table, or -1 if it's not present */
-Int getStringStore(byte* text, byte* textToSearch, Int lenBytes, Stackint32_t* stringTable, StringStore* hm) {
-    Int hash = hashCode(text, lenBytes) % (hm->dictSize);
+Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, StringStore* hm) {
+    Int lenBytes = strToSearch->length;
+    Int hash = hashCode(strToSearch->content, lenBytes) % (hm->dictSize);    
     Int newIndString;
     if (*(hm->dict + hash) == NULL) {
         return -1;
@@ -120,8 +121,8 @@ Int getStringStore(byte* text, byte* textToSearch, Int lenBytes, Stackint32_t* s
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == lenBytes 
-                && memcmp(textToSearch, text + (*stringTable->content)[stringValues[i].indString], lenBytes) == 0) {
+            if (stringValues[i].length == lenBytes
+                && memcmp(strToSearch->content, text + (*stringTable->content)[stringValues[i].indString], lenBytes) == 0) {
                 return stringValues[i].indString;
             }
         }

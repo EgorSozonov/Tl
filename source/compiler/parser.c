@@ -128,7 +128,8 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
     fnCall->precedenceArity++;
     if (fnCall->bindingId <= countOperators) {
         OpDef operDefinition = (*pr->parDef->operators)[fnCall->bindingId];
-        if ((fnCall->precedenceArity & LOWER16BITS) > operDefinition.arity) {            
+        if ((fnCall->precedenceArity & LOWER16BITS) > operDefinition.arity) {
+            print("h1");       
             throwExc(errorOperatorWrongArity);
         }
     }
@@ -206,6 +207,7 @@ private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr) {
         // operators
         OpDef operDefinition = (*pr->parDef->operators)[fnCall.bindingId];
         if (operDefinition.arity != arity) {
+            print("h2 fnCall.bindingId %d", fnCall.bindingId);
             throwExc(errorOperatorWrongArity);
         }   
     }
@@ -305,7 +307,7 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
         } else {            
             if (tokType == tokWord) {
                 Int mbBindingId = pr->activeBindings[currTok.payload2];
-                if (mbBindingId < 0) {
+                if (mbBindingId < 0) {                    
                     throwExc(errorUnknownBinding);
                 }
                 addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
@@ -368,7 +370,7 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
 private void parseIdent(Token tok, Parser* pr) {
     Int nameId = tok.payload2;
     Int mbBinding = pr->activeBindings[nameId];
-    if (mbBinding == 0) {
+    if (mbBinding == -1) {
         throwExc(errorUnknownBinding);
     }
     addNode((Node){.tp = nodId, .payload1 = mbBinding, .payload2 = nameId,
@@ -637,40 +639,40 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countNonresumableFo
         p[i] = &parseErrorBareAtom;
         i++;
     }
-    p[tokScope] = &parseAlias;
-    p[tokStmt] = &parseExpr;
-    p[tokParens] = &parseErrorBareAtom;
-    p[tokBrackets] = &parseErrorBareAtom;
-    p[tokAccessor] = &parseErrorBareAtom;
-    p[tokFuncExpr] = &parseFuncExpr;
+    p[tokScope]      = &parseAlias;
+    p[tokStmt]       = &parseExpr;
+    p[tokParens]     = &parseErrorBareAtom;
+    p[tokBrackets]   = &parseErrorBareAtom;
+    p[tokAccessor]   = &parseErrorBareAtom;
+    p[tokFuncExpr]   = &parseFuncExpr;
     p[tokAssignment] = &parseAssignment;
-    p[tokReassign] = &parseReassignment;
-    p[tokMutation] = &parseMutation;
-    p[tokElse] = &parseElse;
-    p[tokSemicolon] = &parseAlias;
+    p[tokReassign]   = &parseReassignment;
+    p[tokMutation]   = &parseMutation;
+    p[tokElse]       = &parseElse;
+    p[tokSemicolon]  = &parseAlias;
     
-    p[tokAlias] = &parseAlias;
-    p[tokAssert] = &parseAssert;
-    p[tokAssertDbg] = &parseAssertDbg;
-    p[tokAwait] = &parseAlias;
-    p[tokBreak] = &parseAlias;
-    p[tokCatch] = &parseAlias;
-    p[tokContinue] = &parseAlias;
-    p[tokDefer] = &parseAlias;
-    p[tokEmbed] = &parseAlias;
-    p[tokExport] = &parseAlias;
+    p[tokAlias]      = &parseAlias;
+    p[tokAssert]     = &parseAssert;
+    p[tokAssertDbg]  = &parseAssertDbg;
+    p[tokAwait]      = &parseAlias;
+    p[tokBreak]      = &parseAlias;
+    p[tokCatch]      = &parseAlias;
+    p[tokContinue]   = &parseAlias;
+    p[tokDefer]      = &parseAlias;
+    p[tokEmbed]      = &parseAlias;
+    p[tokExport]     = &parseAlias;
     p[tokExposePriv] = &parseAlias;
-    p[tokFnDef] = &parseAlias;
-    p[tokIface] = &parseAlias;
-    p[tokLambda] = &parseAlias;
-    p[tokLambda1] = &parseAlias;
-    p[tokLambda2] = &parseAlias;
-    p[tokLambda3] = &parseAlias;
-    p[tokPackage] = &parseAlias;
-    p[tokReturn] = &parseAlias;
-    p[tokStruct] = &parseAlias;
-    p[tokTry] = &parseAlias;
-    p[tokYield] = &parseAlias; 
+    p[tokFnDef]      = &parseAlias;
+    p[tokIface]      = &parseAlias;
+    p[tokLambda]     = &parseAlias;
+    p[tokLambda1]    = &parseAlias;
+    p[tokLambda2]    = &parseAlias;
+    p[tokLambda3]    = &parseAlias;
+    p[tokPackage]    = &parseAlias;
+    p[tokReturn]     = &parseAlias;
+    p[tokStruct]     = &parseAlias;
+    p[tokTry]        = &parseAlias;
+    p[tokYield]      = &parseAlias; 
     return result;
 }
 
@@ -701,6 +703,35 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 }
 
 
+void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) {    
+    for (int i = 0; i < countBindings; i++) {
+        Int mbStringId = getStringStore(pr->text->content, bindings[i].name, pr->stringTable, pr->stringStore);
+        if (mbStringId > -1) {           
+            Int newBindingId = createBinding(bindings[i].binding, pr);            
+            pr->activeBindings[mbStringId] = newBindingId;
+        }
+    }
+}
+
+/* Bindings for the built-in operators, types, functions. */
+// TODO extensible operators
+void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
+    for (int i = 0; i < countOperators; i++) {
+        createBinding((Binding){ .flavor = bndCallable}, pr);
+    }    
+    
+    Arr(BindingImport) builtins = (BindingImport[]) {
+        (BindingImport) { .name = str("Int", pr->a),    .binding = (Binding){ .flavor = bndType} },
+        (BindingImport) { .name = str("Flo", pr->a),    .binding = (Binding){ .flavor = bndType} },
+        (BindingImport) { .name = str("String", pr->a), .binding = (Binding){ .flavor = bndType} },
+        (BindingImport) { .name = str("Bool", pr->a),   .binding = (Binding){ .flavor = bndType} }
+    };
+    importBindings(builtins, sizeof(builtins)/sizeof(BindingImport), pr);
+    
+    print("in a fresh parser, next binding is %d", pr->bindNext);
+}
+
+
 Parser* createParser(Lexer* lx, Arena* a) {
     if (lx->wasError) {
         Parser* result = allocateOnArena(sizeof(Parser), a);
@@ -711,23 +742,22 @@ Parser* createParser(Lexer* lx, Arena* a) {
     Parser* result = allocateOnArena(sizeof(Parser), a);
     Arena* aBt = mkArena();
     Int stringTableLength = lx->stringTable->length;
-    (*result) = (Parser) {.text = lx->inp, .inp = lx, .parDef = buildParserDefinitions(lx->langDef, a),
+    (*result) = (Parser) {
+        .text = lx->inp, .inp = lx, .parDef = buildParserDefinitions(lx->langDef, a),
         .scopeStack = createScopeStack(),
         .backtrack = createStackParseFrame(16, aBt), .i = 0,
         .stringStore = lx->stringStore,
-        .stringTable = (Arr(Int))lx->stringTable->content, .strLength = stringTableLength,
+        .stringTable = lx->stringTable, .strLength = stringTableLength,
         .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 0, .bindCap = 64, // 0th binding is reserved
         .activeBindings = allocateOnArena(sizeof(Int)*stringTableLength, a),
         .nodes = allocateOnArena(sizeof(Node)*64, a), .nextInd = 0, .capacity = 64,
         .wasError = false, .errMsg = &empty, .a = a, .aBt = aBt
-        };
+    };
     if (stringTableLength > 0) {
         memset(result->activeBindings, 0xFF, stringTableLength*sizeof(Int)); // activeBindings is filled with -1
     }
-    // Bindings for the built-in operators. // TODO extensible operators
-    for (int i = 0; i < countOperators; i++) {
-        createBinding((Binding){ .flavor = bndCallable }, result);
-    }
+    
+    insertBuiltinBindings(lx->langDef, result);
 
     return result;    
 }

@@ -135,7 +135,7 @@ struct LanguageDefinition {
 
 
 
-Int getStringStore(byte* text, byte* textToSearch, Int lenBytes, Stackint32_t* stringTable, StringStore* hm);
+Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, StringStore* hm);
 
 Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 void add(Token t, Lexer* lexer);

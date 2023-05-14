@@ -97,6 +97,7 @@ extern const char errorTemp[];
 #define nodMut         49       // 400
 
 
+// Binding flavors
 #define bndMut          0
 #define bndImmut        1
 #define bndCallable     2       // functions

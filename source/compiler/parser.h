@@ -48,6 +48,12 @@ typedef struct {
 } Binding;
 
 
+typedef struct {
+    String* name;
+    Binding binding;
+} BindingImport;
+
+
 typedef void (*ParserFunc)(Token, Arr(Token), Parser*);
 typedef void (*ResumeFunc)(untt, Token, Arr(Token), Parser*);
 
@@ -93,7 +99,7 @@ struct Parser {
     Int i;                      // index of current token in the input
        
     StringStore* stringStore;   // hash map of all unique string identifiers encountered within the input text
-    Arr(Int) stringTable;       // table of all unique string identifiers; points into stringStore
+    Stackint32_t* stringTable;       // table of all unique string identifiers; points into stringStore
     Int strLength;
         
     Arr(Binding) bindings;      // growing array of tokens ever encountered
@@ -115,6 +121,7 @@ struct Parser {
 ParserDefinition* buildParserDefinitions(LanguageDefinition*, Arena*);
 Parser* createParser(Lexer*, Arena*);
 Int createBinding(Binding b, Parser* pr);
+void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr);
 Parser* parse(Lexer*, Arena*);
 Parser* parseWithParser(Lexer*, Parser*, Arena*);
 void addNode(Node t, Parser* lexer);
