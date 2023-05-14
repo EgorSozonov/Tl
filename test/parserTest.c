@@ -34,15 +34,15 @@ const char* nodeNames[] = {
 };
 
 /** A programmatic way of importing bindings into scope, to be used for testing */
-private Parser* insertBindings0(Arr(Int) stringIds, Arr(Binding) bindings, Int len, Parser* pr) {
-    for (int i = 0; i < len; i++) {
-        createBinding(bindings[i], pr);
-        pr->activeBindings[i] = i;
-    }
-    return pr;
-}
+//~ private Parser* insertBindings0(Arr(Int) stringIds, Arr(Binding) bindings, Int len, Parser* pr) {
+    //~ for (int i = 0; i < len; i++) {
+        //~ createBinding(bindings[i], pr);
+        //~ pr->activeBindings[i] = i;
+    //~ }
+    //~ return pr;
+//~ }
 
-#define insertBindings(strs, bindings, pr) insertBindings0(strs, bindings, sizeof(strs)/sizeof(Int), pr)
+//~ #define insertBindings(strs, bindings, pr) insertBindings0(strs, bindings, sizeof(strs)/sizeof(Int), pr)
 
 
 private Parser* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int nextInd, Arr(Node) nodes) {
@@ -94,10 +94,10 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     if (expectedParser->wasError) {
         return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
     }
-    importBindings(bindings, countBindings, initParser);
-    importBindings(bindings, countBindings, expectedParser);
-    
     Int baseBinding = expectedParser->bindNext;
+    importBindings(bindings, countBindings, initParser);
+    importBindings(bindings, countBindings, expectedParser);    
+
     for (Int i = 0; i < countNodes; i++) {
         untt nodeType = nodes[i].tp;
         // All the node types which contain bindingIds
@@ -253,41 +253,41 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
 
 ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
-        //~ createTest(
-            //~ s("Simple function call"), 
-            //~ s("x = 10,foo 2 3"),
-            //~ (((Node[]) {
-                    //~ (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 14 },
-                    //~ // " + 1" because the first binding is taken up by the "imported" function, "foo"
-                    //~ (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 0, .lenBytes = 1 }, // x
-                    //~ (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 10 },
-                    //~ (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },
-                    //~ (Node){ .tp = nodInt, .payload2 = 2,   .startByte = 11, .lenBytes = 1 },
-                    //~ (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 13, .lenBytes = 1 },
-                    //~ (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
-            //~ })),
-            //~ ((BindingImport[]) {(BindingImport){ .name = s("foo"), 
-                                                 //~ .binding = (Binding){.flavor = bndCallable }
-            //~ }})
-        //~ ),      
-        //~ createTest(
-            //~ s("Nested function call 1"), 
-            //~ s("x = 10,foo (,bar) 3"),
-            //~ (((Node[]) {
-                    //~ (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 19 },                    
-                    //~ (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
-                    //~ (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 15 },
-                    //~ (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },                    
-                    //~ (Node){ .tp = nodFunc, .payload1 = 31,    .startByte = 12, .lenBytes = 4 },                    
-                    //~ (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 18, .lenBytes = 1 },
-                    //~ (Node){ .tp = nodFunc, .payload1 = 30, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
-            //~ })),
-            //~ ((BindingImport[]) {(BindingImport){ .name = s("foo"), 
-                                     //~ .binding = (Binding){.flavor = bndCallable }},
-                                //~ (BindingImport){ .name = s("bar"), 
-                                     //~ .binding = (Binding){.flavor = bndCallable }}
-            //~ })
-        //~ ),
+        createTest(
+            s("Simple function call"), 
+            s("x = 10,foo 2 3"),
+            (((Node[]) {
+                    (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 14 },
+                    // " + 1" because the first binding is taken up by the "imported" function, "foo"
+                    (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 0, .lenBytes = 1 }, // x
+                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 10 },
+                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },
+                    (Node){ .tp = nodInt, .payload2 = 2,   .startByte = 11, .lenBytes = 1 },
+                    (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 13, .lenBytes = 1 },
+                    (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
+            })),
+            ((BindingImport[]) {(BindingImport){ .name = s("foo"), 
+                                                 .binding = (Binding){.flavor = bndCallable }
+            }})
+        ),      
+        createTest(
+            s("Nested function call 1"), 
+            s("x = 10,foo (,bar) 3"),
+            (((Node[]) {
+                    (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 19 },                    
+                    (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
+                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 15 },
+                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },                    
+                    (Node){ .tp = nodFunc, .payload1 = 1,    .startByte = 12, .lenBytes = 4 },                    
+                    (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 18, .lenBytes = 1 },
+                    (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
+            })),
+            ((BindingImport[]) {(BindingImport){ .name = s("foo"), 
+                                     .binding = (Binding){.flavor = bndCallable }},
+                                (BindingImport){ .name = s("bar"), 
+                                     .binding = (Binding){.flavor = bndCallable }}
+            })
+        ),
         createTest(
             s("Nested function call 2"), 
             s("x = 10,foo (,barr 3)"),
@@ -637,19 +637,22 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
         //~ }           
     //~ );
 //~ }
-
-//~ ParserTestSet* functionsTest(Arena* a) {
-    //~ return createTestSet(str("Functions test set", a), 5, a,
-        //~ (ParserTest) { 
-            //~ .name = str("Simple function def", a),
-            //~ .input = str("fn newFn Int(x Int y Float)(return x + y)", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
-                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            //~ )
-        //~ },
+    
+ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
+    return createTestSet(s("Functions test set"), a, ((ParserTest[]){
+        createTest(
+            s("Simple function definition"),
+            s("fn newFn Int(x Int y Float)(: a = x )"),
+            ((Node[]) {
+                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
+                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
+                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+            }),
+            ((BindingImport[]) {})
+        )
+        
+        
+        
         //~ (ParserTest) { 
             //~ .name = str("Nested function def", a),
             //~ .input = str("fn foo Int(x Int y Int) {\n"
@@ -704,8 +707,8 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
             //~ )
         //~ } 
-    //~ );
-//~ }
+    }));
+}
 
 
 //~ ParserTestSet* ifTest(Arena* a) {
@@ -806,8 +809,9 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     
-    //runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
-    runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
+    //~ runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
+    //~ runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
+    runATestSet(&functionTests, &countPassed, &countTests, lang, parsDef, a);
 
 
     if (countTests == 0) {

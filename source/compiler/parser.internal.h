@@ -146,8 +146,8 @@ void pushScope(ScopeStack* scopeStack) {
         .thisChunk = scopeStack->currChunk, .thisInd = newInd,
         .isSubexpr = false,
         .bindings = (int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
-    scopeStack->topScope = newScope;
-    
+        
+    scopeStack->topScope = newScope;    
     scopeStack->length++;
 }
 
@@ -181,8 +181,8 @@ void pushSubexpr(ScopeStack* scopeStack) {
         .isSubexpr = true,
         .fnCalls = (FunctionCall*)((int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
     };
-    scopeStack->topScope = newScope;
     
+    scopeStack->topScope = newScope;    
     scopeStack->length++;
 }
 

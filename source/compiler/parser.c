@@ -27,7 +27,8 @@ private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
 private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr);
 
 
-Int createBinding(Binding b, Parser* pr) {
+/** Creates a new binding and adds it to the current scope */
+Int createBinding(Int nameId, Binding b, Parser* pr) {
     pr->bindings[pr->bindNext] = b;
     pr->bindNext++;
     if (pr->bindNext == pr->bindCap) {
@@ -37,7 +38,15 @@ Int createBinding(Binding b, Parser* pr) {
         pr->bindNext++;
         pr->bindCap *= 2;
     }
-    return pr->bindNext - 1;
+    Int newBindingId = pr->bindNext - 1;
+    if (nameId > -1) { // nameId == -1 only for the built-in operators
+        if (pr->scopeStack->length > 0) {
+            addBinding(nameId, newBindingId, pr->activeBindings, pr->scopeStack); // adds it to the ScopeStack
+        }        
+        pr->activeBindings[nameId] = newBindingId; // makes it active
+    }
+    
+    return newBindingId;
 }
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
@@ -172,7 +181,6 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
     while (scStack->length > 0) {
         ScopeStackFrame currSubexpr = *scStack->topScope;
         ParseFrame pFrame = peek(pr->backtrack);               
-
         
         if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
             return;
@@ -406,8 +414,10 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     if (mbBinding > 0) {
         throwExc(errorAssignmentShadowing);
     }
-    Int newBindingId = createBinding((Binding){.flavor = 0, .defStart = pr->i - 1, .defSentinel = sentinelToken}, pr);
-    pr->activeBindings[bindingToken.payload2] = newBindingId;
+    Int newBindingId = createBinding(bindingToken.payload2, 
+                                     (Binding){.flavor = bndImmut, .defStart = pr->i - 1, .defSentinel = sentinelToken}, 
+                                     pr);
+
     
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }), 
             pr->backtrack);
@@ -705,10 +715,9 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 
 void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) {    
     for (int i = 0; i < countBindings; i++) {
-        Int mbStringId = getStringStore(pr->text->content, bindings[i].name, pr->stringTable, pr->stringStore);
-        if (mbStringId > -1) {           
-            Int newBindingId = createBinding(bindings[i].binding, pr);            
-            pr->activeBindings[mbStringId] = newBindingId;
+        Int mbNameId = getStringStore(pr->text->content, bindings[i].name, pr->stringTable, pr->stringStore);
+        if (mbNameId > -1) {           
+            Int newBindingId = createBinding(mbNameId, bindings[i].binding, pr);
         }
     }
 }
@@ -717,7 +726,7 @@ void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) 
 // TODO extensible operators
 void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
     for (int i = 0; i < countOperators; i++) {
-        createBinding((Binding){ .flavor = bndCallable}, pr);
+        createBinding(-1, (Binding){ .flavor = bndCallable}, pr);
     }    
     
     Arr(BindingImport) builtins = (BindingImport[]) {
@@ -727,8 +736,6 @@ void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
         (BindingImport) { .name = str("Bool", pr->a),   .binding = (Binding){ .flavor = bndType} }
     };
     importBindings(builtins, sizeof(builtins)/sizeof(BindingImport), pr);
-    
-    print("in a fresh parser, next binding is %d", pr->bindNext);
 }
 
 
@@ -796,15 +803,89 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
             if (fnName.tp != tokWord || fnName.payload1 > 0) { // function name must be a lowercase word
                 throwExc(errorFnNameAndParams);
             }
-            Int newBinding = createBinding((Binding){ .flavor = bndCallable }, pr);
-            pr->activeBindings[fnName.payload2] = newBinding;
+            Int newBinding = createBinding(fnName.payload2, (Binding){ .flavor = bndCallable }, pr);
         } 
         pr->i += (tok.payload2 + 1);        
     } 
 }
 
+private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
+    pr->i++; // CONSUME the function name token
+    
+    // the function's return type, it's optional
+    Int fnReturnTypeId = 0;
+    if (lx->tokens[pr->i].tp == tokWord) {
+        Token fnReturnType = lx->tokens[pr->i];
+        if (fnReturnType.payload1 > 0) { // function return type must be an uppercase word
+            throwExc(errorFnNameAndParams);
+        } else if (pr->activeBindings[fnReturnType.payload2] == -1) {
+            throwExc(errorUnknownType);
+        }
+        fnReturnTypeId = pr->activeBindings[fnReturnType.payload2];
+        
+        pr->i++; // CONSUME the function return type token
+    }
+    
+    addNode((Node){.tp = nodFnDef, .payload1 = fnReturnTypeId,
+                        .startByte = fnDef.startByte, .lenBytes = fnDef.lenBytes} , pr);                                                      
+                        
+    ParseFrame newParseFrame = (ParseFrame){ .tp = nodFnDef, .startNodeInd = pr->nextInd, 
+        .sentinelToken = pr->i + tok.payload2 };
+    addNode((Node){ .tp = nodExpr, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);                            
+    push(newParseFrame, pr->backtrack);
+    pushScope(pr->scopeStack); // the scope for the function body
+    
+    if (lx->tokens[pr->i].tp != tokParens) {
+        throwExc(errorFnNameAndParams);
+    }
+    
+    Int paramsSentinel = pr->i + lx->tokens[pr->i].payload2 + 1;
+    pr->i++; // CONSUME the parens token for the param list            
+    
+    while (pr->i < paramsSentinel) {
+        Token paramName = lx->tokens[pr->i];
+        if (paramName.tp != tokWord || paramName.payload1 > 0) {
+            throwExc(errorFnNameAndParams);
+        }
+        Int newBindingId = createBinding(paramName.payload, (Binding){.flavor = bndImmut}, pr);
+        Node paramNode = (Node){.tp = nodBinding, .payload1 = newBindingId};
+        pr->i++; // CONSUME a param name
+        
+        if (pr->i == paramsSentinel) {
+            throwExc(errorFnNameAndParams);
+        }
+        
+        Token paramType = lx->tokens[pr->i];
+        pr->i++; // CONSUME a param type
+        
+        addNode(paramNode, pr);
+        
+    }
+}
+
+private void parseFnBody(Lexer* lx, Parser* pr) {
+    
+}
+
 /** Parses top-level function params and bodies */
-private void parseFunctionBodies(Lexer* lr, Parser* pr) {
+private void parseFunctionBodies(Lexer* lx, Parser* pr) {
+    pr->i = 0;
+    const Int len = lx->totalTokens;
+    while (pr->i < len) {
+        Token tok = lx->tokens[pr->i];
+        if (tok.tp == tokFnDef) {
+            Int lenTokens = tok.payload2;
+            Int sentinelToken = pr->i + lenTokens + 1;
+            if (lenTokens < 2) {
+                throwExc(errorFnNameAndParams);
+            }
+            pr->i++; // CONSUME the function def token
+            
+            parseFnSignature(tok, lx, pr);
+            parseFnBody(lx, pr);            
+        } 
+        pr->i += (tok.payload2 + 1);        
+    } 
     //~ if (setjmp(excBuf) == 0) {
         //~ while (pr->i < lr->totalTokens) {
             //~ currTok = (*lr->tokens)[i].tp;

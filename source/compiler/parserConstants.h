@@ -74,7 +74,7 @@ extern const char errorTemp[];
 #define nodEmbed       28       // noParen. Embed a text file as a string literal, or a binary resource file // 200
 #define nodExport      29       // paren     // 600
 #define nodExposePriv  30       // paren     // 600
-#define nodFnDef       31       // specialCase // 400
+#define nodFnDef       31       // payload1 = index of binding
 #define nodIface       32       // 400
 #define nodLambda      33       // 500
 #define nodLambda1     34       // 500

@@ -120,7 +120,7 @@ struct Parser {
 
 ParserDefinition* buildParserDefinitions(LanguageDefinition*, Arena*);
 Parser* createParser(Lexer*, Arena*);
-Int createBinding(Binding b, Parser* pr);
+Int createBinding(Int nameId, Binding b, Parser* pr);
 void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr);
 Parser* parse(Lexer*, Arena*);
 Parser* parseWithParser(Lexer*, Parser*, Arena*);
