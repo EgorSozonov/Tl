@@ -713,7 +713,7 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 }
 
 
-void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) {    
+void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) {   
     for (int i = 0; i < countBindings; i++) {
         Int mbNameId = getStringStore(pr->text->content, bindings[i].name, pr->stringTable, pr->stringStore);
         if (mbNameId > -1) {           
@@ -729,9 +729,9 @@ void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
         createBinding(-1, (Binding){ .flavor = bndCallable}, pr);
     }    
     
-    Arr(BindingImport) builtins = (BindingImport[]) {
+    BindingImport builtins[4] =  {
         (BindingImport) { .name = str("Int", pr->a),    .binding = (Binding){ .flavor = bndType} },
-        (BindingImport) { .name = str("Flo", pr->a),    .binding = (Binding){ .flavor = bndType} },
+        (BindingImport) { .name = str("Float", pr->a),    .binding = (Binding){ .flavor = bndType} },
         (BindingImport) { .name = str("String", pr->a), .binding = (Binding){ .flavor = bndType} },
         (BindingImport) { .name = str("Bool", pr->a),   .binding = (Binding){ .flavor = bndType} }
     };
@@ -810,13 +810,17 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
 }
 
 private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
+    ParseFrame newParseFrame = (ParseFrame){ .tp = nodFnDef, .startNodeInd = pr->nextInd, 
+        .sentinelToken = pr->i + fnDef.payload2 };
+    Token fnName = lx->tokens[pr->i];
     pr->i++; // CONSUME the function name token
     
     // the function's return type, it's optional
     Int fnReturnTypeId = 0;
     if (lx->tokens[pr->i].tp == tokWord) {
         Token fnReturnType = lx->tokens[pr->i];
-        if (fnReturnType.payload1 > 0) { // function return type must be an uppercase word
+        print("here p1 %d fnReturnType.p2 %d", fnReturnType.payload1, fnReturnType.payload2);
+        if (fnReturnType.payload1 == 0) { // function return type must be an uppercase word
             throwExc(errorFnNameAndParams);
         } else if (pr->activeBindings[fnReturnType.payload2] == -1) {
             throwExc(errorUnknownType);
@@ -826,12 +830,11 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
         pr->i++; // CONSUME the function return type token
     }
     
-    addNode((Node){.tp = nodFnDef, .payload1 = fnReturnTypeId,
-                        .startByte = fnDef.startByte, .lenBytes = fnDef.lenBytes} , pr);                                                      
-                        
-    ParseFrame newParseFrame = (ParseFrame){ .tp = nodFnDef, .startNodeInd = pr->nextInd, 
-        .sentinelToken = pr->i + tok.payload2 };
-    addNode((Node){ .tp = nodExpr, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);                            
+    addNode((Node){.tp = nodFnDef, .payload1 = pr->activeBindings[fnName.payload2],
+                        .startByte = fnDef.startByte, .lenBytes = fnDef.lenBytes} , pr);
+    addNode((Node){ .tp = nodBinding, .payload1 = pr->activeBindings[fnName.payload2], 
+            .startByte = fnName.startByte, .lenBytes = fnName.lenBytes}, pr);
+                             
     push(newParseFrame, pr->backtrack);
     pushScope(pr->scopeStack); // the scope for the function body
     
@@ -847,7 +850,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
         if (paramName.tp != tokWord || paramName.payload1 > 0) {
             throwExc(errorFnNameAndParams);
         }
-        Int newBindingId = createBinding(paramName.payload, (Binding){.flavor = bndImmut}, pr);
+        Int newBindingId = createBinding(paramName.payload2, (Binding){.flavor = bndImmut}, pr);
         Node paramNode = (Node){.tp = nodBinding, .payload1 = newBindingId};
         pr->i++; // CONSUME a param name
         

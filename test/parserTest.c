@@ -28,10 +28,12 @@ const char* nodeNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
     "id", "func", "binding", "type", "@annot", "and", "or", 
     "(:)", "expr", "accessor", "assign", "reAssign", "mutation", "whereClause",
-    "alias", "assert", "assertDbg", "await", "catch", "continue", "continueIf", "embed", "export",
-    "finally", "fn", "if", "ifEq", "ifPr", "impl", "interface", "lambda", "lam1", "lam2", "lam3", 
-    "loop", "match", "mut", "nodestruct", "return", "returnIf", "struct", "try", "type", "yield"
+    "alias", "assert", "assertDbg", "await", "break", "catch", "continue", "defer", "embed", "export",
+    "exposePriv", "fnDef", "interface", "lambda", "lam1", "lam2", "lam3", "package", "return", "struct",
+    "try", "yield", "if", "ifEq", "ifPr", "ifClause", "impl", "match",
+    "loop", "mut"
 };
+
 
 /** A programmatic way of importing bindings into scope, to be used for testing */
 //~ private Parser* insertBindings0(Arr(Int) stringIds, Arr(Binding) bindings, Int len, Parser* pr) {
@@ -101,7 +103,8 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     for (Int i = 0; i < countNodes; i++) {
         untt nodeType = nodes[i].tp;
         // All the node types which contain bindingIds
-        if (nodeType == nodId || nodeType == nodFunc || nodeType == nodBinding || nodeType == nodBinding) {
+        if (nodeType == nodId || nodeType == nodFunc || nodeType == nodBinding || nodeType == nodBinding
+            || nodeType == nodFnDef) {
             addNode((Node){ .tp = nodeType, .payload1 = nodes[i].payload1 + baseBinding, .payload2 = nodes[i].payload2, 
                             .startByte = nodes[i].startByte, .lenBytes = nodes[i].lenBytes }, 
                     expectedParser);
@@ -644,9 +647,10 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
             s("Simple function definition"),
             s("fn newFn Int(x Int y Float)(: a = x )"),
             ((Node[]) {
-                (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
+                (Node){ .tp = nodFnDef, .payload2 = 3, .startByte = 0, .lenBytes = 37 },
+                (Node){ .tp = nodBinding, .startByte = 3, .lenBytes = 5 },
+                (Node){ .tp = nodBinding, .startByte = 0, .lenBytes = 4 },
+                (Node){ .tp = nodBinding, .startByte = 0, .lenBytes = 4 }
             }),
             ((BindingImport[]) {})
         )
