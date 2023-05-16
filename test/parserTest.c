@@ -95,8 +95,7 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     
     if (expectedParser->wasError) {
         return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
-    }
-    Int baseBinding = expectedParser->bindNext;
+    }    
     importBindings(bindings, countBindings, initParser);
     importBindings(bindings, countBindings, expectedParser);    
 
@@ -105,7 +104,7 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
         // All the node types which contain bindingIds
         if (nodeType == nodId || nodeType == nodFunc || nodeType == nodBinding || nodeType == nodBinding
             || nodeType == nodFnDef) {
-            addNode((Node){ .tp = nodeType, .payload1 = nodes[i].payload1 + baseBinding, .payload2 = nodes[i].payload2, 
+            addNode((Node){ .tp = nodeType, .payload1 = nodes[i].payload1 + countOperators, .payload2 = nodes[i].payload2, 
                             .startByte = nodes[i].startByte, .lenBytes = nodes[i].lenBytes }, 
                     expectedParser);
         } else {
@@ -647,10 +646,14 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
             s("Simple function definition"),
             s("fn newFn Int(x Int y Float)(: a = x )"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .payload2 = 3, .startByte = 0, .lenBytes = 37 },
-                (Node){ .tp = nodBinding, .startByte = 3, .lenBytes = 5 },
-                (Node){ .tp = nodBinding, .startByte = 0, .lenBytes = 4 },
-                (Node){ .tp = nodBinding, .startByte = 0, .lenBytes = 4 }
+                (Node){ .tp = nodFnDef, .payload1 = 0, .payload2 = 7, .startByte = 0, .lenBytes = 37 },
+                (Node){ .tp = nodBinding, .startByte = 3, .lenBytes = 5 }, // newFn
+                (Node){ .tp = nodScope, .payload2 = 5, .startByte = 13, .lenBytes = 23 },
+                (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 13, .lenBytes = 1 }, // param x
+                (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 19, .lenBytes = 1 },  // param y
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 4 },  // param y
+                (Node){ .tp = nodBinding, .payload1 = 4, .startByte = 0, .lenBytes = 4 },  // local a
+                (Node){ .tp = nodId, .payload1 = 3, .startByte = 34, .lenBytes = 1 }  // x                
             }),
             ((BindingImport[]) {})
         )

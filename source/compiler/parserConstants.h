@@ -102,3 +102,13 @@ extern const char errorTemp[];
 #define bndImmut        1
 #define bndCallable     2       // functions
 #define bndType         3       // types
+
+
+
+// Must correspond to the order in insertBuiltinBindings
+#define builtInt        0
+#define builtFloat      1
+#define builtString     2
+#define builtBool       3
+// must be the count of built-in constants above
+#define countBuiltins   4

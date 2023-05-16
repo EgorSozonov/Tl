@@ -417,7 +417,6 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     Int newBindingId = createBinding(bindingToken.payload2, 
                                      (Binding){.flavor = bndImmut, .defStart = pr->i - 1, .defSentinel = sentinelToken}, 
                                      pr);
-
     
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }), 
             pr->backtrack);
@@ -431,7 +430,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     if (rightSideToken.tp == tokScope) {
         print("scope %d", rightSideToken.tp);
         //openScope(pr);
-    } else {        
+    } else {
         if (rightSideLen == 1) {
             if (!parseLiteralOrIdentifier(rightSideToken, pr)) {               
                 throwExc(errorAssignment);
@@ -578,6 +577,9 @@ private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
     }
 }
 
+private void parseScope(Token tok, Arr(Token) tokens, Parser* pr) {
+    throwExc(errorTemp);
+}
 
 private void parseStruct(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
@@ -649,7 +651,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countNonresumableFo
         p[i] = &parseErrorBareAtom;
         i++;
     }
-    p[tokScope]      = &parseAlias;
+    p[tokScope]      = &parseScope;
     p[tokStmt]       = &parseExpr;
     p[tokParens]     = &parseErrorBareAtom;
     p[tokBrackets]   = &parseErrorBareAtom;
@@ -809,9 +811,14 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
     } 
 }
 
+/** 
+ * Parses a top-level function signature.
+ * The result is [FnDef BindingName Scope BindingParam1 BindingParam2 ... ]
+ */
 private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
+    Int fnSentinel = pr->i + fnDef.payload2;
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodFnDef, .startNodeInd = pr->nextInd, 
-        .sentinelToken = pr->i + fnDef.payload2 };
+        .sentinelToken = fnSentinel };
     Token fnName = lx->tokens[pr->i];
     pr->i++; // CONSUME the function name token
     
@@ -819,7 +826,6 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
     Int fnReturnTypeId = 0;
     if (lx->tokens[pr->i].tp == tokWord) {
         Token fnReturnType = lx->tokens[pr->i];
-        print("here p1 %d fnReturnType.p2 %d", fnReturnType.payload1, fnReturnType.payload2);
         if (fnReturnType.payload1 == 0) { // function return type must be an uppercase word
             throwExc(errorFnNameAndParams);
         } else if (pr->activeBindings[fnReturnType.payload2] == -1) {
@@ -834,13 +840,16 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
                         .startByte = fnDef.startByte, .lenBytes = fnDef.lenBytes} , pr);
     addNode((Node){ .tp = nodBinding, .payload1 = pr->activeBindings[fnName.payload2], 
             .startByte = fnName.startByte, .lenBytes = fnName.lenBytes}, pr);
-                             
-    push(newParseFrame, pr->backtrack);
-    pushScope(pr->scopeStack); // the scope for the function body
     
     if (lx->tokens[pr->i].tp != tokParens) {
         throwExc(errorFnNameAndParams);
     }
+                             
+    push(newParseFrame, pr->backtrack);
+    pushScope(pr->scopeStack); // the scope for the function body
+    
+    addNode((Node){ .tp = nodScope, .startByte = lx->tokens[pr->i].startByte }, pr);   
+    
     
     Int paramsSentinel = pr->i + lx->tokens[pr->i].payload2 + 1;
     pr->i++; // CONSUME the parens token for the param list            
@@ -851,7 +860,8 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
             throwExc(errorFnNameAndParams);
         }
         Int newBindingId = createBinding(paramName.payload2, (Binding){.flavor = bndImmut}, pr);
-        Node paramNode = (Node){.tp = nodBinding, .payload1 = newBindingId};
+        Node paramNode = (Node){.tp = nodBinding, .payload1 = newBindingId, 
+                                .startByte = paramName.startByte, .lenBytes = paramName.lenBytes };
         pr->i++; // CONSUME a param name
         
         if (pr->i == paramsSentinel) {
@@ -859,19 +869,48 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
         }
         
         Token paramType = lx->tokens[pr->i];
-        pr->i++; // CONSUME a param type
+        if (paramType.payload1 < 1) {
+            throwExc(errorFnNameAndParams);
+        }
+        Int typeBindingId = pr->activeBindings[paramType.payload2]; // the binding of this parameter's type
+        if (typeBindingId < 0) {
+            throwExc(errorUnknownType);
+        }
+        pr->bindings[newBindingId].typeId = typeBindingId;
+        pr->i++; // CONSUME the param's type name
         
-        addNode(paramNode, pr);
-        
+        addNode(paramNode, pr);        
     }
+    if (pr->i >= fnSentinel || lx->tokens[pr->i].tp != tokScope) {
+        throwExc(errorFnMissingBody);
+    }
+    pr->i++; // CONSUME the scope token of the function body
+    
 }
 
-private void parseFnBody(Lexer* lx, Parser* pr) {
-    
+private void parseFnBody(Int sentinelToken, Arr(Token) inp, Parser* pr) {    
+    ParserFunc (*dispatch)[countNonresumableForms] = pr->parDef->nonResumableTable;
+    ResumeFunc (*dispatchResumable)[countResumableForms] = pr->parDef->resumableTable;
+    if (setjmp(excBuf) == 0) {
+        while (pr->i < sentinelToken) {
+            Token currTok = inp[pr->i];
+            Int contextTokTp = peek(pr->backtrack).tp;
+            print("currTok.tp %d contextTokTp %d", currTok.tp, contextTokTp);
+            if (contextTokTp >= firstResumableForm) {      
+                ((*dispatchResumable)[contextTokTp - firstResumableForm])(contextTokTp, currTok, inp, pr);
+            } else {
+                ((*dispatch)[currTok.tp])(currTok, inp, pr);
+            }
+            maybeCloseSpans(pr);
+        }
+        //finalize(result);
+    }
 }
 
 /** Parses top-level function params and bodies */
 private void parseFunctionBodies(Lexer* lx, Parser* pr) {
+
+    
     pr->i = 0;
     const Int len = lx->totalTokens;
     while (pr->i < len) {
@@ -885,7 +924,8 @@ private void parseFunctionBodies(Lexer* lx, Parser* pr) {
             pr->i++; // CONSUME the function def token
             
             parseFnSignature(tok, lx, pr);
-            parseFnBody(lx, pr);            
+            parseUpTo(sentinelToken, lx->tokens, pr);
+            //parseFnBody(sentinelToken, lx->tokens, pr);            
         } 
         pr->i += (tok.payload2 + 1);        
     } 
