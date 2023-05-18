@@ -22,6 +22,8 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 
 #define throwExc(msg) throwExc0(msg, pr)
 
+#define VALIDATE(cond, errMsg) if (!(cond)) { throwExc0(errMsg, pr); }
+
 // Forward declarations
 private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
 private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr);
@@ -101,9 +103,7 @@ private void exprSingleItem(Token theTok, Parser* pr) {
     if (parseLiteralOrIdentifier(theTok, pr)) {
     } else if (theTok.tp == tokFuncWord) {
         Int mbBinding = pr->activeBindings[theTok.payload2];
-        if (mbBinding < 0) {
-            throwExc(errorUnknownFunction);
-        }
+        VALIDATE(mbBinding > -1, errorUnknownFunction)
         addNode((Node){.tp = nodFunc, .payload1 = mbBinding, .payload2 = 0,
                        .startByte = theTok.startByte, .lenBytes = theTok.lenBytes}, pr);        
     } else if (theTok.tp >= firstCoreFormTokenType) {
@@ -127,8 +127,7 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
         return;
     }
     FunctionCall* fnCall = topSubexpr->fnCalls + n;
-    
-    
+        
     // The first bindings are always for the operators, and they have known arities, so no need to increment
     if (fnCall->bindingId < countOperators) {
         return;
@@ -137,10 +136,7 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
     fnCall->precedenceArity++;
     if (fnCall->bindingId <= countOperators) {
         OpDef operDefinition = (*pr->parDef->operators)[fnCall->bindingId];
-        if ((fnCall->precedenceArity & LOWER16BITS) > operDefinition.arity) {
-            print("h1");       
-            throwExc(errorOperatorWrongArity);
-        }
+        VALIDATE((fnCall->precedenceArity & LOWER16BITS) <= operDefinition.arity, errorOperatorWrongArity)
     }
 }
 
@@ -184,9 +180,7 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
         
         if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
             return;
-        } else if (currSubexpr.length == 0) {
-            throwExc(errorExpressionFunctionless);
-        }
+        } else VALIDATE(currSubexpr.length > 0, errorExpressionFunctionless)
                 
         for (int m = currSubexpr.length - 1; m > -1; m--) {
             appendFnNode(currSubexpr.fnCalls[m], tokens, pr);
@@ -214,10 +208,7 @@ private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr) {
     if (fnCall.bindingId < countOperators) {
         // operators
         OpDef operDefinition = (*pr->parDef->operators)[fnCall.bindingId];
-        if (operDefinition.arity != arity) {
-            print("h2 fnCall.bindingId %d", fnCall.bindingId);
-            throwExc(errorOperatorWrongArity);
-        }   
+        VALIDATE(operDefinition.arity == arity, errorOperatorWrongArity)
     }
     Token tok = tokens[fnCall.tokId];       
     addNode((Node){.tp = nodFunc, .payload1 = fnCall.bindingId, .payload2 = arity,
@@ -232,8 +223,7 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
     if (topSubexpr->length == 0) return;
 
     Int i = topSubexpr->length - 1;
-    while (i > -1 && topSubexpr->fnCalls[i].precedenceArity >> 16 == prefixPrec) {
-        
+    while (i > -1 && topSubexpr->fnCalls[i].precedenceArity >> 16 == prefixPrec) {        
         appendFnNode(topSubexpr->fnCalls[i], tokens, pr);
         i--;
     }
@@ -250,22 +240,20 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
 private void exprFnCall(Int bindingId, Token tok, ScopeStackFrame* topSubexpr, 
                         Arr(Token) tokens, Parser* pr) {
     Int n = topSubexpr->length - 1;
+    Int precedence = (bindingId < countOperators) ? (*pr->parDef->operators)[bindingId].precedence : functionPrec;
     while (n > 0) {
         FunctionCall fnCall = topSubexpr->fnCalls[n];
-        Int precedence = fnCall.precedenceArity >> 16;
-        if (precedence >= precedence) {
+        Int precedenceFromStack = fnCall.precedenceArity >> 16;
+        if (precedenceFromStack < precedence) {
             break;
-        } else if (precedence == prefixPrec) {
-            throwExc(errorOperatorUsedInappropriately);
-        }
+        } else VALIDATE(precedenceFromStack != prefixPrec, errorOperatorUsedInappropriately)
+        
         Token origTok = tokens[fnCall.tokId];
         addNode((Node){ .tp = nodFunc, .payload1 = fnCall.bindingId, .payload2 = fnCall.precedenceArity & LOWER16BITS,
                         .startByte = origTok.startByte, .lenBytes = origTok.lenBytes }, pr);
         n--;
     }
-    topSubexpr->length = n + 1;
-       
-    Int precedence = (bindingId < countOperators) ? (*pr->parDef->operators)[bindingId].precedence : functionPrec;
+    topSubexpr->length = n + 1;           
     
     ParseFrame currFrame = peek(pr->backtrack);
     // Since function calls are infix, we need to check if the present subexpression has had its first operand already)
@@ -305,9 +293,8 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
         ScopeStackFrame* topSubexpr = pr->scopeStack->topScope;
         if (tokType == tokParens) {                
             exprSubexpr(tokens[pr->i].payload2, tokens, pr);
-        } else if (tokType >= firstPunctuationTokenType) {
-            throwExc(errorExpressionCannotContain);
-        } else if (tokType <= topVerbatimTokenVariant) {
+        } else VALIDATE(tokType < firstPunctuationTokenType, errorExpressionCannotContain)
+        else if (tokType <= topVerbatimTokenVariant) {
             addNode((Node){ .tp = currTok.tp, .payload1 = currTok.payload1, .payload2 = currTok.payload2,
                             .startByte = currTok.startByte, .lenBytes = currTok.lenBytes }, pr);
             exprOperand(topSubexpr, tokens, pr);
@@ -323,9 +310,7 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
                 exprOperand(topSubexpr, tokens, pr);
             } else if (tokType == tokFuncWord) {
                 Int mbBindingId = pr->activeBindings[currTok.payload2];
-                if (mbBindingId < 0) {
-                    throwExc(errorUnknownFunction);
-                }
+                VALIDATE(mbBindingId > -1, errorUnknownFunction)                
                 exprFnCall(mbBindingId, tok, topSubexpr, tokens, pr);
             } else if (tokType == tokOperator) {
                 exprOperator(tok, topSubexpr, tokens, pr);
@@ -345,12 +330,10 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
 private void maybeCloseSpans(Parser* pr) {    
     while (hasValues(pr->backtrack)) { // loop over subscopes and expressions inside FunctionDef
         ParseFrame frame = peek(pr->backtrack);
-
         if (pr->i < frame.sentinelToken) {
             return;
-        } else if (pr->i > frame.sentinelToken) {
-            throwExc(errorInconsistentSpan);
-        }
+        } else VALIDATE(pr->i == frame.sentinelToken, errorInconsistentSpan)
+        
         popFrame(pr);
     }
 }
@@ -378,9 +361,7 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
 private void parseIdent(Token tok, Parser* pr) {
     Int nameId = tok.payload2;
     Int mbBinding = pr->activeBindings[nameId];
-    if (mbBinding == -1) {
-        throwExc(errorUnknownBinding);
-    }
+    VALIDATE(mbBinding > -1, errorUnknownBinding)    
     addNode((Node){.tp = nodId, .payload1 = mbBinding, .payload2 = nameId,
                    .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
 }
@@ -404,24 +385,19 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     if (rightSideLen < 1) {
         throwExc(errorAssignment);
     }
-    Int sentinelToken = pr->i + tok.payload2;   
-        
+    Int sentinelToken = pr->i + tok.payload2;
     Token bindingToken = tokens[pr->i];
-    if (bindingToken.tp != tokWord) {
-        throwExc(errorAssignment);
-    }
+    VALIDATE(bindingToken.tp == tokWord, errorAssignment)
     Int mbBinding = pr->activeBindings[bindingToken.payload2];
-    if (mbBinding > 0) {
-        throwExc(errorAssignmentShadowing);
-    }
+    VALIDATE(mbBinding == -1, errorAssignmentShadowing)
     Int newBindingId = createBinding(bindingToken.payload2, 
                                      (Binding){.flavor = bndImmut, .defStart = pr->i - 1, .defSentinel = sentinelToken}, 
                                      pr);
-    
-    push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }), 
-            pr->backtrack);
-    
+                                         
+    push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
+            pr->backtrack);    
     addNode((Node){.tp = nodAssignment, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    
     addNode((Node){.tp = nodBinding, .payload1 = newBindingId, 
             .startByte = bindingToken.startByte, .lenBytes = bindingToken.lenBytes}, pr);
     
@@ -432,7 +408,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
         //openScope(pr);
     } else {
         if (rightSideLen == 1) {
-            if (!parseLiteralOrIdentifier(rightSideToken, pr)) {               
+            if (parseLiteralOrIdentifier(rightSideToken, pr) == false) {
                 throwExc(errorAssignment);
             }
         } else if (rightSideToken.tp == tokOperator) {
@@ -565,7 +541,7 @@ private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
         //openScope(pr);
     } else {        
         if (lenTokens == 1) {
-            if (!parseLiteralOrIdentifier(rightSideToken, pr)) {               
+            if (parseLiteralOrIdentifier(rightSideToken, pr) == false) {               
                 throwExc(errorReturn);
             }
         } else {
@@ -817,6 +793,7 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
  */
 private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
     Int fnSentinel = pr->i + fnDef.payload2;
+    Int byteSentinel = fnDef.startByte + fnDef.lenBytes;
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodFnDef, .startNodeInd = pr->nextInd, 
         .sentinelToken = fnSentinel };
     Token fnName = lx->tokens[pr->i];
@@ -826,64 +803,56 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
     Int fnReturnTypeId = 0;
     if (lx->tokens[pr->i].tp == tokWord) {
         Token fnReturnType = lx->tokens[pr->i];
-        if (fnReturnType.payload1 == 0) { // function return type must be an uppercase word
-            throwExc(errorFnNameAndParams);
-        } else if (pr->activeBindings[fnReturnType.payload2] == -1) {
-            throwExc(errorUnknownType);
-        }
+
+        VALIDATE(fnReturnType.payload1 > 0, errorFnNameAndParams) 
+            else VALIDATE(pr->activeBindings[fnReturnType.payload2] > -1, errorUnknownType)
+        
         fnReturnTypeId = pr->activeBindings[fnReturnType.payload2];
         
         pr->i++; // CONSUME the function return type token
     }
-    
+    // the fnDef scope & node
+    push(newParseFrame, pr->backtrack);
     addNode((Node){.tp = nodFnDef, .payload1 = pr->activeBindings[fnName.payload2],
                         .startByte = fnDef.startByte, .lenBytes = fnDef.lenBytes} , pr);
     addNode((Node){ .tp = nodBinding, .payload1 = pr->activeBindings[fnName.payload2], 
             .startByte = fnName.startByte, .lenBytes = fnName.lenBytes}, pr);
     
-    if (lx->tokens[pr->i].tp != tokParens) {
-        throwExc(errorFnNameAndParams);
-    }
-                             
-    push(newParseFrame, pr->backtrack);
-    pushScope(pr->scopeStack); // the scope for the function body
+    VALIDATE(lx->tokens[pr->i].tp == tokParens, errorFnNameAndParams)
+                                 
+    // the scope for the function body
+    push(((ParseFrame){ .tp = nodScope, .startNodeInd = pr->nextInd, 
+        .sentinelToken = fnSentinel }), pr->backtrack);        
+    pushScope(pr->scopeStack);
+    Token parens = lx->tokens[pr->i];
+    addNode((Node){ .tp = nodScope, 
+                    .startByte = parens.startByte, .lenBytes = byteSentinel - parens.startByte }, pr);           
     
-    addNode((Node){ .tp = nodScope, .startByte = lx->tokens[pr->i].startByte }, pr);   
-    
-    
-    Int paramsSentinel = pr->i + lx->tokens[pr->i].payload2 + 1;
+    Int paramsSentinel = pr->i + parens.payload2 + 1;
     pr->i++; // CONSUME the parens token for the param list            
     
     while (pr->i < paramsSentinel) {
         Token paramName = lx->tokens[pr->i];
-        if (paramName.tp != tokWord || paramName.payload1 > 0) {
-            throwExc(errorFnNameAndParams);
-        }
+        VALIDATE(paramName.tp == tokWord && paramName.payload1 == 0, errorFnNameAndParams)
         Int newBindingId = createBinding(paramName.payload2, (Binding){.flavor = bndImmut}, pr);
         Node paramNode = (Node){.tp = nodBinding, .payload1 = newBindingId, 
                                 .startByte = paramName.startByte, .lenBytes = paramName.lenBytes };
         pr->i++; // CONSUME a param name
         
-        if (pr->i == paramsSentinel) {
-            throwExc(errorFnNameAndParams);
-        }
+        VALIDATE(pr->i < paramsSentinel, errorFnNameAndParams)
         
         Token paramType = lx->tokens[pr->i];
         if (paramType.payload1 < 1) {
             throwExc(errorFnNameAndParams);
         }
         Int typeBindingId = pr->activeBindings[paramType.payload2]; // the binding of this parameter's type
-        if (typeBindingId < 0) {
-            throwExc(errorUnknownType);
-        }
+        VALIDATE(typeBindingId > -1, errorUnknownType)        
         pr->bindings[newBindingId].typeId = typeBindingId;
         pr->i++; // CONSUME the param's type name
         
         addNode(paramNode, pr);        
     }
-    if (pr->i >= fnSentinel || lx->tokens[pr->i].tp != tokScope) {
-        throwExc(errorFnMissingBody);
-    }
+    VALIDATE(pr->i < fnSentinel && lx->tokens[pr->i].tp == tokScope, errorFnMissingBody)
     pr->i++; // CONSUME the scope token of the function body
     
 }
