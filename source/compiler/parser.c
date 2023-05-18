@@ -127,11 +127,6 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
         return;
     }
     FunctionCall* fnCall = topSubexpr->fnCalls + n;
-        
-    // The first bindings are always for the operators, and they have known arities, so no need to increment
-    if (fnCall->bindingId < countOperators) {
-        return;
-    }
 
     fnCall->precedenceArity++;
     if (fnCall->bindingId <= countOperators) {
@@ -205,8 +200,8 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
  */
 private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr) {
     Int arity = fnCall.precedenceArity & LOWER16BITS;
-    if (fnCall.bindingId < countOperators) {
-        // operators
+    // operators
+    if (fnCall.bindingId < countOperators) {        
         OpDef operDefinition = (*pr->parDef->operators)[fnCall.bindingId];
         VALIDATE(operDefinition.arity == arity, errorOperatorWrongArity)
     }
@@ -223,12 +218,13 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
     if (topSubexpr->length == 0) return;
 
     Int i = topSubexpr->length - 1;
-    while (i > -1 && topSubexpr->fnCalls[i].precedenceArity >> 16 == prefixPrec) {        
+    // write all the prefix unaries
+    while (i > -1 && topSubexpr->fnCalls[i].precedenceArity >> 16 == prefixPrec) {
         appendFnNode(topSubexpr->fnCalls[i], tokens, pr);
         i--;
     }
     
-    topSubexpr->length = i + 1;
+    topSubexpr->length = i + 1;    
     exprIncrementArity(topSubexpr, pr);
 }
 
@@ -241,7 +237,7 @@ private void exprFnCall(Int bindingId, Token tok, ScopeStackFrame* topSubexpr,
                         Arr(Token) tokens, Parser* pr) {
     Int n = topSubexpr->length - 1;
     Int precedence = (bindingId < countOperators) ? (*pr->parDef->operators)[bindingId].precedence : functionPrec;
-    while (n > 0) {
+    while (n > -1) {
         FunctionCall fnCall = topSubexpr->fnCalls[n];
         Int precedenceFromStack = fnCall.precedenceArity >> 16;
         if (precedenceFromStack < precedence) {
@@ -311,9 +307,9 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
             } else if (tokType == tokFuncWord) {
                 Int mbBindingId = pr->activeBindings[currTok.payload2];
                 VALIDATE(mbBindingId > -1, errorUnknownFunction)                
-                exprFnCall(mbBindingId, tok, topSubexpr, tokens, pr);
+                exprFnCall(mbBindingId, currTok, topSubexpr, tokens, pr);
             } else if (tokType == tokOperator) {
-                exprOperator(tok, topSubexpr, tokens, pr);
+                exprOperator(currTok, topSubexpr, tokens, pr);
             }
             pr->i++; // CONSUME any leaf token
         }
@@ -344,7 +340,7 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
         Token currTok = tokens[pr->i];
         untt contextType = peek(pr->backtrack).tp;
         pr->i++; // CONSUME any span token
-        if (contextType >= firstResumableForm) {                
+        if (contextType >= firstResumableForm) {
             ((*pr->parDef->resumableTable)[contextType - firstResumableForm])(
                 contextType, currTok, tokens, pr
             );
@@ -390,16 +386,16 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     VALIDATE(bindingToken.tp == tokWord, errorAssignment)
     Int mbBinding = pr->activeBindings[bindingToken.payload2];
     VALIDATE(mbBinding == -1, errorAssignmentShadowing)
-    Int newBindingId = createBinding(bindingToken.payload2, 
-                                     (Binding){.flavor = bndImmut, .defStart = pr->i - 1, .defSentinel = sentinelToken}, 
-                                     pr);
+    Int newBindingId = createBinding(
+     bindingToken.payload2, (Binding){.flavor = bndImmut, .defStart = pr->i - 1, .defSentinel = sentinelToken}, pr
+    );
                                          
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
-            pr->backtrack);    
+     pr->backtrack);    
     addNode((Node){.tp = nodAssignment, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     
     addNode((Node){.tp = nodBinding, .payload1 = newBindingId, 
-            .startByte = bindingToken.startByte, .lenBytes = bindingToken.lenBytes}, pr);
+     .startByte = bindingToken.startByte, .lenBytes = bindingToken.lenBytes}, pr);
     
     pr->i++; // CONSUME the word token before the assignment sign
     Token rightSideToken = tokens[pr->i];
@@ -530,7 +526,7 @@ private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
     Int lenTokens = tok.payload2;
     Int sentinelToken = pr->i + lenTokens;        
     
-    push(((ParseFrame){ .tp = nodReturn, .startNodeInd = pr->i - 1, .sentinelToken = sentinelToken }), 
+    push(((ParseFrame){ .tp = nodReturn, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
             pr->backtrack);
     
     addNode((Node){.tp = nodReturn, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
@@ -657,7 +653,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countNonresumableFo
     p[tokLambda2]    = &parseAlias;
     p[tokLambda3]    = &parseAlias;
     p[tokPackage]    = &parseAlias;
-    p[tokReturn]     = &parseAlias;
+    p[tokReturn]     = &parseReturn;
     p[tokStruct]     = &parseAlias;
     p[tokTry]        = &parseAlias;
     p[tokYield]      = &parseAlias; 
@@ -878,8 +874,6 @@ private void parseFnBody(Int sentinelToken, Arr(Token) inp, Parser* pr) {
 
 /** Parses top-level function params and bodies */
 private void parseFunctionBodies(Lexer* lx, Parser* pr) {
-
-    
     pr->i = 0;
     const Int len = lx->totalTokens;
     while (pr->i < len) {
@@ -895,7 +889,7 @@ private void parseFunctionBodies(Lexer* lx, Parser* pr) {
             parseFnSignature(tok, lx, pr);
             parseUpTo(sentinelToken, lx->tokens, pr);
             //parseFnBody(sentinelToken, lx->tokens, pr);            
-        } 
+        }
         pr->i += (tok.payload2 + 1);        
     } 
     //~ if (setjmp(excBuf) == 0) {
