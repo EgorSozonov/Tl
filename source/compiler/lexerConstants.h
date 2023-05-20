@@ -10,7 +10,6 @@ extern const char errorLengthOverflow[];
 extern const char errorNonAscii[];
 extern const char errorPrematureEndOfInput[];
 extern const char errorUnrecognizedByte[];
-extern const char errorWrongIndentation[];
 extern const char errorWordChunkStart[];
 extern const char errorWordCapitalizationOrder[];
 extern const char errorWordUnderscoresOnlyAtStart[];
@@ -279,6 +278,5 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define aEqual        61
 #define aLT           60
 #define aGT           62
-#define aTab           9
 
 #endif

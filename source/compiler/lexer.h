@@ -23,7 +23,6 @@ typedef struct {
     Int countClauses;
     Int isMultiline;
     bool wasOriginallyColon;
-    Int indentation;  // measured in units of 4 spaces, to which tabs are considered equal
 } RememberedToken;
 
 
@@ -99,7 +98,6 @@ struct Lexer {
     Int inpLength;
     Int totalTokens;
     Int lastClosingPunctInd;   // the index of the last encountered closing punctuation sign, used for statement length
-    Int indentation;           // current indentation level measured in units of 4 spaces, to which tabs are considered equal
     
     LanguageDefinition* langDef;
     
