@@ -301,28 +301,18 @@ private void closeRegularPunctuation(Int closingType, Lexer* lr) {
 }
 
 /** 
- * The dot which is preceded by a space is a statement separator.
+ * The dot which is preceded by a space is a function call.
  * It is allowed only in multiline spans or in single-line spans directly inside multiline ones.
  */
 private void lexDot(Lexer* lr, Arr(byte) inp) {
-    Int multiLineMode = 0;
-    if (!hasValues(lr->backtrack) || peek(lr->backtrack).isMultiline) {
-        // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
-        lr->i++;
-        return;
+    checkPrematureEnd(2, lr);
+    lr->i++; // CONSUME the "."
+    byte nextBt = CURR_BT;
+    if (nextBt == aParenLeft) {
+        // TODO tokFuncExpr
     } else {
-        // We must be in a single-line span which is directly inside a multiline, so we close it
-        // Otherwise, error                
-        Int len = lr->backtrack->length;
-        if (len == 1 || len >= 2 && (*lr->backtrack->content)[len - 2].isMultiline) {
-            RememberedToken top = peek(lr->backtrack);
-            setStmtSpanLength(top.tokenInd, lr);
-            pop(lr->backtrack);
-            lr->i++;
-            return;
-        }
-    }
-    throwExc(errorPunctuationOnlyInMultiline, lr);
+        wordInternal(tokFuncWord, lr, inp);
+    }    
 }
 
 
@@ -801,14 +791,29 @@ private void processAssignment(Int mutType, untt opType, Lexer* lr) {
 
 
 private void lexComma(Lexer* lr, Arr(byte) inp) {       
-    checkPrematureEnd(2, lr);
-    lr->i++; // CONSUME the ","
-    byte nextBt = CURR_BT;
-    if (nextBt == aParenLeft) {
-        // TODO tokFuncExpr
+    //Int multiLineMode = 0;
+    if (!hasValues(lr->backtrack) || peek(lr->backtrack).isMultiline) {
+        // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
+        lr->i++;
+        return;
     } else {
-        wordInternal(tokFuncWord, lr, inp);
-    }    
+        // We must be in a single-line span which is directly inside a multiline, so we close it
+        // Otherwise, error                
+        Int len = lr->backtrack->length;
+        if (len == 1 || len >= 2 && (*lr->backtrack->content)[len - 2].isMultiline) {
+            RememberedToken top = peek(lr->backtrack);
+            setStmtSpanLength(top.tokenInd, lr);
+            pop(lr->backtrack);
+            lr->i++;
+            return;
+        }
+    }
+    throwExc(errorPunctuationOnlyInMultiline, lr);
+
+
+
+
+
 }
 
 /**

@@ -585,9 +585,9 @@ LexerTestSet* punctuationTests(Arena* a) {
         }))}, 
         (LexerTest) { .name = s("Multi-line statement without dots"),
             .input = s("foo bar (\n"
-                       " asdf\n"
-                       " bcj\n"
-                       " )"
+                       "asdf\n"
+                       "bcj\n"
+                       ")"
                       ),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 5, .lenBytes = 23 },
@@ -601,7 +601,7 @@ LexerTestSet* punctuationTests(Arena* a) {
             .input = s("(:\n"
                        "asdf (b [d Ef (y z)] c f[h i])\n"
                        "\n"
-                       ".bcjk (m n)\n"
+                       "bcjk (m n)\n"
                        ")"
             ),
             .expectedOutput = buildLexer(((Token[]){
@@ -627,8 +627,8 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord,   .payload2 = 11, .startByte = 42, .lenBytes = 1 },    // m  
                 (Token){ .tp = tokWord,  .payload2 = 12,  .startByte = 44, .lenBytes = 1 }     // n
         }))},
-        (LexerTest) { .name = s("Colon punctuation 1"),
-            .input = s("Foo : Bar 4"),
+        (LexerTest) { .name = s("Semicolon punctuation 1"),
+            .input = s("Foo ; Bar 4"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 4, .startByte = 0, .lenBytes = 11 },
                 (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 0, .startByte = 0, .lenBytes = 3 },
@@ -636,8 +636,8 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 6, .lenBytes = 3 },
                 (Token){ .tp = tokInt, .payload2 = 4, .startByte = 10, .lenBytes = 1 }
         }))},           
-        (LexerTest) { .name = s("Colon punctuation 2"),
-            .input = s("ab (arr[foo : bar])"),
+        (LexerTest) { .name = s("Semicolon punctuation 2"),
+            .input = s("ab (arr[foo ; bar])"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 7,   .startByte = 0, .lenBytes = 19 },
                 (Token){ .tp = tokWord,  .payload2 = 0,  .startByte = 0, .lenBytes = 2 }, // ab
@@ -648,8 +648,8 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokParens, .payload2 = 1, .startByte = 13, .lenBytes = 4 },
                 (Token){ .tp = tokWord,   .payload2 = 3, .startByte = 14, .lenBytes = 3 }   // bar
         }))},
-        (LexerTest) { .name = s("Dot separator"),
-            .input = s("foo .bar baz"),
+        (LexerTest) { .name = s("Stmt separator"),
+            .input = s("foo, bar baz"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 3 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 3 },
@@ -657,8 +657,8 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 5, .lenBytes = 3 },
                 (Token){ .tp = tokWord, .payload2 = 2, .startByte = 9, .lenBytes = 3 }
         }))},
-        (LexerTest) { .name = s("Dot usage error"),
-            .input = s("foo (bar .baz)"), 
+        (LexerTest) { .name = s("Comma usage error"),
+            .input = s("foo (bar, baz)"), 
             .expectedOutput = buildLexerWithError(s(errorPunctuationOnlyInMultiline), ((Token[]) {
                 (Token){ .tp = tokStmt },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 3 },
@@ -784,20 +784,7 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 6, .lenBytes = 1 },
                 (Token){ .tp = tokOr,                  .startByte = 8, .lenBytes = 2 },
                 (Token){ .tp = tokWord, .payload2 = 2, .startByte = 11, .lenBytes = 1 }
-        }))},
-        (LexerTest) { .name = s("Definition of mutable var"),
-            .input = s("mut x = 10"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokAssignment, .payload1 = 1, .payload2 = 2, .lenBytes = 10 },
-                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 },
-                (Token){ .tp = tokInt, .payload2 = 10, .startByte = 8, .lenBytes = 2 },
-        }))},
-        (LexerTest) { .name = s("Definition of mutable var error"),
-            .input = s("mut x := 10"),
-            .expectedOutput = buildLexerWithError(s(errorOperatorMutableDef), ((Token[]){
-                (Token){ .tp = tokMutTemp },
-                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 }
-        }))}  
+        }))}
     }));
 }
 
@@ -805,7 +792,7 @@ LexerTestSet* operatorTests(Arena* a) {
 LexerTestSet* coreFormTests(Arena* a) {
     return createTestSet(s("Core form lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Statement-type core form"),
-            .input = s("x = 9 .assert (x == 55) \"Error!\""),
+            .input = s("x = 9, assert (x == 55) \"Error!\""),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokAssignment,  .payload2 = 2,             .lenBytes = 5 },
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
