@@ -78,7 +78,6 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon       14 
-#define tokMutTemp     15 // In the final token stream, it's replaced by tokAssignment
 // 100 atom
 // 200 expr
 // 300 stmt with control flow
@@ -114,9 +113,6 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokFnDef       38       // specialCase // 400
 #define tokIface       39       // 400
 #define tokLambda      40       // 500
-#define tokLambda1     41       // 500
-#define tokLambda2     42       // 500
-#define tokLambda3     43       // 500
 #define tokPackage     44       // 500 // for single-file packages
 #define tokReturn      45       // 300
 #define tokStruct      46       // 400
@@ -130,7 +126,6 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokImpl        52       // paren // 400
 #define tokMatch       53       // pattern matching on sum type tag  // 200/500
 #define tokLoop        54       // 
-#define tokMut         55       // 400
 
 #define topVerbatimTokenVariant tokUnderscore
 

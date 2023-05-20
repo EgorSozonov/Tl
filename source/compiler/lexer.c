@@ -185,9 +185,6 @@ private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lr) {
 private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lr) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
-    PROBERESERVED(reservedBytesLambda1, tokLambda1)
-    PROBERESERVED(reservedBytesLambda2, tokLambda2)
-    PROBERESERVED(reservedBytesLambda3, tokLambda3)
     PROBERESERVED(reservedBytesLoop, tokLoop)
     return 0;
 }
@@ -196,7 +193,6 @@ private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lr) {
 private Int determineReservedM(Int startByte, Int lenBytes, Lexer* lr) {
     Int lenReser;
     PROBERESERVED(reservedBytesMatch, tokMatch)
-    PROBERESERVED(reservedBytesMut, tokMut)
     return 0;
 }
 
@@ -593,11 +589,6 @@ private void openPunctuation(untt tType, Lexer* lr) {
  */
 private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lr, Arr(byte) inp) {    
     StackRememberedToken* bt = lr->backtrack;
-    
-    if (reservedWordType == tokMut && (!hasValues(bt) || peek(bt).isMultiline)) {
-        addStatement(tokMutTemp, startByte, lr);
-        return;
-    }
     
     Int expectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
@@ -1083,7 +1074,7 @@ void lexSpace(Lexer* lr, Arr(byte) inp) {
     }
 }
 
-/** Does nothing. Tl is not indentation-sensitive. */
+/** Ends a line-span */
 private void lexNewline(Lexer* lr, Arr(byte) inp) {
     addNewLine(lr->i, lr);
     lr->i++;      // the LF
@@ -1117,12 +1108,12 @@ void lexNonAsciiError(Lexer* lr, Arr(byte) inp) {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "word", ".word", "@word", ",func", "operator", "and", "or", "dispose", ":",  "mutTemp",
+    "word", ".word", "@word", ",func", "operator", "and", "or", "dispose", ":",  
     "(:", ".", "()", "[]", "accessor[]", "funcExpr", "assign", ":=", "mutation", "else", ";",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "embed", "export", "exposePriv", "fn", "interface", 
-    "lambda", "lam1", "lam2", "lam3", "package", "return", "struct", "try", "yield",
-    "if", "ifEq", "ifPr", "impl", "match", "loop", "mut"
+    "lambda", "package", "return", "struct", "try", "yield",
+    "if", "ifEq", "ifPr", "impl", "match", "loop"
 };
 
 
