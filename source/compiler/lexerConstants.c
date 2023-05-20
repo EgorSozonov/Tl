@@ -4,6 +4,7 @@
 const char errorNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";
 const char errorPrematureEndOfInput[]        = "Premature end of input";
 const char errorUnrecognizedByte[]           = "Unrecognized byte in source code!";
+const char errorWrongIndentation[]           = "Wrong indentation";
 const char errorWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
 const char errorWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
 const char errorWordUnderscoresOnlyAtStart[] = "Underscores are only allowed at start of word (snake case is forbidden)!";
