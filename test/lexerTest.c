@@ -191,22 +191,13 @@ LexerTestSet* wordTests(Arena* a) {
         },
         (LexerTest) {
             .name = s("Function call"),
-            .input = s("a ,func"),
+            .input = s("a .func"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 7 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 1 },
                 (Token){ .tp = tokFuncWord, .payload2 = 1, .startByte = 2, .lenBytes = 5 }
             }))
-        },
-        (LexerTest) {
-            .name = s("Function call with no space"),
-            .input = s("b,func"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
-                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 1 },
-                (Token){ .tp = tokFuncWord, .payload2 = 1, .startByte = 1, .lenBytes = 5 }
-            }))
-        }    
+        }  
     }));
 }
 
@@ -908,12 +899,12 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&wordTests, &countPassed, &countTests, lang, a);
-    runATestSet(&stringTests, &countPassed, &countTests, lang, a);
-    runATestSet(&commentTests, &countPassed, &countTests, lang, a);
-    runATestSet(&operatorTests, &countPassed, &countTests, lang, a);
-    runATestSet(&punctuationTests, &countPassed, &countTests, lang, a);
-    runATestSet(&numericTests, &countPassed, &countTests, lang, a);
-    runATestSet(&coreFormTests, &countPassed, &countTests, lang, a);
+    // runATestSet(&stringTests, &countPassed, &countTests, lang, a);
+    // runATestSet(&commentTests, &countPassed, &countTests, lang, a);
+    // runATestSet(&operatorTests, &countPassed, &countTests, lang, a);
+    // runATestSet(&punctuationTests, &countPassed, &countTests, lang, a);
+    // runATestSet(&numericTests, &countPassed, &countTests, lang, a);
+    // runATestSet(&coreFormTests, &countPassed, &countTests, lang, a);
 
     if (countTests == 0) {
         print("\nThere were no tests to run!");

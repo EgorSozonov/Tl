@@ -22,8 +22,6 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 
 #define throwExc(msg) throwExc0(msg, pr)
 
-#define VALIDATE(cond, errMsg) if (!(cond)) { throwExc0(errMsg, pr); }
-
 // Forward declarations
 private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
 private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr);

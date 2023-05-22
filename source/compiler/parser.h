@@ -11,6 +11,7 @@
 #include "../utils/structures/stringMap.h"
 
 extern jmp_buf excBuf;
+#define VALIDATE(cond, errMsg) if (!(cond)) { throwExc0(errMsg, pr); }
 
 typedef struct {
     untt tp : 6;

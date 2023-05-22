@@ -14,8 +14,8 @@
 #include "lexer.internal.h"
 
 
-#define CURR_BT inp[lr->i]
-#define NEXT_BT inp[lr->i + 1]
+#define CURR_BT inp[lx->i]
+#define NEXT_BT inp[lx->i + 1]
     
  
 jmp_buf excBuf;
@@ -45,22 +45,20 @@ private bool isHexDigit(byte a) {
 }
 
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
-_Noreturn private void throwExc(const char errMsg[], Lexer* lr) {   
-    lr->wasError = true;
+_Noreturn private void throwExc(const char errMsg[], Lexer* lx) {   
+    lx->wasError = true;
 #ifdef TRACE    
-    printf("Error on i = %d\n", lr->i);
+    printf("Error on i = %d: %s\n", lx->i, errMsg);
 #endif    
-    lr->errMsg = str(errMsg, lr->arena);
+    lx->errMsg = str(errMsg, lx->arena);
     longjmp(excBuf, 1);
 }
 
 /**
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
-private void checkPrematureEnd(Int requiredSymbols, Lexer* lr) {
-    if (lr->i + requiredSymbols > lr->inpLength) {
-        throwExc(errorPrematureEndOfInput, lr);
-    }
+private void checkPrematureEnd(Int requiredSymbols, Lexer* lx) {
+    VALIDATE (lx->i + requiredSymbols <= lx->inpLength, errorPrematureEndOfInput)
 }
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
@@ -82,12 +80,12 @@ void add(Token t, Lexer* lexer) {
 }
 
 /** For all the dollars at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
-private void closeColons(Lexer* lr) {
-    while (hasValues(lr->backtrack) && peek(lr->backtrack).wasOriginallyColon) {
-        RememberedToken top = pop(lr->backtrack);
+private void closeColons(Lexer* lx) {
+    while (hasValues(lx->backtrack) && peek(lx->backtrack).wasOriginallyColon) {
+        RememberedToken top = pop(lx->backtrack);
         Int j = top.tokenInd;        
-        lr->tokens[j].lenBytes = lr->i - lr->tokens[j].startByte;
-        lr->tokens[j].payload2 = lr->nextInd - j - 1;
+        lx->tokens[j].lenBytes = lx->i - lx->tokens[j].startByte;
+        lx->tokens[j].payload2 = lx->nextInd - j - 1;
     }
 }
 
@@ -95,44 +93,44 @@ private void closeColons(Lexer* lr) {
  * Finds the top-level punctuation opener by its index, and sets its lengths.
  * Called when the matching closer is lexed.
  */
-private void setSpanLength(Int tokenInd, Lexer* lr) {
-    lr->tokens[tokenInd].lenBytes = lr->i - lr->tokens[tokenInd].startByte;
-    lr->tokens[tokenInd].payload2 = lr->nextInd - tokenInd - 1;
+private void setSpanLength(Int tokenInd, Lexer* lx) {
+    lx->tokens[tokenInd].lenBytes = lx->i - lx->tokens[tokenInd].startByte;
+    lx->tokens[tokenInd].payload2 = lx->nextInd - tokenInd - 1;
 }
 
 /**
  * Correctly calculates the lenBytes for a single-line, statement-type span.
  */
-private void setStmtSpanLength(Int topTokenInd, Lexer* lr) {
-    Token lastToken = lr->tokens[lr->nextInd - 1];
+private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
+    Token lastToken = lx->tokens[lx->nextInd - 1];
     Int byteAfterLastToken = lastToken.startByte + lastToken.lenBytes;
 
-    Int byteAfterLastPunct = lr->lastClosingPunctInd + 1;
+    Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
     Int lenBytes = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken) 
-                    - lr->tokens[topTokenInd].startByte;    
+                    - lx->tokens[topTokenInd].startByte;    
 
-    lr->tokens[topTokenInd].lenBytes = lenBytes;
-    lr->tokens[topTokenInd].payload2 = lr->nextInd - topTokenInd - 1;
+    lx->tokens[topTokenInd].lenBytes = lenBytes;
+    lx->tokens[topTokenInd].payload2 = lx->nextInd - topTokenInd - 1;
 }
 
 /**
  * Validation to catch unmatched closing punctuation
  */
-private void validateClosingPunct(untt closingType, untt openType, Lexer* lr) {
+private void validateClosingPunct(untt closingType, untt openType, Lexer* lx) {
     if ((closingType == tokParens && openType == tokBrackets) 
         || (closingType == tokBrackets && openType != tokBrackets && openType != tokAccessor)) {
-            throwExc(errorPunctuationUnmatched, lr);
+            throwExc(errorPunctuationUnmatched, lx);
     }
 }
 
 
 #define PROBERESERVED(reservedBytesName, returnVarName)    \
     lenReser = sizeof(reservedBytesName); \
-    if (lenBytes == lenReser && testByteSequence(lr->inp, startByte, reservedBytesName, lenReser)) \
+    if (lenBytes == lenReser && testByteSequence(lx->inp, startByte, reservedBytesName, lenReser)) \
         return returnVarName;
 
 
-private Int determineReservedA(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedA(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesAlias, tokAlias)
     PROBERESERVED(reservedBytesAnd, tokAnd)
@@ -142,13 +140,13 @@ private Int determineReservedA(Int startByte, Int lenBytes, Lexer* lr) {
     return 0;
 }
 
-private Int determineReservedB(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedB(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesBreak, tokBreak)
     return 0;
 }
 
-private Int determineReservedC(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedC(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesCatch, tokCatch)
     PROBERESERVED(reservedBytesContinue, tokContinue)
@@ -156,14 +154,14 @@ private Int determineReservedC(Int startByte, Int lenBytes, Lexer* lr) {
 }
 
 
-private Int determineReservedE(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedE(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesEmbed, tokEmbed)
     return 0;
 }
 
 
-private Int determineReservedF(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedF(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesFalse, reservedFalse)
     PROBERESERVED(reservedBytesFn, tokFnDef)
@@ -171,7 +169,7 @@ private Int determineReservedF(Int startByte, Int lenBytes, Lexer* lr) {
 }
 
 
-private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesIf, tokIf)
     PROBERESERVED(reservedBytesIfEq, tokIfEq)
@@ -182,7 +180,7 @@ private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lr) {
 }
 
 
-private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
     PROBERESERVED(reservedBytesLoop, tokLoop)
@@ -190,35 +188,35 @@ private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lr) {
 }
 
 
-private Int determineReservedM(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedM(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesMatch, tokMatch)
     return 0;
 }
 
 
-private Int determineReservedO(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedO(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesOr, tokOr)
     return 0;
 }
 
 
-private Int determineReservedR(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedR(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesReturn, tokReturn)
     return 0;
 }
 
 
-private Int determineReservedS(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedS(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesStruct, tokStruct)
     return 0;
 }
 
 
-private Int determineReservedT(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedT(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesTrue, reservedTrue)
     PROBERESERVED(reservedBytesTry, tokTry)
@@ -226,54 +224,54 @@ private Int determineReservedT(Int startByte, Int lenBytes, Lexer* lr) {
 }
 
 
-private Int determineReservedY(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineReservedY(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesYield, tokYield)
     return 0;
 }
 
-private Int determineUnreserved(Int startByte, Int lenBytes, Lexer* lr) {
+private Int determineUnreserved(Int startByte, Int lenBytes, Lexer* lx) {
     return -1;
 }
 
 
-private void addNewLine(Int j, Lexer* lr) {
-    lr->newlines[lr->newlinesNextInd] = j;
-    lr->newlinesNextInd++;
-    if (lr->newlinesNextInd == lr->newlinesCapacity) {
-        Arr(int) newNewlines = allocateOnArena(lr->newlinesCapacity*2*sizeof(int), lr->arena);
-        memcpy(newNewlines, lr->newlines, lr->newlinesCapacity);
-        lr->newlines = newNewlines;
-        lr->newlinesCapacity *= 2;
+private void addNewLine(Int j, Lexer* lx) {
+    lx->newlines[lx->newlinesNextInd] = j;
+    lx->newlinesNextInd++;
+    if (lx->newlinesNextInd == lx->newlinesCapacity) {
+        Arr(int) newNewlines = allocateOnArena(lx->newlinesCapacity*2*sizeof(int), lx->arena);
+        memcpy(newNewlines, lx->newlines, lx->newlinesCapacity);
+        lx->newlines = newNewlines;
+        lx->newlinesCapacity *= 2;
     }
 }
 
-private void addStatement(untt stmtType, Int startByte, Lexer* lr) {
-    push(((RememberedToken){ .tp = stmtType, .tokenInd = lr->nextInd}), lr->backtrack);
-    add((Token){ .tp = stmtType, .startByte = startByte}, lr);
+private void addStatement(untt stmtType, Int startByte, Lexer* lx) {
+    push(((RememberedToken){ .tp = stmtType, .tokenInd = lx->nextInd}), lx->backtrack);
+    add((Token){ .tp = stmtType, .startByte = startByte}, lx);
 }
 
 
-private void wrapInAStatementStarting(Int startByte, Lexer* lr, Arr(byte) inp) {    
-    if (hasValues(lr->backtrack)) {
-        if (peek(lr->backtrack).breakableClass == brScope) {            
-            push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
-            add((Token){ .tp = tokStmt, .startByte = startByte},  lr);
+private void wrapInAStatementStarting(Int startByte, Lexer* lx, Arr(byte) inp) {    
+    if (hasValues(lx->backtrack)) {
+        if (peek(lx->backtrack).breakableClass == brScope) {            
+            push(((RememberedToken){ .tp = tokStmt, .tokenInd = lx->nextInd }), lx->backtrack);
+            add((Token){ .tp = tokStmt, .startByte = startByte},  lx);
         }
     } else {
-        addStatement(tokStmt, startByte, lr);
+        addStatement(tokStmt, startByte, lx);
     }
 }
 
 
-private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
-    if (hasValues(lr->backtrack)) {
-        if (peek(lr->backtrack).breakableClass == brScope) {
-            push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
-            add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
+private void wrapInAStatement(Lexer* lx, Arr(byte) inp) {
+    if (hasValues(lx->backtrack)) {
+        if (peek(lx->backtrack).breakableClass == brScope) {
+            push(((RememberedToken){ .tp = tokStmt, .tokenInd = lx->nextInd }), lx->backtrack);
+            add((Token){ .tp = tokStmt, .startByte = lx->i},  lx);
         }
     } else {
-        addStatement(tokStmt, lr->i, lr);
+        addStatement(tokStmt, lx->i, lx);
     }
 }
 
@@ -282,63 +280,48 @@ private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
  * This doesn't actually add any tokens to the array, just performs validation and sets the token length
  * for the opener token.
  */
-private void closeRegularPunctuation(Int closingType, Lexer* lr) {
-    StackRememberedToken* bt = lr->backtrack;
-    closeColons(lr);
-    if (!hasValues(bt)) {
-        throwExc(errorPunctuationExtraClosing, lr);
-    }
+private void closeRegularPunctuation(Int closingType, Lexer* lx) {
+    StackRememberedToken* bt = lx->backtrack;
+    closeColons(lx);
+    VALIDATE(hasValues(bt), errorPunctuationExtraClosing)
+
     RememberedToken top = pop(bt);
     if (bt->length > 0 && closingType == tokParens 
       && top.breakableClass != brScope && ((*bt->content)[bt->length - 1].breakableClass == brScope)) {
         // since a closing parenthesis might be closing something with statements inside it, like a lex scope
         // or a core syntax form, we need to close the last statement before closing its parent
-        setStmtSpanLength(top.tokenInd, lr);
+        setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
-    validateClosingPunct(closingType, top.tp, lr);
-    setSpanLength(top.tokenInd, lr);
-    lr->i++;
-}
-
-/** 
- * The dot which is preceded by a space is a function call.
- */
-private void lexDot(Lexer* lr, Arr(byte) inp) {
-    checkPrematureEnd(2, lr);
-    lr->i++; // CONSUME the "."
-    byte nextBt = CURR_BT;
-    if (nextBt == aParenLeft) {
-        // TODO tokFuncExpr
-    } else {
-        wordInternal(tokFuncWord, lr, inp);
-    }    
+    validateClosingPunct(closingType, top.tp, lx);
+    setSpanLength(top.tokenInd, lx);
+    lx->i++;
 }
 
 
-private void addNumeric(byte b, Lexer* lr) {
-    if (lr->numericNextInd < lr->numericCapacity) {
-        lr->numeric[lr->numericNextInd] = b;
+private void addNumeric(byte b, Lexer* lx) {
+    if (lx->numericNextInd < lx->numericCapacity) {
+        lx->numeric[lx->numericNextInd] = b;
     } else {
-        Arr(byte) newNumeric = allocateOnArena(lr->numericCapacity*2, lr->arena);
-        memcpy(newNumeric, lr->numeric, lr->numericCapacity);
-        newNumeric[lr->numericCapacity] = b;
+        Arr(byte) newNumeric = allocateOnArena(lx->numericCapacity*2, lx->arena);
+        memcpy(newNumeric, lx->numeric, lx->numericCapacity);
+        newNumeric[lx->numericCapacity] = b;
         
-        lr->numeric = newNumeric;
-        lr->numericCapacity *= 2;       
+        lx->numeric = newNumeric;
+        lx->numericCapacity *= 2;       
     }
-    lr->numericNextInd++;
+    lx->numericNextInd++;
 }
 
 
-private int64_t calcIntegerWithinLimits(Lexer* lr) {
+private int64_t calcIntegerWithinLimits(Lexer* lx) {
     int64_t powerOfTen = (int64_t)1;
     int64_t result = 0;
-    Int j = lr->numericNextInd - 1;
+    Int j = lx->numericNextInd - 1;
 
     Int loopLimit = -1;
     while (j > loopLimit) {
-        result += powerOfTen*lr->numeric[j];
+        result += powerOfTen*lx->numeric[j];
         powerOfTen *= 10;
         j--;
     }
@@ -348,32 +331,32 @@ private int64_t calcIntegerWithinLimits(Lexer* lr) {
 /**
  * Checks if the current numeric <= b if they are regarded as arrays of decimal digits (0 to 9).
  */
-private bool integerWithinDigits(const byte* b, Int bLength, Lexer* lr){
-    if (lr->numericNextInd != bLength) return (lr->numericNextInd < bLength);
-    for (Int j = 0; j < lr->numericNextInd; j++) {
-        if (lr->numeric[j] < b[j]) return true;
-        if (lr->numeric[j] > b[j]) return false;
+private bool integerWithinDigits(const byte* b, Int bLength, Lexer* lx){
+    if (lx->numericNextInd != bLength) return (lx->numericNextInd < bLength);
+    for (Int j = 0; j < lx->numericNextInd; j++) {
+        if (lx->numeric[j] < b[j]) return true;
+        if (lx->numeric[j] > b[j]) return false;
     }
     return true;
 }
 
 
-private Int calcInteger(int64_t* result, Lexer* lr) {
-    if (lr->numericNextInd > 19 || !integerWithinDigits(maxInt, sizeof(maxInt), lr)) return -1;
-    *result = calcIntegerWithinLimits(lr);
+private Int calcInteger(int64_t* result, Lexer* lx) {
+    if (lx->numericNextInd > 19 || !integerWithinDigits(maxInt, sizeof(maxInt), lx)) return -1;
+    *result = calcIntegerWithinLimits(lx);
     return 0;
 }
 
 
-private int64_t calcHexNumber(Lexer* lr) {
+private int64_t calcHexNumber(Lexer* lx) {
     int64_t result = 0;
     int64_t powerOfSixteen = 1;
-    Int j = lr->numericNextInd - 1;
+    Int j = lx->numericNextInd - 1;
 
     // If the literal is full 16 bits long, then its upper sign contains the sign bit
     Int loopLimit = -1; //if (byteBuf.ind == 16) { 0 } else { -1 }
     while (j > loopLimit) {
-        result += powerOfSixteen*lr->numeric[j];
+        result += powerOfSixteen*lx->numeric[j];
         powerOfSixteen = powerOfSixteen << 4;
         j--;
     }
@@ -387,33 +370,31 @@ private int64_t calcHexNumber(Lexer* lr) {
  * Checks that the input fits into a signed 64-bit fixnum.
  * TODO add floating-pointt literals like 0x12FA.
  */
-private void hexNumber(Lexer* lr, Arr(byte) inp) {
-    checkPrematureEnd(2, lr);
-    lr->numericNextInd = 0;
-    Int j = lr->i + 2;
-    while (j < lr->inpLength) {
+private void hexNumber(Lexer* lx, Arr(byte) inp) {
+    checkPrematureEnd(2, lx);
+    lx->numericNextInd = 0;
+    Int j = lx->i + 2;
+    while (j < lx->inpLength) {
         byte cByte = inp[j];
         if (isDigit(cByte)) {
-            addNumeric(cByte - aDigit0, lr);
+            addNumeric(cByte - aDigit0, lx);
         } else if ((cByte >= aALower && cByte <= aFLower)) {
-            addNumeric(cByte - aALower + 10, lr);
+            addNumeric(cByte - aALower + 10, lx);
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
-            addNumeric(cByte - aAUpper + 10, lr);
-        } else if (cByte == aUnderscore && (j == lr->inpLength - 1 || isHexDigit(inp[j + 1]))) {            
-            throwExc(errorNumericEndUnderscore, lr);            
+            addNumeric(cByte - aAUpper + 10, lx);
+        } else if (cByte == aUnderscore && (j == lx->inpLength - 1 || isHexDigit(inp[j + 1]))) {            
+            throwExc(errorNumericEndUnderscore, lx);            
         } else {
             break;
         }
-        if (lr->numericNextInd > 16) {
-            throwExc(errorNumericBinWidthExceeded, lr);
-        }
+        VALIDATE(lx->numericNextInd <= 16, errorNumericBinWidthExceeded)
         j++;
     }
-    int64_t resultValue = calcHexNumber(lr);
+    int64_t resultValue = calcHexNumber(lx);
     add((Token){ .tp = tokInt, .payload1 = resultValue >> 32, .payload2 = resultValue & LOWER32BITS, 
-                .startByte = lr->i, .lenBytes = j - lr->i }, lr);
-    lr->numericNextInd = 0;
-    lr->i = j;
+                .startByte = lx->i, .lenBytes = j - lx->i }, lx);
+    lx->numericNextInd = 0;
+    lx->i = j;
 }
 
 /**
@@ -428,10 +409,10 @@ private void hexNumber(Lexer* lr, Arr(byte) inp) {
  * Example, for input text '1.23' this function would get the args: ([1 2 3] 1)
  * Output: a 64-bit floating-pointt number, encoded as a long (same bits)
  */
-private Int calcFloating(double* result, Int powerOfTen, Lexer* lr, Arr(byte) inp){
-    Int indTrailingZeroes = lr->numericNextInd - 1;
-    Int ind = lr->numericNextInd;
-    while (indTrailingZeroes > -1 && lr->numeric[indTrailingZeroes] == 0) { 
+private Int calcFloating(double* result, Int powerOfTen, Lexer* lx, Arr(byte) inp){
+    Int indTrailingZeroes = lx->numericNextInd - 1;
+    Int ind = lx->numericNextInd;
+    while (indTrailingZeroes > -1 && lx->numeric[indTrailingZeroes] == 0) { 
         indTrailingZeroes--;
     }
 
@@ -454,14 +435,14 @@ private Int calcFloating(double* result, Int powerOfTen, Lexer* lr, Arr(byte) in
              (ind - significandNeeds == 16 && significandNeeds < significantCan && significandNeeds + 1 <= exponentCanAccept) ? 
                 (significandNeeds + 1) : significandNeeds
         ) : exponentNeeds;
-    lr->numericNextInd -= transfer;
+    lx->numericNextInd -= transfer;
     Int finalPowerTen = powerOfTen + transfer;
 
-    if (!integerWithinDigits(maximumPreciselyRepresentedFloatingInt, sizeof(maximumPreciselyRepresentedFloatingInt), lr)) {
+    if (!integerWithinDigits(maximumPreciselyRepresentedFloatingInt, sizeof(maximumPreciselyRepresentedFloatingInt), lx)) {
         return -1;
     }
 
-    int64_t significandInt = calcIntegerWithinLimits(lr);
+    int64_t significandInt = calcIntegerWithinLimits(lx);
     double significand = (double)significandInt; // precise
     double exponent = pow(10.0, (double)(abs(finalPowerTen)));
 
@@ -478,31 +459,27 @@ int64_t longOfDoubleBits(double d) {
  * Lexes a decimal numeric literal (integer or floating-point).
  * TODO: add support for the '1.23E4' format
  */
-private void decNumber(bool isNegative, Lexer* lr, Arr(byte) inp) {
-    Int j = (isNegative) ? (lr->i + 1) : lr->i;
+private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
+    Int j = (isNegative) ? (lx->i + 1) : lx->i;
     Int digitsAfterDot = 0; // this is relative to first digit, so it includes the leading zeroes
     bool metDot = false;
     bool metNonzero = false;
-    Int maximumInd = (lr->i + 40 > lr->inpLength) ? (lr->i + 40) : lr->inpLength;
+    Int maximumInd = (lx->i + 40 > lx->inpLength) ? (lx->i + 40) : lx->inpLength;
     while (j < maximumInd) {
         byte cByte = inp[j];
 
         if (isDigit(cByte)) {
             if (metNonzero) {
-                addNumeric(cByte - aDigit0, lr);
+                addNumeric(cByte - aDigit0, lx);
             } else if (cByte != aDigit0) {
                 metNonzero = true;
-                addNumeric(cByte - aDigit0, lr);
+                addNumeric(cByte - aDigit0, lx);
             }
             if (metDot) digitsAfterDot++;
         } else if (cByte == aUnderscore) {
-            if (j == (lr->inpLength - 1) || !isDigit(inp[j + 1])) {
-                throwExc(errorNumericEndUnderscore, lr);
-            }
+            VALIDATE(j != (lx->inpLength - 1) && isDigit(inp[j + 1]), errorNumericEndUnderscore)
         } else if (cByte == aDot) {
-            if (metDot) {
-                throwExc(errorNumericMultipleDots, lr);
-            }
+            VALIDATE(!metDot, errorNumericMultipleDots)
             metDot = true;
         } else {
             break;
@@ -510,49 +487,44 @@ private void decNumber(bool isNegative, Lexer* lr, Arr(byte) inp) {
         j++;
     }
 
-    if (j < lr->inpLength && isDigit(inp[j])) {
-        throwExc(errorNumericWidthExceeded, lr);
-    }
+    VALIDATE(j >= lx->inpLength || !isDigit(inp[j]), errorNumericWidthExceeded)
 
     if (metDot) {
         double resultValue = 0;
-        Int errorCode = calcFloating(&resultValue, -digitsAfterDot, lr, inp);
-        if (errorCode != 0) {
-            throwExc(errorNumericFloatWidthExceeded, lr);
-        }
+        Int errorCode = calcFloating(&resultValue, -digitsAfterDot, lx, inp);
+        VALIDATE(errorCode == 0, errorNumericFloatWidthExceeded)
 
         int64_t bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
         add((Token){ .tp = tokFloat, .payload1 = (bitsOfFloat >> 32), .payload2 = (bitsOfFloat & LOWER32BITS),
-                    .startByte = lr->i, .lenBytes = j - lr->i}, lr);
+                    .startByte = lx->i, .lenBytes = j - lx->i}, lx);
     } else {
         int64_t resultValue = 0;
-        Int errorCode = calcInteger(&resultValue, lr);
-        if (errorCode != 0) {
-            throwExc(errorNumericIntWidthExceeded, lr);
-        }
+        Int errorCode = calcInteger(&resultValue, lx);
+        VALIDATE(errorCode == 0, errorNumericIntWidthExceeded)
+
         if (isNegative) resultValue = -resultValue;
         add((Token){ .tp = tokInt, .payload1 = resultValue >> 32, .payload2 = resultValue & LOWER32BITS, 
-                .startByte = lr->i, .lenBytes = j - lr->i }, lr);
+                .startByte = lx->i, .lenBytes = j - lx->i }, lx);
     }
-    lr->i = j;
+    lx->i = j;
 }
 
-private void lexNumber(Lexer* lr, Arr(byte) inp) {
-    wrapInAStatement(lr, inp);
+private void lexNumber(Lexer* lx, Arr(byte) inp) {
+    wrapInAStatement(lx, inp);
     byte cByte = CURR_BT;
-    if (lr->i == lr->inpLength - 1 && isDigit(cByte)) {
-        add((Token){ .tp = tokInt, .payload2 = cByte - aDigit0, .startByte = lr->i, .lenBytes = 1 }, lr);
-        lr->i++;
+    if (lx->i == lx->inpLength - 1 && isDigit(cByte)) {
+        add((Token){ .tp = tokInt, .payload2 = cByte - aDigit0, .startByte = lx->i, .lenBytes = 1 }, lx);
+        lx->i++;
         return;
     }
     
     byte nByte = NEXT_BT;
     if (nByte == aXLower) {
-        hexNumber(lr, inp);
+        hexNumber(lx, inp);
     } else {
-        decNumber(false, lr, inp);
+        decNumber(false, lx, inp);
     }
-    lr->numericNextInd = 0;
+    lx->numericNextInd = 0;
 }
 
 /**
@@ -565,51 +537,45 @@ private void lexNumber(Lexer* lr, Arr(byte) inp) {
  * scope. Thus, for '(asdf)', the opening paren token will have a byte length of 4 and a
  * token length of 1.
  */
-private void openPunctuation(untt tType, Lexer* lr) {
-    lr->i++;
+private void openPunctuation(untt tType, Lexer* lx) {
+    lx->i++;
     push( ((RememberedToken){ 
-        .tp = tType, .tokenInd = lr->nextInd, .breakableClass = (tType == tokScope) ? brScope : brUnbreakable
-    }), lr->backtrack);
-    add((Token) {.tp = tType, .startByte = lr->i }, lr);    
+        .tp = tType, .tokenInd = lx->nextInd, .breakableClass = (tType == tokScope) ? brScope : brUnbreakable
+    }), lx->backtrack);
+    add((Token) {.tp = tType, .startByte = lx->i }, lx);    
 }
 
 /**
  * Lexer action for a reserved word. It mutates the type of current span and.
  * If necessary (parens inside statement) it also deletes last token and removes the top frame
  */
-private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lr, Arr(byte) inp) {    
-    StackRememberedToken* bt = lr->backtrack;
+private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Arr(byte) inp) {    
+    StackRememberedToken* bt = lx->backtrack;
     
-    Int expectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
+    Int expectations = (*lx->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
-        if (!hasValues(bt) || peek(bt).breakableClass == brScope) {
-            addStatement(reservedWordType, startByte, lr);
-        } else {            
-            throwExc(errorCoreNotInsideStmt, lr);
-        }
-    } else if (expectations == 1) { // the "(reserved" case
-        if (!hasValues(bt)) {
-            throwExc(errorCoreMissingParen, lr);
-        }
+        VALIDATE(!hasValues(bt) || peek(bt).breakableClass == brScope, errorCoreNotInsideStmt)
+        addStatement(reservedWordType, startByte, lx);
+    } else if (expectations == 1) { // the "(core" case
+        VALIDATE(hasValues(bt), errorCoreMissingParen)
+        
         RememberedToken top = peek(bt);
-        if (top.tokenInd + 1 != lr->nextInd) { // if this isn't the first token inside the parens
-            throwExc(errorCoreNotAtSpanStart, lr);
-        }
+        VALIDATE(top.tokenInd + 1 != lx->nextInd, errorCoreNotAtSpanStart) // if this isn't the first token inside the parens
         
         if (bt->length > 1 && (*bt->content)[bt->length - 2].tp == tokStmt) {
             // Parens are wrapped in statements because we didn't know that the following token is a reserved word.
             // So when meeting a reserved word at start of parens, we need to delete the paren token & lex frame.
             // The new reserved token type will be written over the tokStmt that precedes the tokParen.
             pop(bt);
-            lr->nextInd--;
+            lx->nextInd--;
             top = peek(bt);
-            lr->tokens[top.tokenInd].startByte = startByte;
+            lx->tokens[top.tokenInd].startByte = startByte;
         }
         
         // update the token type and the corresponding frame type
-        lr->tokens[top.tokenInd].tp = reservedWordType;
+        lx->tokens[top.tokenInd].tp = reservedWordType;
         (*bt->content)[bt->length - 1].tp = reservedWordType;
-        (*bt->content)[bt->length - 1].isMultiline = true; // all parenthetical core forms are considered multiline
+        (*bt->content)[bt->length - 1].breakableClass = brScope; // all parenthetical core forms are considered multiline
     }
 }
 
@@ -618,28 +584,24 @@ private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lr, Ar
  * (or the whole word if there are no dots).
  * Returns True if the lexed chunk was capitalized
  */
-private bool wordChunk(Lexer* lr, Arr(byte) inp) {
+private bool wordChunk(Lexer* lx, Arr(byte) inp) {
     bool result = false;
     if (CURR_BT == aUnderscore) {
-        checkPrematureEnd(2, lr);
-        lr->i++;
+        checkPrematureEnd(2, lx);
+        lx->i++; // CONSUME the underscore
     } else {
-        checkPrematureEnd(1, lr);
+        checkPrematureEnd(1, lx);
     }
 
     if (isCapitalLetter(CURR_BT)) {
         result = true;
-    } else if (!isLowercaseLetter(CURR_BT)) {
-        throwExc(errorWordChunkStart, lr);
-    }
-    lr->i++;
+    } else VALIDATE(isLowercaseLetter(CURR_BT), errorWordChunkStart)
+    lx->i++; // CONSUME the first letter of the word
 
-    while (lr->i < lr->inpLength && isAlphanumeric(CURR_BT)) {
-        lr->i++;
+    while (lx->i < lx->inpLength && isAlphanumeric(CURR_BT)) {
+        lx->i++; // CONSUME alphanumeric characters
     }
-    if (lr->i < lr->inpLength && CURR_BT == aUnderscore) {
-        throwExc(errorWordUnderscoresOnlyAtStart, lr);
-    }
+    VALIDATE(lx->i >= lx->inpLength || CURR_BT != aUnderscore, errorWordUnderscoresOnlyAtStart)
     return result;
 }
 
@@ -649,13 +611,13 @@ private bool wordChunk(Lexer* lr, Arr(byte) inp) {
  * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45
  * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
-private void wordInternal(untt wordType, Lexer* lr, Arr(byte) inp) {
-    Int startByte = lr->i;
+private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
+    Int startByte = lx->i;
 
-    bool wasCapitalized = wordChunk(lr, inp);
+    bool wasCapitalized = wordChunk(lx, inp);
 
     bool isAlsoAccessor = false;
-    while (lr->i < (lr->inpLength - 1)) {
+    while (lx->i < (lx->inpLength - 1)) {
         byte currBt = CURR_BT;
         if (currBt == aBracketLeft) {
             isAlsoAccessor = true; // data accessor like a[5]
@@ -663,11 +625,9 @@ private void wordInternal(untt wordType, Lexer* lr, Arr(byte) inp) {
         } else if (currBt == aDot) {
             byte nextBt = NEXT_BT;
             if (isLetter(nextBt) || nextBt == aUnderscore) {
-                lr->i++;
-                bool isCurrCapitalized = wordChunk(lr, inp);
-                if (wasCapitalized && isCurrCapitalized) {
-                    throwExc(errorWordCapitalizationOrder, lr);
-                }
+                lx->i++; // CONSUME the letter or underscore
+                bool isCurrCapitalized = wordChunk(lx, inp);
+                VALIDATE(!wasCapitalized || !isCurrCapitalized, errorWordCapitalizationOrder)
                 wasCapitalized = isCurrCapitalized;
             } else {
                 break;
@@ -680,94 +640,79 @@ private void wordInternal(untt wordType, Lexer* lr, Arr(byte) inp) {
     Int realStartByte = (wordType == tokWord) ? startByte : (startByte - 1); // accounting for the . or @ at the start
     bool paylCapitalized = wasCapitalized ? 1 : 0;
 
-    byte firstByte = lr->inp->content[startByte];
-    Int lenBytes = lr->i - realStartByte;
-    Int lenString = lr->i - startByte;
-    if (wordType != tokWord && isAlsoAccessor) {
-        throwExc(errorWordWrongAccessor, lr);
-    }
+    byte firstByte = lx->inp->content[startByte];
+    Int lenBytes = lx->i - realStartByte;
+    Int lenString = lx->i - startByte;
+    VALIDATE(wordType == tokWord || !isAlsoAccessor, errorWordWrongAccessor)
         
     if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
-        wrapInAStatementStarting(startByte, lr, inp);
-        Int uniqueStringInd = addStringStore(inp, startByte, lenBytes, lr->stringTable, lr->stringStore);
+        wrapInAStatementStarting(startByte, lx, inp);
+        Int uniqueStringInd = addStringStore(inp, startByte, lenBytes, lx->stringTable, lx->stringStore);
         add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
-                     .startByte=realStartByte, .lenBytes=lenBytes }, lr);
+                     .startByte=realStartByte, .lenBytes=lenBytes }, lx);
         if (isAlsoAccessor) {
-            openPunctuation(tokAccessor, lr);
+            openPunctuation(tokAccessor, lx);
         }
     } else {
-        Int mbReservedWord = (*lr->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lr);
+        Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lx);
         if (mbReservedWord > 0) {
             if (wordType == tokDotWord) {
-                throwExc(errorWordReservedWithDot, lr);
+                throwExc(errorWordReservedWithDot, lx);
             } else if (mbReservedWord < firstCoreFormTokenType) {               
                 if (mbReservedWord == tokAnd) {
-                    add((Token){.tp=tokAnd, .startByte=realStartByte, .lenBytes=3}, lr);
+                    add((Token){.tp=tokAnd, .startByte=realStartByte, .lenBytes=3}, lx);
                 } else if (mbReservedWord == tokOr) {
-                    add((Token){.tp=tokOr, .startByte=realStartByte, .lenBytes=2}, lr);
+                    add((Token){.tp=tokOr, .startByte=realStartByte, .lenBytes=2}, lx);
                 } else if (mbReservedWord == reservedTrue) {
-                    wrapInAStatementStarting(startByte, lr, inp);
-                    add((Token){.tp=tokBool, .payload2=1, .startByte=realStartByte, .lenBytes=lenBytes}, lr);
+                    wrapInAStatementStarting(startByte, lx, inp);
+                    add((Token){.tp=tokBool, .payload2=1, .startByte=realStartByte, .lenBytes=lenBytes}, lx);
                 } else if (mbReservedWord == reservedFalse) {
-                    wrapInAStatementStarting(startByte, lr, inp);
-                    add((Token){.tp=tokBool, .payload2=0, .startByte=realStartByte, .lenBytes=lenBytes}, lr);
+                    wrapInAStatementStarting(startByte, lx, inp);
+                    add((Token){.tp=tokBool, .payload2=0, .startByte=realStartByte, .lenBytes=lenBytes}, lx);
                 } else if (mbReservedWord == tokDispose) {
-                    wrapInAStatementStarting(startByte, lr, inp);
-                    add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lr);
+                    wrapInAStatementStarting(startByte, lx, inp);
+                    add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lx);
                 }
             } else {
-                lexReservedWord(mbReservedWord, realStartByte, lr, inp);
+                lexReservedWord(mbReservedWord, realStartByte, lx, inp);
             }
         } else  {            
-            wrapInAStatementStarting(startByte, lr, inp);
-            Int uniqueStringInd = addStringStore(inp, startByte, lenString, lr->stringTable, lr->stringStore);
+            wrapInAStatementStarting(startByte, lx, inp);
+            Int uniqueStringInd = addStringStore(inp, startByte, lenString, lx->stringTable, lx->stringStore);
             add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
-                         .startByte=realStartByte, .lenBytes=lenBytes }, lr);
+                         .startByte=realStartByte, .lenBytes=lenBytes }, lx);
             if (isAlsoAccessor) {
-                openPunctuation(tokAccessor, lr);
+                openPunctuation(tokAccessor, lx);
             }
         }
     }
 }
 
 
-private void lexWord(Lexer* lr, Arr(byte) inp) {    
-    wordInternal(tokWord, lr, inp);
+private void lexWord(Lexer* lx, Arr(byte) inp) {    
+    wordInternal(tokWord, lx, inp);
 }
 
 
-private void lexAtWord(Lexer* lr, Arr(byte) inp) {
-    wrapInAStatement(lr, inp);
-    checkPrematureEnd(2, lr);
-    lr->i++; // CONSUME the "@" symbol
-    wordInternal(tokAtWord, lr, inp);
+private void lexAtWord(Lexer* lx, Arr(byte) inp) {
+    wrapInAStatement(lx, inp);
+    checkPrematureEnd(2, lx);
+    lx->i++; // CONSUME the "@" symbol
+    wordInternal(tokAtWord, lx, inp);
 }
 
-
-private void setSpanAssignment(Int tokenInd, Int mutType, untt opType, Lexer* lr) {
-    Token* tok = (lr->tokens + tokenInd);
-    untt tp;
-    if (mutType == 0) {
-        if (tok->tp == tokMutTemp) {
-            tok->payload1 = 1;
-        }
-        tok->tp = tokAssignment;        
-
-        (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
-            .tp = tokAssignment, .tokenInd = tokenInd
-        };  
-    } else if (mutType == 1) {
-        tok->tp = tokReassign;
-        (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
-            .tp = tokReassign, .tokenInd = tokenInd
-        };
+/** 
+ * The dot which is preceded by a space is a function call.
+ */
+private void lexDot(Lexer* lx, Arr(byte) inp) {
+    checkPrematureEnd(2, lx);
+    lx->i++; // CONSUME the "."
+    byte nextBt = CURR_BT;
+    if (nextBt == aParenLeft) {
+        // TODO tokFuncExpr
     } else {
-        tok->tp = tokMutation;
-        tok->payload1 = (mutType == 3 ? 1 : 0)  + (opType << 1);
-        (*lr->backtrack->content)[lr->backtrack->length - 1] = (RememberedToken){
-            .tp = tokMutation, .tokenInd = tokenInd
-        }; 
-    }
+        wordInternal(tokFuncWord, lx, inp);
+    }    
 }
 
 /**
@@ -776,101 +721,104 @@ private void setSpanAssignment(Int tokenInd, Int mutType, untt opType, Lexer* lr
  * mutType = 0 if it's immutable assignment, 1 if it's ":=", 2 if it's a regular operator mut ("+="),
  * 3 if it's an extended operator mut ("+.=")
  */
-private void processAssignment(Int mutType, untt opType, Lexer* lr) {
-    RememberedToken currSpan = peek(lr->backtrack);
+private void processAssignment(Int mutType, untt opType, Lexer* lx) {
+    RememberedToken currSpan = peek(lx->backtrack);
 
     if (currSpan.tp == tokAssignment || currSpan.tp == tokReassign || currSpan.tp == tokMutation) {
-        throwExc(errorOperatorMultipleAssignment, lr);
-    } else if (currSpan.tp == tokMutTemp) { // the "mut x = ..." definition
-        if (mutType != 0) throwExc(errorOperatorMutableDef, lr);    
+        throwExc(errorOperatorMultipleAssignment, lx);
     } else if (currSpan.tp != tokStmt) {
-        throwExc(errorOperatorAssignmentPunct, lr);
-    }
-    setSpanAssignment(currSpan.tokenInd, mutType, opType, lr);    
+        throwExc(errorOperatorAssignmentPunct, lx);
+    } 
+    Int tokenInd = lx->nextInd - 1;
+    Token* tok = (lx->tokens + tokenInd);
+    untt tp;
+    if (mutType == 0) {
+        tok->tp = tokAssignment;        
+
+        (*lx->backtrack->content)[lx->backtrack->length - 1] = (RememberedToken){
+            .tp = tokAssignment, .tokenInd = tokenInd
+        };  
+    } else if (mutType == 1) {
+        tok->tp = tokReassign;
+        (*lx->backtrack->content)[lx->backtrack->length - 1] = (RememberedToken){
+            .tp = tokReassign, .tokenInd = tokenInd
+        };
+    } else {
+        tok->tp = tokMutation;
+        tok->payload1 = (mutType == 3 ? 1 : 0)  + (opType << 1);
+        (*lx->backtrack->content)[lx->backtrack->length - 1] = (RememberedToken){
+            .tp = tokMutation, .tokenInd = tokenInd
+        }; 
+    } 
 }
 
 
-private void lexComma(Lexer* lr, Arr(byte) inp) {       
+private void lexComma(Lexer* lx, Arr(byte) inp) {
     //Int multiLineMode = 0;
-    if (!hasValues(lr->backtrack) || peek(lr->backtrack).isMultiline) {
+    if (!hasValues(lx->backtrack) || peek(lx->backtrack).breakableClass == brScope) {
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
-        lr->i++;
-        return;
+        lx->i++;  // CONSUME the comma
+    } else if (peek(lx->backtrack).breakableClass == brBreakable) {              
+        Int len = lx->backtrack->length;
+        RememberedToken top = peek(lx->backtrack);
+        setStmtSpanLength(top.tokenInd, lx);
+        pop(lx->backtrack);
+        lx->i++; // CONSUME the comma   
     } else {
-        // We must be in a single-line span which is directly inside a multiline, so we close it
-        // Otherwise, error                
-        Int len = lr->backtrack->length;
-        if (len == 1 || len >= 2 && (*lr->backtrack->content)[len - 2].isMultiline) {
-            RememberedToken top = peek(lr->backtrack);
-            setStmtSpanLength(top.tokenInd, lr);
-            pop(lr->backtrack);
-            lr->i++;
-            return;
-        }
-    }
-    throwExc(errorPunctuationOnlyInMultiline, lr);
-
-
-
-
-
+        throwExc(errorPunctuationOnlyInMultiline, lx);
+    }    
 }
 
 /**
  * A single colon is the "parens until end" symbol,
  * a double colon :: is the "else clause" symbol.
  */
-private void lexColon(Lexer* lr, Arr(byte) inp) {   
-    lr->i++; // the ":"
+private void lexColon(Lexer* lx, Arr(byte) inp) {   
+    lx->i++; // CONSUME the ":"
     byte nextBt = CURR_BT;
     if (nextBt == aEqual) { // mutation assignment, :=
-        lr->i++; // the "="
-        processAssignment(1, 0, lr);
+        lx->i++; // CONSUME the "="
+        processAssignment(1, 0, lx);
     } else if (nextBt == aColon) {
-        lr->i++; // the second ":"
+        lx->i++; // CONSUME the second ":"
         
-        Int len = lr->backtrack->length;
-        if (len >= 2 && (*lr->backtrack->content)[len - 2].tp) {
-            untt parentType = (*lr->backtrack->content)[len - 2].tp;
-            if (parentType == tokIf || parentType == tokIfEq || parentType == tokIfPr || parentType == tokMatch) {
-                RememberedToken top = peek(lr->backtrack);
-                setStmtSpanLength(top.tokenInd, lr);
-                pop(lr->backtrack);
-            } else {
-                throwExc(errorCoreMisplacedElse, lr);
-            }        
-        } else {
-            throwExc(errorCoreMisplacedElse, lr);
-        }                
-        push(((RememberedToken){ .tp = tokElse, .tokenInd = lr->nextInd }),
-            lr->backtrack
+        Int len = lx->backtrack->length;
+        VALIDATE (len >= 2 && (*lx->backtrack->content)[len - 2].tp, errorCoreMisplacedElse)
+
+        untt parentType = (*lx->backtrack->content)[len - 2].tp;
+        VALIDATE(parentType == tokIf || parentType == tokIfEq || parentType == tokIfPr || parentType == tokMatch, errorCoreMisplacedElse)
+        RememberedToken top = peek(lx->backtrack);
+        setStmtSpanLength(top.tokenInd, lx);
+        pop(lx->backtrack);           
+        push(((RememberedToken){ .tp = tokElse, .tokenInd = lx->nextInd }),
+            lx->backtrack
         );
-        add((Token) {.tp = tokElse, .startByte = lr->i }, lr);
+        add((Token) {.tp = tokElse, .startByte = lx->i }, lx);
     } else {
-        push(((RememberedToken){ .tp = tokParens, .tokenInd = lr->nextInd, .wasOriginallyColon = true}),
-            lr->backtrack
+        push(((RememberedToken){ .tp = tokParens, .tokenInd = lx->nextInd, .wasOriginallyColon = true}),
+            lx->backtrack
         );
-        add((Token) {.tp = tokParens, .startByte = lr->i }, lr);
+        add((Token) {.tp = tokParens, .startByte = lx->i }, lx);
     }    
 }
 
 
-private void addOperator(Int opType, Int isExtension, Int startByte, Int lenBytes, Lexer* lr) {
+private void addOperator(Int opType, Int isExtension, Int startByte, Int lenBytes, Lexer* lx) {
     add((Token){ .tp = tokOperator, .payload1 = (isExtension & 1) + (opType << 1), 
-                .startByte = startByte, .lenBytes = lenBytes }, lr);
+                .startByte = startByte, .lenBytes = lenBytes }, lx);
 }
 
 
-private void lexOperator(Lexer* lr, Arr(byte) inp) {
-    wrapInAStatement(lr, inp);
+private void lexOperator(Lexer* lx, Arr(byte) inp) {
+    wrapInAStatement(lx, inp);
     
     byte firstSymbol = CURR_BT;
-    byte secondSymbol = (lr->inpLength > lr->i + 1) ? inp[lr->i + 1] : 0;
-    byte thirdSymbol = (lr->inpLength > lr->i + 2) ? inp[lr->i + 2] : 0;
-    byte fourthSymbol = (lr->inpLength > lr->i + 3) ? inp[lr->i + 3] : 0;
+    byte secondSymbol = (lx->inpLength > lx->i + 1) ? inp[lx->i + 1] : 0;
+    byte thirdSymbol = (lx->inpLength > lx->i + 2) ? inp[lx->i + 2] : 0;
+    byte fourthSymbol = (lx->inpLength > lx->i + 3) ? inp[lx->i + 3] : 0;
     Int k = 0;
     Int opType = -1; // corresponds to the opT... operator types
-    OpDef (*operators)[countOperators] = lr->langDef->operators;
+    OpDef (*operators)[countOperators] = lx->langDef->operators;
     while (k < countOperators && (*operators)[k].bytes[0] != firstSymbol) {
         k++;
     }
@@ -894,41 +842,39 @@ private void lexOperator(Lexer* lr, Arr(byte) inp) {
         opType = k;
         break;
     }
-    if (opType < 0) {
-        throwExc(errorOperatorUnknown, lr);
-    }
+    VALIDATE (opType > -1, errorOperatorUnknown)
     
     OpDef opDef = (*operators)[opType];
     bool isExtensible = opDef.extensible;
     Int isExtensionAssignment = 0;
     
     Int lengthOfBaseOper = (opDef.bytes[1] == 0) ? 1 : (opDef.bytes[2] == 0 ? 2 : (opDef.bytes[3] == 0 ? 3 : 4));
-    Int j = lr->i + lengthOfBaseOper;
-    if (isExtensible && j < lr->inpLength && inp[j] == aDot) {
+    Int j = lx->i + lengthOfBaseOper;
+    if (isExtensible && j < lx->inpLength && inp[j] == aDot) {
         isExtensionAssignment += 1;
         j++;        
     }
-    if ((isExtensible || opDef.assignable) && j < lr->inpLength && inp[j] == aEqual) {
+    if ((isExtensible || opDef.assignable) && j < lx->inpLength && inp[j] == aEqual) {
         isExtensionAssignment += 2;
         j++;
     }
     if ((isExtensionAssignment & 2) > 0) { // mutation operators like "*=" or "*.="
-        processAssignment(isExtensionAssignment & 1 > 0 ? 3 : 2, opType, lr);
+        processAssignment(isExtensionAssignment & 1 > 0 ? 3 : 2, opType, lx);
     } else {
-        addOperator(opType, isExtensionAssignment, lr->i, j - lr->i, lr);
+        addOperator(opType, isExtensionAssignment, lx->i, j - lx->i, lx);
     }
-    lr->i = j;
+    lx->i = j;
 }
 
 
-private void lexEqual(Lexer* lr, Arr(byte) inp) {       
-    checkPrematureEnd(2, lr);
+private void lexEqual(Lexer* lx, Arr(byte) inp) {       
+    checkPrematureEnd(2, lx);
     byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
-        lexOperator(lr, inp); // ==        
+        lexOperator(lx, inp); // ==        
     } else {
-        processAssignment(0, 0, lr);
-        lr->i++; // =
+        processAssignment(0, 0, lx);
+        lx->i++; // CONSUME the =
     }
 }
 
@@ -938,176 +884,178 @@ private void lexEqual(Lexer* lr, Arr(byte) inp) {
  * This logic handles multiple consecutive lines of doc comments.
  * NOTE: this is the only function in the whole lexer that needs the endByte instead of lenBytes!
  */
-private void appendDocComment(Int startByte, Int endByte, Lexer* lr) {
-    if (lr->nextInd == 0 || lr->tokens[lr->nextInd - 1].tp != tokDocComment) {
-        add((Token){.tp = tokDocComment, .startByte = startByte, .lenBytes = endByte - startByte + 1}, lr);
+private void appendDocComment(Int startByte, Int endByte, Lexer* lx) {
+    if (lx->nextInd == 0 || lx->tokens[lx->nextInd - 1].tp != tokDocComment) {
+        add((Token){.tp = tokDocComment, .startByte = startByte, .lenBytes = endByte - startByte + 1}, lx);
     } else {        
-        lr->tokens[lr->nextInd - 1].lenBytes = endByte - (lr->tokens[lr->nextInd - 1].startByte) + 1;
+        lx->tokens[lx->nextInd - 1].lenBytes = endByte - (lx->tokens[lx->nextInd - 1].startByte) + 1;
     }
 }
 
 /**
  *  Doc comments, syntax is ## Doc comment
  */
-private void docComment(Lexer* lr, Arr(byte) inp) {
-    Int startByte = lr->i + 1; // +1 for the third dash in "---"
-    for (Int j = startByte; j < lr->inpLength; j++) {
+private void docComment(Lexer* lx, Arr(byte) inp) {
+    Int startByte = lx->i + 1; // +1 for the third dash in "---"
+    for (Int j = startByte; j < lx->inpLength; j++) {
         if (inp[j] == aNewline) {
-            addNewLine(j, lr);
+            addNewLine(j, lx);
             if (j > startByte) {
-                appendDocComment(startByte, j - 1, lr);
+                appendDocComment(startByte, j - 1, lx);
             }
-            lr->i = j + 1;
+            lx->i = j + 1;
             return;
         }
     }
-    lr->i = lr->inpLength; // if we're here, then we haven't met a newline, hence we are at the document's end
-    appendDocComment(startByte, lr->inpLength - 1, lr);
+    lx->i = lx->inpLength; // if we're here, then we haven't met a newline, hence we are at the document's end
+    appendDocComment(startByte, lx->inpLength - 1, lx);
 }
 
 /**
  * Doc comments, syntax is -- The comment or ---Doc comment
  * Precondition: we are past the "--"
  */
-private void comment(Lexer* lr, Arr(byte) inp) {
-    if (lr->i >= lr->inpLength) return;
+private void comment(Lexer* lx, Arr(byte) inp) {
+    if (lx->i >= lx->inpLength) return;
     
     if (CURR_BT == aMinus) {
-        docComment(lr, inp);
+        docComment(lx, inp);
     } else {
-        Int j = lr->i;
-        while (j < lr->inpLength) {
+        Int j = lx->i;
+        while (j < lx->inpLength) {
             byte cByte = inp[j];
             if (cByte == aNewline) {
-                lr->i = j + 1;
+                lx->i = j + 1;
                 return;
             } else {
                 j++;
             }
         }
-        lr->i = j;
+        lx->i = j;
     } 
 }
 
 /** Handles the binary operator, the unary operator and the comments */
-private void lexMinus(Lexer* lr, Arr(byte) inp) {    
-    Int j = lr->i + 1;
-    if (j >= lr->inpLength) {
-        throwExc(errorPrematureEndOfInput, lr);
-    }
+private void lexMinus(Lexer* lx, Arr(byte) inp) {    
+    Int j = lx->i + 1;
+    VALIDATE(j < lx->inpLength, errorPrematureEndOfInput)
+
     byte nextBt = NEXT_BT;
     if (nextBt == aMinus) {
-        lr->i += 2;
-        comment(lr, inp);
+        lx->i += 2;
+        comment(lx, inp);
     } else if (isDigit(nextBt)) {
-        wrapInAStatement(lr, inp);
-        decNumber(true, lr, inp);
-        lr->numericNextInd = 0;
+        wrapInAStatement(lx, inp);
+        decNumber(true, lx, inp);
+        lx->numericNextInd = 0;
     } else {
-        lexOperator(lr, inp);
+        lexOperator(lx, inp);
     }    
 }
 
 /** If we are inside a compound (=2) core form, we need to increment the clause count */ 
-private void mbIncrementClauseCount(Lexer* lr) {
-    if (hasValues(lr->backtrack)) {
-        RememberedToken top = peek(lr->backtrack);
-        if (top.tp >= firstCoreFormTokenType && (*lr->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
-            (*lr->backtrack->content)[lr->backtrack->length - 1].countClauses++;
+private void mbIncrementClauseCount(Lexer* lx) {
+    if (hasValues(lx->backtrack)) {
+        RememberedToken top = peek(lx->backtrack);
+        if (top.tp >= firstCoreFormTokenType && (*lx->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
+            (*lx->backtrack->content)[lx->backtrack->length - 1].countClauses++;
         }
     }
 }
 
 /** If we're inside a compound (=2) core form, we need to check if its clause count is saturated */ 
-private void mbCloseCompoundCoreForm(Lexer* lr) {
-    RememberedToken top = peek(lr->backtrack);
-    if (top.tp >= firstCoreFormTokenType && (*lr->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
+private void mbCloseCompoundCoreForm(Lexer* lx) {
+    RememberedToken top = peek(lx->backtrack);
+    if (top.tp >= firstCoreFormTokenType && (*lx->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
         if (top.countClauses == 2) {
-            setSpanLength(top.tokenInd, lr);
-            pop(lr->backtrack);
+            setSpanLength(top.tokenInd, lx);
+            pop(lx->backtrack);
         }
     }
 }
 
 
-private void lexParenLeft(Lexer* lr, Arr(byte) inp) {
-    mbIncrementClauseCount(lr);
-    Int j = lr->i + 1;
-    if (j < lr->inpLength && inp[j] == aColon) { // "(:" starts a new lexical scope
-        lr->i++; // the ":"
-        openPunctuation(tokScope, lr);        
+private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
+    mbIncrementClauseCount(lx);
+    Int j = lx->i + 1;
+    if (j < lx->inpLength && inp[j] == aColon) { // "(:" starts a new lexical scope
+        lx->i++; // CONSUME the ":"
+        openPunctuation(tokScope, lx);        
     } else {
-        wrapInAStatement(lr, inp);
-        openPunctuation(tokParens, lr);
+        wrapInAStatement(lx, inp);
+        openPunctuation(tokParens, lx);
     }    
 }
 
 
-private void lexParenRight(Lexer* lr, Arr(byte) inp) {
+private void lexParenRight(Lexer* lx, Arr(byte) inp) {
     // TODO handle syntax like "(foo 5).field"
-    Int startInd = lr->i;
-    closeRegularPunctuation(tokParens, lr);
+    Int startInd = lx->i;
+    closeRegularPunctuation(tokParens, lx);
     
-    if (!hasValues(lr->backtrack)) return;    
-    mbCloseCompoundCoreForm(lr);
+    if (!hasValues(lx->backtrack)) return;    
+    mbCloseCompoundCoreForm(lx);
     
-    lr->lastClosingPunctInd = startInd;    
+    lx->lastClosingPunctInd = startInd;    
 }
 
 
-void lexBracketLeft(Lexer* lr, Arr(byte) inp) {
-    wrapInAStatement(lr, inp);
-    openPunctuation(tokBrackets, lr);
+void lexBracketLeft(Lexer* lx, Arr(byte) inp) {
+    wrapInAStatement(lx, inp);
+    openPunctuation(tokBrackets, lx);
 }
 
 
-void lexBracketRight(Lexer* lr, Arr(byte) inp) {
+void lexBracketRight(Lexer* lx, Arr(byte) inp) {
     // TODO handle syntax like "foo[5].field"    
-    Int startInd = lr->i;
-    closeRegularPunctuation(tokBrackets, lr);
-    mbCloseCompoundCoreForm(lr);
+    Int startInd = lx->i;
+    closeRegularPunctuation(tokBrackets, lx);
+    mbCloseCompoundCoreForm(lx);
     
-    lr->lastClosingPunctInd = startInd;
+    lx->lastClosingPunctInd = startInd;
 }
 
 
-void lexSpace(Lexer* lr, Arr(byte) inp) {
-    lr->i++;
-    while (lr->i < lr->inpLength && CURR_BT == aSpace) {
-        if (CURR_BT != aSpace) return;
-        lr->i++;
+void lexSpace(Lexer* lx, Arr(byte) inp) {
+    lx->i++; // CONSUME the space
+    while (lx->i < lx->inpLength && CURR_BT == aSpace) {
+        lx->i++; // CONSUME a space
     }
 }
 
 /** Ends a line-span */
-private void lexNewline(Lexer* lr, Arr(byte) inp) {
-    addNewLine(lr->i, lr);
-    lr->i++;      // the LF
-    while (lr->i < lr->inpLength && CURR_BT == aSpace) {
-        lr->i++;
+private void lexNewline(Lexer* lx, Arr(byte) inp) {
+    addNewLine(lx->i, lx);
+
+    if (peek(lx->backtrack).breakableClass == brBreakable) {
+        RememberedToken top = peek(lx->backtrack);
+        setStmtSpanLength(top.tokenInd, lx);
+        pop(lx->backtrack);
+    }
+
+    lx->i++;      // CONSUME the LF
+    while (lx->i < lx->inpLength && CURR_BT == aSpace) {
+        lx->i++; // CONSUME a space
     }    
 }
 
 
-private void lexStringLiteral(Lexer* lr, Arr(byte) inp) {
-    wrapInAStatement(lr, inp);
-    Int j = lr->i + 1;
-    for (; j < lr->inpLength && inp[j] != aQuote; j++);
-    
-    if (j == lr->inpLength) {
-        throwExc(errorPrematureEndOfInput, lr);
-    }    
-    add((Token){.tp=tokString, .startByte=(lr->i), .lenBytes=(j - lr->i + 1)}, lr);
-    lr->i = j + 1;
+private void lexStringLiteral(Lexer* lx, Arr(byte) inp) {
+    wrapInAStatement(lx, inp);
+    Int j = lx->i + 1;
+    for (; j < lx->inpLength && inp[j] != aQuote; j++);
+    VALIDATE(j != lx->inpLength, errorPrematureEndOfInput)
+    add((Token){.tp=tokString, .startByte=(lx->i), .lenBytes=(j - lx->i + 1)}, lx);
+    lx->i = j + 1; // CONSUME the string literal, including the closing quote character
 }
 
 
-void lexUnexpectedSymbol(Lexer* lr, Arr(byte) inp) {
-    throwExc(errorUnrecognizedByte, lr);
+void lexUnexpectedSymbol(Lexer* lx, Arr(byte) inp) {
+    throwExc(errorUnrecognizedByte, lx);
 }
 
-void lexNonAsciiError(Lexer* lr, Arr(byte) inp) {
-    throwExc(errorNonAscii, lr);
+void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
+    throwExc(errorNonAscii, lx);
 }
 
 /** Must agree in order with token types in LexerConstants.h */
@@ -1342,15 +1290,14 @@ Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* a) {
 /**
  * Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and an open statement, if any.
  */
-private void finalize(Lexer* lr) {
-    if (!hasValues(lr->backtrack)) return;
-    closeColons(lr);
-    RememberedToken top = pop(lr->backtrack);
-    if (top.isMultiline || hasValues(lr->backtrack)) {
-        throwExc(errorPunctuationExtraOpening, lr);
-    }
-    setStmtSpanLength(top.tokenInd, lr);    
-    deleteArena(lr->aTemp);
+private void finalize(Lexer* lx) {
+    if (!hasValues(lx->backtrack)) return;
+    closeColons(lx);
+    RememberedToken top = pop(lx->backtrack);
+    VALIDATE(top.breakableClass != brScope && !hasValues(lx->backtrack), errorPunctuationExtraOpening)
+
+    setStmtSpanLength(top.tokenInd, lx);    
+    deleteArena(lx->aTemp);
 }
 
 
