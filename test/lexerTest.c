@@ -583,7 +583,7 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokParens, .payload2 = 1, .startByte = 9, .lenBytes = 6 },                
                 (Token){ .tp = tokWord, .payload2 = 2, .startByte = 10, .lenBytes = 4 }   
         }))}, 
-        (LexerTest) { .name = s("Multi-line statement without dots"),
+                    (LexerTest) { .name = s("Multi-line statement without commas"),
             .input = s("foo bar (\n"
                        "asdf\n"
                        "bcj\n"
@@ -596,7 +596,21 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokParens, .payload2 = 2, .startByte = 9, .lenBytes = 13 },                
                 (Token){ .tp = tokWord, .payload2 = 2, .startByte = 11, .lenBytes = 4 }, // asdf                          
                 (Token){ .tp = tokWord, .payload2 = 3, .startByte = 17, .lenBytes = 3 }  // bcj      
-        }))},             
+        }))}, 
+		(LexerTest) { .name = s("Multiple statements without commas"),
+            .input = s("foo bar\n"
+                       "asdf\n"
+                       "bcj"
+                      ),
+            .expectedOutput = buildLexer(((Token[]){
+                (Token){ .tp = tokStmt, .payload2 = 5, .lenBytes = 23 },
+                (Token){ .tp = tokWord, .payload2 = 0, .lenBytes = 3 },                 // foo
+                (Token){ .tp = tokWord, .payload2 = 1, .startByte = 4, .lenBytes = 3 }, // bar         
+			    (Token){ .tp = tokStmt, .payload2 = 5, .lenBytes = 23 },
+                (Token){ .tp = tokWord, .payload2 = 2, .startByte = 11, .lenBytes = 4 }, // asdf
+                (Token){ .tp = tokStmt, .payload2 = 5, .lenBytes = 23 },                      
+                (Token){ .tp = tokWord, .payload2 = 3, .startByte = 17, .lenBytes = 3 }  // bcj      
+        }))}, 
         (LexerTest) { .name = s("Punctuation all types"),
             .input = s("(:\n"
                        "asdf (b [d Ef (y z)] c f[h i])\n"

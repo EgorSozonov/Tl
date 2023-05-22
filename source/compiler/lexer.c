@@ -256,7 +256,7 @@ private void addStatement(untt stmtType, Int startByte, Lexer* lr) {
 
 private void wrapInAStatementStarting(Int startByte, Lexer* lr, Arr(byte) inp) {    
     if (hasValues(lr->backtrack)) {
-        if (peek(lr->backtrack).isMultiline) {            
+        if (peek(lr->backtrack).breakableClass == brScope) {            
             push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
             add((Token){ .tp = tokStmt, .startByte = startByte},  lr);
         }
@@ -268,7 +268,7 @@ private void wrapInAStatementStarting(Int startByte, Lexer* lr, Arr(byte) inp) {
 
 private void wrapInAStatement(Lexer* lr, Arr(byte) inp) {
     if (hasValues(lr->backtrack)) {
-        if (peek(lr->backtrack).isMultiline) {
+        if (peek(lr->backtrack).breakableClass == brScope) {
             push(((RememberedToken){ .tp = tokStmt, .tokenInd = lr->nextInd }), lr->backtrack);
             add((Token){ .tp = tokStmt, .startByte = lr->i},  lr);
         }
@@ -289,7 +289,8 @@ private void closeRegularPunctuation(Int closingType, Lexer* lr) {
         throwExc(errorPunctuationExtraClosing, lr);
     }
     RememberedToken top = pop(bt);
-    if (bt->length > 0 && closingType == tokParens && !top.isMultiline && ((*bt->content)[bt->length - 1].isMultiline)) {
+    if (bt->length > 0 && closingType == tokParens 
+      && top.breakableClass != brScope && ((*bt->content)[bt->length - 1].breakableClass == brScope)) {
         // since a closing parenthesis might be closing something with statements inside it, like a lex scope
         // or a core syntax form, we need to close the last statement before closing its parent
         setStmtSpanLength(top.tokenInd, lr);
@@ -302,7 +303,6 @@ private void closeRegularPunctuation(Int closingType, Lexer* lr) {
 
 /** 
  * The dot which is preceded by a space is a function call.
- * It is allowed only in multiline spans or in single-line spans directly inside multiline ones.
  */
 private void lexDot(Lexer* lr, Arr(byte) inp) {
     checkPrematureEnd(2, lr);
@@ -556,7 +556,7 @@ private void lexNumber(Lexer* lr, Arr(byte) inp) {
 }
 
 /**
- * Adds a token which serves punctuation purposes, i.e. either a (, a {, a [, a .[ or a $
+ * Adds a token which serves punctuation purposes, i.e. either a ( or  a [
  * These tokens are used to define the structure, that is, nesting within the AST.
  * Upon addition, they are saved to the backtracking stack to be updated with their length
  * once it is known.
@@ -568,7 +568,7 @@ private void lexNumber(Lexer* lr, Arr(byte) inp) {
 private void openPunctuation(untt tType, Lexer* lr) {
     lr->i++;
     push( ((RememberedToken){ 
-        .tp = tType, .tokenInd = lr->nextInd, .isMultiline = tType == tokScope
+        .tp = tType, .tokenInd = lr->nextInd, .breakableClass = (tType == tokScope) ? brScope : brUnbreakable
     }), lr->backtrack);
     add((Token) {.tp = tType, .startByte = lr->i }, lr);    
 }
@@ -582,7 +582,7 @@ private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lr, Ar
     
     Int expectations = (*lr->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
-        if (!hasValues(bt) || peek(bt).isMultiline) {
+        if (!hasValues(bt) || peek(bt).breakableClass == brScope) {
             addStatement(reservedWordType, startByte, lr);
         } else {            
             throwExc(errorCoreNotInsideStmt, lr);

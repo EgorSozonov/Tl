@@ -16,12 +16,14 @@ typedef struct {
     untt payload2;
 } Token;
 
-
+#define brScope 1 // scopes: newlines and commas just ignore them
+#define brBreakable      2 // single-line statements: newlines and commas break 'em
+#define brUnbreakable    3 // parens and the like: newlines ignore them, commas error out
 typedef struct {
-    untt tp;
+    untt tp : 6;
     Int tokenInd;
     Int countClauses;
-    Int isMultiline;
+    untt breakableClass : 3;
     bool wasOriginallyColon;
 } RememberedToken;
 
