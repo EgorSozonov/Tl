@@ -689,7 +689,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
 }
 
 
-private void lexWord(Lexer* lx, Arr(byte) inp) {    
+private void lexWord(Lexer* lx, Arr(byte) inp) {
     wordInternal(tokWord, lx, inp);
 }
 

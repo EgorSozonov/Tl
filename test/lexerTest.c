@@ -61,12 +61,12 @@ private Lexer* buildLexerWithError0(String* errMsg, Arena *a, int totalTokens, A
 
 
 private LexerTestSet* createTestSet0(String* name, Arena *a, int count, Arr(LexerTest) tests) {
+    printString(name);
     LexerTestSet* result = allocateOnArena(sizeof(LexerTestSet), a);
     result->name = name;
     result->totalTests = count;    
     result->tests = allocateOnArena(count*sizeof(LexerTest), a);
     if (result->tests == NULL) return result;
-    
     for (int i = 0; i < count; i++) {
         result->tests[i] = tests[i];
     }    
@@ -829,18 +829,53 @@ LexerTestSet* coreFormTests(Arena* a) {
                 (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 }                
         }))},        
         (LexerTest) { .name = s("If with else"),
-            .input = s("(if x <> 7 > 0 ::true)"),
+            .input = s("(if x <> 7 > 0, 5\n"
+                        " else true)"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokIf, .payload2 = 8, .startByte = 1, .lenBytes = 20 },
+
                 (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
                 (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 },                // x
                 (Token){ .tp = tokOperator, .payload1 = (opTComparator << 1), .startByte = 6, .lenBytes = 2 },
                 (Token){ .tp = tokInt, .payload2 = 7, .startByte = 9, .lenBytes = 1 },
                 (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 11, .lenBytes = 1 },
                 (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 },         
+
                 (Token){ .tp = tokElse, .payload2 = 1, .startByte = 17, .lenBytes = 4 },
                 (Token){ .tp = tokBool, .payload2 = 1, .startByte = 17, .lenBytes = 4 }
-        }))},            
+        }))},
+        (LexerTest) { .name = s("If with elseif and else"),
+            .input = s("(if x <> 7 > 0, 5\n"
+                        "case x <> 7 < 0, 11\n"
+                        "else true)"),
+            .expectedOutput = buildLexer(((Token[]){
+                (Token){ .tp = tokIf, .payload2 = 8, .startByte = 1, .lenBytes = 48 },
+
+                (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
+                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 },                // x
+                (Token){ .tp = tokOperator, .payload1 = (opTComparator << 1), .startByte = 6, .lenBytes = 2 },
+                (Token){ .tp = tokInt, .payload2 = 7, .startByte = 9, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 11, .lenBytes = 1 },
+                (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 },   
+
+                (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
+                (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 }, 
+
+                (Token){ .tp = tokCase, .startByte = 18, .lenBytes = 20 }, 
+
+                (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
+                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 },                // x
+                (Token){ .tp = tokOperator, .payload1 = (opTComparator << 1), .startByte = 6, .lenBytes = 2 },
+                (Token){ .tp = tokInt, .payload2 = 7, .startByte = 9, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = (opTLessThan << 1), .startByte = 11, .lenBytes = 1 },
+                (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 }, 
+
+                (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
+                (Token){ .tp = tokInt, .payload2 = 11, .startByte = 13, .lenBytes = 1 }, 
+
+                (Token){ .tp = tokElse, .payload2 = 1, .startByte = 17, .lenBytes = 4 },
+                (Token){ .tp = tokBool, .payload2 = 1, .startByte = 17, .lenBytes = 4 }
+        }))},
         (LexerTest) { .name = s("Paren-type form error 1"),
             .input = s("if x <> 7 > 0"),
             .expectedOutput = buildLexerWithError(s(errorCoreMissingParen), ((Token[]) {})
