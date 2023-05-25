@@ -672,6 +672,20 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
                 } else if (mbReservedWord == tokDispose) {
                     wrapInAStatementStarting(startByte, lx, inp);
                     add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lx);
+                } else if (mbReservedWord == tokCase) {
+                    if (peek(lx->backtrack).tp == tokCase) {
+                        setSpanLength(pop(lx->backtrack).tokenInd, lx);
+                    }
+
+                    push(((RememberedToken) {.tp = tokCase, .breakableClass = brScope, .tokenInd = lx->nextInd}), lx->backtrack);
+                    add((Token){.tp = tokCase, .startByte = realStartByte}, lx);
+                } else if (mbReservedWord == tokElse) {
+                    if (peek(lx->backtrack).tp == tokCase) {
+                        setSpanLength(pop(lx->backtrack).tokenInd, lx);
+                    }
+
+                    push(((RememberedToken) {.tp = tokElse, .breakableClass = brScope, .tokenInd = lx->nextInd}), lx->backtrack);
+                    add((Token){.tp = tokElse, .startByte = realStartByte}, lx);
                 }
             } else {
                 lexReservedWord(mbReservedWord, realStartByte, lx, inp);

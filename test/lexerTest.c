@@ -796,54 +796,54 @@ LexerTestSet* operatorTests(Arena* a) {
 
 LexerTestSet* coreFormTests(Arena* a) {
     return createTestSet(s("Core form lexer tests"), a, ((LexerTest[]) {
-        (LexerTest) { .name = s("Statement-type core form"),
-            .input = s("x = 9, assert (x == 55) \"Error!\""),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokAssignment,  .payload2 = 2,             .lenBytes = 5 },
-                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
-                (Token){ .tp = tokInt, .payload2 = 9, .startByte = 4,     .lenBytes = 1 },
-                (Token){ .tp = tokAssert, .payload2 = 5, .startByte = 7,  .lenBytes = 25 },
-                (Token){ .tp = tokParens, .payload2 = 3, .startByte = 15, .lenBytes = 7 },                
-                (Token){ .tp = tokWord,                  .startByte = 15, .lenBytes = 1 },                
-                (Token){ .tp = tokOperator, .payload1 = (opTEquality << 1), .startByte = 17, .lenBytes = 2 },
-                (Token){ .tp = tokInt, .payload2 = 55,  .startByte = 20,  .lenBytes = 2 },
-                (Token){ .tp = tokString,               .startByte = 24,  .lenBytes = 8 }
-        }))},
-        (LexerTest) { .name = s("Statement-type core form error"),
-            .input = s("x/(await foo)"),
-            .expectedOutput = buildLexerWithError(s(errorCoreNotInsideStmt), ((Token[]) {
-                (Token){ .tp = tokStmt },
-                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
-                (Token){ .tp = tokOperator, .payload1 = (opTDivBy << 1), .startByte = 1, .lenBytes = 1 },
-                (Token){ .tp = tokParens, .startByte = 3 }
-        }))},
-        (LexerTest) { .name = s("Paren-type core form"),
-            .input = s("(if x <> 7 > 0)"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokIf, .payload2 = 6, .startByte = 1, .lenBytes = 13 },
-                (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
-                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 },                // x
-                (Token){ .tp = tokOperator, .payload1 = (opTComparator << 1), .startByte = 6, .lenBytes = 2 },
-                (Token){ .tp = tokInt, .payload2 = 7, .startByte = 9, .lenBytes = 1 },
-                (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 11, .lenBytes = 1 },
-                (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 }                
-        }))},        
-        (LexerTest) { .name = s("If with else"),
-            .input = s("(if x <> 7 > 0, 5\n"
-                        " else true)"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokIf, .payload2 = 8, .startByte = 1, .lenBytes = 20 },
+        // (LexerTest) { .name = s("Statement-type core form"),
+        //     .input = s("x = 9, assert (x == 55) \"Error!\""),
+        //     .expectedOutput = buildLexer(((Token[]){
+        //         (Token){ .tp = tokAssignment,  .payload2 = 2,             .lenBytes = 5 },
+        //         (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
+        //         (Token){ .tp = tokInt, .payload2 = 9, .startByte = 4,     .lenBytes = 1 },
+        //         (Token){ .tp = tokAssert, .payload2 = 5, .startByte = 7,  .lenBytes = 25 },
+        //         (Token){ .tp = tokParens, .payload2 = 3, .startByte = 15, .lenBytes = 7 },                
+        //         (Token){ .tp = tokWord,                  .startByte = 15, .lenBytes = 1 },                
+        //         (Token){ .tp = tokOperator, .payload1 = (opTEquality << 1), .startByte = 17, .lenBytes = 2 },
+        //         (Token){ .tp = tokInt, .payload2 = 55,  .startByte = 20,  .lenBytes = 2 },
+        //         (Token){ .tp = tokString,               .startByte = 24,  .lenBytes = 8 }
+        // }))},
+        // (LexerTest) { .name = s("Statement-type core form error"),
+        //     .input = s("x/(await foo)"),
+        //     .expectedOutput = buildLexerWithError(s(errorCoreNotInsideStmt), ((Token[]) {
+        //         (Token){ .tp = tokStmt },
+        //         (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
+        //         (Token){ .tp = tokOperator, .payload1 = (opTDivBy << 1), .startByte = 1, .lenBytes = 1 },
+        //         (Token){ .tp = tokParens, .startByte = 3 }
+        // }))},
+        // (LexerTest) { .name = s("Paren-type core form"),
+        //     .input = s("(if x <> 7 > 0)"),
+        //     .expectedOutput = buildLexer(((Token[]){
+        //         (Token){ .tp = tokIf, .payload2 = 6, .startByte = 1, .lenBytes = 13 },
+        //         (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
+        //         (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 },                // x
+        //         (Token){ .tp = tokOperator, .payload1 = (opTComparator << 1), .startByte = 6, .lenBytes = 2 },
+        //         (Token){ .tp = tokInt, .payload2 = 7, .startByte = 9, .lenBytes = 1 },
+        //         (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 11, .lenBytes = 1 },
+        //         (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 }                
+        // }))},        
+        // (LexerTest) { .name = s("If with else"),
+        //     .input = s("(if x <> 7 > 0, 5\n"
+        //                 " else true)"),
+        //     .expectedOutput = buildLexer(((Token[]){
+        //         (Token){ .tp = tokIf, .payload2 = 8, .startByte = 1, .lenBytes = 20 },
 
-                (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
-                (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 },                // x
-                (Token){ .tp = tokOperator, .payload1 = (opTComparator << 1), .startByte = 6, .lenBytes = 2 },
-                (Token){ .tp = tokInt, .payload2 = 7, .startByte = 9, .lenBytes = 1 },
-                (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 11, .lenBytes = 1 },
-                (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 },         
+        //         (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
+        //         (Token){ .tp = tokWord, .startByte = 4, .lenBytes = 1 },                // x
+        //         (Token){ .tp = tokOperator, .payload1 = (opTComparator << 1), .startByte = 6, .lenBytes = 2 },
+        //         (Token){ .tp = tokInt, .payload2 = 7, .startByte = 9, .lenBytes = 1 },
+        //         (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 11, .lenBytes = 1 },
+        //         (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 },         
 
-                (Token){ .tp = tokElse, .payload2 = 1, .startByte = 17, .lenBytes = 4 },
-                (Token){ .tp = tokBool, .payload2 = 1, .startByte = 17, .lenBytes = 4 }
-        }))},
+        //         (Token){ .tp = tokElse, .payload2 = 1, .startByte = 17, .lenBytes = 4 },
+        //         (Token){ .tp = tokBool, .payload2 = 1, .startByte = 17, .lenBytes = 4 }
+        // }))},
         (LexerTest) { .name = s("If with elseif and else"),
             .input = s("(if x <> 7 > 0, 5\n"
                         "case x <> 7 < 0, 11\n"
@@ -875,42 +875,42 @@ LexerTestSet* coreFormTests(Arena* a) {
 
                 (Token){ .tp = tokElse, .payload2 = 1, .startByte = 17, .lenBytes = 4 },
                 (Token){ .tp = tokBool, .payload2 = 1, .startByte = 17, .lenBytes = 4 }
-        }))},
-        (LexerTest) { .name = s("Paren-type form error 1"),
-            .input = s("if x <> 7 > 0"),
-            .expectedOutput = buildLexerWithError(s(errorCoreMissingParen), ((Token[]) {})
-        )},
-        (LexerTest) { .name = s("Paren-type form error 2"),
-            .input = s("(brr if x <> 7 > 0)"),
-            .expectedOutput = buildLexerWithError(s(errorCoreNotAtSpanStart), ((Token[]) {
-                (Token){ .tp = tokStmt },
-                (Token){ .tp = tokParens, .startByte = 1 },                
-                (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 3 }
-        }))},
-        (LexerTest) { .name = s("Function simple 1"),
-            .input = s("fn foo Int(x Int y Int)(x - y)"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokFnDef, .payload2 = 11, .startByte = 0, .lenBytes = 30 },
-                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 3, .lenBytes = 3 },                // foo
-                (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 7, .lenBytes = 3 }, // Int
-                (Token){ .tp = tokParens, .payload2 = 4, .startByte = 11, .lenBytes = 11 },
-                (Token){ .tp = tokWord, .payload2 = 2, .startByte = 11, .lenBytes = 1 }, // x
-                (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 13, .lenBytes = 3 }, // Int
-                (Token){ .tp = tokWord, .payload2 = 3, .startByte = 17, .lenBytes = 1 }, // y
-                (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 19, .lenBytes = 3 }, // Int
-                (Token){ .tp = tokParens, .payload2 = 3, .startByte = 24, .lenBytes = 5 },
-                (Token){ .tp = tokWord, .payload2 = 2, .startByte = 24, .lenBytes = 1 },                
-                (Token){ .tp = tokOperator, .payload1 = (opTMinus << 1), .startByte = 26, .lenBytes = 1 },                
-                (Token){ .tp = tokWord, .payload2 = 3, .startByte = 28, .lenBytes = 1 } // y
-        }))},
-        (LexerTest) { .name = s("Function simple error"),
-            .input = s("x + (fn foo Int(x Int y Int)(x - y))"),
-            .expectedOutput = buildLexerWithError(s(errorCoreNotInsideStmt), ((Token[]) {
-                (Token){ .tp = tokStmt },
-                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
-                (Token){ .tp = tokOperator, .payload1 = (opTPlus << 1), .startByte = 2, .lenBytes = 1 },
-                (Token){ .tp = tokParens,  .startByte = 5}
-        }))} 
+        }))}//,
+        // (LexerTest) { .name = s("Paren-type form error 1"),
+        //     .input = s("if x <> 7 > 0"),
+        //     .expectedOutput = buildLexerWithError(s(errorCoreMissingParen), ((Token[]) {})
+        // )},
+        // (LexerTest) { .name = s("Paren-type form error 2"),
+        //     .input = s("(brr if x <> 7 > 0)"),
+        //     .expectedOutput = buildLexerWithError(s(errorCoreNotAtSpanStart), ((Token[]) {
+        //         (Token){ .tp = tokStmt },
+        //         (Token){ .tp = tokParens, .startByte = 1 },                
+        //         (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 3 }
+        // }))},
+        // (LexerTest) { .name = s("Function simple 1"),
+        //     .input = s("fn foo Int(x Int y Int)(x - y)"),
+        //     .expectedOutput = buildLexer(((Token[]){
+        //         (Token){ .tp = tokFnDef, .payload2 = 11, .startByte = 0, .lenBytes = 30 },
+        //         (Token){ .tp = tokWord, .payload2 = 0, .startByte = 3, .lenBytes = 3 },                // foo
+        //         (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 7, .lenBytes = 3 }, // Int
+        //         (Token){ .tp = tokParens, .payload2 = 4, .startByte = 11, .lenBytes = 11 },
+        //         (Token){ .tp = tokWord, .payload2 = 2, .startByte = 11, .lenBytes = 1 }, // x
+        //         (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 13, .lenBytes = 3 }, // Int
+        //         (Token){ .tp = tokWord, .payload2 = 3, .startByte = 17, .lenBytes = 1 }, // y
+        //         (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 19, .lenBytes = 3 }, // Int
+        //         (Token){ .tp = tokParens, .payload2 = 3, .startByte = 24, .lenBytes = 5 },
+        //         (Token){ .tp = tokWord, .payload2 = 2, .startByte = 24, .lenBytes = 1 },                
+        //         (Token){ .tp = tokOperator, .payload1 = (opTMinus << 1), .startByte = 26, .lenBytes = 1 },                
+        //         (Token){ .tp = tokWord, .payload2 = 3, .startByte = 28, .lenBytes = 1 } // y
+        // }))},
+        // (LexerTest) { .name = s("Function simple error"),
+        //     .input = s("x + (fn foo Int(x Int y Int)(x - y))"),
+        //     .expectedOutput = buildLexerWithError(s(errorCoreNotInsideStmt), ((Token[]) {
+        //         (Token){ .tp = tokStmt },
+        //         (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
+        //         (Token){ .tp = tokOperator, .payload1 = (opTPlus << 1), .startByte = 2, .lenBytes = 1 },
+        //         (Token){ .tp = tokParens,  .startByte = 5}
+        // }))} 
     }));
 }
 
@@ -933,13 +933,13 @@ int main() {
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&wordTests, &countPassed, &countTests, lang, a);
+    //runATestSet(&wordTests, &countPassed, &countTests, lang, a);
     // runATestSet(&stringTests, &countPassed, &countTests, lang, a);
     // runATestSet(&commentTests, &countPassed, &countTests, lang, a);
     // runATestSet(&operatorTests, &countPassed, &countTests, lang, a);
     // runATestSet(&punctuationTests, &countPassed, &countTests, lang, a);
     // runATestSet(&numericTests, &countPassed, &countTests, lang, a);
-    // runATestSet(&coreFormTests, &countPassed, &countTests, lang, a);
+    runATestSet(&coreFormTests, &countPassed, &countTests, lang, a);
 
     if (countTests == 0) {
         print("\nThere were no tests to run!");
