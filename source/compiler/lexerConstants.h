@@ -124,7 +124,6 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokIfEq        50       // like if, but every branch is a value compared using standard equality // 200/500
 #define tokIfPr        51       // like if, but every branch is a value compared using custom predicate  // 200/500
 #define tokMatch       52       // pattern matching on sum type tag  // 200/500
-#define tokCase        53
 #define tokImpl        54       // paren // 400
 #define tokLoop        55       // 
 

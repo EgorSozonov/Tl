@@ -789,6 +789,13 @@ private void lexComma(Lexer* lx, Arr(byte) inp) {
     }    
 }
 
+private void lexSemicolon(Lexer* lx, Arr(byte) inp) {
+    push(((RememberedToken){ .tp = tokParens, .tokenInd = lx->nextInd, .wasOriginallyColon = true}),
+            lx->backtrack
+        );
+    add((Token) {.tp = tokParens, .startByte = lx->i }, lx);
+}
+
 /**
  * A single colon is the "parens until end" symbol,
  * a double colon :: is the "else clause" symbol.
@@ -892,6 +899,8 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
     byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
         lexOperator(lx, inp); // ==        
+    } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes
+        
     } else {
         processAssignment(0, 0, lx);
         lx->i++; // CONSUME the =
@@ -1045,6 +1054,8 @@ void lexSpace(Lexer* lx, Arr(byte) inp) {
 
 /** Ends a line-span */
 private void lexNewline(Lexer* lx, Arr(byte) inp) {
+    // TODO update lastLineInitToken
+    // TODO walk next line to first token and see if it's initial, then update & check lx->indentation
     addNewLine(lx->i, lx);
 
     if (peek(lx->backtrack).breakableClass == brBreakable) {
@@ -1165,6 +1176,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aDot] = &lexDot;
     p[aAt] = &lexAtWord;
     p[aColon] = &lexColon;
+    p[aSemicolon] = &lexSemicolon;
     p[aEqual] = &lexEqual;
 
     for (Int i = 0; i < countOperatorStartSymbols; i++) {
