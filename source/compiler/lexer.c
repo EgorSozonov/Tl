@@ -147,7 +147,9 @@ private Int determineReservedB(Int startByte, Int lenBytes, Lexer* lx) {
 }
 
 private Int determineReservedC(Int startByte, Int lenBytes, Lexer* lx) {
+    print("testing for case")
     Int lenReser;
+    PROBERESERVED(reservedBytesCase, tokCase)
     PROBERESERVED(reservedBytesCatch, tokCatch)
     PROBERESERVED(reservedBytesContinue, tokContinue)
     return 0;
@@ -156,6 +158,7 @@ private Int determineReservedC(Int startByte, Int lenBytes, Lexer* lx) {
 
 private Int determineReservedE(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
+    PROBERESERVED(reservedBytesElse, tokElse)
     PROBERESERVED(reservedBytesEmbed, tokEmbed)
     return 0;
 }
@@ -560,7 +563,7 @@ private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Ar
         VALIDATE(hasValues(bt), errorCoreMissingParen)
         
         RememberedToken top = peek(bt);
-        VALIDATE(top.tokenInd + 1 != lx->nextInd, errorCoreNotAtSpanStart) // if this isn't the first token inside the parens
+        VALIDATE(top.tokenInd == lx->nextInd - 1, errorCoreNotAtSpanStart) // if this isn't the first token inside the parens
         
         if (bt->length > 1 && (*bt->content)[bt->length - 2].tp == tokStmt) {
             // Parens are wrapped in statements because we didn't know that the following token is a reserved word.
@@ -655,6 +658,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         }
     } else {
         Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lx);
+        print("mbReserved %d", mbReservedWord)
         if (mbReservedWord > 0) {
             if (wordType == tokDotWord) {
                 throwExc(errorWordReservedWithDot, lx);
@@ -673,6 +677,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
                     wrapInAStatementStarting(startByte, lx, inp);
                     add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lx);
                 } else if (mbReservedWord == tokCase) {
+                    print("case")
                     if (peek(lx->backtrack).tp == tokCase) {
                         setSpanLength(pop(lx->backtrack).tokenInd, lx);
                     }
@@ -680,6 +685,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
                     push(((RememberedToken) {.tp = tokCase, .breakableClass = brScope, .tokenInd = lx->nextInd}), lx->backtrack);
                     add((Token){.tp = tokCase, .startByte = realStartByte}, lx);
                 } else if (mbReservedWord == tokElse) {
+                    print("else")
                     if (peek(lx->backtrack).tp == tokCase) {
                         setSpanLength(pop(lx->backtrack).tokenInd, lx);
                     }
