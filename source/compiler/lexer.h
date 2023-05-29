@@ -22,17 +22,18 @@ typedef struct {
 #define brBreakable     2 // single-line statements: newlines and commas break 'em
 #define brUnbreakable   3 // parens and the like: newlines ignore them, commas error out
 
+/** Backtrack token, used during lexing to keep track of all the nested stuff */
 typedef struct {
     untt tp : 6;
     Int tokenInd;
     Int countClauses;
     untt breakableClass : 3;
-    bool wasOriginallyColon;
-} RememberedToken;
+    bool wasOrigSemicolon;
+} BtToken;
 
 
 DEFINE_STACK_HEADER(int32_t)
-DEFINE_STACK_HEADER(RememberedToken)
+DEFINE_STACK_HEADER(BtToken)
 
 
 /**

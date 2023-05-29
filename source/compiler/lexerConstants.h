@@ -260,6 +260,7 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define aSpace        32
 #define aNewline      10
 #define aCarrReturn   13
+#define aTab           9
 
 #define aApostrophe   39
 #define aQuote        34
