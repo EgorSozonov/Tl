@@ -1065,7 +1065,12 @@ private void lexNewline(Lexer* lx, Arr(byte) inp) {
     // We are in a breakable scope, and the first char is non-space, hence it must be a token that
     // 1) is a start of a syntax form 2) is the first thing on its line. In this situation, its 
     // indentation level matters.
-    VALIDATE(indentation % 4 == 0 && indentation/4 <= lx->ind)
+    VALIDATE(indentation % 4 == 0 && indentation/4 <= lx->indentation, errorIndentation)
+    indentation /= 4;
+    for (int i = lx->indentation; i > indentation; i--) {
+        BtToken backToken = pop(lx->backtrack);
+        setSpanLength(backToken.tokenInd, lx);
+    }
 }
 
 

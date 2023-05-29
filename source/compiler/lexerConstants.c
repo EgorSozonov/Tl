@@ -31,6 +31,7 @@ const char errorCoreNotInsideStmt[]          = "Core form must be directly insid
 const char errorCoreMisplacedElse[]          = "The else statement \"::\" must be inside an if, ifEq, ifPr or match form";
 const char errorCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
 const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
+const char errorIndentation[]                = "Indentation error: must be divisible by 4 (tabs also count as 4) and not greater than the current indentation level!";
 const char errorDocComment[]                 = "Doc comments must have the syntax: ---comment";
 
 

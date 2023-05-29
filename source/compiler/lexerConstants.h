@@ -37,6 +37,7 @@ extern const char errorCoreNotInsideStmt[];
 extern const char errorCoreMisplacedElse[];
 extern const char errorCoreMissingParen[];
 extern const char errorCoreNotAtSpanStart[];
+extern const char errorIndentation[];
 extern const char errorDocComment[];
 
 /**
@@ -154,13 +155,13 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTToString        3 // $
 #define opTRemainder       4 // %
 #define opTBinaryAnd       5 // && bitwise and
-#define opTTypeAnd         6 // & interface intersection
+#define opTTypeAnd         6 // & interface intersection (type-level)
 #define opTNotEmpty        7 // '
 #define opTTimes           8 // *
 #define opTPlus            9 // +
 #define opTMinus          10 // -
 #define opTDivBy          11 // /
-#define opTArrowLeft      12 // <-
+#define opTArrowLeft      12 // <- // TODO remove since we won't compile to Golang
 #define opTBitShiftLeft   13 // <<
 #define opTLTEQ           14 // <=
 #define opTComparator     15 // <>
@@ -178,7 +179,9 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTExponent       27 // ^    exponentiation
 #define opTBoolOr         28 // ||   bitwise or
 #define opTXor            29 // |    bitwise xor
-
+// splicing operator for lists?
+// operators for map, filter, reduce? ^^ map, ?? filter, ,, reduce 
+// coalescedFoos = collection ?? (lam x. x > 5) ^^ toFoo ,, coalesce.
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
