@@ -4,20 +4,20 @@ DEFINE_STACK(int32_t)
 #define initBucketSize 8
 
 #define pop(X) _Generic((X), \
-    StackRememberedToken*: popRememberedToken \
+    StackBtToken*: popBtToken \
     )(X)
 
 #define peek(X) _Generic((X), \
-    StackRememberedToken*: peekRememberedToken \
+    StackBtToken*: peekBtToken \
     )(X)
 
 #define push(A, X) _Generic((X), \
-    StackRememberedToken*: pushRememberedToken, \
+    StackBtToken*: pushBtToken, \
     Stackint32_t*: pushint32_t \
     )(A, X)
     
 #define hasValues(X) _Generic((X), \
-    StackRememberedToken*: hasValuesRememberedToken \
+    StackBtToken*: hasValuesBtToken \
     )(X)   
 
 

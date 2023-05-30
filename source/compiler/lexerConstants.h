@@ -142,7 +142,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    30 // must be equal to the count of following constants
+#define countOperators    33 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
 #define opTSize            2 // #
@@ -152,29 +152,29 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTTypeAnd         6 // & interface intersection (type-level)
 #define opTNotEmpty        7 // '
 #define opTTimes           8 // *
-#define opTPlus            9 // +
-#define opTMinus          10 // -
-#define opTDivBy          11 // /
-#define opTArrowLeft      12 // <- // TODO remove since we won't compile to Golang
-#define opTBitShiftLeft   13 // <<
-#define opTLTEQ           14 // <=
-#define opTComparator     15 // <>
-#define opTLessThan       16 // <
-#define opTEquality       17 // ==
-#define opTIntervalBoth   18 // >=<= inclusive interval check
-#define opTIntervalLeft   19 // >=<  left-inclusive interval check
-#define opTIntervalRight  20 // ><=  right-inclusive interval check
-#define opTIntervalExcl   21 // ><   exclusive interval check
-#define opTGTEQ           22 // >=
-#define opTBitshiftRight  23 // >>   right bit shift
-#define opTGreaterThan    24 // >
-#define opTNullCoalesce   25 // ?:   null coalescing operator
-#define opTQuestionMark   26 // ?    nullable type operator
-#define opTExponent       27 // ^    exponentiation
-#define opTBoolOr         28 // ||   bitwise or
-#define opTXor            29 // |    bitwise xor
-// TODO add toInt, toFloat prefix operators
-// bring back the ++, -- postfix unaries. Comments will be the ";"
+#define opTIncrement       9 // ++
+#define opTPlus           10 // +
+#define opTDecrement      11 // --
+#define opTMinus          12 // -
+#define opTDivBy          13 // /
+#define opTBitShiftLeft   14 // <<
+#define opTLTEQ           15 // <=
+#define opTComparator     16 // <>
+#define opTLessThan       17 // <
+#define opTEquality       18 // ==
+#define opTIntervalBoth   19 // >=<= inclusive interval check
+#define opTIntervalLeft   20 // >=<  left-inclusive interval check
+#define opTIntervalRight  21 // ><=  right-inclusive interval check
+#define opTIntervalExcl   22 // ><   exclusive interval check
+#define opTGTEQ           23 // >=
+#define opTBitshiftRight  24 // >>   right bit shift
+#define opTGreaterThan    25 // >
+#define opTNullCoalesce   26 // ?:   null coalescing operator
+#define opTQuestionMark   27 // ?    nullable type operator
+#define opTExponent       28 // ^    exponentiation
+#define opTBoolOr         29 // ||   bitwise or
+#define opTXor            30 // |    bitwise xor
+#define opTToFloat        32 // ~
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)

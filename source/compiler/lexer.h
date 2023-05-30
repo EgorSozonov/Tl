@@ -28,7 +28,7 @@ typedef struct {
     Int tokenInd;
     Int countClauses;
     untt breakableClass : 3;
-    bool wasOrigSemicolon;
+    bool wasOrigColon;
 } BtToken;
 
 
@@ -120,7 +120,7 @@ struct Lexer {
     Int numericCapacity;
     Int numericNextInd;
 
-    StackRememberedToken* backtrack; // lives in aTemp
+    StackBtToken* backtrack; // lives in aTemp
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
     Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
