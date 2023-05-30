@@ -676,10 +676,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
                     wrapInAStatementStarting(startByte, lx, inp);
                     add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lx);
                 } else if (mbReservedWord == tokElse) {
-                    print("else")
-                    if (peek(lx->backtrack).tp == tokCase) {
-                        setSpanLength(pop(lx->backtrack).tokenInd, lx);
-                    }
+
 
                     push(((BtToken) {.tp = tokElse, .breakableClass = brScope, .tokenInd = lx->nextInd}), lx->backtrack);
                     add((Token){.tp = tokElse, .startByte = realStartByte}, lx);
@@ -712,6 +709,16 @@ private void lexAtWord(Lexer* lx, Arr(byte) inp) {
     wordInternal(tokAtWord, lx, inp);
 }
 
+/** Closes the current statement. Consumes no tokens */
+private void closeStatement(Lexer* lx) {
+    BtToken top = peek(lx->backtrack);
+    VALIDATE(top.breakableClass == brBreakable, errorPunctuationOnlyInMultiline)
+
+    Int len = lx->backtrack->length;
+    setStmtSpanLength(top.tokenInd, lx);
+    pop(lx->backtrack);
+}
+
 /** 
  * The dot is a statement separator
  */
@@ -721,13 +728,8 @@ private void lexDot(Lexer* lx, Arr(byte) inp) {
         wordInternal(tokFuncWord, lx, inp);
     } else if (!hasValues(lx->backtrack) || peek(lx->backtrack).breakableClass == brScope) {         
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
-    else {
-        BtToken top = peek(lx->backtrack);
-        VALIDATE(top.breakableClass == brBreakable, errorPunctuationOnlyInMultiline)
-
-        Int len = lx->backtrack->length;
-        setStmtSpanLength(top.tokenInd, lx);
-        pop(lx->backtrack);
+    } else {
+        closeStatement(lx);
         lx->i++;  // CONSUME the dot
     }
 }
@@ -856,7 +858,12 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
     if (nextBt == aEqual) {
         lexOperator(lx, inp); // ==        
     } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes
-        // TODO
+        // arrows are only allowed inside "if"s and similar
+        VALIDATE(lx->backtrack->length >= 2 && (*lx->backtrack->content)[lx->backtrack->length - 2].tp == tokIf, 
+                 errorCoreMisplacedArrow)
+        
+        closeStatement(lx);
+        lx->i += 2;  // CONSUME the arrow "=>"
     } else {
         processAssignment(0, 0, lx);
         lx->i++; // CONSUME the =
@@ -881,6 +888,7 @@ private void appendDocComment(Int startByte, Int endByte, Lexer* lx) {
  *  Doc comments, syntax is ;; Doc comment
  */
 private void docComment(Lexer* lx, Arr(byte) inp) {
+    Int startByte = lx->i;
     for (Int j = lx->i; j < lx->inpLength; j++) {
         if (inp[j] == aNewline) {
             addNewLine(j, lx);
@@ -909,7 +917,7 @@ private void lexMinus(Lexer* lx, Arr(byte) inp) {
 }
 
 
-private void lexComment() {    
+private void lexComment(Lexer* lx, Arr(byte) inp) {    
     if (lx->i >= lx->inpLength) return;
     
     if (CURR_BT == aSemicolon) {
@@ -999,9 +1007,19 @@ void lexSpace(Lexer* lx, Arr(byte) inp) {
     }
 }
 
-/** Tl is not indentation-sensitive, so this does nothing */
+/** 
+ * Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes the current
+ * statement unless it's inside an inline span (i.e. parens, brackets or accessor brackets)
+ */
 private void lexNewline(Lexer* lx, Arr(byte) inp) {
     addNewLine(lx->i, lx);
+    
+    BtToken top = peek(lx->backtrack);
+    if(top.breakableClass == brBreakable) {
+        Int len = lx->backtrack->length;
+        setStmtSpanLength(top.tokenInd, lx);
+        pop(lx->backtrack);
+    }      
     
     lx->i++;     // CONSUME the LF
     while (lx->i < lx->inpLength) {

@@ -27,13 +27,13 @@ extern const char errorPunctuationExtraClosing[];
 extern const char errorPunctuationOnlyInMultiline[];
 extern const char errorPunctuationUnmatched[];
 extern const char errorPunctuationWrongOpen[];
-extern const char errorPunctuationDoubleSplit[];
 extern const char errorOperatorUnknown[];
 extern const char errorOperatorAssignmentPunct[];
 extern const char errorOperatorTypeDeclPunct[];
 extern const char errorOperatorMultipleAssignment[];
 extern const char errorOperatorMutableDef[];
 extern const char errorCoreNotInsideStmt[];
+extern const char errorCoreMisplacedArrow[];
 extern const char errorCoreMisplacedElse[];
 extern const char errorCoreMissingParen[];
 extern const char errorCoreNotAtSpanStart[];
@@ -109,7 +109,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokIface       39       
 #define tokLambda      40       
 #define tokPackage     44       // for single-file packages
-#define tokReturn      45       
+#define tokReturn      45
 #define tokStruct      46       
 #define tokTry         47       // early exit
 #define tokYield       48       
