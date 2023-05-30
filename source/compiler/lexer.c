@@ -725,18 +725,20 @@ private void lexAtWord(Lexer* lx, Arr(byte) inp) {
  * The dot is a statement separator
  */
 private void lexDot(Lexer* lx, Arr(byte) inp) {
-    //Int multiLineMode = 0;
-    if (!hasValues(lx->backtrack) || peek(lx->backtrack).breakableClass == brScope) {
+    if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
+        lx->i++; // CONSUME the dot
+        wordInternal(tokFuncWord, lx, inp);
+    } else if (!hasValues(lx->backtrack) || peek(lx->backtrack).breakableClass == brScope) {         
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
-    } else if (peek(lx->backtrack).breakableClass == brBreakable) {              
-        Int len = lx->backtrack->length;
+    else {
         BtToken top = peek(lx->backtrack);
+        VALIDATE(top.breakableClass == brBreakable, errorPunctuationOnlyInMultiline)
+
+        Int len = lx->backtrack->length;
         setStmtSpanLength(top.tokenInd, lx);
         pop(lx->backtrack);
-    } else {
-        throwExc(errorPunctuationOnlyInMultiline, lx);
+        lx->i++;  // CONSUME the dot
     }
-    lx->i++;  // CONSUME the dot
 }
 
 /**
@@ -769,19 +771,6 @@ private void processAssignment(Int mutType, untt opType, Lexer* lx) {
         (*lx->backtrack->content)[lx->backtrack->length - 1] = (BtToken){ .tp = tokMutation, .tokenInd = tokenInd }; 
     } 
 }
-
-/** The comma is a function call operator */
-private void lexComma(Lexer* lx, Arr(byte) inp) {
-    checkPrematureEnd(2, lx);
-    lx->i++; // CONSUME the comma
-    byte nextBt = CURR_BT;
-    if (nextBt == aParenLeft) {
-        // TODO tokFuncExpr
-    } else {
-        wordInternal(tokFuncWord, lx, inp);
-    }    
-}
-
 
 private void lexSemicolon(Lexer* lx, Arr(byte) inp) {
     push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .wasOrigSemicolon = true}), lx->backtrack);
@@ -1040,36 +1029,16 @@ void lexSpace(Lexer* lx, Arr(byte) inp) {
     }
 }
 
-/** Ends a line-span */
+/** Tl is not indentation-sensitive, so this does nothing */
 private void lexNewline(Lexer* lx, Arr(byte) inp) {
-    // TODO update lastLineInitToken
-    // TODO walk next line to first token and see if it's initial, then update & check lx->indentation
     addNewLine(lx->i, lx);
     
-    lx->i++;      // CONSUME the LF
-    Int indentation = 0;
-    while (lx->i < lx->inpLength && CURR_BT == aSpace) {
-        if (CURR_BT == aSpace || CURR_BT == aCarrReturn) {
-            indentation++;
-        } else if (CURR_BT == aTab) {
-            indentation += 4;
-        } else {
+    lx->i++;     // CONSUME the LF
+    while (lx->i < lx->inpLength) {
+        if (CURR_BT != aSpace && CURR_BT != aTab && CURR_BT != aCarrReturn) {
             break;
         }
         lx->i++; // CONSUME a space or tab
-    }
-    if (lx->i == lx->inpLength || CURR_BT == aNewline
-        || !hasValues(lx->backtrack) || peek(lx->backtrack).breakableClass != brScope) {
-        return;
-    }
-    // We are in a breakable scope, and the first char is non-space, hence it must be a token that
-    // 1) is a start of a syntax form 2) is the first thing on its line. In this situation, its 
-    // indentation level matters.
-    VALIDATE(indentation % 4 == 0 && indentation/4 <= lx->indentation, errorIndentation)
-    indentation /= 4;
-    for (int i = lx->indentation; i > indentation; i--) {
-        BtToken backToken = pop(lx->backtrack);
-        setSpanLength(backToken.tokenInd, lx);
     }
 }
 
@@ -1175,7 +1144,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
         p[i] = &lexWord;
     }
     p[aUnderscore] = lexWord;
-    p[aComma] = &lexComma;
     p[aDot] = &lexDot;
     p[aAt] = &lexAtWord;
     p[aColon] = &lexColon;

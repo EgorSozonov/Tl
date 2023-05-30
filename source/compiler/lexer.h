@@ -104,7 +104,6 @@ struct Lexer {
     Int inpLength;
     Int totalTokens;
     Int lastClosingPunctInd;   // the index of the last encountered closing punctuation sign, used for statement length
-    Int indentation;           // current maximum indentation level. It increases by 1 for each colon
     Int lastLineInitToken;     // index of the last token that was initial in a line of text
     
     LanguageDefinition* langDef;

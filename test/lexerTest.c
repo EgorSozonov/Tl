@@ -174,7 +174,7 @@ LexerTestSet* wordTests(Arena* a) {
             .expectedOutput = buildLexerWithError(s(errorWordChunkStart), ((Token[]){}))
         },
         (LexerTest) {
-            .name = s("Dotword"),
+            .name = s("Atword"),
             .input = s("@a123"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 5 },
@@ -191,9 +191,9 @@ LexerTestSet* wordTests(Arena* a) {
         },
         (LexerTest) {
             .name = s("Function call"),
-            .input = s("a,func"),
+            .input = s("a .func"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 7 },
+                (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 1 },
                 (Token){ .tp = tokFuncWord, .payload2 = 1, .startByte = 2, .lenBytes = 5 }
             }))
@@ -818,7 +818,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokParens, .startByte = 3 }
          }))},
          (LexerTest) { .name = s("Paren-type core form"),
-             .input = s("if: x <> 7 > 0 => true."),
+             .input = s("(if x <> 7 > 0 => true)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokIf, .payload2 = 6, .startByte = 1, .lenBytes = 13 },
                  (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
@@ -829,8 +829,8 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokInt, .startByte = 13, .lenBytes = 1 }                
          }))},        
          (LexerTest) { .name = s("If with else"),
-             .input = s("if: x <> 7 > 0 => true.\n"
-                        "    else false."),
+             .input = s("(if x <> 7 > 0 => true.\n"
+                        "    else => false)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokIf, .payload2 = 8, .startByte = 1, .lenBytes = 20 },
 
@@ -845,9 +845,9 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokBool, .payload2 = 1, .startByte = 17, .lenBytes = 4 }
          }))},
         (LexerTest) { .name = s("If with elseif and else"),
-            .input = s("if: x <> 7 > 0 => 5.\n"
+            .input = s("(if x <> 7 > 0 => 5.\n"
                        "    x <> 7 < 0 => 11.\n"
-                       "    else true."),
+                       "    else => true)"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokIf, .payload2 = 8, .startByte = 1, .lenBytes = 48 },
 
@@ -888,7 +888,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 3 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
-             .input = s("fn foo Int(x Int y Int): x - y."),
+             .input = s("fn foo Int(x Int y Int)(x - y)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokFnDef, .payload2 = 11, .startByte = 0, .lenBytes = 30 },
                  (Token){ .tp = tokWord, .payload2 = 0, .startByte = 3, .lenBytes = 3 },                // foo

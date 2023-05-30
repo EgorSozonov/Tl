@@ -79,12 +79,6 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon       14 
-// 100 atom
-// 200 expr
-// 300 stmt with control flow
-// 400 stmt with definition/declaration
-// 500 lexical scope
-// 600 only at start
 
 // Punctuation (inner node) Token types
 #define tokScope       16       // (: This is resumable but trivially so, that's why it's not grouped with the others
@@ -100,32 +94,32 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokSemicolon   26       // separates type conditions from function params. "(x T; T Serializable)"
 
 // Single-shot core syntax forms
-#define tokAlias       27       // noParen   // 400
+#define tokAlias       27       // noParen
 #define tokAssert      28       // noParen   // 300
 #define tokAssertDbg   29       // noParen   // 300
 #define tokAwait       30       // noParen   // 300
 #define tokBreak       31       // noParen   // 300
-#define tokCatch       32       // paren "(catch e. e,print)"  // 500
-#define tokContinue    33       // noParen   // 300
-#define tokDefer       34       // noParen   // 300
+#define tokCatch       32       // paren "(catch e. e .print)"  // 500
+#define tokContinue    33       // noParen
+#define tokDefer       34       // noParen
 #define tokEmbed       35       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      36       // paren     // 600
-#define tokExposePriv  37       // paren     // 600
-#define tokFnDef       38       // specialCase // 400
-#define tokIface       39       // 400
-#define tokLambda      40       // 500
-#define tokPackage     44       // 500 // for single-file packages
-#define tokReturn      45       // 300
-#define tokStruct      46       // 400
-#define tokTry         47       // 500
-#define tokYield       48       // 300
+#define tokExport      36       // paren
+#define tokExposePriv  37       // paren
+#define tokFnDef       38       // specialCase
+#define tokIface       39       
+#define tokLambda      40       
+#define tokPackage     44       // for single-file packages
+#define tokReturn      45       
+#define tokStruct      46       
+#define tokTry         47       // early exit
+#define tokYield       48       
 
 // Resumable core forms
-#define tokIf          49       // paren    // 200/500
+#define tokIf          49       // paren 
 #define tokIfEq        50       // like if, but every branch is a value compared using standard equality // 200/500
 #define tokIfPr        51       // like if, but every branch is a value compared using custom predicate  // 200/500
-#define tokMatch       52       // pattern matching on sum type tag  // 200/500
-#define tokImpl        54       // paren // 400
+#define tokMatch       52       // pattern matching on sum type tag 
+#define tokImpl        54       // paren 
 #define tokLoop        55       // 
 
 #define topVerbatimTokenVariant tokUnderscore
@@ -179,9 +173,8 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTExponent       27 // ^    exponentiation
 #define opTBoolOr         28 // ||   bitwise or
 #define opTXor            29 // |    bitwise xor
-// splicing operator for lists?
-// operators for map, filter, reduce? ^^ map, ?? filter, ,, reduce 
-// coalescedFoos = collection ?? (lam x. x > 5) ^^ toFoo ,, coalesce.
+// TODO add toInt, toFloat prefix operators
+// bring back the ++, -- postfix unaries. Comments will be the ";"
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
@@ -193,44 +186,38 @@ static const byte reservedBytesAssert[]      = { 97, 115, 115, 101, 114, 116 };
 static const byte reservedBytesAssertDbg[]   = { 97, 115, 115, 101, 114, 116, 68, 98, 103 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
 static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
-static const byte reservedBytesCase[]        = { 99, 97, 115, 101 };
+static const byte reservedBytesCase[]        = { 99, 97, 115, 101 };   // probably won't need, just use "=>"
 static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
 static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
-static const byte reservedBytesDispose[]     = { 100, 105, 115, 112, 111, 115, 101 };
+static const byte reservedBytesDispose[]     = { 100, 105, 115, 112, 111, 115, 101 }; // change to "defer"
 static const byte reservedBytesElse[]        = { 101, 108, 115, 101 };
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
-static const byte reservedBytesFn[]          = { 102, 110 };
+static const byte reservedBytesFn[]          = { 102, 110 };  // maybe also "Fn" for function types
 static const byte reservedBytesIf[]          = { 105, 102 };
 static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
 static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
 static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
 static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
 static const byte reservedBytesLambda[]      = { 108, 97, 109 };
-static const byte reservedBytesLambda1[]     = { 108, 97, 109, 49 };
-static const byte reservedBytesLambda2[]     = { 108, 97, 109, 50 };
-static const byte reservedBytesLambda3[]     = { 108, 97, 109, 51 };
 static const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
-static const byte reservedBytesMut[]         = { 109, 117, 116 };
+static const byte reservedBytesMut[]         = { 109, 117, 116 }; // replace with "immut" or "val" for struct fields
 static const byte reservedBytesOr[]          = { 111, 114 };
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
 static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
 static const byte reservedBytesTry[]         = { 116, 114, 121 };
 static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
-
+// setArena, getArena ?
 
 /** Function precedence must be higher than that of any infix operator, yet lower than the prefix operators */
 #define functionPrec  26
 #define prefixPrec    27
 
 #define aALower       97
-#define aBLower       98
-#define aCLower       99
 #define aFLower      102
-#define aNLower      110
 #define aXLower      120
 #define aYLower      121
 #define aZLower      122
@@ -238,7 +225,6 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define aFUpper       70
 #define aZUpper       90
 #define aDigit0       48
-#define aDigit1       49
 #define aDigit9       57
 
 #define aPlus         43
