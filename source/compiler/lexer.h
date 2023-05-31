@@ -18,9 +18,10 @@ typedef struct {
     untt payload2;
 } Token;
 
-#define brScope         1 // scopes: newlines and commas just ignore them
-#define brBreakable     2 // single-line statements: newlines and commas break 'em
-#define brUnbreakable   3 // parens and the like: newlines ignore them, commas error out
+#define brScope          1 // scopes (denoted by brackets): newlines and commas just have no effect in them
+#define brBreakable      2 // single-line statements: newlines and commas break 'em
+#define brParenMultiline 3 // things like "(if)": they're multiline but they cannot contain any brackets
+#define brUnbreakable    4 // parens and the like: newlines have no effect, dots error out
 
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
 typedef struct {

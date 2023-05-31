@@ -40,12 +40,12 @@ StringStore* createStringStore(int initSize, Arena* a) {
 }
 
 
-private Int hashCode(byte* start, Int len) {        
-    Int result = 5381;
+private untt hashCode(byte* start, Int len) {        
+    untt result = 5381;
 
     byte* p = start;
     for (int i = 0; i < len; i++) {        
-        result = ((result << 5) + result) + p[i]; /* hash * 33 + c */
+        result = ((result << 5) + result) + p[i]; /* hash*33 + c */
     }
 
     return result;
@@ -81,14 +81,14 @@ Int addStringStore(byte* text, Int startByte, Int lenBytes, Stackint32_t* string
     Int hash = hashCode(text + startByte, lenBytes) % (hm->dictSize);
     Int newIndString;
     if (*(hm->dict + hash) == NULL) {
+
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (8 << 16) + 1; // left u16 = capacity, right u16 = length
         StringValue* firstElem = (StringValue*)newBucket->content;
         
         newIndString = stringTable->length;
         push(startByte, stringTable);
-        
-        
+                
         *firstElem = (StringValue){.length = lenBytes, .indString = newIndString };
         *(hm->dict + hash) = newBucket;
     } else {

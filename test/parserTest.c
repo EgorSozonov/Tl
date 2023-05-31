@@ -214,7 +214,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
         createTest(
             s("Double assignment"), 
             s("x = 12\n"
-              ".second = x"  
+              "second = x"  
             ),
             ((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
@@ -248,7 +248,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function call"), 
-            s("x = 10,foo 2 3"),
+            s("x = 10 .foo 2 3"),
             (((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 14 },
                     // " + 1" because the first binding is taken up by the "imported" function, "foo"
@@ -265,7 +265,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
         ),      
         createTest(
             s("Nested function call 1"), 
-            s("x = 10,foo (,bar) 3"),
+            s("x = 10 .foo (.bar) 3"),
             (((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 19 },                    
                     (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
@@ -283,7 +283,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Nested function call 2"), 
-            s("x = 10,foo (,barr 3)"),
+            s("x = 10 .foo (3 .barr)"),
             (((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 20 },                    
                     (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
@@ -302,7 +302,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Double function call"), 
-            s("x = 1 ,foo ,buzz 2 3 4"),
+            s("x = 1 .foo .buzz 2 3 4"),
             (((Node[]) {
                 (Node){ .tp = nodAssignment, .payload2 = 8, .startByte = 0, .lenBytes = 22 },
                 (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
@@ -655,7 +655,7 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function definition"),
-            s("fn newFn Int(x Int y Float)(: a = x )"),
+            s("[fn (newFn Int : x Int y Float) a = x ]"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .payload1 = 2, .payload2 = 7, .startByte = 0, .lenBytes = 37 },
                 (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 3, .lenBytes = 5 }, // newFn
@@ -670,9 +670,10 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Simple function definition 2"),
-            s("fn newFn Int(x Int y Float)(: a = x.\n"
-              "return a\n"
-              ")"
+            s("[fn (newFn Int : x Int y Float)\n"
+              "    a = x\n"
+              "    return a\n"
+              "]"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .payload1 = 2, .payload2 = 9, .startByte = 0, .lenBytes = 47 },

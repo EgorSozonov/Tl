@@ -117,8 +117,8 @@ private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
  * Validation to catch unmatched closing punctuation
  */
 private void validateClosingPunct(untt closingType, untt openType, Lexer* lx) {
-    if ((closingType == tokParens && openType == tokBrackets) 
-        || (closingType == tokBrackets && openType != tokBrackets && openType != tokAccessor)) {
+    if ((closingType == tokParens && openType == tokScope) 
+        || (closingType == tokScope && openType != tokScope)) {
             throwExc(errorPunctuationUnmatched, lx);
     }
 }
@@ -277,6 +277,17 @@ private void wrapInAStatement(Lexer* lx, Arr(byte) inp) {
     }
 }
 
+private void maybeBreakStatement(Lexer* lx) {
+    if (hasValues(lx->backtrack)) {
+        BtToken top = peek(lx->backtrack);
+        if(top.breakableClass == brBreakable) {
+            Int len = lx->backtrack->length;
+            setStmtSpanLength(top.tokenInd, lx);
+            pop(lx->backtrack);
+        }
+    }
+}
+
 /**
  * Processes a token which serves as the closer of a punctuation scope, i.e. either a ) or a ] .
  * This doesn't actually add any tokens to the array, just performs validation and sets the token length
@@ -288,16 +299,16 @@ private void closeRegularPunctuation(Int closingType, Lexer* lx) {
     VALIDATE(hasValues(bt), errorPunctuationExtraClosing)
 
     BtToken top = pop(bt);
-    if (bt->length > 0 && closingType == tokParens 
+    if (bt->length > 0 && closingType == tokScope 
       && top.breakableClass != brScope && ((*bt->content)[bt->length - 1].breakableClass == brScope)) {
-        // since a closing parenthesis might be closing something with statements inside it, like a lex scope
+        // since a closing bracket might be closing something with statements inside it, like a lex scope
         // or a core syntax form, we need to close the last statement before closing its parent
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
     validateClosingPunct(closingType, top.tp, lx);
     setSpanLength(top.tokenInd, lx);
-    lx->i++;
+    lx->i++; // CONSUME the closing ")" or "]"
 }
 
 
@@ -621,8 +632,8 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
     bool isAlsoAccessor = false;
     while (lx->i < (lx->inpLength - 1)) {
         byte currBt = CURR_BT;
-        if (currBt == aBracketLeft) {
-            isAlsoAccessor = true; // data accessor like a[5]
+        if (currBt == aParenLeft) {
+            isAlsoAccessor = true; // data accessor like arr(5)
             break;
         } else if (currBt == aDot) {
             byte nextBt = NEXT_BT;
@@ -645,8 +656,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
     byte firstByte = lx->inp->content[startByte];
     Int lenBytes = lx->i - realStartByte;
     Int lenString = lx->i - startByte;
-    VALIDATE(wordType == tokWord || !isAlsoAccessor, errorWordWrongAccessor)
-        
+    VALIDATE(wordType == tokWord || !isAlsoAccessor, errorWordWrongAccessor)      
     if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
         wrapInAStatementStarting(startByte, lx, inp);
         Int uniqueStringInd = addStringStore(inp, startByte, lenBytes, lx->stringTable, lx->stringStore);
@@ -657,7 +667,6 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         }
     } else {
         Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lx);
-        print("mbReserved %d", mbReservedWord)
         if (mbReservedWord > 0) {
             if (wordType == tokDotWord) {
                 throwExc(errorWordReservedWithDot, lx);
@@ -871,36 +880,32 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
 }
 
 /**
- * Appends a doc comment token if it's the first one, or elongates the existing token if there was already
- * a doc comment on the previous line.
- * This logic handles multiple consecutive lines of doc comments.
- * NOTE: this is the only function in the whole lexer that needs the endByte instead of lenBytes!
- */
-private void appendDocComment(Int startByte, Int endByte, Lexer* lx) {
-    if (lx->nextInd == 0 || lx->tokens[lx->nextInd - 1].tp != tokDocComment) {
-        add((Token){.tp = tokDocComment, .startByte = startByte, .lenBytes = endByte - startByte + 1}, lx);
-    } else {        
-        lx->tokens[lx->nextInd - 1].lenBytes = endByte - (lx->tokens[lx->nextInd - 1].startByte) + 1;
-    }
-}
-
-/**
- *  Doc comments, syntax is ;; Doc comment
+ *  Doc comments, syntax is (* Doc comment ).
+ *  Precondition: we are past the opening "(*"
  */
 private void docComment(Lexer* lx, Arr(byte) inp) {
     Int startByte = lx->i;
-    for (Int j = lx->i; j < lx->inpLength; j++) {
-        if (inp[j] == aNewline) {
+    Int parenLevel = 1;
+    Int j = lx->i;
+    for (; j < lx->inpLength; j++) {
+        byte cByte = inp[j];
+        // Doc comments may contain arbitrary UTF-8 symbols, but we care only about newlines and parentheses
+        if (cByte == aNewline) {
             addNewLine(j, lx);
-            if (j > startByte) {
-                appendDocComment(startByte, j - 1, lx);
+        } else if (cByte == aParenLeft) {
+            parenLevel++;
+        } else if (cByte == aParenRight) {
+            parenLevel--;
+            if (parenLevel == 0) {
+                j++; // CONSUME the right parenthesis
+                break;
             }
-            lx->i = j + 1;
-            return;
         }
     }
-    lx->i = lx->inpLength; // if we're here, then we haven't met a newline, hence we are at the document's end
-    appendDocComment(startByte, lx->inpLength - 1, lx);
+    if (j > lx->i) {
+        add((Token){.tp = tokDocComment, .startByte = lx->i - 2, .lenBytes = j - lx->i + 3}, lx);
+    }
+    lx->i = j;    
 }
 
 /** Handles the binary operator as well as the unary negation operator */
@@ -916,25 +921,25 @@ private void lexMinus(Lexer* lx, Arr(byte) inp) {
     }    
 }
 
-
+/** An ordinary until-line-end comment. It doesn't get included in the AST, just discarded by the lexer.
+ * Just like a newline, this needs to test if we're in a breakable statement because a comment goes until the line end.
+ */
 private void lexComment(Lexer* lx, Arr(byte) inp) {    
     if (lx->i >= lx->inpLength) return;
     
-    if (CURR_BT == aSemicolon) {
-        docComment(lx, inp);
-    } else {
-        Int j = lx->i;
-        while (j < lx->inpLength) {
-            byte cByte = inp[j];
-            if (cByte == aNewline) {
-                lx->i = j + 1;
-                return;
-            } else {
-                j++;
-            }
+    maybeBreakStatement(lx);
+        
+    Int j = lx->i;
+    while (j < lx->inpLength) {
+        byte cByte = inp[j];
+        if (cByte == aNewline) {
+            lx->i = j + 1;
+            return;
+        } else {
+            j++;
         }
-        lx->i = j;
-    } 
+    }
+    lx->i = j;     
 }
 
 /** If we are inside a compound (=2) core form, we need to increment the clause count */ 
@@ -958,22 +963,26 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
     }
 }
 
-
+/** Handles the "(*" case (doc-comment), the "(:" case (data initializer) as well as the common subexpression case */
 private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
-    if (j < lx->inpLength && inp[j] == aColon) { // "(:" starts a new lexical scope
+    VALIDATE(j < lx->inpLength, errorPunctuationUnmatched)
+    if (inp[j] == aColon) { // "(:" starts a new data initializer
         lx->i++; // CONSUME the ":"
-        openPunctuation(tokScope, lx);        
+        openPunctuation(tokData, lx);
+    } else if (inp[j] == aTimes) {
+        lx->i += 2; //CONSUME the "(*"
+        docComment(lx, inp);
     } else {
         wrapInAStatement(lx, inp);
-        openPunctuation(tokParens, lx);
+        openPunctuation(tokParens, lx);    
     }    
 }
 
 
 private void lexParenRight(Lexer* lx, Arr(byte) inp) {
-    // TODO handle syntax like "(foo 5).field"
+    // TODO handle syntax like "(5 .foo).field" and "arr(5).field"
     Int startInd = lx->i;
     closeRegularPunctuation(tokParens, lx);
     
@@ -985,15 +994,13 @@ private void lexParenRight(Lexer* lx, Arr(byte) inp) {
 
 
 void lexBracketLeft(Lexer* lx, Arr(byte) inp) {
-    wrapInAStatement(lx, inp);
-    openPunctuation(tokBrackets, lx);
+    openPunctuation(tokScope, lx);
 }
 
 
-void lexBracketRight(Lexer* lx, Arr(byte) inp) {
-    // TODO handle syntax like "foo[5].field"    
+void lexBracketRight(Lexer* lx, Arr(byte) inp) {    
     Int startInd = lx->i;
-    closeRegularPunctuation(tokBrackets, lx);
+    closeRegularPunctuation(tokScope, lx);
     mbCloseCompoundCoreForm(lx);
     
     lx->lastClosingPunctInd = startInd;
@@ -1009,17 +1016,12 @@ void lexSpace(Lexer* lx, Arr(byte) inp) {
 
 /** 
  * Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes the current
- * statement unless it's inside an inline span (i.e. parens, brackets or accessor brackets)
+ * statement unless it's inside an inline span (i.e. parens or accessor parens)
  */
 private void lexNewline(Lexer* lx, Arr(byte) inp) {
     addNewLine(lx->i, lx);
     
-    BtToken top = peek(lx->backtrack);
-    if(top.breakableClass == brBreakable) {
-        Int len = lx->backtrack->length;
-        setStmtSpanLength(top.tokenInd, lx);
-        pop(lx->backtrack);
-    }      
+    maybeBreakStatement(lx);
     
     lx->i++;     // CONSUME the LF
     while (lx->i < lx->inpLength) {

@@ -81,11 +81,11 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokColon       14 
 
 // Punctuation (inner node) Token types
-#define tokScope       16       // (: This is resumable but trivially so, that's why it's not grouped with the others
+#define tokScope       16       // denoted by []
 #define tokStmt        17
 #define tokParens      18
-#define tokBrackets    19
-#define tokAccessor    20
+#define tokData        19       // data initializer, like (: 1 2 3)
+#define tokAccessor    20       // data accessor, like array(1 2)
 #define tokFuncExpr    21       // the ",(foo,bar)" kind of thing  // 200
 #define tokAssignment  22       // payload1 = 1 if mutable assignment, 0 if immutable    // 400
 #define tokReassign    23       // :=
