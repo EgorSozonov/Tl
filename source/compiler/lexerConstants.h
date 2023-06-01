@@ -81,46 +81,45 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokColon       14 
 
 // Punctuation (inner node) Token types
-#define tokScope       16       // denoted by []
-#define tokStmt        17
-#define tokParens      18
-#define tokData        19       // data initializer, like (: 1 2 3)
-#define tokAccessor    20       // data accessor, like array(1 2)
-#define tokFuncExpr    21       // the ",(foo,bar)" kind of thing  // 200
-#define tokAssignment  22       // payload1 = 1 if mutable assignment, 0 if immutable    // 400
-#define tokReassign    23       // :=
-#define tokMutation    24       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
-#define tokElse        25       // the "::" which signifies the "else" clause in if-type things
-#define tokSemicolon   26       // separates type conditions from function params. "(x T; T Serializable)"
+#define tokScope       15       // denoted by []
+#define tokStmt        16
+#define tokParens      17
+#define tokData        18       // data initializer, like (: 1 2 3)
+#define tokAccessor    19       // data accessor, like array(1 2)
+#define tokFuncExpr    20       // the ",(foo,bar)" kind of thing  // 200
+#define tokAssignment  21       // payload1 = 1 if mutable assignment, 0 if immutable    // 400
+#define tokReassign    22       // :=
+#define tokMutation    23       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokElse        24     
 
 // Single-shot core syntax forms
-#define tokAlias       27       // noParen
-#define tokAssert      28       // noParen   // 300
-#define tokAssertDbg   29       // noParen   // 300
-#define tokAwait       30       // noParen   // 300
-#define tokBreak       31       // noParen   // 300
-#define tokCatch       32       // paren "(catch e. e .print)"  // 500
-#define tokContinue    33       // noParen
-#define tokDefer       34       // noParen
-#define tokEmbed       35       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      36       // paren
-#define tokExposePriv  37       // paren
-#define tokFnDef       38       // specialCase
-#define tokIface       39       
-#define tokLambda      40       
-#define tokPackage     44       // for single-file packages
-#define tokReturn      45
-#define tokStruct      46       
-#define tokTry         47       // early exit
-#define tokYield       48       
+#define tokAlias       25       // noParen
+#define tokAssert      26       // noParen   // 300
+#define tokAssertDbg   27       // noParen   // 300
+#define tokAwait       28       // noParen   // 300
+#define tokBreak       29       // noParen   // 300
+#define tokCatch       30       // paren "(catch e. e .print)"  // 500
+#define tokContinue    31       // noParen
+#define tokDefer       32       // noParen
+#define tokEmbed       33       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      34       // paren
+#define tokExposePriv  35       // paren
+#define tokFnDef       36       // specialCase
+#define tokIface       37       
+#define tokLambda      38       
+#define tokPackage     39       // for single-file packages
+#define tokReturn      40
+#define tokStruct      41       
+#define tokTry         42       // early exit
+#define tokYield       43       
 
 // Resumable core forms
-#define tokIf          49       // paren 
-#define tokIfEq        50       // like if, but every branch is a value compared using standard equality // 200/500
-#define tokIfPr        51       // like if, but every branch is a value compared using custom predicate  // 200/500
-#define tokMatch       52       // pattern matching on sum type tag 
-#define tokImpl        54       // paren 
-#define tokLoop        55       // 
+#define tokIf          44       // paren 
+#define tokIfEq        45       // like if, but every branch is a value compared using standard equality // 200/500
+#define tokIfPr        46       // like if, but every branch is a value compared using custom predicate  // 200/500
+#define tokMatch       47       // pattern matching on sum type tag 
+#define tokImpl        48       // paren 
+#define tokLoop        49       // 
 
 #define topVerbatimTokenVariant tokUnderscore
 
