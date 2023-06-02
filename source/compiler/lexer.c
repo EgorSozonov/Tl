@@ -147,7 +147,6 @@ private Int determineReservedB(Int startByte, Int lenBytes, Lexer* lx) {
 }
 
 private Int determineReservedC(Int startByte, Int lenBytes, Lexer* lx) {
-    print("testing for case")
     Int lenReser;
     PROBERESERVED(reservedBytesCatch, tokCatch)
     PROBERESERVED(reservedBytesContinue, tokContinue)
@@ -685,8 +684,6 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
                     wrapInAStatementStarting(startByte, lx, inp);
                     add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lx);
                 } else if (mbReservedWord == tokElse) {
-
-
                     push(((BtToken) {.tp = tokElse, .breakableClass = brScope, .tokenInd = lx->nextInd}), lx->backtrack);
                     add((Token){.tp = tokElse, .startByte = realStartByte}, lx);
                 }
@@ -744,10 +741,10 @@ private void lexDot(Lexer* lx, Arr(byte) inp) {
 }
 
 /**
- * Handles the "=", ":=" and "+=" forms. 
+ * Handles the "=", ":=" and "+=" tokens. 
  * Changes existing tokens and parent span to accout for the fact that we met an assignment operator 
- * mutType = 0 if it's immutable assignment, 1 if it's ":=", 2 if it's a regular operator mut ("+="),
- * 3 if it's an extended operator mut ("+.=")
+ * mutType = 0 if it's immutable assignment, 1 if it's ":=", 2 if it's a regular operator mut "+=",
+ * 3 if it's an extended operator mutation "+.="
  */
 private void processAssignment(Int mutType, untt opType, Lexer* lx) {
     BtToken currSpan = peek(lx->backtrack);
@@ -757,20 +754,18 @@ private void processAssignment(Int mutType, untt opType, Lexer* lx) {
     } else if (currSpan.tp != tokStmt) {
         throwExc(errorOperatorAssignmentPunct, lx);
     } 
-    Int tokenInd = lx->nextInd - 1;
+    Int tokenInd = currSpan.tokenInd;
     Token* tok = (lx->tokens + tokenInd);
     untt tp;
     if (mutType == 0) {
-        tok->tp = tokAssignment;        
-        (*lx->backtrack->content)[lx->backtrack->length - 1] = (BtToken){ .tp = tokAssignment, .tokenInd = tokenInd };  
+        tok->tp = tokAssignment;
     } else if (mutType == 1) {
         tok->tp = tokReassign;
-        (*lx->backtrack->content)[lx->backtrack->length - 1] = (BtToken){ .tp = tokReassign, .tokenInd = tokenInd };
     } else {
         tok->tp = tokMutation;
         tok->payload1 = (mutType == 3 ? 1 : 0)  + (opType << 1);
-        (*lx->backtrack->content)[lx->backtrack->length - 1] = (BtToken){ .tp = tokMutation, .tokenInd = tokenInd }; 
     } 
+    (*lx->backtrack->content)[lx->backtrack->length - 1] = (BtToken){ .tp = tok->tp, .tokenInd = tokenInd }; 
 }
 
 /** Semicolon signifies comments */
@@ -803,7 +798,7 @@ private void addOperator(Int opType, Int isExtension, Int startByte, Int lenByte
 
 
 private void lexOperator(Lexer* lx, Arr(byte) inp) {
-    wrapInAStatement(lx, inp);
+    wrapInAStatement(lx, inp);    
     
     byte firstSymbol = CURR_BT;
     byte secondSymbol = (lx->inpLength > lx->i + 1) ? inp[lx->i + 1] : 0;
@@ -851,7 +846,7 @@ private void lexOperator(Lexer* lx, Arr(byte) inp) {
         isExtensionAssignment += 2;
         j++;
     }
-    if ((isExtensionAssignment & 2) > 0) { // mutation operators like "*=" or "*.="
+    if ((isExtensionAssignment & 2) > 0) { // mutation operators like "*=" or "*.="        
         processAssignment(isExtensionAssignment & 1 > 0 ? 3 : 2, opType, lx);
     } else {
         addOperator(opType, isExtensionAssignment, lx->i, j - lx->i, lx);

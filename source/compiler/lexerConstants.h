@@ -71,11 +71,11 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokWord         6      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
 #define tokDotWord      7      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
 #define tokAtWord       8      // "@annotation", payloads same as tokWord
-#define tokFuncWord     9      // ",funcName", payloads same as tokWord
+#define tokFuncWord     9      // ".funcName", payloads same as tokWord
 #define tokOperator    10      // payload1 = OperatorToken encoded as an Int
 #define tokAnd         11
 #define tokOr          12
-#define tokDispose     13       // noParen   // 300
+#define tokDispose     13      
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon       14 
@@ -86,19 +86,19 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokParens      17
 #define tokData        18       // data initializer, like (: 1 2 3)
 #define tokAccessor    19       // data accessor, like array(1 2)
-#define tokFuncExpr    20       // the ",(foo,bar)" kind of thing  // 200
-#define tokAssignment  21       // payload1 = 1 if mutable assignment, 0 if immutable    // 400
+#define tokFuncExpr    20       // the ".(foo .bar)" kind of thing
+#define tokAssignment  21       // payload1 = 1 if mutable assignment, 0 if immutable 
 #define tokReassign    22       // :=
 #define tokMutation    23       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
 #define tokElse        24     
 
 // Single-shot core syntax forms
-#define tokAlias       25       // noParen
-#define tokAssert      26       // noParen   // 300
-#define tokAssertDbg   27       // noParen   // 300
-#define tokAwait       28       // noParen   // 300
-#define tokBreak       29       // noParen   // 300
-#define tokCatch       30       // paren "(catch e. e .print)"  // 500
+#define tokAlias       25      
+#define tokAssert      26      
+#define tokAssertDbg   27     
+#define tokAwait       28      
+#define tokBreak       29      
+#define tokCatch       30       // paren "(catch e. e .print)"
 #define tokContinue    31       // noParen
 #define tokDefer       32       // noParen
 #define tokEmbed       33       // noParen. Embed a text file as a string literal, or a binary resource file // 200
@@ -115,8 +115,8 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 // Resumable core forms
 #define tokIf          44       // paren 
-#define tokIfEq        45       // like if, but every branch is a value compared using standard equality // 200/500
-#define tokIfPr        46       // like if, but every branch is a value compared using custom predicate  // 200/500
+#define tokIfEq        45       // like if, but every branch is a value compared using standard equality
+#define tokIfPr        46       // like if, but every branch is a value compared using custom predicate
 #define tokMatch       47       // pattern matching on sum type tag 
 #define tokImpl        48       // paren 
 #define tokLoop        49       // 
@@ -173,7 +173,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTExponent       28 // ^    exponentiation
 #define opTBoolOr         29 // ||   bitwise or
 #define opTXor            30 // |    bitwise xor
-#define opTToFloat        32 // ~
+#define opTToFloat        31 // ~
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)

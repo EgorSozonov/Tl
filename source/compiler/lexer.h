@@ -134,6 +134,7 @@ struct Lexer {
     Arena* aTemp;
 };
 
+
 struct LanguageDefinition {
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
@@ -148,9 +149,10 @@ Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, S
 Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 void add(Token t, Lexer* lexer);
 
-
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 Lexer* lexicallyAnalyze(String*, LanguageDefinition*, Arena*);
+
+
 typedef union {
     uint64_t i;
     double   d;
