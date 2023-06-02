@@ -18,9 +18,10 @@ const char errorNumericMultipleDots[]        = "Multiple dots in numeric literal
 const char errorNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
 const char errorPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errorPunctuationExtraClosing[]    = "Extra closing punctuation";
-const char errorPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like {}";
+const char errorPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like []";
 const char errorPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errorPunctuationWrongOpen[]       = "Wrong opening punctuation";
+const char errorPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errorOperatorUnknown[]            = "Unknown operator";
 const char errorOperatorAssignmentPunct[]    = "Incorrect assignment operator placement: must be directly inside an ordinary statement, after the binding name!";
 const char errorOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
@@ -32,7 +33,7 @@ const char errorCoreMisplacedElse[]          = "The else statement must be insid
 const char errorCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
 const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
 const char errorIndentation[]                = "Indentation error: must be divisible by 4 (tabs also count as 4) and not greater than the current indentation level!";
-const char errorDocComment[]                 = "Doc comments must have the syntax: ---comment";
+const char errorDocComment[]                 = "Doc comments must have the syntax: (*comment)";
 
 
 /** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus.

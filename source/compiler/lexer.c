@@ -94,7 +94,7 @@ private void closeColons(Lexer* lx) {
  * Called when the matching closer is lexed.
  */
 private void setSpanLength(Int tokenInd, Lexer* lx) {
-    lx->tokens[tokenInd].lenBytes = lx->i - lx->tokens[tokenInd].startByte;
+    lx->tokens[tokenInd].lenBytes = lx->i - lx->tokens[tokenInd].startByte + 1;
     lx->tokens[tokenInd].payload2 = lx->nextInd - tokenInd - 1;
 }
 
@@ -114,11 +114,13 @@ private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
 }
 
 /**
- * Validation to catch unmatched closing punctuation
+ * Validation to catch unmatched closing punctuation. Parens can only close unbreakables (i.e. subexpressions,
+ * including addressers) and core forms that were open with parens; brackets can only close scopes and core
+ * forms opened with brackets.
  */
-private void validateClosingPunct(untt closingType, untt openType, Lexer* lx) {
-    if ((closingType == tokParens && openType == tokScope) 
-        || (closingType == tokScope && openType != tokScope)) {
+private void validateClosingPunct(untt closingType, untt openBreakableClass, Lexer* lx) {
+    if ((closingType == tokParens && (openBreakableClass != brUnbreakable && openBreakableClass != brParenMultiline))
+        || (closingType == tokScope && openBreakableClass != brScope)) {
             throwExc(errorPunctuationUnmatched, lx);
     }
 }
@@ -248,15 +250,15 @@ private void addNewLine(Int j, Lexer* lx) {
 }
 
 private void addStatement(untt stmtType, Int startByte, Lexer* lx) {
-    push(((BtToken){ .tp = stmtType, .tokenInd = lx->nextInd}), lx->backtrack);
+    push(((BtToken){ .tp = stmtType, .tokenInd = lx->nextInd, .breakableClass = brBreakable }), lx->backtrack);
     add((Token){ .tp = stmtType, .startByte = startByte}, lx);
 }
 
 
 private void wrapInAStatementStarting(Int startByte, Lexer* lx, Arr(byte) inp) {    
     if (hasValues(lx->backtrack)) {
-        if (peek(lx->backtrack).breakableClass == brScope) {            
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd }), lx->backtrack);
+        if (peek(lx->backtrack).breakableClass <= brParenMultiline) {            
+            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .breakableClass = brBreakable }), lx->backtrack);
             add((Token){ .tp = tokStmt, .startByte = startByte},  lx);
         }
     } else {
@@ -267,8 +269,8 @@ private void wrapInAStatementStarting(Int startByte, Lexer* lx, Arr(byte) inp) {
 
 private void wrapInAStatement(Lexer* lx, Arr(byte) inp) {
     if (hasValues(lx->backtrack)) {
-        if (peek(lx->backtrack).breakableClass == brScope) {
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd }), lx->backtrack);
+        if (peek(lx->backtrack).breakableClass <= brParenMultiline) {
+            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .breakableClass = brBreakable }), lx->backtrack);
             add((Token){ .tp = tokStmt, .startByte = lx->i},  lx);
         }
     } else {
@@ -296,16 +298,16 @@ private void closeRegularPunctuation(Int closingType, Lexer* lx) {
     StackBtToken* bt = lx->backtrack;
     closeColons(lx);
     VALIDATE(hasValues(bt), errorPunctuationExtraClosing)
-
     BtToken top = pop(bt);
-    if (bt->length > 0 && closingType == tokScope 
-      && top.breakableClass != brScope && ((*bt->content)[bt->length - 1].breakableClass == brScope)) {
-        // since a closing bracket might be closing something with statements inside it, like a lex scope
-        // or a core syntax form, we need to close the last statement before closing its parent
+    // since a closing bracket might be closing something with statements inside it, like a lex scope
+    // or a core syntax form, we need to close the last statement before closing its parent
+    if (bt->length > 0 && top.breakableClass != brScope 
+          && ((*bt->content)[bt->length - 1].breakableClass <= brParenMultiline)) {
+
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
-    validateClosingPunct(closingType, top.tp, lx);
+    validateClosingPunct(closingType, top.breakableClass, lx);
     setSpanLength(top.tokenInd, lx);
     lx->i++; // CONSUME the closing ")" or "]"
 }
@@ -491,6 +493,10 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
         } else if (cByte == aUnderscore) {
             VALIDATE(j != (lx->inpLength - 1) && isDigit(inp[j + 1]), errorNumericEndUnderscore)
         } else if (cByte == aDot) {
+            if (j + 1 < maximumInd || !isDigit(inp[j + 1])) {
+                break;
+            }
+            
             VALIDATE(!metDot, errorNumericMultipleDots)
             metDot = true;
         } else {
@@ -549,16 +555,16 @@ private void lexNumber(Lexer* lx, Arr(byte) inp) {
  * scope. Thus, for '(asdf)', the opening paren token will have a byte length of 4 and a
  * token length of 1.
  */
-private void openPunctuation(untt tType, Lexer* lx) {
-    lx->i++;  // CONSUME the punctuation opening symbol
+private void openPunctuation(untt tType, Int startByte, Lexer* lx) {
     push( ((BtToken){ 
         .tp = tType, .tokenInd = lx->nextInd, .breakableClass = (tType == tokScope) ? brScope : brUnbreakable
     }), lx->backtrack);
-    add((Token) {.tp = tType, .startByte = lx->i }, lx);    
+    add((Token) {.tp = tType, .startByte = startByte }, lx);
+    lx->i++;  // CONSUME the punctuation opening symbol
 }
 
 /**
- * Lexer action for a reserved word. It mutates the type of current span and.
+ * Lexer action for a paren-type reserved word. It turns parentheses or brackets into a core form.
  * If necessary (parens inside statement) it also deletes last token and removes the top frame
  */
 private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Arr(byte) inp) {    
@@ -581,13 +587,12 @@ private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Ar
             pop(bt);
             lx->nextInd--;
             top = peek(bt);
-            lx->tokens[top.tokenInd].startByte = startByte;
         }
         
         // update the token type and the corresponding frame type
         lx->tokens[top.tokenInd].tp = reservedWordType;
         (*bt->content)[bt->length - 1].tp = reservedWordType;
-        (*bt->content)[bt->length - 1].breakableClass = brScope; // all parenthetical core forms are considered multiline
+        (*bt->content)[bt->length - 1].breakableClass = top.tp == tokScope ? brScope : brParenMultiline;
     }
 }
 
@@ -662,7 +667,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
                      .startByte=realStartByte, .lenBytes=lenBytes }, lx);
         if (isAlsoAccessor) {
-            openPunctuation(tokAccessor, lx);
+            openPunctuation(tokAccessor, lx->i, lx);
         }
     } else {
         Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lx);
@@ -676,15 +681,15 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
                     add((Token){.tp=tokOr, .startByte=realStartByte, .lenBytes=2}, lx);
                 } else if (mbReservedWord == reservedTrue) {
                     wrapInAStatementStarting(startByte, lx, inp);
-                    add((Token){.tp=tokBool, .payload2=1, .startByte=realStartByte, .lenBytes=lenBytes}, lx);
+                    add((Token){.tp=tokBool, .payload2=1, .startByte=realStartByte, .lenBytes=4}, lx);
                 } else if (mbReservedWord == reservedFalse) {
                     wrapInAStatementStarting(startByte, lx, inp);
-                    add((Token){.tp=tokBool, .payload2=0, .startByte=realStartByte, .lenBytes=lenBytes}, lx);
+                    add((Token){.tp=tokBool, .payload2=0, .startByte=realStartByte, .lenBytes=5}, lx);
                 } else if (mbReservedWord == tokDispose) {
                     wrapInAStatementStarting(startByte, lx, inp);
                     add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lx);
                 } else if (mbReservedWord == tokElse) {
-                    push(((BtToken) {.tp = tokElse, .breakableClass = brScope, .tokenInd = lx->nextInd}), lx->backtrack);
+                    push(((BtToken) {.tp = tokElse, .breakableClass = brBreakable, .tokenInd = lx->nextInd}), lx->backtrack);
                     add((Token){.tp = tokElse, .startByte = realStartByte}, lx);
                 }
             } else {
@@ -696,7 +701,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
             add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
                          .startByte=realStartByte, .lenBytes=lenBytes }, lx);
             if (isAlsoAccessor) {
-                openPunctuation(tokAccessor, lx);
+                openPunctuation(tokAccessor, lx->i, lx);
             }
         }
     }
@@ -765,14 +770,8 @@ private void processAssignment(Int mutType, untt opType, Lexer* lx) {
         tok->tp = tokMutation;
         tok->payload1 = (mutType == 3 ? 1 : 0)  + (opType << 1);
     } 
-    (*lx->backtrack->content)[lx->backtrack->length - 1] = (BtToken){ .tp = tok->tp, .tokenInd = tokenInd }; 
-}
-
-/** Semicolon signifies comments */
-private void lexSemicolon(Lexer* lx, Arr(byte) inp) {
-    push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .wasOrigColon = true}), lx->backtrack);
-    add((Token) {.tp = tokParens, .startByte = lx->i }, lx);
-    lx->i++; // CONSUME the semicolon
+    (*lx->backtrack->content)[lx->backtrack->length - 1] = (BtToken){
+        .tp = tok->tp, .breakableClass = brBreakable, .tokenInd = tokenInd }; 
 }
 
 /**
@@ -785,7 +784,8 @@ private void lexColon(Lexer* lx, Arr(byte) inp) {
         lx->i++; // CONSUME the "="
         processAssignment(1, 0, lx);
     } else {
-        push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .wasOrigColon = true}), lx->backtrack);
+        push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .breakableClass = brUnbreakable, .wasOrigColon = true}),
+             lx->backtrack);
         add((Token) {.tp = tokParens, .startByte = lx->i }, lx);
     }    
 }
@@ -855,15 +855,19 @@ private void lexOperator(Lexer* lx, Arr(byte) inp) {
 }
 
 
-private void lexEqual(Lexer* lx, Arr(byte) inp) {       
+private void lexEqual(Lexer* lx, Arr(byte) inp) {
     checkPrematureEnd(2, lx);
     byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
         lexOperator(lx, inp); // ==        
     } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes
+        
         // arrows are only allowed inside "if"s and similar
-        VALIDATE(lx->backtrack->length >= 2 && (*lx->backtrack->content)[lx->backtrack->length - 2].tp == tokIf, 
-                 errorCoreMisplacedArrow)
+        if (lx->backtrack->length < 2) {
+            throwExc(errorCoreMisplacedArrow, lx);
+        }
+        BtToken parent = (*lx->backtrack->content)[lx->backtrack->length - 2];
+        VALIDATE(parent.tp == tokIf || parent.tp == tokElse, errorCoreMisplacedArrow)
         
         closeStatement(lx);
         lx->i += 2;  // CONSUME the arrow "=>"
@@ -965,14 +969,14 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     Int j = lx->i + 1;
     VALIDATE(j < lx->inpLength, errorPunctuationUnmatched)
     if (inp[j] == aColon) { // "(:" starts a new data initializer
-        lx->i++; // CONSUME the ":"
-        openPunctuation(tokData, lx);
+        lx->i++; // CONSUME the "("
+        openPunctuation(tokData, lx->i - 1, lx); // -1 for the "(" which we've already consumed
     } else if (inp[j] == aTimes) {
-        lx->i += 2; //CONSUME the "(*"
+        lx->i += 2; // CONSUME the "(*"
         docComment(lx, inp);
     } else {
         wrapInAStatement(lx, inp);
-        openPunctuation(tokParens, lx);    
+        openPunctuation(tokParens, lx->i, lx);    
     }    
 }
 
@@ -988,9 +992,12 @@ private void lexParenRight(Lexer* lx, Arr(byte) inp) {
     lx->lastClosingPunctInd = startInd;    
 }
 
-
+/** Opens a scope. Checks that we are in a multiline span. Consumes no tokens */ 
 void lexBracketLeft(Lexer* lx, Arr(byte) inp) {
-    openPunctuation(tokScope, lx);
+    if (hasValues(lx->backtrack) && peek(lx->backtrack).breakableClass != brScope) {
+        throwExc(errorPunctuationScope, lx);
+    }
+    openPunctuation(tokScope, lx->i, lx);
 }
 
 
@@ -1285,6 +1292,7 @@ private void finalize(Lexer* lx) {
     if (!hasValues(lx->backtrack)) return;
     closeColons(lx);
     BtToken top = pop(lx->backtrack);
+    print("finalize %d %d tp = %d top.breakableClass %d", top.breakableClass, hasValues(lx->backtrack), top.tp, top.breakableClass)
     VALIDATE(top.breakableClass != brScope && !hasValues(lx->backtrack), errorPunctuationExtraOpening)
 
     setStmtSpanLength(top.tokenInd, lx);    

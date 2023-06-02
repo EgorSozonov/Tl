@@ -27,6 +27,7 @@ extern const char errorPunctuationExtraClosing[];
 extern const char errorPunctuationOnlyInMultiline[];
 extern const char errorPunctuationUnmatched[];
 extern const char errorPunctuationWrongOpen[];
+extern const char errorPunctuationScope[];
 extern const char errorOperatorUnknown[];
 extern const char errorOperatorAssignmentPunct[];
 extern const char errorOperatorTypeDeclPunct[];
@@ -135,6 +136,11 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
  */
 #define reservedFalse   2
 #define reservedTrue    1
+
+#define brScope          1 // scopes (denoted by brackets): newlines and commas just have no effect in them
+#define brParenMultiline 2 // things like "(if)": they're multiline but they cannot contain any brackets
+#define brBreakable      3 // single-line statements: newlines and commas break 'em
+#define brUnbreakable    4 // parens and the like: newlines have no effect, dots error out
 
 /**
  * OperatorType
