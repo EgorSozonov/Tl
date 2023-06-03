@@ -76,23 +76,23 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokOperator    10      // payload1 = OperatorToken encoded as an Int
 #define tokAnd         11
 #define tokOr          12
-#define tokDispose     13      
+#define tokDispose     13
+#define tokElse        14    
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon       14 
+#define tokColon       15 
 
 // Punctuation (inner node) Token types
-#define tokScope       15       // denoted by []
-#define tokStmt        16
-#define tokParens      17
-#define tokData        18       // data initializer, like (: 1 2 3)
-#define tokAccessor    19       // data accessor, like array(1 2)
-#define tokFuncExpr    20       // the ".(foo .bar)" kind of thing
-#define tokAssignment  21       // payload1 = 1 if mutable assignment, 0 if immutable 
-#define tokReassign    22       // :=
-#define tokMutation    23       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
-#define tokElse        24     
-
+#define tokScope       16       // denoted by []
+#define tokStmt        17
+#define tokParens      18
+#define tokData        19       // data initializer, like (: 1 2 3)
+#define tokAccessor    20       // data accessor, like array(1 2)
+#define tokFuncExpr    21       // the ".(foo .bar)" kind of thing
+#define tokAssignment  22       // payload1 = 1 if mutable assignment, 0 if immutable 
+#define tokReassign    23       // :=
+#define tokMutation    24       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+ 
 // Single-shot core syntax forms
 #define tokAlias       25      
 #define tokAssert      26      
@@ -137,10 +137,11 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define reservedFalse   2
 #define reservedTrue    1
 
-#define brScope          1 // scopes (denoted by brackets): newlines and commas just have no effect in them
-#define brParenMultiline 2 // things like "(if)": they're multiline but they cannot contain any brackets
-#define brBreakable      3 // single-line statements: newlines and commas break 'em
-#define brUnbreakable    4 // parens and the like: newlines have no effect, dots error out
+/** Span levels */
+#define slBrackets      1 // scopes (denoted by brackets): newlines and commas just have no effect in them
+#define slParenMulti    2 // things like "(if)": they're multiline but they cannot contain any brackets
+#define slStmt          3 // single-line statements: newlines and commas break 'em
+#define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
 
 /**
  * OperatorType

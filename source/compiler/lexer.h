@@ -25,7 +25,7 @@ typedef struct {
     untt tp : 6;
     Int tokenInd;
     Int countClauses;
-    untt breakableClass : 3;
+    untt spanLevel : 3;
     bool wasOrigColon;
 } BtToken;
 
