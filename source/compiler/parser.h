@@ -60,7 +60,7 @@ typedef void (*ResumeFunc)(untt, Token, Arr(Token), Parser*);
 
 #define countNonresumableForms (tokYield + 1)
 #define firstResumableForm tokIf
-#define countResumableForms (tokMut - tokIf + 1)
+#define countResumableForms (tokLoop - tokIf + 1)
 
 typedef struct {
     ParserFunc (*nonResumableTable)[countNonresumableForms];

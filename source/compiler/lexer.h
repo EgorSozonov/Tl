@@ -8,8 +8,6 @@
 #include "../utils/structures/stackHeader.h"
 #include "lexerConstants.h"
 
-#define VALIDATE(cond, errMsg) if (!(cond)) { throwExc(errMsg, lx); }
-
 typedef struct {
     untt tp : 6;
     untt lenBytes: 26;
@@ -17,8 +15,6 @@ typedef struct {
     untt payload1;
     untt payload2;
 } Token;
-
-
 
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
 typedef struct {

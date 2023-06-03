@@ -23,7 +23,7 @@ const char errorPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errorPunctuationWrongOpen[]       = "Wrong opening punctuation";
 const char errorPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errorOperatorUnknown[]            = "Unknown operator";
-const char errorOperatorAssignmentPunct[]    = "Incorrect assignment operator placement: must be directly inside an ordinary statement, after the binding name!";
+const char errorOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name!";
 const char errorOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
 const char errorOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
 const char errorOperatorMutableDef[]         = "Definition of a mutable var should look like this: `mut x = 10`";

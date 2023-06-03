@@ -16,6 +16,7 @@
 
 #define CURR_BT inp[lx->i]
 #define NEXT_BT inp[lx->i + 1]
+#define VALIDATE(cond, errMsg) if (!(cond)) { throwExc(errMsg, lx); }
     
  
 jmp_buf excBuf;
@@ -105,9 +106,10 @@ private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
     Token lastToken = lx->tokens[lx->nextInd - 1];
     Int byteAfterLastToken = lastToken.startByte + lastToken.lenBytes;
 
+    // This is for correctly calculating lengths of statements when they are ended by parens or brackets
     Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
     Int lenBytes = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken) 
-                    - lx->tokens[topTokenInd].startByte;    
+                    - lx->tokens[topTokenInd].startByte;
 
     lx->tokens[topTokenInd].lenBytes = lenBytes;
     lx->tokens[topTokenInd].payload2 = lx->nextInd - topTokenInd - 1;
