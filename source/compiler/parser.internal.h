@@ -23,7 +23,7 @@ DEFINE_STACK(ParseFrame)
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct {
     Int bindingId;
-    untt precedenceArity; // u16 precedence, u16 arity 
+    Int arity;
     Int tokId;
 } FunctionCall;
 

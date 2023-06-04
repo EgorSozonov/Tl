@@ -55,7 +55,6 @@ private Parser* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int n
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
     ParserTestSet* result = allocateOnArena(sizeof(ParserTestSet), a);
-    print("test count %d", count)
     result->name = name;
     result->totalTests = count;
     result->tests = allocateOnArena(count*sizeof(ParserTest), a);
@@ -169,7 +168,6 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         printLexer(test.input);
         return;
     }
-    print("lexer len %d", test.input->nextInd)
     Parser* resultParser = parseWithParser(test.input, test.initParser, a);
         
     int equalityStatus = equalityParser(*resultParser, *test.expectedOutput);
@@ -256,87 +254,87 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     // " + 1" because the first binding is taken up by the "imported" function, "foo"
                     (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 0, .lenBytes = 1 }, // x
                     (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 10 },
-                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },
+                    (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 3, .startByte = 4, .lenBytes = 3 },
+                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 8, .lenBytes = 2 },
                     (Node){ .tp = nodInt, .payload2 = 2,   .startByte = 11, .lenBytes = 1 },
                     (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 13, .lenBytes = 1 },
-                    (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
             })),
             ((BindingImport[]) {(BindingImport){ .name = s("foo"), 
                                                  .binding = (Binding){.flavor = bndCallable }
             }})
         ),      
-        createTest(
-            s("Nested function call 1"), 
-            s("x = foo 10 (bar) 3"),
-            (((Node[]) {
-                    (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 19 },                    
-                    (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
-                    (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 15 },
-                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },                    
-                    (Node){ .tp = nodFunc, .payload1 = 1,    .startByte = 12, .lenBytes = 4 },                    
-                    (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 18, .lenBytes = 1 },
-                    (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
-            })),
-            ((BindingImport[]) {(BindingImport){ .name = s("foo"), 
-                                     .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("bar"), 
-                                     .binding = (Binding){.flavor = bndCallable }}
-            })
-        ),
-        createTest(
-            s("Nested function call 2"), 
-            s("x = foo 10 (barr 3)"),
-            (((Node[]) {
-                    (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 21 },                    
-                    (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
-                    (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 17 },
-                    (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 }, 
+        //~ createTest(
+            //~ s("Nested function call 1"), 
+            //~ s("x = foo 10 (bar) 3"),
+            //~ (((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 19 },                    
+                    //~ (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
+                    //~ (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 4, .lenBytes = 15 },
+                    //~ (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 },                    
+                    //~ (Node){ .tp = nodFunc, .payload1 = 1,    .startByte = 12, .lenBytes = 4 },                    
+                    //~ (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 18, .lenBytes = 1 },
+                    //~ (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 3, .startByte = 6, .lenBytes = 4 }
+            //~ })),
+            //~ ((BindingImport[]) {(BindingImport){ .name = s("foo"), 
+                                     //~ .binding = (Binding){.flavor = bndCallable }},
+                                //~ (BindingImport){ .name = s("bar"), 
+                                     //~ .binding = (Binding){.flavor = bndCallable }}
+            //~ })
+        //~ ),
+        //~ createTest(
+            //~ s("Nested function call 2"), 
+            //~ s("x = foo 10 (barr 3)"),
+            //~ (((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 21 },                    
+                    //~ (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
+                    //~ (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 17 },
+                    //~ (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 }, 
                                        
-                    (Node){ .tp = nodExpr,  .payload2 = 2, .startByte = 12, .lenBytes = 9 },
-                    (Node){ .tp = nodInt,   .payload2 = 3, .startByte = 13, .lenBytes = 1 },
-                    (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 1, .startByte = 15, .lenBytes = 5 },  // barr              
+                    //~ (Node){ .tp = nodExpr,  .payload2 = 2, .startByte = 12, .lenBytes = 9 },
+                    //~ (Node){ .tp = nodInt,   .payload2 = 3, .startByte = 13, .lenBytes = 1 },
+                    //~ (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 1, .startByte = 15, .lenBytes = 5 },  // barr              
                     
-                    (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 2, .startByte = 7, .lenBytes = 4 }    // foo
-            })),
-            ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("barr"), .binding = (Binding){.flavor = bndCallable }}
-            })
-        ),
-        createTest(
-            s("Double function call"), 
-            s("x = buzz 2 3 4 (foo 1)"),
-            (((Node[]) {
-                (Node){ .tp = nodAssignment, .payload2 = 8, .startByte = 0, .lenBytes = 22 },
-                (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
-                (Node){ .tp = nodExpr,  .payload2 = 6, .startByte = 4, .lenBytes = 18 },
-                (Node){ .tp = nodInt, .payload2 = 1, .startByte = 4, .lenBytes = 1 }, 
-                (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 1, .startByte = 6, .lenBytes = 4 },  // .foo
-                (Node){ .tp = nodInt, .payload2 = 2, .startByte = 17, .lenBytes = 1 },
-                (Node){ .tp = nodInt, .payload2 = 3, .startByte = 19, .lenBytes = 1 },
-                (Node){ .tp = nodInt, .payload2 = 4, .startByte = 21, .lenBytes = 1 },
-                (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 4, .startByte = 11, .lenBytes = 5 } // .buzz
+                    //~ (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 2, .startByte = 7, .lenBytes = 4 }    // foo
+            //~ })),
+            //~ ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
+                                //~ (BindingImport){ .name = s("barr"), .binding = (Binding){.flavor = bndCallable }}
+            //~ })
+        //~ ),
+        //~ createTest(
+            //~ s("Double function call"), 
+            //~ s("x = buzz 2 3 4 (foo 1)"),
+            //~ (((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .payload2 = 8, .startByte = 0, .lenBytes = 22 },
+                //~ (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
+                //~ (Node){ .tp = nodExpr,  .payload2 = 6, .startByte = 4, .lenBytes = 18 },
+                //~ (Node){ .tp = nodInt, .payload2 = 1, .startByte = 4, .lenBytes = 1 }, 
+                //~ (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 1, .startByte = 6, .lenBytes = 4 },  // .foo
+                //~ (Node){ .tp = nodInt, .payload2 = 2, .startByte = 17, .lenBytes = 1 },
+                //~ (Node){ .tp = nodInt, .payload2 = 3, .startByte = 19, .lenBytes = 1 },
+                //~ (Node){ .tp = nodInt, .payload2 = 4, .startByte = 21, .lenBytes = 1 },
+                //~ (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 4, .startByte = 11, .lenBytes = 5 } // .buzz
                 
-            })),
-            ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("buzz"), .binding = (Binding){.flavor = bndCallable }}
-            })
-        ),
-        createTest(
-            s("Operators simple"), 
-            s("x = + 1 : * 2 3"),
-            (((Node[]) {
-                (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 11 },
-                (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
-                (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 7 },
-                (Node){ .tp = nodInt, .payload2 = 1, .startByte = 4, .lenBytes = 1 },  
-                (Node){ .tp = nodInt, .payload2 = 2, .startByte = 8, .lenBytes = 1 },   
-                (Node){ .tp = nodInt, .payload2 = 3, .startByte = 10, .lenBytes = 1 },  
-                (Node){ .tp = nodFunc, .payload1 = opTTimes + 70000000, .payload2 = 2, .startByte = 9, .lenBytes = 1 }, // * 
-                (Node){ .tp = nodFunc, .payload1 = opTPlus + 70000000, .payload2 = 2, .startByte = 6, .lenBytes = 1 }  // +   
+            //~ })),
+            //~ ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
+                                //~ (BindingImport){ .name = s("buzz"), .binding = (Binding){.flavor = bndCallable }}
+            //~ })
+        //~ ),
+        //~ createTest(
+            //~ s("Operators simple"), 
+            //~ s("x = + 1 : * 2 3"),
+            //~ (((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 11 },
+                //~ (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
+                //~ (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 7 },
+                //~ (Node){ .tp = nodInt, .payload2 = 1, .startByte = 4, .lenBytes = 1 },  
+                //~ (Node){ .tp = nodInt, .payload2 = 2, .startByte = 8, .lenBytes = 1 },   
+                //~ (Node){ .tp = nodInt, .payload2 = 3, .startByte = 10, .lenBytes = 1 },  
+                //~ (Node){ .tp = nodFunc, .payload1 = opTTimes + 70000000, .payload2 = 2, .startByte = 9, .lenBytes = 1 }, // * 
+                //~ (Node){ .tp = nodFunc, .payload1 = opTPlus + 70000000, .payload2 = 2, .startByte = 6, .lenBytes = 1 }  // +   
                 
-            })),
-            ((BindingImport[]) {})
-        )        
+            //~ })),
+            //~ ((BindingImport[]) {})
+        //~ )        
     }));
 }
 

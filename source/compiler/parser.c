@@ -117,7 +117,7 @@ private void exprSingleItem(Token theTok, Parser* pr) {
  */
 private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
     Int n = topSubexpr->length - 1;
-    while (n > -1 && (topSubexpr->fnCalls[n].precedenceArity >> 16) == prefixPrec) {
+    while (n > -1 && (topSubexpr->fnCalls[n].arity >> 16) == prefixPrec) {
         n--;
     }
     
@@ -126,10 +126,10 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
     }
     FunctionCall* fnCall = topSubexpr->fnCalls + n;
 
-    fnCall->precedenceArity++;
+    fnCall->arity++;
     if (fnCall->bindingId <= countOperators) {
         OpDef operDefinition = (*pr->parDef->operators)[fnCall->bindingId];
-        VALIDATE((fnCall->precedenceArity & LOWER16BITS) <= operDefinition.arity, errorOperatorWrongArity)
+        VALIDATE((fnCall->arity & LOWER16BITS) <= operDefinition.arity, errorOperatorWrongArity)
     }
 }
 
@@ -184,7 +184,7 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
         if (scStack->topScope->isSubexpr) {
             ScopeStackFrame parentFrame = *scStack->topScope;
             Int n = parentFrame.length - 1;
-            while (n > -1 && (parentFrame.fnCalls[n].precedenceArity >> 16) == prefixPrec) {                
+            while (n > -1 && (parentFrame.fnCalls[n].arity >> 16) == prefixPrec) {                
                 appendFnNode(parentFrame.fnCalls[n], tokens, pr);
                 n--;
             }
@@ -197,7 +197,7 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
  * Appends a node that represents a function call in an expression.
  */
 private void appendFnNode(FunctionCall fnCall, Arr(Token) tokens, Parser* pr) {
-    Int arity = fnCall.precedenceArity & LOWER16BITS;
+    Int arity = fnCall.arity & LOWER16BITS;
     // operators
     if (fnCall.bindingId < countOperators) {        
         OpDef operDefinition = (*pr->parDef->operators)[fnCall.bindingId];
@@ -217,7 +217,7 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
 
     Int i = topSubexpr->length - 1;
     // write all the prefix unaries
-    while (i > -1 && topSubexpr->fnCalls[i].precedenceArity >> 16 == prefixPrec) {
+    while (i > -1 && topSubexpr->fnCalls[i].arity >> 16 == prefixPrec) {
         appendFnNode(topSubexpr->fnCalls[i], tokens, pr);
         i--;
     }
@@ -237,13 +237,13 @@ private void exprFnCall(Int bindingId, Token tok, ScopeStackFrame* topSubexpr,
     Int precedence = (bindingId < countOperators) ? (*pr->parDef->operators)[bindingId].precedence : functionPrec;
     while (n > -1) {
         FunctionCall fnCall = topSubexpr->fnCalls[n];
-        Int precedenceFromStack = fnCall.precedenceArity >> 16;
+        Int precedenceFromStack = fnCall.arity >> 16;
         if (precedenceFromStack < precedence) {
             break;
         } else VALIDATE(precedenceFromStack != prefixPrec, errorOperatorUsedInappropriately)
         
         Token origTok = tokens[fnCall.tokId];
-        addNode((Node){ .tp = nodFunc, .payload1 = fnCall.bindingId, .payload2 = fnCall.precedenceArity & LOWER16BITS,
+        addNode((Node){ .tp = nodFunc, .payload1 = fnCall.bindingId, .payload2 = fnCall.arity & LOWER16BITS,
                         .startByte = origTok.startByte, .lenBytes = origTok.lenBytes }, pr);
         n--;
     }
@@ -253,7 +253,7 @@ private void exprFnCall(Int bindingId, Token tok, ScopeStackFrame* topSubexpr,
     // Since function calls are infix, we need to check if the present subexpression has had its first operand already)
     Int initArity = ((peek(pr->backtrack)).startNodeInd + 1 == pr->nextInd) ? 0 : 1;
     
-    addFnCall((FunctionCall){.bindingId = bindingId, .precedenceArity = (precedence << 16) + initArity, .tokId = pr->i}, 
+    addFnCall((FunctionCall){.bindingId = bindingId, .arity = (precedence << 16) + initArity, .tokId = pr->i}, 
                 pr->scopeStack);
 }
 
@@ -263,7 +263,7 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
     OpDef operDefinition = (*pr->parDef->operators)[bindingId];
 
     if (operDefinition.precedence == prefixPrec) {
-        addFnCall((FunctionCall){.bindingId = bindingId, .precedenceArity = (prefixPrec << 16) + 1,
+        addFnCall((FunctionCall){.bindingId = bindingId, .arity = (prefixPrec << 16) + 1,
             .tokId = pr->i}, pr->scopeStack);        
     } else {
         exprFnCall(bindingId, tok, topSubexpr, tokens, pr);        
@@ -749,7 +749,6 @@ private void parseToplevelConstants(Lexer* lx, Parser* pr) {
         
         Token tok = lx->tokens[pr->i];
         if (tok.tp == tokAssignment) {
-            print("assignment %d", pr->i)
             parseUpTo(pr->i + tok.payload2, lx->tokens, pr);
         } else {
             pr->i += (tok.payload2 + 1);

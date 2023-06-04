@@ -224,6 +224,7 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 
 #define aALower       97
 #define aFLower      102
+#define aILower      105
 #define aXLower      120
 #define aYLower      121
 #define aZLower      122
@@ -244,8 +245,6 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define aParenRight   41
 #define aCurlyLeft   123
 #define aCurlyRight  125
-#define aBracketLeft  91
-#define aBracketRight 93
 #define aPipe        124
 #define aAmp          38
 #define aTilde       126

@@ -543,17 +543,11 @@ private void lexNumber(Lexer* lx, Arr(byte) inp) {
  * These tokens are used to define the structure, that is, nesting within the AST.
  * Upon addition, they are saved to the backtracking stack to be updated with their length
  * once it is known.
- * The startByte & lengthBytes don't include the opening and closing delimiters, and
- * the lenTokens also doesn't include the punctuation token itself - only the insides of the
- * scope. Thus, for '(asdf)', the opening paren token will have a byte length of 4 and a
- * token length of 1.
+ * Consumes no bytes.
  */
-private void openPunctuation(untt tType, Int startByte, Lexer* lx) {
-    push( ((BtToken){ 
-        .tp = tType, .tokenInd = lx->nextInd, .spanLevel = (tType == tokScope) ? slBrackets : slSubexpr
-    }), lx->backtrack);
+private void openPunctuation(untt tType, untt spanLevel, Int startByte, Lexer* lx) {
+    push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->backtrack);
     add((Token) {.tp = tType, .startByte = startByte }, lx);
-    lx->i++;  // CONSUME the punctuation opening symbol
 }
 
 /**
@@ -671,7 +665,8 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
                      .startByte=realStartByte, .lenBytes=lenBytes }, lx);
         if (isAlsoAccessor) {
-            openPunctuation(tokAccessor, lx->i, lx);
+            openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
+            lx->i++; // CONSUME the left bracket
         }
         return;
     }
@@ -683,7 +678,8 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
                      .startByte=realStartByte, .lenBytes=lenBytes }, lx);
         if (isAlsoAccessor) {
-            openPunctuation(tokAccessor, lx->i, lx);
+            openPunctuation(tokAccessor, slSubexpr,lx->i, lx);
+            lx->i++; // CONSUME the left bracket            
         }
         return;
     }
@@ -691,8 +687,10 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
     VALIDATE(wordType != tokDotWord, errorWordReservedWithDot)            
     if (mbReservedWord < firstCoreFormTokenType) {
         if (mbReservedWord == tokAnd) {
+            wrapInAStatementStarting(startByte, lx, inp);
             add((Token){.tp=tokAnd, .startByte=realStartByte, .lenBytes=3}, lx);
         } else if (mbReservedWord == tokOr) {
+            wrapInAStatementStarting(startByte, lx, inp);
             add((Token){.tp=tokOr, .startByte=realStartByte, .lenBytes=2}, lx);
         } else if (mbReservedWord == reservedTrue) {
             wrapInAStatementStarting(startByte, lx, inp);
@@ -961,16 +959,26 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
 /** An opener for a scope or a scopeful core form. Precondition: we are past the "(-".
  * Consumes zero or 1 byte
  */
-private void scopeOpener(Lexer* lx, Arr(byte) inp) {
+private void openScope(Lexer* lx, Arr(byte) inp) {
+    Int startByte = lx->i;
+    lx->i += 2; // CONSUME the "(-"
     VALIDATE(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slBrackets, errorPunctuationScope)
     VALIDATE(lx->i < lx->inpLength, errorPrematureEndOfInput)
-
-    if (lx->i < lx->inpLength - 2 && isSpace(inp(lx->i + 1))) {
+    
+    if (lx->i < lx->inpLength - 2 && isSpace(inp[lx->i + 1])) {
         byte currBt = CURR_BT;
-    }
+        if (currBt == aFLower) {
+            openPunctuation(tokFnDef, slBrackets, startByte, lx);
+            lx->i += 2; // CONSUME the "f "
+            return;
+        } else if (currBt == aILower) {
+            openPunctuation(tokIf, slBrackets, startByte, lx);
+            lx->i += 2; // CONSUME the "i "
+            return;
+        }
+    }    
     
-    
-    openPunctuation(tokScope, lx->i, lx);
+    openPunctuation(tokScope, slBrackets, startByte, lx);
 }
 
 /** Handles the "(*" case (doc-comment), the "(:" case (data initializer) as well as the common subexpression case */
@@ -978,24 +986,24 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
     VALIDATE(j < lx->inpLength, errorPunctuationUnmatched)
-    if (inp[j] == aColon) { // "(:" starts a new data initializer
-        lx->i++; // CONSUME the "("
-        openPunctuation(tokData, lx->i - 1, lx); // -1 for the "(" which we've already consumed
+    if (inp[j] == aColon) { // "(:" starts a new data initializer        
+        openPunctuation(tokData, slSubexpr, lx->i, lx);
+        lx->i += 2; // CONSUME the "(:"
     } else if (inp[j] == aTimes) {
         lx->i += 2; // CONSUME the "(*"
         docComment(lx, inp);
     } else if (inp[j] == aMinus) {
-        lx->i += 2; // CONSUME the "(-"
-        scopeOpener(lx, inp);
+        openScope(lx, inp);
     } else {
         wrapInAStatement(lx, inp);
-        openPunctuation(tokParens, lx->i, lx);    
+        openPunctuation(tokParens, slSubexpr, lx->i, lx);
+        lx->i++; // CONSUME the left parenthesis
     }    
 }
 
 
 private void lexParenRight(Lexer* lx, Arr(byte) inp) {
-    // TODO handle syntax like "(5 .foo).field" and "arr(5).field"
+    // TODO handle syntax like "(foo 5).field" and "arr[5].field"
     Int startInd = lx->i;
     closeRegularPunctuation(tokParens, lx);
     
