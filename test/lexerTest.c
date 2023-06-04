@@ -532,23 +532,23 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord,   .payload2 = 0, .startByte = 12, .lenBytes = 3 },                
                 (Token){ .tp = tokWord,   .payload2 = 2, .startByte = 17, .lenBytes = 3 }            
         }))},
-        (LexerTest) { .name = s("Brackets simple"),
-            .input = s("[car cdr]"),
+        (LexerTest) { .name = s("Scope simple"),
+            .input = s("(-car cdr)"),
             .expectedOutput = buildLexer(((Token[]){                
                 (Token){ .tp = tokScope, .payload2 = 3, .startByte = 0, .lenBytes = 9 },
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 1, .lenBytes = 7 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 1, .lenBytes = 3 },            
                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 5, .lenBytes = 3 }            
         }))},              
-        (LexerTest) { .name = s("Brackets nested"),
-            .input = s("[car. [other car] cdr]"),
+        (LexerTest) { .name = s("Scopes nested"),
+            .input = s("(-car. (-other car) cdr)"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokScope, .payload2 = 8, .startByte = 0, .lenBytes = 22 },
+                (Token){ .tp = tokScope, .payload2 = 8, .startByte = 0, .lenBytes = 24 },
                 (Token){ .tp = tokStmt,  .payload2 = 1, .startByte = 1, .lenBytes = 3 },                
                 (Token){ .tp = tokWord,  .payload2 = 0, .startByte = 1, .lenBytes = 3 },  // car
                 
-                (Token){ .tp = tokScope, .payload2 = 3, .startByte = 6, .lenBytes = 11 },
-                (Token){ .tp = tokStmt,  .payload2 = 2, .startByte = 7, .lenBytes = 9 },                
+                (Token){ .tp = tokScope, .payload2 = 3, .startByte = 7, .lenBytes = 12 },
+                (Token){ .tp = tokStmt,  .payload2 = 2, .startByte = 9, .lenBytes = 9 },                
                 (Token){ .tp = tokWord,  .payload2 = 1, .startByte = 7, .lenBytes = 5 },  // other
                 (Token){ .tp = tokWord,  .payload2 = 0, .startByte = 13, .lenBytes = 3 }, // car
                 

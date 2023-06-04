@@ -482,9 +482,6 @@ private void parseFnDef(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
-private void parseFuncExpr(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
-}
 
 private void parseInterface(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
@@ -520,6 +517,7 @@ private void parsePackage(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
+
 private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
     Int lenTokens = tok.payload2;
     Int sentinelToken = pr->i + lenTokens;        
@@ -547,6 +545,7 @@ private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
     }
 }
 
+
 private void parseScope(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
@@ -564,7 +563,6 @@ private void parseTry(Token tok, Arr(Token) tokens, Parser* pr) {
 private void parseYield(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
-
 
 
 private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
@@ -624,14 +622,11 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countNonresumableFo
     p[tokScope]      = &parseScope;
     p[tokStmt]       = &parseExpr;
     p[tokParens]     = &parseErrorBareAtom;
-    p[tokBrackets]   = &parseErrorBareAtom;
     p[tokAccessor]   = &parseErrorBareAtom;
-    p[tokFuncExpr]   = &parseFuncExpr;
     p[tokAssignment] = &parseAssignment;
     p[tokReassign]   = &parseReassignment;
     p[tokMutation]   = &parseMutation;
     p[tokElse]       = &parseElse;
-    p[tokSemicolon]  = &parseAlias;
     
     p[tokAlias]      = &parseAlias;
     p[tokAssert]     = &parseAssert;
@@ -647,16 +642,17 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countNonresumableFo
     p[tokFnDef]      = &parseAlias;
     p[tokIface]      = &parseAlias;
     p[tokLambda]     = &parseAlias;
-    p[tokLambda1]    = &parseAlias;
-    p[tokLambda2]    = &parseAlias;
-    p[tokLambda3]    = &parseAlias;
     p[tokPackage]    = &parseAlias;
     p[tokReturn]     = &parseReturn;
     p[tokStruct]     = &parseAlias;
     p[tokTry]        = &parseAlias;
-    p[tokYield]      = &parseAlias; 
+    p[tokYield]      = &parseAlias;
+
+    p[tokIf]         = &parseIf;
+    p[tokLoop]       = &parseLoop;
     return result;
 }
+ 
 
 private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     ResumeFunc (*result)[countResumableForms] = allocateOnArena(countResumableForms*sizeof(ResumeFunc), a);
@@ -668,7 +664,6 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     p[tokImpl  - firstResumableForm] = &resumeImpl;
     p[tokMatch - firstResumableForm] = &resumeMatch;
     p[tokLoop  - firstResumableForm] = &resumeLoop;
-    p[tokMut   - firstResumableForm] = &resumeMut;
     
     return result;
 }
@@ -751,8 +746,10 @@ private void parseToplevelConstants(Lexer* lx, Parser* pr) {
     pr->i = 0;
     const Int len = lx->totalTokens;
     while (pr->i < len) {
+        
         Token tok = lx->tokens[pr->i];
         if (tok.tp == tokAssignment) {
+            print("assignment %d", pr->i)
             parseUpTo(pr->i + tok.payload2, lx->tokens, pr);
         } else {
             pr->i += (tok.payload2 + 1);

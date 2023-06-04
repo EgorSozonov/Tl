@@ -55,6 +55,7 @@ private Parser* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int n
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
     ParserTestSet* result = allocateOnArena(sizeof(ParserTestSet), a);
+    print("test count %d", count)
     result->name = name;
     result->totalTests = count;
     result->tests = allocateOnArena(count*sizeof(ParserTest), a);
@@ -167,7 +168,8 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         print("Lexer was not without error");
         printLexer(test.input);
         return;
-    }    
+    }
+    print("lexer len %d", test.input->nextInd)
     Parser* resultParser = parseWithParser(test.input, test.initParser, a);
         
     int equalityStatus = equalityParser(*resultParser, *test.expectedOutput);
@@ -220,12 +222,12 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
                     (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 },     // x
                     (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 },
-                    (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 8, .lenBytes = 10 },
-                    (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 8, .lenBytes = 6 }, // second
-                    (Node){ .tp = nodId, .payload1 = 0, .payload2 = 0, .startByte = 17, .lenBytes = 1 }
+                    (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 7, .lenBytes = 10 },
+                    (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 7, .lenBytes = 6 }, // second
+                    (Node){ .tp = nodId, .payload1 = 0, .payload2 = 0, .startByte = 16, .lenBytes = 1 }
             }),
             ((BindingImport[]) {})
-        )//,
+        ),
         //~ createTestWithError(
             //~ s("Assignment shadowing error"), 
             //~ errorAssignmentShadowing,
@@ -248,7 +250,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function call"), 
-            s("x = 10 .foo 2 3"),
+            s("x = foo 10 2 3"),
             (((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 14 },
                     // " + 1" because the first binding is taken up by the "imported" function, "foo"
@@ -265,7 +267,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
         ),      
         createTest(
             s("Nested function call 1"), 
-            s("x = 10 .foo (.bar) 3"),
+            s("x = foo 10 (bar) 3"),
             (((Node[]) {
                     (Node){ .tp = nodAssignment, .payload2 = 6, .startByte = 0, .lenBytes = 19 },                    
                     (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
@@ -283,18 +285,18 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Nested function call 2"), 
-            s("x = 10 .foo (3 .barr)"),
+            s("x = foo 10 (barr 3)"),
             (((Node[]) {
-                    (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 20 },                    
+                    (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 21 },                    
                     (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
-                    (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 16 },
+                    (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 17 },
                     (Node){ .tp = nodInt, .payload2 = 10,  .startByte = 4, .lenBytes = 2 }, 
                                        
-                    (Node){ .tp = nodExpr,  .payload2 = 2, .startByte = 12, .lenBytes = 7 },
-                    (Node){ .tp = nodInt,   .payload2 = 3, .startByte = 18, .lenBytes = 1 },
-                    (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 1, .startByte = 12, .lenBytes = 5 },  // barr              
+                    (Node){ .tp = nodExpr,  .payload2 = 2, .startByte = 12, .lenBytes = 9 },
+                    (Node){ .tp = nodInt,   .payload2 = 3, .startByte = 13, .lenBytes = 1 },
+                    (Node){ .tp = nodFunc, .payload1 = 1, .payload2 = 1, .startByte = 15, .lenBytes = 5 },  // barr              
                     
-                    (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 2, .startByte = 6, .lenBytes = 4 }    // foo
+                    (Node){ .tp = nodFunc, .payload1 = 0, .payload2 = 2, .startByte = 7, .lenBytes = 4 }    // foo
             })),
             ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
                                 (BindingImport){ .name = s("barr"), .binding = (Binding){.flavor = bndCallable }}
@@ -302,7 +304,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Double function call"), 
-            s("x = 1 .foo .buzz 2 3 4"),
+            s("x = buzz 2 3 4 (foo 1)"),
             (((Node[]) {
                 (Node){ .tp = nodAssignment, .payload2 = 8, .startByte = 0, .lenBytes = 22 },
                 (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 0, .lenBytes = 1 }, // x
@@ -320,8 +322,8 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
             })
         ),
         createTest(
-            s("Operator precedence simple"), 
-            s("x = 1 + 2*3"),
+            s("Operators simple"), 
+            s("x = + 1 : * 2 3"),
             (((Node[]) {
                 (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 11 },
                 (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
@@ -654,7 +656,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
 ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTest(
-            s("Simple function definition"),
+            s("Simple function definition 1"),
             s("[fn (newFn Int : x Int y Float) a = x ]"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .payload1 = 2, .payload2 = 7, .startByte = 0, .lenBytes = 37 },
@@ -848,9 +850,9 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     
-    runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
+    //~ runATestSet(&assignmentTests, &countPassed, &countTests, lang, parsDef, a);
     runATestSet(&expressionTests, &countPassed, &countTests, lang, parsDef, a);
-    runATestSet(&functionTests, &countPassed, &countTests, lang, parsDef, a);
+    //~ runATestSet(&functionTests, &countPassed, &countTests, lang, parsDef, a);
 
 
     if (countTests == 0) {

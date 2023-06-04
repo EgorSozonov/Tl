@@ -115,13 +115,13 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokYield       43       
 
 // Resumable core forms
-#define tokIf          44       // paren 
-#define tokIfEq        45       // like if, but every branch is a value compared using standard equality
-#define tokIfPr        46       // like if, but every branch is a value compared using custom predicate
-#define tokMatch       47       // pattern matching on sum type tag 
-#define tokImpl        48       // paren 
-#define tokLoop        49       // 
-
+#define tokIf          44    // "(if " or "(-i" 
+#define tokIfEq        45    // "(ifEq " or "(-ifEq " every branch is a value compared using standard equality
+#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       47    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        48    // "(-impl " 
+#define tokLoop        49    // "(-loop "
+// "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 
 /** Must be the lowest value in the PunctuationToken enum */
