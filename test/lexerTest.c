@@ -535,7 +535,7 @@ LexerTestSet* punctuationTests(Arena* a) {
         (LexerTest) { .name = s("Scope simple"),
             .input = s("(-car cdr)"),
             .expectedOutput = buildLexer(((Token[]){                
-                (Token){ .tp = tokScope, .payload2 = 3, .startByte = 0, .lenBytes = 9 },
+                (Token){ .tp = tokScope, .payload2 = 3, .startByte = 0, .lenBytes = 10 },
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 1, .lenBytes = 7 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 1, .lenBytes = 3 },            
                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 5, .lenBytes = 3 }            
@@ -550,10 +550,10 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokScope, .payload2 = 3, .startByte = 7, .lenBytes = 12 },
                 (Token){ .tp = tokStmt,  .payload2 = 2, .startByte = 9, .lenBytes = 9 },                
                 (Token){ .tp = tokWord,  .payload2 = 1, .startByte = 7, .lenBytes = 5 },  // other
-                (Token){ .tp = tokWord,  .payload2 = 0, .startByte = 13, .lenBytes = 3 }, // car
+                (Token){ .tp = tokWord,  .payload2 = 0, .startByte = 15, .lenBytes = 3 }, // car
                 
-                (Token){ .tp = tokStmt,  .payload2 = 1, .startByte = 18, .lenBytes = 3 },                
-                (Token){ .tp = tokWord,  .payload2 = 2, .startByte = 18, .lenBytes = 3 }  // cdr
+                (Token){ .tp = tokStmt,  .payload2 = 1, .startByte = 20, .lenBytes = 3 },                
+                (Token){ .tp = tokWord,  .payload2 = 2, .startByte = 20, .lenBytes = 3 }  // cdr
         }))},             
         (LexerTest) { .name = s("Brackets mismatched"),
             .input = s("(asdf QWERT]"),
@@ -611,10 +611,10 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord, .payload2 = 3, .startByte = 14, .lenBytes = 3 }  // bcj      
         }))}, 
         (LexerTest) { .name = s("Punctuation all types"),
-            .input = s("[\n"
+            .input = s("(-\n"
                        "    asdf (b (d Ef (y z)))\n"
-                       "    [\n"
-                       "        bcjk (: m b )]]"
+                       "    (-\n"
+                       "        bcjk (: m b )))"
             ),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokScope, .payload2 = 16,  .startByte = 0,  .lenBytes = 57 },
@@ -785,7 +785,7 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 5, .lenBytes = 1 }
         }))},
         (LexerTest) { .name = s("Boolean operators"),
-            .input = s("a and b or c"),
+            .input = s("and a : or b c"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 5, .lenBytes = 12 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 1 },
@@ -801,7 +801,7 @@ LexerTestSet* operatorTests(Arena* a) {
 LexerTestSet* coreFormTests(Arena* a) {
     return createTestSet(s("Core form lexer tests"), a, ((LexerTest[]) {
          (LexerTest) { .name = s("Statement-type core form"),
-             .input = s("x = 9. assert (x == 55) \"Error!\""),
+             .input = s("x = 9. assert (== x 55) \"Error!\""),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokAssignment,  .payload2 = 2,             .lenBytes = 5 },
                  (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
@@ -836,7 +836,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokBool, .payload2 = 1, .startByte = 18, .lenBytes = 4 },
          }))},
         (LexerTest) { .name = s("Bracket-type core form"),
-             .input = s("[if x <> 7 > 0 => true]"),
+             .input = s("(-i x <> 7 > 0 => true)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokIf, .payload2 = 8, .startByte = 0, .lenBytes = 23 },
                  (Token){ .tp = tokStmt, .payload2 = 5, .startByte = 4, .lenBytes = 10 },
@@ -910,7 +910,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .startByte = 1, .lenBytes = 3 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
-             .input = s("[fn (foo Int : x Int y Int). x - y]"),
+             .input = s("(-f (foo Int : x Int y Int). x - y)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokFnDef, .payload2 = 13, .startByte = 0, .lenBytes = 35 },
                  
@@ -931,7 +931,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .payload2 = 3, .startByte = 33, .lenBytes = 1 } // y
          }))},
          (LexerTest) { .name = s("Function simple error"),
-             .input = s("x + [fn (foo Int x Int y Int) x - y]"),
+             .input = s("x + (-fn (foo Int x Int y Int) x - y)"),
              .expectedOutput = buildLexerWithError(s(errorPunctuationScope), ((Token[]) {
                  (Token){ .tp = tokStmt },
                  (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x

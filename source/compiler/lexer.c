@@ -45,6 +45,10 @@ private bool isHexDigit(byte a) {
     return isDigit(a) || (a >= aALower && a <= aFLower) || (a >= aAUpper && a <= aFUpper);
 }
 
+private bool isSpace(byte a) {
+    return a == aSpace || a == aNewline || a == aCarrReturn;
+}
+
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
 _Noreturn private void throwExc(const char errMsg[], Lexer* lx) {   
     lx->wasError = true;
@@ -113,18 +117,6 @@ private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
 
     lx->tokens[topTokenInd].lenBytes = lenBytes;
     lx->tokens[topTokenInd].payload2 = lx->nextInd - topTokenInd - 1;
-}
-
-/**
- * Validation to catch unmatched closing punctuation. Parens can only close unbreakables (i.e. subexpressions,
- * including addressers) and core forms that were open with parens; brackets can only close scopes and core
- * forms opened with brackets.
- */
-private void validateClosingPunct(untt closingType, untt openBreakableClass, Lexer* lx) {
-    if ((closingType == tokParens && (openBreakableClass != slSubexpr && openBreakableClass != slParenMulti))
-        || (closingType == tokScope && openBreakableClass != slBrackets)) {
-            throwExc(errorPunctuationUnmatched, lx);
-    }
 }
 
 
@@ -309,7 +301,6 @@ private void closeRegularPunctuation(Int closingType, Lexer* lx) {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
-    validateClosingPunct(closingType, top.spanLevel, lx);
     setSpanLength(top.tokenInd, lx);
     lx->i++; // CONSUME the closing ")" or "]"
 }
@@ -967,6 +958,21 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
     }
 }
 
+/** An opener for a scope or a scopeful core form. Precondition: we are past the "(-".
+ * Consumes zero or 1 byte
+ */
+private void scopeOpener(Lexer* lx, Arr(byte) inp) {
+    VALIDATE(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slBrackets, errorPunctuationScope)
+    VALIDATE(lx->i < lx->inpLength, errorPrematureEndOfInput)
+
+    if (lx->i < lx->inpLength - 2 && isSpace(inp(lx->i + 1))) {
+        byte currBt = CURR_BT;
+    }
+    
+    
+    openPunctuation(tokScope, lx->i, lx);
+}
+
 /** Handles the "(*" case (doc-comment), the "(:" case (data initializer) as well as the common subexpression case */
 private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
@@ -978,6 +984,9 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     } else if (inp[j] == aTimes) {
         lx->i += 2; // CONSUME the "(*"
         docComment(lx, inp);
+    } else if (inp[j] == aMinus) {
+        lx->i += 2; // CONSUME the "(-"
+        scopeOpener(lx, inp);
     } else {
         wrapInAStatement(lx, inp);
         openPunctuation(tokParens, lx->i, lx);    
@@ -994,23 +1003,6 @@ private void lexParenRight(Lexer* lx, Arr(byte) inp) {
     mbCloseCompoundCoreForm(lx);
     
     lx->lastClosingPunctInd = startInd;    
-}
-
-/** Opens a scope. Checks that we are in a multiline span. Consumes no tokens */ 
-void lexBracketLeft(Lexer* lx, Arr(byte) inp) {
-    if (hasValues(lx->backtrack) && peek(lx->backtrack).spanLevel != slBrackets) {
-        throwExc(errorPunctuationScope, lx);
-    }
-    openPunctuation(tokScope, lx->i, lx);
-}
-
-
-void lexBracketRight(Lexer* lx, Arr(byte) inp) {    
-    Int startInd = lx->i;
-    closeRegularPunctuation(tokScope, lx);
-    mbCloseCompoundCoreForm(lx);
-    
-    lx->lastClosingPunctInd = startInd;
 }
 
 
@@ -1062,7 +1054,7 @@ void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
     "word", ".word", "@word", ".call", "operator", "and", "or", "dispose", "else",
-    ":", "[", "stmt", "(", "(:", "accessor(", "funcExpr", "=", ":=", "mutation",
+    ":", "(-", "stmt", "(", "(:", "accessor(", "funcExpr", "=", ":=", "mutation",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "embed", "export", "exposePriv", "fn", "interface", 
     "lambda", "package", "return", "struct", "try", "yield",
@@ -1152,8 +1144,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aMinus] = &lexMinus;
     p[aParenLeft] = &lexParenLeft;
     p[aParenRight] = &lexParenRight;
-    p[aBracketLeft] = &lexBracketLeft;
-    p[aBracketRight] = &lexBracketRight;
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
     p[aNewline] = &lexNewline;
