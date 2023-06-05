@@ -25,6 +25,7 @@ typedef struct {
     Int bindingId;
     Int arity;
     Int tokId;
+    bool isUnary;
 } FunctionCall;
 
 typedef struct ScopeChunk ScopeChunk;
@@ -218,8 +219,8 @@ void addBinding(int nameId, int bindingId, Arr(int) activeBindings, ScopeStack* 
     activeBindings[nameId] = bindingId;
 }
 
-/** Add function call to the stack of the current subexpression */
-void addFnCall(FunctionCall fnCall, ScopeStack* scopeStack) {
+/** Pushes a function call to the stack of the current subexpression */
+void pushFnCall(FunctionCall fnCall, ScopeStack* scopeStack) {
     ScopeStackFrame* topScope = scopeStack->topScope;
     resizeScopeArrayIfNecessary(32, topScope, scopeStack);
     

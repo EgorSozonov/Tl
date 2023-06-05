@@ -77,50 +77,52 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokAnd         11
 #define tokOr          12
 #define tokDispose     13
-#define tokElse        14    
+#define tokArrow       14
+#define tokElse        15
+
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon       15 
+#define tokColon       16 
 
 // Punctuation (inner node) Token types
-#define tokScope       16       // denoted by []
-#define tokStmt        17
-#define tokParens      18
-#define tokData        19       // data initializer, like (: 1 2 3)
-#define tokAccessor    20       // data accessor, like array(1 2)
-#define tokFuncExpr    21       // the ".(foo .bar)" kind of thing
-#define tokAssignment  22       // payload1 = 1 if mutable assignment, 0 if immutable 
-#define tokReassign    23       // :=
-#define tokMutation    24       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokScope       17       // denoted by []
+#define tokStmt        18
+#define tokParens      19
+#define tokData        20       // data initializer, like (: 1 2 3)
+#define tokAccessor    21       // data accessor, like array(1 2)
+#define tokFuncExpr    22       // the ".(foo .bar)" kind of thing
+#define tokAssignment  23       // payload1 = 1 if mutable assignment, 0 if immutable 
+#define tokReassign    24       // :=
+#define tokMutation    25       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
  
 // Single-shot core syntax forms
-#define tokAlias       25      
-#define tokAssert      26      
-#define tokAssertDbg   27     
-#define tokAwait       28      
-#define tokBreak       29      
-#define tokCatch       30       // paren "(catch e. e .print)"
-#define tokContinue    31       // noParen
-#define tokDefer       32       // noParen
-#define tokEmbed       33       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      34       // paren
-#define tokExposePriv  35       // paren
-#define tokFnDef       36       // specialCase
-#define tokIface       37       
-#define tokLambda      38       
-#define tokPackage     39       // for single-file packages
-#define tokReturn      40
-#define tokStruct      41       
-#define tokTry         42       // early exit
-#define tokYield       43       
+#define tokAlias       26      
+#define tokAssert      27      
+#define tokAssertDbg   28     
+#define tokAwait       29      
+#define tokBreak       30      
+#define tokCatch       31       // paren "(catch e. e .print)"
+#define tokContinue    32       // noParen
+#define tokDefer       33       // noParen
+#define tokEmbed       34       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      35       // paren
+#define tokExposePriv  36       // paren
+#define tokFnDef       37       // specialCase
+#define tokIface       38       
+#define tokLambda      39       
+#define tokPackage     40       // for single-file packages
+#define tokReturn      41
+#define tokStruct      42       
+#define tokTry         43       // early exit
+#define tokYield       44       
 
 // Resumable core forms
-#define tokIf          44    // "(if " or "(-i" 
-#define tokIfEq        45    // "(ifEq " or "(-ifEq " every branch is a value compared using standard equality
-#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       47    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        48    // "(-impl " 
-#define tokLoop        49    // "(-loop "
+#define tokIf          45    // "(if " or "(-i" 
+#define tokIfEq        46    // "(ifEq " or "(-ifEq " every branch is a value compared using standard equality
+#define tokIfPr        47    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       48    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        49    // "(-impl " 
+#define tokLoop        50    // "(-loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 
@@ -148,7 +150,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    33 // must be equal to the count of following constants
+#define countOperators    32 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
 #define opTSize            2 // #
@@ -156,7 +158,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTRemainder       4 // %
 #define opTBinaryAnd       5 // && bitwise and
 #define opTTypeAnd         6 // & interface intersection (type-level)
-#define opTNotEmpty        7 // '
+#define opTIsNull          7 // '
 #define opTTimes           8 // *
 #define opTIncrement       9 // ++
 #define opTPlus           10 // +
@@ -184,7 +186,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
-#define countReservedWords           31 // count of different reserved words below
+#define countReservedWords           30 // count of different reserved words below
 
 static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
 static const byte reservedBytesAnd[]         = { 97, 110, 100 };
@@ -217,10 +219,6 @@ static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
 static const byte reservedBytesTry[]         = { 116, 114, 121 };
 static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 // setArena, getArena ?
-
-/** Function precedence must be higher than that of any infix operator, yet lower than the prefix operators */
-#define functionPrec  26
-#define prefixPrec    27
 
 #define aALower       97
 #define aFLower      102

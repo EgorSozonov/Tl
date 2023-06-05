@@ -401,7 +401,7 @@ private void hexNumber(Lexer* lx, Arr(byte) inp) {
     add((Token){ .tp = tokInt, .payload1 = resultValue >> 32, .payload2 = resultValue & LOWER32BITS, 
                 .startByte = lx->i, .lenBytes = j - lx->i }, lx);
     lx->numericNextInd = 0;
-    lx->i = j;
+    lx->i = j; // CONSUME the hex number
 }
 
 /**
@@ -517,7 +517,7 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
         add((Token){ .tp = tokInt, .payload1 = resultValue >> 32, .payload2 = resultValue & LOWER32BITS, 
                 .startByte = lx->i, .lenBytes = j - lx->i }, lx);
     }
-    lx->i = j;
+    lx->i = j; // CONSUME the decimal number
 }
 
 private void lexNumber(Lexer* lx, Arr(byte) inp) {
@@ -525,7 +525,7 @@ private void lexNumber(Lexer* lx, Arr(byte) inp) {
     byte cByte = CURR_BT;
     if (lx->i == lx->inpLength - 1 && isDigit(cByte)) {
         add((Token){ .tp = tokInt, .payload2 = cByte - aDigit0, .startByte = lx->i, .lenBytes = 1 }, lx);
-        lx->i++;
+        lx->i++; // CONSUME the single-digit number
         return;
     }
     
@@ -844,7 +844,7 @@ private void lexOperator(Lexer* lx, Arr(byte) inp) {
     } else {
         addOperator(opType, isExtensionAssignment, lx->i, j - lx->i, lx);
     }
-    lx->i = j;
+    lx->i = j; // CONSUME the operator
 }
 
 
@@ -853,16 +853,15 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
     byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
         lexOperator(lx, inp); // ==        
-    } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes
-        closeStatement(lx);
+    } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes        
         // arrows are only allowed inside "if"s and the like
-        if (lx->backtrack->length < 1) {
-            print("bt len %d", lx->backtrack->length)
+        if (lx->backtrack->length < 2) {
             throwExc(errorCoreMisplacedArrow, lx);
         }
-        BtToken parent = (*lx->backtrack->content)[lx->backtrack->length - 1];
-        VALIDATE(parent.tp == tokIf, errorCoreMisplacedArrow)
-        
+        BtToken grandparent = (*lx->backtrack->content)[lx->backtrack->length - 2];
+        VALIDATE(grandparent.tp == tokIf, errorCoreMisplacedArrow)
+        closeStatement(lx);
+        add((Token){ .tp = tokArrow, .startByte = lx->i, .lenBytes = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
         processAssignment(0, 0, lx);
@@ -898,7 +897,7 @@ private void docComment(Lexer* lx, Arr(byte) inp) {
     if (j > lx->i) {
         add((Token){.tp = tokDocComment, .startByte = lx->i - 2, .lenBytes = j - lx->i + 2}, lx);
     }
-    lx->i = j;    
+    lx->i = j; // CONSUME the doc comment
 }
 
 /** Handles the binary operator as well as the unary negation operator */
@@ -926,13 +925,13 @@ private void lexComment(Lexer* lx, Arr(byte) inp) {
     while (j < lx->inpLength) {
         byte cByte = inp[j];
         if (cByte == aNewline) {
-            lx->i = j + 1;
+            lx->i = j + 1; // CONSUME the comment
             return;
         } else {
             j++;
         }
     }
-    lx->i = j;     
+    lx->i = j;  // CONSUME the comment
 }
 
 /** If we are inside a compound (=2) core form, we need to increment the clause count */ 
@@ -1061,7 +1060,7 @@ void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "word", ".word", "@word", ".call", "operator", "and", "or", "dispose", "else",
+    "word", ".word", "@word", ".call", "operator", "and", "or", "dispose", "=>", "else",
     ":", "(-", "stmt", "(", "(:", "accessor(", "funcExpr", "=", ":=", "mutation",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "embed", "export", "exposePriv", "fn", "interface", 
@@ -1210,38 +1209,38 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     * Sorted: 1) by first byte ASC 2) by second byte DESC 3) third byte DESC 4) fourth byte DESC.
     * It's used to lex operator symbols using left-to-right search.
     */
-    p[ 0] = (OpDef){ .name=s("!="),   .precedence=11,         .arity=2, .bytes={aExclamation, aEqual, 0, 0 } };
-    p[ 1] = (OpDef){ .name=s("!"),    .precedence=prefixPrec, .arity=1, .bytes={aExclamation, 0, 0, 0 } };
-    p[ 2] = (OpDef){ .name=s("#"),    .precedence=prefixPrec, .arity=1, .overloadable = true, .bytes={aSharp, 0, 0, 0 } };    
-    p[ 3] = (OpDef){ .name=s("$"),    .precedence=prefixPrec, .arity=1, .overloadable = true, .bytes={aDollar, 0, 0, 0 } };    
-    p[ 4] = (OpDef){ .name=s("%"),    .precedence=20,         .arity=2, .extensible=true, .bytes={aPercent, 0, 0, 0 } };
-    p[ 5] = (OpDef){ .name=s("&&"),   .precedence=9,          .arity=2, .bytes={aAmp, aAmp, 0, 0 }, .assignable=true };
-    p[ 6] = (OpDef){ .name=s("&"),    .precedence=prefixPrec, .arity=1, .bytes={aAmp, 0, 0, 0 } };
-    p[ 7] = (OpDef){ .name=s("'"),    .precedence=prefixPrec, .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
-    p[ 8] = (OpDef){ .name=s("*"),    .precedence=20,         .arity=2, .extensible=true, .bytes={aTimes, 0, 0, 0 } };
-    p[ 9] = (OpDef){ .name=s("++"),   .precedence=16,         .arity=1, .overloadable=true, .bytes={aPlus, aPlus, 0, 0 } };    
-    p[10] = (OpDef){ .name=s("+"),    .precedence=17,         .arity=2, .extensible=true, .bytes={aPlus, 0, 0, 0 } };
-    p[11] = (OpDef){ .name=s("--"),   .precedence=16,         .arity=1, .overloadable=true, .bytes={aMinus, aMinus, 0, 0 } };    
-    p[12] = (OpDef){ .name=s("-"),    .precedence=17,         .arity=2, .extensible=true, .bytes={aMinus, 0, 0, 0 } };
-    p[13] = (OpDef){ .name=s("/"),    .precedence=20,         .arity=2, .extensible=true, .bytes={aDivBy, 0, 0, 0 } };
-    p[14] = (OpDef){ .name=s("<<"),   .precedence=14,         .arity=2, .extensible=true, .bytes={aLT, aLT, 0, 0 } };    
-    p[15] = (OpDef){ .name=s("<="),   .precedence=12,         .arity=2, .bytes={aLT, aEqual, 0, 0 } };    
-    p[16] = (OpDef){ .name=s("<>"),   .precedence=12,         .arity=2, .bytes={aLT, aGT, 0, 0 } };    
-    p[17] = (OpDef){ .name=s("<"),    .precedence=12,         .arity=2, .bytes={aLT, 0, 0, 0 } };
-    p[18] = (OpDef){ .name=s("=="),   .precedence=11,         .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
-    p[19] = (OpDef){ .name=s(">=<="), .precedence=12,         .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[20] = (OpDef){ .name=s(">=<"),  .precedence=12,         .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
-    p[21] = (OpDef){ .name=s("><="),  .precedence=12,         .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
-    p[22] = (OpDef){ .name=s("><"),   .precedence=12,         .arity=3, .bytes={aGT, aLT, 0, 0 } };
-    p[23] = (OpDef){ .name=s(">="),   .precedence=12,         .arity=2, .bytes={aGT, aEqual, 0, 0 } };
-    p[24] = (OpDef){ .name=s(">>"),   .precedence=14,         .arity=2, .extensible=true, .bytes={aGT, aGT, 0, 0 } };
-    p[25] = (OpDef){ .name=s(">"),    .precedence=12,         .arity=2, .bytes={aGT, 0, 0, 0 } };
-    p[26] = (OpDef){ .name=s("?:"),   .precedence=1,          .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
-    p[27] = (OpDef){ .name=s("?"),    .precedence=prefixPrec, .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[28] = (OpDef){ .name=s("^"),    .precedence=21,         .arity=2, .extensible=true, .bytes={aCaret, 0, 0, 0 } };
-    p[29] = (OpDef){ .name=s("||"),   .precedence=3,          .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true };
-    p[30] = (OpDef){ .name=s("|"),    .precedence=9,          .arity=2, .bytes={aPipe, 0, 0, 0 } };    
-    p[31] = (OpDef){ .name=s("~"),    .precedence=prefixPrec, .arity=1, .extensible = true, .bytes={aTilde, 0, 0, 0 } };    
+    p[ 0] = (OpDef){ .name=s("!="),   .arity=2,                     .bytes={aExclamation, aEqual, 0, 0 } };
+    p[ 1] = (OpDef){ .name=s("!"),    .arity=1,                     .bytes={aExclamation, 0, 0, 0 } };
+    p[ 2] = (OpDef){ .name=s("#"),    .arity=1, .overloadable=true, .bytes={aSharp, 0, 0, 0 } };    
+    p[ 3] = (OpDef){ .name=s("$"),    .arity=1, .overloadable=true, .bytes={aDollar, 0, 0, 0 } };    
+    p[ 4] = (OpDef){ .name=s("%"),    .arity=2, .extensible=true,   .bytes={aPercent, 0, 0, 0 } };
+    p[ 5] = (OpDef){ .name=s("&&"),   .arity=2, .assignable=true,   .bytes={aAmp, aAmp, 0, 0 }  };
+    p[ 6] = (OpDef){ .name=s("&"),    .arity=1,                     .bytes={aAmp, 0, 0, 0 } };
+    p[ 7] = (OpDef){ .name=s("'"),    .arity=1,                     .bytes={aApostrophe, 0, 0, 0 } };
+    p[ 8] = (OpDef){ .name=s("*"),    .arity=2, .extensible=true,   .bytes={aTimes, 0, 0, 0 } };
+    p[ 9] = (OpDef){ .name=s("++"),   .arity=1, .overloadable=true, .bytes={aPlus, aPlus, 0, 0 } };    
+    p[10] = (OpDef){ .name=s("+"),    .arity=2, .extensible=true,   .bytes={aPlus, 0, 0, 0 } };
+    p[11] = (OpDef){ .name=s("--"),   .arity=1, .overloadable=true, .bytes={aMinus, aMinus, 0, 0 } };    
+    p[12] = (OpDef){ .name=s("-"),    .arity=2, .extensible=true,   .bytes={aMinus, 0, 0, 0 } };
+    p[13] = (OpDef){ .name=s("/"),    .arity=2, .extensible=true,   .bytes={aDivBy, 0, 0, 0 } };
+    p[14] = (OpDef){ .name=s("<<"),   .arity=2, .extensible=true,   .bytes={aLT, aLT, 0, 0 } };    
+    p[15] = (OpDef){ .name=s("<="),   .arity=2,                     .bytes={aLT, aEqual, 0, 0 } };    
+    p[16] = (OpDef){ .name=s("<>"),   .arity=2,                     .bytes={aLT, aGT, 0, 0 } };    
+    p[17] = (OpDef){ .name=s("<"),    .arity=2,                     .bytes={aLT, 0, 0, 0 } };
+    p[18] = (OpDef){ .name=s("=="),   .arity=2,                     .bytes={aEqual, aEqual, 0, 0 } };
+    p[19] = (OpDef){ .name=s(">=<="), .arity=3,                     .bytes={aGT, aEqual, aLT, aEqual } };
+    p[20] = (OpDef){ .name=s(">=<"),  .arity=3,                     .bytes={aGT, aEqual, aLT, 0 } };
+    p[21] = (OpDef){ .name=s("><="),  .arity=3,                     .bytes={aGT, aLT, aEqual, 0 } };
+    p[22] = (OpDef){ .name=s("><"),   .arity=3,                     .bytes={aGT, aLT, 0, 0 } };
+    p[23] = (OpDef){ .name=s(">="),   .arity=2,                     .bytes={aGT, aEqual, 0, 0 } };
+    p[24] = (OpDef){ .name=s(">>"),   .arity=2, .extensible=true,   .bytes={aGT, aGT, 0, 0 } };
+    p[25] = (OpDef){ .name=s(">"),    .arity=2,                     .bytes={aGT, 0, 0, 0 } };
+    p[26] = (OpDef){ .name=s("?:"),   .arity=2,                     .bytes={aQuestion, aColon, 0, 0 } };
+    p[27] = (OpDef){ .name=s("?"),    .arity=1,                     .bytes={aQuestion, 0, 0, 0 } };
+    p[28] = (OpDef){ .name=s("^"),    .arity=2, .extensible=true,   .bytes={aCaret, 0, 0, 0 } };
+    p[29] = (OpDef){ .name=s("||"),   .arity=2, .assignable=true,   .bytes={aPipe, aPipe, 0, 0 } };
+    p[30] = (OpDef){ .name=s("|"),    .arity=2,                     .bytes={aPipe, 0, 0, 0 } };    
+    p[31] = (OpDef){ .name=s("~"),    .arity=1, .extensible = true, .bytes={aTilde, 0, 0, 0 } };    
     return result;
 }
 

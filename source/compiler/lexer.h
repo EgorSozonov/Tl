@@ -57,7 +57,6 @@ typedef struct {
 typedef struct {
     String* name;
     byte bytes[4];
-    Int precedence;
     Int arity;
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool extensible;
