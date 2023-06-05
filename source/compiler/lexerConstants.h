@@ -150,7 +150,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
  * Values must exactly agree in order with the operatorSymbols array in the .c file.
  * The order is defined by ASCII.
  */
-#define countOperators    32 // must be equal to the count of following constants
+#define countOperators    31 // must be equal to the count of following constants
 #define opTNotEqual        0 // !=
 #define opTBoolNegation    1 // !
 #define opTSize            2 // #
@@ -158,7 +158,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTRemainder       4 // %
 #define opTBinaryAnd       5 // && bitwise and
 #define opTTypeAnd         6 // & interface intersection (type-level)
-#define opTIsNull          7 // '
+#define opTToFloat         7 // '
 #define opTTimes           8 // *
 #define opTIncrement       9 // ++
 #define opTPlus           10 // +
@@ -182,7 +182,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTExponent       28 // ^    exponentiation
 #define opTBoolOr         29 // ||   bitwise or
 #define opTXor            30 // |    bitwise xor
-#define opTToFloat        31 // ~
+//#define opTToFloat        31 // ~
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)

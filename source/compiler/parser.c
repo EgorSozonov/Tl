@@ -164,8 +164,11 @@ private void exprSubexpr(Int lenTokens, Arr(Token) tokens, Parser* pr) {
         pushSubexpr(pr->scopeStack);
         addNode((Node){ .tp = nodExpr, .startByte = initTok.startByte, .lenBytes = initTok.lenBytes }, pr);
         if (firstTok.tp == tokWord || firstTok.tp == tokOperator || firstTok.tp == tokAnd || firstTok.tp == tokOr) {
-            Int bindingId = (firstTok.tp == tokOperator) ? (firstTok.payload1 >> 1) : firstTok.payload1;
-            pushFnCall((FunctionCall){.bindingId = bindingId, .arity = 1, .tokId = pr->i}, pr->scopeStack);
+            Int mbBindingId = pr->activeBindings[initTok.payload2];
+            VALIDATE(mbBindingId > -1, errorUnknownFunction)
+
+            Int bindingId = (firstTok.tp == tokOperator) ? (firstTok.payload1 >> 1) : mbBindingId;
+            pushFnCall((FunctionCall){.bindingId = bindingId, .arity = 0, .tokId = pr->i}, pr->scopeStack);
             pr->i++; // CONSUME the function or operator call token
         }
     }
@@ -186,7 +189,6 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
         if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
             return;
         }// else VALIDATE(currSubexpr.length > 0, errorExpressionFunctionless)
-                
         for (int m = currSubexpr.length - 1; m > -1; m--) {
             addFnCall(currSubexpr.fnCalls[m], tokens, pr);
         }
@@ -237,6 +239,7 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
     exprIncrementArity(topSubexpr, pr);
 }
 
+/** An operator token in non-initial position is either a funcall (if unary) or an operand. Consumes no tokens. */
 private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser* pr) {
     Int bindingId = tok.payload1 >> 1; // TODO extended operators
     OpDef operDefinition = (*pr->parDef->operators)[bindingId];
@@ -245,14 +248,15 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
         pushFnCall((FunctionCall){.bindingId = bindingId, .arity = 1, .tokId = pr->i, .isUnary = true}, pr->scopeStack);
     } else {
         addNode((Node){ .tp = nodId, .payload1 = bindingId, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+        exprOperand(topSubexpr, tokens, pr);
     }
 }
 
 
 private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
-    ParseFrame newParseFrame = (ParseFrame){ .tp = nodExpr, .startNodeInd = pr->nextInd, 
+    ParseFrame newParseFrame = (ParseFrame){ .tp = nodExpr, .startNodeInd = pr->nextInd,
         .sentinelToken = pr->i + tok.payload2 };
-    addNode((Node){ .tp = nodExpr, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);    
+    addNode((Node){ .tp = nodExpr, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
         
     push(newParseFrame, pr->backtrack);
     pushSubexpr(pr->scopeStack);
@@ -263,7 +267,7 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
         untt tokType = currTok.tp;
         
         ScopeStackFrame* topSubexpr = pr->scopeStack->topScope;
-        if (tokType == tokParens) {                
+        if (tokType == tokParens) {
             exprSubexpr(tokens[pr->i].payload2, tokens, pr);
         } else VALIDATE(tokType < firstPunctuationTokenType, errorExpressionCannotContain)
         else if (tokType <= topVerbatimTokenVariant) {
@@ -271,15 +275,19 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
                             .startByte = currTok.startByte, .lenBytes = currTok.lenBytes }, pr);
             exprOperand(topSubexpr, tokens, pr);
             pr->i++; // CONSUME the verbatim token
-        } else {            
+        } else {
             if (tokType == tokWord) {
                 Int mbBindingId = pr->activeBindings[currTok.payload2];
-                if (mbBindingId < 0) {                    
-                    throwExc(errorUnknownBinding);
-                }
-                addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
+
+                if (peek(pr->backtrack).startNodeInd == pr->nextInd - 1) {
+                    VALIDATE(mbBindingId > -1, errorUnknownFunction)
+                    pushFnCall((FunctionCall){.bindingId = mbBindingId, .tokId = pr->i}, pr->scopeStack);
+                } else {
+                    VALIDATE(mbBindingId > -1, errorUnknownBinding)
+                    addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
                                 .startByte = currTok.startByte, .lenBytes = currTok.lenBytes}, pr);
-                exprOperand(topSubexpr, tokens, pr);
+                    exprOperand(topSubexpr, tokens, pr);
+                }
             } else if (tokType == tokOperator) {
                 exprOperator(currTok, topSubexpr, tokens, pr);
             }

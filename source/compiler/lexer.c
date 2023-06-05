@@ -1240,7 +1240,7 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[28] = (OpDef){ .name=s("^"),    .arity=2, .extensible=true,   .bytes={aCaret, 0, 0, 0 } };
     p[29] = (OpDef){ .name=s("||"),   .arity=2, .assignable=true,   .bytes={aPipe, aPipe, 0, 0 } };
     p[30] = (OpDef){ .name=s("|"),    .arity=2,                     .bytes={aPipe, 0, 0, 0 } };    
-    p[31] = (OpDef){ .name=s("~"),    .arity=1, .extensible = true, .bytes={aTilde, 0, 0, 0 } };    
+//    p[31] = (OpDef){ .name=s("~"),    .arity=1, .extensible = true, .bytes={aTilde, 0, 0, 0 } };    
     return result;
 }
 
