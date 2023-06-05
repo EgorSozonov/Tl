@@ -343,47 +343,47 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                                 //~ (BindingImport){ .name = s("barr"), .binding = (Binding){.flavor = bndCallable }}
             //~ })
         //~ ),
-        createTest(
-            s("Triple function call"), 
-            s("x = buzz 2 3 4 (foo : triple 5)"),
-            (((Node[]) {
-                (Node){ .tp = nodAssignment, .payload2 = 11, .startByte = 0, .lenBytes = 31 },
-                (Node){ .tp = nodBinding, .payload1 = 3, .startByte = 0, .lenBytes = 1 }, // x
-                
-                (Node){ .tp = nodExpr, .payload2 = 9, .startByte = 4, .lenBytes = 27 },                            
-                (Node){ .tp = nodInt, .payload2 = 2, .startByte = 9, .lenBytes = 1 },
-                (Node){ .tp = nodInt, .payload2 = 3, .startByte = 11, .lenBytes = 1 },
-                (Node){ .tp = nodInt, .payload2 = 4, .startByte = 13, .lenBytes = 1 },
-
-                (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 15, .lenBytes = 16 },
-                (Node){ .tp = nodExpr,  .payload2 = 2, .startByte = 20, .lenBytes = 10 },
-                (Node){ .tp = nodInt, .payload2 = 5, .startByte = 29, .lenBytes = 1 },
-                (Node){ .tp = nodCall, .payload1 = 2, .payload2 = 1, .startByte = 22, .lenBytes = 6 },  // triple
-                (Node){ .tp = nodCall, .payload1 = 0, .payload2 = 1, .startByte = 16, .lenBytes = 3 }, // foo
-                (Node){ .tp = nodCall, .payload1 = 1, .payload2 = 4, .startByte = 4, .lenBytes = 4 } // buzz
-                
-            })),
-            ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("buzz"), .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("triple"), .binding = (Binding){.flavor = bndCallable }}
-            })
-        ),
         //~ createTest(
-            //~ s("Operators simple"), 
-            //~ s("x = + 1 : * 2 3"),
+            //~ s("Triple function call"), 
+            //~ s("x = buzz 2 3 4 (foo : triple 5)"),
             //~ (((Node[]) {
-                //~ (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 11 },
-                //~ (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
-                //~ (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 7 },
-                //~ (Node){ .tp = nodInt, .payload2 = 1, .startByte = 4, .lenBytes = 1 },  
-                //~ (Node){ .tp = nodInt, .payload2 = 2, .startByte = 8, .lenBytes = 1 },   
-                //~ (Node){ .tp = nodInt, .payload2 = 3, .startByte = 10, .lenBytes = 1 },  
-                //~ (Node){ .tp = nodCall, .payload1 = opTTimes + 70000000, .payload2 = 2, .startByte = 9, .lenBytes = 1 }, // * 
-                //~ (Node){ .tp = nodCall, .payload1 = opTPlus + 70000000, .payload2 = 2, .startByte = 6, .lenBytes = 1 }  // +   
+                //~ (Node){ .tp = nodAssignment, .payload2 = 11, .startByte = 0, .lenBytes = 31 },
+                //~ (Node){ .tp = nodBinding, .payload1 = 3, .startByte = 0, .lenBytes = 1 }, // x
+                
+                //~ (Node){ .tp = nodExpr, .payload2 = 9, .startByte = 4, .lenBytes = 27 },                            
+                //~ (Node){ .tp = nodInt, .payload2 = 2, .startByte = 9, .lenBytes = 1 },
+                //~ (Node){ .tp = nodInt, .payload2 = 3, .startByte = 11, .lenBytes = 1 },
+                //~ (Node){ .tp = nodInt, .payload2 = 4, .startByte = 13, .lenBytes = 1 },
+
+                //~ (Node){ .tp = nodExpr,  .payload2 = 4, .startByte = 15, .lenBytes = 16 },
+                //~ (Node){ .tp = nodExpr,  .payload2 = 2, .startByte = 20, .lenBytes = 10 },
+                //~ (Node){ .tp = nodInt, .payload2 = 5, .startByte = 29, .lenBytes = 1 },
+                //~ (Node){ .tp = nodCall, .payload1 = 2, .payload2 = 1, .startByte = 22, .lenBytes = 6 },  // triple
+                //~ (Node){ .tp = nodCall, .payload1 = 0, .payload2 = 1, .startByte = 16, .lenBytes = 3 }, // foo
+                //~ (Node){ .tp = nodCall, .payload1 = 1, .payload2 = 4, .startByte = 4, .lenBytes = 4 } // buzz
                 
             //~ })),
-            //~ ((BindingImport[]) {})
-        //~ )        
+            //~ ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
+                                //~ (BindingImport){ .name = s("buzz"), .binding = (Binding){.flavor = bndCallable }},
+                                //~ (BindingImport){ .name = s("triple"), .binding = (Binding){.flavor = bndCallable }}
+            //~ })
+        //~ ),
+        createTest(
+            s("Operators simple"), 
+            s("x = + 1 : * 2 3"),
+            (((Node[]) {
+                (Node){ .tp = nodAssignment, .payload2 = 7, .startByte = 0, .lenBytes = 11 },
+                (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
+                (Node){ .tp = nodExpr,  .payload2 = 5, .startByte = 4, .lenBytes = 7 },
+                (Node){ .tp = nodInt, .payload2 = 1, .startByte = 4, .lenBytes = 1 },  
+                (Node){ .tp = nodInt, .payload2 = 2, .startByte = 8, .lenBytes = 1 },   
+                (Node){ .tp = nodInt, .payload2 = 3, .startByte = 10, .lenBytes = 1 },  
+                (Node){ .tp = nodCall, .payload1 = opTTimes + 70000000, .payload2 = 2, .startByte = 9, .lenBytes = 1 }, // * 
+                (Node){ .tp = nodCall, .payload1 = opTPlus + 70000000, .payload2 = 2, .startByte = 6, .lenBytes = 1 }  // +   
+                
+            })),
+            ((BindingImport[]) {})
+        )        
     }));
 }
 

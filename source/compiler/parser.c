@@ -42,7 +42,7 @@ Int createBinding(Int nameId, Binding b, Parser* pr) {
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (pr->scopeStack->length > 0) {
             addBinding(nameId, newBindingId, pr->activeBindings, pr->scopeStack); // adds it to the ScopeStack
-        }        
+        }
         pr->activeBindings[nameId] = newBindingId; // makes it active
     }
     
@@ -151,7 +151,7 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
  */
 private void exprSubexpr(Int lenTokens, Arr(Token) tokens, Parser* pr) {
     exprIncrementArity(pr->scopeStack->topScope, pr);
-    Token initTok = tokens[pr->i];
+    Token parenTok = tokens[pr->i];
     pr->i++; // CONSUME the parens token      
     Token firstTok = tokens[pr->i];    
     
@@ -162,12 +162,13 @@ private void exprSubexpr(Int lenTokens, Arr(Token) tokens, Parser* pr) {
         push(((ParseFrame){.tp = nodExpr, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + lenTokens }), 
              pr->backtrack);        
         pushSubexpr(pr->scopeStack);
-        addNode((Node){ .tp = nodExpr, .startByte = initTok.startByte, .lenBytes = initTok.lenBytes }, pr);
+        addNode((Node){ .tp = nodExpr, .startByte = parenTok.startByte, .lenBytes = parenTok.lenBytes }, pr);
         if (firstTok.tp == tokWord || firstTok.tp == tokOperator || firstTok.tp == tokAnd || firstTok.tp == tokOr) {
-            Int mbBindingId = pr->activeBindings[initTok.payload2];
+            Int mbBindingId = pr->activeBindings[firstTok.payload2];
             VALIDATE(mbBindingId > -1, errorUnknownFunction)
 
             Int bindingId = (firstTok.tp == tokOperator) ? (firstTok.payload1 >> 1) : mbBindingId;
+
             pushFnCall((FunctionCall){.bindingId = bindingId, .arity = 0, .tokId = pr->i}, pr->scopeStack);
             pr->i++; // CONSUME the function or operator call token
         }
