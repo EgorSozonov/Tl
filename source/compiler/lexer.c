@@ -1258,32 +1258,19 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 
 Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* a) {
-    Lexer* result = allocateOnArena(sizeof(Lexer), a);    
-
-    result->langDef = langDef;
-    result->arena = a;
-    result->aTemp = mkArena();
-    
-    result->inp = inp;
-    result->inpLength = inp->length;    
-    
-    result->tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a);
-    result->capacity = LEXER_INIT_SIZE;
-        
-    result->newlines = allocateOnArena(1000*sizeof(int), a);
-    result->newlinesCapacity = 500;
-    
-    result->numeric = allocateOnArena(50*sizeof(int), result->aTemp);
-    result->numericCapacity = 50;
-    
-    result->backtrack = createStackBtToken(16, result->aTemp);
-    
-    result->stringTable = createStackint32_t(16, a);
-    result->stringStore = createStringStore(100, result->aTemp);
-
-    result->errMsg = &empty;
-
-    return result;
+    Lexer* lx = allocateOnArena(sizeof(Lexer), a);
+    Arena* aTemp = mkArena();
+    (*lx) = (Lexer){
+        .i = 0, .langDef = langDef, .inp = inp, .nextInd = 0, .inpLength = inp->length,
+        .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
+        .newlines = allocateOnArena(1000*sizeof(int), a), .newlinesCapacity = 500,
+        .numeric = allocateOnArena(50*sizeof(int), aTemp), .numericCapacity = 50,
+        .backtrack = createStackBtToken(16, aTemp),
+        .stringTable = createStackint32_t(16, a), .stringStore = createStringStore(100, aTemp),
+        .wasError = false, .errMsg = &empty,
+        .arena = a, .aTemp = aTemp
+    };
+    return lx;
 }
 
 /**
@@ -1301,13 +1288,13 @@ private void finalize(Lexer* lx) {
 
 
 Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
-    Lexer* result = createLexer(input, langDef, a);
+    Lexer* lx = createLexer(input, langDef, a);
 
     Int inpLength = input->length;
     Arr(byte) inp = input->content;
     
     if (inpLength == 0) {
-        throwExc("Empty input", result);
+        throwExc("Empty input", lx);
     }
 
     // Check for UTF-8 BOM at start of file
@@ -1315,17 +1302,18 @@ Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
         && (unsigned char)inp[0] == 0xEF
         && (unsigned char)inp[1] == 0xBB
         && (unsigned char)inp[2] == 0xBF) {
-        result->i = 3;
+        lx->i = 3;
     }
     LexerFunc (*dispatch)[256] = langDef->dispatchTable;
-    result->possiblyReservedDispatch = langDef->possiblyReservedDispatch;
+    lx->possiblyReservedDispatch = langDef->possiblyReservedDispatch;
+
     // Main loop over the input
     if (setjmp(excBuf) == 0) {
-        while (result->i < inpLength) {
-            ((*dispatch)[inp[result->i]])(result, inp);
+        while (lx->i < inpLength) {
+            ((*dispatch)[inp[lx->i]])(lx, inp);
         }
-        finalize(result);
+        finalize(lx);
     }
-    result->totalTokens = result->nextInd;
-    return result;
+    lx->totalTokens = lx->nextInd;
+    return lx;
 }

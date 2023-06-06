@@ -149,27 +149,28 @@ private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
  * Consumes 1 or 2 tokens
  * TODO: allow for core forms (but not scopes!)
  */
-private void exprSubexpr(Int lenTokens, Arr(Token) tokens, Parser* pr) {
+private void exprSubexpr(Token parenTok, Arr(Token) tokens, Parser* pr) {
     exprIncrementArity(pr->scopeStack->topScope, pr);
-    Token parenTok = tokens[pr->i];
-    pr->i++; // CONSUME the parens token      
     Token firstTok = tokens[pr->i];    
     
-    if (lenTokens == 1) {
+    if (parenTok.payload2 == 1) {
         exprSingleItem(tokens[pr->i], pr);
         pr->i++; // CONSUME the single item within parens
-    } else {        
-        push(((ParseFrame){.tp = nodExpr, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + lenTokens }), 
+    } else {
+        push(((ParseFrame){.tp = nodExpr, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + parenTok.payload2 }), 
              pr->backtrack);        
         pushSubexpr(pr->scopeStack);
         addNode((Node){ .tp = nodExpr, .startByte = parenTok.startByte, .lenBytes = parenTok.lenBytes }, pr);
         if (firstTok.tp == tokWord || firstTok.tp == tokOperator || firstTok.tp == tokAnd || firstTok.tp == tokOr) {
-            Int mbBindingId = pr->activeBindings[firstTok.payload2];
+            Int mbBindingId = -1;
+            if (firstTok.tp == tokWord) {
+                mbBindingId = pr->activeBindings[firstTok.payload2];
+            } else if (firstTok.tp == tokOperator) {
+                mbBindingId = firstTok.payload1 >> 1;
+            }
             VALIDATE(mbBindingId > -1, errorUnknownFunction)
 
-            Int bindingId = (firstTok.tp == tokOperator) ? (firstTok.payload1 >> 1) : mbBindingId;
-
-            pushFnCall((FunctionCall){.bindingId = bindingId, .arity = 0, .tokId = pr->i}, pr->scopeStack);
+            pushFnCall((FunctionCall){.bindingId = mbBindingId, .arity = 0, .tokId = pr->i}, pr->scopeStack);
             pr->i++; // CONSUME the function or operator call token
         }
     }
@@ -181,12 +182,11 @@ private void exprSubexpr(Int lenTokens, Arr(Token) tokens, Parser* pr) {
  * Flushing includes appending its operators, clearing the operator stack, and appending
  * prefix unaries from the previous subexpr frame, if any.
  */
-private void subexprClose(Arr(Token) tokens, Parser* pr) {    
+private void subexprClose(Arr(Token) tokens, Parser* pr) {
     ScopeStack* scStack = pr->scopeStack;
     while (scStack->length > 0) {
         ScopeStackFrame currSubexpr = *scStack->topScope;
         ParseFrame pFrame = peek(pr->backtrack);               
-        
         if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
             return;
         }// else VALIDATE(currSubexpr.length > 0, errorExpressionFunctionless)
@@ -253,23 +253,20 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
     }
 }
 
-
-private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
-    ParseFrame newParseFrame = (ParseFrame){ .tp = nodExpr, .startNodeInd = pr->nextInd,
-        .sentinelToken = pr->i + tok.payload2 };
-    addNode((Node){ .tp = nodExpr, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+/** Parses an expression. Precondition: we are 1 past the span token */
+private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
+    Int sentinelToken = pr->i + exprTok.payload2;
+    exprSubexpr(exprTok, tokens, pr);
         
-    push(newParseFrame, pr->backtrack);
-    pushSubexpr(pr->scopeStack);
-        
-    while (pr->i < newParseFrame.sentinelToken) {
+    while (pr->i < sentinelToken) {
         subexprClose(tokens, pr);
         Token currTok = tokens[pr->i];
         untt tokType = currTok.tp;
         
         ScopeStackFrame* topSubexpr = pr->scopeStack->topScope;
         if (tokType == tokParens) {
-            exprSubexpr(tokens[pr->i].payload2, tokens, pr);
+            pr->i++; // CONSUME the parens token
+            exprSubexpr(currTok, tokens, pr);
         } else VALIDATE(tokType < firstPunctuationTokenType, errorExpressionCannotContain)
         else if (tokType <= topVerbatimTokenVariant) {
             addNode((Node){ .tp = currTok.tp, .payload1 = currTok.payload1, .payload2 = currTok.payload2,
@@ -304,7 +301,7 @@ private void parseExpr(Token tok, Arr(Token) tokens, Parser* pr) {
  * in which case this function handles all the corresponding stack poppin'.
  * It also always handles updating all inner frames with consumed tokens.
  */
-private void maybeCloseSpans(Parser* pr) {    
+private void maybeCloseSpans(Parser* pr) {
     while (hasValues(pr->backtrack)) { // loop over subscopes and expressions inside FunctionDef
         ParseFrame frame = peek(pr->backtrack);
         if (pr->i < frame.sentinelToken) {
@@ -316,7 +313,7 @@ private void maybeCloseSpans(Parser* pr) {
 }
 
 /** Parses top-level function bodies */
-private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {     
+private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
     while (pr->i < sentinelToken) {
         Token currTok = tokens[pr->i];
         untt contextType = peek(pr->backtrack).tp;
@@ -363,10 +360,13 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
         throwExc(errorAssignment);
     }
     Int sentinelToken = pr->i + tok.payload2;
+
     Token bindingToken = tokens[pr->i];
     VALIDATE(bindingToken.tp == tokWord, errorAssignment)
+
     Int mbBinding = pr->activeBindings[bindingToken.payload2];
     VALIDATE(mbBinding == -1, errorAssignmentShadowing)
+
     Int newBindingId = createBinding(
      bindingToken.payload2, (Binding){.flavor = bndImmut, .defStart = pr->i - 1, .defSentinel = sentinelToken}, pr
     );
@@ -388,8 +388,6 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
             if (parseLiteralOrIdentifier(rightSideToken, pr) == false) {
                 throwExc(errorAssignment);
             }
-        } else if (rightSideToken.tp == tokOperator) {
-            //parsePrefixFollowedByAtom(sentinelToken);
         } else {
             parseExpr((Token){ .payload2 = rightSideLen, .startByte = rightSideToken.startByte, 
                                .lenBytes = tok.lenBytes - rightSideToken.startByte + tok.startByte
@@ -507,7 +505,6 @@ private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
     
     push(((ParseFrame){ .tp = nodReturn, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
             pr->backtrack);
-    
     addNode((Node){.tp = nodReturn, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     
     Token rightSideToken = tokens[pr->i];
@@ -729,7 +726,6 @@ private void parseToplevelConstants(Lexer* lx, Parser* pr) {
     pr->i = 0;
     const Int len = lx->totalTokens;
     while (pr->i < len) {
-        
         Token tok = lx->tokens[pr->i];
         if (tok.tp == tokAssignment) {
             parseUpTo(pr->i + tok.payload2, lx->tokens, pr);
@@ -837,7 +833,6 @@ private void parseFnBody(Int sentinelToken, Arr(Token) inp, Parser* pr) {
         while (pr->i < sentinelToken) {
             Token currTok = inp[pr->i];
             Int contextTokTp = peek(pr->backtrack).tp;
-            print("currTok.tp %d contextTokTp %d", currTok.tp, contextTokTp);
             if (contextTokTp >= firstResumableForm) {      
                 ((*dispatchResumable)[contextTokTp - firstResumableForm])(contextTokTp, currTok, inp, pr);
             } else {
@@ -865,7 +860,7 @@ private void parseFunctionBodies(Lexer* lx, Parser* pr) {
             
             parseFnSignature(tok, lx, pr);
             parseUpTo(sentinelToken, lx->tokens, pr);
-            //parseFnBody(sentinelToken, lx->tokens, pr);            
+            //parseFnBody(sentinelToken, lx->tokens, pr);
         }
         pr->i += (tok.payload2 + 1);        
     } 
@@ -895,7 +890,7 @@ Parser* parseWithParser(Lexer* lx, Parser* pr, Arena* a) {
     ParserDefinition* pDef = pr->parDef;
     int inpLength = lx->totalTokens;
     int i = 0;
-    
+
     ParserFunc (*dispatch)[countNonresumableForms] = pDef->nonResumableTable;
     ResumeFunc (*dispatchResumable)[countResumableForms] = pDef->resumableTable;
     if (setjmp(excBuf) == 0) {
