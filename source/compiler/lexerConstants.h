@@ -117,7 +117,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokYield       44       
 
 // Resumable core forms
-#define tokIf          45    // "(if " or "(-i" 
+#define tokIf          45    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
 #define tokIfEq        46    // "(ifEq " or "(-ifEq " every branch is a value compared using standard equality
 #define tokIfPr        47    // like if, but every branch is a value compared using custom predicate
 #define tokMatch       48    // "(-m " or "(match " pattern matching on sum type tag 

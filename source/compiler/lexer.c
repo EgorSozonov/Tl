@@ -547,7 +547,7 @@ private void lexNumber(Lexer* lx, Arr(byte) inp) {
  */
 private void openPunctuation(untt tType, untt spanLevel, Int startByte, Lexer* lx) {
     push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->backtrack);
-    add((Token) {.tp = tType, .startByte = startByte }, lx);
+    add((Token) {.tp = tType, .payload1 = spanLevel, .startByte = startByte }, lx);
 }
 
 /**
@@ -997,7 +997,7 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
         wrapInAStatement(lx, inp);
         openPunctuation(tokParens, slSubexpr, lx->i, lx);
         lx->i++; // CONSUME the left parenthesis
-    }    
+    }
 }
 
 

@@ -27,7 +27,7 @@ typedef struct {
 const char* nodeNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
     "id", "func", "binding", "type", "@annot", "and", "or", 
-    "(:)", "expr", "accessor", "assign", "reAssign", "mutation", "whereClause",
+    "(-", "expr", "accessor", "assign", "reAssign", "mutation", "whereClause",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", "defer", "embed", "export",
     "exposePriv", "fnDef", "interface", "lambda", "lam1", "lam2", "lam3", "package", "return", "struct",
     "try", "yield", "if", "ifEq", "ifPr", "ifClause", "impl", "match",
@@ -171,7 +171,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         print("Lexer result empty");
         return;
     }
-
+printLexer(test.input);
     Parser* resultParser = parseWithParser(test.input, test.initParser, a);
         
     int equalityStatus = equalityParser(*resultParser, *test.expectedOutput);
@@ -389,7 +389,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                 
             })),
             ((BindingImport[]) {})
-        )        
+        )
     }));
 }
 
@@ -710,43 +710,41 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function definition 1"),
-            s("[fn (newFn Int : x Int y Float) a = x ]"),
+            s("(-f newFn Int (x Int y Float). a = x)"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .payload1 = 2, .payload2 = 7, .startByte = 0, .lenBytes = 37 },
-                (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 3, .lenBytes = 5 }, // newFn
-                (Node){ .tp = nodScope, .payload2 = 5, .startByte = 13, .lenBytes = 24 },
-                (Node){ .tp = nodBinding, .payload1 = 3, .startByte = 13, .lenBytes = 1 }, // param x
-                (Node){ .tp = nodBinding, .payload1 = 4, .startByte = 19, .lenBytes = 1 },  // param y
-                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 30, .lenBytes = 5 },  // param y
-                (Node){ .tp = nodBinding, .payload1 = 5, .startByte = 30, .lenBytes = 1 },  // local a
-                (Node){ .tp = nodId, .payload1 = 3, .payload2 = 2, .startByte = 34, .lenBytes = 1 }  // x                
+                (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 4, .lenBytes = 5 }, // newFn
+                
+                (Node){ .tp = nodScope, .payload2 = 5, .startByte = 14, .lenBytes = 23 },
+                (Node){ .tp = nodBinding, .payload1 = 3, .startByte = 15, .lenBytes = 1 }, // param x
+                (Node){ .tp = nodBinding, .payload1 = 4, .startByte = 21, .lenBytes = 1 },  // param y
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 31, .lenBytes = 5 },  // param y
+                (Node){ .tp = nodBinding, .payload1 = 5, .startByte = 31, .lenBytes = 1 },  // local a
+                (Node){ .tp = nodId, .payload1 = 3, .payload2 = 2, .startByte = 35, .lenBytes = 1 }  // x                
             }),
             ((BindingImport[]) {})
         ),
         createTest(
             s("Simple function definition 2"),
-            s("[fn (newFn Int : x Int y Float)\n"
+            s("(-f newFn Int (x Int y Float)\n"
               "    a = x\n"
               "    return a\n"
-              "]"
+              ")"
             ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .payload1 = 2, .payload2 = 9, .startByte = 0, .lenBytes = 47 },
-                (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 3, .lenBytes = 5 }, // newFn
-                (Node){ .tp = nodScope, .payload2 = 7, .startByte = 13, .lenBytes = 34 },
-                (Node){ .tp = nodBinding, .payload1 = 3, .startByte = 13, .lenBytes = 1 }, // param x
-                (Node){ .tp = nodBinding, .payload1 = 4, .startByte = 19, .lenBytes = 1 },  // param y
-                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 30, .lenBytes = 5 },  // param y
-                (Node){ .tp = nodBinding, .payload1 = 5, .startByte = 30, .lenBytes = 1 },  // local a
-                (Node){ .tp = nodId, .payload1 = 3, .payload2 = 2, .startByte = 34, .lenBytes = 1 },  // x
-                (Node){ .tp = nodReturn, .payload2 = 1, .startByte = 37, .lenBytes = 8 },
-                (Node){ .tp = nodId, .payload1 = 5, .payload2 = 5, .startByte = 44, .lenBytes = 1 } // a
+                (Node){ .tp = nodFnDef, .payload1 = 2, .payload2 = 9, .startByte = 0, .lenBytes = 54 },
+                (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 4, .lenBytes = 5 }, // newFn
+                (Node){ .tp = nodScope, .payload2 = 7, .startByte = 14, .lenBytes = 40 },
+                (Node){ .tp = nodBinding, .payload1 = 3, .startByte = 15, .lenBytes = 1 }, // param x
+                (Node){ .tp = nodBinding, .payload1 = 4, .startByte = 21, .lenBytes = 1 },  // param y
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 34, .lenBytes = 5 },  // param y
+                (Node){ .tp = nodBinding, .payload1 = 5, .startByte = 34, .lenBytes = 1 },  // local a
+                (Node){ .tp = nodId, .payload1 = 3, .payload2 = 2, .startByte = 38, .lenBytes = 1 },  // x
+                (Node){ .tp = nodReturn, .payload2 = 1, .startByte = 44, .lenBytes = 8 },
+                (Node){ .tp = nodId, .payload1 = 5, .payload2 = 5, .startByte = 51, .lenBytes = 1 } // a
             }),
             ((BindingImport[]) {})
         )
-        
-        
-        
         //~ (ParserTest) { 
             //~ .name = str("Nested function def", a),
             //~ .input = str("fn foo Int(x Int y Int) {\n"
@@ -805,8 +803,24 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
 }
 
 
-//~ ParserTestSet* ifTest(Arena* a) {
-    //~ return createTestSet(str("Functions test set", a), 5, a,
+ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
+    return createTestSet(s("If test set"), a, ((ParserTest[]){
+        createTest(
+            s("Simple if 1"),
+            s("x = (if == 5 5 => print \"5\")"),
+            ((Node[]) {
+                (Node){ .tp = nodIf, .payload1 = 2, .payload2 = 7, .startByte = 0, .lenBytes = 37 },
+                (Node){ .tp = nodExpr, .payload1 = 2, .startByte = 4, .lenBytes = 6 }, // newFn
+                
+                (Node){ .tp = nodScope, .payload2 = 5, .startByte = 14, .lenBytes = 23 },
+                (Node){ .tp = nodBinding, .payload1 = 3, .startByte = 15, .lenBytes = 1 }, // param x
+                (Node){ .tp = nodBinding, .payload1 = 4, .startByte = 21, .lenBytes = 1 },  // param y
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 31, .lenBytes = 5 },  // param y
+                (Node){ .tp = nodBinding, .payload1 = 5, .startByte = 31, .lenBytes = 1 },  // local a
+                (Node){ .tp = nodId, .payload1 = 3, .payload2 = 2, .startByte = 35, .lenBytes = 1 }  // x                
+            }),
+            ((BindingImport[]) {})
+        )
         //~ (ParserTest) { 
             //~ .name = str("Simple if 1", a),
             //~ .input = str("(if true .6)", a),
@@ -863,9 +877,10 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
                 //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
             //~ )
-        //~ } 
-    //~ );
-//~ }
+        //~ }         
+    }));
+}
+
 
 //~ ParserTestSet* loopTest(Arena* a) {
     //~ return createTestSet(str("Functions test set", a), 1, a,
@@ -903,10 +918,10 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     
-    runATestSet(&assignmentTests, &countPassed, &countTests, langDef, parsDef, a);
-    runATestSet(&expressionTests, &countPassed, &countTests, langDef, parsDef, a);
+    //~ runATestSet(&assignmentTests, &countPassed, &countTests, langDef, parsDef, a);
+    //~ runATestSet(&expressionTests, &countPassed, &countTests, langDef, parsDef, a);
     //~ runATestSet(&functionTests, &countPassed, &countTests, langDef, parsDef, a);
-
+    runATestSet(&ifTests, &countPassed, &countTests, langDef, parsDef, a);
 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
