@@ -118,11 +118,10 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 // Resumable core forms
 #define tokIf          45    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
-#define tokIfEq        46    // "(ifEq " or "(-ifEq " every branch is a value compared using standard equality
-#define tokIfPr        47    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       48    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        49    // "(-impl " 
-#define tokLoop        50    // "(-loop "
+#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       47    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        48    // "(-impl " 
+#define tokLoop        49    // "(-loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 
@@ -131,7 +130,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType tokAlias
 
-#define countCoreForms 28 // tokLoop - tokAlias + 1
+#define countCoreForms (tokLoop - tokAlias + 1)
 
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique,
  * below "firstPunctuationTokenType" and not clashing with "tokAnd", "tokOr" and "tokNodispose"
@@ -182,7 +181,9 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTExponent       28 // ^    exponentiation
 #define opTBoolOr         29 // ||   bitwise or
 #define opTXor            30 // |    bitwise xor
-//#define opTToFloat        31 // ~
+//#define opTAnd
+//#define opTOr
+//#define opTNegation
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)

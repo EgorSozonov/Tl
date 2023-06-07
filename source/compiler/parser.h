@@ -56,11 +56,11 @@ typedef struct {
 
 
 typedef void (*ParserFunc)(Token, Arr(Token), Parser*);
-typedef void (*ResumeFunc)(untt, Token, Arr(Token), Parser*);
+typedef void (*ResumeFunc)(untt, Token*, Arr(Token), Parser*);
 
 #define countSyntaxForms (tokLoop + 1)
-#define firstResumableForm tokIf
-#define countResumableForms (tokLoop - tokIf + 1)
+#define firstResumableForm nodIf
+#define countResumableForms (nodLoop - nodIf + 1)
 
 typedef struct {
     ParserFunc (*nonResumableTable)[countSyntaxForms];

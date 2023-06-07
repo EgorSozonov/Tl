@@ -85,12 +85,13 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void popFrame(Parser* pr) {    
+private ParseFrame popFrame(Parser* pr) {    
     ParseFrame frame = pop(pr->backtrack);
     if (frame.tp == nodScope || frame.tp == nodExpr) {
         popScopeFrame(pr->activeBindings, pr->scopeStack);    
     }
     setSpanLength(frame.startNodeInd, pr);
+    return frame;
 }
 
 /**
@@ -307,7 +308,7 @@ private void maybeCloseSpans(Parser* pr) {
         if (pr->i < frame.sentinelToken) {
             return;
         } else VALIDATE(pr->i == frame.sentinelToken, errorInconsistentSpan)
-        
+        print("poppin frame i = %d tp = %d frame.sentinelToken %d", pr->i, frame.tp, frame.sentinelToken)
         popFrame(pr);
     }
 }
@@ -317,15 +318,15 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
     while (pr->i < sentinelToken) {
         Token currTok = tokens[pr->i];
         untt contextType = peek(pr->backtrack).tp;
-        print("pr i %d currTok.tp %d contextType %d firstResumableForm %d", pr->i, currTok.tp, contextType, firstResumableForm)
         pr->i++; // CONSUME any span token
         // pre-parse hooks that let contextful syntax forms (e.g. "if") detect parsing errors and keep track of their state
         if (contextType >= firstResumableForm) {
+            print("before hook i = %d currTok %d contextType %d", pr->i, currTok.tp, contextType)
             ((*pr->parDef->resumableTable)[contextType - firstResumableForm])(
-                contextType, currTok, tokens, pr
+                contextType, &currTok, tokens, pr
             );
-            currTok = tokens[pr->i];
         }
+        print("i = %d currTok %d", pr->i, currTok.tp)
         ((*pr->parDef->nonResumableTable)[currTok.tp])(
             currTok, tokens, pr
         );
@@ -387,7 +388,6 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
         print("scope %d", rightSideToken.tp);
         //openScope(pr);
     } else {
-        print("rightSideLen %d", pr->i)
         if (rightSideLen == 1) {
             if (parseLiteralOrIdentifier(rightSideToken, pr) == false) {
                 throwExc(errorAssignment);
@@ -551,56 +551,62 @@ private void parseYield(Token tok, Arr(Token) tokens, Parser* pr) {
 
 
 private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
-    print("parseIf")
-    ParseFrame newParseFrame = (ParseFrame){ .tp = tokIf, .startNodeInd = pr->nextInd, 
+    ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = pr->nextInd, 
         .sentinelToken = pr->i + tok.payload2 };
     push(newParseFrame, pr->backtrack);
     addNode((Node){.tp = nodIf, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+
+    print("clause sentinel %d", pr->i + tok.payload2)
+    ParseFrame clauseFrame = (ParseFrame){ .tp = nodIfClause, .startNodeInd = pr->nextInd, 
+        .sentinelToken = pr->i + tok.payload2 };
+    push(clauseFrame, pr->backtrack);
+    addNode((Node){.tp = nodIfClause, .startByte = tok.startByte }, pr);
 }
 
-private void ifResume(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
-}
 
 private void parseLoop(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
+
 
 private void loopResume(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
 
-private void resumeIf(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
-    print("resume")
+private void resumeIf(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
     Int clauseInd = (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd;
-    if (clauseInd % 2 == 1) {
-        pr->i++; // CONSUME the arrow token
+    print("resume clauseInd %d pr->i %d", clauseInd, pr->i)
+    if (clauseInd > 0 && clauseInd % 2 == 0) {
+        if (peek(pr->backtrack).tp == nodIfClause) {
+            ParseFrame oldFrame = popFrame(pr);
+            print("oldFrame %d sentinel %d", oldFrame.tp, oldFrame.sentinelToken)
+            ParseFrame clauseFrame = (ParseFrame){ .tp = nodIfClause, .startNodeInd = pr->nextInd, 
+                .sentinelToken = pr->i + tok->payload2 };
+            push(clauseFrame, pr->backtrack);
+            addNode((Node){.tp = nodIfClause, .startByte = tok->startByte }, pr);
+        }
+        
+    } else {
+        *tok = tokens[pr->i]; // get the token after the arrow
+        pr->i++; // CONSUME whichever token is after the arrow
     }
     (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd = clauseInd + 1;
 }
 
-private void resumeIfEq(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+private void resumeIfPr(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
-private void resumeIfPr(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+private void resumeImpl(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
-private void resumeImpl(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+private void resumeMatch(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
-private void resumeMatch(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
-}
-
-private void resumeLoop(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
-}
-
-private void resumeMut(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
+private void resumeLoop(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
@@ -652,12 +658,11 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     ResumeFunc (*result)[countResumableForms] = allocateOnArena(countResumableForms*sizeof(ResumeFunc), a);
     ResumeFunc* p = *result;
     int i = 0;
-    p[tokIf    - firstResumableForm] = &resumeIf;
-    p[tokIfEq  - firstResumableForm] = &resumeIfEq;
-    p[tokIfPr  - firstResumableForm] = &resumeIfPr;
-    p[tokImpl  - firstResumableForm] = &resumeImpl;
-    p[tokMatch - firstResumableForm] = &resumeMatch;
-    p[tokLoop  - firstResumableForm] = &resumeLoop;
+    p[nodIfClause - firstResumableForm] = &resumeIf;
+    p[nodIfPr  - firstResumableForm] = &resumeIfPr;
+    p[nodImpl  - firstResumableForm] = &resumeImpl;
+    p[nodMatch - firstResumableForm] = &resumeMatch;
+    p[nodLoop  - firstResumableForm] = &resumeLoop;
     
     return result;
 }
@@ -849,7 +854,7 @@ private void parseFnBody(Int sentinelToken, Arr(Token) inp, Parser* pr) {
             Token currTok = inp[pr->i];
             Int contextTokTp = peek(pr->backtrack).tp;
             if (contextTokTp >= firstResumableForm) {      
-                ((*dispatchResumable)[contextTokTp - firstResumableForm])(contextTokTp, currTok, inp, pr);
+                ((*dispatchResumable)[contextTokTp - firstResumableForm])(contextTokTp, &currTok, inp, pr);
             } else {
                 ((*dispatch)[currTok.tp])(currTok, inp, pr);
             }

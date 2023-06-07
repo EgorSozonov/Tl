@@ -169,7 +169,6 @@ private Int determineReservedF(Int startByte, Int lenBytes, Lexer* lx) {
 private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesIf, tokIf)
-    PROBERESERVED(reservedBytesIfEq, tokIfEq)
     PROBERESERVED(reservedBytesIfPr, tokIfPr)
     PROBERESERVED(reservedBytesImpl, tokImpl)
     PROBERESERVED(reservedBytesInterface, tokIface)
@@ -960,7 +959,7 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
  */
 private void openScope(Lexer* lx, Arr(byte) inp) {
     Int startByte = lx->i;
-    lx->i += 2; // CONSUME the "(-"
+    lx->i += 2; // CONSUME the "(."
     VALIDATE(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slBrackets, errorPunctuationScope)
     VALIDATE(lx->i < lx->inpLength, errorPrematureEndOfInput)
     
@@ -991,7 +990,7 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     } else if (inp[j] == aTimes) {
         lx->i += 2; // CONSUME the "(*"
         docComment(lx, inp);
-    } else if (inp[j] == aMinus) {
+    } else if (inp[j] == aDot) {
         openScope(lx, inp);
     } else {
         wrapInAStatement(lx, inp);
@@ -1060,15 +1059,18 @@ void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "word", ".word", "@word", ".call", "operator", "and", "or", "dispose", "=>", "else",
-    ":", "(-", "stmt", "(", "(:", "accessor(", "funcExpr", "=", ":=", "mutation",
+    "word", ".word", "@word", ".call", "operator", "and", "or", "dispose", 
+    ":", "(-", "stmt", "(", "(:", "accessor(", "funcExpr", "=", ":=", "mutation", "=>", "else",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "embed", "export", "exposePriv", "fn", "interface", 
     "lambda", "package", "return", "struct", "try", "yield",
-    "if", "ifEq", "ifPr", "match", "impl", "loop"
+    "if", "ifPr", "match", "impl", "loop"
 };
 
 
+
+// This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
+#define tokColon       14 
 void printLexer(Lexer* a) {
     if (a->wasError) {
         printf("Error: ");

@@ -26,12 +26,12 @@ typedef struct {
 /** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "id", "func", "binding", "type", "@annot", "and", "or", 
-    "(-", "expr", "accessor", "assign", "reAssign", "mutation", "whereClause",
+    "id", "call", "binding", "type", "@annot", "and", "or", 
+    "(-", "expr", "accessor", "=", ":=", "+=",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", "defer", "embed", "export",
-    "exposePriv", "fnDef", "interface", "lambda", "lam1", "lam2", "lam3", "package", "return", "struct",
-    "try", "yield", "if", "ifEq", "ifPr", "ifClause", "impl", "match",
-    "loop", "mut"
+    "exposePriv", "fnDef", "if", "interface", "lambda", "package", "return", "struct",
+    "try", "yield", "ifPr", "ifClause", "impl", "match",
+    "loop"
 };
 
 
@@ -171,6 +171,8 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         print("Lexer result empty");
         return;
     }
+
+    printLexer(test.input);
 
     Parser* resultParser = parseWithParser(test.input, test.initParser, a);
         
