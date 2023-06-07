@@ -324,8 +324,8 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
             ((*pr->parDef->resumableTable)[contextType - firstResumableForm])(
                 contextType, currTok, tokens, pr
             );
+            currTok = tokens[pr->i];
         }
-        
         ((*pr->parDef->nonResumableTable)[currTok.tp])(
             currTok, tokens, pr
         );
@@ -393,10 +393,6 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
                 throwExc(errorAssignment);
             }
         } else if (rightSideToken.tp == tokIf) {
-            print("here i %d", pr->i)
-            push(((ParseFrame){.tp = nodIf, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + rightSideToken.payload2 }), 
-                 pr->backtrack);
-            addNode((Node){ .tp = nodIf, .startByte = rightSideToken.startByte, .lenBytes = rightSideToken.lenBytes }, pr);
         } else {
             parseExpr((Token){ .payload2 = rightSideLen, .startByte = rightSideToken.startByte, 
                                .lenBytes = tok.lenBytes - rightSideToken.startByte + tok.startByte
@@ -556,6 +552,9 @@ private void parseYield(Token tok, Arr(Token) tokens, Parser* pr) {
 
 private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
     print("parseIf")
+    ParseFrame newParseFrame = (ParseFrame){ .tp = tokIf, .startNodeInd = pr->nextInd, 
+        .sentinelToken = pr->i + tok.payload2 };
+    push(newParseFrame, pr->backtrack);
     addNode((Node){.tp = nodIf, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
 }
 
@@ -574,8 +573,11 @@ private void loopResume(Token tok, Arr(Token) tokens, Parser* pr) {
 
 private void resumeIf(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
     print("resume")
-    (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd++;
-    print("clauseInd %d", peek(pr->backtrack).clauseInd)
+    Int clauseInd = (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd;
+    if (clauseInd % 2 == 1) {
+        pr->i++; // CONSUME the arrow token
+    }
+    (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd = clauseInd + 1;
 }
 
 private void resumeIfEq(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
@@ -603,8 +605,8 @@ private void resumeMut(untt tokType, Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countNonresumableForms] {
-    ParserFunc (*result)[countNonresumableForms] = allocateOnArena(countNonresumableForms*sizeof(ParserFunc), a);
+private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
+    ParserFunc (*result)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
     ParserFunc* p = *result;
     int i = 0;
     while (i <= firstPunctuationTokenType) {
@@ -756,12 +758,10 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
         if (tok.tp == tokFnDef) {
             Int lenTokens = tok.payload2;
             if (lenTokens < 3) {
-                print("t1")
                 throwExc(errorFnNameAndParams);
             }
             Token fnName = lx->tokens[(pr->i) + 2]; // + 2 because we skip over the "fn" and "stmt" span tokens
             if (fnName.tp != tokWord || fnName.payload1 > 0) { // function name must be a lowercase word
-                print("t2 fnName.tp %d i %d", fnName.tp, pr->i)
                 throwExc(errorFnNameAndParams);
             }
             Int newBinding = createBinding(fnName.payload2, (Binding){ .flavor = bndCallable }, pr);
@@ -840,8 +840,9 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
 }
 
 
-private void parseFnBody(Int sentinelToken, Arr(Token) inp, Parser* pr) {    
-    ParserFunc (*dispatch)[countNonresumableForms] = pr->parDef->nonResumableTable;
+private void parseFnBody(Int sentinelToken, Arr(Token) inp, Parser* pr) {
+    print("parse fn body")
+    ParserFunc (*dispatch)[countSyntaxForms] = pr->parDef->nonResumableTable;
     ResumeFunc (*dispatchResumable)[countResumableForms] = pr->parDef->resumableTable;
     if (setjmp(excBuf) == 0) {
         while (pr->i < sentinelToken) {
@@ -891,7 +892,7 @@ Parser* parseWithParser(Lexer* lx, Parser* pr, Arena* a) {
     int inpLength = lx->totalTokens;
     int i = 0;
 
-    ParserFunc (*dispatch)[countNonresumableForms] = pDef->nonResumableTable;
+    ParserFunc (*dispatch)[countSyntaxForms] = pDef->nonResumableTable;
     ResumeFunc (*dispatchResumable)[countResumableForms] = pDef->resumableTable;
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(lx, pr);    

@@ -77,23 +77,23 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokAnd         11
 #define tokOr          12
 #define tokDispose     13
-#define tokArrow       14
-#define tokElse        15
 
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon       16 
+#define tokColon       14 
 
 // Punctuation (inner node) Token types
-#define tokScope       17       // denoted by []
-#define tokStmt        18
-#define tokParens      19
-#define tokData        20       // data initializer, like (: 1 2 3)
-#define tokAccessor    21       // data accessor, like array(1 2)
-#define tokFuncExpr    22       // the ".(foo .bar)" kind of thing
-#define tokAssignment  23       // payload1 = 1 if mutable assignment, 0 if immutable 
-#define tokReassign    24       // :=
-#define tokMutation    25       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokScope       15       // denoted by []
+#define tokStmt        16
+#define tokParens      17
+#define tokData        18       // data initializer, like (: 1 2 3)
+#define tokAccessor    19       // data accessor, like array(1 2)
+#define tokFuncExpr    20       // the ".(foo .bar)" kind of thing
+#define tokAssignment  21       // payload1 = 1 if mutable assignment, 0 if immutable 
+#define tokReassign    22       // :=
+#define tokMutation    23       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokArrow       24       // not a real scope, but placed here so the parser can dispatch on it
+#define tokElse        25       // not a real scope, but placed here so the parser can dispatch on it
  
 // Single-shot core syntax forms
 #define tokAlias       26      

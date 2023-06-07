@@ -58,14 +58,14 @@ typedef struct {
 typedef void (*ParserFunc)(Token, Arr(Token), Parser*);
 typedef void (*ResumeFunc)(untt, Token, Arr(Token), Parser*);
 
-#define countNonresumableForms (tokYield + 1)
+#define countSyntaxForms (tokLoop + 1)
 #define firstResumableForm tokIf
 #define countResumableForms (tokLoop - tokIf + 1)
 
 typedef struct {
-    ParserFunc (*nonResumableTable)[countNonresumableForms];
+    ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
-    bool (*allowedSpanContexts)[countResumableForms + countNonresumableForms][countResumableForms];
+    bool (*allowedSpanContexts)[countResumableForms + countSyntaxForms][countResumableForms];
     OpDef (*operators)[countOperators];
 } ParserDefinition;
 

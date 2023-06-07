@@ -171,7 +171,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         print("Lexer result empty");
         return;
     }
-printLexer(test.input);
+
     Parser* resultParser = parseWithParser(test.input, test.initParser, a);
         
     int equalityStatus = equalityParser(*resultParser, *test.expectedOutput);
@@ -809,7 +809,10 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
             s("Simple if 1"),
             s("x = (if == 5 5 => print \"5\")"),
             ((Node[]) {
-                (Node){ .tp = nodIf, .payload1 = 2, .payload2 = 7, .startByte = 0, .lenBytes = 37 },
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 28 },
+                (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // param x
+                
+                (Node){ .tp = nodIf, .payload1 = 2, .payload2 = 7, .startByte = 4, .lenBytes = 24 },
                 (Node){ .tp = nodExpr, .payload1 = 2, .startByte = 4, .lenBytes = 6 }, // newFn
                 
                 (Node){ .tp = nodScope, .payload2 = 5, .startByte = 14, .lenBytes = 23 },
