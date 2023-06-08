@@ -76,22 +76,23 @@ extern const char errorTemp[];
 #define nodExport      29       
 #define nodExposePriv  30       
 #define nodFnDef       31       // payload1 = index of binding
-#define nodIf          32       // paren
-#define nodIface       33       
-#define nodLambda      34       
-#define nodPackage     35       // for single-file packages
-#define nodReturn      36       
-#define nodStruct      37       
-#define nodTry         38       
-#define nodYield       39       
+#define nodIface       32
+#define nodLambda      33       
+#define nodPackage     34       // for single-file packages
+#define nodReturn      35       
+#define nodStruct      36       
+#define nodTry         37       
+#define nodYield       38       
+#define nodIfClause    39       // payload1 = number of tokens in the left side of the clause
+#define nodElse        40
+#define nodLoop        41       //
 
 // Resumable core forms
+#define nodIf          42       // paren
+#define nodIfPr        43       // like if, but every branch is a value compared using custom predicate
+#define nodImpl        44       
+#define nodMatch       45       // pattern matching on sum type tag
 
-#define nodIfPr        40       // like if, but every branch is a value compared using custom predicate
-#define nodIfClause    41       
-#define nodImpl        42       
-#define nodMatch       43       // pattern matching on sum type tag
-#define nodWhile       44       // 
 
 
 

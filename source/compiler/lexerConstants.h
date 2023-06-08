@@ -122,7 +122,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokIfPr        47    // like if, but every branch is a value compared using custom predicate
 #define tokMatch       48    // "(-m " or "(match " pattern matching on sum type tag 
 #define tokImpl        49    // "(-impl " 
-#define tokWhile       50    // "(-w "
+#define tokLoop        50    // "(-loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 
@@ -131,7 +131,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType tokAlias
 
-#define countCoreForms (tokWhile - tokAlias + 1)
+#define countCoreForms (tokLoop - tokAlias + 1)
 
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique,
  * below "firstPunctuationTokenType" and not clashing with "tokAnd", "tokOr" and "tokNodispose"

@@ -112,6 +112,9 @@ private void exprSingleItem(Token theTok, Parser* pr) {
         } else {
             throwExc(errorUnexpectedToken);
         }
+    } else if (theTok.tp <= topVerbatimTokenVariant) {
+        addNode((Node){.tp = theTok.tp, .payload1 = theTok.payload1, .payload2 = theTok.payload2,
+                        .startByte = theTok.startByte, .lenBytes = theTok.lenBytes }, pr);
     } else if (theTok.tp >= firstCoreFormTokenType) {
         throwExc(errorCoreFormInappropriate);
     } else {
@@ -448,11 +451,6 @@ private void parseDispose(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void parseElse(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
-}
-
-
 private void parseExposePrivates(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
@@ -525,6 +523,11 @@ private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
+private void parseSkip(Token tok, Arr(Token) tokens, Parser* pr) {
+    
+}
+
+
 private void parseScope(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
@@ -559,7 +562,8 @@ private void ifAddClause(Token tok, Arr(Token) tokens, Parser* pr) {
     
     ParseFrame clauseFrame = (ParseFrame){ .tp = nodIfClause, .startNodeInd = pr->nextInd, .sentinelToken = j + rightTokLength };
     push(clauseFrame, pr->backtrack);
-    addNode((Node){.tp = nodIfClause, .startByte = tok.startByte, .lenBytes = clauseSentinelByte - tok.startByte }, pr);
+    addNode((Node){.tp = nodIfClause, .payload1 = leftTokLength,
+         .startByte = tok.startByte, .lenBytes = clauseSentinelByte - tok.startByte }, pr);
 }
 
 /** tok.tp must be == tokIf */
@@ -584,14 +588,31 @@ private void loopResume(Token tok, Arr(Token) tokens, Parser* pr) {
 
 
 private void resumeIf(untt contextTokType, Token* tok, Arr(Token) tokens, Parser* pr) {
-    Int clauseInd = (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd;
-    if (clauseInd % 2 == 0 && clauseInd > 0) {
-        ifAddClause(*tok, tokens, pr);            
-    } else if (clauseInd % 2 == 1) {
-        *tok = tokens[pr->i]; // get the token after the arrow
-        pr->i++; // CONSUME whichever token is after the arrow
+    if (tok->tp == tokElse) {
+        VALIDATE(pr->i < pr->inpLength, errorPrematureEndOfTokens)
+        Token nextToken = tokens[pr->i];
+        Int elseTokLength = (nextToken.tp >= firstPunctuationTokenType) ? (nextToken.payload2 + 1) : 1;
+        Int elseSentinelByte = nextToken.startByte + nextToken.lenBytes;
+
+        ParseFrame elseFrame = (ParseFrame){ .tp = nodElse, .startNodeInd = pr->nextInd,
+                                               .sentinelToken = pr->i + elseTokLength };
+        push(elseFrame, pr->backtrack);
+        addNode((Node){.tp = nodElse, .startByte = nextToken.startByte, .lenBytes = elseSentinelByte - nextToken.startByte }, pr);
+        *tok = tokens[pr->i];
+        pr->i++; // CONSUME the token after "else"
+    } else {
+        ifAddClause(tokens[pr->i], tokens, pr);
     }
-    (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd = clauseInd + 1;
+    
+    
+    //~ Int clauseInd = (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd;
+    //~ if (clauseInd % 2 == 0 && clauseInd > 0) {
+        //~ ifAddClause(*tok, tokens, pr);            
+    //~ } else if (clauseInd % 2 == 1) {
+        //~ *tok = tokens[pr->i]; // get the token after the arrow
+        //~ pr->i++; // CONSUME whichever token is after the arrow
+    //~ }
+    //~ (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd = clauseInd + 1;
 }
 
 private void resumeIfPr(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
@@ -626,7 +647,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokAssignment] = &parseAssignment;
     p[tokReassign]   = &parseReassignment;
     p[tokMutation]   = &parseMutation;
-    p[tokElse]       = &parseElse;
+    p[tokArrow]      = &parseSkip;
     
     p[tokAlias]      = &parseAlias;
     p[tokAssert]     = &parseAssert;
@@ -649,7 +670,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokYield]      = &parseAlias;
 
     p[tokIf]         = &parseIf;
-    p[tokWhile]       = &parseLoop;
+    p[tokLoop]       = &parseLoop;
     return result;
 }
  
@@ -658,12 +679,10 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     ResumeFunc (*result)[countResumableForms] = allocateOnArena(countResumableForms*sizeof(ResumeFunc), a);
     ResumeFunc* p = *result;
     int i = 0;
-    p[nodIfClause - firstResumableForm] = &resumeIf;
+    p[nodIf    - firstResumableForm] = &resumeIf;
     p[nodIfPr  - firstResumableForm] = &resumeIfPr;
     p[nodImpl  - firstResumableForm] = &resumeImpl;
-    p[nodMatch - firstResumableForm] = &resumeMatch;
-    p[nodWhile  - firstResumableForm] = &resumeLoop;
-    
+    p[nodMatch - firstResumableForm] = &resumeMatch;    
     return result;
 }
 
@@ -846,7 +865,6 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
 
 
 private void parseFnBody(Int sentinelToken, Arr(Token) inp, Parser* pr) {
-    print("parse fn body")
     ParserFunc (*dispatch)[countSyntaxForms] = pr->parDef->nonResumableTable;
     ResumeFunc (*dispatchResumable)[countResumableForms] = pr->parDef->resumableTable;
     if (setjmp(excBuf) == 0) {

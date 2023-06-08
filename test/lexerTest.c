@@ -818,7 +818,7 @@ LexerTestSet* coreFormTests(Arena* a) {
          (LexerTest) { .name = s("Paren-type core form"),
              .input = s("(if > (<> x 7) 0 => true)"),
              .expectedOutput = buildLexer(((Token[]){
-                 (Token){ .tp = tokIf, .payload2 = 10, .startByte = 0, .lenBytes = 25 },
+                 (Token){ .tp = tokIf, .payload1 = slParenMulti, .payload2 = 10, .startByte = 0, .lenBytes = 25 },
                  
                  (Token){ .tp = tokStmt, .payload2 = 6, .startByte = 4, .lenBytes = 12 },
                  (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 4, .lenBytes = 1 },
@@ -851,7 +851,7 @@ LexerTestSet* coreFormTests(Arena* a) {
          (LexerTest) { .name = s("If with else"),
              .input = s("(if > (<> x 7) 0 => true else false)"),
              .expectedOutput = buildLexer(((Token[]){
-                 (Token){ .tp = tokIf, .payload2 = 13, .startByte = 0, .lenBytes = 36 },
+                 (Token){ .tp = tokIf, .payload1 = slParenMulti, .payload2 = 13, .startByte = 0, .lenBytes = 36 },
 
                  (Token){ .tp = tokStmt, .payload2 = 6, .startByte = 4, .lenBytes = 12 },
                  (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 4, .lenBytes = 1 },
@@ -874,7 +874,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                        "    < (<> x 7) 0 => 11\n"
                        "    else true)"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokIf, .payload2 = 23, .startByte = 0, .lenBytes = 59 },
+                (Token){ .tp = tokIf, .payload1 = slParenMulti, .payload2 = 23, .startByte = 0, .lenBytes = 59 },
 
                 (Token){ .tp = tokStmt, .payload2 = 6, .startByte = 4, .lenBytes = 12 },
                 (Token){ .tp = tokOperator, .payload1 = (opTGreaterThan << 1), .startByte = 4, .lenBytes = 1 },

@@ -179,7 +179,7 @@ private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lx) {
 private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
-    PROBERESERVED(reservedBytesLoop, tokWhile)
+    PROBERESERVED(reservedBytesLoop, tokLoop)
     return 0;
 }
 
