@@ -179,7 +179,7 @@ private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lx) {
 private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
-    PROBERESERVED(reservedBytesLoop, tokLoop)
+    PROBERESERVED(reservedBytesLoop, tokWhile)
     return 0;
 }
 
@@ -546,11 +546,11 @@ private void lexNumber(Lexer* lx, Arr(byte) inp) {
  */
 private void openPunctuation(untt tType, untt spanLevel, Int startByte, Lexer* lx) {
     push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->backtrack);
-    add((Token) {.tp = tType, .payload1 = spanLevel, .startByte = startByte }, lx);
+    add((Token) {.tp = tType, .payload1 = (tType < firstCoreFormTokenType) ? 0 : spanLevel, .startByte = startByte }, lx);
 }
 
 /**
- * Lexer action for a paren-type reserved word. It turns parentheses or brackets into a core form.
+ * Lexer action for a paren-type reserved word. It turns parentheses into an slParenMulti core form.
  * If necessary (parens inside statement) it also deletes last token and removes the top frame
  */
 private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Arr(byte) inp) {    
@@ -577,6 +577,7 @@ private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Ar
         
         // update the token type and the corresponding frame type
         lx->tokens[top.tokenInd].tp = reservedWordType;
+        lx->tokens[top.tokenInd].payload1 = slParenMulti;
         (*bt->content)[bt->length - 1].tp = reservedWordType;
         (*bt->content)[bt->length - 1].spanLevel = top.tp == tokScope ? slBrackets : slParenMulti;
     }
@@ -677,7 +678,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
                      .startByte=realStartByte, .lenBytes=lenBytes }, lx);
         if (isAlsoAccessor) {
-            openPunctuation(tokAccessor, slSubexpr,lx->i, lx);
+            openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
             lx->i++; // CONSUME the left bracket            
         }
         return;
@@ -1060,14 +1061,12 @@ void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
     "word", ".word", "@word", ".call", "operator", "and", "or", "dispose", 
-    ":", "(-", "stmt", "(", "(:", "accessor(", "funcExpr", "=", ":=", "mutation", "=>", "else",
+    ":", "(.", "stmt", "(", "(:", "accessor(", "funcExpr", "=", ":=", "mutation", "=>", "else",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
-    "defer", "embed", "export", "exposePriv", "fn", "interface", 
+    "defer", "each", "embed", "export", "exposePriv", "fn", "interface", 
     "lambda", "package", "return", "struct", "try", "yield",
-    "if", "ifPr", "match", "impl", "loop"
+    "if", "ifPr", "match", "impl", "while"
 };
-
-
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon       14 

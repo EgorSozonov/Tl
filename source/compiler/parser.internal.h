@@ -236,14 +236,15 @@ void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {
             activeBindings[*(topScope->bindings + i)] = -1;
         }    
     }
-        
-    scopeStack->currChunk = topScope->previousChunk;    
-    scopeStack->lastChunk = scopeStack->currChunk->next;
-    scopeStack->topScope = (ScopeStackFrame*)(topScope->previousChunk->content + topScope->previousInd);
+
+    if (topScope->previousChunk) {
+        scopeStack->currChunk = topScope->previousChunk;
+        scopeStack->lastChunk = scopeStack->currChunk->next;
+        scopeStack->topScope = (ScopeStackFrame*)(scopeStack->currChunk->content + topScope->previousInd);
+    }
     
     // if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but everything after it needs to go
-    if (scopeStack->lastChunk != NULL) {
-        
+    if (scopeStack->lastChunk) {
         ScopeChunk* ch = scopeStack->lastChunk->next;
         if (ch != NULL) {
             scopeStack->lastChunk->next = NULL;
@@ -257,6 +258,6 @@ void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {
 
             } while (ch != NULL);
         }                
-    }   
+    }
     scopeStack->length--;
 }

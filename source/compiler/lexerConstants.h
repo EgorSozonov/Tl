@@ -95,7 +95,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokArrow       24       // not a real scope, but placed here so the parser can dispatch on it
 #define tokElse        25       // not a real scope, but placed here so the parser can dispatch on it
  
-// Single-shot core syntax forms
+// Single-shot core syntax forms. payload1 = spanLevel
 #define tokAlias       26      
 #define tokAssert      27      
 #define tokAssertDbg   28     
@@ -103,25 +103,26 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokBreak       30      
 #define tokCatch       31       // paren "(catch e. e .print)"
 #define tokContinue    32       // noParen
-#define tokDefer       33       // noParen
-#define tokEmbed       34       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      35       // paren
-#define tokExposePriv  36       // paren
-#define tokFnDef       37       // specialCase
-#define tokIface       38       
-#define tokLambda      39       
-#define tokPackage     40       // for single-file packages
-#define tokReturn      41
-#define tokStruct      42       
-#define tokTry         43       // early exit
-#define tokYield       44       
+#define tokDefer       33
+#define tokEach        34
+#define tokEmbed       35       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      36       // paren
+#define tokExposePriv  37       // paren
+#define tokFnDef       38       // specialCase
+#define tokIface       39       
+#define tokLambda      40       
+#define tokPackage     41       // for single-file packages
+#define tokReturn      42
+#define tokStruct      43       
+#define tokTry         44       // early exit
+#define tokYield       45       
 
 // Resumable core forms
-#define tokIf          45    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
-#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       47    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        48    // "(-impl " 
-#define tokLoop        49    // "(-loop "
+#define tokIf          46    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
+#define tokIfPr        47    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       48    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        49    // "(-impl " 
+#define tokWhile       50    // "(-w "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 
@@ -130,7 +131,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType tokAlias
 
-#define countCoreForms (tokLoop - tokAlias + 1)
+#define countCoreForms (tokWhile - tokAlias + 1)
 
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique,
  * below "firstPunctuationTokenType" and not clashing with "tokAnd", "tokOr" and "tokNodispose"

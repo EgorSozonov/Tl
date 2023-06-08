@@ -88,7 +88,7 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Parser* pr) {
 private ParseFrame popFrame(Parser* pr) {    
     ParseFrame frame = pop(pr->backtrack);
     if (frame.tp == nodScope || frame.tp == nodExpr) {
-        popScopeFrame(pr->activeBindings, pr->scopeStack);    
+        popScopeFrame(pr->activeBindings, pr->scopeStack);
     }
     setSpanLength(frame.startNodeInd, pr);
     return frame;
@@ -187,15 +187,14 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
     ScopeStack* scStack = pr->scopeStack;
     while (scStack->length > 0) {
         ScopeStackFrame currSubexpr = *scStack->topScope;
-        ParseFrame pFrame = peek(pr->backtrack);               
+        ParseFrame pFrame = peek(pr->backtrack);
         if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
             return;
-        }// else VALIDATE(currSubexpr.length > 0, errorExpressionFunctionless)
+        }
         for (int m = currSubexpr.length - 1; m > -1; m--) {
             addFnCall(currSubexpr.fnCalls[m], tokens, pr);
         }
-        popFrame(pr);        
-
+        popFrame(pr);
         // flush parent's prefix opers, if any, because this subexp was their operand
         if (scStack->topScope->isSubexpr) {
             ScopeStackFrame parentFrame = *scStack->topScope;
@@ -236,7 +235,6 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
         addFnCall(topSubexpr->fnCalls[i], tokens, pr);
         i--;
     }
-    
     topSubexpr->length = i + 1;    
     exprIncrementArity(topSubexpr, pr);
 }
@@ -258,7 +256,6 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
 private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
     Int sentinelToken = pr->i + exprTok.payload2;
     exprSubexpr(exprTok, tokens, pr);
-        
     while (pr->i < sentinelToken) {
         subexprClose(tokens, pr);
         Token currTok = tokens[pr->i];
@@ -308,7 +305,6 @@ private void maybeCloseSpans(Parser* pr) {
         if (pr->i < frame.sentinelToken) {
             return;
         } else VALIDATE(pr->i == frame.sentinelToken, errorInconsistentSpan)
-        print("poppin frame i = %d tp = %d frame.sentinelToken %d", pr->i, frame.tp, frame.sentinelToken)
         popFrame(pr);
     }
 }
@@ -321,12 +317,10 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
         pr->i++; // CONSUME any span token
         // pre-parse hooks that let contextful syntax forms (e.g. "if") detect parsing errors and keep track of their state
         if (contextType >= firstResumableForm) {
-            print("before hook i = %d currTok %d contextType %d", pr->i, currTok.tp, contextType)
             ((*pr->parDef->resumableTable)[contextType - firstResumableForm])(
                 contextType, &currTok, tokens, pr
             );
         }
-        print("i = %d currTok %d", pr->i, currTok.tp)
         ((*pr->parDef->nonResumableTable)[currTok.tp])(
             currTok, tokens, pr
         );
@@ -549,18 +543,33 @@ private void parseYield(Token tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
+/** To be called at the start of an "if" clause. It validates the grammar and emits nodes. Consumes no tokens.
+ * Precondition: we are pointing at the init token of left side of "if"
+ */
+private void ifAddClause(Token tok, Arr(Token) tokens, Parser* pr) {
+    VALIDATE(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errorIfLeft)
+    Int leftTokLength = (tok.tp >= firstPunctuationTokenType) ? (tok.payload2 + 1) : 1;
+    Int j = pr->i + leftTokLength;
+    VALIDATE(j + 1 < pr->inpLength, errorPrematureEndOfTokens)
+    VALIDATE(tokens[j].tp == tokArrow, errorIfMalformed)   
+    j++;
+    Token rightToken = tokens[j];
+    Int rightTokLength = (rightToken.tp >= firstPunctuationTokenType) ? (rightToken.payload2 + 1) : 1;    
+    Int clauseSentinelByte = rightToken.startByte + rightToken.lenBytes;
+    
+    ParseFrame clauseFrame = (ParseFrame){ .tp = nodIfClause, .startNodeInd = pr->nextInd, .sentinelToken = j + rightTokLength };
+    push(clauseFrame, pr->backtrack);
+    addNode((Node){.tp = nodIfClause, .startByte = tok.startByte, .lenBytes = clauseSentinelByte - tok.startByte }, pr);
+}
 
+/** tok.tp must be == tokIf */
 private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = pr->nextInd, 
         .sentinelToken = pr->i + tok.payload2 };
     push(newParseFrame, pr->backtrack);
-    addNode((Node){.tp = nodIf, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    addNode((Node){.tp = nodIf, .payload1 = tok.payload1, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
 
-    print("clause sentinel %d", pr->i + tok.payload2)
-    ParseFrame clauseFrame = (ParseFrame){ .tp = nodIfClause, .startNodeInd = pr->nextInd, 
-        .sentinelToken = pr->i + tok.payload2 };
-    push(clauseFrame, pr->backtrack);
-    addNode((Node){.tp = nodIfClause, .startByte = tok.startByte }, pr);
+    ifAddClause(tokens[pr->i], tokens, pr);
 }
 
 
@@ -574,20 +583,11 @@ private void loopResume(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void resumeIf(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
+private void resumeIf(untt contextTokType, Token* tok, Arr(Token) tokens, Parser* pr) {
     Int clauseInd = (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd;
-    print("resume clauseInd %d pr->i %d", clauseInd, pr->i)
-    if (clauseInd > 0 && clauseInd % 2 == 0) {
-        if (peek(pr->backtrack).tp == nodIfClause) {
-            ParseFrame oldFrame = popFrame(pr);
-            print("oldFrame %d sentinel %d", oldFrame.tp, oldFrame.sentinelToken)
-            ParseFrame clauseFrame = (ParseFrame){ .tp = nodIfClause, .startNodeInd = pr->nextInd, 
-                .sentinelToken = pr->i + tok->payload2 };
-            push(clauseFrame, pr->backtrack);
-            addNode((Node){.tp = nodIfClause, .startByte = tok->startByte }, pr);
-        }
-        
-    } else {
+    if (clauseInd % 2 == 0 && clauseInd > 0) {
+        ifAddClause(*tok, tokens, pr);            
+    } else if (clauseInd % 2 == 1) {
         *tok = tokens[pr->i]; // get the token after the arrow
         pr->i++; // CONSUME whichever token is after the arrow
     }
@@ -649,7 +649,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokYield]      = &parseAlias;
 
     p[tokIf]         = &parseIf;
-    p[tokLoop]       = &parseLoop;
+    p[tokWhile]       = &parseLoop;
     return result;
 }
  
@@ -662,7 +662,7 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     p[nodIfPr  - firstResumableForm] = &resumeIfPr;
     p[nodImpl  - firstResumableForm] = &resumeImpl;
     p[nodMatch - firstResumableForm] = &resumeMatch;
-    p[nodLoop  - firstResumableForm] = &resumeLoop;
+    p[nodWhile  - firstResumableForm] = &resumeLoop;
     
     return result;
 }
@@ -716,7 +716,7 @@ Parser* createParser(Lexer* lx, Arena* a) {
     Arena* aBt = mkArena();
     Int stringTableLength = lx->stringTable->length;
     (*result) = (Parser) {
-        .text = lx->inp, .inp = lx, .parDef = buildParserDefinitions(lx->langDef, a),
+        .text = lx->inp, .inp = lx, .inpLength = lx->totalTokens, .parDef = buildParserDefinitions(lx->langDef, a),
         .scopeStack = createScopeStack(),
         .backtrack = createStackParseFrame(16, aBt), .i = 0,
         .stringStore = lx->stringStore,

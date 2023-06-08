@@ -1,6 +1,7 @@
 const char errorBareAtom[]                    = "Malformed token stream (atoms and parentheses must not be bare)";
 const char errorImportsNonUnique[]            = "Import names must be unique!";
 const char errorLengthOverflow[]              = "AST nodes length overflow";
+const char errorPrematureEndOfTokens[]        = "Premature end of input";
 const char errorUnexpectedToken[]             = "Unexpected token";
 const char errorInconsistentSpan[]            = "Inconsistent span length / structure of token scopes!";
 const char errorCoreFormTooShort[]            = "Core syntax form too short";
@@ -10,7 +11,7 @@ const char errorCoreFormInappropriate[]       = "Inappropriate reserved word!";
 const char errorIfLeft[]                      = "A left-hand clause in an if can only contain variables, boolean literals and expressions!";
 const char errorIfRight[]                     = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
 const char errorIfEmpty[]                     = "Empty `if` expression";
-const char errorIfMalformed[]                 = "Malformed `if` expression, should look like (if pred. trueCase ::elseCase)";
+const char errorIfMalformed[]                 = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
 const char errorFnNameAndParams[]             = "Function signature must look like this: `(-f fnName ReturnType(x Type1 y Type2). body...)`";
 const char errorFnMissingBody[]               = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
 const char errorDuplicateFunction[]           = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
