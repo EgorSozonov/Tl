@@ -21,11 +21,7 @@ DEFINE_STACK(ParseFrame)
     )(X)   
 
 typedef struct ScopeStackFrame ScopeStackFrame;
-typedef struct {
-    Int nodInd;
-    Int operId; // only for operators (to check their arities) - for functions it will be
-    Int arity;
-} FnCall;
+
 
 typedef struct ScopeChunk ScopeChunk;
 
@@ -50,7 +46,7 @@ struct ScopeStack {
 
 /**
  * This frame corresponds either to a lexical scope or a subexpression.
- * If lexical scope, then it contains string ids introduced in the current scope, used not for cleanup after the frame is popped. 
+ * It contains string ids introduced in the current scope, used not for cleanup after the frame is popped. 
  * Otherwise, it contains the function call of the subexpression.
  */
 struct ScopeStackFrame {
@@ -61,9 +57,7 @@ struct ScopeStackFrame {
     
     ScopeChunk* thisChunk;
     int thisInd;               // index of the start of this frame within this chunk
-
-    Arr(int) bindings;         // valid for the lexical scope case        
-    FnCall fnCall;             // valid for the subexpression case
+    Arr(int) bindings;         // list of names of bindings introduced in this scope          
 };
 
 
@@ -145,41 +139,6 @@ void pushScope(ScopeStack* scopeStack) {
         .isSubexpr = false,
         .bindings = (int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
         
-    scopeStack->topScope = newScope;    
-    scopeStack->length++;
-}
-
-/** Allocates a new subexpression.
- * Subexprs have a simple size policy: 32 elements, then resize to 256, then throw exception.
- * Only up to 256 function calls are allowed in an expression, so transitively in a subexpression, too.
- */
-void pushSubexpr(ScopeStack* scopeStack) {
-    // check whether the free space in currChunk is enough for the hashmap header + dict
-    // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
-    int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
-    int necessarySpace = ceiling4(sizeof(ScopeStackFrame)+ 64*sizeof(FnCall))/4 ;
-    
-    ScopeChunk* oldChunk = scopeStack->topScope->thisChunk;
-    int oldInd = scopeStack->topScope->thisInd;
-    ScopeStackFrame* newScope;
-    int newInd;
-    if (remainingSpace < necessarySpace) {  
-        mbNewChunk(scopeStack);
-        scopeStack->currChunk = scopeStack->currChunk->next;
-        scopeStack->nextInd = necessarySpace;
-        newScope = (ScopeStackFrame*)scopeStack->currChunk->content;          
-        newInd = 0;
-    } else {
-        newScope = (ScopeStackFrame*)((int*)scopeStack->currChunk->content + scopeStack->nextInd);
-        newInd = scopeStack->nextInd;
-        scopeStack->nextInd += necessarySpace;        
-    }
-    (*newScope) = (ScopeStackFrame){ .previousChunk = oldChunk, .previousInd = oldInd, .length = 0,
-        .thisChunk = scopeStack->currChunk, .thisInd = newInd,
-        .isSubexpr = true,
-        .fnCalls = (FnCall*)((int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
-    };
-    
     scopeStack->topScope = newScope;    
     scopeStack->length++;
 }

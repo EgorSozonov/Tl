@@ -17,16 +17,16 @@ typedef struct {
     untt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
-    Int clauseInd;   
+    void* scopeStackFrame; // only for tp = scope or expr
 } ParseFrame;
 
-//DEFINE_STACK_HEADER(ParseFrame)
-typedef struct {                                            
-    Int capacity;                                           
-    Int length;                                             
-    Arena* arena;                                           
-    ParseFrame (* content)[];                                        
-} StackParseFrame;     
+DEFINE_STACK_HEADER(ParseFrame)
+//~ typedef struct {                                            
+    //~ Int capacity;                                           
+    //~ Int length;                                             
+    //~ Arena* arena;                                           
+    //~ ParseFrame (* content)[];                                        
+//~ } StackParseFrame;
 
 typedef struct Lexer Lexer;
 typedef struct Parser Parser;
@@ -99,10 +99,10 @@ struct Parser {
     StackParseFrame* backtrack;    
     ScopeStack* scopeStack;
     Int i;                      // index of current token in the input
-       
-    StringStore* stringStore;   // hash map of all unique string identifiers encountered within the input text
-    Stackint32_t* stringTable;       // table of all unique string identifiers; points into stringStore
-    Int strLength;
+
+    Stackint32_t* stringTable;  // The table of unique strings from code. Contains only the startByte of each string.       
+    StringStore* stringStore;   // A hash table for quickly deduplicating strings. Points into stringTable 
+    Int strLength;              // length of stringTable
         
     Arr(Binding) bindings;      // growing array of all bindings ever encountered
     Int bindNext;
@@ -112,11 +112,11 @@ struct Parser {
     Int overlNext;
     Int overlCap;    
     
-    Arr(int) activeBindings;    // current bindings in scope, array of nameId -> bindingId
+    Arr(int) activeBindings;    // current bindings in scope, array of nameId (index into stringTable) -> bindingId
     
     Arr(Node) nodes; 
     Int capacity;               // current capacity of node storage
-    Int nextInd;                // the  index for the next token to be added    
+    Int nextInd;                // the index for the next token to be added    
     
     bool wasError;
     String* errMsg;

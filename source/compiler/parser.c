@@ -24,7 +24,6 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 
 // Forward declarations
 private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
-//~ private void addFnCall(FnCall fnCall, Arr(Token) tokens, Parser* pr);
 
 
 /** Creates a new binding and adds it to the current scope */
@@ -122,20 +121,22 @@ private void exprSingleItem(Token theTok, Parser* pr) {
     }
 }
 
-/** Increments the arity of the top function call. */
-private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
-    Int n = topSubexpr->length - 1;    
-    if (n < 0) {
-        return;
+/** Counts the arity of the call, including the nested cases like "((foo a) b)". Consumes no tokens. */
+Int exprCountArity(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
+    Int j = pr->i;
+    Int arity = 0;
+    if (< firstPunctuationTokenType) {
+        j++;
     }
-    
-    FnCall* fnCall = topSubexpr->fnCalls + n;
-    fnCall->arity++;
-    
-    if (fnCall->operId <= countOperators) {
-        OpDef operDefinition = (*pr->parDef->operators)[fnCall->operId];
-        VALIDATE((fnCall->arity & LOWER16BITS) <= operDefinition.arity, errorOperatorWrongArity)
+    while (j < sentinelToken) {
+        if (tokens[j].tp < firstPunctuationTokenType) {
+            j++;
+        } else {
+            j += tokens[j].payload2 + 1;
+        }
+        arity++;
     }
+    return arity;
 }
 
 /**
@@ -157,8 +158,9 @@ private void exprSubexpr(Token parenTok, Arr(Token) tokens, Parser* pr) {
     } else {
         push(((ParseFrame){.tp = nodExpr, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + parenTok.payload2 }), 
              pr->backtrack);        
-        pushSubexpr(pr->scopeStack);
         addNode((Node){ .tp = nodExpr, .startByte = parenTok.startByte, .lenBytes = parenTok.lenBytes }, pr);
+        
+        Int arity = exprCountArity(tokens, pr);
         if (firstTok.tp == tokWord || firstTok.tp == tokOperator || firstTok.tp == tokAnd || firstTok.tp == tokOr) {
             Int mbBindingId = -1;
             if (firstTok.tp == tokWord) {
@@ -167,10 +169,10 @@ private void exprSubexpr(Token parenTok, Arr(Token) tokens, Parser* pr) {
                 mbBindingId = firstTok.payload1 >> 1;
             }
             VALIDATE(mbBindingId > -1, errorUnknownFunction)
+            
 
-            pushFnCall((FnCall){.nodInd = pr->nextInd, .arity = 0,
-                                      .operId = (firstTok.tp == tokOperator) ? mbBindingId : 0x7FFFFFFF }, pr->scopeStack);
-            addNode((Node){.tp = nodCall, .startByte = firstTok.startByte, .lenBytes = firstTok.lenBytes}, pr);
+            addNode((Node){.tp = nodCall, .payload1 = mbBindingId, .payload2 = arity,
+                           .startByte = firstTok.startByte, .lenBytes = firstTok.lenBytes}, pr);
             pr->i++; // CONSUME the function or operator call token
         }
     }
@@ -190,56 +192,11 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
         if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
             return;
         }
-        for (int m = currSubexpr.length - 1; m > -1; m--) {
-            FnCall fnCall = currSubexpr.fnCalls[m];
-            tokens[fnCall.nodInd].payload2 = fnCall.arity;
-        }
-        popFrame(pr);
-        // flush parent's prefix opers, if any, because this subexp was their operand
-        //~ if (scStack->topScope->isSubexpr) {
-            //~ ScopeStackFrame parentFrame = *scStack->topScope;
-            //~ Int n = parentFrame.length - 1;
-            //~ while (n > -1 && parentFrame.fnCalls[n].isUnary) {
-                //~ addFnCall(parentFrame.fnCalls[n], tokens, pr);
-                //~ n--;
-            //~ }
-            //~ parentFrame.length = n + 1;
-        //~ }
+        popFrame(pr);        
     }
 }
 
-/**
- * Appends a function call from the stack to AST.
- */
-//~ private void addFnCall(FnCall fnCall, Arr(Token) tokens, Parser* pr) {
-    //~ // operators
-    //~ if (fnCall.operId < countOperators) {        
-        //~ OpDef operDefinition = (*pr->parDef->operators)[fnCall.bindingId];
-        //~ VALIDATE(operDefinition.arity == fnCall.arity, errorOperatorWrongArity)
-    //~ }
-    //~ Token tok = tokens[fnCall.tokId];       
-    //~ addNode((Node){.tp = nodCall, .payload1 = fnCall.bindingId, .payload2 = fnCall.arity,
-                    //~ .startByte = tok.startByte, .lenBytes = tok.lenBytes }, pr);
-//~ }
-
-/**
- * State modifier that must be called whenever an operand is encountered in an expression parse. Flueshes unaries.
- * Consumes no tokens.
- */
-private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser* pr) {
-    if (topSubexpr->length == 0) return;
-
-    Int i = topSubexpr->length - 1;
-    // write all the prefix unaries
-    //~ while (i > -1 && topSubexpr->fnCalls[i].isUnary) {
-        //~ addFnCall(topSubexpr->fnCalls[i], tokens, pr);
-        //~ i--;
-    //~ }
-    topSubexpr->length = i + 1;    
-    exprIncrementArity(topSubexpr, pr);
-}
-
-/** An operator token in non-initial position is either a funcall (if unary) or an operand. Consumes no tokens. */
+ex/** An operator token in non-initial position is either a funcall (if unary) or an operand. Consumes no tokens. */
 private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser* pr) {
     Int bindingId = tok.payload1 >> 1; // TODO extended operators
     OpDef operDefinition = (*pr->parDef->operators)[bindingId];
@@ -249,7 +206,6 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
                         .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     } else {
         addNode((Node){ .tp = nodId, .payload1 = bindingId, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
-        exprOperand(topSubexpr, tokens, pr);
     }
 }
 
@@ -270,7 +226,6 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
         else if (tokType <= topVerbatimTokenVariant) {
             addNode((Node){ .tp = currTok.tp, .payload1 = currTok.payload1, .payload2 = currTok.payload2,
                             .startByte = currTok.startByte, .lenBytes = currTok.lenBytes }, pr);
-            exprOperand(topSubexpr, tokens, pr);
             pr->i++; // CONSUME the verbatim token
         } else {
             if (tokType == tokWord) {
@@ -278,14 +233,12 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
 
                 if (peek(pr->backtrack).startNodeInd == pr->nextInd - 1) {
                     VALIDATE(mbBindingId > -1, errorUnknownFunction)
-                    pushFnCall((FnCall){.nodId = pr->nextInd, .arity = 0, .operId = 0x7FFFFFFF}, pr->scopeStack);
                     addNode((Node){.tp = nodCall, .payload1 = ??, .startByte = currTok.startByte, .lenBytes = currTok.lenBytes},
                             pr);
                 } else {
                     VALIDATE(mbBindingId > -1, errorUnknownBinding)
                     addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
                                 .startByte = currTok.startByte, .lenBytes = currTok.lenBytes}, pr);
-                    exprOperand(topSubexpr, tokens, pr);
                 }
             } else if (tokType == tokOperator) {
                 exprOperator(currTok, topSubexpr, tokens, pr);
@@ -602,17 +555,7 @@ private void resumeIf(untt contextTokType, Token* tok, Arr(Token) tokens, Parser
         pr->i++; // CONSUME the token after "else"
     } else {
         ifAddClause(tokens[pr->i], tokens, pr);
-    }
-    
-    
-    //~ Int clauseInd = (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd;
-    //~ if (clauseInd % 2 == 0 && clauseInd > 0) {
-        //~ ifAddClause(*tok, tokens, pr);            
-    //~ } else if (clauseInd % 2 == 1) {
-        //~ *tok = tokens[pr->i]; // get the token after the arrow
-        //~ pr->i++; // CONSUME whichever token is after the arrow
-    //~ }
-    //~ (*pr->backtrack->content)[pr->backtrack->length - 1].clauseInd = clauseInd + 1;
+    }    
 }
 
 private void resumeIfPr(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
