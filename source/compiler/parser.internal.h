@@ -22,11 +22,10 @@ DEFINE_STACK(ParseFrame)
 
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct {
-    Int bindingId;
+    Int nodInd;
+    Int operId; // only for operators (to check their arities) - for functions it will be
     Int arity;
-    Int tokId;
-    bool isUnary;
-} FunctionCall;
+} FnCall;
 
 typedef struct ScopeChunk ScopeChunk;
 
@@ -49,9 +48,10 @@ struct ScopeStack {
     int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
 };
 
-/** The list of additional parsing info; binding frames followed by function call frames.
- * A binding frame contains string ids introduced in the current scope. Used not for lookups, but for frame popping. 
- * A function call frame contains operators/functions encountered within a subexpression.
+/**
+ * This frame corresponds either to a lexical scope or a subexpression.
+ * If lexical scope, then it contains string ids introduced in the current scope, used not for cleanup after the frame is popped. 
+ * Otherwise, it contains the function call of the subexpression.
  */
 struct ScopeStackFrame {
     int length;                // number of elements in scope stack
@@ -61,12 +61,9 @@ struct ScopeStackFrame {
     
     ScopeChunk* thisChunk;
     int thisInd;               // index of the start of this frame within this chunk
-    
-    bool isSubexpr;            // tag for the union. If true, it's Arr(FunctionCall). Otherwise Arr(int)
-    union {
-        Arr(int) bindings;
-        Arr(FunctionCall) fnCalls;
-    };
+
+    Arr(int) bindings;         // valid for the lexical scope case        
+    FnCall fnCall;             // valid for the subexpression case
 };
 
 
@@ -160,7 +157,7 @@ void pushSubexpr(ScopeStack* scopeStack) {
     // check whether the free space in currChunk is enough for the hashmap header + dict
     // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
     int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
-    int necessarySpace = ceiling4(sizeof(ScopeStackFrame)+ 64*sizeof(FunctionCall))/4 ;
+    int necessarySpace = ceiling4(sizeof(ScopeStackFrame)+ 64*sizeof(FnCall))/4 ;
     
     ScopeChunk* oldChunk = scopeStack->topScope->thisChunk;
     int oldInd = scopeStack->topScope->thisInd;
@@ -180,7 +177,7 @@ void pushSubexpr(ScopeStack* scopeStack) {
     (*newScope) = (ScopeStackFrame){ .previousChunk = oldChunk, .previousInd = oldInd, .length = 0,
         .thisChunk = scopeStack->currChunk, .thisInd = newInd,
         .isSubexpr = true,
-        .fnCalls = (FunctionCall*)((int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
+        .fnCalls = (FnCall*)((int*)newScope + ceiling4(sizeof(ScopeStackFrame)))
     };
     
     scopeStack->topScope = newScope;    
@@ -197,8 +194,8 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
             scopeStack->currChunk = scopeStack->currChunk->next;
             Arr(int) newContent = scopeStack->currChunk->content;
             if (topScope->isSubexpr) {
-                memcpy(topScope->fnCalls, newContent, initLength*sizeof(FunctionCall));
-                topScope->fnCalls = (FunctionCall*)newContent;            
+                memcpy(topScope->fnCalls, newContent, initLength*sizeof(FnCall));
+                topScope->fnCalls = (FnCall*)newContent;            
             } else {
                 memcpy(topScope->bindings, newContent, initLength*sizeof(Int));
                 topScope->bindings = newContent;            
@@ -220,7 +217,7 @@ void addBinding(int nameId, int bindingId, Arr(int) activeBindings, ScopeStack* 
 }
 
 /** Pushes a function call to the stack of the current subexpression */
-void pushFnCall(FunctionCall fnCall, ScopeStack* scopeStack) {
+void pushFnCall(FnCall fnCall, ScopeStack* scopeStack) {
     ScopeStackFrame* topScope = scopeStack->topScope;
     resizeScopeArrayIfNecessary(32, topScope, scopeStack);
     
@@ -228,10 +225,13 @@ void pushFnCall(FunctionCall fnCall, ScopeStack* scopeStack) {
     topScope->length++;
 }
 
-/** Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any */
+/**
+ * Pops a scope or expr frame. For a scope type of frame, also deactivates its bindings.
+ * Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
+ */
 void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {  
     ScopeStackFrame* topScope = scopeStack->topScope;
-    if (!topScope->isSubexpr) {
+    if (topScope->bindings) {
         for (int i = 0; i < topScope->length; i++) {
             activeBindings[*(topScope->bindings + i)] = -1;
         }    

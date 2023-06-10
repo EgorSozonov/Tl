@@ -104,9 +104,13 @@ struct Parser {
     Stackint32_t* stringTable;       // table of all unique string identifiers; points into stringStore
     Int strLength;
         
-    Arr(Binding) bindings;      // growing array of tokens ever encountered
+    Arr(Binding) bindings;      // growing array of all bindings ever encountered
     Int bindNext;
     Int bindCap;
+
+    Arr(Int) overloads;         // growing array of counts of all fn name definitions encountered (for the typechecker to use)
+    Int overlNext;
+    Int overlCap;    
     
     Arr(int) activeBindings;    // current bindings in scope, array of nameId -> bindingId
     

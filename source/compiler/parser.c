@@ -24,7 +24,7 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 
 // Forward declarations
 private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
-private void addFnCall(FunctionCall fnCall, Arr(Token) tokens, Parser* pr);
+//~ private void addFnCall(FnCall fnCall, Arr(Token) tokens, Parser* pr);
 
 
 /** Creates a new binding and adds it to the current scope */
@@ -122,24 +122,18 @@ private void exprSingleItem(Token theTok, Parser* pr) {
     }
 }
 
-/**
- * Increments the arity of the top non-prefix operator. The prefix ones are ignored because there is no
- * need to track their arity: they are flushed on first operand or upon closing the subExpr following them.
- */
+/** Increments the arity of the top function call. */
 private void exprIncrementArity(ScopeStackFrame* topSubexpr, Parser* pr) {
-    Int n = topSubexpr->length - 1;
-    while (n > -1 && topSubexpr->fnCalls[n].isUnary) {
-        n--;
-    }    
+    Int n = topSubexpr->length - 1;    
     if (n < 0) {
         return;
     }
     
-    FunctionCall* fnCall = topSubexpr->fnCalls + n;
+    FnCall* fnCall = topSubexpr->fnCalls + n;
     fnCall->arity++;
     
-    if (fnCall->bindingId <= countOperators) {
-        OpDef operDefinition = (*pr->parDef->operators)[fnCall->bindingId];
+    if (fnCall->operId <= countOperators) {
+        OpDef operDefinition = (*pr->parDef->operators)[fnCall->operId];
         VALIDATE((fnCall->arity & LOWER16BITS) <= operDefinition.arity, errorOperatorWrongArity)
     }
 }
@@ -174,7 +168,9 @@ private void exprSubexpr(Token parenTok, Arr(Token) tokens, Parser* pr) {
             }
             VALIDATE(mbBindingId > -1, errorUnknownFunction)
 
-            pushFnCall((FunctionCall){.bindingId = mbBindingId, .arity = 0, .tokId = pr->i}, pr->scopeStack);
+            pushFnCall((FnCall){.nodInd = pr->nextInd, .arity = 0,
+                                      .operId = (firstTok.tp == tokOperator) ? mbBindingId : 0x7FFFFFFF }, pr->scopeStack);
+            addNode((Node){.tp = nodCall, .startByte = firstTok.startByte, .lenBytes = firstTok.lenBytes}, pr);
             pr->i++; // CONSUME the function or operator call token
         }
     }
@@ -195,35 +191,36 @@ private void subexprClose(Arr(Token) tokens, Parser* pr) {
             return;
         }
         for (int m = currSubexpr.length - 1; m > -1; m--) {
-            addFnCall(currSubexpr.fnCalls[m], tokens, pr);
+            FnCall fnCall = currSubexpr.fnCalls[m];
+            tokens[fnCall.nodInd].payload2 = fnCall.arity;
         }
         popFrame(pr);
         // flush parent's prefix opers, if any, because this subexp was their operand
-        if (scStack->topScope->isSubexpr) {
-            ScopeStackFrame parentFrame = *scStack->topScope;
-            Int n = parentFrame.length - 1;
-            while (n > -1 && parentFrame.fnCalls[n].isUnary) {
-                addFnCall(parentFrame.fnCalls[n], tokens, pr);
-                n--;
-            }
-            parentFrame.length = n + 1;
-        }
+        //~ if (scStack->topScope->isSubexpr) {
+            //~ ScopeStackFrame parentFrame = *scStack->topScope;
+            //~ Int n = parentFrame.length - 1;
+            //~ while (n > -1 && parentFrame.fnCalls[n].isUnary) {
+                //~ addFnCall(parentFrame.fnCalls[n], tokens, pr);
+                //~ n--;
+            //~ }
+            //~ parentFrame.length = n + 1;
+        //~ }
     }
 }
 
 /**
  * Appends a function call from the stack to AST.
  */
-private void addFnCall(FunctionCall fnCall, Arr(Token) tokens, Parser* pr) {
-    // operators
-    if (fnCall.bindingId < countOperators) {        
-        OpDef operDefinition = (*pr->parDef->operators)[fnCall.bindingId];
-        VALIDATE(operDefinition.arity == fnCall.arity, errorOperatorWrongArity)
-    }
-    Token tok = tokens[fnCall.tokId];       
-    addNode((Node){.tp = nodCall, .payload1 = fnCall.bindingId, .payload2 = fnCall.arity,
-                    .startByte = tok.startByte, .lenBytes = tok.lenBytes }, pr);
-}
+//~ private void addFnCall(FnCall fnCall, Arr(Token) tokens, Parser* pr) {
+    //~ // operators
+    //~ if (fnCall.operId < countOperators) {        
+        //~ OpDef operDefinition = (*pr->parDef->operators)[fnCall.bindingId];
+        //~ VALIDATE(operDefinition.arity == fnCall.arity, errorOperatorWrongArity)
+    //~ }
+    //~ Token tok = tokens[fnCall.tokId];       
+    //~ addNode((Node){.tp = nodCall, .payload1 = fnCall.bindingId, .payload2 = fnCall.arity,
+                    //~ .startByte = tok.startByte, .lenBytes = tok.lenBytes }, pr);
+//~ }
 
 /**
  * State modifier that must be called whenever an operand is encountered in an expression parse. Flueshes unaries.
@@ -234,10 +231,10 @@ private void exprOperand(ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser*
 
     Int i = topSubexpr->length - 1;
     // write all the prefix unaries
-    while (i > -1 && topSubexpr->fnCalls[i].isUnary) {
-        addFnCall(topSubexpr->fnCalls[i], tokens, pr);
-        i--;
-    }
+    //~ while (i > -1 && topSubexpr->fnCalls[i].isUnary) {
+        //~ addFnCall(topSubexpr->fnCalls[i], tokens, pr);
+        //~ i--;
+    //~ }
     topSubexpr->length = i + 1;    
     exprIncrementArity(topSubexpr, pr);
 }
@@ -248,7 +245,8 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
     OpDef operDefinition = (*pr->parDef->operators)[bindingId];
 
     if (operDefinition.arity == 1) {
-        pushFnCall((FunctionCall){.bindingId = bindingId, .arity = 1, .tokId = pr->i, .isUnary = true}, pr->scopeStack);
+        addNode((Node){ .tp = nodCall, .payload1 = bindingId, .payload2 = 1,
+                        .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     } else {
         addNode((Node){ .tp = nodId, .payload1 = bindingId, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
         exprOperand(topSubexpr, tokens, pr);
@@ -280,7 +278,9 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
 
                 if (peek(pr->backtrack).startNodeInd == pr->nextInd - 1) {
                     VALIDATE(mbBindingId > -1, errorUnknownFunction)
-                    pushFnCall((FunctionCall){.bindingId = mbBindingId, .tokId = pr->i}, pr->scopeStack);
+                    pushFnCall((FnCall){.nodId = pr->nextInd, .arity = 0, .operId = 0x7FFFFFFF}, pr->scopeStack);
+                    addNode((Node){.tp = nodCall, .payload1 = ??, .startByte = currTok.startByte, .lenBytes = currTok.lenBytes},
+                            pr);
                 } else {
                     VALIDATE(mbBindingId > -1, errorUnknownBinding)
                     addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
@@ -740,7 +740,8 @@ Parser* createParser(Lexer* lx, Arena* a) {
         .backtrack = createStackParseFrame(16, aBt), .i = 0,
         .stringStore = lx->stringStore,
         .stringTable = lx->stringTable, .strLength = stringTableLength,
-        .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 0, .bindCap = 64, // 0th binding is reserved
+        .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 0, .bindCap = 64,
+        .overloads = allocateOnArena(sizeof(Int)*64, a), .overlNext = 0, .overlCap = 64,
         .activeBindings = allocateOnArena(sizeof(Int)*stringTableLength, a),
         .nodes = allocateOnArena(sizeof(Node)*64, a), .nextInd = 0, .capacity = 64,
         .wasError = false, .errMsg = &empty, .a = a, .aBt = aBt

@@ -22,11 +22,11 @@ current point
 An OK example:
 
     fn foo()(:
-        :bar    -- bar is a top-level function, so it's in scope despite being defined lower below
+        (bar)    -- bar is a top-level function, so it's in scope despite being defined lower below
     )
 
-    fn bar()(:
-        -- something
+    (.f bar ()
+        ; something
         x = 10
         fn nested(n Int)(:
         )
