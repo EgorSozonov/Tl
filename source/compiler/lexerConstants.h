@@ -74,7 +74,6 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokOperator    10      // payload1 = OperatorToken, one of the "opT" constants below
 #define tokDispose     11
 
-
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon       12 
 

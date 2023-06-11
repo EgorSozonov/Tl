@@ -103,7 +103,7 @@ private void exprSingleItem(Token theTok, Parser* pr) {
         addNode((Node){.tp = nodCall, .payload1 = mbBinding, .payload2 = 0,
                        .startByte = theTok.startByte, .lenBytes = theTok.lenBytes}, pr);        
     } else if (theTok.tp == tokOperator) {
-        Int operBindingId = theTok.payload1 >> 1; // TODO extended operators
+        Int operBindingId = theTok.payload1;
         OpDef operDefinition = (*pr->parDef->operators)[operBindingId];
         if (operDefinition.arity == 1) {
             addNode((Node){ .tp = nodId, .payload1 = operBindingId,
@@ -121,22 +121,23 @@ private void exprSingleItem(Token theTok, Parser* pr) {
     }
 }
 
-/** Counts the arity of the call, including the nested cases like "((foo a) b)". Consumes no tokens. */
-Int exprCountArity(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
+/** Counts the arity of the call, including skipping unary operators. Consumes no tokens. */
+void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Parser* pr) {
     Int j = pr->i;
-    Int arity = 0;
-    if (< firstPunctuationTokenType) {
-        j++;
-    }
+    Token firstTok = tokens[j];
+    Int lenFirst = (firstTok.tp < firstPunctuationTokenType) ? 1 : (1 + firstTok.payload2);
+    j += lenFirst;
     while (j < sentinelToken) {
-        if (tokens[j].tp < firstPunctuationTokenType) {
+        Token tok = tokens[j];
+        if (tok.tp < firstPunctuationTokenType) {
             j++;
         } else {
-            j += tokens[j].payload2 + 1;
+            j += tok.payload2 + 1;
         }
-        arity++;
+        if (tok.tp != tokOperator || (*pr->parDef->operators)[tok.payload1].arity > 1) {            
+            (*arity)++;
+        }
     }
-    return arity;
 }
 
 /**
@@ -148,31 +149,28 @@ Int exprCountArity(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
  * Consumes 1 or 2 tokens
  * TODO: allow for core forms (but not scopes!)
  */
-private void exprSubexpr(Token parenTok, Arr(Token) tokens, Parser* pr) {
-    exprIncrementArity(pr->scopeStack->topScope, pr);
+private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Parser* pr) {
     Token firstTok = tokens[pr->i];    
     
     if (parenTok.payload2 == 1) {
         exprSingleItem(tokens[pr->i], pr);
+        *arity = 0;
         pr->i++; // CONSUME the single item within parens
     } else {
-        push(((ParseFrame){.tp = nodExpr, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + parenTok.payload2 }), 
-             pr->backtrack);        
-        addNode((Node){ .tp = nodExpr, .startByte = parenTok.startByte, .lenBytes = parenTok.lenBytes }, pr);
-        
-        Int arity = exprCountArity(tokens, pr);
-        if (firstTok.tp == tokWord || firstTok.tp == tokOperator || firstTok.tp == tokAnd || firstTok.tp == tokOr) {
+        exprCountArity(arity, pr->i + parenTok.payload2, tokens, pr);
+        if (firstTok.tp == tokWord || firstTok.tp == tokOperator) {
             Int mbBindingId = -1;
             if (firstTok.tp == tokWord) {
                 mbBindingId = pr->activeBindings[firstTok.payload2];
             } else if (firstTok.tp == tokOperator) {
-                mbBindingId = firstTok.payload1 >> 1;
+                mbBindingId = firstTok.payload1;
             }
-            VALIDATE(mbBindingId > -1, errorUnknownFunction)
             
+            VALIDATE(mbBindingId > -1, errorUnknownFunction)            
 
-            addNode((Node){.tp = nodCall, .payload1 = mbBindingId, .payload2 = arity,
+            addNode((Node){.tp = nodCall, .payload1 = mbBindingId, .payload2 = *arity, // todo overload
                            .startByte = firstTok.startByte, .lenBytes = firstTok.lenBytes}, pr);
+            *arity = 0;
             pr->i++; // CONSUME the function or operator call token
         }
     }
@@ -185,20 +183,14 @@ private void exprSubexpr(Token parenTok, Arr(Token) tokens, Parser* pr) {
  * prefix unaries from the previous subexpr frame, if any.
  */
 private void subexprClose(Arr(Token) tokens, Parser* pr) {
-    ScopeStack* scStack = pr->scopeStack;
-    while (scStack->length > 0) {
-        ScopeStackFrame currSubexpr = *scStack->topScope;
-        ParseFrame pFrame = peek(pr->backtrack);
-        if (pr->i != pFrame.sentinelToken || !currSubexpr.isSubexpr) {
-            return;
-        }
+    while (pr->scopeStack->length > 0 && pr->i == peek(pr->backtrack).sentinelToken) {
         popFrame(pr);        
     }
 }
 
-ex/** An operator token in non-initial position is either a funcall (if unary) or an operand. Consumes no tokens. */
+/** An operator token in non-initial position is either a funcall (if unary) or an operand. Consumes no tokens. */
 private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser* pr) {
-    Int bindingId = tok.payload1 >> 1; // TODO extended operators
+    Int bindingId = tok.payload1;
     OpDef operDefinition = (*pr->parDef->operators)[bindingId];
 
     if (operDefinition.arity == 1) {
@@ -212,7 +204,18 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
 /** Parses an expression. Precondition: we are 1 past the span token */
 private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
     Int sentinelToken = pr->i + exprTok.payload2;
-    exprSubexpr(exprTok, tokens, pr);
+    Int arity = 0;
+    if (exprTok.payload2 == 1) {
+        exprSingleItem(tokens[pr->i], pr);
+        pr->i++; // CONSUME the single item within parens
+        return;
+    }
+
+    push(((ParseFrame){.tp = nodExpr, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + exprTok.payload2 }), 
+         pr->backtrack);        
+    addNode((Node){ .tp = nodExpr, .startByte = exprTok.startByte, .lenBytes = exprTok.lenBytes }, pr);
+
+    exprSubexpr(exprTok, &arity, tokens, pr);
     while (pr->i < sentinelToken) {
         subexprClose(tokens, pr);
         Token currTok = tokens[pr->i];
@@ -221,7 +224,7 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
         ScopeStackFrame* topSubexpr = pr->scopeStack->topScope;
         if (tokType == tokParens) {
             pr->i++; // CONSUME the parens token
-            exprSubexpr(currTok, tokens, pr);
+            exprSubexpr(currTok, &arity, tokens, pr);
         } else VALIDATE(tokType < firstPunctuationTokenType, errorExpressionCannotContain)
         else if (tokType <= topVerbatimTokenVariant) {
             addNode((Node){ .tp = currTok.tp, .payload1 = currTok.payload1, .payload2 = currTok.payload2,
@@ -231,15 +234,9 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
             if (tokType == tokWord) {
                 Int mbBindingId = pr->activeBindings[currTok.payload2];
 
-                if (peek(pr->backtrack).startNodeInd == pr->nextInd - 1) {
-                    VALIDATE(mbBindingId > -1, errorUnknownFunction)
-                    addNode((Node){.tp = nodCall, .payload1 = ??, .startByte = currTok.startByte, .lenBytes = currTok.lenBytes},
-                            pr);
-                } else {
-                    VALIDATE(mbBindingId > -1, errorUnknownBinding)
-                    addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
-                                .startByte = currTok.startByte, .lenBytes = currTok.lenBytes}, pr);
-                }
+                VALIDATE(mbBindingId > -1, errorUnknownBinding)
+                addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
+                            .startByte = currTok.startByte, .lenBytes = currTok.lenBytes}, pr);                
             } else if (tokType == tokOperator) {
                 exprOperator(currTok, topSubexpr, tokens, pr);
             }
@@ -541,6 +538,7 @@ private void loopResume(Token tok, Arr(Token) tokens, Parser* pr) {
 
 
 private void resumeIf(untt contextTokType, Token* tok, Arr(Token) tokens, Parser* pr) {
+    print("resume if tp %d", tok->tp)
     if (tok->tp == tokElse) {
         VALIDATE(pr->i < pr->inpLength, errorPrematureEndOfTokens)
         Token nextToken = tokens[pr->i];

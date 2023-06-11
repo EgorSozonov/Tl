@@ -91,7 +91,7 @@ ScopeStack* createScopeStack() {
     Arr(int) firstFrame = (int*)firstChunk->content + result->nextInd;
         
     (*result->topScope) = (ScopeStackFrame){.length = 0, .previousChunk = NULL, .thisChunk = firstChunk, 
-        .thisInd = result->nextInd, .isSubexpr = false, .bindings = firstFrame };
+        .thisInd = result->nextInd, .bindings = firstFrame };
         
     result->nextInd += 64;  
     
@@ -136,7 +136,6 @@ void pushScope(ScopeStack* scopeStack) {
     }
     (*newScope) = (ScopeStackFrame){.previousChunk = oldChunk, .previousInd = oldInd, .length = 0,
         .thisChunk = scopeStack->currChunk, .thisInd = newInd,
-        .isSubexpr = false,
         .bindings = (int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
         
     scopeStack->topScope = newScope;    
@@ -152,13 +151,9 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
             mbNewChunk(scopeStack);
             scopeStack->currChunk = scopeStack->currChunk->next;
             Arr(int) newContent = scopeStack->currChunk->content;
-            if (topScope->isSubexpr) {
-                memcpy(topScope->fnCalls, newContent, initLength*sizeof(FnCall));
-                topScope->fnCalls = (FnCall*)newContent;            
-            } else {
-                memcpy(topScope->bindings, newContent, initLength*sizeof(Int));
-                topScope->bindings = newContent;            
-            }            
+            
+            memcpy(topScope->bindings, newContent, initLength*sizeof(Int));
+            topScope->bindings = newContent;                        
         }
     } else if (newLength == 256) {
         longjmp(excBuf, 1);
@@ -173,15 +168,6 @@ void addBinding(int nameId, int bindingId, Arr(int) activeBindings, ScopeStack* 
     topScope->length++;
     
     activeBindings[nameId] = bindingId;
-}
-
-/** Pushes a function call to the stack of the current subexpression */
-void pushFnCall(FnCall fnCall, ScopeStack* scopeStack) {
-    ScopeStackFrame* topScope = scopeStack->topScope;
-    resizeScopeArrayIfNecessary(32, topScope, scopeStack);
-    
-    topScope->fnCalls[topScope->length] = fnCall;
-    topScope->length++;
 }
 
 /**

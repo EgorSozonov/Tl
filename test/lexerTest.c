@@ -123,7 +123,7 @@ LexerTestSet* wordTests(Arena* a) {
         },
         (LexerTest) {
             .name = s("Word correct capitalization 1"),
-            .input = s("Asdf.abc"),
+            .input = s("Asdf-abc"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 8  },
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 8  }
@@ -131,7 +131,7 @@ LexerTestSet* wordTests(Arena* a) {
         },
         (LexerTest) {
             .name = s("Word correct capitalization 2"),
-            .input = s("asdf.abcd.zyui"),
+            .input = s("asdf-abcd-zyui"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 14  },
                 (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 14  }
@@ -139,7 +139,7 @@ LexerTestSet* wordTests(Arena* a) {
         },
         (LexerTest) {
             .name = s("Word correct capitalization 3"),
-            .input = s("asdf.Abcd"),
+            .input = s("asdf-Abcd"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt,                .payload2 = 1, .startByte = 0, .lenBytes = 9 },
                 (Token){ .tp = tokWord, .payload1 = 1, .startByte = 0, .lenBytes = 9 }
@@ -188,7 +188,7 @@ LexerTestSet* wordTests(Arena* a) {
             }))
         },
         (LexerTest) {
-            .name = s("Function call"),
+            .name = s("Dot word"),
             .input = s("a .func"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 7 },

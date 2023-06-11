@@ -636,7 +636,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         if (currBt == aParenLeft) {
             isAlsoAccessor = true; // data accessor like arr(5)
             break;
-        } else if (currBt == aDot) {
+        } else if (currBt == aMinus) {
             byte nextBt = NEXT_BT;
             if (isLetter(nextBt) || nextBt == aUnderscore) {
                 lx->i++; // CONSUME the letter or underscore
@@ -890,7 +890,7 @@ private void docComment(Lexer* lx, Arr(byte) inp) {
 
 /** Handles the binary operator as well as the unary negation operator */
 private void lexMinus(Lexer* lx, Arr(byte) inp) {
-    if (lx->i == lx->inpLength - 1) {
+    if (lx->i == lx->inpLength - 1) {        
         lexOperator(lx, inp);
     } else {
         byte nextBt = NEXT_BT;
