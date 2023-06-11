@@ -59,7 +59,6 @@ typedef struct {
     byte bytes[4];
     Int arity;
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
-    bool extensible;
     bool overloadable;
     bool assignable;
 } OpDef;

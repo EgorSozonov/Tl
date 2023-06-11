@@ -36,13 +36,12 @@ const char errorIndentation[]                = "Indentation error: must be divis
 const char errorDocComment[]                 = "Doc comments must have the syntax: (*comment)";
 
 
-/** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus.
+/** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" is handled by lexEqual
  */
 const int operatorStartSymbols[] = {
-    aExclamation, aSharp, aDollar, aPercent, aAmp, aTimes, aApostrophe, aPlus, aDivBy, 
-    aSemicolon, aLT, aGT, aQuestion, aCaret, aPipe
+    aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus, aComma, aDivBy, 
+    aLT, aGT, aQuestion, aCaret, aPipe
 };
-
 
 /**
  * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807

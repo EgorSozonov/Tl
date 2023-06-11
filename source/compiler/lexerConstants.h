@@ -49,9 +49,7 @@ extern const byte maxInt[19];
 /** 2**53 */
 extern const byte maximumPreciselyRepresentedFloatingInt[16];
 
-/** All the symbols an operator may start with. The ':' is absent because it's handled by lexColon.
-* The '-' is absent because it's handled by 'lexMinus'.
-*/
+/** All the symbols an operator may start with. The '-' is absent because it's handled by 'lexMinus' */
 #define countOperatorStartSymbols 15
 extern const int operatorStartSymbols[countOperatorStartSymbols];
 
@@ -73,56 +71,55 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokDotWord      7      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
 #define tokAtWord       8      // "@annotation", payloads same as tokWord
 #define tokFuncWord     9      // ".funcName", payloads same as tokWord
-#define tokOperator    10      // payload1 = OperatorToken encoded as an Int
-#define tokAnd         11
-#define tokOr          12
-#define tokDispose     13
+#define tokOperator    10      // payload1 = OperatorToken, one of the "opT" constants below
+#define tokDispose     11
 
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon       14 
+#define tokColon       12 
 
 // Punctuation (inner node) Token types
-#define tokScope       15       // denoted by []
-#define tokStmt        16
-#define tokParens      17
-#define tokData        18       // data initializer, like (: 1 2 3)
-#define tokAccessor    19       // data accessor, like array(1 2)
-#define tokFuncExpr    20       // the ".(foo .bar)" kind of thing
-#define tokAssignment  21       // payload1 = 1 if mutable assignment, 0 if immutable 
-#define tokReassign    22       // :=
-#define tokMutation    23       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
-#define tokArrow       24       // not a real scope, but placed here so the parser can dispatch on it
-#define tokElse        25       // not a real scope, but placed here so the parser can dispatch on it
+#define tokScope       13       // denoted by []
+#define tokStmt        14
+#define tokParens      15
+#define tokData        16       // data initializer, like (: 1 2 3)
+#define tokAccessor    17       // data accessor, like array(1 2)
+#define tokFuncExpr    18       // the ".(foo .bar)" kind of thing
+#define tokAssignment  19       // payload1 = 1 if mutable assignment, 0 if immutable 
+#define tokReassign    20       // :=
+#define tokMutation    21       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokArrow       22       // not a real scope, but placed here so the parser can dispatch on it
+#define tokElse        23       // not a real scope, but placed here so the parser can dispatch on it
  
 // Single-shot core syntax forms. payload1 = spanLevel
-#define tokAlias       26      
-#define tokAssert      27      
-#define tokAssertDbg   28     
-#define tokAwait       29      
-#define tokBreak       30      
-#define tokCatch       31       // paren "(catch e. e .print)"
-#define tokContinue    32       // noParen
-#define tokDefer       33
-#define tokEach        34
-#define tokEmbed       35       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      36       // paren
-#define tokExposePriv  37       // paren
-#define tokFnDef       38       // specialCase
-#define tokIface       39       
-#define tokLambda      40       
-#define tokPackage     41       // for single-file packages
-#define tokReturn      42
-#define tokStruct      43       
-#define tokTry         44       // early exit
-#define tokYield       45       
+#define tokAlias       24      
+#define tokAssert      25      
+#define tokAssertDbg   26     
+#define tokAwait       27      
+#define tokBreak       28      
+#define tokCatch       29       // paren "(catch e. e .print)"
+#define tokContinue    30       // noParen
+#define tokDefer       31
+#define tokEach        32
+#define tokEmbed       33       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      34       // paren
+#define tokExposePriv  35       // paren
+#define tokFnDef       36       // specialCase
+#define tokIface       37       
+#define tokLambda      38
+#define tokLoopCond    39
+#define tokPackage     40       // for single-file packages
+#define tokReturn      41
+#define tokStruct      42       
+#define tokTry         43       // early exit
+#define tokYield       44       
 
 // Resumable core forms
-#define tokIf          46    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
-#define tokIfPr        47    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       48    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        49    // "(-impl " 
-#define tokLoop        50    // "(-loop "
+#define tokIf          45    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
+#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       47    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        48    // "(-impl " 
+#define tokLoop        49    // "(-loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 
@@ -134,10 +131,12 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define countCoreForms (tokLoop - tokAlias + 1)
 
 /** The indices of reserved words that are stored in token payload2. Must be positive, unique,
- * below "firstPunctuationTokenType" and not clashing with "tokAnd", "tokOr" and "tokNodispose"
+ * and below "firstPunctuationTokenType"
  */
 #define reservedFalse   2
 #define reservedTrue    1
+#define reservedAnd     3
+#define reservedOr      4
 
 /** Span levels */
 #define slBrackets      1 // scopes (denoted by brackets): newlines and commas just have no effect in them
@@ -147,44 +146,58 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 /**
  * OperatorType
- * Values must exactly agree in order with the operatorSymbols array in the .c file.
+ * Values must exactly agree in order with the operatorSymbols array in the lexer.c file.
  * The order is defined by ASCII.
  */
-#define countOperators    31 // must be equal to the count of following constants
-#define opTNotEqual        0 // !=
-#define opTBoolNegation    1 // !
-#define opTSize            2 // #
-#define opTToString        3 // $
-#define opTRemainder       4 // %
-#define opTBinaryAnd       5 // && bitwise and
-#define opTTypeAnd         6 // & interface intersection (type-level)
-#define opTToFloat         7 // '
-#define opTTimes           8 // *
-#define opTIncrement       9 // ++
-#define opTPlus           10 // +
-#define opTDecrement      11 // --
-#define opTMinus          12 // -
-#define opTDivBy          13 // /
-#define opTBitShiftLeft   14 // <<
-#define opTLTEQ           15 // <=
-#define opTComparator     16 // <>
-#define opTLessThan       17 // <
-#define opTEquality       18 // ==
-#define opTIntervalBoth   19 // >=<= inclusive interval check
-#define opTIntervalLeft   20 // >=<  left-inclusive interval check
-#define opTIntervalRight  21 // ><=  right-inclusive interval check
-#define opTIntervalExcl   22 // ><   exclusive interval check
-#define opTGTEQ           23 // >=
-#define opTBitshiftRight  24 // >>   right bit shift
-#define opTGreaterThan    25 // >
-#define opTNullCoalesce   26 // ?:   null coalescing operator
-#define opTQuestionMark   27 // ?    nullable type operator
-#define opTExponent       28 // ^    exponentiation
-#define opTBoolOr         29 // ||   bitwise or
-#define opTXor            30 // |    bitwise xor
-//#define opTAnd
-//#define opTOr
-//#define opTNegation
+
+/** Count of lexical operators, i.e. things that are lexed as operator tokens.
+ * must be equal to the count of following constants
+ */ 
+#define countLexOperators   40
+#define countOperators      43 // count of things that are stored as operators, regardless of how they are lexed
+#define opTNotEqual          0 // !=
+#define opTBoolNegation      1 // !
+#define opTSize              2 // #
+#define opTToString          3 // $
+#define opTRemainderExt      4 // %.
+#define opTRemainder         5 // %
+#define opTBinaryAnd         6 // && bitwise and
+#define opTTypeAnd           7 // & interface intersection (type-level)
+#define opTIsNull            8 // '
+#define opTTimesExt          9 // *.
+#define opTTimes            10 // *
+#define opTIncrement        11 // ++
+#define opTPlusExt          12 // +.
+#define opTPlus             13 // +
+#define opTToFloat          14 // ,
+#define opTDecrement        15 // --
+#define opTMinusExt         16 // -.
+#define opTMinus            17 // -
+#define opTDivByExt         18 // /.
+#define opTDivBy            19 // /
+#define opTBitShiftLeftExt  20 // <<.
+#define opTBitShiftLeft     21 // <<
+#define opTLTEQ             22 // <=
+#define opTComparator       23 // <>
+#define opTLessThan         24 // <
+#define opTEquality         25 // ==
+#define opTIntervalBoth     26 // >=<= inclusive interval check
+#define opTIntervalLeft     27 // >=<  left-inclusive interval check
+#define opTIntervalRight    28 // ><=  right-inclusive interval check
+#define opTIntervalExcl     29 // ><   exclusive interval check
+#define opTGTEQ             30 // >=
+#define opTBitShiftRightExt 31 // >>.  unsigned right bit shift
+#define opTBitshiftRight    32 // >>   right bit shift
+#define opTGreaterThan      33 // >
+#define opTNullCoalesce     34 // ?:   null coalescing operator
+#define opTQuestionMark     35 // ?    nullable type operator
+#define opTExponentExt      36 // ^.   exponentiation extended
+#define opTExponent         37 // ^    exponentiation
+#define opTBoolOr           38 // ||   bitwise or
+#define opTXor              39 // |    bitwise xor
+#define opTAnd              40
+#define opTOr               41
+#define opTNegation         42
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
