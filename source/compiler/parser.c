@@ -86,11 +86,16 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Parser* pr) {
 
 private ParseFrame popFrame(Parser* pr) {    
     ParseFrame frame = pop(pr->backtrack);
-    if (frame.tp == nodScope || frame.tp == nodExpr) {
+    if (frame.tp == nodScope) {
         popScopeFrame(pr->activeBindings, pr->scopeStack);
     }
     setSpanLength(frame.startNodeInd, pr);
     return frame;
+}
+
+/** Calculates the sentinel token for a token at a specific index */
+private Int calcSentinel(Token tok, Int tokInd) {
+    return (tok.tp >= firstPunctuationTokenType ? (tokInd + tok.payload2 + 1) : (tokInd + 1));
 }
 
 /**
@@ -125,8 +130,8 @@ private void exprSingleItem(Token theTok, Parser* pr) {
 void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Parser* pr) {
     Int j = pr->i;
     Token firstTok = tokens[j];
-    Int lenFirst = (firstTok.tp < firstPunctuationTokenType) ? 1 : (1 + firstTok.payload2);
-    j += lenFirst;
+
+    j = calcSentinel(firstTok, j);
     while (j < sentinelToken) {
         Token tok = tokens[j];
         if (tok.tp < firstPunctuationTokenType) {
@@ -233,7 +238,7 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
         } else {
             if (tokType == tokWord) {
                 Int mbBindingId = pr->activeBindings[currTok.payload2];
-
+                print("mbBind currTok.payload2 %d %d", currTok.payload2, mbBindingId)
                 VALIDATE(mbBindingId > -1, errorUnknownBinding)
                 addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
                             .startByte = currTok.startByte, .lenBytes = currTok.lenBytes}, pr);                
@@ -274,6 +279,7 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
         } else {
             pr->i++; // CONSUME any span token
         }
+        print("main i %d", pr->i)
         ((*pr->parDef->nonResumableTable)[currTok.tp])(currTok, tokens, pr);
         
         maybeCloseSpans(pr);
@@ -302,6 +308,24 @@ private bool parseLiteralOrIdentifier(Token tok, Parser* pr) {
     return true;
 }
 
+private void openAssignment(Int j, Token assignmentToken, Arr(Token) tokens, Parser* pr) {
+    Int sentinelToken = j + assignmentToken.payload2;
+    Token bindingToken = tokens[j];
+    VALIDATE(bindingToken.tp == tokWord, errorAssignment)
+
+    Int mbBinding = pr->activeBindings[bindingToken.payload2];
+    VALIDATE(mbBinding == -1, errorAssignmentShadowing)
+
+    Int newBindingId = createBinding(bindingToken.payload2, (Binding){.flavor = bndMut }, pr);
+                                         
+    push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
+         pr->backtrack);
+    addNode((Node){.tp = nodAssignment, .startByte = assignmentToken.startByte, .lenBytes = assignmentToken.lenBytes}, pr);
+    
+    addNode((Node){.tp = nodBinding, .payload1 = newBindingId, 
+            .startByte = bindingToken.startByte, .lenBytes = bindingToken.lenBytes}, pr);
+}
+
 
 private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     const Int rightSideLen = tok.payload2 - 1;
@@ -310,22 +334,24 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     }
     Int sentinelToken = pr->i + tok.payload2;
 
-    Token bindingToken = tokens[pr->i];
-    VALIDATE(bindingToken.tp == tokWord, errorAssignment)
+    openAssignment(pr->i, tok, tokens, pr);
 
-    Int mbBinding = pr->activeBindings[bindingToken.payload2];
-    VALIDATE(mbBinding == -1, errorAssignmentShadowing)
+    //~ Token bindingToken = tokens[pr->i];
+    //~ VALIDATE(bindingToken.tp == tokWord, errorAssignment)
 
-    Int newBindingId = createBinding(
-     bindingToken.payload2, (Binding){.flavor = bndImmut, .defStart = pr->i - 1, .defSentinel = sentinelToken}, pr
-    );
+    //~ Int mbBinding = pr->activeBindings[bindingToken.payload2];
+    //~ VALIDATE(mbBinding == -1, errorAssignmentShadowing)
+
+    //~ Int newBindingId = createBinding(
+     //~ bindingToken.payload2, (Binding){.flavor = bndImmut, .defStart = pr->i - 1, .defSentinel = sentinelToken}, pr
+    //~ );
                                          
-    push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
-     pr->backtrack);    
-    addNode((Node){.tp = nodAssignment, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    //~ push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
+         //~ pr->backtrack);    
+    //~ addNode((Node){.tp = nodAssignment, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     
-    addNode((Node){.tp = nodBinding, .payload1 = newBindingId, 
-     .startByte = bindingToken.startByte, .lenBytes = bindingToken.lenBytes}, pr);
+    //~ addNode((Node){.tp = nodBinding, .payload1 = newBindingId, 
+            //~ .startByte = bindingToken.startByte, .lenBytes = bindingToken.lenBytes}, pr);
     
     pr->i++; // CONSUME the word token before the assignment sign
     Token rightSideToken = tokens[pr->i];
@@ -516,7 +542,7 @@ private void ifAddClause(Token tok, Arr(Token) tokens, Parser* pr) {
          .startByte = tok.startByte, .lenBytes = clauseSentinelByte - tok.startByte }, pr);
 }
 
-/** tok.tp must be == tokIf */
+
 private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = pr->nextInd, 
         .sentinelToken = pr->i + tok.payload2 };
@@ -527,38 +553,88 @@ private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void parseLoop(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
     // first thing must be a statement with one or two items
     // first item is either empty or an expr
     // second item, if present, must have an even number of tokens ordered like this: word expr word expr ...
-    VALIDATE(tok.tp == tokStmt, errorLoopSyntaxError)
-    Int j = pr->i + 1;
-    Int stmtSentinel = pr->i + tok.payload2;
-    Int leftSideLen = 
-    throwExc(errorTemp);
-}
 
+    Token tokenStmt = tokens[pr->i];
+    Int sentinelStmt = pr->i + tokenStmt.payload2 + 1;
+    VALIDATE(tokenStmt.tp == tokStmt, errorLoopSyntaxError)    
+    VALIDATE(sentinelStmt < pr->i + loopTok.payload2, errorLoopEmptyBody)
+    
+    Int indLeftSide = pr->i + 1;
+    Token tokLeftSide = tokens[indLeftSide]; // + 1 because pr->i points at the stmt so far
 
-private void loopResume(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
+    VALIDATE(tokLeftSide.tp == tokWord || tokLeftSide.tp == tokBool || tokLeftSide.tp == tokParens, errorLoopHeader)
+    Int sentinelLeftSide = calcSentinel(tokLeftSide, indLeftSide); 
+
+    Int startOfScope = sentinelStmt;
+    Int startByteScope = -1;
+    Int indRightSide = -1;
+    if (sentinelLeftSide < sentinelStmt) {
+        indRightSide = sentinelLeftSide;
+        startOfScope = indRightSide;
+        Token tokRightSide = tokens[indRightSide];
+        startByteScope = tokRightSide.startByte;
+        VALIDATE(calcSentinel(tokRightSide, indRightSide) == sentinelStmt, errorLoopHeader)
+    }
+    
+    Int sentToken = startOfScope - pr->i + loopTok.payload2;
+        
+    push(((ParseFrame){ .tp = nodLoop, .startNodeInd = pr->nextInd, .sentinelToken = sentToken }), pr->backtrack);
+    addNode((Node){.tp = nodLoop, .payload1 = slScope, .startByte = loopTok.startByte, .lenBytes = loopTok.lenBytes}, pr);
+    Int j;
+
+    print("scope sentinel %d", pr->i + loopTok.payload2)
+    push(((ParseFrame){ .tp = nodScope, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + loopTok.payload2 }), pr->backtrack);
+    addNode((Node){.tp = nodScope, .payload1 = slScope, .startByte = startByteScope,
+            .lenBytes = loopTok.lenBytes - startByteScope + loopTok.startByte}, pr);
+
+    // variable initializations, if any
+    if (indRightSide > -1) {
+        j = indRightSide + 1;
+        while (j < sentinelStmt) {
+            Token tokBinding = tokens[j];
+            VALIDATE(tokBinding.tp = tokWord, errorLoopSyntaxError)
+            
+            Token tokExpr = tokens[j + 1];
+            VALIDATE(tokExpr.tp < firstPunctuationTokenType || tokExpr.tp == tokStmt, errorLoopSyntaxError)
+            
+            openAssignment(j, ((Token){.payload2 = tokExpr.payload2 + 2,
+                                       .startByte = tokBinding.startByte,
+                                       .lenBytes = tokExpr.startByte + tokExpr.lenBytes - tokBinding.startByte }), tokens, pr);
+            j += 2;
+        }
+    }
+
+    // loop body
+    
+    Token tokBody = tokens[sentinelStmt];
+    if (startByteScope < 0) {
+        startByteScope = tokBody.startByte;
+    }
+    push(((ParseFrame){ .tp = nodLoopCond, .startNodeInd = pr->nextInd, .sentinelToken = sentToken }), pr->backtrack);
+    addNode((Node){.tp = nodLoopCond, .payload1 = slScope, .startByte = startByteScope,
+            .lenBytes = loopTok.lenBytes - startByteScope + loopTok.startByte
+        }, pr);
+    pr->i = indLeftSide + 1;
+    parseExpr(tokens[indLeftSide], tokens, pr);
+    
+    
+    pr->i = sentinelStmt; // CONSUME the loop token and its first statement
 }
 
 
 private void resumeIf(Token* tok, Arr(Token) tokens, Parser* pr) {
-    if (tok->tp == tokElse) {
-        
+    if (tok->tp == tokElse) {        
         VALIDATE(pr->i < pr->inpLength, errorPrematureEndOfTokens)
         pr->i++; // CONSUME the "else"
-        *tok = tokens[pr->i];
-        
-        Int elseTokLength = (tok->tp >= firstPunctuationTokenType) ? (tok->payload2 + 1) : 1;
-        Int elseSentinelByte = tok->startByte + tok->lenBytes;
+        *tok = tokens[pr->i];        
 
-        ParseFrame elseFrame = (ParseFrame){ .tp = nodElse, .startNodeInd = pr->nextInd,
-                                             .sentinelToken = pr->i + elseTokLength };
-        push(elseFrame, pr->backtrack);
-        addNode((Node){.tp = nodElse, .startByte = tok->startByte, .lenBytes = elseSentinelByte - tok->startByte }, pr);
-        
+        push(((ParseFrame){ .tp = nodElse, .startNodeInd = pr->nextInd,
+                           .sentinelToken = calcSentinel(*tok, pr->i)}), pr->backtrack);
+        addNode((Node){.tp = nodElse, .startByte = tok->startByte, .lenBytes = tok->lenBytes }, pr);       
         pr->i++; // CONSUME the token after the "else"
     } else {
         ifAddClause(*tok, tokens, pr);
@@ -575,10 +651,6 @@ private void resumeImpl(Token* tok, Arr(Token) tokens, Parser* pr) {
 }
 
 private void resumeMatch(Token* tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
-}
-
-private void resumeLoop(Token* tok, Arr(Token) tokens, Parser* pr) {
     throwExc(errorTemp);
 }
 
@@ -766,7 +838,6 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
 
         VALIDATE(fnReturnType.payload1 > 0, errorFnNameAndParams) 
             else VALIDATE(pr->activeBindings[fnReturnType.payload2] > -1, errorUnknownType)
-        
         fnReturnTypeId = pr->activeBindings[fnReturnType.payload2];
         
         pr->i++; // CONSUME the function return type token
@@ -800,13 +871,12 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
         pr->i++; // CONSUME a param name
         
         VALIDATE(pr->i < paramsSentinel, errorFnNameAndParams)
-        
         Token paramType = lx->tokens[pr->i];
         if (paramType.payload1 < 1) {
             throwExc(errorFnNameAndParams);
         }
         Int typeBindingId = pr->activeBindings[paramType.payload2]; // the binding of this parameter's type
-        VALIDATE(typeBindingId > -1, errorUnknownType)        
+        VALIDATE(typeBindingId > -1, errorUnknownType)
         pr->bindings[newBindingId].typeId = typeBindingId;
         pr->i++; // CONSUME the param's type name
         

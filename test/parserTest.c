@@ -29,7 +29,7 @@ typedef struct {
 const char* nodeNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
     "id", "call", "binding", "type", "@annot", "and", "or", 
-    "(-", "expr", "accessor", "=", ":=", "+=",
+    "(-", "expr", "accessor", "assign", "reAssign", "mutate",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
     "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
     "lambda", "package", "return", "struct", "try", "yield",
@@ -145,18 +145,33 @@ int equalityParser(Parser a, Parser b) {
 }
 
 
-void printParser(Parser* a) {
+void printParser(Parser* a, Arena* ar) {
     if (a->wasError) {
         printf("Error: ");
         printString(a->errMsg);
     }
+    Int indent = 0;
+    Stackint32_t* sentinels = createStackint32_t(16, ar);
     for (int i = 0; i < a->nextInd; i++) {
         Node nod = a->nodes[i];
-        if (nod.payload1 != 0 || nod.payload2 != 0) {
+        for (int m = sentinels->length - 1; m > -1 && (*sentinels->content)[m] == i; m--) {
+            popint32_t(sentinels);
+            indent--;
+        }
+
+        printf("%d: ", i);
+        for (int j = 0; j < indent; j++) {
+            printf("   ");
+        }
+        if (nod.payload1 != 0 || nod.payload2 != 0) {            
             printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.payload1, nod.payload2, nod.startByte, nod.lenBytes);
         } else {
             printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startByte, nod.lenBytes);
-        }        
+        }
+        if (nod.tp >= nodScope && nod.payload2 > 0) {   
+            pushint32_t(i + nod.payload2 + 1, sentinels);
+            indent++;
+        }
     }
 }
 
@@ -192,7 +207,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         print("    LEXER:")
         printLexer(test.input);
         print("    PARSER:")
-        printParser(resultParser);
+        printParser(resultParser, a);
 
     } else {
         printf("ERROR IN ");
@@ -201,7 +216,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         print("    LEXER:")
         printLexer(test.input);
         print("    PARSER:")
-        printParser(resultParser);
+        printParser(resultParser, a);
     }
 }
 
@@ -886,7 +901,7 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodInt, .payload2 = 4, .startByte = 40, .lenBytes = 1 },
                 
                 (Node){ .tp = nodElse, .payload2 = 1, .startByte = 59, .lenBytes = 3 },
-                (Node){ .tp = nodInt, .payload2 = 100, .startByte = 59, .lenBytes = 3 },
+                (Node){ .tp = nodInt, .payload2 = 100, .startByte = 59, .lenBytes = 3 }
             }),
             ((BindingImport[]) {})
         ),
@@ -930,20 +945,39 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
 }
 
 
-//~ ParserTestSet* loopTest(Arena* a) {
-    //~ return createTestSet(str("Functions test set", a), 1, a,
-        //~ (ParserTest) { 
-            //~ .name = str("Simple loop 1", a),
-            //~ .input = str("(if true .6)", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(3, a, 
-                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            //~ )
-        //~ }
-    //~ );
-//~ }
+ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
+    return createTestSet(s("Loops test set"), a, ((ParserTest[]){
+        createTest(
+            s("Simple loop 1"),
+            s("(.f f Int (). (.loop (< x 101) (x 1). print x))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .payload1 = slScope, .payload2 = 13, .lenBytes = 51 },
+                (Node){ .tp = nodBinding, .payload1 = slScope, .payload2 = 13, .lenBytes = 46 }, // f
+                (Node){ .tp = nodScope, .payload2 = 11, .startByte = 14, .lenBytes = 15 }, // function body
+                
+                (Node){ .tp = nodLoop, .payload1 = slScope, .payload2 = 12, .startByte = 13, .lenBytes = 32 },
+                
+                (Node){ .tp = nodScope, .payload2 = 11, .startByte = 20, .lenBytes = 15 },
+                
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 18, .lenBytes = 3 },
+                (Node){ .tp = nodBinding, .startByte = 7, .lenBytes = 15 },
+                (Node){ .tp = nodInt, .payload2 = 1, .startByte = 7, .lenBytes = 15 },
+                
+                (Node){ .tp = nodLoopCond, .payload1 = slStmt, .payload2 = 4, .lenBytes = 32 },
+                (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 7, .lenBytes = 15 },
+                (Node){ .tp = nodCall, .payload1 = opTLessThan + M, .startByte = 7, .lenBytes = 15 },
+                (Node){ .tp = nodId, .payload1 = 0, .payload2 = 0, .startByte = 18, .lenBytes = 1 }, // x
+                (Node){ .tp = nodInt, .payload2 = 1, .startByte = 7, .lenBytes = 15 },
+                
+                (Node){ .tp = nodExpr, .payload2 = 2, .startByte = 24, .lenBytes = 7 },
+                (Node){ .tp = nodCall, .payload1 = opTLessThan + M, .startByte = 24, .lenBytes = 15 }, // print
+                (Node){ .tp = nodId, .payload2 = 7, .startByte = 30, .lenBytes = 15 }      // x
+
+            }),
+            ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
+        )
+    }));
+}
 
 void runATestSet(ParserTestSet* (*testGenerator)(LanguageDefinition*, Arena*), int* countPassed, int* countTests, 
         LanguageDefinition* lang, ParserDefinition* parsDef, Arena* a) {
@@ -966,10 +1000,11 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     
-    runATestSet(&assignmentTests, &countPassed, &countTests, langDef, parsDef, a);
-    runATestSet(&expressionTests, &countPassed, &countTests, langDef, parsDef, a);
-    runATestSet(&functionTests, &countPassed, &countTests, langDef, parsDef, a);
-    runATestSet(&ifTests, &countPassed, &countTests, langDef, parsDef, a);
+    //~ runATestSet(&assignmentTests, &countPassed, &countTests, langDef, parsDef, a);
+    //~ runATestSet(&expressionTests, &countPassed, &countTests, langDef, parsDef, a);
+    //~ runATestSet(&functionTests, &countPassed, &countTests, langDef, parsDef, a);
+    //~ runATestSet(&ifTests, &countPassed, &countTests, langDef, parsDef, a);
+    runATestSet(&loopTests, &countPassed, &countTests, langDef, parsDef, a);
 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");

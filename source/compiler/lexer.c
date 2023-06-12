@@ -996,8 +996,7 @@ void lexSpace(Lexer* lx, Arr(byte) inp) {
  * statement unless it's inside an inline span (i.e. parens or accessor parens)
  */
 private void lexNewline(Lexer* lx, Arr(byte) inp) {
-    addNewLine(lx->i, lx);
-    
+    addNewLine(lx->i, lx);    
     maybeBreakStatement(lx);
     
     lx->i++;     // CONSUME the LF
@@ -1051,8 +1050,7 @@ void printLexer(Lexer* a) {
             printf("%d: %s %d %d [%d; %d]\n", i, tokNames[tok.tp], tok.payload1, tok.payload2, tok.startByte, tok.lenBytes);
         } else {
             printf("%d: %s [%d; %d]\n", i, tokNames[tok.tp], tok.startByte, tok.lenBytes);
-        }
-        
+        }        
     }
 }
 

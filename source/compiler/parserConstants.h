@@ -15,6 +15,8 @@ extern const char errorIfMalformed[];
 extern const char errorFnNameAndParams[];
 extern const char errorFnMissingBody[];
 extern const char errorLoopSyntaxError[];
+extern const char errorLoopHeader[];
+extern const char errorLoopEmptyBody[];
 extern const char errorDuplicateFunction[];
 extern const char errorExpressionInfixNotSecond[];
 extern const char errorExpressionError[];
