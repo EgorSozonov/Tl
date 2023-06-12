@@ -158,10 +158,10 @@ void printParser(Parser* a, Arena* ar) {
             popint32_t(sentinels);
             indent--;
         }
-
+        if (i < 10) printf(" ");
         printf("%d: ", i);
         for (int j = 0; j < indent; j++) {
-            printf("   ");
+            printf("  ");
         }
         if (nod.payload1 != 0 || nod.payload2 != 0) {            
             printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.payload1, nod.payload2, nod.startByte, nod.lenBytes);
