@@ -528,6 +528,13 @@ private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
 
 
 private void parseLoop(Token tok, Arr(Token) tokens, Parser* pr) {
+    // first thing must be a statement with one or two items
+    // first item is either empty or an expr
+    // second item, if present, must have an even number of tokens ordered like this: word expr word expr ...
+    VALIDATE(tok.tp == tokStmt, errorLoopSyntaxError)
+    Int j = pr->i + 1;
+    Int stmtSentinel = pr->i + tok.payload2;
+    Int leftSideLen = 
     throwExc(errorTemp);
 }
 

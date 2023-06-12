@@ -195,7 +195,15 @@ LexerTestSet* wordTests(Arena* a) {
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 1 },
                 (Token){ .tp = tokFuncWord, .payload2 = 1, .startByte = 2, .lenBytes = 5 }
             }))
-        }  
+        },
+        (LexerTest) {
+            .name = s("Word starts with reserved word"),
+            .input = s("ifter"),
+            .expectedOutput = buildLexer(((Token[]){
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 5 },
+                (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 5 }
+            }))
+        },
     }));
 }
 
@@ -913,7 +921,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                 (Token){ .tp = tokElse,                .startByte = 49, .lenBytes = 4 },
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 54, .lenBytes = 4 },
                 (Token){ .tp = tokBool, .payload2 = 1, .startByte = 54, .lenBytes = 4 }
-        }))},
+         }))},
          (LexerTest) { .name = s("Paren-type form error 1"),
              .input = s("if > (<> x 7) 0"),
              .expectedOutput = buildLexerWithError(s(errorCoreMissingParen), ((Token[]) {})
@@ -943,7 +951,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  
                  (Token){ .tp = tokStmt, .payload2 = 3, .startByte = 29, .lenBytes = 5 },
                  (Token){ .tp = tokWord, .payload2 = 2, .startByte = 29, .lenBytes = 1 },                
-                 (Token){ .tp = tokOperator, .payload1 = opTMinus, .startByte = 31, .lenBytes = 1 },                
+                 (Token){ .tp = tokOperator, .payload1 = opTMinus, .startByte = 31, .lenBytes = 1 },      
                  (Token){ .tp = tokWord, .payload2 = 3, .startByte = 33, .lenBytes = 1 } // y
          }))},
          (LexerTest) { .name = s("Function simple error"),
@@ -952,7 +960,26 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokStmt },
                  (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 1 },                // x
                  (Token){ .tp = tokOperator, .payload1 = opTPlus, .startByte = 2, .lenBytes = 1 }
-         }))} 
+         }))},
+         (LexerTest) { .name = s("Loop simple"),
+             .input = s("(.loop (< x 101) (x 1). print x)"),
+             .expectedOutput = buildLexer(((Token[]) {
+                 (Token){ .tp = tokLoop, .payload1 = slScope, .payload2 = 11, .lenBytes = 32 },
+                 
+                 (Token){ .tp = tokStmt, .payload2 = 7, .startByte = 7, .lenBytes = 15 },
+                 (Token){ .tp = tokParens, .payload2 = 3, .startByte = 7, .lenBytes = 9 },
+                 (Token){ .tp = tokOperator, .payload1 = opTLessThan, .startByte = 8, .lenBytes = 1 },
+                 (Token){ .tp = tokWord,                  .startByte = 10, .lenBytes = 1 }, // x
+                 (Token){ .tp = tokInt, .payload2 = 101, .startByte = 12, .lenBytes = 3 }, 
+                 
+                 (Token){ .tp = tokParens, .payload2 = 2, .startByte = 17, .lenBytes = 5 },
+                 (Token){ .tp = tokWord,                  .startByte = 18, .lenBytes = 1 }, // print
+                 (Token){ .tp = tokInt, .payload2 = 1, .startByte = 20, .lenBytes = 1 }, 
+
+                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 24, .lenBytes = 7 },
+                 (Token){ .tp = tokWord, .payload2 = 1, .startByte = 24, .lenBytes = 5 }, // print
+                 (Token){ .tp = tokWord,                .startByte = 30, .lenBytes = 1 }  // x
+         }))}
     }));
 }
 

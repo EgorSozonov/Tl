@@ -6,7 +6,6 @@ extern jmp_buf excBuf;
 
 #define initBucketSize 8
 
-
 typedef struct {
     int length;
     int value;

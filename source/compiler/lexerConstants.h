@@ -137,7 +137,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define reservedOr      4
 
 /** Span levels */
-#define slBrackets      1 // scopes (denoted by brackets): newlines and commas just have no effect in them
+#define slScope      1 // scopes (denoted by brackets): newlines and commas just have no effect in them
 #define slParenMulti    2 // things like "(if)": they're multiline but they cannot contain any brackets
 #define slStmt          3 // single-line statements: newlines and commas break 'em
 #define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
@@ -236,6 +236,7 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 #define aALower       97
 #define aFLower      102
 #define aILower      105
+#define aLLower      108
 #define aXLower      120
 #define aYLower      121
 #define aZLower      122

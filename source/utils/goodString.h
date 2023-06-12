@@ -20,7 +20,17 @@ bool endsWith(String* a, String* b);
 bool equal(String* a, String* b);
 void printString(String* s);
 void printStringNoLn(String* s);
+
+bool isLetter(byte a);
+bool isCapitalLetter(byte a);
+bool isLowercaseLetter(byte a);
+bool isDigit(byte a);
+bool isAlphanumeric(byte a);
+bool isHexDigit(byte a);
+bool isSpace(byte a);
+
 bool testByteSequence(String* inp, int startByte, const byte letters[], int lengthLetters);
+bool testForWord(String* inp, int startByte, const byte letters[], int lengthLetters);
 extern String empty;
 
 #endif

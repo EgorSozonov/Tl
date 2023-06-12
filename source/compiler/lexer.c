@@ -21,33 +21,7 @@
  
 jmp_buf excBuf;
 
-private bool isLetter(byte a) {
-    return ((a >= aALower && a <= aZLower) || (a >= aAUpper && a <= aZUpper));
-}
 
-private bool isCapitalLetter(byte a) {
-    return a >= aAUpper && a <= aZUpper;
-}
-
-private bool isLowercaseLetter(byte a) {
-    return a >= aALower && a <= aZLower;
-}
-
-private bool isDigit(byte a) {
-    return a >= aDigit0 && a <= aDigit9;
-}
-
-private bool isAlphanumeric(byte a) {
-    return isLetter(a) || isDigit(a);
-}
-
-private bool isHexDigit(byte a) {
-    return isDigit(a) || (a >= aALower && a <= aFLower) || (a >= aAUpper && a <= aFUpper);
-}
-
-private bool isSpace(byte a) {
-    return a == aSpace || a == aNewline || a == aCarrReturn;
-}
 
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
 _Noreturn private void throwExc(const char errMsg[], Lexer* lx) {   
@@ -122,7 +96,7 @@ private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
 
 #define PROBERESERVED(reservedBytesName, returnVarName)    \
     lenReser = sizeof(reservedBytesName); \
-    if (lenBytes == lenReser && testByteSequence(lx->inp, startByte, reservedBytesName, lenReser)) \
+    if (lenBytes == lenReser && testForWord(lx->inp, startByte, reservedBytesName, lenReser)) \
         return returnVarName;
 
 
@@ -294,7 +268,7 @@ private void closeRegularPunctuation(Int closingType, Lexer* lx) {
     BtToken top = pop(bt);
     // since a closing bracket might be closing something with statements inside it, like a lex scope
     // or a core syntax form, we need to close the last statement before closing its parent
-    if (bt->length > 0 && top.spanLevel != slBrackets 
+    if (bt->length > 0 && top.spanLevel != slScope 
           && ((*bt->content)[bt->length - 1].spanLevel <= slParenMulti)) {
 
         setStmtSpanLength(top.tokenInd, lx);
@@ -558,7 +532,7 @@ private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Ar
     
     Int expectations = (*lx->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
-        VALIDATE(!hasValues(bt) || peek(bt).spanLevel == slBrackets, errorCoreNotInsideStmt)
+        VALIDATE(!hasValues(bt) || peek(bt).spanLevel == slScope, errorCoreNotInsideStmt)
         addStatement(reservedWordType, startByte, lx);
     } else if (expectations == 1) { // the "(core" case
         VALIDATE(hasValues(bt), errorCoreMissingParen)
@@ -579,7 +553,7 @@ private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Ar
         lx->tokens[top.tokenInd].tp = reservedWordType;
         lx->tokens[top.tokenInd].payload1 = slParenMulti;
         (*bt->content)[bt->length - 1].tp = reservedWordType;
-        (*bt->content)[bt->length - 1].spanLevel = top.tp == tokScope ? slBrackets : slParenMulti;
+        (*bt->content)[bt->length - 1].spanLevel = top.tp == tokScope ? slScope : slParenMulti;
     }
 }
 
@@ -731,7 +705,7 @@ private void lexDot(Lexer* lx, Arr(byte) inp) {
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
         lx->i++; // CONSUME the dot
         wordInternal(tokFuncWord, lx, inp);
-    } else if (!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slBrackets) {
+    } else if (!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope) {
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
     } else {
         closeStatement(lx);
@@ -956,23 +930,25 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
 private void openScope(Lexer* lx, Arr(byte) inp) {
     Int startByte = lx->i;
     lx->i += 2; // CONSUME the "(."
-    VALIDATE(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slBrackets, errorPunctuationScope)
+    VALIDATE(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope, errorPunctuationScope)
     VALIDATE(lx->i < lx->inpLength, errorPrematureEndOfInput)
-    
-    if (lx->i < lx->inpLength - 2 && isSpace(inp[lx->i + 1])) {
-        byte currBt = CURR_BT;
+    byte currBt = CURR_BT;
+    if (currBt == aLLower && testForWord(lx->inp, lx->i, reservedBytesLoop, 4)) {
+            openPunctuation(tokLoop, slScope, startByte, lx);
+            lx->i += 4; // CONSUME the "loop"            
+    } else if (lx->i < lx->inpLength - 2 && isSpace(inp[lx->i + 1])) {        
         if (currBt == aFLower) {
-            openPunctuation(tokFnDef, slBrackets, startByte, lx);
+            openPunctuation(tokFnDef, slScope, startByte, lx);
             lx->i += 2; // CONSUME the "f "
             return;
         } else if (currBt == aILower) {
-            openPunctuation(tokIf, slBrackets, startByte, lx);
+            openPunctuation(tokIf, slScope, startByte, lx);
             lx->i += 2; // CONSUME the "i "
             return;
-        }
-    }    
-    
-    openPunctuation(tokScope, slBrackets, startByte, lx);
+        }  
+    } else {
+        openPunctuation(tokScope, slScope, startByte, lx);
+    }
 }
 
 /** Handles the "(*" case (doc-comment), the "(:" case (data initializer) as well as the common subexpression case */
@@ -1060,7 +1036,7 @@ const char* tokNames[] = {
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "each", "embed", "export", "exposePriv", "fn", "interface", 
     "lambda", "package", "return", "struct", "try", "yield",
-    "if", "ifPr", "match", "impl", "while"
+    "if", "ifPr", "match", "impl", "loop"
 };
 
 
@@ -1288,7 +1264,7 @@ private void finalize(Lexer* lx) {
     if (!hasValues(lx->backtrack)) return;
     closeColons(lx);
     BtToken top = pop(lx->backtrack);
-    VALIDATE(top.spanLevel != slBrackets && !hasValues(lx->backtrack), errorPunctuationExtraOpening)
+    VALIDATE(top.spanLevel != slScope && !hasValues(lx->backtrack), errorPunctuationExtraOpening)
 
     setStmtSpanLength(top.tokenInd, lx);    
     deleteArena(lx->aTemp);

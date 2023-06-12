@@ -14,6 +14,7 @@ const char errorIfEmpty[]                     = "Empty `if` expression";
 const char errorIfMalformed[]                 = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
 const char errorFnNameAndParams[]             = "Function signature must look like this: `(-f fnName ReturnType(x Type1 y Type2). body...)`";
 const char errorFnMissingBody[]               = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
+const char errorLoopSyntaxError[]             = "A loop should look like `(.loop (< x 101) (x 0). ...body)`";
 const char errorDuplicateFunction[]           = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
 const char errorExpressionInfixNotSecond[]    = "An infix expression must have the infix operator in second position (not counting possible prefix operators)!";
 const char errorExpressionError[]             = "Cannot parse expression!";

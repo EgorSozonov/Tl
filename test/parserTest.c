@@ -173,7 +173,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         return;
     }
 
-    //printLexer(test.input);printf("\n");
+    printLexer(test.input);printf("\n");
 
     Parser* resultParser = parseWithParser(test.input, test.initParser, a);
         
