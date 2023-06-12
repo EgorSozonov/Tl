@@ -267,13 +267,16 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
     while (pr->i < sentinelToken) {
         Token currTok = tokens[pr->i];
         untt contextType = peek(pr->backtrack).tp;
-        pr->i++; // CONSUME any span token
+        
         // pre-parse hooks that let contextful syntax forms (e.g. "if") detect parsing errors and keep track of their state
         if (contextType >= firstResumableForm) {
             ((*pr->parDef->resumableTable)[contextType - firstResumableForm])(
                 contextType, &currTok, tokens, pr
             );
+        } else {
+            pr->i++; // CONSUME any span token
         }
+        print("before main i = %d", pr->i)
         ((*pr->parDef->nonResumableTable)[currTok.tp])(
             currTok, tokens, pr
         );
@@ -497,22 +500,24 @@ private void parseYield(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 /** To be called at the start of an "if" clause. It validates the grammar and emits nodes. Consumes no tokens.
- * Precondition: we are pointing at the init token of left side of "if"
+ * Precondition: we are pointing at the init token of left side of "if" (i.e. at a tokStmt or the like)
  */
 private void ifAddClause(Token tok, Arr(Token) tokens, Parser* pr) {
     VALIDATE(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errorIfLeft)
-    Int leftTokLength = (tok.tp >= firstPunctuationTokenType) ? (tok.payload2 + 1) : 1;
-    Int j = pr->i + leftTokLength;
+    Int leftTokSkip = (tok.tp >= firstPunctuationTokenType) ? (tok.payload2 + 1) : 1;
+    Int j = pr->i + leftTokSkip;
     VALIDATE(j + 1 < pr->inpLength, errorPrematureEndOfTokens)
-    VALIDATE(tokens[j].tp == tokArrow, errorIfMalformed)   
-    j++;
+    VALIDATE(tokens[j].tp == tokArrow, errorIfMalformed)
+    
+    j++; // the arrow
+    
     Token rightToken = tokens[j];
     Int rightTokLength = (rightToken.tp >= firstPunctuationTokenType) ? (rightToken.payload2 + 1) : 1;    
     Int clauseSentinelByte = rightToken.startByte + rightToken.lenBytes;
     
     ParseFrame clauseFrame = (ParseFrame){ .tp = nodIfClause, .startNodeInd = pr->nextInd, .sentinelToken = j + rightTokLength };
     push(clauseFrame, pr->backtrack);
-    addNode((Node){.tp = nodIfClause, .payload1 = leftTokLength,
+    addNode((Node){.tp = nodIfClause, .payload1 = leftTokSkip,
          .startByte = tok.startByte, .lenBytes = clauseSentinelByte - tok.startByte }, pr);
 }
 
@@ -538,22 +543,25 @@ private void loopResume(Token tok, Arr(Token) tokens, Parser* pr) {
 
 
 private void resumeIf(untt contextTokType, Token* tok, Arr(Token) tokens, Parser* pr) {
-    print("resume if tp %d", tok->tp)
+    print("resume if i %d tp %d", pr->i, tok->tp)
     if (tok->tp == tokElse) {
+        print("p1")
         VALIDATE(pr->i < pr->inpLength, errorPrematureEndOfTokens)
+        print("p2")
         Token nextToken = tokens[pr->i];
         Int elseTokLength = (nextToken.tp >= firstPunctuationTokenType) ? (nextToken.payload2 + 1) : 1;
         Int elseSentinelByte = nextToken.startByte + nextToken.lenBytes;
 
         ParseFrame elseFrame = (ParseFrame){ .tp = nodElse, .startNodeInd = pr->nextInd,
-                                               .sentinelToken = pr->i + elseTokLength };
+                                             .sentinelToken = pr->i + elseTokLength };
         push(elseFrame, pr->backtrack);
         addNode((Node){.tp = nodElse, .startByte = nextToken.startByte, .lenBytes = elseSentinelByte - nextToken.startByte }, pr);
         *tok = tokens[pr->i];
         pr->i++; // CONSUME the token after "else"
     } else {
-        ifAddClause(tokens[pr->i], tokens, pr);
-    }    
+        ifAddClause(*tok, tokens, pr);
+        pr->i++; // CONSUME the init token of the span
+    }
 }
 
 private void resumeIfPr(untt tokType, Token* tok, Arr(Token) tokens, Parser* pr) {
@@ -611,6 +619,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokYield]      = &parseAlias;
 
     p[tokIf]         = &parseIf;
+    p[tokElse]       = &parseSkip;
     p[tokLoop]       = &parseLoop;
     return result;
 }

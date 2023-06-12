@@ -106,19 +106,18 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokFnDef       36       // specialCase
 #define tokIface       37       
 #define tokLambda      38
-#define tokLoopCond    39
-#define tokPackage     40       // for single-file packages
-#define tokReturn      41
-#define tokStruct      42       
-#define tokTry         43       // early exit
-#define tokYield       44       
+#define tokPackage     39       // for single-file packages
+#define tokReturn      40
+#define tokStruct      41       
+#define tokTry         42       // early exit
+#define tokYield       43       
 
 // Resumable core forms
-#define tokIf          45    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
-#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       47    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        48    // "(-impl " 
-#define tokLoop        49    // "(-loop "
+#define tokIf          44    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
+#define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       46    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        47    // "(-impl " 
+#define tokLoop        48    // "(-loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 

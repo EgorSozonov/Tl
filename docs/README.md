@@ -1,7 +1,7 @@
 # Tl
 ### A new progamming language for the browser
 
-Goal: a practical JVM development language that doesn't suck
+Goal: a practical web development language that doesn't suck
 
 ### Current version: 0.1.0 (2022-12-22)
 

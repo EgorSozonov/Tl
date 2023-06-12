@@ -86,12 +86,13 @@ extern const char errorTemp[];
 #define nodIfClause    39       // payload1 = number of tokens in the left side of the clause
 #define nodElse        40
 #define nodLoop        41       //
+#define nodLoopCond    42
 
 // Resumable core forms
-#define nodIf          42       // paren
-#define nodIfPr        43       // like if, but every branch is a value compared using custom predicate
-#define nodImpl        44       
-#define nodMatch       45       // pattern matching on sum type tag
+#define nodIf          43       // paren
+#define nodIfPr        44       // like if, but every branch is a value compared using custom predicate
+#define nodImpl        45       
+#define nodMatch       46       // pattern matching on sum type tag
 
 
 

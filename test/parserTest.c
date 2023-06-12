@@ -33,7 +33,7 @@ const char* nodeNames[] = {
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
     "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
     "lambda", "package", "return", "struct", "try", "yield",
-    "ifClause", "else", "loop", "if", "ifPr", "impl", "match"
+    "ifClause", "else", "loop", "loopCond", "if", "ifPr", "impl", "match"
 };
 
 private Parser* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int nextInd, Arr(Node) nodes) {
@@ -172,6 +172,8 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         print("Lexer result empty");
         return;
     }
+
+    printLexer(test.input);printf("\n");
 
     Parser* resultParser = parseWithParser(test.input, test.initParser, a);
         
@@ -811,31 +813,9 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
             //~ }),
             //~ ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
         //~ ),
-        //~ createTest(
-            //~ s("If with else"),
-            //~ s("x = (if > 5 3 => \"5\" else \"=)\")"),
-            //~ ((Node[]) {
-                //~ (Node){ .tp = nodAssignment, .payload2 = 10, .startByte = 0, .lenBytes = 31 },
-                //~ (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
-                
-                //~ (Node){ .tp = nodIf, .payload1 = slParenMulti, .payload2 = 8, .startByte = 4, .lenBytes = 27 },
-                
-                //~ (Node){ .tp = nodIfClause, .payload1 = 4, .payload2 = 5, .startByte = 8, .lenBytes = 12 },
-                //~ (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 8, .lenBytes = 5 },
-                //~ (Node){ .tp = nodCall, .payload1 = opTGreaterThan + M, .payload2 = 2, .startByte = 8, .lenBytes = 1 }, // >
-                //~ (Node){ .tp = nodInt, .payload2 = 5, .startByte = 10, .lenBytes = 1 },
-                //~ (Node){ .tp = nodInt, .payload2 = 3, .startByte = 12, .lenBytes = 1 },                
-                //~ (Node){ .tp = nodString, .startByte = 17, .lenBytes = 3 },
-                
-                //~ (Node){ .tp = nodElse, .payload2 = 1, .startByte = 26, .lenBytes = 4 },
-                //~ (Node){ .tp = nodString, .startByte = 26, .lenBytes = 4 },
-            //~ }),
-            //~ ((BindingImport[]) {})
-        //~ ),
         createTest(
-            s("If with elseif"),
-            s("x = (if > 5 3  => 11\n"
-               "       == 5 3 => 4)"),
+            s("If with else"),
+            s("x = (if > 5 3 => \"5\" else \"=)\")"),
             ((Node[]) {
                 (Node){ .tp = nodAssignment, .payload2 = 10, .startByte = 0, .lenBytes = 31 },
                 (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
@@ -846,14 +826,40 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 8, .lenBytes = 5 },
                 (Node){ .tp = nodCall, .payload1 = opTGreaterThan + M, .payload2 = 2, .startByte = 8, .lenBytes = 1 }, // >
                 (Node){ .tp = nodInt, .payload2 = 5, .startByte = 10, .lenBytes = 1 },
-                (Node){ .tp = nodInt, .payload2 = 3, .startByte = 12, .lenBytes = 1 },
-                (Node){ .tp = nodInt, .payload2 = 11, .startByte = 15, .lenBytes = 2 },
+                (Node){ .tp = nodInt, .payload2 = 3, .startByte = 12, .lenBytes = 1 },                
+                (Node){ .tp = nodString, .startByte = 17, .lenBytes = 3 },
                 
                 (Node){ .tp = nodElse, .payload2 = 1, .startByte = 26, .lenBytes = 4 },
                 (Node){ .tp = nodString, .startByte = 26, .lenBytes = 4 },
             }),
             ((BindingImport[]) {})
         ),
+        //~ createTest(
+            //~ s("If with elseif"),
+            //~ s("x = (if > 5 3  => 11\n"
+              //~ "       == 5 3 => 4)"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .payload2 = 14, .startByte = 0, .lenBytes = 40 },
+                //~ (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
+                
+                //~ (Node){ .tp = nodIf, .payload1 = slParenMulti, .payload2 = 12, .startByte = 4, .lenBytes = 36 },
+                
+                //~ (Node){ .tp = nodIfClause, .payload1 = 4, .payload2 = 5, .startByte = 8, .lenBytes = 12 },
+                //~ (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 8, .lenBytes = 5 },
+                //~ (Node){ .tp = nodCall, .payload1 = opTGreaterThan + M, .payload2 = 2, .startByte = 8, .lenBytes = 1 }, // >
+                //~ (Node){ .tp = nodInt, .payload2 = 5, .startByte = 10, .lenBytes = 1 },
+                //~ (Node){ .tp = nodInt, .payload2 = 3, .startByte = 12, .lenBytes = 1 },
+                //~ (Node){ .tp = nodInt, .payload2 = 11, .startByte = 18, .lenBytes = 2 },
+                
+                //~ (Node){ .tp = nodIfClause, .payload1 = 4, .payload2 = 5, .startByte = 28, .lenBytes = 11 },
+                //~ (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 28, .lenBytes = 6 },
+                //~ (Node){ .tp = nodCall, .payload1 = opTEquality + M, .payload2 = 2, .startByte = 28, .lenBytes = 2 }, // ==
+                //~ (Node){ .tp = nodInt, .payload2 = 5, .startByte = 31, .lenBytes = 1 },
+                //~ (Node){ .tp = nodInt, .payload2 = 3, .startByte = 33, .lenBytes = 1 },
+                //~ (Node){ .tp = nodInt, .payload2 = 4, .startByte = 38, .lenBytes = 1 }
+            //~ }),
+            //~ ((BindingImport[]) {})
+        //~ ),
 
         //~ (ParserTest) { 
             //~ .name = str("Simple if 3", a),

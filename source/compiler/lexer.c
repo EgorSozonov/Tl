@@ -666,12 +666,12 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
                      .startByte=realStartByte, .lenBytes=lenBytes }, lx);
         if (isAlsoAccessor) {
             openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
-            lx->i++; // CONSUME the left bracket
+            lx->i++; // CONSUME the left paren
         }
         return;
     }
-    
     Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lx);
+
     if (mbReservedWord <= 0) {
         wrapInAStatementStarting(startByte, lx, inp);
         Int uniqueStringInd = addStringStore(inp, startByte, lenString, lx->stringTable, lx->stringStore);
@@ -679,13 +679,17 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
                      .startByte=realStartByte, .lenBytes=lenBytes }, lx);
         if (isAlsoAccessor) {
             openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
-            lx->i++; // CONSUME the left bracket            
+            lx->i++; // CONSUME the left paren            
         }
         return;
     }
 
-    VALIDATE(wordType != tokDotWord, errorWordReservedWithDot)            
-    if (mbReservedWord < firstCoreFormTokenType) {
+    VALIDATE(wordType != tokDotWord, errorWordReservedWithDot)
+
+    if (mbReservedWord == tokElse){
+        closeStatement(lx);
+        add((Token){.tp = tokElse, .startByte = realStartByte, .lenBytes = 4}, lx);
+    } else if (mbReservedWord < firstCoreFormTokenType) {
         if (mbReservedWord == reservedAnd) {
             wrapInAStatementStarting(startByte, lx, inp);
             add((Token){.tp=tokOperator, .payload1 = opTAnd, .startByte=realStartByte, .lenBytes=3}, lx);
@@ -701,13 +705,10 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         } else if (mbReservedWord == tokDispose) {
             wrapInAStatementStarting(startByte, lx, inp);
             add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lx);
-        } else if (mbReservedWord == tokElse) {
-            closeStatement(lx);            
-            add((Token){.tp = tokElse, .startByte = realStartByte, .lenBytes = 4}, lx);
         }
     } else {
         lexReservedWord(mbReservedWord, realStartByte, lx, inp);
-    }  
+    }
 }
 
 
@@ -730,7 +731,7 @@ private void lexDot(Lexer* lx, Arr(byte) inp) {
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
         lx->i++; // CONSUME the dot
         wordInternal(tokFuncWord, lx, inp);
-    } else if (!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slBrackets) {         
+    } else if (!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slBrackets) {
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
     } else {
         closeStatement(lx);
@@ -1071,9 +1072,9 @@ void printLexer(Lexer* a) {
     for (int i = 0; i < a->totalTokens; i++) {
         Token tok = a->tokens[i];
         if (tok.payload1 != 0 || tok.payload2 != 0) {
-            printf("%s %d %d [%d; %d]\n", tokNames[tok.tp], tok.payload1, tok.payload2, tok.startByte, tok.lenBytes);
+            printf("%d: %s %d %d [%d; %d]\n", i, tokNames[tok.tp], tok.payload1, tok.payload2, tok.startByte, tok.lenBytes);
         } else {
-            printf("%s [%d; %d]\n", tokNames[tok.tp], tok.startByte, tok.lenBytes);
+            printf("%d: %s [%d; %d]\n", i, tokNames[tok.tp], tok.startByte, tok.lenBytes);
         }
         
     }
