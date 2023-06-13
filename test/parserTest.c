@@ -81,7 +81,6 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     Lexer* lx = lexicallyAnalyze(input, langDef, a);
     Parser* initParser     = createParser(lx, a);
     Parser* expectedParser = createParser(lx, a);
-    
     if (expectedParser->wasError) {
         return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
     }
@@ -178,7 +177,7 @@ void printParser(Parser* a, Arena* ar) {
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
 void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {    
     (*countTests)++;
-
+    print("here")
     if (test.input->wasError) {
         print("Lexer was not without error");
         printLexer(test.input);
@@ -951,15 +950,15 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
             s("Simple loop 1"),
             s("(.f f Int (). (.loop (< x 101) (x 1). print x))"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .payload1 = slScope, .payload2 = 13, .lenBytes = 51 },
-                (Node){ .tp = nodBinding, .payload1 = slScope, .payload2 = 13, .lenBytes = 46 }, // f
-                (Node){ .tp = nodScope, .payload2 = 11, .startByte = 14, .lenBytes = 15 }, // function body
+                (Node){ .tp = nodFnDef, .payload1 = 1, .payload2 = 15, .lenBytes = 47 },
+                (Node){ .tp = nodBinding, .payload1 = 1, .payload2 = 14, .lenBytes = 46 }, // f
+                (Node){ .tp = nodScope, .payload2 = 13, .startByte = 14, .lenBytes = 15 }, // function body
                 
-                (Node){ .tp = nodLoop, .payload1 = slScope, .payload2 = 12, .startByte = 13, .lenBytes = 32 },
+                (Node){ .tp = nodLoop, .payload1 = slScope, .payload2 = 12, .startByte = 14, .lenBytes = 32 },
                 
-                (Node){ .tp = nodScope, .payload2 = 11, .startByte = 20, .lenBytes = 15 },
+                (Node){ .tp = nodScope, .payload2 = 11, .startByte = 31, .lenBytes = 15 },
                 
-                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 18, .lenBytes = 3 },
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 32, .lenBytes = 3 },
                 (Node){ .tp = nodBinding, .startByte = 7, .lenBytes = 15 },
                 (Node){ .tp = nodInt, .payload2 = 1, .startByte = 7, .lenBytes = 15 },
                 

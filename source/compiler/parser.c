@@ -54,10 +54,13 @@ Int createBinding(Token bindingToken, Binding b, Parser* pr) {
     return newBindingId;
 }
 
+
 Int importBinding(Int nameId, Binding b, Parser* pr) {
-    Int mbBinding = pr->activeBindings[nameId];
-    VALIDATE(mbBinding == -1, errorAssignmentShadowing)
-    
+    if (nameId > -1) {
+        Int mbBinding = pr->activeBindings[nameId];
+        VALIDATE(mbBinding == -1, errorAssignmentShadowing)
+    }
+
     pr->bindings[pr->bindNext] = b;
     pr->bindNext++;
     if (pr->bindNext == pr->bindCap) {
@@ -74,7 +77,6 @@ Int importBinding(Int nameId, Binding b, Parser* pr) {
         }
         pr->activeBindings[nameId] = newBindingId; // makes it active
     }
-    
     return newBindingId;
 }
 
@@ -597,10 +599,14 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
             Token tokExpr = tokens[pr->i + 1];
             VALIDATE(tokExpr.tp < firstPunctuationTokenType || tokExpr.tp == tokStmt, errorLoopSyntaxError)
             Int initializationSentinel = calcSentinel(tokExpr, pr->i + 1);
-            print("initializationSentinel %d", initializationSentinel)
             
-            Int bindingId = createBinding(tokBinding, ((Binding){}), pr);
-
+            Int bindingId = createBinding(tokBinding, ((Binding){bndMut}), pr);
+            Int indBindingSpan = pr->nextInd;
+            addNode((Node){.tp = nodAssignment, .payload2 = initializationSentinel - pr->i,
+                           .startByte = tokBinding.startByte,
+                           .lenBytes = tokExpr.lenBytes + tokExpr.startByte - tokBinding.startByte}, pr);
+            addNode((Node){.tp = nodBinding, .payload1 = bindingId,
+                           .startByte = tokBinding.startByte, .lenBytes = tokBinding.lenBytes}, pr);
                         
             if (tokExpr.tp == tokStmt) {
                 pr->i += 2;
@@ -608,6 +614,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
             } else {
                 exprSingleItem(tokExpr, pr);
             }
+            setSpanLength(indBindingSpan, pr);
             
             pr->i = initializationSentinel;
         }
@@ -725,20 +732,19 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 }
 
 
-void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) {   
-    for (int i = 0; i < countBindings; i++) {
+void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) {
+    for (int i = 0; i < countBindings; i++) {        
         Int mbNameId = getStringStore(pr->text->content, bindings[i].name, pr->stringTable, pr->stringStore);
         if (mbNameId > -1) {           
-            Int newBindingId = createBinding(mbNameId, bindings[i].binding, pr);
+            Int newBindingId = importBinding(mbNameId, bindings[i].binding, pr);
         }
     }
 }
 
 /* Bindings for the built-in operators, types, functions. */
-// TODO extensible operators
 void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
     for (int i = 0; i < countOperators; i++) {
-        createBinding(-1, (Binding){ .flavor = bndCallable}, pr);
+        importBinding(-1, (Binding){ .flavor = bndCallable}, pr);
     }    
     
     BindingImport builtins[4] =  {
@@ -776,7 +782,6 @@ Parser* createParser(Lexer* lx, Arena* a) {
     if (stringTableLength > 0) {
         memset(result->activeBindings, 0xFF, stringTableLength*sizeof(Int)); // activeBindings is filled with -1
     }
-    
     insertBuiltinBindings(lx->langDef, result);
 
     return result;    

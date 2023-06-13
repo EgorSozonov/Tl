@@ -935,7 +935,8 @@ private void openScope(Lexer* lx, Arr(byte) inp) {
     byte currBt = CURR_BT;
     if (currBt == aLLower && testForWord(lx->inp, lx->i, reservedBytesLoop, 4)) {
             openPunctuation(tokLoop, slScope, startByte, lx);
-            lx->i += 4; // CONSUME the "loop"            
+            lx->i += 4; // CONSUME the "loop"
+            return; 
     } else if (lx->i < lx->inpLength - 2 && isSpace(inp[lx->i + 1])) {        
         if (currBt == aFLower) {
             openPunctuation(tokFnDef, slScope, startByte, lx);
@@ -946,9 +947,8 @@ private void openScope(Lexer* lx, Arr(byte) inp) {
             lx->i += 2; // CONSUME the "i "
             return;
         }  
-    } else {
-        openPunctuation(tokScope, slScope, startByte, lx);
-    }
+    }        
+    openPunctuation(tokScope, slScope, startByte, lx);    
 }
 
 /** Handles the "(*" case (doc-comment), the "(:" case (data initializer) as well as the common subexpression case */
