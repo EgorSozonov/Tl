@@ -564,12 +564,12 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord,  .payload2 = 2, .startByte = 20, .lenBytes = 3 }  // cdr
         }))},             
         (LexerTest) { .name = s("Data accessor"),
-            .input = s("asdf(5)"),
+            .input = s("asdf.(5)"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .payload2 = 3, .lenBytes = 7 },
+                (Token){ .tp = tokStmt, .payload2 = 3, .lenBytes = 8 },
                 (Token){ .tp = tokWord, .lenBytes = 4 },
-                (Token){ .tp = tokAccessor, .payload2 = 1, .startByte = 4, .lenBytes = 3 },
-                (Token){ .tp = tokInt, .payload2 = 5, .startByte = 5, .lenBytes = 1 }            
+                (Token){ .tp = tokAccessor, .payload2 = 1, .startByte = 4, .lenBytes = 4 },
+                (Token){ .tp = tokInt, .payload2 = 5, .startByte = 6, .lenBytes = 1 }            
         }))},
         (LexerTest) { .name = s("Parens inside statement"),
             .input = s("foo bar ( asdf )"),
@@ -652,7 +652,7 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord,  .payload2 = 0,  .startByte = 0, .lenBytes = 2 }, // ab
                 (Token){ .tp = tokParens, .payload2 = 5, .startByte = 3, .lenBytes = 16 },                
                 (Token){ .tp = tokWord,   .payload2 = 1, .startByte = 4, .lenBytes = 3 }, // arr
-                (Token){ .tp = tokAccessor, .payload2 = 3, .startByte = 7, .lenBytes = 11 },
+                (Token){ .tp = tokParens, .payload2 = 3, .startByte = 7, .lenBytes = 11 },
                 (Token){ .tp = tokWord,   .payload2 = 2, .startByte = 8, .lenBytes = 3 },     // foo
                 (Token){ .tp = tokParens, .payload2 = 1, .startByte = 12, .lenBytes = 5 },
                 (Token){ .tp = tokWord,   .payload2 = 3, .startByte = 14, .lenBytes = 3 }   // bar

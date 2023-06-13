@@ -107,6 +107,7 @@ struct Parser {
     Arr(Binding) bindings;      // growing array of all bindings ever encountered
     Int bindNext;
     Int bindCap;
+    Int bindZero;               // the index of the first parsed (as opposed to being built-in or imported) binding
 
     Arr(Int) overloads;         // growing array of counts of all fn name definitions encountered (for the typechecker to use)
     Int overlNext;

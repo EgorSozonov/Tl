@@ -78,7 +78,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokColon       12 
 
 // Punctuation (inner node) Token types
-#define tokScope       13       // denoted by []
+#define tokScope       13       // denoted by (.)
 #define tokStmt        14
 #define tokParens      15
 #define tokData        16       // data initializer, like (: 1 2 3)

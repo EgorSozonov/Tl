@@ -604,13 +604,9 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
 
     bool wasCapitalized = wordChunk(lx, inp);
 
-    bool isAlsoAccessor = false;
     while (lx->i < (lx->inpLength - 1)) {
         byte currBt = CURR_BT;
-        if (currBt == aParenLeft) {
-            isAlsoAccessor = true; // data accessor like arr(5)
-            break;
-        } else if (currBt == aMinus) {
+        if (currBt == aMinus) {
             byte nextBt = NEXT_BT;
             if (isLetter(nextBt) || nextBt == aUnderscore) {
                 lx->i++; // CONSUME the letter or underscore
@@ -631,17 +627,12 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
     byte firstByte = lx->inp->content[startByte];
     Int lenBytes = lx->i - realStartByte;
     Int lenString = lx->i - startByte;
-    VALIDATE(wordType == tokWord || !isAlsoAccessor, errorWordWrongAccessor)
         
     if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
         wrapInAStatementStarting(startByte, lx, inp);
         Int uniqueStringInd = addStringStore(inp, startByte, lenBytes, lx->stringTable, lx->stringStore);
         add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
                      .startByte=realStartByte, .lenBytes=lenBytes }, lx);
-        if (isAlsoAccessor) {
-            openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
-            lx->i++; // CONSUME the left paren
-        }
         return;
     }
     Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lx);
@@ -651,10 +642,6 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         Int uniqueStringInd = addStringStore(inp, startByte, lenString, lx->stringTable, lx->stringStore);
         add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
                      .startByte=realStartByte, .lenBytes=lenBytes }, lx);
-        if (isAlsoAccessor) {
-            openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
-            lx->i++; // CONSUME the left paren            
-        }
         return;
     }
 
@@ -702,10 +689,18 @@ private void lexAtWord(Lexer* lx, Arr(byte) inp) {
  * The dot is a statement separator
  */
 private void lexDot(Lexer* lx, Arr(byte) inp) {
-    if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
-        lx->i++; // CONSUME the dot
-        wordInternal(tokFuncWord, lx, inp);
-    } else if (!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope) {
+    if (lx->i < lx->inpLength - 1) {
+        if (isLetter(NEXT_BT)) {
+            lx->i++; // CONSUME the dot
+            wordInternal(tokFuncWord, lx, inp);
+            return;
+        } else if (NEXT_BT == aParenLeft) {
+            openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
+            lx->i += 2; // CONSUME the ".("
+            return;
+        }
+    }
+    if (!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope) {
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
     } else {
         closeStatement(lx);

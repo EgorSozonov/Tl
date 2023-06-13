@@ -270,7 +270,6 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
         } else {
             if (tokType == tokWord) {
                 Int mbBindingId = pr->activeBindings[currTok.payload2];
-                print("mbBind currTok.payload2 %d %d", currTok.payload2, mbBindingId)
                 VALIDATE(mbBindingId > -1, errorUnknownBinding)
                 addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
                             .startByte = currTok.startByte, .lenBytes = currTok.lenBytes}, pr);                
@@ -311,7 +310,6 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
         } else {
             pr->i++; // CONSUME any span token
         }
-        print("main i %d", pr->i)
         ((*pr->parDef->nonResumableTable)[currTok.tp])(currTok, tokens, pr);
         
         maybeCloseSpans(pr);
@@ -587,7 +585,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
     addNode((Node){.tp = nodLoop, .payload1 = slScope, .startByte = loopTok.startByte, .lenBytes = loopTok.lenBytes}, pr);
 
     push(((ParseFrame){ .tp = nodScope, .startNodeInd = pr->nextInd, .sentinelToken = pr->i + loopTok.payload2 }), pr->backtrack);
-    addNode((Node){.tp = nodScope, .payload1 = slScope, .startByte = startByteScope,
+    addNode((Node){.tp = nodScope, .startByte = startByteScope,
             .lenBytes = loopTok.lenBytes - startByteScope + loopTok.startByte}, pr);
 
     // variable initializations, if any
@@ -626,7 +624,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
     if (startByteScope < 0) {
         startByteScope = tokBody.startByte;
     }    
-    addNode((Node){.tp = nodLoopCond, .payload1 = slScope, .payload2 = sentinelLeftSide - indLeftSide,
+    addNode((Node){.tp = nodLoopCond, .payload1 = slStmt, .payload2 = sentinelLeftSide - indLeftSide,
          .startByte = tokLeftSide.startByte, .lenBytes = tokLeftSide.lenBytes}, pr);
     pr->i = indLeftSide + 1;
     parseExpr(tokens[indLeftSide], tokens, pr);
@@ -733,7 +731,7 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 
 
 void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) {
-    for (int i = 0; i < countBindings; i++) {        
+    for (int i = 0; i < countBindings; i++) {
         Int mbNameId = getStringStore(pr->text->content, bindings[i].name, pr->stringTable, pr->stringStore);
         if (mbNameId > -1) {           
             Int newBindingId = importBinding(mbNameId, bindings[i].binding, pr);
@@ -745,8 +743,7 @@ void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) 
 void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
     for (int i = 0; i < countOperators; i++) {
         importBinding(-1, (Binding){ .flavor = bndCallable}, pr);
-    }    
-    
+    }
     BindingImport builtins[4] =  {
         (BindingImport) { .name = str("Int", pr->a),    .binding = (Binding){ .flavor = bndType} },
         (BindingImport) { .name = str("Float", pr->a),    .binding = (Binding){ .flavor = bndType} },
