@@ -29,13 +29,14 @@ typedef struct {
 /** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "id", "call", "binding", "type", "@annot", "and", "or", 
-    "(-", "expr", "accessor", "assign", "reAssign", "mutate",
+    "id", "call", "binding", "type", "and", "or", 
+    "(-", "expr", "assign", "reAssign", "mutate",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
     "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
-    "lambda", "package", "return", "struct", "try", "yield",
+    "lambda", "meta", "package", "return", "struct", "try", "yield",
     "ifClause", "else", "loop", "loopCond", "if", "ifPr", "impl", "match"
 };
+
 
 private Parser* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int nextInd, Arr(Node) nodes) {
     Parser* result = createParser(lx, a);
@@ -111,6 +112,24 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
 
 #define createTest(name, input, nodes, bindings) createTest0((name), (input), \
     (nodes), sizeof(nodes)/sizeof(Node), bindings, sizeof(bindings)/sizeof(BindingImport), langDef, a)
+
+/** Creates a test with two parser: one is the init parser (contains all the "imported" bindings)
+ *  and one is the output parser (with the bindings and the expected nodes). When the test is run,
+ *  the init parser will parse the tokens and then will be compared to the expected output parser.
+ *  Nontrivial: this handles binding ids inside nodes, so that e.g. if the payload1 in nodBinding is 1,
+ *  it will be inserted as 1 + (the number of built-in bindings)
+ */
+private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes, Int countNodes, 
+                               Arr(BindingImport) bindings, Int countBindings, 
+                               LanguageDefinition* langDef, Arena* a) {
+    ParserTest theTest = createTest0(name, input, nodes, countNodes, bindings, countBindings, langDef, a);
+    theTest.expectedOutput->wasError = true;
+    theTest.expectedOutput->errMsg = message;
+    return theTest;
+}
+
+#define createTestWithError(name, errorMessage, input, nodes, bindings) createTestWithError0((name), errorMessage, (input), \
+    (nodes), sizeof(nodes)/sizeof(Node), bindings, sizeof(bindings)/sizeof(BindingImport), langDef, a)    
 
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
@@ -249,22 +268,20 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodId, .payload1 = 0, .payload2 = 0, .startByte = 16, .lenBytes = 1 }
             }),
             ((BindingImport[]) {})
-        ),
-        
-        //~ createTestWithError(
-            //~ s("Assignment shadowing error"), 
-            //~ errorAssignmentShadowing,
-            //~ s("x = 12\n"
-              //~ ".x = 7"  
-            //~ ),
-            //~ ((Node[]) {
-                    //~ (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
-                    //~ (Node){ .tp = nodBinding, .payload2 = 1, .startByte = 0, .lenBytes = 1 },
-                    //~ (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 }
-            //~ }),
-            //~ ((Int[]) {}), 
-            //~ ((Binding[]) {})
-        //~ )          
+        ),        
+        createTestWithError(
+            s("Assignment shadowing error"), 
+            s(errorAssignmentShadowing),
+            s("x = 12\n"
+              "x = 7"  
+            ),
+            ((Node[]) {
+                    (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 0, .lenBytes = 6 },
+                    (Node){ .tp = nodBinding, .payload2 = 0, .startByte = 0, .lenBytes = 1 },
+                    (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 },
+            }),
+            ((BindingImport[]) {})
+        )          
     }));
 }
 
@@ -395,7 +412,18 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodInt, .payload2 = 3, .startByte = 14, .lenBytes = 1 }
             })),
             ((BindingImport[]) {})
-        )
+        ),
+        createTestWithError(
+            s("Operator arity error"),
+            s(errorOperatorWrongArity),
+            s("x = + 1 20 100"),
+            (((Node[]) {
+                (Node){ .tp = nodAssignment, .startByte = 0, .lenBytes = 14 },
+                (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
+                (Node){ .tp = nodExpr,  .startByte = 4, .lenBytes = 10 }
+            })),
+            ((BindingImport[]) {})
+        )    
     }));
 }
 
@@ -409,36 +437,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                 //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
             //~ }))
         //~ },
-        //~ (ParserTest) { 
-            //~ .name = str("Operator precedence simple", a),
-            //~ .input = str("a + b*c", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) 
-                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            //~ }))
-        //~ },
-        //~ (ParserTest) { 
-            //~ .name = str("Operator precedence simple 2", a),
-            //~ .input = str("a + b*c", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) 
-                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            //~ }))
-        //~ },
-        //~ (ParserTest) { 
-            //~ .name = str("Operator precedence simple 3", a),
-            //~ .input = str("a + b*c", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) 
-                //~ (Node){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 8 },
-                //~ (Node){ .tp = tokWord, .startByte = 0, .lenBytes = 4 },
-                //~ (Node){ .tp = tokWord, .startByte = 5, .lenBytes = 3 }
-            //~ }))
-        //~ },
+
         //~ (ParserTest) { 
             //~ .name = str("Operator prefix 1", a),
             //~ .input = str("a + b*c", a),
@@ -470,7 +469,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
             //~ )
         //~ },
         //~ (ParserTest) { 
-            //~ .name = str("Operator airthmetic 1", a),
+            //~ .name = str("Operator arithmetic 1", a),
             //~ .input = str("(a + (b - c % 2)^11)", a),
             //~ .imports = {(Import){"foo", 3}},
             //~ .expectedOutput = buildParser(((Node[]) 
@@ -927,7 +926,7 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodScope, .payload2 = 11, .startByte = 30, .lenBytes = 15 },
                 
                 (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 31, .lenBytes = 3 },
-                (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 31, .lenBytes = 1 },
+                (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 31, .lenBytes = 1 }, // x
                 (Node){ .tp = nodInt, .payload2 = 1, .startByte = 33, .lenBytes = 1 },
                 
                 (Node){ .tp = nodLoopCond, .payload1 = slStmt, .payload2 = 4, .startByte = 20, .lenBytes = 9 },
@@ -943,7 +942,75 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
 
             }),
             ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
-        )
+        ),
+        createTest(
+            s("Loop with two complex initializers"),
+            s("(.f f Int()\n"
+              "    (.loop (< x 101) (x 7 y (>> 5 x))\n"
+              "        print x))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .payload1 = 0, .payload2 = 21, .lenBytes = 67 },
+                (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 4, .lenBytes = 1 }, // f
+                (Node){ .tp = nodScope, .payload2 = 19, .startByte = 9, .lenBytes = 58 }, // function body
+                
+                (Node){ .tp = nodLoop, .payload1 = slScope, .payload2 = 18, .startByte = 16, .lenBytes = 50 },                
+                (Node){ .tp = nodScope, .payload2 = 17, .startByte = 33, .lenBytes = 33 },
+                
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 34, .lenBytes = 3 },
+                (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 34, .lenBytes = 1 },  // x
+                (Node){ .tp = nodInt, .payload2 = 7, .startByte = 36, .lenBytes = 1 },
+                (Node){ .tp = nodAssignment, .payload2 = 5, .startByte = 38, .lenBytes = 10 },
+                (Node){ .tp = nodBinding, .payload1 = 2, .startByte = 38, .lenBytes = 1 },  // y
+                (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 40, .lenBytes = 8 },
+                (Node){ .tp = nodCall, .payload1 = opTBitshiftRight + M, .payload2 = 2, .startByte = 41, .lenBytes = 2 },
+                (Node){ .tp = nodInt, .payload2 = 5, .startByte = 44, .lenBytes = 1 },
+                (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 46, .lenBytes = 1 }, // x                
+                
+                (Node){ .tp = nodLoopCond, .payload1 = slStmt, .payload2 = 4, .startByte = 23, .lenBytes = 9 },
+                (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 23, .lenBytes = 9 },
+                (Node){ .tp = nodCall, .payload1 = opTLessThan + M, .payload2 = 2, .startByte = 24, .lenBytes = 1 },
+                (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 26, .lenBytes = 1 }, // x
+                (Node){ .tp = nodInt, .payload2 = 101, .startByte = 28, .lenBytes = 3 },
+                
+                (Node){ .tp = nodExpr, .payload2 = 2, .startByte = 58, .lenBytes = 7 },
+                (Node){ .tp = nodCall, .payload1 = countOperators + 1 + M, .payload2 = 1, // + 1 because count was taken by "Int"
+                        .startByte = 58, .lenBytes = 5 }, // print
+                (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 64, .lenBytes = 1 }      // x
+
+            }),
+            ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
+        ),
+        createTest(
+            s("Loop without initializers"),
+            s("(.f f Int()\n"
+              "    x = 4\n"
+              "    (.loop (< x 101) \n"
+              "        print x))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .payload1 = 0, .payload2 = 15, .lenBytes = 61 },
+                (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 4, .lenBytes = 1 }, // f
+                (Node){ .tp = nodScope, .payload2 = 13, .startByte = 9, .lenBytes = 52 }, // function body
+
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 16, .lenBytes = 5 },
+                (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 16, .lenBytes = 1 },  // x
+                (Node){ .tp = nodInt, .payload2 = 4, .startByte = 20, .lenBytes = 1 },
+                
+                (Node){ .tp = nodLoop, .payload1 = slScope, .payload2 = 9, .startByte = 26, .lenBytes = 34 },                
+                (Node){ .tp = nodScope, .payload2 = 8, .startByte = 52, .lenBytes = 8 },
+                
+                (Node){ .tp = nodLoopCond, .payload1 = slStmt, .payload2 = 4, .startByte = 33, .lenBytes = 9 },
+                (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 33, .lenBytes = 9 },
+                (Node){ .tp = nodCall, .payload1 = opTLessThan + M, .payload2 = 2, .startByte = 34, .lenBytes = 1 },
+                (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 36, .lenBytes = 1 }, // x
+                (Node){ .tp = nodInt, .payload2 = 101, .startByte = 38, .lenBytes = 3 },
+                
+                (Node){ .tp = nodExpr, .payload2 = 2, .startByte = 52, .lenBytes = 7 },
+                (Node){ .tp = nodCall, .payload1 = 1 + N, .payload2 = 1, .startByte = 52, .lenBytes = 5 }, // print
+                (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 58, .lenBytes = 1 }      // x
+
+            }),
+            ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
+        ),        
     }));
 }
 

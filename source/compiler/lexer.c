@@ -628,7 +628,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
     Int lenBytes = lx->i - realStartByte;
     Int lenString = lx->i - startByte;
         
-    if (wordType == tokAtWord || firstByte < aALower || firstByte > aYLower) {
+    if (firstByte < aALower || firstByte > aYLower) {
         wrapInAStatementStarting(startByte, lx, inp);
         Int uniqueStringInd = addStringStore(inp, startByte, lenBytes, lx->stringTable, lx->stringStore);
         add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
@@ -677,28 +677,14 @@ private void lexWord(Lexer* lx, Arr(byte) inp) {
     wordInternal(tokWord, lx, inp);
 }
 
-
-private void lexAtWord(Lexer* lx, Arr(byte) inp) {
-    wrapInAStatement(lx, inp);
-    checkPrematureEnd(2, lx);
-    lx->i++; // CONSUME the "@" symbol
-    wordInternal(tokAtWord, lx, inp);
-}
-
 /** 
  * The dot is a statement separator
  */
 private void lexDot(Lexer* lx, Arr(byte) inp) {
-    if (lx->i < lx->inpLength - 1) {
-        if (isLetter(NEXT_BT)) {
-            lx->i++; // CONSUME the dot
-            wordInternal(tokFuncWord, lx, inp);
-            return;
-        } else if (NEXT_BT == aParenLeft) {
-            openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
-            lx->i += 2; // CONSUME the ".("
-            return;
-        }
+    if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {        
+        lx->i++; // CONSUME the dot
+        wordInternal(tokDotWord, lx, inp);
+        return;        
     }
     if (!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope) {
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
@@ -1025,14 +1011,13 @@ void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "word", ".word", "@word", ".call", "operator", "dispose", 
-    ":", "(.", "stmt", "(", "(:", "accessor(", "funcExpr", "=", ":=", "mutation", "=>", "else",
+    "word", ".word", "operator", "dispose", 
+    ":", "(.", "stmt", "(", "(:", "=", ":=", "mutation", "=>", "else",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "each", "embed", "export", "exposePriv", "fn", "interface", 
-    "lambda", "package", "return", "struct", "try", "yield",
+    "lambda", "meta", "package", "return", "struct", "try", "yield",
     "if", "ifPr", "match", "impl", "loop"
 };
-
 
 void printLexer(Lexer* a) {
     if (a->wasError) {
@@ -1105,7 +1090,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     }
     p[aUnderscore] = lexWord;
     p[aDot] = &lexDot;
-    p[aAt] = &lexAtWord;
     p[aColon] = &lexColon;
     p[aEqual] = &lexEqual;
 
@@ -1204,18 +1188,19 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[28] = (OpDef){ .name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
     p[29] = (OpDef){ .name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 } };
     p[30] = (OpDef){ .name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 } };
-    p[31] = (OpDef){ .name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0 }, .assignable = true, .overloadable = true };    
+    p[31] = (OpDef){ .name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0 }, .assignable = true, .overloadable = true };
     p[32] = (OpDef){ .name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0 }, .assignable = true, .overloadable = true };
     p[33] = (OpDef){ .name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 } };
     p[34] = (OpDef){ .name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
     p[35] = (OpDef){ .name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[36] = (OpDef){ .name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0 }, .assignable = true, .overloadable = true };    
-    p[37] = (OpDef){ .name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0 }, .assignable = true, .overloadable = true };
-    p[38] = (OpDef){ .name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true, };
-    p[39] = (OpDef){ .name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0 } };
-    p[40] = (OpDef){ .name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 } };
-    p[41] = (OpDef){ .name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true, };
-    p[42] = (OpDef){ .name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 } };
+    p[36] = (OpDef){ .name=s("@"),    .arity=1, .bytes={aAt, 0, 0, 0 } };
+    p[37] = (OpDef){ .name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0 }, .assignable = true, .overloadable = true };
+    p[38] = (OpDef){ .name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0 }, .assignable = true, .overloadable = true };
+    p[39] = (OpDef){ .name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0 }, .assignable=true, };
+    p[40] = (OpDef){ .name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0 } };
+    p[41] = (OpDef){ .name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 } };
+    p[42] = (OpDef){ .name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true, };
+    p[43] = (OpDef){ .name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 } };
     return result;
 }
 

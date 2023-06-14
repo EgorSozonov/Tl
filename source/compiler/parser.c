@@ -195,11 +195,13 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Parser* 
         pr->i++; // CONSUME the single item within parens
     } else {
         exprCountArity(arity, pr->i + parenTok.payload2, tokens, pr);
+        
         if (firstTok.tp == tokWord || firstTok.tp == tokOperator) {
             Int mbBindingId = -1;
             if (firstTok.tp == tokWord) {
                 mbBindingId = pr->activeBindings[firstTok.payload2];
             } else if (firstTok.tp == tokOperator) {
+                VALIDATE(*arity == (*pr->parDef->operators)[firstTok.payload1].arity, errorOperatorWrongArity)
                 mbBindingId = firstTok.payload1;
             }
             
@@ -569,7 +571,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
     Int sentinelLeftSide = calcSentinel(tokLeftSide, indLeftSide); 
 
     Int startOfScope = sentinelStmt;
-    Int startByteScope = -1;
+    Int startByteScope = tokens[startOfScope].startByte;
     Int indRightSide = -1;
     if (sentinelLeftSide < sentinelStmt) {
         indRightSide = sentinelLeftSide;
@@ -592,25 +594,27 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
     if (indRightSide > -1) {
         pr->i = indRightSide + 1;
         while (pr->i < sentinelStmt) {
-            Token tokBinding = tokens[pr->i];
-            VALIDATE(tokBinding.tp = tokWord, errorLoopSyntaxError)            
-            Token tokExpr = tokens[pr->i + 1];
-            VALIDATE(tokExpr.tp < firstPunctuationTokenType || tokExpr.tp == tokStmt, errorLoopSyntaxError)
-            Int initializationSentinel = calcSentinel(tokExpr, pr->i + 1);
+            Token binding = tokens[pr->i];
+            VALIDATE(binding.tp = tokWord, errorLoopSyntaxError)
             
-            Int bindingId = createBinding(tokBinding, ((Binding){bndMut}), pr);
+            Token expr = tokens[pr->i + 1];
+            
+            VALIDATE(expr.tp < firstPunctuationTokenType || expr.tp == tokParens, errorLoopSyntaxError)
+            
+            Int initializationSentinel = calcSentinel(expr, pr->i + 1);
+            Int bindingId = createBinding(binding, ((Binding){bndMut}), pr);
             Int indBindingSpan = pr->nextInd;
             addNode((Node){.tp = nodAssignment, .payload2 = initializationSentinel - pr->i,
-                           .startByte = tokBinding.startByte,
-                           .lenBytes = tokExpr.lenBytes + tokExpr.startByte - tokBinding.startByte}, pr);
+                           .startByte = binding.startByte,
+                           .lenBytes = expr.lenBytes + expr.startByte - binding.startByte}, pr);
             addNode((Node){.tp = nodBinding, .payload1 = bindingId,
-                           .startByte = tokBinding.startByte, .lenBytes = tokBinding.lenBytes}, pr);
+                           .startByte = binding.startByte, .lenBytes = binding.lenBytes}, pr);
                         
-            if (tokExpr.tp == tokStmt) {
+            if (expr.tp == tokParens) {
                 pr->i += 2;
-                parseExpr(tokExpr, tokens, pr);
+                parseExpr(expr, tokens, pr);
             } else {
-                exprSingleItem(tokExpr, pr);
+                exprSingleItem(expr, pr);
             }
             setSpanLength(indBindingSpan, pr);
             
@@ -674,7 +678,6 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokScope]      = &parseScope;
     p[tokStmt]       = &parseExpr;
     p[tokParens]     = &parseErrorBareAtom;
-    p[tokAccessor]   = &parseErrorBareAtom;
     p[tokAssignment] = &parseAssignment;
     p[tokReassign]   = &parseReassignment;
     p[tokMutation]   = &parseMutation;

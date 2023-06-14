@@ -50,7 +50,7 @@ extern const byte maxInt[19];
 extern const byte maximumPreciselyRepresentedFloatingInt[16];
 
 /** All the symbols an operator may start with. The '-' is absent because it's handled by 'lexMinus' */
-#define countOperatorStartSymbols 15
+#define countOperatorStartSymbols 16
 extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 /**
@@ -68,56 +68,53 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 // This group requires analysis in the parser
 #define tokWord         6      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
-#define tokDotWord      7      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
-#define tokAtWord       8      // "@annotation", payloads same as tokWord
-#define tokFuncWord     9      // ".funcName", payloads same as tokWord
-#define tokOperator    10      // payload1 = OperatorToken, one of the "opT" constants below
-#define tokDispose     11
+#define tokDotWord      7      // ".fieldName", payload's the same as tokWord
+#define tokOperator     8      // payload1 = OperatorToken, one of the "opT" constants below
+#define tokDispose      9
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon       12 
+#define tokColon       10 
 
 // Punctuation (inner node) Token types
-#define tokScope       13       // denoted by (.)
-#define tokStmt        14
-#define tokParens      15
-#define tokData        16       // data initializer, like (: 1 2 3)
-#define tokAccessor    17       // data accessor, like array(1 2)
-#define tokFuncExpr    18       // the ".(foo .bar)" kind of thing
-#define tokAssignment  19       // payload1 = 1 if mutable assignment, 0 if immutable 
-#define tokReassign    20       // :=
-#define tokMutation    21       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
-#define tokArrow       22       // not a real scope, but placed here so the parser can dispatch on it
-#define tokElse        23       // not a real scope, but placed here so the parser can dispatch on it
+#define tokScope       11       // denoted by (.)
+#define tokStmt        12
+#define tokParens      13
+#define tokData        14       // data initializer, like (: 1 2 3)
+#define tokAssignment  15       // payload1 = 1 if mutable assignment, 0 if immutable 
+#define tokReassign    16       // :=
+#define tokMutation    17       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokArrow       18       // not a real scope, but placed here so the parser can dispatch on it
+#define tokElse        19       // not a real scope, but placed here so the parser can dispatch on it
  
 // Single-shot core syntax forms. payload1 = spanLevel
-#define tokAlias       24      
-#define tokAssert      25      
-#define tokAssertDbg   26     
-#define tokAwait       27      
-#define tokBreak       28      
-#define tokCatch       29       // paren "(catch e. e .print)"
-#define tokContinue    30       // noParen
-#define tokDefer       31
-#define tokEach        32
-#define tokEmbed       33       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      34       // paren
-#define tokExposePriv  35       // paren
-#define tokFnDef       36       // specialCase
-#define tokIface       37       
-#define tokLambda      38
-#define tokPackage     39       // for single-file packages
-#define tokReturn      40
-#define tokStruct      41       
-#define tokTry         42       // early exit
-#define tokYield       43       
+#define tokAlias       20      
+#define tokAssert      21      
+#define tokAssertDbg   22     
+#define tokAwait       23      
+#define tokBreak       24      
+#define tokCatch       25       // paren "(catch e. e .print)"
+#define tokContinue    26       // noParen
+#define tokDefer       27
+#define tokEach        28
+#define tokEmbed       29       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      30       // paren
+#define tokExposePriv  31       // paren
+#define tokFnDef       32       // specialCase
+#define tokIface       33       
+#define tokLambda      34
+#define tokMeta        35
+#define tokPackage     36       // for single-file packages
+#define tokReturn      37
+#define tokStruct      38       
+#define tokTry         39       // early exit
+#define tokYield       40       
 
 // Resumable core forms
-#define tokIf          44    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
-#define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       46    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        47    // "(-impl " 
-#define tokLoop        48    // "(-loop "
+#define tokIf          41    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
+#define tokIfPr        42    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       43    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        44    // "(-impl " 
+#define tokLoop        45    // "(-loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 
@@ -137,7 +134,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define reservedOr      4
 
 /** Span levels */
-#define slScope      1 // scopes (denoted by brackets): newlines and commas just have no effect in them
+#define slScope         1 // scopes (denoted by brackets): newlines and commas just have no effect in them
 #define slParenMulti    2 // things like "(if)": they're multiline but they cannot contain any brackets
 #define slStmt          3 // single-line statements: newlines and commas break 'em
 #define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
@@ -151,8 +148,8 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 /** Count of lexical operators, i.e. things that are lexed as operator tokens.
  * must be equal to the count of following constants
  */ 
-#define countLexOperators   40
-#define countOperators      43 // count of things that are stored as operators, regardless of how they are lexed
+#define countLexOperators   41
+#define countOperators      44 // count of things that are stored as operators, regardless of how they are lexed
 #define opTNotEqual          0 // !=
 #define opTBoolNegation      1 // !
 #define opTSize              2 // #
@@ -189,13 +186,14 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define opTGreaterThan      33 // >
 #define opTNullCoalesce     34 // ?:   null coalescing operator
 #define opTQuestionMark     35 // ?    nullable type operator
-#define opTExponentExt      36 // ^.   exponentiation extended
-#define opTExponent         37 // ^    exponentiation
-#define opTBoolOr           38 // ||   bitwise or
-#define opTXor              39 // |    bitwise xor
-#define opTAnd              40
-#define opTOr               41
-#define opTNegation         42
+#define opTAccessor         36 // @
+#define opTExponentExt      37 // ^.   exponentiation extended
+#define opTExponent         38 // ^    exponentiation
+#define opTBoolOr           39 // ||   bitwise or
+#define opTXor              40 // |    bitwise xor
+#define opTAnd              41
+#define opTOr               42
+#define opTNegation         43
 
 /** Reserved words of Tl in ASCII byte form */
 #define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)

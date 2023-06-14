@@ -51,51 +51,50 @@ extern const char errorTemp[];
 #define nodCall         7      // payload1 = index of binding, payload2 = arity
 #define nodBinding      8      // payload1 = index of binding
 #define nodTypeId       9      // payload1 = index of binding
-#define nodAnnotation  10      // "@annotation"
-#define nodAnd         11
-#define nodOr          12
+#define nodAnd         10
+#define nodOr          11
 
 
 // Punctuation (inner node)
-#define nodScope       13       // (: This is resumable but trivially so, that's why it's not grouped with the others
-#define nodExpr        14
-#define nodAccessor    15
-#define nodAssignment  16       // payload1 = 1 if mutable assignment, 0 if immutable
-#define nodReassign    17       // :=
-#define nodMutation    18       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define nodScope       12       // (: This is resumable but trivially so, that's why it's not grouped with the others
+#define nodExpr        13
+#define nodAssignment  14       // payload1 = 1 if mutable assignment, 0 if immutable
+#define nodReassign    15       // :=
+#define nodMutation    16       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
 
 
 // Single-shot core syntax forms
-#define nodAlias       19       
-#define nodAssert      20       
-#define nodAssertDbg   21       
-#define nodAwait       22       
-#define nodBreak       23       
-#define nodCatch       24       // "(catch e. e,print)"
-#define nodContinue    25       
-#define nodDefer       26       
-#define nodEach        27       
-#define nodEmbed       28       // noParen. Embed a text file as a string literal, or a binary resource file
-#define nodExport      29       
-#define nodExposePriv  30       
-#define nodFnDef       31       // payload1 = index of binding
-#define nodIface       32
-#define nodLambda      33       
-#define nodPackage     34       // for single-file packages
-#define nodReturn      35       
-#define nodStruct      36       
-#define nodTry         37       
-#define nodYield       38       
-#define nodIfClause    39       // payload1 = number of tokens in the left side of the clause
-#define nodElse        40
-#define nodLoop        41       //
-#define nodLoopCond    42
+#define nodAlias       17       
+#define nodAssert      18       
+#define nodAssertDbg   19       
+#define nodAwait       20       
+#define nodBreak       21       
+#define nodCatch       22       // "(catch e. e,print)"
+#define nodContinue    23       
+#define nodDefer       24       
+#define nodEach        25       
+#define nodEmbed       26       // noParen. Embed a text file as a string literal, or a binary resource file
+#define nodExport      27       
+#define nodExposePriv  28       
+#define nodFnDef       29       // payload1 = index of binding
+#define nodIface       30
+#define nodLambda      31
+#define nodMeta        32       
+#define nodPackage     33       // for single-file packages
+#define nodReturn      34       
+#define nodStruct      35       
+#define nodTry         36       
+#define nodYield       37       
+#define nodIfClause    38       // payload1 = number of tokens in the left side of the clause
+#define nodElse        39
+#define nodLoop        40       //
+#define nodLoopCond    41
 
 // Resumable core forms
-#define nodIf          43       // paren
-#define nodIfPr        44       // like if, but every branch is a value compared using custom predicate
-#define nodImpl        45       
-#define nodMatch       46       // pattern matching on sum type tag
+#define nodIf          42       // paren
+#define nodIfPr        43       // like if, but every branch is a value compared using custom predicate
+#define nodImpl        44       
+#define nodMatch       45       // pattern matching on sum type tag
 
 
 

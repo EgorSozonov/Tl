@@ -172,28 +172,12 @@ LexerTestSet* wordTests(Arena* a) {
             .expectedOutput = buildLexerWithError(s(errorWordChunkStart), ((Token[]){}))
         },
         (LexerTest) {
-            .name = s("Atword"),
-            .input = s("@a123"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 5 },
-                (Token){ .tp = tokAtWord, .startByte = 0, .lenBytes = 5 }
-            }))
-        },
-        (LexerTest) {
-            .name = s("At-reserved word"),
-            .input = s("@if"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 3 },
-                (Token){ .tp = tokAtWord, .startByte = 0, .lenBytes = 3 }
-            }))
-        },
-        (LexerTest) {
             .name = s("Dot word"),
             .input = s("a .func"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 2, .startByte = 0, .lenBytes = 7 },
                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 0, .lenBytes = 1 },
-                (Token){ .tp = tokFuncWord, .payload2 = 1, .startByte = 2, .lenBytes = 5 }
+                (Token){ .tp = tokDotWord, .payload2 = 1, .startByte = 2, .lenBytes = 5 }
             }))
         },
         (LexerTest) {
@@ -563,14 +547,6 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokStmt,  .payload2 = 1, .startByte = 20, .lenBytes = 3 },                
                 (Token){ .tp = tokWord,  .payload2 = 2, .startByte = 20, .lenBytes = 3 }  // cdr
         }))},             
-        (LexerTest) { .name = s("Data accessor"),
-            .input = s("asdf.(5)"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .payload2 = 3, .lenBytes = 8 },
-                (Token){ .tp = tokWord, .lenBytes = 4 },
-                (Token){ .tp = tokAccessor, .payload2 = 1, .startByte = 4, .lenBytes = 4 },
-                (Token){ .tp = tokInt, .payload2 = 5, .startByte = 6, .lenBytes = 1 }            
-        }))},
         (LexerTest) { .name = s("Parens inside statement"),
             .input = s("foo bar ( asdf )"),
             .expectedOutput = buildLexer(((Token[]){
@@ -700,9 +676,9 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokOperator, .payload1 = opTExponentExt, .startByte = 22, .lenBytes = 2 }
         }))},
         (LexerTest) { .name = s("Operators list"),
-            .input = s("+ - / * ^ && || ' ? ++ >=< >< $ , -"),
+            .input = s("+ - / * ^ && || ' ? ++ >=< >< $ , - @"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .payload2 = 15, .startByte = 0, .lenBytes = 35 },
+                (Token){ .tp = tokStmt, .payload2 = 16, .startByte = 0, .lenBytes = 37 },
                 (Token){ .tp = tokOperator, .payload1 = opTPlus, .startByte = 0, .lenBytes = 1 },
                 (Token){ .tp = tokOperator, .payload1 = opTMinus, .startByte = 2, .lenBytes = 1 },                
                 (Token){ .tp = tokOperator, .payload1 = opTDivBy, .startByte = 4, .lenBytes = 1 },
@@ -717,7 +693,8 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokOperator, .payload1 = opTIntervalExcl, .startByte = 27, .lenBytes = 2 },
                 (Token){ .tp = tokOperator, .payload1 = opTToString, .startByte = 30, .lenBytes = 1 },
                 (Token){ .tp = tokOperator, .payload1 = opTToFloat, .startByte = 32, .lenBytes = 1 },
-                (Token){ .tp = tokOperator, .payload1 = opTMinus, .startByte = 34, .lenBytes = 1 }
+                (Token){ .tp = tokOperator, .payload1 = opTMinus, .startByte = 34, .lenBytes = 1 },
+                (Token){ .tp = tokOperator, .payload1 = opTAccessor, .startByte = 36, .lenBytes = 1 }
         }))},
         (LexerTest) { .name = s("Operator expression"),
             .input = s("a - b"),
