@@ -26,23 +26,23 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
 
 
-/** Validates & creates a new binding and adds it to the current scope */
-Int createBinding(Token bindingToken, Binding b, Parser* pr) {
+/** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
+Int createBinding(Token bindingToken, Entity b, Parser* pr) {
     VALIDATE(bindingToken.tp == tokWord, errorAssignment)
 
     Int mbBinding = pr->activeBindings[bindingToken.payload2];
     VALIDATE(mbBinding == -1, errorAssignmentShadowing)
     
-    pr->bindings[pr->bindNext] = b;
-    pr->bindNext++;
-    if (pr->bindNext == pr->bindCap) {
-        Arr(Binding) newBindings = allocateOnArena(2*pr->bindCap*sizeof(Binding), pr->a);
-        memcpy(newBindings, pr->bindings, pr->bindCap*sizeof(Binding));
-        pr->bindings = newBindings;
-        pr->bindNext++;
-        pr->bindCap *= 2;
+    pr->entities[pr->entNext] = b;
+    pr->entNext++;
+    if (pr->entNext == pr->entCap) {
+        Arr(Entity) newBindings = allocateOnArena(2*pr->entCap*sizeof(Entity), pr->a);
+        memcpy(newBindings, pr->entities, pr->entCap*sizeof(Entity));
+        pr->entities = newBindings;
+        pr->entNext++;
+        pr->entCap *= 2;
     }
-    Int newBindingId = pr->bindNext - 1;
+    Int newBindingId = pr->entNext - 1;
     Int nameId = bindingToken.payload2;
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (pr->scopeStack->length > 0) {
@@ -54,23 +54,26 @@ Int createBinding(Token bindingToken, Binding b, Parser* pr) {
     return newBindingId;
 }
 
+void encounterOverload() {
+}
 
-Int importBinding(Int nameId, Binding b, Parser* pr) {
+
+Int importBinding(Int nameId, Entity b, Parser* pr) {
     if (nameId > -1) {
         Int mbBinding = pr->activeBindings[nameId];
         VALIDATE(mbBinding == -1, errorAssignmentShadowing)
     }
 
-    pr->bindings[pr->bindNext] = b;
-    pr->bindNext++;
-    if (pr->bindNext == pr->bindCap) {
-        Arr(Binding) newBindings = allocateOnArena(2*pr->bindCap*sizeof(Binding), pr->a);
-        memcpy(newBindings, pr->bindings, pr->bindCap*sizeof(Binding));
-        pr->bindings = newBindings;
-        pr->bindNext++;
-        pr->bindCap *= 2;
+    pr->entities[pr->entNext] = b;
+    pr->entNext++;
+    if (pr->entNext == pr->entCap) {
+        Arr(Entity) newBindings = allocateOnArena(2*pr->entCap*sizeof(Entity), pr->a);
+        memcpy(newBindings, pr->entities, pr->entCap*sizeof(Entity));
+        pr->entities = newBindings;
+        pr->entNext++;
+        pr->entCap *= 2;
     }
-    Int newBindingId = pr->bindNext - 1;
+    Int newBindingId = pr->entNext - 1;
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (pr->scopeStack->length > 0) {
             addBinding(nameId, newBindingId, pr->activeBindings, pr->scopeStack); // adds it to the ScopeStack
@@ -349,7 +352,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     Int sentinelToken = pr->i + tok.payload2;
 
     Token bindingToken = tokens[pr->i];
-    Int newBindingId = createBinding(bindingToken, (Binding){.flavor = bndMut }, pr);
+    Int newBindingId = createBinding(bindingToken, (Entity){.flavor = bndMut }, pr);
 
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
          pr->backtrack);
@@ -406,7 +409,15 @@ private void parseAwait(Token tok, Arr(Token) tokens, Parser* pr) {
 
 
 private void parseBreak(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
+    VALIDATE(tok.payload2 <= 1, errorBreakContinueTooComplex);
+    if (tok.payload2 == 1) {
+        Token nextTok = tokens[pr->i];
+        VALIDATE(nextTok.tp == tokInt && nextTok.payload1 == 0 && nextTok.payload2 > 0, errorBreakContinueInvalidDepth)
+        addNode((Node){.tp = nodBreak, .payload1 = nextTok.payload2, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+        pr->i++; // CONSUME the Int after the "break"
+    } else {
+        addNode((Node){.tp = nodBreak, .payload1 = 1, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    }    
 }
 
 
@@ -416,7 +427,15 @@ private void parseCatch(Token tok, Arr(Token) tokens, Parser* pr) {
 
 
 private void parseContinue(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
+    VALIDATE(tok.payload2 <= 1, errorBreakContinueTooComplex);
+    if (tok.payload2 == 1) {
+        Token nextTok = tokens[pr->i];
+        VALIDATE(nextTok.tp == tokInt && nextTok.payload1 == 0 && nextTok.payload2 > 0, errorBreakContinueInvalidDepth)
+        addNode((Node){.tp = nodContinue, .payload1 = nextTok.payload2, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+        pr->i++; // CONSUME the Int after the "continue"
+    } else {
+        addNode((Node){.tp = nodContinue, .payload1 = 1, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
+    }    
 }
 
 
@@ -602,7 +621,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
             VALIDATE(expr.tp < firstPunctuationTokenType || expr.tp == tokParens, errorLoopSyntaxError)
             
             Int initializationSentinel = calcSentinel(expr, pr->i + 1);
-            Int bindingId = createBinding(binding, ((Binding){bndMut}), pr);
+            Int bindingId = createBinding(binding, ((Entity){bndMut}), pr);
             Int indBindingSpan = pr->nextInd;
             addNode((Node){.tp = nodAssignment, .payload2 = initializationSentinel - pr->i,
                            .startByte = binding.startByte,
@@ -687,9 +706,9 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokAssert]     = &parseAssert;
     p[tokAssertDbg]  = &parseAssertDbg;
     p[tokAwait]      = &parseAlias;
-    p[tokBreak]      = &parseAlias;
+    p[tokBreak]      = &parseBreak;
     p[tokCatch]      = &parseAlias;
-    p[tokContinue]   = &parseAlias;
+    p[tokContinue]   = &parseContinue;
     p[tokDefer]      = &parseAlias;
     p[tokEmbed]      = &parseAlias;
     p[tokExport]     = &parseAlias;
@@ -733,7 +752,7 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 }
 
 
-void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) {
+void importBindings(Arr(EntityImport) bindings, Int countBindings, Parser* pr) {
     for (int i = 0; i < countBindings; i++) {
         Int mbNameId = getStringStore(pr->text->content, bindings[i].name, pr->stringTable, pr->stringStore);
         if (mbNameId > -1) {           
@@ -742,18 +761,18 @@ void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr) 
     }
 }
 
-/* Bindings for the built-in operators, types, functions. */
+/* Entitys for the built-in operators, types, functions. */
 void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
     for (int i = 0; i < countOperators; i++) {
-        importBinding(-1, (Binding){ .flavor = bndCallable}, pr);
+        importBinding(-1, (Entity){ .flavor = bndCallable}, pr);
     }
-    BindingImport builtins[4] =  {
-        (BindingImport) { .name = str("Int", pr->a),    .binding = (Binding){ .flavor = bndType} },
-        (BindingImport) { .name = str("Float", pr->a),    .binding = (Binding){ .flavor = bndType} },
-        (BindingImport) { .name = str("String", pr->a), .binding = (Binding){ .flavor = bndType} },
-        (BindingImport) { .name = str("Bool", pr->a),   .binding = (Binding){ .flavor = bndType} }
+    EntityImport builtins[4] =  {
+        (EntityImport) { .name = str("Int", pr->a),    .binding = (Entity){ .flavor = bndType} },
+        (EntityImport) { .name = str("Float", pr->a),    .binding = (Entity){ .flavor = bndType} },
+        (EntityImport) { .name = str("String", pr->a), .binding = (Entity){ .flavor = bndType} },
+        (EntityImport) { .name = str("Bool", pr->a),   .binding = (Entity){ .flavor = bndType} }
     };
-    importBindings(builtins, sizeof(builtins)/sizeof(BindingImport), pr);
+    importBindings(builtins, sizeof(builtins)/sizeof(EntityImport), pr);
 }
 
 
@@ -773,7 +792,7 @@ Parser* createParser(Lexer* lx, Arena* a) {
         .backtrack = createStackParseFrame(16, aBt), .i = 0,
         .stringStore = lx->stringStore,
         .stringTable = lx->stringTable, .strLength = stringTableLength,
-        .bindings = allocateOnArena(sizeof(Binding)*64, a), .bindNext = 0, .bindCap = 64,
+        .entities = allocateOnArena(sizeof(Entity)*64, a), .entNext = 0, .entCap = 64,
         .overloads = allocateOnArena(sizeof(Int)*64, a), .overlNext = 0, .overlCap = 64,
         .activeBindings = allocateOnArena(sizeof(Int)*stringTableLength, a),
         .nodes = allocateOnArena(sizeof(Node)*64, a), .nextInd = 0, .capacity = 64,
@@ -821,7 +840,7 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
             if (fnName.tp != tokWord || fnName.payload1 > 0) { // function name must be a lowercase word
                 throwExc(errorFnNameAndParams);
             }
-            Int newBinding = createBinding(fnName, (Binding){ .flavor = bndCallable }, pr);
+            Int newBinding = createBinding(fnName, (Entity){ .flavor = bndCallable }, pr);
         } 
         pr->i += (tok.payload2 + 1);        
     } 
@@ -829,7 +848,7 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
 
 /** 
  * Parses a top-level function signature.
- * The result is [FnDef BindingName Scope BindingParam1 BindingParam2 ... ]
+ * The result is [FnDef EntityName Scope EntityParam1 EntityParam2 ... ]
  */
 private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
     Int fnSentinel = pr->i + fnDef.payload2 - 1;
@@ -841,11 +860,10 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
 
     // the function's return type, it's optional
     Int fnReturnTypeId = 0;
-    if (lx->tokens[pr->i].tp == tokWord) {
+    if (lx->tokens[pr->i].tp == tokTypeName) {
         Token fnReturnType = lx->tokens[pr->i];
 
-        VALIDATE(fnReturnType.payload1 > 0, errorFnNameAndParams) 
-            else VALIDATE(pr->activeBindings[fnReturnType.payload2] > -1, errorUnknownType)
+        VALIDATE(pr->activeBindings[fnReturnType.payload2] > -1, errorUnknownType)
         fnReturnTypeId = pr->activeBindings[fnReturnType.payload2];
         
         pr->i++; // CONSUME the function return type token
@@ -873,19 +891,19 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
     while (pr->i < paramsSentinel) {
         Token paramName = lx->tokens[pr->i];
         VALIDATE(paramName.tp == tokWord && paramName.payload1 == 0, errorFnNameAndParams)
-        Int newBindingId = createBinding(paramName, (Binding){.flavor = bndImmut}, pr);
+        Int newBindingId = createBinding(paramName, (Entity){.flavor = bndImmut}, pr);
         Node paramNode = (Node){.tp = nodBinding, .payload1 = newBindingId, 
                                 .startByte = paramName.startByte, .lenBytes = paramName.lenBytes };
         pr->i++; // CONSUME a param name
         
         VALIDATE(pr->i < paramsSentinel, errorFnNameAndParams)
         Token paramType = lx->tokens[pr->i];
-        if (paramType.payload1 < 1) {
-            throwExc(errorFnNameAndParams);
-        }
+        VALIDATE(paramType.tp == tokTypeName, errorFnNameAndParams)
+        
         Int typeBindingId = pr->activeBindings[paramType.payload2]; // the binding of this parameter's type
         VALIDATE(typeBindingId > -1, errorUnknownType)
-        pr->bindings[newBindingId].typeId = typeBindingId;
+        
+        pr->entities[newBindingId].typeId = typeBindingId;
         pr->i++; // CONSUME the param's type name
         
         addNode(paramNode, pr);        

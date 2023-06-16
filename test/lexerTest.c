@@ -123,10 +123,10 @@ LexerTestSet* wordTests(Arena* a) {
         },
         (LexerTest) {
             .name = s("Word correct capitalization 1"),
-            .input = s("Asdf-abc"),
+            .input = s("asdf-Abc"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 8  },
-                (Token){ .tp = tokWord, .startByte = 0, .lenBytes = 8  }
+                (Token){ .tp = tokTypeName, .startByte = 0, .lenBytes = 8  }
             }))
         },
         (LexerTest) {
@@ -141,8 +141,8 @@ LexerTestSet* wordTests(Arena* a) {
             .name = s("Word correct capitalization 3"),
             .input = s("asdf-Abcd"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt,                .payload2 = 1, .startByte = 0, .lenBytes = 9 },
-                (Token){ .tp = tokWord, .payload1 = 1, .startByte = 0, .lenBytes = 9 }
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 9 },
+                (Token){ .tp = tokTypeName, .startByte = 0, .lenBytes = 9 }
             }))
         },
         (LexerTest) {
@@ -157,8 +157,8 @@ LexerTestSet* wordTests(Arena* a) {
             .name = s("Word starts with underscore and capital letter"),
             .input = s("_Abc"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt,                .payload2 = 1, .startByte = 0, .lenBytes = 4 },
-                (Token){ .tp = tokWord, .payload1 = 1, .startByte = 0, .lenBytes = 4 }
+                (Token){ .tp = tokStmt, .payload2 = 1, .startByte = 0, .lenBytes = 4 },
+                (Token){ .tp = tokTypeName, .startByte = 0, .lenBytes = 4 }
             }))
         },
         (LexerTest) {
@@ -596,11 +596,11 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokScope, .payload2 = 16,  .startByte = 0,  .lenBytes = 59 },
                 (Token){ .tp = tokStmt,  .payload2 = 9,   .startByte = 7,  .lenBytes = 21 },
                 (Token){ .tp = tokWord,  .payload2 = 0,   .startByte = 7,  .lenBytes = 4 },     //asdf 
-                (Token){ .tp = tokParens,.payload2 = 7,  .startByte = 12, .lenBytes = 16 },
+                (Token){ .tp = tokParens, .payload2 = 7, .startByte = 12, .lenBytes = 16 },
                 (Token){ .tp = tokWord,  .payload2 = 1,   .startByte = 13, .lenBytes = 1 },     // b                
-                (Token){ .tp = tokParens,.payload2 = 5,   .startByte = 15, .lenBytes = 12 },                
-                (Token){ .tp = tokWord,  .payload2 = 2,   .startByte = 16, .lenBytes = 1 },    // d
-                (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 3, .startByte = 18, .lenBytes = 2 },  // Ef              
+                (Token){ .tp = tokParens, .payload2 = 5,  .startByte = 15, .lenBytes = 12 },                
+                (Token){ .tp = tokWord,  .payload2 = 2,   .startByte = 16, .lenBytes = 1 },     // d
+                (Token){ .tp = tokTypeName, .payload2 = 3, .startByte = 18, .lenBytes = 2 },  // Ef              
                 (Token){ .tp = tokParens, .payload2 = 2,  .startByte = 21, .lenBytes = 5 },
                 (Token){ .tp = tokWord,  .payload2 = 4,   .startByte = 22, .lenBytes = 1 },    // y
                 (Token){ .tp = tokWord,  .payload2 = 5,   .startByte = 24, .lenBytes = 1 },    // z
@@ -616,9 +616,9 @@ LexerTestSet* punctuationTests(Arena* a) {
             .input = s("Foo : Bar 4"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .payload2 = 4, .startByte = 0, .lenBytes = 11 },
-                (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 0, .startByte = 0, .lenBytes = 3 },
+                (Token){ .tp = tokTypeName, .payload2 = 0, .startByte = 0, .lenBytes = 3 },
                 (Token){ .tp = tokParens, .payload2 = 2, .startByte = 4, .lenBytes = 7 },                
-                (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 6, .lenBytes = 3 },
+                (Token){ .tp = tokTypeName, .payload2 = 1, .startByte = 6, .lenBytes = 3 },
                 (Token){ .tp = tokInt, .payload2 = 4, .startByte = 10, .lenBytes = 1 }
         }))},           
         (LexerTest) { .name = s("Colon punctuation 2"),
@@ -917,14 +917,14 @@ LexerTestSet* coreFormTests(Arena* a) {
                  
                  (Token){ .tp = tokStmt, .payload2 = 8, .startByte = 4, .lenBytes = 23 },
                  (Token){ .tp = tokParens, .payload2 = 7, .startByte = 4, .lenBytes = 23 },
-                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 5, .lenBytes = 3 },                // foo
-                 (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 9, .lenBytes = 3 }, // Int
+                 (Token){ .tp = tokWord, .payload2 = 0, .startByte = 5, .lenBytes = 3 },     // foo
+                 (Token){ .tp = tokTypeName, .payload2 = 1, .startByte = 9, .lenBytes = 3 }, // Int
                  
                  (Token){ .tp = tokParens, .payload2 = 4, .startByte = 13, .lenBytes = 13 },
                  (Token){ .tp = tokWord, .payload2 = 2, .startByte = 15, .lenBytes = 1 }, // x
-                 (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 17, .lenBytes = 3 }, // Int
+                 (Token){ .tp = tokTypeName, .payload2 = 1, .startByte = 17, .lenBytes = 3 }, // Int
                  (Token){ .tp = tokWord, .payload2 = 3, .startByte = 21, .lenBytes = 1 }, // y
-                 (Token){ .tp = tokWord, .payload1 = 1, .payload2 = 1, .startByte = 23, .lenBytes = 3 }, // Int
+                 (Token){ .tp = tokTypeName, .payload2 = 1, .startByte = 23, .lenBytes = 3 }, // Int
                  
                  (Token){ .tp = tokStmt, .payload2 = 3, .startByte = 29, .lenBytes = 5 },
                  (Token){ .tp = tokWord, .payload2 = 2, .startByte = 29, .lenBytes = 1 },                

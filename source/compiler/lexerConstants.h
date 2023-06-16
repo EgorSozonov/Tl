@@ -62,59 +62,61 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokInt          0
 #define tokFloat        1
 #define tokBool         2      // payload2 = value (1 or 0)
-#define tokString       3      
+#define tokString       3
 #define tokUnderscore   4
 #define tokDocComment   5
 
 // This group requires analysis in the parser
 #define tokWord         6      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
-#define tokDotWord      7      // ".fieldName", payload's the same as tokWord
-#define tokOperator     8      // payload1 = OperatorToken, one of the "opT" constants below
-#define tokDispose      9
+#define tokTypeName     7
+#define tokDotWord      8      // ".fieldName", payload's the same as tokWord
+#define tokOperator     9      // payload1 = OperatorToken, one of the "opT" constants below
+#define tokDispose     10
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon       10 
+#define tokColon       11 
 
 // Punctuation (inner node) Token types
-#define tokScope       11       // denoted by (.)
-#define tokStmt        12
-#define tokParens      13
-#define tokData        14       // data initializer, like (: 1 2 3)
-#define tokAssignment  15       // payload1 = 1 if mutable assignment, 0 if immutable 
-#define tokReassign    16       // :=
-#define tokMutation    17       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
-#define tokArrow       18       // not a real scope, but placed here so the parser can dispatch on it
-#define tokElse        19       // not a real scope, but placed here so the parser can dispatch on it
+#define tokScope       12       // denoted by (.)
+#define tokStmt        13
+#define tokParens      14
+#define tokTypeParens  15
+#define tokData        16       // data initializer, like (: 1 2 3)
+#define tokAssignment  17       // payload1 = 1 if mutable assignment, 0 if immutable 
+#define tokReassign    18       // :=
+#define tokMutation    19       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokArrow       20       // not a real scope, but placed here so the parser can dispatch on it
+#define tokElse        21       // not a real scope, but placed here so the parser can dispatch on it
  
 // Single-shot core syntax forms. payload1 = spanLevel
-#define tokAlias       20      
-#define tokAssert      21      
-#define tokAssertDbg   22     
-#define tokAwait       23      
-#define tokBreak       24      
-#define tokCatch       25       // paren "(catch e. e .print)"
-#define tokContinue    26       // noParen
-#define tokDefer       27
-#define tokEach        28
-#define tokEmbed       29       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      30       // paren
-#define tokExposePriv  31       // paren
-#define tokFnDef       32       // specialCase
-#define tokIface       33       
-#define tokLambda      34
-#define tokMeta        35
-#define tokPackage     36       // for single-file packages
-#define tokReturn      37
-#define tokStruct      38       
-#define tokTry         39       // early exit
-#define tokYield       40       
+#define tokAlias       22      
+#define tokAssert      23      
+#define tokAssertDbg   24     
+#define tokAwait       25      
+#define tokBreak       26      
+#define tokCatch       27       // paren "(catch e. e .print)"
+#define tokContinue    28       // noParen
+#define tokDefer       29
+#define tokEach        30
+#define tokEmbed       31       // noParen. Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      32       // paren
+#define tokExposePriv  33       // paren
+#define tokFnDef       34       // specialCase
+#define tokIface       35       
+#define tokLambda      36
+#define tokMeta        37
+#define tokPackage     38       // for single-file packages
+#define tokReturn      39
+#define tokStruct      40       
+#define tokTry         41       // early exit
+#define tokYield       42       
 
 // Resumable core forms
-#define tokIf          41    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
-#define tokIfPr        42    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       43    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        44    // "(-impl " 
-#define tokLoop        45    // "(-loop "
+#define tokIf          43    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
+#define tokIfPr        44    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       45    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        46    // "(-impl " 
+#define tokLoop        47    // "(-loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 

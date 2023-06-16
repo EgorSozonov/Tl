@@ -17,6 +17,8 @@ extern const char errorFnMissingBody[];
 extern const char errorLoopSyntaxError[];
 extern const char errorLoopHeader[];
 extern const char errorLoopEmptyBody[];
+extern const char errorBreakContinueTooComplex[];
+extern const char errorBreakContinueInvalidDepth[];
 extern const char errorDuplicateFunction[];
 extern const char errorExpressionInfixNotSecond[];
 extern const char errorExpressionError[];
@@ -99,7 +101,7 @@ extern const char errorTemp[];
 
 
 
-// Binding flavors
+// Entity flavors
 #define bndMut          0
 #define bndImmut        1
 #define bndCallable     2       // functions

@@ -78,7 +78,7 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
  *  it will be inserted as 1 + (the number of built-in bindings)
  */
 private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int countNodes, 
-                               Arr(BindingImport) bindings, Int countBindings, 
+                               Arr(EntityImport) bindings, Int countBindings, 
                                LanguageDefinition* langDef, Arena* a) {
     Lexer* lx = lexicallyAnalyze(input, langDef, a);
     Parser* initParser     = createParser(lx, a);
@@ -89,8 +89,8 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     
     importBindings(bindings, countBindings, initParser);
     importBindings(bindings, countBindings, expectedParser);
-    initParser->bindZero = initParser->bindNext;
-    expectedParser->bindZero = initParser->bindNext;
+    initParser->entZero = initParser->entNext;
+    expectedParser->entZero = initParser->entNext;
 
     for (Int i = 0; i < countNodes; i++) {
         untt nodeType = nodes[i].tp;
@@ -98,7 +98,7 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
         if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding || nodeType == nodBinding
          || nodeType == nodFnDef) {
             Int expectedBinding = (nodes[i].payload1 < M) 
-                ? (nodes[i].payload1 + expectedParser->bindZero) 
+                ? (nodes[i].payload1 + expectedParser->entZero) 
                 : (nodes[i].payload1 - M);
             addNode((Node){ .tp = nodeType, .payload1 = expectedBinding, .payload2 = nodes[i].payload2, 
                             .startByte = nodes[i].startByte, .lenBytes = nodes[i].lenBytes }, 
@@ -111,7 +111,7 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
 }
 
 #define createTest(name, input, nodes, bindings) createTest0((name), (input), \
-    (nodes), sizeof(nodes)/sizeof(Node), bindings, sizeof(bindings)/sizeof(BindingImport), langDef, a)
+    (nodes), sizeof(nodes)/sizeof(Node), bindings, sizeof(bindings)/sizeof(EntityImport), langDef, a)
 
 /** Creates a test with two parser: one is the init parser (contains all the "imported" bindings)
  *  and one is the output parser (with the bindings and the expected nodes). When the test is run,
@@ -120,7 +120,7 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
  *  it will be inserted as 1 + (the number of built-in bindings)
  */
 private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes, Int countNodes, 
-                               Arr(BindingImport) bindings, Int countBindings, 
+                               Arr(EntityImport) bindings, Int countBindings, 
                                LanguageDefinition* langDef, Arena* a) {
     ParserTest theTest = createTest0(name, input, nodes, countNodes, bindings, countBindings, langDef, a);
     theTest.expectedOutput->wasError = true;
@@ -129,7 +129,7 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
 }
 
 #define createTestWithError(name, errorMessage, input, nodes, bindings) createTestWithError0((name), errorMessage, (input), \
-    (nodes), sizeof(nodes)/sizeof(Node), bindings, sizeof(bindings)/sizeof(BindingImport), langDef, a)    
+    (nodes), sizeof(nodes)/sizeof(Node), bindings, sizeof(bindings)/sizeof(EntityImport), langDef, a)    
 
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
@@ -252,7 +252,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
                     (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 }
             }),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         ),
         createTest(
             s("Double assignment"), 
@@ -267,7 +267,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 7, .lenBytes = 6 }, // second
                     (Node){ .tp = nodId, .payload1 = 0, .payload2 = 0, .startByte = 16, .lenBytes = 1 }
             }),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         ),        
         createTestWithError(
             s("Assignment shadowing error"), 
@@ -280,7 +280,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodBinding, .payload2 = 0, .startByte = 0, .lenBytes = 1 },
                     (Node){ .tp = nodInt,  .payload2 = 12, .startByte = 4, .lenBytes = 2 },
             }),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         )          
     }));
 }
@@ -301,7 +301,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodInt, .payload2 = 2,   .startByte = 11, .lenBytes = 1 },
                     (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 13, .lenBytes = 1 }                    
             })),
-            ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){ .flavor = bndCallable }
+            ((EntityImport[]) {(EntityImport){ .name = s("foo"), .binding = (Entity){ .flavor = bndCallable }
             }})
         ),
         createTest(
@@ -315,8 +315,8 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodId, .payload1 = opTDecrement + M, .startByte = 9, .lenBytes = 2 },  // --
                     (Node){ .tp = nodId, .payload1 = 1 + N, .payload2 = 2, .startByte = 13, .lenBytes = 4 }  // coll
             })),
-            ((BindingImport[]) {(BindingImport){ .name = s("map"), .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("coll"), .binding = (Binding){.flavor = bndImmut }}
+            ((EntityImport[]) {(EntityImport){ .name = s("map"), .binding = (Entity){.flavor = bndCallable }},
+                                (EntityImport){ .name = s("coll"), .binding = (Entity){.flavor = bndImmut }}
             })
         ),
         createTest(
@@ -332,12 +332,12 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodId, .payload1 = N + 1, .payload2 = 2,   .startByte = 12, .lenBytes = 9 },   // dividends
                     (Node){ .tp = nodId, .payload1 = N + 2, .payload2 = 3,   .startByte = 22, .lenBytes = 8 }   // divisors
             })),
-            ((BindingImport[]) {(BindingImport){ .name = s("bimap"), 
-                                                 .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("dividends"), 
-                                                 .binding = (Binding){.flavor = bndImmut }},
-                                (BindingImport){ .name = s("divisors"), 
-                                                 .binding = (Binding){.flavor = bndImmut }}
+            ((EntityImport[]) {(EntityImport){ .name = s("bimap"), 
+                                                 .binding = (Entity){.flavor = bndCallable }},
+                                (EntityImport){ .name = s("dividends"), 
+                                                 .binding = (Entity){.flavor = bndImmut }},
+                                (EntityImport){ .name = s("divisors"), 
+                                                 .binding = (Entity){.flavor = bndImmut }}
             })
         ), 
         createTest(
@@ -352,10 +352,10 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodCall, .payload1 = N + 1, .payload2 = 0, .startByte = 12, .lenBytes = 3 }, // bar
                     (Node){ .tp = nodInt, .payload2 = 3,   .startByte = 17, .lenBytes = 1 }               
             })),
-            ((BindingImport[]) {(BindingImport){ .name = s("foo"), 
-                                     .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("bar"), 
-                                     .binding = (Binding){.flavor = bndCallable }}
+            ((EntityImport[]) {(EntityImport){ .name = s("foo"), 
+                                     .binding = (Entity){.flavor = bndCallable }},
+                                (EntityImport){ .name = s("bar"), 
+                                     .binding = (Entity){.flavor = bndCallable }}
             })
         ),
         createTest(
@@ -371,8 +371,8 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                     (Node){ .tp = nodCall, .payload1 = N + 1, .payload2 = 1, .startByte = 13, .lenBytes = 4 },  // barr
                     (Node){ .tp = nodInt,   .payload2 = 3, .startByte = 18, .lenBytes = 1 }
             })),
-            ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("barr"), .binding = (Binding){.flavor = bndCallable }}
+            ((EntityImport[]) {(EntityImport){ .name = s("foo"), .binding = (Entity){.flavor = bndCallable }},
+                                (EntityImport){ .name = s("barr"), .binding = (Entity){.flavor = bndCallable }}
             })
         ),
         createTest(
@@ -392,9 +392,9 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodCall, .payload1 = N + 2, .payload2 = 1, .startByte = 22, .lenBytes = 6 },  // triple
                 (Node){ .tp = nodInt, .payload2 = 5, .startByte = 29, .lenBytes = 1 }
             })),
-            ((BindingImport[]) {(BindingImport){ .name = s("foo"), .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("buzz"), .binding = (Binding){.flavor = bndCallable }},
-                                (BindingImport){ .name = s("triple"), .binding = (Binding){.flavor = bndCallable }}
+            ((EntityImport[]) {(EntityImport){ .name = s("foo"), .binding = (Entity){.flavor = bndCallable }},
+                                (EntityImport){ .name = s("buzz"), .binding = (Entity){.flavor = bndCallable }},
+                                (EntityImport){ .name = s("triple"), .binding = (Entity){.flavor = bndCallable }}
             })
         ),
         createTest(
@@ -411,7 +411,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodInt, .payload2 = 2, .startByte = 12, .lenBytes = 1 },   
                 (Node){ .tp = nodInt, .payload2 = 3, .startByte = 14, .lenBytes = 1 }
             })),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         ),
         createTestWithError(
             s("Operator arity error"),
@@ -422,7 +422,7 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 0, .lenBytes = 1 }, // x
                 (Node){ .tp = nodExpr,  .startByte = 4, .lenBytes = 10 }
             })),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         )    
     }));
 }
@@ -727,7 +727,7 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodBinding, .payload1 = 3, .startByte = 31, .lenBytes = 1 },  // local a
                 (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 35, .lenBytes = 1 }  // x                
             }),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         ),
         createTest(
             s("Simple function definition 2"),
@@ -748,7 +748,7 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodReturn, .payload2 = 1, .startByte = 44, .lenBytes = 8 },
                 (Node){ .tp = nodId, .payload1 = 3, .payload2 = 5, .startByte = 51, .lenBytes = 1 } // a
             }),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         )
         //~ (ParserTest) { 
             //~ .name = str("Nested function def", a),
@@ -828,7 +828,7 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodCall, .payload1 = countOperators + M, .payload2 = 1, .startByte = 18, .lenBytes = 5 }, // print                
                 (Node){ .tp = nodString, .startByte = 24, .lenBytes = 3 }
             }),
-            ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .binding = (Entity){.flavor = bndCallable }}})
         ),
         createTest(
             s("If with else"),
@@ -849,7 +849,7 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodElse, .payload2 = 1, .startByte = 26, .lenBytes = 4 },
                 (Node){ .tp = nodString, .startByte = 26, .lenBytes = 4 },
             }),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         ),
         createTest(
             s("If with elseif"),
@@ -875,7 +875,7 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodInt, .payload2 = 3, .startByte = 33, .lenBytes = 1 },
                 (Node){ .tp = nodInt, .payload2 = 4, .startByte = 38, .lenBytes = 1 }
             }),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         ),
         createTest(
             s("If with elseif and else"),
@@ -905,7 +905,7 @@ ParserTestSet* ifTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodElse, .payload2 = 1, .startByte = 59, .lenBytes = 3 },
                 (Node){ .tp = nodInt, .payload2 = 100, .startByte = 59, .lenBytes = 3 }
             }),
-            ((BindingImport[]) {})
+            ((EntityImport[]) {})
         ),    
     }));
 }
@@ -939,9 +939,8 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodCall, .payload1 = countOperators + 1 + M, .payload2 = 1, // + 1 because count was taken by "Int"
                         .startByte = 37, .lenBytes = 5 }, // print
                 (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 43, .lenBytes = 1 }      // x
-
             }),
-            ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .binding = (Entity){.flavor = bndCallable }}})
         ),
         createTest(
             s("Loop with two complex initializers"),
@@ -978,7 +977,7 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 64, .lenBytes = 1 }      // x
 
             }),
-            ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .binding = (Entity){.flavor = bndCallable }}})
         ),
         createTest(
             s("Loop without initializers"),
@@ -1009,8 +1008,38 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 58, .lenBytes = 1 }      // x
 
             }),
-            ((BindingImport[]) {(BindingImport){ .name = s("print"), .binding = (Binding){.flavor = bndCallable }}})
-        ),        
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .binding = (Entity){.flavor = bndCallable }}})
+        ),
+        createTest(
+            s("Loop with break and continue"),
+            s("(.f f Int()\n"
+              "    (.loop (< x 101) (x 0)\n"
+              "        break\n"
+              "        continue 3))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .payload1 = 0, .payload2 = 14, .lenBytes = 73 },
+                (Node){ .tp = nodBinding, .payload1 = 0, .startByte = 4, .lenBytes = 1 }, // f
+                (Node){ .tp = nodScope, .payload2 = 12, .startByte = 9, .lenBytes = 64 }, // function body
+                
+                (Node){ .tp = nodLoop, .payload1 = slScope, .payload2 = 11, .startByte = 16, .lenBytes = 56 },
+                
+                (Node){ .tp = nodScope, .payload2 = 10, .startByte = 33, .lenBytes = 39 },
+                
+                (Node){ .tp = nodAssignment, .payload2 = 2, .startByte = 34, .lenBytes = 3 },
+                (Node){ .tp = nodBinding, .payload1 = 1, .startByte = 34, .lenBytes = 1 }, // x
+                (Node){ .tp = nodInt, .payload2 = 0, .startByte = 36, .lenBytes = 1 },
+                
+                (Node){ .tp = nodLoopCond, .payload1 = slStmt, .payload2 = 4, .startByte = 23, .lenBytes = 9 },
+                (Node){ .tp = nodExpr, .payload2 = 3, .startByte = 23, .lenBytes = 9 },
+                (Node){ .tp = nodCall, .payload1 = opTLessThan + M, .payload2 = 2, .startByte = 24, .lenBytes = 1 },
+                (Node){ .tp = nodId, .payload1 = 1, .payload2 = 2, .startByte = 26, .lenBytes = 1 }, // x
+                (Node){ .tp = nodInt, .payload2 = 101, .startByte = 28, .lenBytes = 3 },
+                
+                (Node){ .tp = nodBreak, .payload1 = 1, .startByte = 47, .lenBytes = 5 }, // x
+                (Node){ .tp = nodContinue, .payload1 = 3, .startByte = 61, .lenBytes = 10 }
+            }),
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .binding = (Entity){.flavor = bndCallable }}})
+        ),   
     }));
 }
 

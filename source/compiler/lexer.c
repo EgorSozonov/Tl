@@ -217,8 +217,15 @@ private void addNewLine(Int j, Lexer* lx) {
 }
 
 private void addStatement(untt stmtType, Int startByte, Lexer* lx) {
+    Int lenBytes = 0;
+    // Some types of statements may legitimately consist of 0 tokens; for them, we need to write their lenBytes in the init token
+    if (stmtType == tokBreak) {
+        lenBytes = 5;
+    } else if (stmtType == tokContinue) {
+        lenBytes = 8;
+    }
     push(((BtToken){ .tp = stmtType, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->backtrack);
-    add((Token){ .tp = stmtType, .startByte = startByte}, lx);
+    add((Token){ .tp = stmtType, .startByte = startByte, .lenBytes = lenBytes}, lx);
 }
 
 
@@ -611,18 +618,18 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
             if (isLetter(nextBt) || nextBt == aUnderscore) {
                 lx->i++; // CONSUME the letter or underscore
                 bool isCurrCapitalized = wordChunk(lx, inp);
-                VALIDATE(!wasCapitalized || !isCurrCapitalized, errorWordCapitalizationOrder)
+                VALIDATE(!wasCapitalized, errorWordCapitalizationOrder)
                 wasCapitalized = isCurrCapitalized;
             } else {
                 break;
             }
         } else {
             break;
-        }        
+        }
     }
 
     Int realStartByte = (wordType == tokWord) ? startByte : (startByte - 1); // accounting for the . or @ at the start
-    bool paylCapitalized = wasCapitalized ? 1 : 0;
+    untt finalTokType = wasCapitalized ? tokTypeName : wordType;
 
     byte firstByte = lx->inp->content[startByte];
     Int lenBytes = lx->i - realStartByte;
@@ -631,17 +638,14 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
     if (firstByte < aALower || firstByte > aYLower) {
         wrapInAStatementStarting(startByte, lx, inp);
         Int uniqueStringInd = addStringStore(inp, startByte, lenBytes, lx->stringTable, lx->stringStore);
-        add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
-                     .startByte=realStartByte, .lenBytes=lenBytes }, lx);
+        add((Token){ .tp = finalTokType, .payload2 = uniqueStringInd, .startByte = realStartByte, .lenBytes = lenBytes }, lx);
         return;
     }
     Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lx);
-
     if (mbReservedWord <= 0) {
         wrapInAStatementStarting(startByte, lx, inp);
         Int uniqueStringInd = addStringStore(inp, startByte, lenString, lx->stringTable, lx->stringStore);
-        add((Token){ .tp=wordType, .payload1=paylCapitalized, .payload2 = uniqueStringInd,
-                     .startByte=realStartByte, .lenBytes=lenBytes }, lx);
+        add((Token){ .tp=finalTokType, .payload2 = uniqueStringInd, .startByte = realStartByte, .lenBytes = lenBytes }, lx);
         return;
     }
 
@@ -1011,13 +1015,14 @@ void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Float", "Bool", "String", "_", "DocComment", 
-    "word", ".word", "operator", "dispose", 
-    ":", "(.", "stmt", "(", "(:", "=", ":=", "mutation", "=>", "else",
+    "word", "Type", ".word", "operator", "dispose", 
+    ":", "(.", "stmt", "(", "type(", "(:", "=", ":=", "mutation", "=>", "else",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "each", "embed", "export", "exposePriv", "fn", "interface", 
     "lambda", "meta", "package", "return", "struct", "try", "yield",
     "if", "ifPr", "match", "impl", "loop"
 };
+
 
 void printLexer(Lexer* a) {
     if (a->wasError) {

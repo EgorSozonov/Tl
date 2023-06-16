@@ -43,16 +43,18 @@ typedef struct {
 typedef struct {
     untt flavor : 6;        // mutable, immutable, callable?
     untt typeId : 26;
-    Int defStart;          // start token of the definition
-    Int defSentinel;       // the first ind of token after definition
-    Int extentSentinel;    // the first ind of token after the scope of this binding has ended
-} Binding;
+    Int nameId;
+    bool appendUnderscore;
+    bool emitAsPrefix;
+    bool emitAsOperator;
+    bool emitAsMethod;
+} Entity;
 
 
 typedef struct {
     String* name;
-    Binding binding;
-} BindingImport;
+    Entity binding;
+} EntityImport;
 
 
 typedef void (*ParserFunc)(Token, Arr(Token), Parser*);
@@ -73,7 +75,7 @@ typedef struct {
 // 
 // 1) a = Arena for the results
 // AST (i.e. the resulting code)
-// Bindings
+// Entitys
 // Types
 //
 // 2) aBt = Arena for the temporary stuff (backtrack). Freed after end of parsing
@@ -104,10 +106,10 @@ struct Parser {
     StringStore* stringStore;   // A hash table for quickly deduplicating strings. Points into stringTable 
     Int strLength;              // length of stringTable
         
-    Arr(Binding) bindings;      // growing array of all bindings ever encountered
-    Int bindNext;
-    Int bindCap;
-    Int bindZero;               // the index of the first parsed (as opposed to being built-in or imported) binding
+    Arr(Entity) entities;      // growing array of all bindings ever encountered
+    Int entNext;
+    Int entCap;
+    Int entZero;               // the index of the first parsed (as opposed to being built-in or imported) binding
 
     Arr(Int) overloads;         // growing array of counts of all fn name definitions encountered (for the typechecker to use)
     Int overlNext;
@@ -127,8 +129,8 @@ struct Parser {
 
 ParserDefinition* buildParserDefinitions(LanguageDefinition*, Arena*);
 Parser* createParser(Lexer*, Arena*);
-Int createBinding(Token, Binding, Parser*);
-void importBindings(Arr(BindingImport) bindings, Int countBindings, Parser* pr);
+Int createBinding(Token, Entity, Parser*);
+void importBindings(Arr(EntityImport) bindings, Int countBindings, Parser* pr);
 Parser* parse(Lexer*, Arena*);
 Parser* parseWithParser(Lexer*, Parser*, Arena*);
 void addNode(Node t, Parser* lexer);
