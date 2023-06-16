@@ -114,8 +114,11 @@ struct Parser {
     Arr(Int) overloads;         // growing array of counts of all fn name definitions encountered (for the typechecker to use)
     Int overlNext;
     Int overlCap;    
-    
-    Arr(int) activeBindings;    // current bindings in scope, array of nameId (index into stringTable) -> bindingId
+
+    // Current bindings and overloads in scope. -1 means "not active"
+    // Var & type bindings are nameId (index into stringTable) -> bindingId
+    // Function bindings are nameId -> (-overloadId - 2). So negative values less than -1 mean "function is active"
+    Arr(int) activeBindings;
     
     Arr(Node) nodes; 
     Int capacity;               // current capacity of node storage

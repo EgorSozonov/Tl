@@ -30,20 +30,20 @@ private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
 Int createBinding(Token bindingToken, Entity b, Parser* pr) {
     VALIDATE(bindingToken.tp == tokWord, errorAssignment)
 
-    Int mbBinding = pr->activeBindings[bindingToken.payload2];
+    Int nameId = bindingToken.payload2;
+    Int mbBinding = pr->activeBindings[nameId];
     VALIDATE(mbBinding == -1, errorAssignmentShadowing)
     
     pr->entities[pr->entNext] = b;
+    Int newBindingId = pr->entNext;
     pr->entNext++;
     if (pr->entNext == pr->entCap) {
         Arr(Entity) newBindings = allocateOnArena(2*pr->entCap*sizeof(Entity), pr->a);
         memcpy(newBindings, pr->entities, pr->entCap*sizeof(Entity));
         pr->entities = newBindings;
-        pr->entNext++;
         pr->entCap *= 2;
-    }
-    Int newBindingId = pr->entNext - 1;
-    Int nameId = bindingToken.payload2;
+    }    
+    
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (pr->scopeStack->length > 0) {
             addBinding(nameId, newBindingId, pr->activeBindings, pr->scopeStack); // adds it to the ScopeStack
@@ -54,32 +54,52 @@ Int createBinding(Token bindingToken, Entity b, Parser* pr) {
     return newBindingId;
 }
 
-void encounterOverload() {
+/** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
+void encounterFnBinding(Int nameId, Parser* pr) {
+    Int activeValue = pr->activeBindings[nameId] < 0;
+    VALIDATE(activeValue < 0, errorAssignmentShadowing);
+    if (activeValue == -1) {
+        pr->overloads[pr->overlNext] = 1;
+        pr->activeBindings[nameId] = -pr->overlNext - 2;
+        pr->overlNext++;
+        if (pr->overlNext == pr->overlCap) {
+            Arr(Int) newOverloads = allocateOnArena(2*pr->overlCap*4, pr->a);
+            memcpy(newOverloads, pr->overloads, pr->overlCap*4);
+            pr->overloads = newOverloads;
+            pr->overlCap *= 2;
+        }
+    } else {
+        pr->overloads[-activeValue - 2]++;
+    }
 }
 
 
 Int importBinding(Int nameId, Entity b, Parser* pr) {
+    if (b.flavor == bndCallable) {
+        encounterFnBinding(nameId, pr); // TODO built-in operators?
+        return;
+    }
     if (nameId > -1) {
         Int mbBinding = pr->activeBindings[nameId];
         VALIDATE(mbBinding == -1, errorAssignmentShadowing)
     }
 
     pr->entities[pr->entNext] = b;
+    Int newBindingId = pr->entNext;
     pr->entNext++;
     if (pr->entNext == pr->entCap) {
         Arr(Entity) newBindings = allocateOnArena(2*pr->entCap*sizeof(Entity), pr->a);
         memcpy(newBindings, pr->entities, pr->entCap*sizeof(Entity));
         pr->entities = newBindings;
-        pr->entNext++;
         pr->entCap *= 2;
+    }    
+    
+    if (pr->scopeStack->length > 0) {
+        // adds it to the ScopeStack so it will be cleaned up when the scope is over
+        addBinding(nameId, newBindingId, pr->activeBindings, pr->scopeStack); 
     }
-    Int newBindingId = pr->entNext - 1;
-    if (nameId > -1) { // nameId == -1 only for the built-in operators
-        if (pr->scopeStack->length > 0) {
-            addBinding(nameId, newBindingId, pr->activeBindings, pr->scopeStack); // adds it to the ScopeStack
-        }
-        pr->activeBindings[nameId] = newBindingId; // makes it active
-    }
+    pr->activeBindings[nameId] = newBindingId; // makes it active
+           
     return newBindingId;
 }
 
@@ -138,9 +158,9 @@ private Int calcSentinel(Token tok, Int tokInd) {
  */
 private void exprSingleItem(Token theTok, Parser* pr) {
     if (theTok.tp == tokWord) {
-        Int mbBinding = pr->activeBindings[theTok.payload2];
-        VALIDATE(mbBinding > -1, errorUnknownFunction)
-        addNode((Node){.tp = nodCall, .payload1 = mbBinding, .payload2 = 0,
+        Int mbOverload = pr->activeBindings[theTok.payload2];
+        VALIDATE(mbOverload < -1, errorUnknownFunction)
+        addNode((Node){.tp = nodCall, .payload1 = mbOverload, .payload2 = 0,
                        .startByte = theTok.startByte, .lenBytes = theTok.lenBytes}, pr);        
     } else if (theTok.tp == tokOperator) {
         Int operBindingId = theTok.payload1;
@@ -205,10 +225,10 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Parser* 
                 mbBindingId = pr->activeBindings[firstTok.payload2];
             } else if (firstTok.tp == tokOperator) {
                 VALIDATE(*arity == (*pr->parDef->operators)[firstTok.payload1].arity, errorOperatorWrongArity)
-                mbBindingId = firstTok.payload1;
+                mbBindingId = -firstTok.payload1 - 2;
             }
             
-            VALIDATE(mbBindingId > -1, errorUnknownFunction)            
+            VALIDATE(mbBindingId < -1, errorUnknownFunction)            
 
             addNode((Node){.tp = nodCall, .payload1 = mbBindingId, .payload2 = *arity, // todo overload
                            .startByte = firstTok.startByte, .lenBytes = firstTok.lenBytes}, pr);
@@ -236,7 +256,7 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
     OpDef operDefinition = (*pr->parDef->operators)[bindingId];
 
     if (operDefinition.arity == 1) {
-        addNode((Node){ .tp = nodCall, .payload1 = bindingId, .payload2 = 1,
+        addNode((Node){ .tp = nodCall, .payload1 = -bindingId - 2, .payload2 = 1,
                         .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     } else {
         addNode((Node){ .tp = nodId, .payload1 = bindingId, .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
@@ -859,22 +879,19 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
     pr->i++; // CONSUME the function name token
 
     // the function's return type, it's optional
-    Int fnReturnTypeId = 0;
     if (lx->tokens[pr->i].tp == tokTypeName) {
         Token fnReturnType = lx->tokens[pr->i];
 
         VALIDATE(pr->activeBindings[fnReturnType.payload2] > -1, errorUnknownType)
-        fnReturnTypeId = pr->activeBindings[fnReturnType.payload2];
         
         pr->i++; // CONSUME the function return type token
     }
 
     // the fnDef scope & node
     push(newParseFrame, pr->backtrack);
+    encounterFnBinding(fnName.payload2, pr);
     addNode((Node){.tp = nodFnDef, .payload1 = pr->activeBindings[fnName.payload2],
                         .startByte = fnDef.startByte, .lenBytes = fnDef.lenBytes} , pr);
-    addNode((Node){ .tp = nodBinding, .payload1 = pr->activeBindings[fnName.payload2], 
-            .startByte = fnName.startByte, .lenBytes = fnName.lenBytes}, pr);
 
     // the scope for the function body
     VALIDATE(lx->tokens[pr->i].tp == tokParens, errorFnNameAndParams)
@@ -890,8 +907,8 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
     
     while (pr->i < paramsSentinel) {
         Token paramName = lx->tokens[pr->i];
-        VALIDATE(paramName.tp == tokWord && paramName.payload1 == 0, errorFnNameAndParams)
-        Int newBindingId = createBinding(paramName, (Entity){.flavor = bndImmut}, pr);
+        VALIDATE(paramName.tp == tokWord, errorFnNameAndParams)
+        Int newBindingId = createBinding(paramName, (Entity){.flavor = bndImmut, .nameId = paramName.payload2}, pr);
         Node paramNode = (Node){.tp = nodBinding, .payload1 = newBindingId, 
                                 .startByte = paramName.startByte, .lenBytes = paramName.lenBytes };
         pr->i++; // CONSUME a param name
