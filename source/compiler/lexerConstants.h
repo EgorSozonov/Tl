@@ -61,16 +61,16 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 // The largest value must be stored in "topVerbatimTokenVariant" constant
 #define tokInt          0
 #define tokFloat        1
-#define tokBool         2      // payload2 = value (1 or 0)
+#define tokBool         2      // pl2 = value (1 or 0)
 #define tokString       3
 #define tokUnderscore   4
 #define tokDocComment   5
 
 // This group requires analysis in the parser
-#define tokWord         6      // payload1 = 1 if the last chunk is capitalized, payload2 = index in the string table
+#define tokWord         6      // pl2 = index in the string table
 #define tokTypeName     7
-#define tokDotWord      8      // ".fieldName", payload's the same as tokWord
-#define tokOperator     9      // payload1 = OperatorToken, one of the "opT" constants below
+#define tokDotWord      8      // ".fieldName", pl's the same as tokWord
+#define tokOperator     9      // pl1 = OperatorToken, one of the "opT" constants below
 #define tokDispose     10
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
@@ -82,26 +82,26 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokParens      14
 #define tokTypeParens  15
 #define tokData        16       // data initializer, like (: 1 2 3)
-#define tokAssignment  17       // payload1 = 1 if mutable assignment, 0 if immutable 
+#define tokAssignment  17       // pl1 = 1 if mutable assignment, 0 if immutable 
 #define tokReassign    18       // :=
-#define tokMutation    19       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define tokMutation    19       // pl1 = like in topOperator. This is the "+=", operatorful type of mutations
 #define tokArrow       20       // not a real scope, but placed here so the parser can dispatch on it
 #define tokElse        21       // not a real scope, but placed here so the parser can dispatch on it
  
-// Single-shot core syntax forms. payload1 = spanLevel
+// Single-shot core syntax forms. pl1 = spanLevel
 #define tokAlias       22      
 #define tokAssert      23      
 #define tokAssertDbg   24     
 #define tokAwait       25      
 #define tokBreak       26      
 #define tokCatch       27       // paren "(catch e. e .print)"
-#define tokContinue    28       // noParen
+#define tokContinue    28       
 #define tokDefer       29
 #define tokEach        30
-#define tokEmbed       31       // noParen. Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      32       // paren
-#define tokExposePriv  33       // paren
-#define tokFnDef       34       // specialCase
+#define tokEmbed       31       // Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      32       
+#define tokExposePriv  33       
+#define tokFnDef       34       
 #define tokIface       35       
 #define tokLambda      36
 #define tokMeta        37
@@ -112,7 +112,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define tokYield       42       
 
 // Resumable core forms
-#define tokIf          43    // "(if " or "(-i". payload1 = 1 if it's the "(-" variant
+#define tokIf          43    // "(if " or "(-i". pl1 = 1 if it's the "(-" variant
 #define tokIfPr        44    // like if, but every branch is a value compared using custom predicate
 #define tokMatch       45    // "(-m " or "(match " pattern matching on sum type tag 
 #define tokImpl        46    // "(-impl " 
@@ -127,7 +127,7 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 
 #define countCoreForms (tokLoop - tokAlias + 1)
 
-/** The indices of reserved words that are stored in token payload2. Must be positive, unique,
+/** The indices of reserved words that are stored in token pl2. Must be positive, unique,
  * and below "firstPunctuationTokenType"
  */
 #define reservedFalse   2

@@ -44,15 +44,15 @@ extern const char errorTemp[];
 
 #define nodInt          0
 #define nodFloat        1
-#define nodBool         2      // payload2 = value (1 or 0)
+#define nodBool         2      // pl2 = value (1 or 0)
 #define nodString       3
 #define nodUnderscore   4
 #define nodDocComment   5
 
-#define nodId           6      // payload1 = index of binding, payload2 = index of name
-#define nodCall         7      // payload1 = index of binding, payload2 = arity
-#define nodBinding      8      // payload1 = index of binding
-#define nodTypeId       9      // payload1 = index of binding
+#define nodId           6      // pl1 = index of binding, pl2 = index of name
+#define nodCall         7      // pl1 = index of binding, pl2 = arity
+#define nodBinding      8      // pl1 = index of binding
+#define nodTypeId       9      // pl1 = index of binding
 #define nodAnd         10
 #define nodOr          11
 
@@ -60,9 +60,9 @@ extern const char errorTemp[];
 // Punctuation (inner node)
 #define nodScope       12       // (: This is resumable but trivially so, that's why it's not grouped with the others
 #define nodExpr        13
-#define nodAssignment  14       // payload1 = 1 if mutable assignment, 0 if immutable
+#define nodAssignment  14       // pl1 = 1 if mutable assignment, 0 if immutable
 #define nodReassign    15       // :=
-#define nodMutation    16       // payload1 = like in topOperator. This is the "+=", operatorful type of mutations
+#define nodMutation    16       // pl1 = like in topOperator. This is the "+=", operatorful type of mutations
 
 
 // Single-shot core syntax forms
@@ -78,7 +78,7 @@ extern const char errorTemp[];
 #define nodEmbed       26       // noParen. Embed a text file as a string literal, or a binary resource file
 #define nodExport      27       
 #define nodExposePriv  28       
-#define nodFnDef       29       // payload1 = index of binding
+#define nodFnDef       29       // pl1 = index of binding
 #define nodIface       30
 #define nodLambda      31
 #define nodMeta        32       
@@ -87,7 +87,7 @@ extern const char errorTemp[];
 #define nodStruct      35       
 #define nodTry         36       
 #define nodYield       37       
-#define nodIfClause    38       // payload1 = number of tokens in the left side of the clause
+#define nodIfClause    38       // pl1 = number of tokens in the left side of the clause
 #define nodElse        39
 #define nodLoop        40       //
 #define nodLoopCond    41

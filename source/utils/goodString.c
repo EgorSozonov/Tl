@@ -129,18 +129,18 @@ bool isSpace(byte a) {
 }
 
 /** Tests if the following several bytes in the input match an array */
-bool testByteSequence(String* inp, int startByte, const byte letters[], int lengthLetters) {
-    if (startByte + lengthLetters > inp->length) return false;
+bool testByteSequence(String* inp, int startBt, const byte letters[], int lengthLetters) {
+    if (startBt + lengthLetters > inp->length) return false;
 
     for (int j = (lengthLetters - 1); j > -1; j--) {
-        if (inp->content[startByte + j] != letters[j]) return false;
+        if (inp->content[startBt + j] != letters[j]) return false;
     }
     return true;
 }
 
 /** Tests if the following several bytes in the input match a word. Tests also that it is the whole word */
-bool testForWord(String* inp, int startByte, const byte letters[], int lengthLetters) {
-    Int j = startByte + lengthLetters;
+bool testForWord(String* inp, int startBt, const byte letters[], int lengthLetters) {
+    Int j = startBt + lengthLetters;
     if (j > inp->length) return false;
     
     if (j < inp->length && isAlphanumeric(inp->content[j])) {
@@ -149,7 +149,7 @@ bool testForWord(String* inp, int startByte, const byte letters[], int lengthLet
     }
 
     for (j = (lengthLetters - 1); j > -1; j--) {
-        if (inp->content[startByte + j] != letters[j]) return false;
+        if (inp->content[startBt + j] != letters[j]) return false;
     }
     return true;
 }

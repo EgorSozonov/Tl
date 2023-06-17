@@ -29,8 +29,8 @@ bool isAlphanumeric(byte a);
 bool isHexDigit(byte a);
 bool isSpace(byte a);
 
-bool testByteSequence(String* inp, int startByte, const byte letters[], int lengthLetters);
-bool testForWord(String* inp, int startByte, const byte letters[], int lengthLetters);
+bool testByteSequence(String* inp, int startBt, const byte letters[], int lengthLetters);
+bool testForWord(String* inp, int startBt, const byte letters[], int lengthLetters);
 extern String empty;
 
 #endif

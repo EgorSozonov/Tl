@@ -57,12 +57,12 @@ private bool equalStringRefs(byte* text, Int a, Int b, Int len) {
 }
 
 
-private void addValueToBucket(Bucket** ptrToBucket, Int startByte, Int lenBytes, Int newIndString, Arena* a) {    
+private void addValueToBucket(Bucket** ptrToBucket, Int startBt, Int lenBts, Int newIndString, Arena* a) {    
     Bucket* p = *ptrToBucket;                                        
     Int capacity = (p->capAndLen) >> 16;
     Int lenBucket = (p->capAndLen & 0xFFFF);
     if (lenBucket + 1 < capacity) {
-        (*ptrToBucket)->content[lenBucket] = (StringValue){.length = lenBytes, .indString = newIndString};
+        (*ptrToBucket)->content[lenBucket] = (StringValue){.length = lenBts, .indString = newIndString};
         p->capAndLen = (capacity << 16) + lenBucket + 1;
     } else {
         // TODO handle the case where we've overflowing the 16 bits of capacity
@@ -70,15 +70,15 @@ private void addValueToBucket(Bucket** ptrToBucket, Int startByte, Int lenBytes,
         memcpy(newBucket->content, p->content, capacity*sizeof(StringValue));
         
         Arr(StringValue) newValues = (StringValue*)newBucket->content;                 
-        newValues[capacity] = (StringValue){.indString = newIndString, .length = lenBytes};
+        newValues[capacity] = (StringValue){.indString = newIndString, .length = lenBts};
         *ptrToBucket = newBucket;
         newBucket->capAndLen = ((2*capacity) << 16) + capacity + 1;      
     }
 }
 
 
-Int addStringStore(byte* text, Int startByte, Int lenBytes, Stackint32_t* stringTable, StringStore* hm) {
-    Int hash = hashCode(text + startByte, lenBytes) % (hm->dictSize);
+Int addStringStore(byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringStore* hm) {
+    Int hash = hashCode(text + startBt, lenBts) % (hm->dictSize);
     Int newIndString;
     if (*(hm->dict + hash) == NULL) {
 
@@ -87,32 +87,32 @@ Int addStringStore(byte* text, Int startByte, Int lenBytes, Stackint32_t* string
         StringValue* firstElem = (StringValue*)newBucket->content;
         
         newIndString = stringTable->length;
-        push(startByte, stringTable);
+        push(startBt, stringTable);
                 
-        *firstElem = (StringValue){.length = lenBytes, .indString = newIndString };
+        *firstElem = (StringValue){.length = lenBts, .indString = newIndString };
         *(hm->dict + hash) = newBucket;
     } else {
         Bucket* p = *(hm->dict + hash);
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == lenBytes 
-                && equalStringRefs(text, (*stringTable->content)[stringValues[i].indString], startByte, lenBytes)) { // key already present                
+            if (stringValues[i].length == lenBts 
+                && equalStringRefs(text, (*stringTable->content)[stringValues[i].indString], startBt, lenBts)) { // key already present                
                 return stringValues[i].indString;
             }
         }
         
-        push(startByte, stringTable);
+        push(startBt, stringTable);
         newIndString = stringTable->length;
-        addValueToBucket((hm->dict + hash), startByte, lenBytes, newIndString, hm->a);
+        addValueToBucket((hm->dict + hash), startBt, lenBts, newIndString, hm->a);
     }
     return newIndString;
 }
 
 /** Returns the index of a string within the string table, or -1 if it's not present */
 Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, StringStore* hm) {
-    Int lenBytes = strToSearch->length;
-    Int hash = hashCode(strToSearch->content, lenBytes) % (hm->dictSize);    
+    Int lenBts = strToSearch->length;
+    Int hash = hashCode(strToSearch->content, lenBts) % (hm->dictSize);    
     Int newIndString;
     if (*(hm->dict + hash) == NULL) {
         return -1;
@@ -121,8 +121,8 @@ Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, S
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == lenBytes
-                && memcmp(strToSearch->content, text + (*stringTable->content)[stringValues[i].indString], lenBytes) == 0) {
+            if (stringValues[i].length == lenBts
+                && memcmp(strToSearch->content, text + (*stringTable->content)[stringValues[i].indString], lenBts) == 0) {
                 return stringValues[i].indString;
             }
         }

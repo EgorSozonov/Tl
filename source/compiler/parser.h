@@ -33,10 +33,10 @@ typedef struct Parser Parser;
 typedef struct ScopeStack ScopeStack;
 typedef struct {
     untt tp : 6;
-    untt lenBytes: 26;
-    untt startByte;
-    untt payload1;
-    untt payload2;   
+    untt lenBts: 26;
+    untt startBt;
+    untt pl1;
+    untt pl2;   
 } Node;
 
 
@@ -53,7 +53,7 @@ typedef struct {
 
 typedef struct {
     String* name;
-    Entity binding;
+    Entity entity;
 } EntityImport;
 
 
@@ -100,18 +100,19 @@ struct Parser {
     ParserDefinition* parDef;
     StackParseFrame* backtrack;    
     ScopeStack* scopeStack;
-    Int i;                      // index of current token in the input
+    Int i;                     // index of current token in the input
 
-    Stackint32_t* stringTable;  // The table of unique strings from code. Contains only the startByte of each string.       
-    StringStore* stringStore;   // A hash table for quickly deduplicating strings. Points into stringTable 
-    Int strLength;              // length of stringTable
+    Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startBt of each string.       
+    StringStore* stringStore;  // A hash table for quickly deduplicating strings. Points into stringTable 
+    Int strLength;             // length of stringTable
         
     Arr(Entity) entities;      // growing array of all bindings ever encountered
     Int entNext;
     Int entCap;
-    Int entZero;               // the index of the first parsed (as opposed to being built-in or imported) binding
+    Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overloaded binding
+    Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
 
-    Arr(Int) overloads;         // growing array of counts of all fn name definitions encountered (for the typechecker to use)
+    Arr(Int) overloads;        // growing array of counts of all fn name definitions encountered (for the typechecker to use)
     Int overlNext;
     Int overlCap;    
 

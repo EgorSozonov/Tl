@@ -10,10 +10,10 @@
 
 typedef struct {
     untt tp : 6;
-    untt lenBytes: 26;
-    untt startByte;
-    untt payload1;
-    untt payload2;
+    untt lenBts: 26;
+    untt startBt;
+    untt pl1;
+    untt pl2;
 } Token;
 
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
@@ -45,7 +45,7 @@ DEFINE_STACK_HEADER(BtToken)
  *
  * This OperatorToken class records the base type of operator, its extension (0, 1 or 2),
  * and whether it is the assignment version of itself.
- * In the token stream, both of these values are stored inside the 32-bit payload2 of the Token.
+ * In the token stream, both of these values are stored inside the 32-bit pl2 of the Token.
  */
 typedef struct {
     untt opType : 6;
@@ -115,7 +115,7 @@ struct Lexer {
     StackBtToken* backtrack; // lives in aTemp
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
-    Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
+    Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startBt of each string.
     StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points into stringTable    
     
     bool wasError;

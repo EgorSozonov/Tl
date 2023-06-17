@@ -63,8 +63,8 @@ private void closeColons(Lexer* lx) {
     while (hasValues(lx->backtrack) && peek(lx->backtrack).wasOrigColon) {
         BtToken top = pop(lx->backtrack);
         Int j = top.tokenInd;        
-        lx->tokens[j].lenBytes = lx->i - lx->tokens[j].startByte;
-        lx->tokens[j].payload2 = lx->nextInd - j - 1;
+        lx->tokens[j].lenBts = lx->i - lx->tokens[j].startBt;
+        lx->tokens[j].pl2 = lx->nextInd - j - 1;
     }
 }
 
@@ -73,34 +73,34 @@ private void closeColons(Lexer* lx) {
  * Called when the matching closer is lexed.
  */
 private void setSpanLength(Int tokenInd, Lexer* lx) {
-    lx->tokens[tokenInd].lenBytes = lx->i - lx->tokens[tokenInd].startByte + 1;
-    lx->tokens[tokenInd].payload2 = lx->nextInd - tokenInd - 1;
+    lx->tokens[tokenInd].lenBts = lx->i - lx->tokens[tokenInd].startBt + 1;
+    lx->tokens[tokenInd].pl2 = lx->nextInd - tokenInd - 1;
 }
 
 /**
- * Correctly calculates the lenBytes for a single-line, statement-type span.
+ * Correctly calculates the lenBts for a single-line, statement-type span.
  */
 private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
     Token lastToken = lx->tokens[lx->nextInd - 1];
-    Int byteAfterLastToken = lastToken.startByte + lastToken.lenBytes;
+    Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
 
     // This is for correctly calculating lengths of statements when they are ended by parens or brackets
     Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
-    Int lenBytes = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken) 
-                    - lx->tokens[topTokenInd].startByte;
+    Int lenBts = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken) 
+                    - lx->tokens[topTokenInd].startBt;
 
-    lx->tokens[topTokenInd].lenBytes = lenBytes;
-    lx->tokens[topTokenInd].payload2 = lx->nextInd - topTokenInd - 1;
+    lx->tokens[topTokenInd].lenBts = lenBts;
+    lx->tokens[topTokenInd].pl2 = lx->nextInd - topTokenInd - 1;
 }
 
 
 #define PROBERESERVED(reservedBytesName, returnVarName)    \
     lenReser = sizeof(reservedBytesName); \
-    if (lenBytes == lenReser && testForWord(lx->inp, startByte, reservedBytesName, lenReser)) \
+    if (lenBts == lenReser && testForWord(lx->inp, startBt, reservedBytesName, lenReser)) \
         return returnVarName;
 
 
-private Int determineReservedA(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedA(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesAlias, tokAlias)
     PROBERESERVED(reservedBytesAnd, reservedAnd)
@@ -110,13 +110,13 @@ private Int determineReservedA(Int startByte, Int lenBytes, Lexer* lx) {
     return 0;
 }
 
-private Int determineReservedB(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedB(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesBreak, tokBreak)
     return 0;
 }
 
-private Int determineReservedC(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedC(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesCatch, tokCatch)
     PROBERESERVED(reservedBytesContinue, tokContinue)
@@ -124,7 +124,7 @@ private Int determineReservedC(Int startByte, Int lenBytes, Lexer* lx) {
 }
 
 
-private Int determineReservedE(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedE(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesElse, tokElse)
     PROBERESERVED(reservedBytesEmbed, tokEmbed)
@@ -132,7 +132,7 @@ private Int determineReservedE(Int startByte, Int lenBytes, Lexer* lx) {
 }
 
 
-private Int determineReservedF(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedF(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesFalse, reservedFalse)
     PROBERESERVED(reservedBytesFn, tokFnDef)
@@ -140,7 +140,7 @@ private Int determineReservedF(Int startByte, Int lenBytes, Lexer* lx) {
 }
 
 
-private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedI(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesIf, tokIf)
     PROBERESERVED(reservedBytesIfPr, tokIfPr)
@@ -150,7 +150,7 @@ private Int determineReservedI(Int startByte, Int lenBytes, Lexer* lx) {
 }
 
 
-private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedL(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
     PROBERESERVED(reservedBytesLoop, tokLoop)
@@ -158,35 +158,35 @@ private Int determineReservedL(Int startByte, Int lenBytes, Lexer* lx) {
 }
 
 
-private Int determineReservedM(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedM(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesMatch, tokMatch)
     return 0;
 }
 
 
-private Int determineReservedO(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedO(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesOr, reservedOr)
     return 0;
 }
 
 
-private Int determineReservedR(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedR(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesReturn, tokReturn)
     return 0;
 }
 
 
-private Int determineReservedS(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedS(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesStruct, tokStruct)
     return 0;
 }
 
 
-private Int determineReservedT(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedT(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesTrue, reservedTrue)
     PROBERESERVED(reservedBytesTry, tokTry)
@@ -194,13 +194,13 @@ private Int determineReservedT(Int startByte, Int lenBytes, Lexer* lx) {
 }
 
 
-private Int determineReservedY(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineReservedY(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesYield, tokYield)
     return 0;
 }
 
-private Int determineUnreserved(Int startByte, Int lenBytes, Lexer* lx) {
+private Int determineUnreserved(Int startBt, Int lenBts, Lexer* lx) {
     return -1;
 }
 
@@ -216,27 +216,27 @@ private void addNewLine(Int j, Lexer* lx) {
     }
 }
 
-private void addStatement(untt stmtType, Int startByte, Lexer* lx) {
-    Int lenBytes = 0;
-    // Some types of statements may legitimately consist of 0 tokens; for them, we need to write their lenBytes in the init token
+private void addStatement(untt stmtType, Int startBt, Lexer* lx) {
+    Int lenBts = 0;
+    // Some types of statements may legitimately consist of 0 tokens; for them, we need to write their lenBts in the init token
     if (stmtType == tokBreak) {
-        lenBytes = 5;
+        lenBts = 5;
     } else if (stmtType == tokContinue) {
-        lenBytes = 8;
+        lenBts = 8;
     }
     push(((BtToken){ .tp = stmtType, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->backtrack);
-    add((Token){ .tp = stmtType, .startByte = startByte, .lenBytes = lenBytes}, lx);
+    add((Token){ .tp = stmtType, .startBt = startBt, .lenBts = lenBts}, lx);
 }
 
 
-private void wrapInAStatementStarting(Int startByte, Lexer* lx, Arr(byte) inp) {    
+private void wrapInAStatementStarting(Int startBt, Lexer* lx, Arr(byte) inp) {    
     if (hasValues(lx->backtrack)) {
         if (peek(lx->backtrack).spanLevel <= slParenMulti) {            
             push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->backtrack);
-            add((Token){ .tp = tokStmt, .startByte = startByte},  lx);
+            add((Token){ .tp = tokStmt, .startBt = startBt},  lx);
         }
     } else {
-        addStatement(tokStmt, startByte, lx);
+        addStatement(tokStmt, startBt, lx);
     }
 }
 
@@ -245,7 +245,7 @@ private void wrapInAStatement(Lexer* lx, Arr(byte) inp) {
     if (hasValues(lx->backtrack)) {
         if (peek(lx->backtrack).spanLevel <= slParenMulti) {
             push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->backtrack);
-            add((Token){ .tp = tokStmt, .startByte = lx->i},  lx);
+            add((Token){ .tp = tokStmt, .startBt = lx->i},  lx);
         }
     } else {
         addStatement(tokStmt, lx->i, lx);
@@ -378,8 +378,8 @@ private void hexNumber(Lexer* lx, Arr(byte) inp) {
         j++;
     }
     int64_t resultValue = calcHexNumber(lx);
-    add((Token){ .tp = tokInt, .payload1 = resultValue >> 32, .payload2 = resultValue & LOWER32BITS, 
-                .startByte = lx->i, .lenBytes = j - lx->i }, lx);
+    add((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
+                .startBt = lx->i, .lenBts = j - lx->i }, lx);
     lx->numericNextInd = 0;
     lx->i = j; // CONSUME the hex number
 }
@@ -486,16 +486,16 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
         VALIDATE(errorCode == 0, errorNumericFloatWidthExceeded)
 
         int64_t bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
-        add((Token){ .tp = tokFloat, .payload1 = (bitsOfFloat >> 32), .payload2 = (bitsOfFloat & LOWER32BITS),
-                    .startByte = lx->i, .lenBytes = j - lx->i}, lx);
+        add((Token){ .tp = tokFloat, .pl1 = (bitsOfFloat >> 32), .pl2 = (bitsOfFloat & LOWER32BITS),
+                    .startBt = lx->i, .lenBts = j - lx->i}, lx);
     } else {
         int64_t resultValue = 0;
         Int errorCode = calcInteger(&resultValue, lx);
         VALIDATE(errorCode == 0, errorNumericIntWidthExceeded)
 
         if (isNegative) resultValue = -resultValue;
-        add((Token){ .tp = tokInt, .payload1 = resultValue >> 32, .payload2 = resultValue & LOWER32BITS, 
-                .startByte = lx->i, .lenBytes = j - lx->i }, lx);
+        add((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
+                .startBt = lx->i, .lenBts = j - lx->i }, lx);
     }
     lx->i = j; // CONSUME the decimal number
 }
@@ -504,7 +504,7 @@ private void lexNumber(Lexer* lx, Arr(byte) inp) {
     wrapInAStatement(lx, inp);
     byte cByte = CURR_BT;
     if (lx->i == lx->inpLength - 1 && isDigit(cByte)) {
-        add((Token){ .tp = tokInt, .payload2 = cByte - aDigit0, .startByte = lx->i, .lenBytes = 1 }, lx);
+        add((Token){ .tp = tokInt, .pl2 = cByte - aDigit0, .startBt = lx->i, .lenBts = 1 }, lx);
         lx->i++; // CONSUME the single-digit number
         return;
     }
@@ -525,22 +525,22 @@ private void lexNumber(Lexer* lx, Arr(byte) inp) {
  * once it is known.
  * Consumes no bytes.
  */
-private void openPunctuation(untt tType, untt spanLevel, Int startByte, Lexer* lx) {
+private void openPunctuation(untt tType, untt spanLevel, Int startBt, Lexer* lx) {
     push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->backtrack);
-    add((Token) {.tp = tType, .payload1 = (tType < firstCoreFormTokenType) ? 0 : spanLevel, .startByte = startByte }, lx);
+    add((Token) {.tp = tType, .pl1 = (tType < firstCoreFormTokenType) ? 0 : spanLevel, .startBt = startBt }, lx);
 }
 
 /**
  * Lexer action for a paren-type reserved word. It turns parentheses into an slParenMulti core form.
  * If necessary (parens inside statement) it also deletes last token and removes the top frame
  */
-private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Arr(byte) inp) {    
+private void lexReservedWord(untt reservedWordType, Int startBt, Lexer* lx, Arr(byte) inp) {    
     StackBtToken* bt = lx->backtrack;
     
     Int expectations = (*lx->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
         VALIDATE(!hasValues(bt) || peek(bt).spanLevel == slScope, errorCoreNotInsideStmt)
-        addStatement(reservedWordType, startByte, lx);
+        addStatement(reservedWordType, startBt, lx);
     } else if (expectations == 1) { // the "(core" case
         VALIDATE(hasValues(bt), errorCoreMissingParen)
         
@@ -558,7 +558,7 @@ private void lexReservedWord(untt reservedWordType, Int startByte, Lexer* lx, Ar
         
         // update the token type and the corresponding frame type
         lx->tokens[top.tokenInd].tp = reservedWordType;
-        lx->tokens[top.tokenInd].payload1 = slParenMulti;
+        lx->tokens[top.tokenInd].pl1 = slParenMulti;
         (*bt->content)[bt->length - 1].tp = reservedWordType;
         (*bt->content)[bt->length - 1].spanLevel = top.tp == tokScope ? slScope : slParenMulti;
     }
@@ -607,7 +607,7 @@ private void closeStatement(Lexer* lx) {
  * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
 private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
-    Int startByte = lx->i;
+    Int startBt = lx->i;
 
     bool wasCapitalized = wordChunk(lx, inp);
 
@@ -628,24 +628,24 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         }
     }
 
-    Int realStartByte = (wordType == tokWord) ? startByte : (startByte - 1); // accounting for the . or @ at the start
+    Int realStartByte = (wordType == tokWord) ? startBt : (startBt - 1); // accounting for the . or @ at the start
     untt finalTokType = wasCapitalized ? tokTypeName : wordType;
 
-    byte firstByte = lx->inp->content[startByte];
-    Int lenBytes = lx->i - realStartByte;
-    Int lenString = lx->i - startByte;
+    byte firstByte = lx->inp->content[startBt];
+    Int lenBts = lx->i - realStartByte;
+    Int lenString = lx->i - startBt;
         
     if (firstByte < aALower || firstByte > aYLower) {
-        wrapInAStatementStarting(startByte, lx, inp);
-        Int uniqueStringInd = addStringStore(inp, startByte, lenBytes, lx->stringTable, lx->stringStore);
-        add((Token){ .tp = finalTokType, .payload2 = uniqueStringInd, .startByte = realStartByte, .lenBytes = lenBytes }, lx);
+        wrapInAStatementStarting(startBt, lx, inp);
+        Int uniqueStringInd = addStringStore(inp, startBt, lenBts, lx->stringTable, lx->stringStore);
+        add((Token){ .tp = finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
         return;
     }
-    Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startByte, lenString, lx);
+    Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
     if (mbReservedWord <= 0) {
-        wrapInAStatementStarting(startByte, lx, inp);
-        Int uniqueStringInd = addStringStore(inp, startByte, lenString, lx->stringTable, lx->stringStore);
-        add((Token){ .tp=finalTokType, .payload2 = uniqueStringInd, .startByte = realStartByte, .lenBytes = lenBytes }, lx);
+        wrapInAStatementStarting(startBt, lx, inp);
+        Int uniqueStringInd = addStringStore(inp, startBt, lenString, lx->stringTable, lx->stringStore);
+        add((Token){ .tp=finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
         return;
     }
 
@@ -653,23 +653,23 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
 
     if (mbReservedWord == tokElse){
         closeStatement(lx);
-        add((Token){.tp = tokElse, .startByte = realStartByte, .lenBytes = 4}, lx);
+        add((Token){.tp = tokElse, .startBt = realStartByte, .lenBts = 4}, lx);
     } else if (mbReservedWord < firstCoreFormTokenType) {
         if (mbReservedWord == reservedAnd) {
-            wrapInAStatementStarting(startByte, lx, inp);
-            add((Token){.tp=tokOperator, .payload1 = opTAnd, .startByte=realStartByte, .lenBytes=3}, lx);
+            wrapInAStatementStarting(startBt, lx, inp);
+            add((Token){.tp=tokOperator, .pl1 = opTAnd, .startBt=realStartByte, .lenBts=3}, lx);
         } else if (mbReservedWord == reservedOr) {
-            wrapInAStatementStarting(startByte, lx, inp);
-            add((Token){.tp=tokOperator, .payload1 = opTOr, .startByte=realStartByte, .lenBytes=2}, lx);
+            wrapInAStatementStarting(startBt, lx, inp);
+            add((Token){.tp=tokOperator, .pl1 = opTOr, .startBt=realStartByte, .lenBts=2}, lx);
         } else if (mbReservedWord == reservedTrue) {
-            wrapInAStatementStarting(startByte, lx, inp);
-            add((Token){.tp=tokBool, .payload2=1, .startByte=realStartByte, .lenBytes=4}, lx);
+            wrapInAStatementStarting(startBt, lx, inp);
+            add((Token){.tp=tokBool, .pl2=1, .startBt=realStartByte, .lenBts=4}, lx);
         } else if (mbReservedWord == reservedFalse) {
-            wrapInAStatementStarting(startByte, lx, inp);
-            add((Token){.tp=tokBool, .payload2=0, .startByte=realStartByte, .lenBytes=5}, lx);
+            wrapInAStatementStarting(startBt, lx, inp);
+            add((Token){.tp=tokBool, .pl2=0, .startBt=realStartByte, .lenBts=5}, lx);
         } else if (mbReservedWord == tokDispose) {
-            wrapInAStatementStarting(startByte, lx, inp);
-            add((Token){.tp=tokDispose, .payload2=0, .startByte=realStartByte, .lenBytes=7}, lx);
+            wrapInAStatementStarting(startBt, lx, inp);
+            add((Token){.tp=tokDispose, .pl2=0, .startBt=realStartByte, .lenBts=7}, lx);
         }
     } else {
         lexReservedWord(mbReservedWord, realStartByte, lx, inp);
@@ -721,7 +721,7 @@ private void processAssignment(Int mutType, untt opType, Lexer* lx) {
         tok->tp = tokReassign;
     } else {
         tok->tp = tokMutation;
-        tok->payload1 = opType;
+        tok->pl1 = opType;
     } 
     (*lx->backtrack->content)[lx->backtrack->length - 1] = (BtToken){
         .tp = tok->tp, .spanLevel = slStmt, .tokenInd = tokenInd }; 
@@ -737,7 +737,7 @@ private void lexColon(Lexer* lx, Arr(byte) inp) {
     } else {
         push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .spanLevel = slSubexpr, .wasOrigColon = true}),
              lx->backtrack);
-        add((Token) {.tp = tokParens, .startByte = lx->i }, lx);
+        add((Token) {.tp = tokParens, .startBt = lx->i }, lx);
         lx->i++; // CONSUME the ":"
     }    
 }
@@ -790,7 +790,7 @@ private void lexOperator(Lexer* lx, Arr(byte) inp) {
     if (isAssignment) { // mutation operators like "*=" or "*.="
         processAssignment(2, opType, lx);
     } else {
-        add((Token){ .tp = tokOperator, .payload1 = opType, .startByte = lx->i, .lenBytes = j - lx->i}, lx);
+        add((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i, .lenBts = j - lx->i}, lx);
     }
     lx->i = j; // CONSUME the operator
 }
@@ -809,7 +809,7 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
         BtToken grandparent = (*lx->backtrack->content)[lx->backtrack->length - 2];
         VALIDATE(grandparent.tp == tokIf, errorCoreMisplacedArrow)
         closeStatement(lx);
-        add((Token){ .tp = tokArrow, .startByte = lx->i, .lenBytes = 2 }, lx);
+        add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
         processAssignment(0, 0, lx);
@@ -822,7 +822,7 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
  *  Precondition: we are past the opening "(*"
  */
 private void docComment(Lexer* lx, Arr(byte) inp) {
-    Int startByte = lx->i;
+    Int startBt = lx->i;
     
     Int parenLevel = 1;
     Int j = lx->i;
@@ -843,7 +843,7 @@ private void docComment(Lexer* lx, Arr(byte) inp) {
     }
     VALIDATE(parenLevel == 0, errorPunctuationExtraOpening)
     if (j > lx->i) {
-        add((Token){.tp = tokDocComment, .startByte = lx->i - 2, .lenBytes = j - lx->i + 2}, lx);
+        add((Token){.tp = tokDocComment, .startBt = lx->i - 2, .lenBts = j - lx->i + 2}, lx);
     }
     lx->i = j; // CONSUME the doc comment
 }
@@ -859,7 +859,7 @@ private void lexMinus(Lexer* lx, Arr(byte) inp) {
             decNumber(true, lx, inp);
             lx->numericNextInd = 0;
         } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
-            add((Token){.tp = tokOperator, .payload1 = opTNegation, .startByte = lx->i, .lenBytes = 1}, lx);
+            add((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
             lx->i++; // CONSUME the minus symbol
         } else {
             lexOperator(lx, inp);
@@ -913,27 +913,27 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
  * Consumes zero or 1 byte
  */
 private void openScope(Lexer* lx, Arr(byte) inp) {
-    Int startByte = lx->i;
+    Int startBt = lx->i;
     lx->i += 2; // CONSUME the "(."
     VALIDATE(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope, errorPunctuationScope)
     VALIDATE(lx->i < lx->inpLength, errorPrematureEndOfInput)
     byte currBt = CURR_BT;
     if (currBt == aLLower && testForWord(lx->inp, lx->i, reservedBytesLoop, 4)) {
-            openPunctuation(tokLoop, slScope, startByte, lx);
+            openPunctuation(tokLoop, slScope, startBt, lx);
             lx->i += 4; // CONSUME the "loop"
             return; 
     } else if (lx->i < lx->inpLength - 2 && isSpace(inp[lx->i + 1])) {        
         if (currBt == aFLower) {
-            openPunctuation(tokFnDef, slScope, startByte, lx);
+            openPunctuation(tokFnDef, slScope, startBt, lx);
             lx->i += 2; // CONSUME the "f "
             return;
         } else if (currBt == aILower) {
-            openPunctuation(tokIf, slScope, startByte, lx);
+            openPunctuation(tokIf, slScope, startBt, lx);
             lx->i += 2; // CONSUME the "i "
             return;
         }  
     }        
-    openPunctuation(tokScope, slScope, startByte, lx);    
+    openPunctuation(tokScope, slScope, startBt, lx);    
 }
 
 /** Handles the "(*" case (doc-comment), the "(:" case (data initializer) as well as the common subexpression case */
@@ -999,7 +999,7 @@ private void lexStringLiteral(Lexer* lx, Arr(byte) inp) {
     Int j = lx->i + 1;
     for (; j < lx->inpLength && inp[j] != aQuote; j++);
     VALIDATE(j != lx->inpLength, errorPrematureEndOfInput)
-    add((Token){.tp=tokString, .startByte=(lx->i), .lenBytes=(j - lx->i + 1)}, lx);
+    add((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
     lx->i = j + 1; // CONSUME the string literal, including the closing quote character
 }
 
@@ -1031,10 +1031,10 @@ void printLexer(Lexer* a) {
     }
     for (int i = 0; i < a->totalTokens; i++) {
         Token tok = a->tokens[i];
-        if (tok.payload1 != 0 || tok.payload2 != 0) {
-            printf("%d: %s %d %d [%d; %d]\n", i, tokNames[tok.tp], tok.payload1, tok.payload2, tok.startByte, tok.lenBytes);
+        if (tok.pl1 != 0 || tok.pl2 != 0) {
+            printf("%d: %s %d %d [%d; %d]\n", i, tokNames[tok.tp], tok.pl1, tok.pl2, tok.startBt, tok.lenBts);
         } else {
-            printf("%d: %s [%d; %d]\n", i, tokNames[tok.tp], tok.startByte, tok.lenBytes);
+            printf("%d: %s [%d; %d]\n", i, tokNames[tok.tp], tok.startBt, tok.lenBts);
         }        
     }
 }
@@ -1049,23 +1049,23 @@ int equalityLexer(Lexer a, Lexer b) {
     for (; i < commonLength; i++) {
         Token tokA = a.tokens[i];
         Token tokB = b.tokens[i];
-        if (tokA.tp != tokB.tp || tokA.lenBytes != tokB.lenBytes || tokA.startByte != tokB.startByte 
-            || tokA.payload1 != tokB.payload1 || tokA.payload2 != tokB.payload2) {
+        if (tokA.tp != tokB.tp || tokA.lenBts != tokB.lenBts || tokA.startBt != tokB.startBt 
+            || tokA.pl1 != tokB.pl1 || tokA.pl2 != tokB.pl2) {
             printf("\n\nUNEQUAL RESULTS\n", i);
             if (tokA.tp != tokB.tp) {
                 printf("Diff in tp, %s but was expected %s\n", tokNames[tokA.tp], tokNames[tokB.tp]);
             }
-            if (tokA.lenBytes != tokB.lenBytes) {
-                printf("Diff in lenBytes, %d but was expected %d\n", tokA.lenBytes, tokB.lenBytes);
+            if (tokA.lenBts != tokB.lenBts) {
+                printf("Diff in lenBts, %d but was expected %d\n", tokA.lenBts, tokB.lenBts);
             }
-            if (tokA.startByte != tokB.startByte) {
-                printf("Diff in startByte, %d but was expected %d\n", tokA.startByte, tokB.startByte);
+            if (tokA.startBt != tokB.startBt) {
+                printf("Diff in startBt, %d but was expected %d\n", tokA.startBt, tokB.startBt);
             }
-            if (tokA.payload1 != tokB.payload1) {
-                printf("Diff in payload1, %d but was expected %d\n", tokA.payload1, tokB.payload1);
+            if (tokA.pl1 != tokB.pl1) {
+                printf("Diff in pl1, %d but was expected %d\n", tokA.pl1, tokB.pl1);
             }
-            if (tokA.payload2 != tokB.payload2) {
-                printf("Diff in payload2, %d but was expected %d\n", tokA.payload2, tokB.payload2);
+            if (tokA.pl2 != tokB.pl2) {
+                printf("Diff in pl2, %d but was expected %d\n", tokA.pl2, tokB.pl2);
             }            
             return i;
         }
