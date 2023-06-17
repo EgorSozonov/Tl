@@ -133,7 +133,7 @@ struct Parser {
 ParserDefinition* buildParserDefinitions(LanguageDefinition*, Arena*);
 Parser* createParser(Lexer*, Arena*);
 Int createBinding(Token, Entity, Parser*);
-void importBindings(Arr(EntityImport) bindings, Int countBindings, Parser* pr);
+void importEntities(Arr(EntityImport) bindings, Int countBindings, Parser* pr);
 Parser* parse(Lexer*, Arena*);
 Parser* parseWithParser(Lexer*, Parser*, Arena*);
 void addNode(Node t, Parser* lexer);

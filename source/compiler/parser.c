@@ -55,8 +55,8 @@ Int createBinding(Token bindingToken, Entity b, Parser* pr) {
 }
 
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
-void encounterFnBinding(Int nameId, Parser* pr) {
-    Int activeValue = pr->activeBindings[nameId] < 0;
+void encounterFnBinding(Int nameId, Parser* pr) {    
+    Int activeValue = (nameId > -1) ? pr->activeBindings[nameId] : -1;
     VALIDATE(activeValue < 0, errorAssignmentShadowing);
     if (activeValue == -1) {
         pr->overloads[pr->overlNext] = 1;
@@ -74,10 +74,10 @@ void encounterFnBinding(Int nameId, Parser* pr) {
 }
 
 
-Int importBinding(Int nameId, Entity b, Parser* pr) {
+Int importEntity(Int nameId, Entity b, Parser* pr) {
     if (b.flavor == bndCallable) {
         encounterFnBinding(nameId, pr); // TODO built-in operators?
-        return;
+        return -1;
     }
     if (nameId > -1) {
         Int mbBinding = pr->activeBindings[nameId];
@@ -159,7 +159,7 @@ private Int calcSentinel(Token tok, Int tokInd) {
 private void exprSingleItem(Token theTok, Parser* pr) {
     if (theTok.tp == tokWord) {
         Int mbOverload = pr->activeBindings[theTok.payload2];
-        VALIDATE(mbOverload < -1, errorUnknownFunction)
+        VALIDATE(mbOverload != -1, errorUnknownFunction)
         addNode((Node){.tp = nodCall, .payload1 = mbOverload, .payload2 = 0,
                        .startByte = theTok.startByte, .lenBytes = theTok.lenBytes}, pr);        
     } else if (theTok.tp == tokOperator) {
@@ -295,7 +295,7 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
         } else {
             if (tokType == tokWord) {
                 Int mbBindingId = pr->activeBindings[currTok.payload2];
-                VALIDATE(mbBindingId > -1, errorUnknownBinding)
+                VALIDATE(mbBindingId != -1, errorUnknownBinding)
                 addNode((Node){ .tp = nodId, .payload1 = mbBindingId, .payload2 = currTok.payload2, 
                             .startByte = currTok.startByte, .lenBytes = currTok.lenBytes}, pr);                
             } else if (tokType == tokOperator) {
@@ -341,21 +341,16 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
     }    
 }
 
-/** Consumes 0 tokens */
-private void parseIdent(Token tok, Parser* pr) {
-    Int nameId = tok.payload2;
-    Int mbBinding = pr->activeBindings[nameId];
-    VALIDATE(mbBinding > -1, errorUnknownBinding)    
-    addNode((Node){.tp = nodId, .payload1 = mbBinding, .payload2 = nameId,
-                   .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
-}
-
 /** Consumes 0 or 1 tokens. Returns false if didn't parse anything. */
 private bool parseLiteralOrIdentifier(Token tok, Parser* pr) {
     if (tok.tp <= topVerbatimTokenVariant) {
         parseVerbatim(tok, pr);
     } else if (tok.tp == tokWord) {        
-        parseIdent(tok, pr);
+        Int nameId = tok.payload2;
+        Int mbBinding = pr->activeBindings[nameId];
+        VALIDATE(mbBinding != -1, errorUnknownBinding)    
+        addNode((Node){.tp = nodId, .payload1 = mbBinding, .payload2 = nameId,
+                       .startByte = tok.startByte, .lenBytes = tok.lenBytes}, pr);
     } else {
         return false;        
     }
@@ -772,19 +767,19 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 }
 
 
-void importBindings(Arr(EntityImport) bindings, Int countBindings, Parser* pr) {
+void importEntities(Arr(EntityImport) bindings, Int countBindings, Parser* pr) {
     for (int i = 0; i < countBindings; i++) {
         Int mbNameId = getStringStore(pr->text->content, bindings[i].name, pr->stringTable, pr->stringStore);
         if (mbNameId > -1) {           
-            Int newBindingId = importBinding(mbNameId, bindings[i].binding, pr);
+            Int newBindingId = importEntity(mbNameId, bindings[i].binding, pr);
         }
     }
 }
 
 /* Entitys for the built-in operators, types, functions. */
-void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
+void importBuiltins(LanguageDefinition* langDef, Parser* pr) {
     for (int i = 0; i < countOperators; i++) {
-        importBinding(-1, (Entity){ .flavor = bndCallable}, pr);
+        importEntity(-1, (Entity){ .flavor = bndCallable}, pr);
     }
     EntityImport builtins[4] =  {
         (EntityImport) { .name = str("Int", pr->a),    .binding = (Entity){ .flavor = bndType} },
@@ -792,7 +787,7 @@ void insertBuiltinBindings(LanguageDefinition* langDef, Parser* pr) {
         (EntityImport) { .name = str("String", pr->a), .binding = (Entity){ .flavor = bndType} },
         (EntityImport) { .name = str("Bool", pr->a),   .binding = (Entity){ .flavor = bndType} }
     };
-    importBindings(builtins, sizeof(builtins)/sizeof(EntityImport), pr);
+    importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), pr);
 }
 
 
@@ -821,7 +816,7 @@ Parser* createParser(Lexer* lx, Arena* a) {
     if (stringTableLength > 0) {
         memset(result->activeBindings, 0xFF, stringTableLength*sizeof(Int)); // activeBindings is filled with -1
     }
-    insertBuiltinBindings(lx->langDef, result);
+    importBuiltins(lx->langDef, result);
 
     return result;    
 }
@@ -860,8 +855,8 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
             if (fnName.tp != tokWord || fnName.payload1 > 0) { // function name must be a lowercase word
                 throwExc(errorFnNameAndParams);
             }
-            Int newBinding = createBinding(fnName, (Entity){ .flavor = bndCallable }, pr);
-        } 
+            encounterFnBinding(fnName.payload2, pr);
+        }
         pr->i += (tok.payload2 + 1);        
     } 
 }
@@ -889,6 +884,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
 
     // the fnDef scope & node
     push(newParseFrame, pr->backtrack);
+    print("fname.payload2 %d", fnName.payload2)
     encounterFnBinding(fnName.payload2, pr);
     addNode((Node){.tp = nodFnDef, .payload1 = pr->activeBindings[fnName.payload2],
                         .startByte = fnDef.startByte, .lenBytes = fnDef.lenBytes} , pr);
@@ -964,7 +960,7 @@ Parser* parseWithParser(Lexer* lx, Parser* pr, Arena* a) {
     ParserFunc (*dispatch)[countSyntaxForms] = pDef->nonResumableTable;
     ResumeFunc (*dispatchResumable)[countResumableForms] = pDef->resumableTable;
     if (setjmp(excBuf) == 0) {
-        parseToplevelTypes(lx, pr);    
+        parseToplevelTypes(lx, pr);
         parseToplevelConstants(lx, pr);
         parseToplevelFunctionNames(lx, pr);
         parseFunctionBodies(lx, pr);
