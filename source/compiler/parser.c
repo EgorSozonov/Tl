@@ -259,7 +259,7 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
         addNode((Node){ .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1,
                         .startBt = tok.startBt, .lenBts = tok.lenBts}, pr);
     } else {
-        addNode((Node){ .tp = nodId, .pl1 = bindingId, .startBt = tok.startBt, .lenBts = tok.lenBts}, pr);
+        addNode((Node){ .tp = nodId, .pl1 = -bindingId - 2, .startBt = tok.startBt, .lenBts = tok.lenBts}, pr);
     }
 }
 
@@ -821,7 +821,6 @@ Parser* createParser(Lexer* lx, Arena* a) {
     return result;    
 }
 
-
 /** Parses top-level types but not functions and adds their bindings to the scope */
 private void parseToplevelTypes(Lexer* lr, Parser* pr) {
 }
@@ -951,6 +950,7 @@ Parser* parse(Lexer* lx, Arena* a) {
     Parser* pr = createParser(lx, a);
     return parseWithParser(lx, pr, a);
 }
+
 
 Parser* parseWithParser(Lexer* lx, Parser* pr, Arena* a) {
     ParserDefinition* pDef = pr->parDef;

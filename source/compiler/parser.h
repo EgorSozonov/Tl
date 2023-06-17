@@ -71,28 +71,33 @@ typedef struct {
     OpDef (*operators)[countOperators];
 } ParserDefinition;
 
-// PARSER DATA
-// 
-// 1) a = Arena for the results
-// AST (i.e. the resulting code)
-// Entitys
-// Types
-//
-// 2) aBt = Arena for the temporary stuff (backtrack). Freed after end of parsing
-//
-// 3) ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
-//
-// WORKFLOW
-// The "stringTable" is frozen: it was filled by the lexer. The "bindings" table is growing
-// with every new assignment form encountered. "Nodes" is obviously growing with the new AST nodes
-// emitted.
-// Any new span (scope, expression, assignment etc) means 
-// - pushing a ParseFrame onto the "backtrack" stack
-// - if the new frame is a lexical scope, also pushing a scope onto the "scopeStack"
-// - else if the new frame is an expression, pushing a subexpr onto the "scopeStack"
-// The scopeStack order is always: some scopes, then maybe some subexpressions.
-// The end of a span means popping from "backtrack" and also, if needed, popping from "scopeStack".
-//
+/*
+ * PARSER DATA
+ * 
+ * 1) a = Arena for the results
+ * AST (i.e. the resulting code)
+ * Entitys
+ * Types
+ *
+ * 2) aBt = Arena for the temporary stuff (backtrack). Freed after end of parsing
+ *
+ * 3) ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
+ *
+ * WORKFLOW
+ * The "stringTable" is frozen: it was filled by the lexer. The "bindings" table is growing
+ * with every new assignment form encountered. "Nodes" is obviously growing with the new AST nodes
+ * emitted.
+ * Any new span (scope, expression, assignment etc) means 
+ * - pushing a ParseFrame onto the "backtrack" stack
+ * - if the new frame is a lexical scope, also pushing a scope onto the "scopeStack"
+ * The end of a span means popping from "backtrack" and also, if needed, popping from "scopeStack".
+ *
+ * ENTITIES AND OVERLOADS
+ * In the parser, all non-functions are bound to Entities, but functions are instead bound to Overloads.
+ * Binding ids go: 0, 1, 2... Overload ids go: -2, -3, -4...
+ * Those overloads are used for counting how many functions for each name there are.
+ * Then they are resolved at the stage of the typer, after which there are only the Entities.
+ */
 struct Parser {
     String* text;
     Lexer* inp;

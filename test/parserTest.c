@@ -109,8 +109,7 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
         // All the node types which contain bindingIds
         if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding || nodeType == nodBinding
          || nodeType == nodFnDef) {
-            Int expectedBinding = transformBindingEntityId(nodes[i].pl1, expectedParser);            
-            addNode((Node){ .tp = nodeType, .pl1 = expectedBinding, .pl2 = nodes[i].pl2, 
+            addNode((Node){ .tp = nodeType, .pl1 = transformBindingEntityId(nodes[i].pl1, expectedParser), .pl2 = nodes[i].pl2, 
                             .startBt = nodes[i].startBt, .lenBts = nodes[i].lenBts }, 
                     expectedParser);
         } else {
@@ -304,12 +303,12 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
             (((Node[]) {
                     (Node){ .tp = nodAssignment, .pl2 = 6, .startBt = 0, .lenBts = 14 },
                     // " + 1" because the first binding is taken up by the "imported" function, "foo"
-                    (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                    (Node){ .tp = nodExpr,  .pl2 = 4, .startBt = 4, .lenBts = 10 },
-                    (Node){ .tp = nodCall, .pl1 = -2, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // the 0th overload
-                    (Node){ .tp = nodInt, .pl2 = 10,  .startBt = 8, .lenBts = 2 },
-                    (Node){ .tp = nodInt, .pl2 = 2,   .startBt = 11, .lenBts = 1 },
-                    (Node){ .tp = nodInt, .pl2 = 3,   .startBt = 13, .lenBts = 1 }                    
+                    (Node){ .tp = nodBinding, .pl1 = 0,        .startBt = 0, .lenBts = 1 }, // x
+                    (Node){ .tp = nodExpr,  .pl2 = 4,          .startBt = 4, .lenBts = 10 },
+                    (Node){ .tp = nodCall, .pl1 = F, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // the 0th overload
+                    (Node){ .tp = nodInt, .pl2 = 10,           .startBt = 8, .lenBts = 2 },
+                    (Node){ .tp = nodInt, .pl2 = 2,            .startBt = 11, .lenBts = 1 },
+                    (Node){ .tp = nodInt, .pl2 = 3,            .startBt = 13, .lenBts = 1 }                    
             })),
             ((EntityImport[]) {(EntityImport){ .name = s("foo"), .entity = (Entity){ .flavor = bndCallable }
             }})
@@ -318,12 +317,12 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
             s("Unary operator as first-class value"), 
             s("x = map (--) coll"),
             (((Node[]) {
-                    (Node){ .tp = nodAssignment, .pl2 = 5, .startBt = 0, .lenBts = 17 },
-                    (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                    (Node){ .tp = nodExpr,  .pl2 = 3, .startBt = 4, .lenBts = 13 },
-                    (Node){ .tp = nodCall, .pl1 = F, .pl2 = 2, .startBt = 4, .lenBts = 3 }, // map
-                    (Node){ .tp = nodId, .pl1 = opTDecrement + M, .startBt = 9, .lenBts = 2 },  // --
-                    (Node){ .tp = nodId, .pl1 = F - 1, .pl2 = 2, .startBt = 13, .lenBts = 4 }  // coll
+                    (Node){ .tp = nodAssignment, .pl2 = 5,        .startBt = 0, .lenBts = 17 },
+                    (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 0, .lenBts = 1 }, // x
+                    (Node){ .tp = nodExpr,  .pl2 = 3,             .startBt = 4, .lenBts = 13 },
+                    (Node){ .tp = nodCall, .pl1 = F, .pl2 = 2,    .startBt = 4, .lenBts = 3 }, // map
+                    (Node){ .tp = nodId, .pl1 = opTDecrement + M, .startBt = 9, .lenBts = 2 }, // --
+                    (Node){ .tp = nodId, .pl1 = M, .pl2 = 2,      .startBt = 13, .lenBts = 4 } // coll
             })),
             ((EntityImport[]) {(EntityImport){ .name = s("map"), .entity = (Entity){.flavor = bndCallable }},
                                 (EntityImport){ .name = s("coll"), .entity = (Entity){.flavor = bndImmut }}
@@ -335,12 +334,12 @@ ParserTestSet* expressionTests(LanguageDefinition* langDef, Arena* a) {
             (((Node[]) {
                     (Node){ .tp = nodAssignment,            .pl2 = 6, .startBt = 0, .lenBts = 30 },
                     // "3" because the first binding is taken up by the "imported" function, "foo"
-                    (Node){ .tp = nodBinding, .pl1 = 0,               .startBt = 0, .lenBts = 1 }, // x
+                    (Node){ .tp = nodBinding, .pl1 = 0,               .startBt = 0, .lenBts = 1 },    // x
                     (Node){ .tp = nodExpr,                  .pl2 = 4, .startBt = 4, .lenBts = 26 },
-                    (Node){ .tp = nodCall, .pl1 = F,        .pl2 = 3, .startBt = 4, .lenBts = 5 },       // bimap
-                    (Node){ .tp = nodId, .pl1 = -opTDivBy - 2 + M,         .startBt = 10, .lenBts = 1 },    // /
-                    (Node){ .tp = nodId, .pl1 = F - 1,      .pl2 = 2, .startBt = 12, .lenBts = 9 },  // dividends
-                    (Node){ .tp = nodId, .pl1 = F - 2,      .pl2 = 3, .startBt = 22, .lenBts = 8 }   // divisors
+                    (Node){ .tp = nodCall, .pl1 = F,        .pl2 = 3, .startBt = 4, .lenBts = 5 },    // bimap
+                    (Node){ .tp = nodId, .pl1 = -opTDivBy - 2 + M,    .startBt = 10, .lenBts = 1 },   // /
+                    (Node){ .tp = nodId, .pl1 = M,      .pl2 = 2,     .startBt = 12, .lenBts = 9 },   // dividends
+                    (Node){ .tp = nodId, .pl1 = M + 1,      .pl2 = 3, .startBt = 22, .lenBts = 8 }    // divisors
             })),
             ((EntityImport[]) {(EntityImport){ .name = s("bimap"), 
                                                .entity = (Entity){.flavor = bndCallable }},
@@ -961,7 +960,7 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
             s("Simple loop 1"),
             s("(.f f Int(). (.loop (< x 101) (x 1). print x))"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 14, .lenBts = 46 },
+                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 14, .lenBts = 46 },
                 (Node){ .tp = nodScope, .pl2 = 13, .startBt = 9, .lenBts = 37 }, // function body
                 
                 (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 12, .startBt = 13, .lenBts = 32 },
@@ -969,18 +968,18 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodScope, .pl2 = 11, .startBt = 30, .lenBts = 15 },
                 
                 (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 31, .lenBts = 3 },
-                (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 31, .lenBts = 1 }, // x
+                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 31, .lenBts = 1 }, // x
                 (Node){ .tp = nodInt, .pl2 = 1, .startBt = 33, .lenBts = 1 },
                 
                 (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 20, .lenBts = 9 },
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 20, .lenBts = 9 },
                 (Node){ .tp = nodCall, .pl1 = -opTLessThan - 2 + M, .pl2 = 2, .startBt = 21, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 23, .lenBts = 1 }, // x
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 23, .lenBts = 1 }, // x
                 (Node){ .tp = nodInt, .pl2 = 101, .startBt = 25, .lenBts = 3 },
                 
                 (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 37, .lenBts = 7 },
                 (Node){ .tp = nodCall, .pl1 = F, .pl2 = 1, .startBt = 37, .lenBts = 5 }, // print
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 43, .lenBts = 1 }      // x
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 43, .lenBts = 1 }      // x
             }),
             ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = (Entity){.flavor = bndCallable }}})
         ),
@@ -990,31 +989,31 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
               "    (.loop (< x 101) (x 7 y (>> 5 x))\n"
               "        print x))"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 20, .lenBts = 67 },
+                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 20, .lenBts = 67 },
                 (Node){ .tp = nodScope, .pl2 = 19, .startBt = 9, .lenBts = 58 }, // function body
                 
                 (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 18, .startBt = 16, .lenBts = 50 },                
                 (Node){ .tp = nodScope, .pl2 = 17, .startBt = 33, .lenBts = 33 },
                 
                 (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 34, .lenBts = 3 },
-                (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 34, .lenBts = 1 },  // x
+                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 34, .lenBts = 1 },  // x
                 (Node){ .tp = nodInt, .pl2 = 7, .startBt = 36, .lenBts = 1 },
                 (Node){ .tp = nodAssignment, .pl2 = 5, .startBt = 38, .lenBts = 10 },
-                (Node){ .tp = nodBinding, .pl1 = 2, .startBt = 38, .lenBts = 1 },  // y
+                (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 38, .lenBts = 1 },  // y
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 40, .lenBts = 8 },
                 (Node){ .tp = nodCall, .pl1 = -opTBitshiftRight - 2 + M, .pl2 = 2, .startBt = 41, .lenBts = 2 },
                 (Node){ .tp = nodInt, .pl2 = 5, .startBt = 44, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 46, .lenBts = 1 }, // x                
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 46, .lenBts = 1 }, // x                
                 
                 (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 23, .lenBts = 9 },
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 23, .lenBts = 9 },
                 (Node){ .tp = nodCall, .pl1 = -opTLessThan - 2 + M, .pl2 = 2, .startBt = 24, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 26, .lenBts = 1 }, // x
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 26, .lenBts = 1 }, // x
                 (Node){ .tp = nodInt, .pl2 = 101, .startBt = 28, .lenBts = 3 },
                 
                 (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 58, .lenBts = 7 },
                 (Node){ .tp = nodCall, .pl1 = F, .pl2 = 1, .startBt = 58, .lenBts = 5 }, // print
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 64, .lenBts = 1 }      // x
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 64, .lenBts = 1 }      // x
 
             }),
             ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = (Entity){.flavor = bndCallable }}})
@@ -1026,25 +1025,25 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
               "    (.loop (< x 101) \n"
               "        print x))"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 14, .lenBts = 61 },
-                (Node){ .tp = nodScope, .pl2 = 13, .startBt = 9, .lenBts = 52 }, // function body
+                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 14,               .lenBts = 61 },
+                (Node){ .tp = nodScope, .pl2 = 13,           .startBt = 9, .lenBts = 52 }, // function body
 
-                (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 16, .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 16, .lenBts = 1 },  // x
-                (Node){ .tp = nodInt, .pl2 = 4, .startBt = 20, .lenBts = 1 },
+                (Node){ .tp = nodAssignment, .pl2 = 2,       .startBt = 16, .lenBts = 5 },
+                (Node){ .tp = nodBinding, .pl1 = 0,          .startBt = 16, .lenBts = 1 },  // x
+                (Node){ .tp = nodInt, .pl2 = 4,              .startBt = 20, .lenBts = 1 },
                 
                 (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 9, .startBt = 26, .lenBts = 34 },                
-                (Node){ .tp = nodScope, .pl2 = 8, .startBt = 52, .lenBts = 8 },
+                (Node){ .tp = nodScope, .pl2 = 8,           .startBt = 52, .lenBts = 8 },
                 
                 (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 33, .lenBts = 9 },
-                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 33, .lenBts = 9 },
+                (Node){ .tp = nodExpr, .pl2 = 3,            .startBt = 33, .lenBts = 9 },
                 (Node){ .tp = nodCall, .pl1 = -opTLessThan - 2 + M, .pl2 = 2, .startBt = 34, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 36, .lenBts = 1 }, // x
-                (Node){ .tp = nodInt, .pl2 = 101, .startBt = 38, .lenBts = 3 },
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2,    .startBt = 36, .lenBts = 1 }, // x
+                (Node){ .tp = nodInt, .pl2 = 101,           .startBt = 38, .lenBts = 3 },
                 
-                (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 52, .lenBts = 7 },
-                (Node){ .tp = nodCall, .pl1 = F, .pl2 = 1, .startBt = 52, .lenBts = 5 }, // print
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 58, .lenBts = 1 }      // x
+                (Node){ .tp = nodExpr, .pl2 = 2,            .startBt = 52, .lenBts = 7 },
+                (Node){ .tp = nodCall, .pl1 = F, .pl2 = 1,  .startBt = 52, .lenBts = 5 }, // print
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2,    .startBt = 58, .lenBts = 1 }  // x
 
             }),
             ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = (Entity){.flavor = bndCallable }}})
@@ -1056,7 +1055,7 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
               "        break\n"
               "        continue 3))"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 13, .lenBts = 73 },
+                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 13, .lenBts = 73 },
                 (Node){ .tp = nodScope, .pl2 = 12, .startBt = 9, .lenBts = 64 }, // function body
                 
                 (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 11, .startBt = 16, .lenBts = 56 },
@@ -1064,16 +1063,16 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
                 (Node){ .tp = nodScope, .pl2 = 10, .startBt = 33, .lenBts = 39 },
                 
                 (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 34, .lenBts = 3 },
-                (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 34, .lenBts = 1 }, // x
+                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 34, .lenBts = 1 }, // x
                 (Node){ .tp = nodInt, .pl2 = 0, .startBt = 36, .lenBts = 1 },
                 
                 (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 23, .lenBts = 9 },
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 23, .lenBts = 9 },
                 (Node){ .tp = nodCall, .pl1 = -opTLessThan - 2 + M, .pl2 = 2, .startBt = 24, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 26, .lenBts = 1 }, // x
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 26, .lenBts = 1 }, // x
                 (Node){ .tp = nodInt, .pl2 = 101, .startBt = 28, .lenBts = 3 },
                 
-                (Node){ .tp = nodBreak, .pl1 = 1, .startBt = 47, .lenBts = 5 }, // x
+                (Node){ .tp = nodBreak, .pl1 = 1, .startBt = 47, .lenBts = 5 },
                 (Node){ .tp = nodContinue, .pl1 = 3, .startBt = 61, .lenBts = 10 }
             }),
             ((EntityImport[]) {})
@@ -1101,11 +1100,11 @@ int main() {
 
     int countPassed = 0;
     int countTests = 0;
-    //~ runATestSet(&assignmentTests, &countPassed, &countTests, langDef, parsDef, a);
+    runATestSet(&assignmentTests, &countPassed, &countTests, langDef, parsDef, a);
     runATestSet(&expressionTests, &countPassed, &countTests, langDef, parsDef, a);
-    //~ runATestSet(&functionTests, &countPassed, &countTests, langDef, parsDef, a);
-    //~ runATestSet(&ifTests, &countPassed, &countTests, langDef, parsDef, a);
-    //~ runATestSet(&loopTests, &countPassed, &countTests, langDef, parsDef, a);
+    runATestSet(&functionTests, &countPassed, &countTests, langDef, parsDef, a);
+    runATestSet(&ifTests, &countPassed, &countTests, langDef, parsDef, a);
+    runATestSet(&loopTests, &countPassed, &countTests, langDef, parsDef, a);
 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
