@@ -25,4 +25,5 @@ gradle/*
 *.iml
 *.tar
 *.geany
+*.xz
 gmon.out
