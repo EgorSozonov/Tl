@@ -21,12 +21,6 @@ typedef struct {
 } ParseFrame;
 
 DEFINE_STACK_HEADER(ParseFrame)
-//~ typedef struct {                                            
-    //~ Int capacity;                                           
-    //~ Int length;                                             
-    //~ Arena* arena;                                           
-    //~ ParseFrame (* content)[];                                        
-//~ } StackParseFrame;
 
 typedef struct Lexer Lexer;
 typedef struct Parser Parser;

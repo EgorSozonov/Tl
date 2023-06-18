@@ -1,5 +1,4 @@
 DEFINE_STACK(BtToken)
-DEFINE_STACK(int32_t)
 
 #define initBucketSize 8
 

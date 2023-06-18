@@ -2,18 +2,23 @@
 #include <string.h>
 #include "parser.h"
 #include "typer.h"
-#include "typer.internal.h"
 
-DEFINE_STACK(int32_t)
+
 
 #define push pushint32_t
 
 Arr(Int) createOverloads(Parser* pr) {
     Int neededCount = 0;
     for (Int i = 0; i < pr->overlNext; i++) {
-       neededCount += pr->overloads[i];
+        neededCount += (2*pr->overloads[i] + 1); // a typeId and an entityId for each overload, plus a length field for the list
     }
     Arr(Int) overloads = allocateOnArena(neededCount*4, pr->a);
+
+    Int j = 0;
+    for (Int i = 0; i < pr->overlNext; i++) {
+        overloads[j] = pr->overloads[i]; // the length of the overload list (which will be filled during type check/resolution)
+        j += (2*pr->overloads[i] + 1);
+    }
     return overloads;
 }
 
@@ -39,13 +44,29 @@ Typer* createTyper(Parser* pr) {
 
 
 
-Int typeResolveExpr(Parser* pr, Int indExpr, Typer* tr) {
-    Node expr = pr->nodes[indExpr];
+Int typeResolveExpr(Int indExpr, Typer* tr) {
+    Node expr = tr->nodes[indExpr];
     Int sentinelNode = indExpr + expr.pl2 + 1;
     for (int i = indExpr + 1; i < sentinelNode; ++i) {
-        Node nd = pr->nodes[i];
-        if (nd.tp == nodInt) {
-            push(typInt, tr->expStack);
+        Node nd = tr->nodes[i];
+        if (nd.tp <= nodString) {
+            push((Int)nd.tp, tr->expStack);
+            push(-1, tr->expStack); // -1 arity means it's not a call
+        } else {
+            push(nd.pl1, tr->expStack); // bindingId or overloadId            
+            push(nd.tp == nodCall ? nd.pl2 : -1, tr->expStack);            
+        }
+    }
+    Int j = 2*expr.pl2 - 1;
+    Arr(Int) st = tr->expStack->content;
+    while (j > -1) {        
+        if (st[j + 1] == -1) {
+            j -= 2;
+        } else { // a function call
+            // resolve overload
+            // check & resolve arg types
+            // replace the arg types on the stack with the return type
+            // shift the remaining stuff on the right so it directly follows the return
         }
     }
 }

@@ -5,6 +5,7 @@
 #include "../utils/aliases.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
+#include "../utils/common.h"
 #include "../utils/structures/stackHeader.h"
 #include "lexerConstants.h"
 
@@ -26,7 +27,7 @@ typedef struct {
 } BtToken;
 
 
-DEFINE_STACK_HEADER(int32_t)
+
 DEFINE_STACK_HEADER(BtToken)
 
 

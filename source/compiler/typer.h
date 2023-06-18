@@ -1,10 +1,9 @@
-#include "../utils/structures/stack.h"
-#include "../utils/structures/stackHeader.h"
 
-DEFINE_STACK_HEADER(int32_t)
+#include "../utils/common.h"
+
 
 typedef struct {
-    Stackint32_t expStack;
+    Stackint32_t* expStack;
 
     Arr(Entity) entities;      // growing array of all bindings ever encountered
     Int entNext;
