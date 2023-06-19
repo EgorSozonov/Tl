@@ -3,11 +3,12 @@
 #include "../utils/aliases.h"
 #include "lexerConstants.h"
 #include "lexer.h"
-#include "parserConstants.h"
+#include "compilerConstants.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
 #include "../utils/structures/stack.h"
 #include "../utils/structures/stackHeader.h"
+#include "../utils/stackInt.h"
 #include "../utils/structures/stringMap.h"
 
 extern jmp_buf excBuf;
@@ -23,7 +24,7 @@ typedef struct {
 DEFINE_STACK_HEADER(ParseFrame)
 
 typedef struct Lexer Lexer;
-typedef struct Parser Parser;
+typedef struct Compiler Compiler;
 typedef struct ScopeStack ScopeStack;
 typedef struct {
     untt tp : 6;
@@ -35,8 +36,7 @@ typedef struct {
 
 
 typedef struct {
-    untt flavor : 6;        // mutable, immutable, callable?
-    untt typeId : 26;
+    Int typeId;
     Int nameId;
     bool appendUnderscore;
     bool emitAsPrefix;
@@ -51,8 +51,14 @@ typedef struct {
 } EntityImport;
 
 
-typedef void (*ParserFunc)(Token, Arr(Token), Parser*);
-typedef void (*ResumeFunc)(Token*, Arr(Token), Parser*);
+typedef struct {
+    String* name;
+    Int count;
+} OverloadImport;
+
+
+typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
+typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
 
 #define countSyntaxForms (tokLoop + 1)
 #define firstResumableForm nodIf
@@ -92,7 +98,7 @@ typedef struct {
  * Those overloads are used for counting how many functions for each name there are.
  * Then they are resolved at the stage of the typer, after which there are only the Entities.
  */
-struct Parser {
+struct Compiler {
     String* text;
     Lexer* inp;
     Int inpLength;
@@ -101,29 +107,35 @@ struct Parser {
     ScopeStack* scopeStack;
     Int i;                     // index of current token in the input
 
-    Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startBt of each string.       
-    StringStore* stringStore;  // A hash table for quickly deduplicating strings. Points into stringTable 
-    Int strLength;             // length of stringTable
-        
+    Arr(Node) nodes; 
+    Int capacity;               // current capacity of node storage
+    Int nextInd;                // the index for the next token to be added    
+
     Arr(Entity) entities;      // growing array of all bindings ever encountered
     Int entNext;
     Int entCap;
     Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overloaded binding
     Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
 
-    Arr(Int) overloads;        // growing array of counts of all fn name definitions encountered (for the typechecker to use)
-    Int overlNext;
-    Int overlCap;    
+    Arr(Int) overloadCounts;        // growing array of counts of all fn name definitions encountered (for the typechecker to use)
+    Int overlCNext;
+    Int overlCCap;
+
+    Stackint32_t* types;
+    Int typeNext;
+    Int typeCap;
+
+    Stackint32_t* expStack;    // temporary scratch space for type checking/resolving an expression
 
     // Current bindings and overloads in scope. -1 means "not active"
     // Var & type bindings are nameId (index into stringTable) -> bindingId
     // Function bindings are nameId -> (-overloadId - 2). So negative values less than -1 mean "function is active"
     Arr(int) activeBindings;
-    
-    Arr(Node) nodes; 
-    Int capacity;               // current capacity of node storage
-    Int nextInd;                // the index for the next token to be added    
-    
+
+    Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startBt of each string.       
+    StringStore* stringStore;  // A hash table for quickly deduplicating strings. Points into stringTable 
+    Int strLength;             // length of stringTable    
+
     bool wasError;
     String* errMsg;
     Arena* a;
@@ -131,10 +143,12 @@ struct Parser {
 };
 
 ParserDefinition* buildParserDefinitions(LanguageDefinition*, Arena*);
-Parser* createParser(Lexer*, Arena*);
-Int createBinding(Token, Entity, Parser*);
-void importEntities(Arr(EntityImport) bindings, Int countBindings, Parser* pr);
-Parser* parse(Lexer*, Arena*);
-Parser* parseWithParser(Lexer*, Parser*, Arena*);
-void addNode(Node t, Parser* lexer);
+Compiler* createCompiler(Lexer*, Arena*);
+Int createBinding(Token, Entity, Compiler*);
+void importEntities(Arr(EntityImport), Int count, Compiler* pr);
+void importOverloads(Arr(OverloadImport), Int count, Compiler* pr);
+Compiler* parse(Lexer*, Arena*);
+Compiler* parseWithCompiler(Lexer*, Compiler*, Arena*);
+void addNode(Node, Compiler*);
+void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* tr);
 

@@ -102,10 +102,15 @@ extern const char errorTemp[];
 
 
 // Entity flavors
-#define bndMut          0
-#define bndImmut        1
-#define bndCallable     2       // functions
-#define bndType         3       // types
+#define bndMut      0
+#define bndImmut    1
+#define bndCallable 2       // functions
+#define bndType     3       // types
+
+#define typInt      0
+#define typFloat    1
+#define typBool     2
+#define typString   3
 
 
 

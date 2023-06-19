@@ -5,19 +5,23 @@ DEFINE_STACK(ParseFrame)
                                             
 
 #define pop(X) _Generic((X), \
-    StackParseFrame*: popParseFrame \
+    StackParseFrame*: popParseFrame, \
+    Stackint32_t*: popint32_t \
     )(X)
 
 #define peek(X) _Generic((X), \
-    StackParseFrame*: peekParseFrame \
+    StackParseFrame*: peekParseFrame, \
+    Stackint32_t*: peekint32_t \
     )(X)
 
 #define push(A, X) _Generic((X), \
-    StackParseFrame*: pushParseFrame \
+    StackParseFrame*: pushParseFrame, \
+    Stackint32_t*: pushint32_t \
     )((A), X)
     
 #define hasValues(X) _Generic((X), \
-    StackParseFrame*: hasValuesParseFrame \
+    StackParseFrame*: hasValuesParseFrame, \
+    Stackint32_t*:  hasValuesint32_t \
     )(X)   
 
 typedef struct ScopeStackFrame ScopeStackFrame;

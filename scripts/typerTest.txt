@@ -3,5 +3,5 @@ gcc -g3 -Wshadow -Wfatal-errors -Werror=implicit-function-declaration --std=c11 
 -Werror=implicit-int \
 -Isource/utils -Isource/compiler  \
 test/typerTest.c source/utils/goodString.c source/utils/arena.c source/compiler/lexerConstants.c source/compiler/lexer.c \
-source/compiler/parserConstants.c source/compiler/parser.c source/utils/common.c source/compiler/typer.c \
+source/compiler/compilerConstants.c source/utils/common.c source/compiler/compiler.c \
 -lm

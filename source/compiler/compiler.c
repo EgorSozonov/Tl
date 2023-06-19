@@ -1,16 +1,16 @@
 #include <stdbool.h>
 #include <string.h>
-#include "parser.h"
-#include "parser.internal.h"
+#include "compiler.h"
+#include "compiler.internal.h"
 
-// The Parser. Consumes tokens and the string table from the Lexer. 
+// The Compiler. Consumes tokens and the string table from the Lexer. 
 // Produces nodes and bindings.
 // All lines that consume a token are marked with "// CONSUME"
 
 
 extern jmp_buf excBuf; // defined in lexer.c
 
-_Noreturn private void throwExc0(const char errMsg[], Parser* pr) {   
+_Noreturn private void throwExc0(const char errMsg[], Compiler* pr) {   
     
     pr->wasError = true;
 #ifdef TRACE    
@@ -23,11 +23,11 @@ _Noreturn private void throwExc0(const char errMsg[], Parser* pr) {
 #define throwExc(msg) throwExc0(msg, pr)
 
 // Forward declarations
-private bool parseLiteralOrIdentifier(Token tok, Parser* pr);
+private bool parseLiteralOrIdentifier(Token tok, Compiler* pr);
 
 
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
-Int createBinding(Token bindingToken, Entity b, Parser* pr) {
+Int createBinding(Token bindingToken, Entity b, Compiler* pr) {
     VALIDATE(bindingToken.tp == tokWord, errorAssignment)
 
     Int nameId = bindingToken.pl2;
@@ -55,30 +55,26 @@ Int createBinding(Token bindingToken, Entity b, Parser* pr) {
 }
 
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
-void encounterFnDefinition(Int nameId, Parser* pr) {    
+void encounterFnDefinition(Int nameId, Compiler* pr) {    
     Int activeValue = (nameId > -1) ? pr->activeBindings[nameId] : -1;
     VALIDATE(activeValue < 0, errorAssignmentShadowing);
     if (activeValue == -1) {
-        pr->overloads[pr->overlNext] = 1;
-        pr->activeBindings[nameId] = -pr->overlNext - 2;
-        pr->overlNext++;
-        if (pr->overlNext == pr->overlCap) {
-            Arr(Int) newOverloads = allocateOnArena(2*pr->overlCap*4, pr->a);
-            memcpy(newOverloads, pr->overloads, pr->overlCap*4);
-            pr->overloads = newOverloads;
-            pr->overlCap *= 2;
+        pr->overloadCounts[pr->overlCNext] = 1;
+        pr->activeBindings[nameId] = -pr->overlCNext - 2;
+        pr->overlCNext++;
+        if (pr->overlCNext == pr->overlCCap) {
+            Arr(Int) newOverloads = allocateOnArena(2*pr->overlCCap*4, pr->a);
+            memcpy(newOverloads, pr->overloadCounts, pr->overlCCap*4);
+            pr->overloadCounts = newOverloads;
+            pr->overlCCap *= 2;
         }
     } else {
-        pr->overloads[-activeValue - 2]++;
+        pr->overloadCounts[-activeValue - 2]++;
     }
 }
 
 
-Int importEntity(Int nameId, Entity b, Parser* pr) {
-    if (b.flavor == bndCallable) {
-        encounterFnDefinition(nameId, pr); // TODO built-in operators?
-        return -1;
-    }
+Int importEntity(Int nameId, Entity b, Compiler* pr) {
     if (nameId > -1) {
         Int mbBinding = pr->activeBindings[nameId];
         VALIDATE(mbBinding == -1, errorAssignmentShadowing)
@@ -104,7 +100,7 @@ Int importEntity(Int nameId, Entity b, Parser* pr) {
 }
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
-private void handleFullChunk(Parser* pr) {
+private void handleFullChunk(Compiler* pr) {
     Node* newStorage = allocateOnArena(pr->capacity*2*sizeof(Node), pr->a);
     memcpy(newStorage, pr->nodes, (pr->capacity)*(sizeof(Node)));
     pr->nodes = newStorage;
@@ -112,7 +108,7 @@ private void handleFullChunk(Parser* pr) {
 }
 
 
-void addNode(Node n, Parser* pr) {
+void addNode(Node n, Compiler* pr) {
     pr->nodes[pr->nextInd] = n;
     pr->nextInd++;
     if (pr->nextInd == pr->capacity) {
@@ -124,22 +120,22 @@ void addNode(Node n, Parser* pr) {
  * Finds the top-level punctuation opener by its index, and sets its node length.
  * Called when the parsing of a span is finished.
  */
-private void setSpanLength(Int nodeInd, Parser* pr) {
+private void setSpanLength(Int nodeInd, Compiler* pr) {
     pr->nodes[nodeInd].pl2 = pr->nextInd - nodeInd - 1;
 }
 
 
-private void parseVerbatim(Token tok, Parser* pr) {
+private void parseVerbatim(Token tok, Compiler* pr) {
     addNode((Node){.tp = tok.tp, .startBt = tok.startBt, .lenBts = tok.lenBts, 
         .pl1 = tok.pl1, .pl2 = tok.pl2}, pr);
 }
 
-private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private ParseFrame popFrame(Parser* pr) {    
+private ParseFrame popFrame(Compiler* pr) {    
     ParseFrame frame = pop(pr->backtrack);
     if (frame.tp == nodScope) {
         popScopeFrame(pr->activeBindings, pr->scopeStack);
@@ -156,7 +152,7 @@ private Int calcSentinel(Token tok, Int tokInd) {
 /**
  * A single-item subexpression, like "(foo)" or "(!)". Consumes no tokens.
  */
-private void exprSingleItem(Token theTok, Parser* pr) {
+private void exprSingleItem(Token theTok, Compiler* pr) {
     if (theTok.tp == tokWord) {
         Int mbOverload = pr->activeBindings[theTok.pl2];
         VALIDATE(mbOverload != -1, errorUnknownFunction)
@@ -182,7 +178,7 @@ private void exprSingleItem(Token theTok, Parser* pr) {
 }
 
 /** Counts the arity of the call, including skipping unary operators. Consumes no tokens. */
-void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Parser* pr) {
+void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Compiler* pr) {
     Int j = pr->i;
     Token firstTok = tokens[j];
 
@@ -209,7 +205,7 @@ void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Parser* pr
  * Consumes 1 or 2 tokens
  * TODO: allow for core forms (but not scopes!)
  */
-private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Parser* pr) {
+private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Compiler* pr) {
     Token firstTok = tokens[pr->i];    
     
     if (parenTok.pl2 == 1) {
@@ -244,14 +240,14 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Parser* 
  * Flushing includes appending its operators, clearing the operator stack, and appending
  * prefix unaries from the previous subexpr frame, if any.
  */
-private void subexprClose(Arr(Token) tokens, Parser* pr) {
+private void subexprClose(Arr(Token) tokens, Compiler* pr) {
     while (pr->scopeStack->length > 0 && pr->i == peek(pr->backtrack).sentinelToken) {
         popFrame(pr);        
     }
 }
 
 /** An operator token in non-initial position is either a funcall (if unary) or an operand. Consumes no tokens. */
-private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tokens, Parser* pr) {
+private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tokens, Compiler* pr) {
     Int bindingId = tok.pl1;
     OpDef operDefinition = (*pr->parDef->operators)[bindingId];
 
@@ -264,7 +260,7 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
 }
 
 /** Parses an expression. Precondition: we are 1 past the span token */
-private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
+private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* pr) {
     Int sentinelToken = pr->i + exprTok.pl2;
     Int arity = 0;
     if (exprTok.pl2 == 1) {
@@ -313,7 +309,7 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Parser* pr) {
  * in which case this function handles all the corresponding stack poppin'.
  * It also always handles updating all inner frames with consumed tokens.
  */
-private void maybeCloseSpans(Parser* pr) {
+private void maybeCloseSpans(Compiler* pr) {
     while (hasValues(pr->backtrack)) { // loop over subscopes and expressions inside FunctionDef
         ParseFrame frame = peek(pr->backtrack);
         if (pr->i < frame.sentinelToken) {
@@ -324,7 +320,7 @@ private void maybeCloseSpans(Parser* pr) {
 }
 
 /** Parses top-level function bodies */
-private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
+private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* pr) {
     while (pr->i < sentinelToken) {
         Token currTok = tokens[pr->i];
         untt contextType = peek(pr->backtrack).tp;
@@ -342,7 +338,7 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Parser* pr) {
 }
 
 /** Consumes 0 or 1 tokens. Returns false if didn't parse anything. */
-private bool parseLiteralOrIdentifier(Token tok, Parser* pr) {
+private bool parseLiteralOrIdentifier(Token tok, Compiler* pr) {
     if (tok.tp <= topVerbatimTokenVariant) {
         parseVerbatim(tok, pr);
     } else if (tok.tp == tokWord) {        
@@ -359,7 +355,7 @@ private bool parseLiteralOrIdentifier(Token tok, Parser* pr) {
 }
 
 
-private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* pr) {
     const Int rightSideLen = tok.pl2 - 1;
     if (rightSideLen < 1) {
         throwExc(errorAssignment);
@@ -367,7 +363,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     Int sentinelToken = pr->i + tok.pl2;
 
     Token bindingToken = tokens[pr->i];
-    Int newBindingId = createBinding(bindingToken, (Entity){.flavor = bndMut }, pr);
+    Int newBindingId = createBinding(bindingToken, (Entity){ }, pr);
 
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = pr->nextInd, .sentinelToken = sentinelToken }), 
          pr->backtrack);
@@ -396,34 +392,34 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Parser* pr) {
     }
 }
 
-private void parseReassignment(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
-private void parseMutation(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseMutation(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
-private void parseAlias(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseAlias(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
-private void parseAssert(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
-}
-
-
-private void parseAssertDbg(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseAssert(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseAwait(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseAssertDbg(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseBreak(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseAwait(Token tok, Arr(Token) tokens, Compiler* pr) {
+    throwExc(errorTemp);
+}
+
+
+private void parseBreak(Token tok, Arr(Token) tokens, Compiler* pr) {
     VALIDATE(tok.pl2 <= 1, errorBreakContinueTooComplex);
     if (tok.pl2 == 1) {
         Token nextTok = tokens[pr->i];
@@ -436,12 +432,12 @@ private void parseBreak(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void parseCatch(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseCatch(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseContinue(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseContinue(Token tok, Arr(Token) tokens, Compiler* pr) {
     VALIDATE(tok.pl2 <= 1, errorBreakContinueTooComplex);
     if (tok.pl2 == 1) {
         Token nextTok = tokens[pr->i];
@@ -454,62 +450,62 @@ private void parseContinue(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void parseDefer(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseDefer(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseDispose(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseDispose(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseExposePrivates(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseExposePrivates(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseFnDef(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseInterface(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseInterface(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseImpl(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseImpl(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseLambda(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseLambda(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseLambda1(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseLambda1(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseLambda2(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseLambda2(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseLambda3(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseLambda3(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parsePackage(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parsePackage(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseReturn(Token tok, Arr(Token) tokens, Compiler* pr) {
     Int lenTokens = tok.pl2;
     Int sentinelToken = pr->i + lenTokens;        
     
@@ -536,33 +532,33 @@ private void parseReturn(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void parseSkip(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseSkip(Token tok, Arr(Token) tokens, Compiler* pr) {
     
 }
 
 
-private void parseScope(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseScope(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
-private void parseStruct(Token tok, Arr(Token) tokens, Parser* pr) {
-    throwExc(errorTemp);
-}
-
-
-private void parseTry(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseStruct(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 
-private void parseYield(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseTry(Token tok, Arr(Token) tokens, Compiler* pr) {
+    throwExc(errorTemp);
+}
+
+
+private void parseYield(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
 /** To be called at the start of an "if" clause. It validates the grammar and emits nodes. Consumes no tokens.
  * Precondition: we are pointing at the init token of left side of "if" (i.e. at a tokStmt or the like)
  */
-private void ifAddClause(Token tok, Arr(Token) tokens, Parser* pr) {
+private void ifAddClause(Token tok, Arr(Token) tokens, Compiler* pr) {
     VALIDATE(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errorIfLeft)
     Int leftTokSkip = (tok.tp >= firstPunctuationTokenType) ? (tok.pl2 + 1) : 1;
     Int j = pr->i + leftTokSkip;
@@ -582,7 +578,7 @@ private void ifAddClause(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
+private void parseIf(Token tok, Arr(Token) tokens, Compiler* pr) {
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = pr->nextInd, 
         .sentinelToken = pr->i + tok.pl2 };
     push(newParseFrame, pr->backtrack);
@@ -592,7 +588,7 @@ private void parseIf(Token tok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
+private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* pr) {
     Token tokenStmt = tokens[pr->i];
     Int sentinelStmt = pr->i + tokenStmt.pl2 + 1;
     VALIDATE(tokenStmt.tp == tokStmt, errorLoopSyntaxError)    
@@ -636,7 +632,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
             VALIDATE(expr.tp < firstPunctuationTokenType || expr.tp == tokParens, errorLoopSyntaxError)
             
             Int initializationSentinel = calcSentinel(expr, pr->i + 1);
-            Int bindingId = createBinding(binding, ((Entity){bndMut}), pr);
+            Int bindingId = createBinding(binding, ((Entity){}), pr);
             Int indBindingSpan = pr->nextInd;
             addNode((Node){.tp = nodAssignment, .pl2 = initializationSentinel - pr->i,
                            .startBt = binding.startBt,
@@ -672,7 +668,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Parser* pr) {
 }
 
 
-private void resumeIf(Token* tok, Arr(Token) tokens, Parser* pr) {
+private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* pr) {
     if (tok->tp == tokElse) {        
         VALIDATE(pr->i < pr->inpLength, errorPrematureEndOfTokens)
         pr->i++; // CONSUME the "else"
@@ -688,16 +684,30 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Parser* pr) {
     }
 }
 
-private void resumeIfPr(Token* tok, Arr(Token) tokens, Parser* pr) {
+private void resumeIfPr(Token* tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
-private void resumeImpl(Token* tok, Arr(Token) tokens, Parser* pr) {
+private void resumeImpl(Token* tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
-private void resumeMatch(Token* tok, Arr(Token) tokens, Parser* pr) {
+private void resumeMatch(Token* tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
+}
+
+
+void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* pr) {
+    Int neededLen = pr->typeNext + arity + 2;
+    while (pr->typeCap < neededLen) {
+        StackInt* newTypes = createStackint32_t(pr->typeCap*2*4, pr->a);
+        memcpy(newTypes, pr->types, pr->typeNext);
+        pr->types = newTypes;
+        pr->typeCap *= 2;
+    }
+    (*pr->types->content)[pr->typeNext] = arity + 1;
+    memcpy(pr->types + pr->typeNext + 1, paramsAndReturn, arity + 1);
+    pr->typeNext += (arity + 2);
 }
 
 
@@ -767,66 +777,87 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 }
 
 
-void importEntities(Arr(EntityImport) impts, Int countBindings, Parser* pr) {
+void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* pr) {
     for (int i = 0; i < countBindings; i++) {
+        print("pr_string store %d", pr->stringStore->dictSize)
         Int mbNameId = getStringStore(pr->text->content, impts[i].name, pr->stringTable, pr->stringStore);
         if (mbNameId > -1) {           
             Int newBindingId = importEntity(mbNameId, impts[i].entity, pr);
         }
+    }    
+}
+
+
+void importOverloads(Arr(OverloadImport) impts, Int countImports, Compiler* pr) {
+    for (int i = 0; i < countImports; i++) {        
+        Int mbNameId = getStringStore(pr->text->content, impts[i].name, pr->stringTable, pr->stringStore);
+        if (mbNameId > -1) {
+            encounterFnDefinition(mbNameId, pr);
+        }
     }
 }
 
-/* Entitys for the built-in operators, types, functions. */
-void importBuiltins(LanguageDefinition* langDef, Parser* pr) {
-    for (int i = 0; i < countOperators; i++) {
-        importEntity(-1, (Entity){ .flavor = bndCallable}, pr);
+/* Entities and overloads for the built-in operators, types and functions. */
+void importBuiltins(LanguageDefinition* langDef, Compiler* pr) {
+    for (int i = 0; i < 4; i++) { // Int, Float, String, Bool
+        push(0, pr->types);
     }
-    EntityImport builtins[4] =  {
-        (EntityImport) { .name = str("Int", pr->a),    .entity = (Entity){ .flavor = bndType} },
-        (EntityImport) { .name = str("Float", pr->a),  .entity = (Entity){ .flavor = bndType} },
-        (EntityImport) { .name = str("String", pr->a), .entity = (Entity){ .flavor = bndType} },
-        (EntityImport) { .name = str("Bool", pr->a),   .entity = (Entity){ .flavor = bndType} }
+    print("here %d overlccap %d", pr->stringStore->dictSize, pr->overlCCap)
+    EntityImport builtins[2] =  {
+        (EntityImport) { .name = str("math-pi", pr->a), .entity = (Entity){.typeId = typFloat} },
+        (EntityImport) { .name = str("math-e", pr->a),  .entity = (Entity){.typeId = typFloat} }
     };
+    for (int i = 0; i < countOperators; i++) {
+        print("herein %d overlcount will be %d", pr->stringStore->dictSize, (*langDef->operators)[i].overloads)
+        pr->overloadCounts[i] = (*langDef->operators)[i].overloads;
+    }
+        print("heretofore %d", pr->stringStore->dictSize)
     importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), pr);
 }
 
 
-Parser* createParser(Lexer* lx, Arena* a) {
+Compiler* createCompiler(Lexer* lx, Arena* a) {
     if (lx->wasError) {
-        Parser* result = allocateOnArena(sizeof(Parser), a);
+        Compiler* result = allocateOnArena(sizeof(Compiler), a);
         result->wasError = true;
         return result;
     }
     
-    Parser* result = allocateOnArena(sizeof(Parser), a);
+    Compiler* result = allocateOnArena(sizeof(Compiler), a);
     Arena* aBt = mkArena();
     Int stringTableLength = lx->stringTable->length;
-    (*result) = (Parser) {
+    Int initNodeCap = lx->totalTokens > 64 ? lx->totalTokens : 64;
+    (*result) = (Compiler) {
         .text = lx->inp, .inp = lx, .inpLength = lx->totalTokens, .parDef = buildParserDefinitions(lx->langDef, a),
         .scopeStack = createScopeStack(),
         .backtrack = createStackParseFrame(16, aBt), .i = 0,
-        .stringStore = lx->stringStore,
-        .stringTable = lx->stringTable, .strLength = stringTableLength,
-        .entities = allocateOnArena(sizeof(Entity)*64, a), .entNext = 0, .entCap = 64,
-        .overloads = allocateOnArena(sizeof(Int)*64, a), .overlNext = 0, .overlCap = 64,
-        .activeBindings = allocateOnArena(sizeof(Int)*stringTableLength, a),
-        .nodes = allocateOnArena(sizeof(Node)*64, a), .nextInd = 0, .capacity = 64,
+        
+        .nodes = allocateOnArena(sizeof(Node)*initNodeCap, a), .nextInd = 0, .capacity = initNodeCap,
+        
+        .entities = allocateOnArena(sizeof(Entity)*64, a), .entNext = 0, .entCap = 64,        
+        .overloadCounts = allocateOnArena(4*(countOperators + 10), aBt),
+        .overlCNext = 0, .overlCCap = countOperators + 10,        
+        .activeBindings = allocateOnArena(4*stringTableLength, a),
+        
+        .types = createStackint32_t(64, a), .typeNext = 0, .typeCap = 64,
+        .expStack = createStackint32_t(16, aBt),
+        
+        .stringStore = lx->stringStore, .stringTable = lx->stringTable, .strLength = stringTableLength,
         .wasError = false, .errMsg = &empty, .a = a, .aBt = aBt
     };
     if (stringTableLength > 0) {
         memset(result->activeBindings, 0xFF, stringTableLength*sizeof(Int)); // activeBindings is filled with -1
     }
     importBuiltins(lx->langDef, result);
-
     return result;    
 }
 
 /** Parses top-level types but not functions and adds their bindings to the scope */
-private void parseToplevelTypes(Lexer* lr, Parser* pr) {
+private void parseToplevelTypes(Lexer* lr, Compiler* pr) {
 }
 
 /** Parses top-level constants but not functions, and adds their bindings to the scope */
-private void parseToplevelConstants(Lexer* lx, Parser* pr) {
+private void parseToplevelConstants(Lexer* lx, Compiler* pr) {
     pr->i = 0;
     const Int len = lx->totalTokens;
     while (pr->i < len) {
@@ -840,7 +871,7 @@ private void parseToplevelConstants(Lexer* lx, Parser* pr) {
 }
 
 /** Parses top-level function names and adds their bindings to the scope */
-private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
+private void parseToplevelFunctionNames(Lexer* lx, Compiler* pr) {
     pr->i = 0;
     const Int len = lx->totalTokens;
     while (pr->i < len) {
@@ -864,7 +895,7 @@ private void parseToplevelFunctionNames(Lexer* lx, Parser* pr) {
  * Parses a top-level function signature.
  * The result is [FnDef EntityName Scope EntityParam1 EntityParam2 ... ]
  */
-private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
+private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* pr) {
     Int fnSentinel = pr->i + fnDef.pl2 - 1;
     Int byteSentinel = fnDef.startBt + fnDef.lenBts;
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodFnDef, .startNodeInd = pr->nextInd, 
@@ -902,7 +933,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
     while (pr->i < paramsSentinel) {
         Token paramName = lx->tokens[pr->i];
         VALIDATE(paramName.tp == tokWord, errorFnNameAndParams)
-        Int newBindingId = createBinding(paramName, (Entity){.flavor = bndImmut, .nameId = paramName.pl2}, pr);
+        Int newBindingId = createBinding(paramName, (Entity){.nameId = paramName.pl2}, pr);
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newBindingId, 
                                 .startBt = paramName.startBt, .lenBts = paramName.lenBts };
         pr->i++; // CONSUME a param name
@@ -924,7 +955,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Parser* pr) {
 }
 
 /** Parses top-level function params and bodies */
-private void parseFunctionBodies(Lexer* lx, Parser* pr) {
+private void parseFunctionBodies(Lexer* lx, Compiler* pr) {
     pr->i = 0;
     const Int len = lx->totalTokens;
     while (pr->i < len) {
@@ -946,13 +977,14 @@ private void parseFunctionBodies(Lexer* lx, Parser* pr) {
 }
 
 /** Parses a single file in 4 passes, see docs/parser.txt */
-Parser* parse(Lexer* lx, Arena* a) {
-    Parser* pr = createParser(lx, a);
-    return parseWithParser(lx, pr, a);
+Compiler* parse(Lexer* lx, Arena* a) {
+    Compiler* pr = createCompiler(lx, a);
+    return parseWithCompiler(lx, pr, a);
 }
 
 
-Parser* parseWithParser(Lexer* lx, Parser* pr, Arena* a) {
+Compiler* parseWithCompiler(Lexer* lx, Compiler* pr, Arena* a) {
+    print("parse with comp")
     ParserDefinition* pDef = pr->parDef;
     int inpLength = lx->totalTokens;
     int i = 0;
@@ -966,4 +998,49 @@ Parser* parseWithParser(Lexer* lx, Parser* pr, Arena* a) {
         parseFunctionBodies(lx, pr);
     }
     return pr;
+}
+
+
+Arr(Int) createOverloads(Compiler* pr) {
+    Int neededCount = 0;
+    for (Int i = 0; i < pr->overlCNext; i++) {
+        neededCount += (2*pr->overloadCounts[i] + 1); // a typeId and an entityId for each overload, plus a length field for the list
+    }
+    print("total number of overloads needed: %d", neededCount);
+    Arr(Int) overloads = allocateOnArena(neededCount*4, pr->a);
+
+    Int j = 0;
+    for (Int i = 0; i < pr->overlCNext; i++) {
+        overloads[j] = pr->overloadCounts[i]; // length of the overload list (which will be filled during type check/resolution)
+        j += (2*pr->overloadCounts[i] + 1);
+    }
+    return overloads;
+}
+
+
+Int typeResolveExpr(Int indExpr, Compiler* pr) {
+    Node expr = pr->nodes[indExpr];
+    Int sentinelNode = indExpr + expr.pl2 + 1;
+    for (int i = indExpr + 1; i < sentinelNode; ++i) {
+        Node nd = pr->nodes[i];
+        if (nd.tp <= nodString) {
+            push((Int)nd.tp, pr->expStack);
+            push(-1, pr->expStack); // -1 arity means it's not a call
+        } else {
+            push(nd.pl1, pr->expStack); // bindingId or overloadId            
+            push(nd.tp == nodCall ? nd.pl2 : -1, pr->expStack);            
+        }
+    }
+    Int j = 2*expr.pl2 - 1;
+    Arr(Int) st = *pr->expStack->content;
+    while (j > -1) {        
+        if (st[j + 1] == -1) {
+            j -= 2;
+        } else { // a function call
+            // resolve overload
+            // check & resolve arg types
+            // replace the arg types on the stack with the return type
+            // shift the remaining stuff on the right so it directly follows the return
+        }
+    }
 }

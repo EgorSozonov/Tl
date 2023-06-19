@@ -5,7 +5,7 @@
 #include "../utils/aliases.h"
 #include "../utils/arena.h"
 #include "../utils/goodString.h"
-#include "../utils/common.h"
+#include "../utils/stackInt.h"
 #include "../utils/structures/stackHeader.h"
 #include "lexerConstants.h"
 
@@ -62,6 +62,7 @@ typedef struct {
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool overloadable;
     bool assignable;
+    Int overloads; // count of built-in overloads for this operator
 } OpDef;
 
 
