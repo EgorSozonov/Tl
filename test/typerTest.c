@@ -1,7 +1,6 @@
 #include "../source/utils/aliases.h"
 #include "../source/utils/arena.h"
 #include "../source/utils/goodString.h"
-#include "../source/utils/structures/stack.h"
 #include "../source/compiler/compiler.h"
 #include <stdio.h>
 #include <stdbool.h>
@@ -21,9 +20,9 @@ int main() {
         return 0;
     }
 
-    Compiler* pr = createParser(lx, a);
+    Compiler* pr = createCompiler(lx, a);
     pr->entBindingZero = pr->entNext;
-    pr->entOverloadZero = pr->overlNext;
+    pr->entOverloadZero = pr->overlCNext;
     Int firstTypeId = pr->typeNext;
     addFunctionType(2, (Int[]){typFloat, typInt, typFloat}, pr);
     
@@ -39,7 +38,7 @@ int main() {
         (OverloadImport){.name = foo, .count = 2}
     }), 1, pr);
 
-    parseWithParser(lx, pr, a);
+    parseWithCompiler(lx, pr, a);
     if (pr->wasError) {
         print("Compiler error")
         printString(pr->errMsg);

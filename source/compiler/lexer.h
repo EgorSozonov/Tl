@@ -41,20 +41,9 @@ DEFINE_STACK_HEADER(BtToken)
  * For example, the type of 3D vectors may have two different multiplication
  * operators: *. for vector product and * for scalar product.
  *
- * Plus, all the extensible operators (and only them) have automatic assignment counterparts.
+ * Plus, many have automatic assignment counterparts.
  * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
- *
- * This OperatorToken class records the base type of operator, its extension (0, 1 or 2),
- * and whether it is the assignment version of itself.
- * In the token stream, both of these values are stored inside the 32-bit pl2 of the Token.
  */
-typedef struct {
-    untt opType : 6;
-    untt extended : 2;
-    untt isAssignment: 1;
-} OperatorToken;
-
-
 typedef struct {
     String* name;
     byte bytes[4];
@@ -62,7 +51,7 @@ typedef struct {
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool overloadable;
     bool assignable;
-    Int overloads; // count of built-in overloads for this operator
+    Int overs; // count of built-in overloads for this operator
 } OpDef;
 
 
@@ -83,7 +72,7 @@ typedef struct {
     StringValue content[];
 } Bucket;
 
-
+/** Hash map of all words/identifiers encountered in a source module */
 typedef struct {
     Arr(Bucket*) dict;
     int dictSize;
@@ -134,7 +123,6 @@ struct LanguageDefinition {
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     Int (*reservedParensOrNot)[countCoreForms];
 };
-
 
 
 Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, StringStore* hm);

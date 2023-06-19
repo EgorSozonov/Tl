@@ -223,7 +223,6 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Compiler
                 VALIDATE(*arity == (*pr->parDef->operators)[firstTok.pl1].arity, errorOperatorWrongArity)
                 mbBindingId = -firstTok.pl1 - 2;
             }
-
             
             VALIDATE(mbBindingId < -1, errorUnknownFunction)            
 
@@ -419,7 +418,7 @@ private void parseAwait(Token tok, Arr(Token) tokens, Compiler* pr) {
     throwExc(errorTemp);
 }
 
-
+// TODO validate we are inside at least as many loops as we are breaking out of
 private void parseBreak(Token tok, Arr(Token) tokens, Compiler* pr) {
     VALIDATE(tok.pl2 <= 1, errorBreakContinueTooComplex);
     if (tok.pl2 == 1) {
@@ -818,7 +817,7 @@ void importBuiltins(LanguageDefinition* langDef, Compiler* pr) {
         (EntityImport) { .name = str("math-e", pr->a),  .entity = (Entity){.typeId = typFloat} }
     };    
     for (int i = 0; i < countOperators; i++) {
-        pr->overloadCounts[i] = (*langDef->operators)[i].overloads;
+        pr->overloadCounts[i] = (*langDef->operators)[i].overs;
     }
     pr->overlCNext = countOperators;
     importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), pr);

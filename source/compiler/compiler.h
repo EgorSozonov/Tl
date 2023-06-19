@@ -151,4 +151,5 @@ Compiler* parse(Lexer*, Arena*);
 Compiler* parseWithCompiler(Lexer*, Compiler*, Arena*);
 void addNode(Node, Compiler*);
 void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* tr);
+Int typeResolveExpr(Int indExpr, Compiler* pr);
 
