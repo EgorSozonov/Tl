@@ -23,7 +23,6 @@ DEFINE_STACK(BtToken)
 StringStore* createStringStore(int initSize, Arena* a) {
     StringStore* result = allocateOnArena(sizeof(StringStore), a);
     int realInitSize = (initSize >= initBucketSize && initSize < 2048) ? initSize : (initSize >= initBucketSize ? 2048 : initBucketSize);
-    print("realInitSize %d", realInitSize);
     Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*realInitSize, a);
     
     result->a = a;
@@ -106,13 +105,11 @@ Int addStringStore(byte* text, Int startBt, Int lenBts, Stackint32_t* stringTabl
         newIndString = stringTable->length;
         addValueToBucket((hm->dict + hash), startBt, lenBts, newIndString, hm->a);
     }
-    print("hm dicSize %d", hm->dictSize)
     return newIndString;
 }
 
 /** Returns the index of a string within the string table, or -1 if it's not present */
 Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, StringStore* hm) {
-    print("get string store hm->dictSize %d", hm->dictSize)
     Int lenBts = strToSearch->length;
     Int hash = hashCode(strToSearch->content, lenBts) % (hm->dictSize);    
     Int newIndString;    

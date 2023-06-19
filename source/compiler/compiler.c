@@ -223,6 +223,7 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Compiler
                 VALIDATE(*arity == (*pr->parDef->operators)[firstTok.pl1].arity, errorOperatorWrongArity)
                 mbBindingId = -firstTok.pl1 - 2;
             }
+
             
             VALIDATE(mbBindingId < -1, errorUnknownFunction)            
 
@@ -779,7 +780,6 @@ ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) 
 
 void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* pr) {
     for (int i = 0; i < countBindings; i++) {
-        print("pr_string store %d", pr->stringStore->dictSize)
         Int mbNameId = getStringStore(pr->text->content, impts[i].name, pr->stringTable, pr->stringStore);
         if (mbNameId > -1) {           
             Int newBindingId = importEntity(mbNameId, impts[i].entity, pr);
@@ -799,19 +799,28 @@ void importOverloads(Arr(OverloadImport) impts, Int countImports, Compiler* pr) 
 
 /* Entities and overloads for the built-in operators, types and functions. */
 void importBuiltins(LanguageDefinition* langDef, Compiler* pr) {
-    for (int i = 0; i < 4; i++) { // Int, Float, String, Bool
+    Arr(String*) baseTypes = allocateOnArena(5*sizeof(String*), pr->aTmp);
+    baseTypes[0] = str("Int", pr->aTmp);
+    baseTypes[1] = str("Long", pr->aTmp);
+    baseTypes[2] = str("Float", pr->aTmp);
+    baseTypes[3] = str("String", pr->aTmp);
+    baseTypes[4] = str("Bool", pr->aTmp);
+    for (int i = 0; i < 5; i++) {
         push(0, pr->types);
+        Int typeNameId = getStringStore(pr->text->content, baseTypes[i], pr->stringTable, pr->stringStore);
+        if (typeNameId > -1) {
+            pr->activeBindings[typeNameId] = i;
+        }
     }
-    print("here %d overlccap %d", pr->stringStore->dictSize, pr->overlCCap)
+    
     EntityImport builtins[2] =  {
         (EntityImport) { .name = str("math-pi", pr->a), .entity = (Entity){.typeId = typFloat} },
         (EntityImport) { .name = str("math-e", pr->a),  .entity = (Entity){.typeId = typFloat} }
-    };
+    };    
     for (int i = 0; i < countOperators; i++) {
-        print("herein %d overlcount will be %d", pr->stringStore->dictSize, (*langDef->operators)[i].overloads)
         pr->overloadCounts[i] = (*langDef->operators)[i].overloads;
     }
-        print("heretofore %d", pr->stringStore->dictSize)
+    pr->overlCNext = countOperators;
     importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), pr);
 }
 
@@ -824,26 +833,26 @@ Compiler* createCompiler(Lexer* lx, Arena* a) {
     }
     
     Compiler* result = allocateOnArena(sizeof(Compiler), a);
-    Arena* aBt = mkArena();
+    Arena* aTmp = mkArena();
     Int stringTableLength = lx->stringTable->length;
     Int initNodeCap = lx->totalTokens > 64 ? lx->totalTokens : 64;
     (*result) = (Compiler) {
         .text = lx->inp, .inp = lx, .inpLength = lx->totalTokens, .parDef = buildParserDefinitions(lx->langDef, a),
         .scopeStack = createScopeStack(),
-        .backtrack = createStackParseFrame(16, aBt), .i = 0,
+        .backtrack = createStackParseFrame(16, aTmp), .i = 0,
         
         .nodes = allocateOnArena(sizeof(Node)*initNodeCap, a), .nextInd = 0, .capacity = initNodeCap,
         
         .entities = allocateOnArena(sizeof(Entity)*64, a), .entNext = 0, .entCap = 64,        
-        .overloadCounts = allocateOnArena(4*(countOperators + 10), aBt),
+        .overloadCounts = allocateOnArena(4*(countOperators + 10), aTmp),
         .overlCNext = 0, .overlCCap = countOperators + 10,        
         .activeBindings = allocateOnArena(4*stringTableLength, a),
         
         .types = createStackint32_t(64, a), .typeNext = 0, .typeCap = 64,
-        .expStack = createStackint32_t(16, aBt),
+        .expStack = createStackint32_t(16, aTmp),
         
         .stringStore = lx->stringStore, .stringTable = lx->stringTable, .strLength = stringTableLength,
-        .wasError = false, .errMsg = &empty, .a = a, .aBt = aBt
+        .wasError = false, .errMsg = &empty, .a = a, .aTmp = aTmp
     };
     if (stringTableLength > 0) {
         memset(result->activeBindings, 0xFF, stringTableLength*sizeof(Int)); // activeBindings is filled with -1
@@ -984,7 +993,6 @@ Compiler* parse(Lexer* lx, Arena* a) {
 
 
 Compiler* parseWithCompiler(Lexer* lx, Compiler* pr, Arena* a) {
-    print("parse with comp")
     ParserDefinition* pDef = pr->parDef;
     int inpLength = lx->totalTokens;
     int i = 0;

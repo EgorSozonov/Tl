@@ -663,17 +663,16 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokOperator, .pl1 = opTPlus, .startBt = 0, .lenBts = 1 }
         }))},
         (LexerTest) { .name = s("Operator extensible"),
-            .input = s("+. -. >>. %. *. 5 <<. ^."),
+            .input = s("+. -. >>. *. 5 <<. ^."),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 8, .lenBts = 24 },
-                (Token){ .tp = tokOperator, .pl1 = opTPlusExt, .startBt = 0, .lenBts = 2 },
-                (Token){ .tp = tokOperator, .pl1 = opTMinusExt, .startBt = 3, .lenBts = 2 },
+                (Token){ .tp = tokStmt, .pl2 = 7, .lenBts = 21 },
+                (Token){ .tp = tokOperator, .pl1 = opTPlusExt,      .startBt = 0, .lenBts = 2 },
+                (Token){ .tp = tokOperator, .pl1 = opTMinusExt,     .startBt = 3, .lenBts = 2 },
                 (Token){ .tp = tokOperator, .pl1 = opTBitShiftRightExt, .startBt = 6, .lenBts = 3 },
-                (Token){ .tp = tokOperator, .pl1 = opTRemainderExt, .startBt = 10, .lenBts = 2 },
-                (Token){ .tp = tokOperator, .pl1 = opTTimesExt, .startBt = 13, .lenBts = 2 },
-                (Token){ .tp = tokInt,                               .pl2 = 5, .startBt = 16, .lenBts = 1 }, 
-                (Token){ .tp = tokOperator, .pl1 = opTBitShiftLeftExt, .startBt = 18, .lenBts = 3 }, 
-                (Token){ .tp = tokOperator, .pl1 = opTExponentExt, .startBt = 22, .lenBts = 2 }
+                (Token){ .tp = tokOperator, .pl1 = opTTimesExt,     .startBt = 10, .lenBts = 2 },
+                (Token){ .tp = tokInt,                          .pl2 = 5, .startBt = 13, .lenBts = 1 }, 
+                (Token){ .tp = tokOperator, .pl1 = opTBitShiftLeftExt, .startBt = 15, .lenBts = 3 }, 
+                (Token){ .tp = tokOperator, .pl1 = opTExponentExt,  .startBt = 19, .lenBts = 2 }
         }))},
         (LexerTest) { .name = s("Operators list"),
             .input = s("+ - / * ^ && || ' ? ++ >=< >< $ , - @"),

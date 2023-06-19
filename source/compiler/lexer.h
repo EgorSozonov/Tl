@@ -110,21 +110,21 @@ struct Lexer {
     Int newlinesCapacity;
     Int newlinesNextInd;
     
-    Arr(byte) numeric;         // lives in aTemp
+    Arr(byte) numeric;          // [aTmp]
     Int numericCapacity;
     Int numericNextInd;
 
-    StackBtToken* backtrack; // lives in aTemp
+    StackBtToken* backtrack;    // [aTmp]
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     
-    Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startBt of each string.
+    Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
     StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points into stringTable    
     
     bool wasError;
     String* errMsg;
 
     Arena* arena;
-    Arena* aTemp;
+    Arena* aTmp;
 };
 
 

@@ -1225,16 +1225,16 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* a) {
     Lexer* lx = allocateOnArena(sizeof(Lexer), a);
-    Arena* aTemp = mkArena();
+    Arena* aTmp = mkArena();
     (*lx) = (Lexer){
         .i = 0, .langDef = langDef, .inp = inp, .nextInd = 0, .inpLength = inp->length,
         .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
         .newlines = allocateOnArena(1000*sizeof(int), a), .newlinesCapacity = 500,
-        .numeric = allocateOnArena(50*sizeof(int), aTemp), .numericCapacity = 50,
-        .backtrack = createStackBtToken(16, aTemp),
-        .stringTable = createStackint32_t(16, a), .stringStore = createStringStore(100, aTemp),
+        .numeric = allocateOnArena(50*sizeof(int), aTmp), .numericCapacity = 50,
+        .backtrack = createStackBtToken(16, aTmp),
+        .stringTable = createStackint32_t(16, a), .stringStore = createStringStore(100, a),
         .wasError = false, .errMsg = &empty,
-        .arena = a, .aTemp = aTemp
+        .arena = a, .aTmp = aTmp
     };
     return lx;
 }
@@ -1249,7 +1249,7 @@ private void finalize(Lexer* lx) {
     VALIDATE(top.spanLevel != slScope && !hasValues(lx->backtrack), errorPunctuationExtraOpening)
 
     setStmtSpanLength(top.tokenInd, lx);    
-    deleteArena(lx->aTemp);
+    deleteArena(lx->aTmp);
 }
 
 

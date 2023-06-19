@@ -103,7 +103,7 @@ struct Compiler {
     Lexer* inp;
     Int inpLength;
     ParserDefinition* parDef;
-    StackParseFrame* backtrack;    
+    StackParseFrame* backtrack;// [aTmp] 
     ScopeStack* scopeStack;
     Int i;                     // index of current token in the input
 
@@ -117,7 +117,7 @@ struct Compiler {
     Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overloaded binding
     Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
 
-    Arr(Int) overloadCounts;        // growing array of counts of all fn name definitions encountered (for the typechecker to use)
+    Arr(Int) overloadCounts;   // [aTmp] growing array of counts of all fn name definitions encountered (for the typechecker to use)
     Int overlCNext;
     Int overlCCap;
 
@@ -125,21 +125,21 @@ struct Compiler {
     Int typeNext;
     Int typeCap;
 
-    Stackint32_t* expStack;    // temporary scratch space for type checking/resolving an expression
+    Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression
 
     // Current bindings and overloads in scope. -1 means "not active"
     // Var & type bindings are nameId (index into stringTable) -> bindingId
     // Function bindings are nameId -> (-overloadId - 2). So negative values less than -1 mean "function is active"
     Arr(int) activeBindings;
 
-    Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startBt of each string.       
+    Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startByte of each string.       
     StringStore* stringStore;  // A hash table for quickly deduplicating strings. Points into stringTable 
     Int strLength;             // length of stringTable    
 
     bool wasError;
     String* errMsg;
     Arena* a;
-    Arena* aBt;
+    Arena* aTmp;
 };
 
 ParserDefinition* buildParserDefinitions(LanguageDefinition*, Arena*);
