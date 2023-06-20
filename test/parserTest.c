@@ -29,7 +29,7 @@ typedef struct {
 
 /** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
-    "Int", "Float", "Bool", "String", "_", "DocComment", 
+    "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
     "id", "call", "binding", "type", "and", "or", 
     "(-", "expr", "assign", "reAssign", "mutate",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",

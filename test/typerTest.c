@@ -24,9 +24,11 @@ int main() {
     pr->entBindingZero = pr->entNext;
     pr->entOverloadZero = pr->overlCNext;
     Int firstTypeId = pr->typeNext;
+    // Float(Int Float)
     addFunctionType(2, (Int[]){typFloat, typInt, typFloat}, pr);
     
     Int secondTypeId = pr->typeNext;
+    // String(Int Float) - String is the return type
     addFunctionType(2, (Int[]){typString, typFloat, typInt}, pr);
 
     String* foo = s("foo");
@@ -45,7 +47,7 @@ int main() {
         return 0;
     }
 
-    Int typerResult = typeResolveExpr(2, pr);
+    Int typerResult = typeCheckResolveExpr(2, pr);
     print("the result from the typer is %d", typerResult);
     
     return 0;

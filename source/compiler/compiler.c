@@ -1032,7 +1032,14 @@ void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* pr) {
 /** Shifts elements from start and until the end to the left.
  * E.g. the call with args (5, 3) takes the stack from [x x x x x 1 2 3] to [x x 1 2 3]
  */
-void shiftTypeStackLeft(Int startInd, Int byHowMuch) {
+void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
+    cm->expStack->length -= byHowMany;
+}
+
+private void printExpSt(Compiler *cm) {
+    for (int i = 0; i < cm->expStack->length; i++) {
+        printf("%d ", (*cm->expStack->content)[i]);
+    }
 }
 
 /** Typechecks and type-resolves a single expression */
@@ -1075,18 +1082,34 @@ Int typeCheckResolveExpr(Int indExpr, Compiler* pr) {
                 } else {
                     shiftTypeStackLeft(j + 1, 1); // the function returns nothing, so there's no return type to write
                 }
-                j--;
+                --j;
             } else {
+                Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
+                VALIDATE(typeLastArg > -1, errorTypeUnknownLastArg)
+                Int ov = o + overlCount;
+                while (ov > o && pr->overloads[ov] != typeLastArg) {
+                    --ov;
+                }
+                VALIDATE(ov > o, errorTypeNoMatchingOverload)
                 
+                Int typeOfFunc = pr->overloads[ov];
+                VALIDATE(pr->types[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last param matches, but not arity
+
+                // We know the type of the function, now to validate arg types against param types
+                for (int k = j + arity; k > j + 1; k--) { // not "j + arity + 1", because we've already checked the last param
+                    if (cont[k] > -1) {
+                        VALIDATE(cont[k] == pr->types[ov + k - j], errorTypeWrongArgumentType)
+                    } else {
+                        Int argBindingId = pr->nodes[indExpr + k - currAhead].pl1;
+                        print("argBindingId %d", argBindingId)
+                        pr->bindings[argBindingId].typeId = pr->types[ov + k - j];
+                    }
+                }
+                cont[j] = pr->types[ov + 1]; // the function return type
+                shiftTypeStackLeft(j + arity + 2, arity + 1);
                 j -= 2;
             }
-            
-            
-            // resolve the overload
-            // check & resolve arg types
-            // replace the arg types on the stack with the return type
-            // shift the remaining stuff on the right so it directly follows the return            
-        } else {
+                    } else {
             j--;
         }
     }

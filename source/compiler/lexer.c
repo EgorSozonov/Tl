@@ -1014,7 +1014,7 @@ void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
 
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
-    "Int", "Float", "Bool", "String", "_", "DocComment", 
+    "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
     "word", "Type", ".word", "operator", "dispose", 
     ":", "(.", "stmt", "(", "type(", "(:", "=", ":=", "mutation", "=>", "else",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 

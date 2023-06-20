@@ -39,6 +39,10 @@ const char errorAssignmentShadowing[]         = "Assignment error: existing iden
 const char errorReturn[]                      = "Cannot parse return statement, it must look like `return ` {expression}";
 const char errorScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
 const char errorLoopBreakOutside[]            = "The break keyword can only be used outside a loop scope!";
+const char errorTypeUnknownLastArg[]          = "The type of last argument to a call must be known, otherwise I can't resolve the function overload!";
+const char errorTypeZeroArityOverload[]       = "A function with no parameters cannot be overloaded.";
+const char errorTypeNoMatchingOverload[]      = "No matching function overload was found";
+const char errorTypeWrongArgumentType[]       = "Wrong argument type";
 
 // temporary, delete it when the parser is finished
 const char errorTemp[]                        = "Not implemented yet";
