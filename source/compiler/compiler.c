@@ -10,6 +10,8 @@
 
 extern jmp_buf excBuf; // defined in lexer.c
 
+#define BIG 70000000
+
 _Noreturn private void throwExc0(const char errMsg[], Compiler* pr) {   
     
     pr->wasError = true;
@@ -697,20 +699,6 @@ private void resumeMatch(Token* tok, Arr(Token) tokens, Compiler* pr) {
 }
 
 
-void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* pr) {
-    Int neededLen = pr->typeNext + arity + 2;
-    while (pr->typeCap < neededLen) {
-        StackInt* newTypes = createStackint32_t(pr->typeCap*2*4, pr->a);
-        memcpy(newTypes, pr->types, pr->typeNext);
-        pr->types = newTypes;
-        pr->typeCap *= 2;
-    }
-    (*pr->types->content)[pr->typeNext] = arity + 1;
-    memcpy(pr->types + pr->typeNext + 1, paramsAndReturn, arity + 1);
-    pr->typeNext += (arity + 2);
-}
-
-
 private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     ParserFunc (*result)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
     ParserFunc* p = *result;
@@ -799,11 +787,11 @@ void importOverloads(Arr(OverloadImport) impts, Int countImports, Compiler* pr) 
 /* Entities and overloads for the built-in operators, types and functions. */
 void importBuiltins(LanguageDefinition* langDef, Compiler* pr) {
     Arr(String*) baseTypes = allocateOnArena(5*sizeof(String*), pr->aTmp);
-    baseTypes[0] = str("Int", pr->aTmp);
-    baseTypes[1] = str("Long", pr->aTmp);
-    baseTypes[2] = str("Float", pr->aTmp);
-    baseTypes[3] = str("String", pr->aTmp);
-    baseTypes[4] = str("Bool", pr->aTmp);
+    baseTypes[tokInt] = str("Int", pr->aTmp);
+    baseTypes[tokLong] = str("Long", pr->aTmp);
+    baseTypes[tokFloat] = str("Float", pr->aTmp);
+    baseTypes[tokString] = str("String", pr->aTmp);
+    baseTypes[tokBool] = str("Bool", pr->aTmp);
     for (int i = 0; i < 5; i++) {
         push(0, pr->types);
         Int typeNameId = getStringStore(pr->text->content, baseTypes[i], pr->stringTable, pr->stringStore);
@@ -1007,7 +995,7 @@ Compiler* parseWithCompiler(Lexer* lx, Compiler* pr, Arena* a) {
     return pr;
 }
 
-
+/** Allocates the table with overloads and changes the overloadCounts table to contain indices into the new table (not counts) */
 Arr(Int) createOverloads(Compiler* pr) {
     Int neededCount = 0;
     for (Int i = 0; i < pr->overlCNext; i++) {
@@ -1019,35 +1007,87 @@ Arr(Int) createOverloads(Compiler* pr) {
     Int j = 0;
     for (Int i = 0; i < pr->overlCNext; i++) {
         overloads[j] = pr->overloadCounts[i]; // length of the overload list (which will be filled during type check/resolution)
+        pr->overloadCounts[i] = j;
         j += (2*pr->overloadCounts[i] + 1);
     }
     return overloads;
 }
 
 
-Int typeResolveExpr(Int indExpr, Compiler* pr) {
+/** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
+void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* pr) {
+    Int neededLen = pr->typeNext + arity + 2;
+    while (pr->typeCap < neededLen) {
+        StackInt* newTypes = createStackint32_t(pr->typeCap*2*4, pr->a);
+        memcpy(newTypes, pr->types, pr->typeNext);
+        pr->types = newTypes;
+        pr->typeCap *= 2;
+    }
+    (*pr->types->content)[pr->typeNext] = arity + 1;
+    memcpy(pr->types + pr->typeNext + 1, paramsAndReturn, arity + 1);
+    pr->typeNext += (arity + 2);
+}
+
+
+/** Shifts elements from start and until the end to the left.
+ * E.g. the call with args (5, 3) takes the stack from [x x x x x 1 2 3] to [x x 1 2 3]
+ */
+void shiftTypeStackLeft(Int startInd, Int byHowMuch) {
+}
+
+/** Typechecks and type-resolves a single expression */
+Int typeCheckResolveExpr(Int indExpr, Compiler* pr) {
     Node expr = pr->nodes[indExpr];
     Int sentinelNode = indExpr + expr.pl2 + 1;
+    Int currAhead = 0; // how many elements ahead we are compared to the token array
+    StackInt* st = pr->expStack;
+    // populate the stack with types, known and unknown
     for (int i = indExpr + 1; i < sentinelNode; ++i) {
         Node nd = pr->nodes[i];
         if (nd.tp <= nodString) {
-            push((Int)nd.tp, pr->expStack);
-            push(-1, pr->expStack); // -1 arity means it's not a call
-        } else {
-            push(nd.pl1, pr->expStack); // bindingId or overloadId            
-            push(nd.tp == nodCall ? nd.pl2 : -1, pr->expStack);            
+            push((Int)nd.tp, st);
+        } else if (nd.tp == nodCall) {
+            push(BIG + nd.pl2, st); // signifies that it's a call, and its arity
+            push(pr->overloadCounts[nd.pl1], st); // this is not the count of overloads anymore, but an index into the overloads
+            currAhead++;
+        } else if (nd.pl1 > -1) { // bindingId            
+            push(pr->bindings[nd.pl1].typeId, st);
+        } else { // overloadId
+            push(nd.pl1, st); // overloadId            
         }
     }
-    Int j = 2*expr.pl2 - 1;
-    Arr(Int) st = *pr->expStack->content;
+    print("expStack len is %d", st->length)
+
+    // now go from back to front, resolving the calls, typechecking & collapsing args, and replacing calls with their return types
+    Int j = expr.pl2 + currAhead - 1;
+    Arr(Int) cont = *st->content;
     while (j > -1) {        
-        if (st[j + 1] == -1) {
-            j -= 2;
-        } else { // a function call
-            // resolve overload
+        if (cont[j] >= BIG) { // a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
+            Int arity = cont[j] - BIG;
+            Int o = cont[j + 1]; // index into the table of overloads
+            Int overlCount = pr->overloads[o];
+            if (arity == 0) {
+                VALIDATE(overlCount == 1, errorTypeZeroArityOverload)
+                Int functionTypeInd = pr->overloads[o + 1];
+                Int typeLength = pr->types[functionTypeInd];
+                if (typeLength == 1) { // the function returns something
+                    cont[j] = pr->types[functionTypeInd + 1]; // write the return type
+                } else {
+                    shiftTypeStackLeft(j + 1, 1); // the function returns nothing, so there's no return type to write
+                }
+                j--;
+            } else {
+                
+                j -= 2;
+            }
+            
+            
+            // resolve the overload
             // check & resolve arg types
             // replace the arg types on the stack with the return type
-            // shift the remaining stuff on the right so it directly follows the return
+            // shift the remaining stuff on the right so it directly follows the return            
+        } else {
+            j--;
         }
     }
 }
