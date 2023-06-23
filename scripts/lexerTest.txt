@@ -1,6 +1,4 @@
 clear
 gcc -g3 -Wshadow -Wfatal-errors -Werror=implicit-function-declaration --std=c17 -o _bin/lexerTest \
--iquote source/utils -iquote source/compiler  \
-test/lexerTest.c source/utils/goodString.c source/utils/arena.c source/compiler/lexerConstants.c \
-source/utils/stackInt.c source/compiler/lexer.c \
+-iquote source test/lexerTest.c source/tl.c \
 -lm
