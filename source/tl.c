@@ -9,8 +9,6 @@
 
 //{{{ Utils
 
-#define VALIDATE(cond, errMsg) if (!(cond)) { throwExc(errMsg, lx); }
-
 #define Int int32_t
 #define StackInt Stackint32_t
 #define private static
@@ -39,13 +37,12 @@
 
 #define s(lit) str(lit, a)
 
-//}}}
- 
 jmp_buf excBuf;
 
-
+//}}}
 
 //{{{ Arena
+
 #define CHUNK_QUANT 32768
 
 typedef struct ArenaChunk ArenaChunk;
@@ -396,6 +393,11 @@ String empty = { .length = 0 };
     
 DEFINE_STACK_HEADER(int32_t)
 DEFINE_STACK(int32_t)
+typedef struct Compiler Compiler;
+private void handleFullChunkParser(Compiler* pr);
+private void setSpanLengthParser(Int, Compiler* pr);
+#define handleFullChunk(X) _Generic((X), Lexer*: handleFullChunkLexer, Compiler*: handleFullChunkParser)(X)
+#define setSpanLength(A, X) _Generic((X), Lexer*: setSpanLengthLexer, Compiler*: setSpanLengthParser)(A, X)
 //}}}
 
 
@@ -697,18 +699,6 @@ Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, S
 #define LEXER_INIT_SIZE 2000
 
 /**
- * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
- */
-extern const byte maxInt[19];
-
-/** 2**53 */
-extern const byte maximumPreciselyRepresentedFloatingInt[16];
-
-/** All the symbols an operator may start with. The '-' is absent because it's handled by 'lexMinus' */
-#define countOperatorStartSymbols 16
-extern const int operatorStartSymbols[countOperatorStartSymbols];
-
-/**
  * Regular (leaf) Token types
  */
 // The following group of variants are transferred to the AST byte for byte, with no analysis
@@ -782,6 +772,20 @@ extern const int operatorStartSymbols[countOperatorStartSymbols];
 #define firstCoreFormTokenType tokAlias
 
 #define countCoreForms (tokLoop - tokAlias + 1)
+
+
+/**
+ * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
+ */
+const byte maxInt[19] = (byte []){
+    9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
+    8, 5, 4, 7, 7, 5, 8, 0, 7
+};
+
+
+/** 2**53 */
+const byte maximumPreciselyRepresentedFloatingInt[16] = (byte []){ 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
+
 
 /** The indices of reserved words that are stored in token pl2. Must be positive, unique,
  * and below "firstPunctuationTokenType"
@@ -930,31 +934,14 @@ const int operatorStartSymbols[] = {
     aLT, aGT, aQuestion, aAt, aCaret, aPipe
 };
 
-/**
- * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
- */
-const byte maxInt[19] = (byte []){
-    9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
-    8, 5, 4, 7, 7, 5, 8, 0, 7
-};
-
-
-/** 2**53 */
-const byte maximumPreciselyRepresentedFloatingInt[16] = (byte []){ 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
-
-
 //}}}
 
 
 #define CURR_BT inp[lx->i]
 #define NEXT_BT inp[lx->i + 1]
-#define VALIDATE(cond, errMsg) if (!(cond)) { throwExc(errMsg, lx); }
+#define VALIDATEL(cond, errMsg) if (!(cond)) { throwExcLexer(errMsg, lx); }
     
  
-jmp_buf excBuf;
-
-
-
 typedef struct {
     untt tp : 6;
     untt lenBts: 26;
@@ -1061,7 +1048,7 @@ int equalityLexer(Lexer a, Lexer b);
 
 
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
-_Noreturn private void throwExc(const char errMsg[], Lexer* lx) {   
+_Noreturn private void throwExcLexer(const char errMsg[], Lexer* lx) {   
     lx->wasError = true;
 #ifdef TRACE    
     printf("Error on i = %d: %s\n", lx->i, errMsg);
@@ -1074,11 +1061,11 @@ _Noreturn private void throwExc(const char errMsg[], Lexer* lx) {
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
 private void checkPrematureEnd(Int requiredSymbols, Lexer* lx) {
-    VALIDATE (lx->i + requiredSymbols <= lx->inpLength, errorPrematureEndOfInput)
+    VALIDATEL(lx->i + requiredSymbols <= lx->inpLength, errorPrematureEndOfInput)
 }
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
-private void handleFullChunk(Lexer* lexer) {
+private void handleFullChunkLexer(Lexer* lexer) {
     Token* newStorage = allocateOnArena(lexer->capacity*2*sizeof(Token), lexer->arena);
     memcpy(newStorage, lexer->tokens, (lexer->capacity)*(sizeof(Token)));
     lexer->tokens = newStorage;
@@ -1109,7 +1096,7 @@ private void closeColons(Lexer* lx) {
  * Finds the top-level punctuation opener by its index, and sets its lengths.
  * Called when the matching closer is lexed.
  */
-private void setSpanLength(Int tokenInd, Lexer* lx) {
+private void setSpanLengthLexer(Int tokenInd, Lexer* lx) {
     lx->tokens[tokenInd].lenBts = lx->i - lx->tokens[tokenInd].startBt + 1;
     lx->tokens[tokenInd].pl2 = lx->nextInd - tokenInd - 1;
 }
@@ -1308,7 +1295,7 @@ private void maybeBreakStatement(Lexer* lx) {
 private void closeRegularPunctuation(Int closingType, Lexer* lx) {
     StackBtToken* bt = lx->backtrack;
     closeColons(lx);
-    VALIDATE(hasValues(bt), errorPunctuationExtraClosing)
+    VALIDATEL(hasValues(bt), errorPunctuationExtraClosing)
     BtToken top = pop(bt);
     // since a closing bracket might be closing something with statements inside it, like a lex scope
     // or a core syntax form, we need to close the last statement before closing its parent
@@ -1407,11 +1394,11 @@ private void hexNumber(Lexer* lx, Arr(byte) inp) {
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
             addNumeric(cByte - aAUpper + 10, lx);
         } else if (cByte == aUnderscore && (j == lx->inpLength - 1 || isHexDigit(inp[j + 1]))) {            
-            throwExc(errorNumericEndUnderscore, lx);            
+            throwExcLexer(errorNumericEndUnderscore, lx);            
         } else {
             break;
         }
-        VALIDATE(lx->numericNextInd <= 16, errorNumericBinWidthExceeded)
+        VALIDATEL(lx->numericNextInd <= 16, errorNumericBinWidthExceeded)
         j++;
     }
     int64_t resultValue = calcHexNumber(lx);
@@ -1501,13 +1488,13 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
             }
             if (metDot) digitsAfterDot++;
         } else if (cByte == aUnderscore) {
-            VALIDATE(j != (lx->inpLength - 1) && isDigit(inp[j + 1]), errorNumericEndUnderscore)
+            VALIDATEL(j != (lx->inpLength - 1) && isDigit(inp[j + 1]), errorNumericEndUnderscore)
         } else if (cByte == aDot) {
             if (j + 1 < maximumInd && !isDigit(inp[j + 1])) { // this dot is not decimal - it's a statement closer
                 break;
             }
             
-            VALIDATE(!metDot, errorNumericMultipleDots)
+            VALIDATEL(!metDot, errorNumericMultipleDots)
             metDot = true;
         } else {
             break;
@@ -1515,12 +1502,12 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
         j++;
     }
 
-    VALIDATE(j >= lx->inpLength || !isDigit(inp[j]), errorNumericWidthExceeded)
+    VALIDATEL(j >= lx->inpLength || !isDigit(inp[j]), errorNumericWidthExceeded)
 
     if (metDot) {
         double resultValue = 0;
         Int errorCode = calcFloating(&resultValue, -digitsAfterDot, lx, inp);
-        VALIDATE(errorCode == 0, errorNumericFloatWidthExceeded)
+        VALIDATEL(errorCode == 0, errorNumericFloatWidthExceeded)
 
         int64_t bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
         add((Token){ .tp = tokFloat, .pl1 = (bitsOfFloat >> 32), .pl2 = (bitsOfFloat & LOWER32BITS),
@@ -1528,7 +1515,7 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
     } else {
         int64_t resultValue = 0;
         Int errorCode = calcInteger(&resultValue, lx);
-        VALIDATE(errorCode == 0, errorNumericIntWidthExceeded)
+        VALIDATEL(errorCode == 0, errorNumericIntWidthExceeded)
 
         if (isNegative) resultValue = -resultValue;
         add((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
@@ -1576,13 +1563,13 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Lexer* lx, Arr(
     
     Int expectations = (*lx->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
-        VALIDATE(!hasValues(bt) || peek(bt).spanLevel == slScope, errorCoreNotInsideStmt)
+        VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errorCoreNotInsideStmt)
         addStatement(reservedWordType, startBt, lx);
     } else if (expectations == 1) { // the "(core" case
-        VALIDATE(hasValues(bt), errorCoreMissingParen)
+        VALIDATEL(hasValues(bt), errorCoreMissingParen)
         
         BtToken top = peek(bt);
-        VALIDATE(top.tokenInd == lx->nextInd - 1, errorCoreNotAtSpanStart) // if this isn't the first token inside the parens
+        VALIDATEL(top.tokenInd == lx->nextInd - 1, errorCoreNotAtSpanStart) // if this isn't the first token inside the parens
         
         if (bt->length > 1 && (*bt->content)[bt->length - 2].tp == tokStmt) {
             // Parens are wrapped in statements because we didn't know that the following token is a reserved word.
@@ -1617,20 +1604,20 @@ private bool wordChunk(Lexer* lx, Arr(byte) inp) {
 
     if (isCapitalLetter(CURR_BT)) {
         result = true;
-    } else VALIDATE(isLowercaseLetter(CURR_BT), errorWordChunkStart)
+    } else VALIDATEL(isLowercaseLetter(CURR_BT), errorWordChunkStart)
     lx->i++; // CONSUME the first letter of the word
 
     while (lx->i < lx->inpLength && isAlphanumeric(CURR_BT)) {
         lx->i++; // CONSUME alphanumeric characters
     }
-    VALIDATE(lx->i >= lx->inpLength || CURR_BT != aUnderscore, errorWordUnderscoresOnlyAtStart)
+    VALIDATEL(lx->i >= lx->inpLength || CURR_BT != aUnderscore, errorWordUnderscoresOnlyAtStart)
     return result;
 }
 
 /** Closes the current statement. Consumes no tokens */
 private void closeStatement(Lexer* lx) {
     BtToken top = peek(lx->backtrack);
-    VALIDATE(top.spanLevel != slSubexpr, errorPunctuationOnlyInMultiline)
+    VALIDATEL(top.spanLevel != slSubexpr, errorPunctuationOnlyInMultiline)
     if (top.spanLevel == slStmt) {
         setStmtSpanLength(top.tokenInd, lx);
         pop(lx->backtrack);
@@ -1655,7 +1642,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
             if (isLetter(nextBt) || nextBt == aUnderscore) {
                 lx->i++; // CONSUME the letter or underscore
                 bool isCurrCapitalized = wordChunk(lx, inp);
-                VALIDATE(!wasCapitalized, errorWordCapitalizationOrder)
+                VALIDATEL(!wasCapitalized, errorWordCapitalizationOrder)
                 wasCapitalized = isCurrCapitalized;
             } else {
                 break;
@@ -1686,7 +1673,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         return;
     }
 
-    VALIDATE(wordType != tokDotWord, errorWordReservedWithDot)
+    VALIDATEL(wordType != tokDotWord, errorWordReservedWithDot)
 
     if (mbReservedWord == tokElse){
         closeStatement(lx);
@@ -1744,10 +1731,10 @@ private void processAssignment(Int mutType, untt opType, Lexer* lx) {
     BtToken currSpan = peek(lx->backtrack);
 
     if (currSpan.tp == tokAssignment || currSpan.tp == tokReassign || currSpan.tp == tokMutation) {
-        throwExc(errorOperatorMultipleAssignment, lx);
+        throwExcLexer(errorOperatorMultipleAssignment, lx);
     } else if (currSpan.spanLevel != slStmt) {
-        throwExc(errorOperatorAssignmentPunct, lx);
-    } 
+        throwExcLexer(errorOperatorAssignmentPunct, lx);
+    }
     Int tokenInd = currSpan.tokenInd;
     Token* tok = (lx->tokens + tokenInd);
     untt tp;
@@ -1813,7 +1800,7 @@ private void lexOperator(Lexer* lx, Arr(byte) inp) {
         opType = k;
         break;
     }
-    VALIDATE (opType > -1, errorOperatorUnknown)
+    VALIDATEL(opType > -1, errorOperatorUnknown)
     
     OpDef opDef = (*operators)[opType];
     bool isAssignment = false;
@@ -1840,11 +1827,10 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
         lexOperator(lx, inp); // ==        
     } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes        
         // arrows are only allowed inside "if"s and the like
-        if (lx->backtrack->length < 2) {
-            throwExc(errorCoreMisplacedArrow, lx);
-        }
+        VALIDATEL(lx->backtrack->length >= 2, errorCoreMisplacedArrow)
+        
         BtToken grandparent = (*lx->backtrack->content)[lx->backtrack->length - 2];
-        VALIDATE(grandparent.tp == tokIf, errorCoreMisplacedArrow)
+        VALIDATEL(grandparent.tp == tokIf, errorCoreMisplacedArrow)
         closeStatement(lx);
         add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
@@ -1878,7 +1864,7 @@ private void docComment(Lexer* lx, Arr(byte) inp) {
             }
         }
     }
-    VALIDATE(parenLevel == 0, errorPunctuationExtraOpening)
+    VALIDATEL(parenLevel == 0, errorPunctuationExtraOpening)
     if (j > lx->i) {
         add((Token){.tp = tokDocComment, .startBt = lx->i - 2, .lenBts = j - lx->i + 2}, lx);
     }
@@ -1952,8 +1938,8 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
 private void openScope(Lexer* lx, Arr(byte) inp) {
     Int startBt = lx->i;
     lx->i += 2; // CONSUME the "(."
-    VALIDATE(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope, errorPunctuationScope)
-    VALIDATE(lx->i < lx->inpLength, errorPrematureEndOfInput)
+    VALIDATEL(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope, errorPunctuationScope)
+    VALIDATEL(lx->i < lx->inpLength, errorPrematureEndOfInput)
     byte currBt = CURR_BT;
     if (currBt == aLLower && testForWord(lx->inp, lx->i, reservedBytesLoop, 4)) {
             openPunctuation(tokLoop, slScope, startBt, lx);
@@ -1977,7 +1963,7 @@ private void openScope(Lexer* lx, Arr(byte) inp) {
 private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
-    VALIDATE(j < lx->inpLength, errorPunctuationUnmatched)
+    VALIDATEL(j < lx->inpLength, errorPunctuationUnmatched)
     if (inp[j] == aColon) { // "(:" starts a new data initializer        
         openPunctuation(tokData, slSubexpr, lx->i, lx);
         lx->i += 2; // CONSUME the "(:"
@@ -2035,18 +2021,18 @@ private void lexStringLiteral(Lexer* lx, Arr(byte) inp) {
     wrapInAStatement(lx, inp);
     Int j = lx->i + 1;
     for (; j < lx->inpLength && inp[j] != aQuote; j++);
-    VALIDATE(j != lx->inpLength, errorPrematureEndOfInput)
+    VALIDATEL(j != lx->inpLength, errorPrematureEndOfInput)
     add((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
     lx->i = j + 1; // CONSUME the string literal, including the closing quote character
 }
 
 
 void lexUnexpectedSymbol(Lexer* lx, Arr(byte) inp) {
-    throwExc(errorUnrecognizedByte, lx);
+    throwExcLexer(errorUnrecognizedByte, lx);
 }
 
 void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
-    throwExc(errorNonAscii, lx);
+    throwExcLexer(errorNonAscii, lx);
 }
 
 /** Must agree in order with token types in LexerConstants.h */
@@ -2135,7 +2121,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aColon] = &lexColon;
     p[aEqual] = &lexEqual;
 
-    for (Int i = 0; i < countOperatorStartSymbols; i++) {
+    for (Int i = 0; i < sizeof(operatorStartSymbols); i++) {
         p[operatorStartSymbols[i]] = &lexOperator;
     }
     p[aMinus] = &lexMinus;
@@ -2283,7 +2269,7 @@ private void finalizeLexer(Lexer* lx) {
     if (!hasValues(lx->backtrack)) return;
     closeColons(lx);
     BtToken top = pop(lx->backtrack);
-    VALIDATE(top.spanLevel != slScope && !hasValues(lx->backtrack), errorPunctuationExtraOpening)
+    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->backtrack), errorPunctuationExtraOpening)
 
     setStmtSpanLength(top.tokenInd, lx);    
     deleteArena(lx->aTmp);
@@ -2295,10 +2281,8 @@ Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
 
     Int inpLength = input->length;
     Arr(byte) inp = input->content;
-    
-    if (inpLength == 0) {
-        throwExc("Empty input", lx);
-    }
+
+    VALIDATEL(inpLength > 0, "Empty input")
 
     // Check for UTF-8 BOM at start of file
     if (inpLength >= 3
@@ -2382,62 +2366,66 @@ Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
 #define nodImpl        45       
 #define nodMatch       46       // pattern matching on sum type tag
 
-const char errorNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";
-const char errorPrematureEndOfInput[]        = "Premature end of input";
-const char errorUnrecognizedByte[]           = "Unrecognized byte in source code!";
-const char errorWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
-const char errorWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
-const char errorWordUnderscoresOnlyAtStart[] = "Underscores are only allowed at start of word (snake case is forbidden)!";
-const char errorWordWrongAccessor[]          = "Only regular identifier words may be used for data access with []!";
-const char errorWordReservedWithDot[]        = "Reserved words may not be called like functions!";
-const char errorNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
-const char errorNumericWidthExceeded[]       = "Numeric literal width is exceeded!";
-const char errorNumericBinWidthExceeded[]    = "Integer literals cannot exceed 64 bit!";
-const char errorNumericFloatWidthExceeded[]  = "Floating-point literals cannot exceed 2**53 in the significant bits, and 22 in the decimal power!";
-const char errorNumericEmpty[]               = "Could not lex a numeric literal, empty sequence!";
-const char errorNumericMultipleDots[]        = "Multiple dots in numeric literals are not allowed!";
-const char errorNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
-const char errorPunctuationExtraOpening[]    = "Extra opening punctuation";
-const char errorPunctuationExtraClosing[]    = "Extra closing punctuation";
-const char errorPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like []";
-const char errorPunctuationUnmatched[]       = "Unmatched closing punctuation";
-const char errorPunctuationWrongOpen[]       = "Wrong opening punctuation";
-const char errorPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
-const char errorOperatorUnknown[]            = "Unknown operator";
-const char errorOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name!";
-const char errorOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
-const char errorOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
-const char errorOperatorMutableDef[]         = "Definition of a mutable var should look like this: `mut x = 10`";
-const char errorCoreNotInsideStmt[]          = "Core form must be directly inside statement";
-const char errorCoreMisplacedArrow[]         = "The arrow separator (=>) must be inside an if, ifEq, ifPr or match form";
-const char errorCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
-const char errorCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
-const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
-const char errorIndentation[]                = "Indentation error: must be divisible by 4 (tabs also count as 4) and not greater than the current indentation level!";
-const char errorDocComment[]                 = "Doc comments must have the syntax: (*comment)";
 
+const char errorBareAtom[]                    = "Malformed token stream (atoms and parentheses must not be bare)";
+const char errorImportsNonUnique[]            = "Import names must be unique!";
+const char errorLengthOverflow[]              = "AST nodes length overflow";
+const char errorPrematureEndOfTokens[]        = "Premature end of input";
+const char errorUnexpectedToken[]             = "Unexpected token";
+const char errorInconsistentSpan[]            = "Inconsistent span length / structure of token scopes!";
+const char errorCoreFormTooShort[]            = "Core syntax form too short";
+const char errorCoreFormUnexpected[]          = "Unexpected core form";
+const char errorCoreFormAssignment[]          = "A core form may not contain any assignments!";
+const char errorCoreFormInappropriate[]       = "Inappropriate reserved word!";
+const char errorIfLeft[]                      = "A left-hand clause in an if can only contain variables, boolean literals and expressions!";
+const char errorIfRight[]                     = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
+const char errorIfEmpty[]                     = "Empty `if` expression";
+const char errorIfMalformed[]                 = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
+const char errorFnNameAndParams[]             = "Function signature must look like this: `(-f fnName ReturnType(x Type1 y Type2). body...)`";
+const char errorFnMissingBody[]               = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
+const char errorLoopSyntaxError[]             = "A loop should look like `(.loop (< x 101) (x 0). loopBody)`";
+const char errorLoopHeader[]                  = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
+const char errorLoopEmptyBody[]               = "Empty loop body!";
+const char errorBreakContinueTooComplex[]     = "This statement is too complex! Continues and breaks may contain one thing only: the number of enclosing loops to continue/break!";
+const char errorBreakContinueInvalidDepth[]   = "Invalid depth of break/continue! It must be a positive 32-bit integer!"; 
+const char errorDuplicateFunction[]           = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
+const char errorExpressionInfixNotSecond[]    = "An infix expression must have the infix operator in second position (not counting possible prefix operators)!";
+const char errorExpressionError[]             = "Cannot parse expression!";
+const char errorExpressionCannotContain[]     = "Expressions cannot contain scopes or statements!";
+const char errorExpressionFunctionless[]      = "Functionless expression!";
+const char errorExpressionHeadFormOperators[] = "Incorrect number of active operators at end of a head-function subexpression, should be exactly one!";
+const char errorTypeDeclCannotContain[]       = "Type declarations may only contain types (like A), type params (like a), type constructors (like .List) and parentheses!";
+const char errorTypeDeclError[]               = "Cannot parse type declaration!";
+const char errorUnknownType[]                 = "Unknown type";
+const char errorUnknownTypeFunction[]         = "Unknown type constructor";
+const char errorOperatorWrongArity[]          = "Wrong number of arguments for operator!";
+const char errorUnknownBinding[]              = "Unknown binding!";
+const char errorUnknownFunction[]             = "Unknown function!";
+const char errorIncorrectPrefixSequence[]     = "A prefix atom-expression must look like `!!a`, that is, only prefix operators followed by one ident or literal";
+const char errorOperatorUsedInappropriately[] = "Operator used in an inappropriate location!";
+const char errorAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
+const char errorAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
+const char errorReturn[]                      = "Cannot parse return statement, it must look like `return ` {expression}";
+const char errorScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
+const char errorLoopBreakOutside[]            = "The break keyword can only be used outside a loop scope!";
+const char errorTypeUnknownLastArg[]          = "The type of last argument to a call must be known, otherwise I can't resolve the function overload!";
+const char errorTypeZeroArityOverload[]       = "A function with no parameters cannot be overloaded.";
+const char errorTypeNoMatchingOverload[]      = "No matching function overload was found";
+const char errorTypeWrongArgumentType[]       = "Wrong argument type";
 
-/** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" is handled by lexEqual
- */
-const int operatorStartSymbols[] = {
-    aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus, aComma, aDivBy, 
-    aLT, aGT, aQuestion, aAt, aCaret, aPipe
-};
+// temporary, delete it when the parser is finished
+const char errorTemp[]                        = "Not implemented yet";
 
-/**
- * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
- */
-const byte maxInt[19] = (byte []){
-    9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
-    8, 5, 4, 7, 7, 5, 8, 0, 7
-};
-
-
-/** 2**53 */
-const byte maximumPreciselyRepresentedFloatingInt[16] = (byte []){ 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
 
 //}}}
+#define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser(errMsg, pr); }
 
+typedef struct {
+    untt tp : 6;
+    Int startNodeInd;
+    Int sentinelToken;
+    void* scopeStackFrame; // only for tp = scope or expr
+} ParseFrame;
 
 DEFINE_STACK_HEADER(ParseFrame)
 DEFINE_STACK(ParseFrame)
@@ -2464,11 +2452,7 @@ DEFINE_STACK(ParseFrame)
     )(X)   
 
 typedef struct ScopeStackFrame ScopeStackFrame;
-
-
 typedef struct ScopeChunk ScopeChunk;
-
-
 struct ScopeChunk {
     ScopeChunk *next;
     int length; // length is divisible by 4
@@ -2478,14 +2462,14 @@ struct ScopeChunk {
 /** 
  * Either currChunk->next == NULL or currChunk->next->next == NULL
  */
-struct ScopeStack {
+typedef struct {
     ScopeChunk* firstChunk;
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
     ScopeStackFrame* topScope;
     Int length;
     int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
-};
+} ScopeStack;
 
 /**
  * This frame corresponds either to a lexical scope or a subexpression.
@@ -2515,6 +2499,7 @@ private size_t floor4(size_t sz) {
     return sz - rem;
 }
 
+#define CHUNK_SIZE 65536
 #define FRESH_CHUNK_LEN floor4(CHUNK_SIZE - sizeof(ScopeChunk))/4
 
 
@@ -2651,20 +2636,9 @@ void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {
 }
 
 
-#define VALIDATE(cond, errMsg) if (!(cond)) { throwExc0(errMsg, pr); }
+#define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser(errMsg, pr); }
 
-typedef struct {
-    untt tp : 6;
-    Int startNodeInd;
-    Int sentinelToken;
-    void* scopeStackFrame; // only for tp = scope or expr
-} ParseFrame;
-
-DEFINE_STACK_HEADER(ParseFrame)
-
-typedef struct Lexer Lexer;
 typedef struct Compiler Compiler;
-typedef struct ScopeStack ScopeStack;
 typedef struct {
     untt tp : 6;
     untt lenBts: 26;
@@ -2783,7 +2757,7 @@ struct Compiler {
 
 #define BIG 70000000
 
-_Noreturn private void throwExc0(const char errMsg[], Compiler* pr) {   
+_Noreturn private void throwExcParser(const char errMsg[], Compiler* pr) {   
     
     pr->wasError = true;
 #ifdef TRACE    
@@ -2793,7 +2767,6 @@ _Noreturn private void throwExc0(const char errMsg[], Compiler* pr) {
     longjmp(excBuf, 1);
 }
 
-#define throwExc(msg) throwExc0(msg, pr)
 
 // Forward declarations
 private bool parseLiteralOrIdentifier(Token tok, Compiler* pr);
@@ -2801,11 +2774,11 @@ private bool parseLiteralOrIdentifier(Token tok, Compiler* pr);
 
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
 Int createBinding(Token bindingToken, Entity b, Compiler* pr) {
-    VALIDATE(bindingToken.tp == tokWord, errorAssignment)
+    VALIDATEP(bindingToken.tp == tokWord, errorAssignment)
 
     Int nameId = bindingToken.pl2;
     Int mbBinding = pr->activeBindings[nameId];
-    VALIDATE(mbBinding == -1, errorAssignmentShadowing)
+    VALIDATEP(mbBinding == -1, errorAssignmentShadowing)
     
     pr->entities[pr->entNext] = b;
     Int newBindingId = pr->entNext;
@@ -2830,7 +2803,7 @@ Int createBinding(Token bindingToken, Entity b, Compiler* pr) {
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
 void encounterFnDefinition(Int nameId, Compiler* pr) {    
     Int activeValue = (nameId > -1) ? pr->activeBindings[nameId] : -1;
-    VALIDATE(activeValue < 0, errorAssignmentShadowing);
+    VALIDATEP(activeValue < 0, errorAssignmentShadowing);
     if (activeValue == -1) {
         pr->overloadCounts[pr->overlCNext] = 1;
         pr->activeBindings[nameId] = -pr->overlCNext - 2;
@@ -2850,7 +2823,7 @@ void encounterFnDefinition(Int nameId, Compiler* pr) {
 Int importEntity(Int nameId, Entity b, Compiler* pr) {
     if (nameId > -1) {
         Int mbBinding = pr->activeBindings[nameId];
-        VALIDATE(mbBinding == -1, errorAssignmentShadowing)
+        VALIDATEP(mbBinding == -1, errorAssignmentShadowing)
     }
 
     pr->entities[pr->entNext] = b;
@@ -2873,7 +2846,7 @@ Int importEntity(Int nameId, Entity b, Compiler* pr) {
 }
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
-private void handleFullChunk(Compiler* pr) {
+private void handleFullChunkParser(Compiler* pr) {
     Node* newStorage = allocateOnArena(pr->capacity*2*sizeof(Node), pr->a);
     memcpy(newStorage, pr->nodes, (pr->capacity)*(sizeof(Node)));
     pr->nodes = newStorage;
@@ -2893,7 +2866,7 @@ void addNode(Node n, Compiler* pr) {
  * Finds the top-level punctuation opener by its index, and sets its node length.
  * Called when the parsing of a span is finished.
  */
-private void setSpanLength(Int nodeInd, Compiler* pr) {
+private void setSpanLengthParser(Int nodeInd, Compiler* pr) {
     pr->nodes[nodeInd].pl2 = pr->nextInd - nodeInd - 1;
 }
 
@@ -2904,7 +2877,7 @@ private void parseVerbatim(Token tok, Compiler* pr) {
 }
 
 private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
@@ -2928,7 +2901,7 @@ private Int calcSentinel(Token tok, Int tokInd) {
 private void exprSingleItem(Token theTok, Compiler* pr) {
     if (theTok.tp == tokWord) {
         Int mbOverload = pr->activeBindings[theTok.pl2];
-        VALIDATE(mbOverload != -1, errorUnknownFunction)
+        VALIDATEP(mbOverload != -1, errorUnknownFunction)
         addNode((Node){.tp = nodCall, .pl1 = mbOverload, .pl2 = 0,
                        .startBt = theTok.startBt, .lenBts = theTok.lenBts}, pr);        
     } else if (theTok.tp == tokOperator) {
@@ -2938,15 +2911,14 @@ private void exprSingleItem(Token theTok, Compiler* pr) {
             addNode((Node){ .tp = nodId, .pl1 = operBindingId,
                 .startBt = theTok.startBt, .lenBts = theTok.lenBts}, pr);
         } else {
-            throwExc(errorUnexpectedToken);
+            throwExcParser(errorUnexpectedToken, pr);
         }
     } else if (theTok.tp <= topVerbatimTokenVariant) {
         addNode((Node){.tp = theTok.tp, .pl1 = theTok.pl1, .pl2 = theTok.pl2,
                         .startBt = theTok.startBt, .lenBts = theTok.lenBts }, pr);
-    } else if (theTok.tp >= firstCoreFormTokenType) {
-        throwExc(errorCoreFormInappropriate);
-    } else {
-        throwExc(errorUnexpectedToken);
+    } else VALIDATEP(theTok.tp < firstCoreFormTokenType, errorCoreFormInappropriate)
+    else {
+        throwExcParser(errorUnexpectedToken, pr);
     }
 }
 
@@ -2993,11 +2965,11 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Compiler
             if (firstTok.tp == tokWord) {
                 mbBindingId = pr->activeBindings[firstTok.pl2];
             } else if (firstTok.tp == tokOperator) {
-                VALIDATE(*arity == (*pr->parDef->operators)[firstTok.pl1].arity, errorOperatorWrongArity)
+                VALIDATEP(*arity == (*pr->parDef->operators)[firstTok.pl1].arity, errorOperatorWrongArity)
                 mbBindingId = -firstTok.pl1 - 2;
             }
             
-            VALIDATE(mbBindingId < -1, errorUnknownFunction)            
+            VALIDATEP(mbBindingId < -1, errorUnknownFunction)            
 
             addNode((Node){.tp = nodCall, .pl1 = mbBindingId, .pl2 = *arity, // todo overload
                            .startBt = firstTok.startBt, .lenBts = firstTok.lenBts}, pr);
@@ -3056,7 +3028,7 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* pr) {
         if (tokType == tokParens) {
             pr->i++; // CONSUME the parens token
             exprSubexpr(currTok, &arity, tokens, pr);
-        } else VALIDATE(tokType < firstPunctuationTokenType, errorExpressionCannotContain)
+        } else VALIDATEP(tokType < firstPunctuationTokenType, errorExpressionCannotContain)
         else if (tokType <= topVerbatimTokenVariant) {
             addNode((Node){ .tp = currTok.tp, .pl1 = currTok.pl1, .pl2 = currTok.pl2,
                             .startBt = currTok.startBt, .lenBts = currTok.lenBts }, pr);
@@ -3064,7 +3036,7 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* pr) {
         } else {
             if (tokType == tokWord) {
                 Int mbBindingId = pr->activeBindings[currTok.pl2];
-                VALIDATE(mbBindingId != -1, errorUnknownBinding)
+                VALIDATEP(mbBindingId != -1, errorUnknownBinding)
                 addNode((Node){ .tp = nodId, .pl1 = mbBindingId, .pl2 = currTok.pl2, 
                             .startBt = currTok.startBt, .lenBts = currTok.lenBts}, pr);                
             } else if (tokType == tokOperator) {
@@ -3087,7 +3059,7 @@ private void maybeCloseSpans(Compiler* pr) {
         ParseFrame frame = peek(pr->backtrack);
         if (pr->i < frame.sentinelToken) {
             return;
-        } else VALIDATE(pr->i == frame.sentinelToken, errorInconsistentSpan)
+        } else VALIDATEP(pr->i == frame.sentinelToken, errorInconsistentSpan)
         popFrame(pr);
     }
 }
@@ -3117,7 +3089,7 @@ private bool parseLiteralOrIdentifier(Token tok, Compiler* pr) {
     } else if (tok.tp == tokWord) {        
         Int nameId = tok.pl2;
         Int mbBinding = pr->activeBindings[nameId];
-        VALIDATE(mbBinding != -1, errorUnknownBinding)    
+        VALIDATEP(mbBinding != -1, errorUnknownBinding)    
         addNode((Node){.tp = nodId, .pl1 = mbBinding, .pl2 = nameId,
                        .startBt = tok.startBt, .lenBts = tok.lenBts}, pr);
     } else {
@@ -3130,9 +3102,8 @@ private bool parseLiteralOrIdentifier(Token tok, Compiler* pr) {
 
 private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* pr) {
     const Int rightSideLen = tok.pl2 - 1;
-    if (rightSideLen < 1) {
-        throwExc(errorAssignment);
-    }
+    VALIDATEP(rightSideLen >= 1, errorAssignment)
+    
     Int sentinelToken = pr->i + tok.pl2;
 
     Token bindingToken = tokens[pr->i];
@@ -3152,9 +3123,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* pr) {
         //openScope(pr);
     } else {
         if (rightSideLen == 1) {
-            if (parseLiteralOrIdentifier(rightSideToken, pr) == false) {
-                throwExc(errorAssignment);
-            }
+            VALIDATEP(parseLiteralOrIdentifier(rightSideToken, pr), errorAssignment)
         } else if (rightSideToken.tp == tokIf) {
         } else {
             parseExpr((Token){ .pl2 = rightSideLen, .startBt = rightSideToken.startBt, 
@@ -3166,37 +3135,37 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* pr) {
 }
 
 private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 private void parseMutation(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 private void parseAlias(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 private void parseAssert(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseAssertDbg(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseAwait(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 // TODO validate we are inside at least as many loops as we are breaking out of
 private void parseBreak(Token tok, Arr(Token) tokens, Compiler* pr) {
-    VALIDATE(tok.pl2 <= 1, errorBreakContinueTooComplex);
+    VALIDATEP(tok.pl2 <= 1, errorBreakContinueTooComplex);
     if (tok.pl2 == 1) {
         Token nextTok = tokens[pr->i];
-        VALIDATE(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errorBreakContinueInvalidDepth)
+        VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errorBreakContinueInvalidDepth)
         addNode((Node){.tp = nodBreak, .pl1 = nextTok.pl2, .startBt = tok.startBt, .lenBts = tok.lenBts}, pr);
         pr->i++; // CONSUME the Int after the "break"
     } else {
@@ -3206,15 +3175,15 @@ private void parseBreak(Token tok, Arr(Token) tokens, Compiler* pr) {
 
 
 private void parseCatch(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseContinue(Token tok, Arr(Token) tokens, Compiler* pr) {
-    VALIDATE(tok.pl2 <= 1, errorBreakContinueTooComplex);
+    VALIDATEP(tok.pl2 <= 1, errorBreakContinueTooComplex);
     if (tok.pl2 == 1) {
         Token nextTok = tokens[pr->i];
-        VALIDATE(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errorBreakContinueInvalidDepth)
+        VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errorBreakContinueInvalidDepth)
         addNode((Node){.tp = nodContinue, .pl1 = nextTok.pl2, .startBt = tok.startBt, .lenBts = tok.lenBts}, pr);
         pr->i++; // CONSUME the Int after the "continue"
     } else {
@@ -3224,57 +3193,57 @@ private void parseContinue(Token tok, Arr(Token) tokens, Compiler* pr) {
 
 
 private void parseDefer(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseDispose(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseExposePrivates(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseInterface(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseImpl(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseLambda(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseLambda1(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseLambda2(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseLambda3(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parsePackage(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
@@ -3292,9 +3261,7 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* pr) {
         //openScope(pr);
     } else {        
         if (lenTokens == 1) {
-            if (parseLiteralOrIdentifier(rightSideToken, pr) == false) {               
-                throwExc(errorReturn);
-            }
+            VALIDATEP(parseLiteralOrIdentifier(rightSideToken, pr), errorReturn)            
         } else {
             parseExpr((Token){ .pl2 = lenTokens, .startBt = rightSideToken.startBt, 
                                .lenBts = tok.lenBts - rightSideToken.startBt + tok.startBt
@@ -3311,32 +3278,32 @@ private void parseSkip(Token tok, Arr(Token) tokens, Compiler* pr) {
 
 
 private void parseScope(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 private void parseStruct(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseTry(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
 private void parseYield(Token tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 /** To be called at the start of an "if" clause. It validates the grammar and emits nodes. Consumes no tokens.
  * Precondition: we are pointing at the init token of left side of "if" (i.e. at a tokStmt or the like)
  */
 private void ifAddClause(Token tok, Arr(Token) tokens, Compiler* pr) {
-    VALIDATE(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errorIfLeft)
+    VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errorIfLeft)
     Int leftTokSkip = (tok.tp >= firstPunctuationTokenType) ? (tok.pl2 + 1) : 1;
     Int j = pr->i + leftTokSkip;
-    VALIDATE(j + 1 < pr->inpLength, errorPrematureEndOfTokens)
-    VALIDATE(tokens[j].tp == tokArrow, errorIfMalformed)
+    VALIDATEP(j + 1 < pr->inpLength, errorPrematureEndOfTokens)
+    VALIDATEP(tokens[j].tp == tokArrow, errorIfMalformed)
     
     j++; // the arrow
     
@@ -3364,13 +3331,13 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* pr) {
 private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* pr) {
     Token tokenStmt = tokens[pr->i];
     Int sentinelStmt = pr->i + tokenStmt.pl2 + 1;
-    VALIDATE(tokenStmt.tp == tokStmt, errorLoopSyntaxError)    
-    VALIDATE(sentinelStmt < pr->i + loopTok.pl2, errorLoopEmptyBody)
+    VALIDATEP(tokenStmt.tp == tokStmt, errorLoopSyntaxError)    
+    VALIDATEP(sentinelStmt < pr->i + loopTok.pl2, errorLoopEmptyBody)
     
     Int indLeftSide = pr->i + 1;
     Token tokLeftSide = tokens[indLeftSide]; // + 1 because pr->i points at the stmt so far
 
-    VALIDATE(tokLeftSide.tp == tokWord || tokLeftSide.tp == tokBool || tokLeftSide.tp == tokParens, errorLoopHeader)
+    VALIDATEP(tokLeftSide.tp == tokWord || tokLeftSide.tp == tokBool || tokLeftSide.tp == tokParens, errorLoopHeader)
     Int sentinelLeftSide = calcSentinel(tokLeftSide, indLeftSide); 
 
     Int startOfScope = sentinelStmt;
@@ -3381,7 +3348,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* pr) {
         startOfScope = indRightSide;
         Token tokRightSide = tokens[indRightSide];
         startBtScope = tokRightSide.startBt;
-        VALIDATE(calcSentinel(tokRightSide, indRightSide) == sentinelStmt, errorLoopHeader)
+        VALIDATEP(calcSentinel(tokRightSide, indRightSide) == sentinelStmt, errorLoopHeader)
     }
     
     Int sentToken = startOfScope - pr->i + loopTok.pl2;
@@ -3398,11 +3365,11 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* pr) {
         pr->i = indRightSide + 1;
         while (pr->i < sentinelStmt) {
             Token binding = tokens[pr->i];
-            VALIDATE(binding.tp = tokWord, errorLoopSyntaxError)
+            VALIDATEP(binding.tp = tokWord, errorLoopSyntaxError)
             
             Token expr = tokens[pr->i + 1];
             
-            VALIDATE(expr.tp < firstPunctuationTokenType || expr.tp == tokParens, errorLoopSyntaxError)
+            VALIDATEP(expr.tp < firstPunctuationTokenType || expr.tp == tokParens, errorLoopSyntaxError)
             
             Int initializationSentinel = calcSentinel(expr, pr->i + 1);
             Int bindingId = createBinding(binding, ((Entity){}), pr);
@@ -3443,7 +3410,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* pr) {
 
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* pr) {
     if (tok->tp == tokElse) {        
-        VALIDATE(pr->i < pr->inpLength, errorPrematureEndOfTokens)
+        VALIDATEP(pr->i < pr->inpLength, errorPrematureEndOfTokens)
         pr->i++; // CONSUME the "else"
         *tok = tokens[pr->i];        
 
@@ -3458,15 +3425,15 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* pr) {
 }
 
 private void resumeIfPr(Token* tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 private void resumeImpl(Token* tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 private void resumeMatch(Token* tok, Arr(Token) tokens, Compiler* pr) {
-    throwExc(errorTemp);
+    throwExcParser(errorTemp, pr);
 }
 
 
@@ -3572,8 +3539,8 @@ void importBuiltins(LanguageDefinition* langDef, Compiler* pr) {
     }
     
     EntityImport builtins[2] =  {
-        (EntityImport) { .name = str("math-pi", pr->a), .entity = (Entity){.typeId = typFloat} },
-        (EntityImport) { .name = str("math-e", pr->a),  .entity = (Entity){.typeId = typFloat} }
+        (EntityImport) { .name = str("math-pi", pr->a), .entity = (Entity){.typeId = tokFloat} },
+        (EntityImport) { .name = str("math-e", pr->a),  .entity = (Entity){.typeId = tokFloat} }
     };    
     for (int i = 0; i < countOperators; i++) {
         pr->overloadCounts[i] = (*langDef->operators)[i].overs;
@@ -3645,13 +3612,11 @@ private void parseToplevelFunctionNames(Lexer* lx, Compiler* pr) {
         Token tok = lx->tokens[pr->i];
         if (tok.tp == tokFnDef) {
             Int lenTokens = tok.pl2;
-            if (lenTokens < 3) {
-                throwExc(errorFnNameAndParams);
-            }
+            VALIDATEP(lenTokens >= 3, errorFnNameAndParams)
+            
             Token fnName = lx->tokens[(pr->i) + 2]; // + 2 because we skip over the "fn" and "stmt" span tokens
-            if (fnName.tp != tokWord || fnName.pl1 > 0) { // function name must be a lowercase word
-                throwExc(errorFnNameAndParams);
-            }
+            VALIDATEP(fnName.tp == tokWord, errorFnNameAndParams)
+            
             encounterFnDefinition(fnName.pl2, pr);
         }
         pr->i += (tok.pl2 + 1);        
@@ -3674,7 +3639,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* pr) {
     if (lx->tokens[pr->i].tp == tokTypeName) {
         Token fnReturnType = lx->tokens[pr->i];
 
-        VALIDATE(pr->activeBindings[fnReturnType.pl2] > -1, errorUnknownType)
+        VALIDATEP(pr->activeBindings[fnReturnType.pl2] > -1, errorUnknownType)
         
         pr->i++; // CONSUME the function return type token
     }
@@ -3686,7 +3651,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* pr) {
                         .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , pr);
 
     // the scope for the function body
-    VALIDATE(lx->tokens[pr->i].tp == tokParens, errorFnNameAndParams)
+    VALIDATEP(lx->tokens[pr->i].tp == tokParens, errorFnNameAndParams)
     push(((ParseFrame){ .tp = nodScope, .startNodeInd = pr->nextInd, 
         .sentinelToken = fnSentinel }), pr->backtrack);        
     pushScope(pr->scopeStack);
@@ -3699,18 +3664,18 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* pr) {
     
     while (pr->i < paramsSentinel) {
         Token paramName = lx->tokens[pr->i];
-        VALIDATE(paramName.tp == tokWord, errorFnNameAndParams)
+        VALIDATEP(paramName.tp == tokWord, errorFnNameAndParams)
         Int newBindingId = createBinding(paramName, (Entity){.nameId = paramName.pl2}, pr);
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newBindingId, 
                                 .startBt = paramName.startBt, .lenBts = paramName.lenBts };
         pr->i++; // CONSUME a param name
         
-        VALIDATE(pr->i < paramsSentinel, errorFnNameAndParams)
+        VALIDATEP(pr->i < paramsSentinel, errorFnNameAndParams)
         Token paramType = lx->tokens[pr->i];
-        VALIDATE(paramType.tp == tokTypeName, errorFnNameAndParams)
+        VALIDATEP(paramType.tp == tokTypeName, errorFnNameAndParams)
         
         Int typeBindingId = pr->activeBindings[paramType.pl2]; // the binding of this parameter's type
-        VALIDATE(typeBindingId > -1, errorUnknownType)
+        VALIDATEP(typeBindingId > -1, errorUnknownType)
         
         pr->entities[newBindingId].typeId = typeBindingId;
         pr->i++; // CONSUME the param's type name
@@ -3718,7 +3683,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* pr) {
         addNode(paramNode, pr);        
     }
     
-    VALIDATE(pr->i < fnSentinel && lx->tokens[pr->i].tp >= firstPunctuationTokenType, errorFnMissingBody)
+    VALIDATEP(pr->i < fnSentinel && lx->tokens[pr->i].tp >= firstPunctuationTokenType, errorFnMissingBody)
 }
 
 /** Parses top-level function params and bodies */
@@ -3730,9 +3695,8 @@ private void parseFunctionBodies(Lexer* lx, Compiler* pr) {
         if (tok.tp == tokFnDef) {
             Int lenTokens = tok.pl2;
             Int sentinelToken = pr->i + lenTokens + 1;
-            if (lenTokens < 2) {
-                throwExc(errorFnNameAndParams);
-            }
+            VALIDATEP(lenTokens >= 2, errorFnNameAndParams)
+            
             pr->i += 2; // CONSUME the function def token and the stmt token
             parseFnSignature(tok, lx, pr);
             parseUpTo(sentinelToken, lx->tokens, pr);
@@ -3741,12 +3705,6 @@ private void parseFunctionBodies(Lexer* lx, Compiler* pr) {
             pr->i += (tok.pl2 + 1);    // CONSUME the whole non-function span
         }
     }
-}
-
-/** Parses a single file in 4 passes, see docs/parser.txt */
-Compiler* parse(Lexer* lx, Arena* a) {
-    Compiler* pr = createCompiler(lx, a);
-    return parseWithCompiler(lx, pr, a);
 }
 
 
@@ -3765,6 +3723,17 @@ Compiler* parseWithCompiler(Lexer* lx, Compiler* pr, Arena* a) {
     }
     return pr;
 }
+
+/** Parses a single file in 4 passes, see docs/parser.txt */
+Compiler* parse(Lexer* lx, Arena* a) {
+    Compiler* pr = createCompiler(lx, a);
+    return parseWithCompiler(lx, pr, a);
+}
+
+//}}}
+
+
+//{{{ Typer
 
 /** Allocates the table with overloads and changes the overloadCounts table to contain indices into the new table (not counts) */
 Arr(Int) createOverloads(Compiler* pr) {
@@ -3814,14 +3783,14 @@ private void printExpSt(Compiler *cm) {
 }
 
 /** Typechecks and type-resolves a single expression */
-Int typeCheckResolveExpr(Int indExpr, Compiler* pr) {
-    Node expr = pr->nodes[indExpr];
+Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
+    Node expr = cm->nodes[indExpr];
     Int sentinelNode = indExpr + expr.pl2 + 1;
     Int currAhead = 0; // how many elements ahead we are compared to the token array
-    StackInt* st = pr->expStack;
+    StackInt* st = cm->expStack;
     // populate the stack with types, known and unknown
     for (int i = indExpr + 1; i < sentinelNode; ++i) {
-        Node nd = pr->nodes[i];
+        Node nd = cm->nodes[i];
         if (nd.tp <= nodString) {
             push((Int)nd.tp, st);
         } else if (nd.tp == nodCall) {
@@ -3829,7 +3798,7 @@ Int typeCheckResolveExpr(Int indExpr, Compiler* pr) {
             push(pr->overloadCounts[nd.pl1], st); // this is not the count of overloads anymore, but an index into the overloads
             currAhead++;
         } else if (nd.pl1 > -1) { // bindingId            
-            push(pr->bindings[nd.pl1].typeId, st);
+            push(pr->entities[nd.pl1].typeId, st);
         } else { // overloadId
             push(nd.pl1, st); // overloadId            
         }
@@ -3843,33 +3812,33 @@ Int typeCheckResolveExpr(Int indExpr, Compiler* pr) {
         if (cont[j] >= BIG) { // a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
             Int arity = cont[j] - BIG;
             Int o = cont[j + 1]; // index into the table of overloads
-            Int overlCount = pr->overloads[o];
+            Int overlCount = pr->overloadCounts[o];
             if (arity == 0) {
-                VALIDATE(overlCount == 1, errorTypeZeroArityOverload)
-                Int functionTypeInd = pr->overloads[o + 1];
-                Int typeLength = pr->types[functionTypeInd];
+                VALIDATEP(overlCount == 1, errorTypeZeroArityOverload)
+                Int functionTypeInd = pr->overloadCounts[o + 1];
+                Int typeLength = (*pr->types->content)[functionTypeInd];
                 if (typeLength == 1) { // the function returns something
-                    cont[j] = pr->types[functionTypeInd + 1]; // write the return type
+                    cont[j] = (*pr->types->content)[functionTypeInd + 1]; // write the return type
                 } else {
-                    shiftTypeStackLeft(j + 1, 1); // the function returns nothing, so there's no return type to write
+                    shiftTypeStackLeft(j + 1, 1, cm); // the function returns nothing, so there's no return type to write
                 }
                 --j;
             } else {
                 Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
-                VALIDATE(typeLastArg > -1, errorTypeUnknownLastArg)
+                VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
                 Int ov = o + overlCount;
                 while (ov > o && pr->overloads[ov] != typeLastArg) {
                     --ov;
                 }
-                VALIDATE(ov > o, errorTypeNoMatchingOverload)
+                VALIDATEP(ov > o, errorTypeNoMatchingOverload)
                 
                 Int typeOfFunc = pr->overloads[ov];
-                VALIDATE(pr->types[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last param matches, but not arity
+                VALIDATEP(pr->types[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last param matches, but not arity
 
                 // We know the type of the function, now to validate arg types against param types
                 for (int k = j + arity; k > j + 1; k--) { // not "j + arity + 1", because we've already checked the last param
                     if (cont[k] > -1) {
-                        VALIDATE(cont[k] == pr->types[ov + k - j], errorTypeWrongArgumentType)
+                        VALIDATEP(cont[k] == pr->types[ov + k - j], errorTypeWrongArgumentType)
                     } else {
                         Int argBindingId = pr->nodes[indExpr + k - currAhead].pl1;
                         print("argBindingId %d", argBindingId)

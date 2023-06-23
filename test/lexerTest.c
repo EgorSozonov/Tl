@@ -3,11 +3,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../source/utils/arena.h"
-#include "../source/utils/goodString.h"
-#include "../source/utils/structures/stack.h"
-#include "../source/compiler/lexer.h"
-#include "../source/compiler/lexerConstants.h"
+#include "../source/tl.h"
 
 
 typedef struct {
