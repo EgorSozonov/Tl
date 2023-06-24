@@ -1898,49 +1898,49 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     * Sorted: 1) by first byte ASC 2) by second byte DESC 3) third byte DESC 4) fourth byte DESC.
     * It's used to lex operator symbols using left-to-right search.
     */
-    p[ 0] = (OpDef){.name=s("!="),   .arity=2, .overs=4, .bytes={aExclamation, aEqual, 0, 0 } };
-    p[ 1] = (OpDef){.name=s("!"),    .arity=1, .overs=2, .bytes={aExclamation, 0, 0, 0 } };
-    p[ 2] = (OpDef){.name=s("#"),    .arity=1, .overs=3, .bytes={aSharp, 0, 0, 0 }, .overloadable=true};    
-    p[ 3] = (OpDef){.name=s("$"),    .arity=1, .overs=3, .bytes={aDollar, 0, 0, 0 }, .overloadable=true};
-    p[ 4] = (OpDef){.name=s("%"),    .arity=2, .overs=1, .bytes={aPercent, 0, 0, 0 } };
-    p[ 5] = (OpDef){.name=s("&&"),   .arity=2, .overs=2, .bytes={aAmp, aAmp, 0, 0 }, .assignable=true};
-    p[ 6] = (OpDef){.name=s("&"),    .arity=1, .overs=1, .bytes={aAmp, 0, 0, 0 } };
-    p[ 7] = (OpDef){.name=s("'"),    .arity=1, .overs=1, .bytes={aApostrophe, 0, 0, 0 } };
-    p[ 8] = (OpDef){.name=s("*."),   .arity=2, .overs=2, .bytes={aTimes, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[ 9] = (OpDef){.name=s("*"),    .arity=2, .overs=2, .bytes={aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[10] = (OpDef){.name=s("++"),   .arity=1, .overs=1, .bytes={aPlus, aPlus, 0, 0}, .overloadable=true };
-    p[11] = (OpDef){.name=s("+."),   .arity=2, .overs=0, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[12] = (OpDef){.name=s("+"),    .arity=2, .overs=3, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[13] = (OpDef){.name=s(","),    .arity=3, .overs=1, .bytes={aComma, 0, 0, 0}};    
-    p[14] = (OpDef){.name=s("--"),   .arity=1, .overs=1, .bytes={aMinus, aMinus, 0, 0}, .overloadable=true};
-    p[15] = (OpDef){.name=s("-."),   .arity=2, .overs=0, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
-    p[16] = (OpDef){.name=s("-"),    .arity=2, .overs=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
-    p[17] = (OpDef){.name=s("/."),   .arity=2, .overs=0, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[18] = (OpDef){.name=s("/"),    .arity=2, .overs=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[19] = (OpDef){.name=s("<<."),  .arity=2, .overs=0, .bytes={aLT, aLT, aDot, 0}, .assignable = true, .overloadable = true};
-    p[20] = (OpDef){.name=s("<<"),   .arity=2, .overs=1, .bytes={aLT, aLT, 0, 0}, .assignable = true, .overloadable = true };    
-    p[21] = (OpDef){.name=s("<="),   .arity=2, .overs=3, .bytes={aLT, aEqual, 0, 0}};    
-    p[22] = (OpDef){.name=s("<>"),   .arity=2, .overs=3, .bytes={aLT, aGT, 0, 0}};    
-    p[23] = (OpDef){.name=s("<"),    .arity=2, .overs=3, .bytes={aLT, 0, 0, 0 } };
-    p[24] = (OpDef){.name=s("=="),   .arity=2, .overs=4, .bytes={aEqual, aEqual, 0, 0 } };
-    p[25] = (OpDef){.name=s(">=<="), .arity=3, .overs=2, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[26] = (OpDef){.name=s(">=<"),  .arity=3, .overs=2, .bytes={aGT, aEqual, aLT, 0 } };
-    p[27] = (OpDef){.name=s("><="),  .arity=3, .overs=2, .bytes={aGT, aLT, aEqual, 0 } };
-    p[28] = (OpDef){.name=s("><"),   .arity=3, .overs=2, .bytes={aGT, aLT, 0, 0 } };
-    p[29] = (OpDef){.name=s(">="),   .arity=2, .overs=3, .bytes={aGT, aEqual, 0, 0 } };
-    p[30] = (OpDef){.name=s(">>."),  .arity=2, .overs=1, .bytes={aGT, aGT, aDot, 0}, .assignable = true, .overloadable = true};
-    p[31] = (OpDef){.name=s(">>"),   .arity=2, .overs=1, .bytes={aGT, aGT, 0, 0}, .assignable = true, .overloadable = true };
-    p[32] = (OpDef){.name=s(">"),    .arity=2, .overs=3, .bytes={aGT, 0, 0, 0 }};
-    p[33] = (OpDef){.name=s("?:"),   .arity=2, .overs=1, .bytes={aQuestion, aColon, 0, 0 } };
-    p[34] = (OpDef){.name=s("?"),    .arity=1, .overs=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[35] = (OpDef){.name=s("@"),    .arity=1, .overs=1, .bytes={aAt, 0, 0, 0 } };
-    p[36] = (OpDef){.name=s("^."),   .arity=2, .overs=0, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[37] = (OpDef){.name=s("^"),    .arity=2, .overs=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[38] = (OpDef){.name=s("||"),   .arity=2, .overs=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
-    p[39] = (OpDef){.name=s("|"),    .arity=2, .overs=1, .bytes={aPipe, 0, 0, 0}};
-    p[40] = (OpDef){.name=s("and"),  .arity=2, .overs=1, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[41] = (OpDef){.name=s("or"),   .arity=2, .overs=1, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[42] = (OpDef){.name=s("neg"),  .arity=2, .overs=2, .bytes={0, 0, 0, 0 }};
+    p[ 0] = (OpDef){.name=s("!="),   .arity=2, .bytes={aExclamation, aEqual, 0, 0 } };
+    p[ 1] = (OpDef){.name=s("!"),    .arity=1, .bytes={aExclamation, 0, 0, 0 } };
+    p[ 2] = (OpDef){.name=s("#"),    .arity=1, .bytes={aSharp, 0, 0, 0 }, .overloadable=true};    
+    p[ 3] = (OpDef){.name=s("$"),    .arity=1, .bytes={aDollar, 0, 0, 0 }, .overloadable=true};
+    p[ 4] = (OpDef){.name=s("%"),    .arity=2, .bytes={aPercent, 0, 0, 0 } };
+    p[ 5] = (OpDef){.name=s("&&"),   .arity=2, .bytes={aAmp, aAmp, 0, 0 }, .assignable=true};
+    p[ 6] = (OpDef){.name=s("&"),    .arity=1, .bytes={aAmp, 0, 0, 0 } };
+    p[ 7] = (OpDef){.name=s("'"),    .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
+    p[ 8] = (OpDef){.name=s("*."),   .arity=2, .bytes={aTimes, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[ 9] = (OpDef){.name=s("*"),    .arity=2, .bytes={aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true};
+    p[10] = (OpDef){.name=s("++"),   .arity=1, .bytes={aPlus, aPlus, 0, 0}, .overloadable=true };
+    p[11] = (OpDef){.name=s("+."),   .arity=2, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[12] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
+    p[13] = (OpDef){.name=s(","),    .arity=3, .bytes={aComma, 0, 0, 0}};    
+    p[14] = (OpDef){.name=s("--"),   .arity=1, .bytes={aMinus, aMinus, 0, 0}, .overloadable=true};
+    p[15] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
+    p[16] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
+    p[17] = (OpDef){.name=s("/."),   .arity=2, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[18] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[19] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0}, .assignable = true, .overloadable = true};
+    p[20] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0}, .assignable = true, .overloadable = true };    
+    p[21] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0}};    
+    p[22] = (OpDef){.name=s("<>"),   .arity=2, .bytes={aLT, aGT, 0, 0}};    
+    p[23] = (OpDef){.name=s("<"),    .arity=2, .bytes={aLT, 0, 0, 0 } };
+    p[24] = (OpDef){.name=s("=="),   .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
+    p[25] = (OpDef){.name=s(">=<="), .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
+    p[26] = (OpDef){.name=s(">=<"),  .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
+    p[27] = (OpDef){.name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
+    p[28] = (OpDef){.name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 } };
+    p[29] = (OpDef){.name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 } };
+    p[30] = (OpDef){.name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0}, .assignable = true, .overloadable = true};
+    p[31] = (OpDef){.name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0}, .assignable = true, .overloadable = true };
+    p[32] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 }};
+    p[33] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
+    p[34] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 } };
+    p[35] = (OpDef){.name=s("@"),    .arity=1, .bytes={aAt, 0, 0, 0 } };
+    p[36] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[37] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[38] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
+    p[39] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
+    p[40] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
+    p[41] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
+    p[42] = (OpDef){.name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 }};
     return result;
 }
 
@@ -2967,6 +2967,142 @@ testable void importOverloads(Arr(OverloadImport) impts, Int countImports, Compi
     }
 }
 
+/** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
+testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
+    Int neededLen = cm->typeNext + arity + 2;
+    while (cm->typeCap < neededLen) {
+        StackInt* newTypes = createStackint32_t(cm->typeCap*2*4, cm->a);
+        memcpy(newTypes, cm->types, cm->typeNext);
+        cm->types = newTypes;
+        cm->typeCap *= 2;
+    }
+    cm->types->content[cm->typeNext] = arity + 1;
+    memcpy(cm->types + cm->typeNext + 1, paramsAndReturn, arity + 1);
+    cm->typeNext += (arity + 2);
+}
+
+private void buildOperator(Int operId, Int typeId) {   
+    cm->entities[cm->entNext] = (Entity){.typeId = typeId};
+    Int newEntityId = cm->entNext;
+    cm->entNext++;
+    if (cm->entNext == cm->entCap) {
+        Arr(Entity) newEntities = allocateOnArena(2*cm->entCap*sizeof(Entity), cm->a);
+        memcpy(newBindings, cm->entities, cm->entCap*sizeof(Entity));
+        cm->entities = newBindings;
+        cm->entCap *= 2;
+    }    
+
+    cm->overloadCounts[-activeValue - 2]++;    
+}
+
+/** Operators are the first-ever functions to be defined. This function builds their types, entities and overload counts. */
+private void buildInOperators(Compiler* cm) {
+    Int boolOfIntInt = cm->typeNext;
+    addFunctionType(2, (Int[]){tokBool, tokInt, tokInt}, cm);
+
+    Int boolOfIntIntInt = cm->typeNext;
+    addFunctionType(3, (Int[]){tokBool, tokInt, tokInt, tokInt}, cm);    
+
+    Int boolOfFlFl = cm->typeNext;
+    addFunctionType(2, (Int[]){tokBool, tokFloat, tokFloat}, cm);
+
+    Int boolOfFlFlFl = cm->typeNext;
+    addFunctionType(3, (Int[]){tokBool, tokFloat, tokFloat, tokFloat}, cm);
+    
+    Int boolOfStrStr = cm->typeNext;
+    addFunctionType(2, (Int[]){tokBool, tokString, tokString}, cm);
+
+    Int boolOfBool = cm->typeNext;
+    addFunctionType(1, (Int[]){tokBool, tokBool}, cm);
+
+    Int boolOfBoolBool = cm->typeNext;
+    addFunctionType(2, (Int[]){tokBool, tokBool, tokBool}, cm);
+
+    Int intOfStr = cm->typeNext;
+    addFunctionType(1, (Int[]){tokInt, tokString}, cm);
+
+    Int intOfInt = cm->typeNext;
+    addFunctionType(1, (Int[]){tokInt, tokInt}, cm);
+
+    Int intOfFl = cm->typeNext;
+    addFunctionType(1, (Int[]){tokInt, tokFloat}, cm);        
+
+    Int intOfFlFl = cm->typeNext;
+    addFunctionType(2, (Int[]){tokInt, tokFloat, tokFloat}, cm);
+        
+    Int strOfInt = cm->typeNext;
+    addFunctionType(1, (Int[]){tokString, tokInt}, cm);
+
+    Int strOfFloat = cm->typeNext;
+    addFunctionType(1, (Int[]){tokString, tokFloat}, cm);
+
+    Int strOfBool = cm->typeNext;
+    addFunctionType(1, (Int[]){tokString, tokBool}, cm);
+
+    Int strOfStrStr = cm->typeNext;
+    addFunctionType(2, (Int[]){tokString, tokString, tokString}, cm);
+        
+    Int intOfIntInt = cm->typeNext;
+    addFunctionType(2, (Int[]){tokInt, tokInt, tokInt}, cm);
+
+    Int flOfFlFl = cm->typeNext;
+    addFunctionType(2, (Int[]){tokFloat, tokFloat, tokFloat}, cm);
+
+    Int flOfInt = cm->typeNext;
+    addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
+
+    buildOperator(opTNotEqual, boolOfIntInt);
+    buildOperator(opTNotEqual, boolOfFlFl);
+    buildOperator(opTNotEqual, boolOfStrStr);
+    buildOperator(opTBoolNegation, boolOfBool);
+    buildOperator(opTSize, intOfStr);
+    buildOperator(opTSize, intOfInt);
+    buildOperator(opTSize, intOfFl);
+    cm->overlCNext = countOperators;
+}
+
+
+#define opTToString          3 // $
+#define opTRemainder         4 // %
+#define opTBinaryAnd         5 // && bitwise and
+#define opTTypeAnd           6 // & interface intersection (type-level)
+#define opTIsNull            7 // '
+#define opTTimesExt          8 // *.
+#define opTTimes             9 // *
+#define opTIncrement        10 // ++
+#define opTPlusExt          11 // +.
+#define opTPlus             12 // +
+#define opTToFloat          13 // ,
+#define opTDecrement        14 // --
+#define opTMinusExt         15 // -.
+#define opTMinus            16 // -
+#define opTDivByExt         17 // /.
+#define opTDivBy            18 // /
+#define opTBitShiftLeftExt  19 // <<.
+#define opTBitShiftLeft     20 // <<
+#define opTLTEQ             21 // <=
+#define opTComparator       22 // <>
+#define opTLessThan         23 // <
+#define opTEquality         24 // ==
+#define opTIntervalBoth     25 // >=<= inclusive interval check
+#define opTIntervalLeft     26 // >=<  left-inclusive interval check
+#define opTIntervalRight    27 // ><=  right-inclusive interval check
+#define opTIntervalExcl     28 // ><   exclusive interval check
+#define opTGTEQ             29 // >=
+#define opTBitShiftRightExt 30 // >>.  unsigned right bit shift
+#define opTBitshiftRight    31 // >>   right bit shift
+#define opTGreaterThan      32 // >
+#define opTNullCoalesce     33 // ?:   null coalescing operator
+#define opTQuestionMark     34 // ?    nullable type operator
+#define opTAccessor         35 // @
+#define opTExponentExt      36 // ^.   exponentiation extended
+#define opTExponent         37 // ^    exponentiation
+#define opTBoolOr           38 // ||   bitwise or
+#define opTXor              39 // |    bitwise xor
+#define opTAnd              40
+#define opTOr               41
+#define opTNegation         42
+
 /* Entities and overloads for the built-in operators, types and functions. */
 private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
     Arr(String*) baseTypes = allocateOnArena(5*sizeof(String*), cm->aTmp);
@@ -2987,10 +3123,7 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
         (EntityImport) { .name = str("math-pi", cm->a), .entity = (Entity){.typeId = tokFloat} },
         (EntityImport) { .name = str("math-e", cm->a),  .entity = (Entity){.typeId = tokFloat} }
     };    
-    for (int i = 0; i < countOperators; i++) {
-        cm->overloadCounts[i] = (*langDef->operators)[i].overs;
-    }
-    cm->overlCNext = countOperators;
+
     importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), cm);
 }
 
@@ -3027,6 +3160,7 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
     if (stringTableLength > 0) {
         memset(result->activeBindings, 0xFF, stringTableLength*sizeof(Int)); // activeBindings is filled with -1
     }
+    memset(result->overloadCounts, 0x00, (countOperators + 10)*4);
     importBuiltins(lx->langDef, result);
     return result;    
 }
@@ -3197,22 +3331,6 @@ testable Arr(Int) createOverloads(Compiler* cm) {
     }
     return overloads;
 }
-
-
-/** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
-testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
-    Int neededLen = cm->typeNext + arity + 2;
-    while (cm->typeCap < neededLen) {
-        StackInt* newTypes = createStackint32_t(cm->typeCap*2*4, cm->a);
-        memcpy(newTypes, cm->types, cm->typeNext);
-        cm->types = newTypes;
-        cm->typeCap *= 2;
-    }
-    cm->types->content[cm->typeNext] = arity + 1;
-    memcpy(cm->types + cm->typeNext + 1, paramsAndReturn, arity + 1);
-    cm->typeNext += (arity + 2);
-}
-
 
 /** Shifts elements from start and until the end to the left.
  * E.g. the call with args (5, 3) takes the stack from [x x x x x 1 2 3] to [x x 1 2 3]
