@@ -1,11 +1,10 @@
-#include "../source/utils/aliases.h"
-#include "../source/utils/arena.h"
-#include "../source/utils/goodString.h"
-#include "../source/compiler/compiler.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdint.h>
+#include "../source/tl.internal.h"
+#include "tlTest.h"
 
 
 int main() {
@@ -25,11 +24,11 @@ int main() {
     pr->entOverloadZero = pr->overlCNext;
     Int firstTypeId = pr->typeNext;
     // Float(Int Float)
-    addFunctionType(2, (Int[]){typFloat, typInt, typFloat}, pr);
+    addFunctionType(2, (Int[]){tokFloat, tokInt, tokFloat}, pr);
     
     Int secondTypeId = pr->typeNext;
     // String(Int Float) - String is the return type
-    addFunctionType(2, (Int[]){typString, typFloat, typInt}, pr);
+    addFunctionType(2, (Int[]){tokString, tokFloat, tokInt}, pr);
 
     String* foo = s("foo");
     importEntities(((EntityImport[]) {

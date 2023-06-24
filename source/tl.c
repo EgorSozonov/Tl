@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <math.h>
 #include <setjmp.h>
@@ -67,7 +68,6 @@ DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
 //}}}
-
 
 //{{{ Arena
 
@@ -153,7 +153,6 @@ testable void deleteArena(Arena* ar) {
 
 //}}}
 
-
 //{{{ Good strings
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
@@ -224,7 +223,7 @@ testable String* str(const char* content, Arena* a) {
 }
 
 /** Does string "a" end with string "b"? */
-bool endsWith(String* a, String* b) {
+testable bool endsWith(String* a, String* b) {
     if (a->length < b->length) {
         return false;
     } else if (b->length == 0) {
@@ -237,7 +236,7 @@ bool endsWith(String* a, String* b) {
 }
 
 
-bool equal(String* a, String* b) {
+private bool equal(String* a, String* b) {
     if (a->length != b->length) {
         return false;
     }
@@ -246,6 +245,26 @@ bool equal(String* a, String* b) {
     return cmpResult == 0;
 }
 
+private Int stringLenOfInt(Int n) {
+    if (n < 0) n = (n == INT_MIN) ? INT_MAX : -n;
+    if (n < 10) return 1;
+    if (n < 100) return 2;
+    if (n < 1000) return 3;
+    if (n < 10000) return 4;
+    if (n < 100000) return 5;
+    if (n < 1000000) return 6;
+    if (n < 10000000) return 7;
+    if (n < 100000000) return 8;
+    if (n < 1000000000) return 9;
+    return 10;
+}
+
+private String* stringOfInt(Int i, Arena* a) {
+    Int stringLen = stringLenOfInt(i);
+    String* result = allocateOnArena(sizeof(String) + stringLen + 1, a);
+    result->length = stringLen;
+    sprintf(result->content, "%d", i);
+}
 
 testable void printString(String* s) {
     if (s->length == 0) return;
@@ -316,7 +335,6 @@ private bool testForWord(String* inp, int startBt, const byte letters[], int len
 String empty = { .length = 0 };
 //}}}
 
-
 //{{{ Stack
 
 private void handleFullChunkParser(Compiler* cm);
@@ -325,7 +343,6 @@ private void setSpanLengthParser(Int, Compiler* cm);
 #define setSpanLength(A, X) _Generic((X), Lexer*: setSpanLengthLexer, Compiler*: setSpanLengthParser)(A, X)
 
 //}}}
-
 
 //{{{ Int Hashmap
 
@@ -374,7 +391,7 @@ private void addIntMap(int key, int value, IntMap* hm) {
         } else {
             // TODO handle the case where we've overflowing the 16 bits of capacity
             Arr(int) newBucket = allocateOnArena((4*capacity + 1)*sizeof(int), hm->a);
-            memcpy(newBucket + 1, p + 1, capacity*2);
+            memcpy(newBucket + 1, p + 1, capacity*2*sizeof(int));
             newBucket[0] = ((2*capacity) << 16) + capacity;
             newBucket[2*capacity + 1] = key;
             newBucket[2*capacity + 2] = value;
@@ -442,14 +459,15 @@ private bool hasKeyValueIntMap(int key, int value, IntMap* hm) {
 
 //}}}
 
-
 //{{{ String Hashmap
 
 #define initBucketSize 8
 
 private StringStore* createStringStore(int initSize, Arena* a) {
     StringStore* result = allocateOnArena(sizeof(StringStore), a);
-    int realInitSize = (initSize >= initBucketSize && initSize < 2048) ? initSize : (initSize >= initBucketSize ? 2048 : initBucketSize);
+    int realInitSize = (initSize >= initBucketSize && initSize < 2048)
+        ? initSize
+        : (initSize >= initBucketSize ? 2048 : initBucketSize);
     Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*realInitSize, a);
     
     result->a = a;
@@ -559,6 +577,12 @@ testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* strin
 
 //}}}
 
+//{{{ Errors
+//{{{ Internal errors
+
+#define errorInternalInconsistentSpans 1 // Inconsistent span length / structure of token scopes!;
+
+//}}}
 //{{{ Syntax errors
 const char errorNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";
 const char errorPrematureEndOfInput[]        = "Premature end of input";
@@ -577,7 +601,7 @@ const char errorNumericMultipleDots[]        = "Multiple dots in numeric literal
 const char errorNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
 const char errorPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errorPunctuationExtraClosing[]    = "Extra closing punctuation";
-const char errorPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like []";
+const char errorPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like (: )";
 const char errorPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errorPunctuationWrongOpen[]       = "Wrong opening punctuation";
 const char errorPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
@@ -591,44 +615,39 @@ const char errorCoreMisplacedArrow[]         = "The arrow separator (=>) must be
 const char errorCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
 const char errorCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
 const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
-const char errorIndentation[]                = "Indentation error: must be divisible by 4 (tabs also count as 4) and not greater than the current indentation level!";
 const char errorDocComment[]                 = "Doc comments must have the syntax: (*comment)";
-
-const char errorBareAtom[]                    = "Malformed token stream (atoms and parentheses must not be bare)";
-const char errorImportsNonUnique[]            = "Import names must be unique!";
-const char errorLengthOverflow[]              = "AST nodes length overflow";
-const char errorPrematureEndOfTokens[]        = "Premature end of input";
-const char errorUnexpectedToken[]             = "Unexpected token";
-const char errorInconsistentSpan[]            = "Inconsistent span length / structure of token scopes!";
-const char errorCoreFormTooShort[]            = "Core syntax form too short";
-const char errorCoreFormUnexpected[]          = "Unexpected core form";
-const char errorCoreFormAssignment[]          = "A core form may not contain any assignments!";
-const char errorCoreFormInappropriate[]       = "Inappropriate reserved word!";
-const char errorIfLeft[]                      = "A left-hand clause in an if can only contain variables, boolean literals and expressions!";
-const char errorIfRight[]                     = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
-const char errorIfEmpty[]                     = "Empty `if` expression";
-const char errorIfMalformed[]                 = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
-const char errorFnNameAndParams[]             = "Function signature must look like this: `(-f fnName ReturnType(x Type1 y Type2). body...)`";
-const char errorFnMissingBody[]               = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
-const char errorLoopSyntaxError[]             = "A loop should look like `(.loop (< x 101) (x 0). loopBody)`";
-const char errorLoopHeader[]                  = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
-const char errorLoopEmptyBody[]               = "Empty loop body!";
-const char errorBreakContinueTooComplex[]     = "This statement is too complex! Continues and breaks may contain one thing only: the number of enclosing loops to continue/break!";
-const char errorBreakContinueInvalidDepth[]   = "Invalid depth of break/continue! It must be a positive 32-bit integer!"; 
-const char errorDuplicateFunction[]           = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
-const char errorExpressionInfixNotSecond[]    = "An infix expression must have the infix operator in second position (not counting possible prefix operators)!";
-const char errorExpressionError[]             = "Cannot parse expression!";
+const char errorBareAtom[]                   = "Malformed token stream (atoms and parentheses must not be bare)";
+const char errorImportsNonUnique[]           = "Import names must be unique!";
+const char errorLengthOverflow[]             = "AST nodes length overflow";
+const char errorPrematureEndOfTokens[]       = "Premature end of input";
+const char errorUnexpectedToken[]            = "Unexpected token";
+const char errorCoreFormTooShort[]           = "Core syntax form too short";
+const char errorCoreFormUnexpected[]         = "Unexpected core form";
+const char errorCoreFormAssignment[]         = "A core form may not contain any assignments!";
+const char errorCoreFormInappropriate[]      = "Inappropriate reserved word!";
+const char errorIfLeft[]                     = "A left-hand clause in an if can only contain variables, boolean literals and expressions!";
+const char errorIfRight[]                    = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
+const char errorIfEmpty[]                    = "Empty `if` expression";
+const char errorIfMalformed[]                = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
+const char errorFnNameAndParams[]            = "Function signature must look like this: `(-f fnName ReturnType(x Type1 y Type2). body...)`";
+const char errorFnMissingBody[]              = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
+const char errorLoopSyntaxError[]            = "A loop should look like `(.loop (< x 101) (x 0). loopBody)`";
+const char errorLoopHeader[]                 = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
+const char errorLoopEmptyBody[]              = "Empty loop body!";
+const char errorBreakContinueTooComplex[]    = "This statement is too complex! Continues and breaks may contain one thing only: the number of enclosing loops to continue/break!";
+const char errorBreakContinueInvalidDepth[]  = "Invalid depth of break/continue! It must be a positive 32-bit integer!"; 
+const char errorDuplicateFunction[]          = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
+const char errorExpressionInfixNotSecond[]   = "An infix expression must have the infix operator in second position (not counting possible prefix operators)!";
+const char errorExpressionError[]            = "Cannot parse expression!";
 const char errorExpressionCannotContain[]     = "Expressions cannot contain scopes or statements!";
 const char errorExpressionFunctionless[]      = "Functionless expression!";
-const char errorExpressionHeadFormOperators[] = "Incorrect number of active operators at end of a head-function subexpression, should be exactly one!";
-const char errorTypeDeclCannotContain[]       = "Type declarations may only contain types (like A), type params (like a), type constructors (like .List) and parentheses!";
+const char errorTypeDeclCannotContain[]       = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
 const char errorTypeDeclError[]               = "Cannot parse type declaration!";
 const char errorUnknownType[]                 = "Unknown type";
 const char errorUnknownTypeFunction[]         = "Unknown type constructor";
 const char errorOperatorWrongArity[]          = "Wrong number of arguments for operator!";
 const char errorUnknownBinding[]              = "Unknown binding!";
 const char errorUnknownFunction[]             = "Unknown function!";
-const char errorIncorrectPrefixSequence[]     = "A prefix atom-expression must look like `!!a`, that is, only prefix operators followed by one ident or literal";
 const char errorOperatorUsedInappropriately[] = "Operator used in an inappropriate location!";
 const char errorAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
 const char errorAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
@@ -639,7 +658,6 @@ const char errorTemp[]                        = "Temporary, delete it when finis
 
 //}}}
 
-
 //{{{ Type errors
 
 const char errorTypeUnknownLastArg[]          = "The type of last argument to a call must be known, otherwise I can't resolve the function overload!";
@@ -648,7 +666,7 @@ const char errorTypeNoMatchingOverload[]      = "No matching function overload w
 const char errorTypeWrongArgumentType[]       = "Wrong argument type";
 
 //}}}
-
+//}}}
 
 //{{{ Lexer
 
@@ -713,7 +731,7 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 
 /** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" is handled by lexEqual
  */
-const int operatorStartSymbols[] = {
+const int operatorStartSymbols[16] = {
     aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus, aComma, aDivBy, 
     aLT, aGT, aQuestion, aAt, aCaret, aPipe
 };
@@ -723,6 +741,7 @@ const int operatorStartSymbols[] = {
 
 #define CURR_BT inp[lx->i]
 #define NEXT_BT inp[lx->i + 1]
+#define VALIDATEI(cond, errInd) if (!(cond)) { throwExcInternal(errInd, cm); }
 #define VALIDATEL(cond, errMsg) if (!(cond)) { throwExcLexer(errMsg, lx); }
 
 
@@ -730,6 +749,16 @@ typedef union {
     uint64_t i;
     double   d;
 } FloatingBits;
+
+_Noreturn private void throwExcInternal(Int errInd, Compiler* cm) {   
+    cm->wasError = true;
+#ifdef TRACE    
+    printf("Error on i = %d: %s\n", cm->i, errMsg);
+#endif    
+    cm->errMsg = stringOfInt(errInd, cm->a);
+    longjmp(excBuf, 1);
+}
+
 
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
 _Noreturn private void throwExcLexer(const char errMsg[], Lexer* lx) {   
@@ -1747,6 +1776,7 @@ testable void printLexer(Lexer* a) {
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
 testable int equalityLexer(Lexer a, Lexer b) {
+    
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
@@ -1804,7 +1834,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aColon] = &lexColon;
     p[aEqual] = &lexEqual;
 
-    for (Int i = 0; i < sizeof(operatorStartSymbols); i++) {
+    for (Int i = sizeof(operatorStartSymbols)/4 - 1; i > -1; i--) {
         p[operatorStartSymbols[i]] = &lexOperator;
     }
     p[aMinus] = &lexMinus;
@@ -1984,7 +2014,9 @@ testable Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Are
         }
         finalizeLexer(lx);
     }
+    print("p1")
     lx->totalTokens = lx->nextInd;
+    print("p2")
     return lx;
 }
 //}}}
@@ -2462,7 +2494,7 @@ private void maybeCloseSpans(Compiler* cm) {
         ParseFrame frame = peek(cm->backtrack);
         if (cm->i < frame.sentinelToken) {
             return;
-        } else VALIDATEP(cm->i == frame.sentinelToken, errorInconsistentSpan)
+        } else VALIDATEI(cm->i == frame.sentinelToken, errorInternalInconsistentSpans)
         popFrame(cm);
     }
 }
@@ -3135,7 +3167,6 @@ private Compiler* parse(Lexer* lx, Arena* a) {
 
 //}}}
 
-
 //{{{ Typer
 
 /** Allocates the table with overloads and changes the overloadCounts table to contain indices into the new table (not counts) */
@@ -3176,6 +3207,15 @@ testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm)
  * E.g. the call with args (5, 3) takes the stack from [x x x x x 1 2 3] to [x x 1 2 3]
  */
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
+    Int from = startInd;
+    Int to = startInd - byHowMany;
+    Int sentinel = cm->expStack->length;
+    while (from < sentinel) {
+        Int pieceSize = MIN(byHowMany, sentinel - from);
+        memcpy(cm->expStack + to, cm->expStack + from, pieceSize*4);
+        from += pieceSize;
+        to += pieceSize;
+    }
     cm->expStack->length -= byHowMany;
 }
 

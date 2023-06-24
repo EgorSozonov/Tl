@@ -29,6 +29,7 @@ private Lexer* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
         Token tok = tokens[i];
         add(tok, result);
     }
+    result->totalTokens = totalTokens;
     
     return result;
 }

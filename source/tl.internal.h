@@ -60,6 +60,7 @@ void printString(String* s);
 extern String empty;
 String* str(const char* content, Arena* a);
 #define s(lit) str(lit, a)
+bool endsWith(String* a, String* b);
 
 //}}}
 

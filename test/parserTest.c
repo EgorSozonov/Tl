@@ -1,13 +1,10 @@
-#include "../source/utils/aliases.h"
-#include "../source/utils/arena.h"
-#include "../source/utils/goodString.h"
-#include "../source/utils/structures/stack.h"
-#include "../source/compiler/compiler.h"
-#include "../source/compiler/compilerConstants.h"
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
 #include <stdarg.h>
+#include <stdint.h>
+#include "../source/tl.internal.h"
+#include "tlTest.h"
 
 typedef struct {
     String* name;
@@ -147,7 +144,7 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
 
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
-testable int equalityParser(Compiler a, Compiler b) {
+int equalityParser(Compiler a, Compiler b) {
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
@@ -190,7 +187,7 @@ void printParser(Compiler* a, Arena* ar) {
     Stackint32_t* sentinels = createStackint32_t(16, ar);
     for (int i = 0; i < a->nextInd; i++) {
         Node nod = a->nodes[i];
-        for (int m = sentinels->length - 1; m > -1 && (*sentinels->content)[m] == i; m--) {
+        for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
             popint32_t(sentinels);
             indent--;
         }

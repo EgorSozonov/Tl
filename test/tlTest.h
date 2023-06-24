@@ -1,3 +1,7 @@
+Lexer* lexicallyAnalyze(String*, LanguageDefinition*, Arena*);
+void printLexer(Lexer* a);
+LanguageDefinition* buildLanguageDefinitions(Arena* a);
+
 #ifdef LEXER_TEST
 
 Int getStringStore(byte* text, String* strToSearch, StackInt* stringTable, StringStore* hm);
@@ -6,7 +10,7 @@ Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 void add(Token t, Lexer* lexer);
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
-Lexer* lexicallyAnalyze(String*, LanguageDefinition*, Arena*);
+
 int64_t longOfDoubleBits(double d);
 void printLexer(Lexer* a);
 int equalityLexer(Lexer a, Lexer b);
@@ -58,6 +62,8 @@ void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* cm);
 int equalityParser(Compiler a, Compiler b);
 Compiler* createCompiler(Lexer* lx, Arena* a);
 Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a);
+void importOverloads(Arr(OverloadImport) impts, Int countImports, Compiler* cm);
+
 
 extern const char errorBareAtom[];
 extern const char errorImportsNonUnique[];
