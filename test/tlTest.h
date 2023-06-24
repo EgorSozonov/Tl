@@ -115,8 +115,10 @@ extern const char errorTemp[];
 
 void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm);
 Int typeCheckResolveExpr(Int indExpr, Compiler* cm);
+Arr(Int) createOverloads(Compiler* cm);
 extern const char errorTypeUnknownLastArg[];
 extern const char errorTypeZeroArityOverload[];
 extern const char errorTypeNoMatchingOverload[];
 extern const char errorTypeWrongArgumentType[];
+
 #endif

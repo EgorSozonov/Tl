@@ -1990,6 +1990,7 @@ private void finalizeLexer(Lexer* lx) {
 
 
 testable Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
+    print("lexically analyze")
     Lexer* lx = createLexer(input, langDef, a);
 
     Int inpLength = input->length;
@@ -2014,9 +2015,7 @@ testable Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Are
         }
         finalizeLexer(lx);
     }
-    print("p1")
     lx->totalTokens = lx->nextInd;
-    print("p2")
     return lx;
 }
 //}}}
@@ -2142,25 +2141,31 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
     }
 }
 
-private void addBinding(int nameId, int bindingId, Arr(int) activeBindings, ScopeStack* scopeStack) {
-    ScopeStackFrame* topScope = scopeStack->topScope;
-    resizeScopeArrayIfNecessary(64, topScope, scopeStack);
+private void addBinding(int nameId, int bindingId, Compiler* cm) {
+    ScopeStackFrame* topScope = cm->scopeStack->topScope;
+    resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
     
     topScope->bindings[topScope->length] = nameId;
     topScope->length++;
     
-    activeBindings[nameId] = bindingId;
+    cm->activeBindings[nameId] = bindingId;
 }
 
 /**
  * Pops a scope or expr frame. For a scope type of frame, also deactivates its bindings.
  * Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
  */
-private void popScopeFrame(Arr(int) activeBindings, ScopeStack* scopeStack) {  
-    ScopeStackFrame* topScope = scopeStack->topScope;
+private void popScopeFrame(Compiler* cm) {  
+    ScopeStackFrame* topScope = cm->scopeStack->topScope;
+    ScopeStack* scopeStack = cm->scopeStack;
     if (topScope->bindings) {
         for (int i = 0; i < topScope->length; i++) {
-            activeBindings[*(topScope->bindings + i)] = -1;
+            Int bindingOrOverload = cm->activeBindings[*(topScope->bindings + i)];
+            if (bindingOrOverload > -1) {
+                cm->activeBindings[*(topScope->bindings + i)] = -1;
+            } else {
+                cm->overloadCounts[-bindingOrOverload - 2]--;
+            }            
         }    
     }
 
@@ -2227,7 +2232,7 @@ private Int createBinding(Token bindingToken, Entity b, Compiler* cm) {
     
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
-            addBinding(nameId, newBindingId, cm->activeBindings, cm->scopeStack); // adds it to the ScopeStack
+            addBinding(nameId, newBindingId, cm); // adds it to the ScopeStack
         }
         cm->activeBindings[nameId] = newBindingId; // makes it active
     }
@@ -2255,14 +2260,13 @@ private void encounterFnDefinition(Int nameId, Compiler* cm) {
 }
 
 
-private Int importEntity(Int nameId, Entity b, Compiler* cm) {
-    if (nameId > -1) {
-        Int mbBinding = cm->activeBindings[nameId];
-        VALIDATEP(mbBinding == -1, errorAssignmentShadowing)
-    }
-
-    cm->entities[cm->entNext] = b;
-    Int newBindingId = cm->entNext;
+private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
+    Int mbBinding = cm->activeBindings[nameId];
+    Int typeLength = cm->types->content[ent.typeId];
+    VALIDATEP(mbBinding == -1 || typeLength > 0, errorAssignmentShadowing) // either the name unique, or it's a function
+    
+    cm->entities[cm->entNext] = ent;
+    Int newEntityId = cm->entNext;
     cm->entNext++;
     if (cm->entNext == cm->entCap) {
         Arr(Entity) newBindings = allocateOnArena(2*cm->entCap*sizeof(Entity), cm->a);
@@ -2270,14 +2274,18 @@ private Int importEntity(Int nameId, Entity b, Compiler* cm) {
         cm->entities = newBindings;
         cm->entCap *= 2;
     }    
-    
-    if (cm->scopeStack->length > 0) {
-        // adds it to the ScopeStack so it will be cleaned up when the scope is over
-        addBinding(nameId, newBindingId, cm->activeBindings, cm->scopeStack); 
+
+    if (typeLength == 0) { // not a function
+        if (cm->scopeStack->length > 0) {
+            // adds it to the ScopeStack so it will be cleaned up when the scope is over
+            addBinding(nameId, newEntityId, cm); 
+        }
+        cm->activeBindings[nameId] = newEntityId; // makes it active
+    } else {
+        encounterFnDefinition(nameId, cm);
     }
-    cm->activeBindings[nameId] = newBindingId; // makes it active
            
-    return newBindingId;
+    return newEntityId;
 }
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
@@ -2319,7 +2327,7 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* cm) {
 private ParseFrame popFrame(Compiler* cm) {    
     ParseFrame frame = pop(cm->backtrack);
     if (frame.tp == nodScope) {
-        popScopeFrame(cm->activeBindings, cm->scopeStack);
+        popScopeFrame(cm);
     }
     setSpanLength(frame.startNodeInd, cm);
     return frame;
@@ -2938,13 +2946,15 @@ testable ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, A
 }
 
 
-testable void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* cm) {
-    for (int i = 0; i < countBindings; i++) {
+testable void importEntities(Arr(EntityImport) impts, Int countEntities, Compiler* cm) {
+    print("import count bindings %d impts %p", countEntities, impts)
+    for (int i = 0; i < countEntities; i++) {
         Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
         if (mbNameId > -1) {           
             Int newBindingId = importEntity(mbNameId, impts[i].entity, cm);
         }
-    }    
+    }
+    print("import end")
 }
 
 
@@ -3170,12 +3180,13 @@ private Compiler* parse(Lexer* lx, Arena* a) {
 //{{{ Typer
 
 /** Allocates the table with overloads and changes the overloadCounts table to contain indices into the new table (not counts) */
-private Arr(Int) createOverloads(Compiler* cm) {
+testable Arr(Int) createOverloads(Compiler* cm) {
+    print("len of m->overloadCounts %d", cm->overlCNext);
     Int neededCount = 0;
     for (Int i = 0; i < cm->overlCNext; i++) {
         neededCount += (2*cm->overloadCounts[i] + 1); // a typeId and an entityId for each overload, plus a length field for the list
     }
-    print("total number of overloads needed: %d", neededCount);
+    print("total number of overload cells needed: %d", neededCount);
     Arr(Int) overloads = allocateOnArena(neededCount*4, cm->a);
 
     Int j = 0;
@@ -3231,6 +3242,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
     Int sentinelNode = indExpr + expr.pl2 + 1;
     Int currAhead = 0; // how many elements ahead we are compared to the token array
     StackInt* st = cm->expStack;
+
     // populate the stack with types, known and unknown
     for (int i = indExpr + 1; i < sentinelNode; ++i) {
         Node nd = cm->nodes[i];
@@ -3238,7 +3250,8 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
             push((Int)nd.tp, st);
         } else if (nd.tp == nodCall) {
             push(BIG + nd.pl2, st); // signifies that it's a call, and its arity
-            push(cm->overloadCounts[nd.pl1], st); // this is not the count of overloads anymore, but an index into the overloads
+            print("cm->overloadCounts %p len %d", cm->overloadCounts, nd.pl1)
+            push(cm->overloadCounts[nd.pl1], st); // this is not a count of overloads anymore, but an index into the overloads
             currAhead++;
         } else if (nd.pl1 > -1) { // bindingId            
             push(cm->entities[nd.pl1].typeId, st);
