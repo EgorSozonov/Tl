@@ -3,7 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../source/tl.h"
+#include "../source/tl.internal.h"
+#include "tlTest.h"
 
 
 typedef struct {
@@ -20,36 +21,26 @@ typedef struct {
 } LexerTestSet;
 
 
-private Lexer* buildLexer0(Arena *a, LanguageDefinition* langDef, int totalTokens, Arr(Token) tokens) {
-    Lexer* result = createLexer(&empty, langDef, a);
+private Lexer* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
+    Lexer* result = createLexer(&empty, NULL, a);
     if (result == NULL) return result;
     
-    result->totalTokens = totalTokens;
-        
     for (int i = 0; i < totalTokens; i++) {
-        add(tokens[i], result);
+        Token tok = tokens[i];
+        add(tok, result);
     }
     
     return result;
 }
 
 // Macro wrapper to get array length
-#define buildLexer(toks) buildLexer0(a, NULL, sizeof(toks)/sizeof(Token), toks)
+#define buildLexer(toks) buildLexer0(a, sizeof(toks)/sizeof(Token), toks)
 
 
 private Lexer* buildLexerWithError0(String* errMsg, Arena *a, int totalTokens, Arr(Token) tokens) {
-    Lexer* result = allocateOnArena(sizeof(Lexer), a);
+    Lexer* result = buildLexer0(a, totalTokens, tokens);
     result->wasError = true;
     result->errMsg = errMsg;
-    result->totalTokens = totalTokens;    
-    
-    result->tokens = allocateOnArena(totalTokens*sizeof(Token), a);
-    if (result == NULL) return result;
-    
-    for (int i = 0; i < totalTokens; i++) {
-        result->tokens[i] = tokens[i];
-    }
-    
     return result;
 }
 

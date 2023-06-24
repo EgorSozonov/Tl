@@ -1,7 +1,7 @@
 clear
 gcc -g3 -Wshadow -Wfatal-errors -Werror=implicit-function-declaration --std=c11 -o _bin/parserTest \
 -Werror=implicit-int \
--Isource/utils -Isource/compiler  \
-test/parserTest.c source/utils/goodString.c source/utils/arena.c source/compiler/lexerConstants.c source/compiler/lexer.c \
-source/compiler/compilerConstants.c source/utils/stackInt.c source/compiler/compiler.c \
+-Isource  \
+test/parserTest.c source/tl.c \
+-DPARSER_TEST -DTEST \
 -lm

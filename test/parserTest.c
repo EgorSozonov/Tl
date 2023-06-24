@@ -105,7 +105,6 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     expectedParser->entBindingZero = initParser->entBindingZero;
     expectedParser->entOverloadZero = initParser->entOverloadZero;
 
-
     for (Int i = 0; i < countNodes; i++) {
         untt nodeType = nodes[i].tp;
         // All the node types which contain bindingIds
@@ -148,7 +147,7 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
 
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
-int equalityParser(Compiler a, Compiler b) {
+testable int equalityParser(Compiler a, Compiler b) {
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
