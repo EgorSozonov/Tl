@@ -65,12 +65,12 @@ int main() {
     Compiler* cm = createCompiler(lx, a);
     cm->entBindingZero = cm->entNext;
     cm->entOverloadZero = cm->overlCNext;
-    Int firstTypeId = cm->typeNext;
+    Int firstTypeId = cm->types.length;
     
     // Float(Int Float)
     addFunctionType(2, (Int[]){tokFloat, tokInt, tokFloat}, cm);
     
-    Int secondTypeId = cm->typeNext;
+    Int secondTypeId = cm->types.length;
     // String(Int Float) - String is the return type
     addFunctionType(2, (Int[]){tokString, tokFloat, tokInt}, cm);
     

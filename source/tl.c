@@ -2152,7 +2152,7 @@ private void addBinding(int nameId, int bindingId, Compiler* cm) {
 }
 
 /**
- * Pops a scope or expr frame. For a scope type of frame, also deactivates its bindings.
+ * Pops a scope frame. For a scope type of frame, also deactivates its bindings.
  * Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
  */
 private void popScopeFrame(Compiler* cm) {  
@@ -2164,7 +2164,7 @@ private void popScopeFrame(Compiler* cm) {
             if (bindingOrOverload > -1) {
                 cm->activeBindings[*(topScope->bindings + i)] = -1;
             } else {
-                cm->overloadCounts[-bindingOrOverload - 2]--;
+                --cm->overloadCounts[-bindingOrOverload - 2];
             }            
         }    
     }
@@ -2244,25 +2244,25 @@ private Int createBinding(Token bindingToken, Entity b, Compiler* cm) {
 private void encounterFnDefinition(Int nameId, Compiler* cm) {    
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
     VALIDATEP(activeValue < 0, errorAssignmentShadowing);
-    if (activeValue == -1) {
-        cm->overloadCounts[cm->overlCNext] = 1;
+    if (activeValue == -1) { // this is the first-registered overload of this function
+        cm->overloadCounts[cm->overlCNext] = SIXTEENPLUSONE;
         cm->activeBindings[nameId] = -cm->overlCNext - 2;
         cm->overlCNext++;
         if (cm->overlCNext == cm->overlCCap) {
-            Arr(Int) newOverloads = allocateOnArena(2*cm->overlCCap*4, cm->a);
-            memcpy(newOverloads, cm->overloadCounts, cm->overlCCap*4);
-            cm->overloadCounts = newOverloads;
+            Arr(Int) newOverloadCounts = allocateOnArena(2*cm->overlCCap*4, cm->a);
+            memcpy(newOverloadCounts, cm->overloadCounts, cm->overlCCap*4);
+            cm->overloadCounts = newOverloadCounts;
             cm->overlCCap *= 2;
         }
-    } else {
-        cm->overloadCounts[-activeValue - 2]++;
+    } else { // other overloads have already been registered, so just increment the counts
+        cm->overloadCounts[-activeValue - 2] += SIXTEENPLUSONE;
     }
 }
 
 
 private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
     Int mbBinding = cm->activeBindings[nameId];
-    Int typeLength = cm->types->content[ent.typeId];
+    Int typeLength = cm->types.content[ent.typeId];
     VALIDATEP(mbBinding == -1 || typeLength > 0, errorAssignmentShadowing) // either the name unique, or it's a function
     
     cm->entities[cm->entNext] = ent;
@@ -2954,6 +2954,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Compile
             Int newBindingId = importEntity(mbNameId, impts[i].entity, cm);
         }
     }
+    cm->countNonparsedEntities = cm->entNext;
     print("import end")
 }
 
@@ -2969,102 +2970,124 @@ testable void importOverloads(Arr(OverloadImport) impts, Int countImports, Compi
 
 /** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
 testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
-    Int neededLen = cm->typeNext + arity + 2;
-    while (cm->typeCap < neededLen) {
-        StackInt* newTypes = createStackint32_t(cm->typeCap*2*4, cm->a);
-        memcpy(newTypes, cm->types, cm->typeNext);
-        cm->types = newTypes;
-        cm->typeCap *= 2;
+    Int neededLen = cm->types.length + arity + 2;
+    while (cm->types.capacity < neededLen) {
+        StackInt* newTypes = createStackint32_t(cm->types.capacity*2*4, cm->a);
+        memcpy(newTypes->content, cm->types.content, cm->types.length);
+        cm->types = *newTypes;
+        cm->types.capacity *= 2;
     }
-    cm->types->content[cm->typeNext] = arity + 1;
-    memcpy(cm->types + cm->typeNext + 1, paramsAndReturn, arity + 1);
-    cm->typeNext += (arity + 2);
+    cm->types.content[cm->types.length] = arity + 1;
+    memcpy(cm->types.content + cm->types.length + 1, paramsAndReturn, arity + 1);
+    cm->types.capacity += (arity + 2);
 }
 
-private void buildOperator(Int operId, Int typeId) {   
-    cm->entities[cm->entNext] = (Entity){.typeId = typeId};
+private void buildOperator(Int operId, Int typeId, Compiler* cm) {   
+    cm->entities[cm->entNext] = (Entity){.typeId = typeId, .nameId = operId};
     Int newEntityId = cm->entNext;
     cm->entNext++;
     if (cm->entNext == cm->entCap) {
         Arr(Entity) newEntities = allocateOnArena(2*cm->entCap*sizeof(Entity), cm->a);
-        memcpy(newBindings, cm->entities, cm->entCap*sizeof(Entity));
-        cm->entities = newBindings;
+        memcpy(newEntities, cm->entities, cm->entCap*sizeof(Entity));
+        cm->entities = newEntities;
         cm->entCap *= 2;
     }    
 
-    cm->overloadCounts[-activeValue - 2]++;    
+    cm->overloadCounts[-operId - 2] += SIXTEENPLUSONE;    
 }
 
 /** Operators are the first-ever functions to be defined. This function builds their types, entities and overload counts. */
 private void buildInOperators(Compiler* cm) {
-    Int boolOfIntInt = cm->typeNext;
+    Int boolOfIntInt = cm->types.length;
     addFunctionType(2, (Int[]){tokBool, tokInt, tokInt}, cm);
-
-    Int boolOfIntIntInt = cm->typeNext;
+    Int boolOfIntIntInt = cm->types.length;
     addFunctionType(3, (Int[]){tokBool, tokInt, tokInt, tokInt}, cm);    
-
-    Int boolOfFlFl = cm->typeNext;
+    Int boolOfFlFl = cm->types.length;
     addFunctionType(2, (Int[]){tokBool, tokFloat, tokFloat}, cm);
-
-    Int boolOfFlFlFl = cm->typeNext;
+    Int boolOfFlFlFl = cm->types.length;
     addFunctionType(3, (Int[]){tokBool, tokFloat, tokFloat, tokFloat}, cm);
-    
-    Int boolOfStrStr = cm->typeNext;
+    Int boolOfStrStr = cm->types.length;
     addFunctionType(2, (Int[]){tokBool, tokString, tokString}, cm);
-
-    Int boolOfBool = cm->typeNext;
+    Int boolOfBool = cm->types.length;
     addFunctionType(1, (Int[]){tokBool, tokBool}, cm);
-
-    Int boolOfBoolBool = cm->typeNext;
+    Int boolOfBoolBool = cm->types.length;
     addFunctionType(2, (Int[]){tokBool, tokBool, tokBool}, cm);
-
-    Int intOfStr = cm->typeNext;
+    Int intOfStr = cm->types.length;
     addFunctionType(1, (Int[]){tokInt, tokString}, cm);
-
-    Int intOfInt = cm->typeNext;
+    Int intOfInt = cm->types.length;
     addFunctionType(1, (Int[]){tokInt, tokInt}, cm);
-
-    Int intOfFl = cm->typeNext;
-    addFunctionType(1, (Int[]){tokInt, tokFloat}, cm);        
-
-    Int intOfFlFl = cm->typeNext;
-    addFunctionType(2, (Int[]){tokInt, tokFloat, tokFloat}, cm);
-        
-    Int strOfInt = cm->typeNext;
-    addFunctionType(1, (Int[]){tokString, tokInt}, cm);
-
-    Int strOfFloat = cm->typeNext;
-    addFunctionType(1, (Int[]){tokString, tokFloat}, cm);
-
-    Int strOfBool = cm->typeNext;
-    addFunctionType(1, (Int[]){tokString, tokBool}, cm);
-
-    Int strOfStrStr = cm->typeNext;
-    addFunctionType(2, (Int[]){tokString, tokString, tokString}, cm);
-        
-    Int intOfIntInt = cm->typeNext;
+    Int intOfFl = cm->types.length;
+    addFunctionType(1, (Int[]){tokInt, tokFloat}, cm);
+    Int intOfIntInt = cm->types.length;
     addFunctionType(2, (Int[]){tokInt, tokInt, tokInt}, cm);
-
-    Int flOfFlFl = cm->typeNext;
+    Int intOfFlFl = cm->types.length;
+    addFunctionType(2, (Int[]){tokInt, tokFloat, tokFloat}, cm);
+    Int intOfStrStr = cm->types.length;
+    addFunctionType(2, (Int[]){tokInt, tokString, tokString}, cm);
+    Int strOfInt = cm->types.length;
+    addFunctionType(1, (Int[]){tokString, tokInt}, cm);
+    Int strOfFloat = cm->types.length;
+    addFunctionType(1, (Int[]){tokString, tokFloat}, cm);
+    Int strOfBool = cm->types.length;
+    addFunctionType(1, (Int[]){tokString, tokBool}, cm);
+    Int strOfStrStr = cm->types.length;
+    addFunctionType(2, (Int[]){tokString, tokString, tokString}, cm);    
+    Int flOfFlFl = cm->types.length;
     addFunctionType(2, (Int[]){tokFloat, tokFloat, tokFloat}, cm);
-
-    Int flOfInt = cm->typeNext;
+    Int flOfInt = cm->types.length;
     addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
+    Int flOfFl = cm->types.length;
+    addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
 
-    buildOperator(opTNotEqual, boolOfIntInt);
-    buildOperator(opTNotEqual, boolOfFlFl);
-    buildOperator(opTNotEqual, boolOfStrStr);
-    buildOperator(opTBoolNegation, boolOfBool);
-    buildOperator(opTSize, intOfStr);
-    buildOperator(opTSize, intOfInt);
-    buildOperator(opTSize, intOfFl);
+    buildOperator(opTNotEqual, boolOfIntInt, cm);
+    buildOperator(opTNotEqual, boolOfFlFl, cm);
+    buildOperator(opTNotEqual, boolOfStrStr, cm);
+    buildOperator(opTBoolNegation, boolOfBool, cm);
+    buildOperator(opTSize, intOfStr, cm);
+    buildOperator(opTSize, intOfInt, cm);
+    buildOperator(opTToString, strOfInt, cm);
+    buildOperator(opTToString, strOfFloat, cm);
+    buildOperator(opTToString, strOfBool, cm);
+    buildOperator(opTRemainder, intOfIntInt, cm);
+    buildOperator(opTBinaryAnd, boolOfBoolBool, cm);
+    buildOperator(opTTimes, intOfIntInt, cm);
+    buildOperator(opTTimes, flOfFlFl, cm);
+    buildOperator(opTIncrement, intOfInt, cm);
+    buildOperator(opTPlus, intOfIntInt, cm);    
+    buildOperator(opTPlus, flOfFlFl, cm);
+    buildOperator(opTToFloat, flOfInt, cm);
+    buildOperator(opTDecrement, intOfInt, cm);
+    buildOperator(opTMinus, intOfIntInt, cm);
+    buildOperator(opTMinus, flOfFlFl, cm);
+    buildOperator(opTDivBy, intOfIntInt, cm);
+    buildOperator(opTDivBy, flOfFlFl, cm);
+    buildOperator(opTComparator, intOfIntInt, cm);
+    buildOperator(opTComparator, intOfFlFl, cm);
+    buildOperator(opTComparator, intOfStrStr, cm);
+    buildOperator(opTLTEQ, boolOfIntInt, cm);
+    buildOperator(opTLTEQ, boolOfFlFl, cm);
+    buildOperator(opTLTEQ, boolOfStrStr, cm);
+    buildOperator(opTGTEQ, boolOfIntInt, cm);
+    buildOperator(opTGTEQ, boolOfFlFl, cm);
+    buildOperator(opTGTEQ, boolOfStrStr, cm);
+    buildOperator(opTLessThan, boolOfIntInt, cm);
+    buildOperator(opTLessThan, boolOfFlFl, cm);
+    buildOperator(opTLessThan, boolOfStrStr, cm);
+    buildOperator(opTGreaterThan, boolOfIntInt, cm);
+    buildOperator(opTGreaterThan, boolOfFlFl, cm);
+    buildOperator(opTGreaterThan, boolOfStrStr, cm);
+    buildOperator(opTExponent, intOfIntInt, cm);
+    buildOperator(opTExponent, flOfFlFl, cm);
+    buildOperator(opTNegation, intOfInt, cm);
+    buildOperator(opTNegation, flOfFl, cm);
     cm->overlCNext = countOperators;
+    cm->countOperatorEntities = cm->entNext;
 }
 
 
-#define opTToString          3 // $
+
 #define opTRemainder         4 // %
-#define opTBinaryAnd         5 // && bitwise and
+#define opTBinaryAnd         5 // && bitwise and and non-short circuiting and
 #define opTTypeAnd           6 // & interface intersection (type-level)
 #define opTIsNull            7 // '
 #define opTTimesExt          8 // *.
@@ -3112,12 +3135,13 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
     baseTypes[tokString] = str("String", cm->aTmp);
     baseTypes[tokBool] = str("Bool", cm->aTmp);
     for (int i = 0; i < 5; i++) {
-        push(0, cm->types);
+        push(0, &cm->types);
         Int typeNameId = getStringStore(cm->text->content, baseTypes[i], cm->stringTable, cm->stringStore);
         if (typeNameId > -1) {
             cm->activeBindings[typeNameId] = i;
         }
     }
+    buildInOperators(cm);
     
     EntityImport builtins[2] =  {
         (EntityImport) { .name = str("math-pi", cm->a), .entity = (Entity){.typeId = tokFloat} },
@@ -3150,8 +3174,9 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
         .overloadCounts = allocateOnArena(4*(countOperators + 10), aTmp),
         .overlCNext = 0, .overlCCap = countOperators + 10,        
         .activeBindings = allocateOnArena(4*stringTableLength, a),
-        
-        .types = createStackint32_t(64, a), .typeNext = 0, .typeCap = 64,
+
+        .overloads = (StackInt){.content = NULL, .length = 0, .capacity = 0},
+        .types = *createStackint32_t(64, a),
         .expStack = createStackint32_t(16, aTmp),
         
         .stringStore = lx->stringStore, .stringTable = lx->stringTable, .strLength = stringTableLength,
@@ -3314,22 +3339,28 @@ private Compiler* parse(Lexer* lx, Arena* a) {
 //{{{ Typer
 
 /** Allocates the table with overloads and changes the overloadCounts table to contain indices into the new table (not counts) */
-testable Arr(Int) createOverloads(Compiler* cm) {
+testable void createOverloads(Compiler* cm) {
     print("len of m->overloadCounts %d", cm->overlCNext);
     Int neededCount = 0;
     for (Int i = 0; i < cm->overlCNext; i++) {
-        neededCount += (2*cm->overloadCounts[i] + 1); // a typeId and an entityId for each overload, plus a length field for the list
+        // a typeId and an entityId for each overload, plus a length field for the list
+        neededCount += (2*(cm->overloadCounts[i] >> 16) + 1);
     }
     print("total number of overload cells needed: %d", neededCount);
-    Arr(Int) overloads = allocateOnArena(neededCount*4, cm->a);
+    StackInt* overloads = createStackint32_t(neededCount, cm->a);
+    cm->overloads = *overloads;
 
     Int j = 0;
     for (Int i = 0; i < cm->overlCNext; i++) {
-        overloads[j] = cm->overloadCounts[i]; // length of the overload list (which will be filled during type check/resolution)
+        overloads->content[j] = cm->overloadCounts[i] >> 16; // length of the overload list (to be filled during type check/resolution)
         cm->overloadCounts[i] = j;
-        j += (2*cm->overloadCounts[i] + 1);
+        j += (2*(cm->overloadCounts[i] >> 16) + 1);
     }
-    return overloads;
+
+    populateOverloadsForOperatorsAndImports(cm);
+}
+
+private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 }
 
 /** Shifts elements from start and until the end to the left.
@@ -3364,7 +3395,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
     // populate the stack with types, known and unknown
     for (int i = indExpr + 1; i < sentinelNode; ++i) {
         Node nd = cm->nodes[i];
-        if (nd.tp <= nodString) {
+        if (nd.tp <= tokString) {
             push((Int)nd.tp, st);
         } else if (nd.tp == nodCall) {
             push(BIG + nd.pl2, st); // signifies that it's a call, and its arity
@@ -3386,13 +3417,13 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
         if (cont[j] >= BIG) { // a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
             Int arity = cont[j] - BIG;
             Int o = cont[j + 1]; // index into the table of overloads
-            Int overlCount = cm->overloadCounts[o];
+            Int overlCount = cm->overloads.content[o];
             if (arity == 0) {
                 VALIDATEP(overlCount == 1, errorTypeZeroArityOverload)
-                Int functionTypeInd = cm->overloadCounts[o + 1];
-                Int typeLength = cm->types->content[functionTypeInd];
+                Int functionTypeInd = cm->overloads.content[o + 1];
+                Int typeLength = cm->types.content[functionTypeInd];
                 if (typeLength == 1) { // the function returns something
-                    cont[j] = cm->types->content[functionTypeInd + 1]; // write the return type
+                    cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
                 } else {
                     shiftTypeStackLeft(j + 1, 1, cm); // the function returns nothing, so there's no return type to write
                 }
@@ -3401,25 +3432,25 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
                 Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
                 VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
                 Int ov = o + overlCount;
-                while (ov > o && cm->overloadCounts[ov] != typeLastArg) {
+                while (ov > o && cm->overloads.content[ov] != typeLastArg) {
                     --ov;
                 }
                 VALIDATEP(ov > o, errorTypeNoMatchingOverload)
                 
                 Int typeOfFunc = cm->overloadCounts[ov];
-                VALIDATEP(cm->types->content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last param matches, but not arity
+                VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last param matches, but not arity
 
                 // We know the type of the function, now to validate arg types against param types
                 for (int k = j + arity; k > j + 1; k--) { // not "j + arity + 1", because we've already checked the last param
                     if (cont[k] > -1) {
-                        VALIDATEP(cont[k] == cm->types->content[ov + k - j], errorTypeWrongArgumentType)
+                        VALIDATEP(cont[k] == cm->types.content[ov + k - j], errorTypeWrongArgumentType)
                     } else {
                         Int argBindingId = cm->nodes[indExpr + k - currAhead].pl1;
                         print("argBindingId %d", argBindingId)
-                        cm->entities[argBindingId].typeId = cm->types->content[ov + k - j];
+                        cm->entities[argBindingId].typeId = cm->types.content[ov + k - j];
                     }
                 }
-                cont[j] = cm->types->content[ov + 1]; // the function return type
+                cont[j] = cm->types.content[ov + 1]; // the function return type
                 shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
                 j -= 2;
             }

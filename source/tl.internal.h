@@ -13,7 +13,8 @@
 #define LOWER16BITS 0x0000FFFF
 #define LOWER32BITS 0x00000000FFFFFFFF
 #define THIRTYFIRSTBIT 0x40000000
-#define MAXTOKENLEN = 67108864 // 2**26
+#define MAXTOKENLEN 67108864 // 2^26
+#define SIXTEENPLUSONE 65537 // 2^16 + 1
 #define print(...) \
   printf(__VA_ARGS__);\
   printf("\n");
@@ -75,7 +76,6 @@ typedef struct {
 } IntMap;
 
 //}}}
-
 //{{{ String Hashmap
 
 /** Reference to first occurrence of a string identifier within input text */
@@ -99,8 +99,6 @@ typedef struct {
 } StringStore;
 
 //}}}
-
-
 //{{{ Lexer
 
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
@@ -308,7 +306,6 @@ typedef struct {
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool overloadable;
     bool assignable;
-    Int overs; // count of built-in overloads for this operator
 } OpDef;
 
 /** Count of lexical operators, i.e. things that are lexed as operator tokens.
@@ -330,10 +327,7 @@ struct LanguageDefinition {
 };
 
 //}}}
-
-
 //{{{ Parser
-
 
 typedef struct {
     untt tp : 6;
@@ -341,14 +335,6 @@ typedef struct {
     Int sentinelToken;
     void* scopeStackFrame; // only for tp = scope or expr
 } ParseFrame;
-
-#define nodInt          0
-#define nodLong         1
-#define nodFloat        2
-#define nodBool         3      // pl2 = value (1 or 0)
-#define nodString       4
-#define nodUnderscore   5
-#define nodDocComment   6
 
 #define nodId           7      // pl1 = index of binding, pl2 = index of name
 #define nodCall         8      // pl1 = index of binding, pl2 = arity
@@ -538,13 +524,17 @@ struct Compiler {
     Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overloaded binding
     Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
 
-    Arr(Int) overloadCounts;   // [aTmp] growing array of counts of all fn name definitions encountered (for the typechecker to use)
+    /**
+     * [aTmp] growing array of counts of all fn name definitions encountered (for the typechecker to use)
+     * Upper 16 bits contain max count, lower 16 bits current count
+     */
+    Arr(untt) overloadCounts;
     Int overlCNext;
     Int overlCCap;
 
-    Stackint32_t* types;
-    Int typeNext;
-    Int typeCap;
+    StackInt overloads;
+
+    StackInt types;
 
     Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression
 
@@ -553,9 +543,12 @@ struct Compiler {
     // Function bindings are nameId -> (-overloadId - 2). So negative values less than -1 mean "function is active"
     Arr(int) activeBindings;
 
+    Int countOperatorEntities;
+    Int countNonparsedEntities;
+
     Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startByte of each string.       
     StringStore* stringStore;  // A hash table for quickly deduplicating strings. Points into stringTable 
-    Int strLength;             // length of stringTable    
+    Int strLength;             // length of stringTable
 
     bool wasError;
     String* errMsg;
