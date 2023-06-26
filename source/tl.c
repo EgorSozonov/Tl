@@ -2982,6 +2982,7 @@ testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm)
     cm->types.capacity += (arity + 2);
 }
 
+
 private void buildOperator(Int operId, Int typeId, Compiler* cm) {   
     cm->entities[cm->entNext] = (Entity){.typeId = typeId, .nameId = operId};
     Int newEntityId = cm->entNext;
@@ -3084,48 +3085,6 @@ private void buildInOperators(Compiler* cm) {
     cm->countOperatorEntities = cm->entNext;
 }
 
-
-
-#define opTRemainder         4 // %
-#define opTBinaryAnd         5 // && bitwise and and non-short circuiting and
-#define opTTypeAnd           6 // & interface intersection (type-level)
-#define opTIsNull            7 // '
-#define opTTimesExt          8 // *.
-#define opTTimes             9 // *
-#define opTIncrement        10 // ++
-#define opTPlusExt          11 // +.
-#define opTPlus             12 // +
-#define opTToFloat          13 // ,
-#define opTDecrement        14 // --
-#define opTMinusExt         15 // -.
-#define opTMinus            16 // -
-#define opTDivByExt         17 // /.
-#define opTDivBy            18 // /
-#define opTBitShiftLeftExt  19 // <<.
-#define opTBitShiftLeft     20 // <<
-#define opTLTEQ             21 // <=
-#define opTComparator       22 // <>
-#define opTLessThan         23 // <
-#define opTEquality         24 // ==
-#define opTIntervalBoth     25 // >=<= inclusive interval check
-#define opTIntervalLeft     26 // >=<  left-inclusive interval check
-#define opTIntervalRight    27 // ><=  right-inclusive interval check
-#define opTIntervalExcl     28 // ><   exclusive interval check
-#define opTGTEQ             29 // >=
-#define opTBitShiftRightExt 30 // >>.  unsigned right bit shift
-#define opTBitshiftRight    31 // >>   right bit shift
-#define opTGreaterThan      32 // >
-#define opTNullCoalesce     33 // ?:   null coalescing operator
-#define opTQuestionMark     34 // ?    nullable type operator
-#define opTAccessor         35 // @
-#define opTExponentExt      36 // ^.   exponentiation extended
-#define opTExponent         37 // ^    exponentiation
-#define opTBoolOr           38 // ||   bitwise or
-#define opTXor              39 // |    bitwise xor
-#define opTAnd              40
-#define opTOr               41
-#define opTNegation         42
-
 /* Entities and overloads for the built-in operators, types and functions. */
 private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
     Arr(String*) baseTypes = allocateOnArena(5*sizeof(String*), cm->aTmp);
@@ -3142,10 +3101,14 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
         }
     }
     buildInOperators(cm);
+
+    Int voidOfStr = cm->types.length;
+    addFunctionType(1, (Int[]){tokString}, cm);
     
     EntityImport builtins[2] =  {
         (EntityImport) { .name = str("math-pi", cm->a), .entity = (Entity){.typeId = tokFloat} },
-        (EntityImport) { .name = str("math-e", cm->a),  .entity = (Entity){.typeId = tokFloat} }
+        (EntityImport) { .name = str("math-e", cm->a),  .entity = (Entity){.typeId = tokFloat} },
+        (EntityImport) { .name = str("print", cm->a),  .entity = (Entity){.typeId = voidOfStr} }
     };    
 
     importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), cm);
@@ -3360,7 +3323,22 @@ testable void createOverloads(Compiler* cm) {
     populateOverloadsForOperatorsAndImports(cm);
 }
 
+/** Now that the overloads are freshly allocated, we need to write all the existing entities (operators and imported functions)
+ * to them
+ */
 private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
+    for (Int i = 0; i < cm->countOperatorEntities; i++) {
+        Int j = cm->overloadCounts[i];
+//#if SAFE
+        Int countOverls = cm->overloads->content[j];
+        
+//#endif
+        Int sentinel = j + countOverls;
+        Int curr operId = cm->entities
+        
+    }
+    for (Int i = cm->countOperatorEntities; i < cm->countNonparsedEntities; i++) {
+    }
 }
 
 /** Shifts elements from start and until the end to the left.
