@@ -3,5 +3,5 @@ gcc -g3 -Wshadow -Wfatal-errors -Werror=implicit-function-declaration --std=c11 
 -Werror=implicit-int \
 -Isource \
 test/typerTest.c source/tl.c \
--DTYPER_TEST -DPARSER_TEST -DTEST \
+-DTYPER_TEST -DPARSER_TEST -DTEST -DSAFETY \
 -lm
