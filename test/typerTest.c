@@ -3,9 +3,12 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include <setjmp.h>
 #include "../source/tl.internal.h"
 #include "tlTest.h"
 
+
+extern jmp_buf excBuf;
 
 /** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
@@ -53,43 +56,52 @@ int main() {
     Arena *a = mkArena();
     LanguageDefinition* langDef = buildLanguageDefinitions(a);
     ParserDefinition* parsDef = buildParserDefinitions(langDef, a);
+    Compiler* cm = NULL;
     
-    Lexer* lx = lexicallyAnalyze(s("x = foo 5 1.2"), langDef, a);    
-    if (lx->wasError) {
-        print("lexer error")
-        printString(lx->errMsg);
-        return 0;
-    }
-    printLexer(lx);
+    if (setjmp(excBuf) == 0) {    
+        Lexer* lx = lexicallyAnalyze(s("x = foo 5 1.2"), langDef, a);    
+        if (lx->wasError) {
+            print("lexer error")
+            printString(lx->errMsg);
+            return 0;
+        }
+        printLexer(lx);
 
-    Compiler* cm = createCompiler(lx, a);
-    cm->entBindingZero = cm->entNext;
-    cm->entOverloadZero = cm->overlCNext;
-    Int firstTypeId = cm->types.length;
-    
-    // Float(Int Float)
-    addFunctionType(2, (Int[]){tokFloat, tokInt, tokFloat}, cm);
-    
-    Int secondTypeId = cm->types.length;
-    // String(Int Float) - String is the return type
-    addFunctionType(2, (Int[]){tokString, tokFloat, tokInt}, cm);
-    
-    String* foo = s("foo");
-    importEntities(((EntityImport[]) {
-        (EntityImport){ .name = foo, .entity = (Entity){.typeId = firstTypeId }},
-        (EntityImport){ .name = foo, .entity = (Entity){.typeId = secondTypeId }}
-        }), 2, cm);
+        cm = createCompiler(lx, a);
+        cm->entBindingZero = cm->entNext;
+        cm->entOverloadZero = cm->overlCNext;
+        Int firstTypeId = cm->types.length;
+        
+        // Float(Int Float)
+        addFunctionType(2, (Int[]){tokFloat, tokInt, tokFloat}, cm);
+        
+        Int secondTypeId = cm->types.length;
+        // String(Int Float) - String is the return type
+        addFunctionType(2, (Int[]){tokString, tokFloat, tokInt}, cm);
 
-    parseWithCompiler(lx, cm, a);
-    printParser(cm, a);
-    if (cm->wasError) {
-        print("Compiler error")
-        printString(cm->errMsg);
-        return 0;
+        String* foo = s("foo");
+        importEntities(((EntityImport[]) {
+            (EntityImport){ .name = foo, .entity = (Entity){.typeId = secondTypeId }},
+            (EntityImport){ .name = foo, .entity = (Entity){.typeId = firstTypeId }}
+            
+            }), 2, cm);
+
+        parseWithCompiler(lx, cm, a);
+        printParser(cm, a);
+        if (cm->wasError) {
+            print("Compiler error")
+            printString(cm->errMsg);
+            return 0;
+        }
+        createOverloads(cm);
+        Int typerResult = typeCheckResolveExpr(2, cm);
+        print("the result from the typer is %d", typerResult);
+    } else {
+        print("Exception")
+        if (cm != NULL) {
+            printString(cm->errMsg);
+        }
     }
-    createOverloads(cm);
-    Int typerResult = typeCheckResolveExpr(2, cm);
-    print("the result from the typer is %d", typerResult);
     
     return 0;
 }

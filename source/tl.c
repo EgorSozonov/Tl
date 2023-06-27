@@ -264,6 +264,7 @@ private String* stringOfInt(Int i, Arena* a) {
     String* result = allocateOnArena(sizeof(String) + stringLen + 1, a);
     result->length = stringLen;
     sprintf(result->content, "%d", i);
+    return result;
 }
 
 testable void printString(String* s) {
@@ -755,9 +756,10 @@ typedef union {
 _Noreturn private void throwExcInternal(Int errInd, Compiler* cm) {   
     cm->wasError = true;
 #ifdef TRACE    
-    printf("Error on i = %d: %s\n", cm->i, errMsg);
+    printf("Internal error %d\n", errInd);
 #endif    
     cm->errMsg = stringOfInt(errInd, cm->a);
+    printString(cm->errMsg);
     longjmp(excBuf, 1);
 }
 
@@ -1777,8 +1779,7 @@ testable void printLexer(Lexer* a) {
 }
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
-testable int equalityLexer(Lexer a, Lexer b) {
-    
+testable int equalityLexer(Lexer a, Lexer b) {    
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
@@ -1789,7 +1790,7 @@ testable int equalityLexer(Lexer a, Lexer b) {
         Token tokB = b.tokens[i];
         if (tokA.tp != tokB.tp || tokA.lenBts != tokB.lenBts || tokA.startBt != tokB.startBt 
             || tokA.pl1 != tokB.pl1 || tokA.pl2 != tokB.pl2) {
-            printf("\n\nUNEQUAL RESULTS\n", i);
+            printf("\n\nUNEQUAL RESULTS on token %d\n", i);
             if (tokA.tp != tokB.tp) {
                 printf("Diff in tp, %s but was expected %s\n", tokNames[tokA.tp], tokNames[tokB.tp]);
             }
@@ -2919,7 +2920,8 @@ testable ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, A
 testable void importEntities(Arr(EntityImport) impts, Int countEntities, Compiler* cm) {
     for (int i = 0; i < countEntities; i++) {
         Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
-        if (mbNameId > -1) {           
+        if (mbNameId > -1) {
+            impts[i].entity.nameId = mbNameId;
             Int newBindingId = importEntity(mbNameId, impts[i].entity, cm);
         }
     }
@@ -2939,16 +2941,18 @@ testable void importOverloads(Arr(OverloadImport) impts, Int countImports, Compi
 
 /** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
 testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
-    Int neededLen = cm->types.length + arity + 2;
+
+    Int newInd = cm->types.length;
+    Int neededLen = newInd + arity + 2; // + 2 because one cell will hold total length, and another the return type
     while (cm->types.capacity < neededLen) {
         StackInt* newTypes = createStackint32_t(cm->types.capacity*2*4, cm->a);
         memcpy(newTypes->content, cm->types.content, cm->types.length);
         cm->types = *newTypes;
         cm->types.capacity *= 2;
     }
-    cm->types.content[cm->types.length] = arity + 1;
-    memcpy(cm->types.content + cm->types.length + 1, paramsAndReturn, arity + 1);
-    cm->types.capacity += (arity + 2);
+    cm->types.content[newInd] = arity + 1;
+    memcpy(cm->types.content + newInd + 1, paramsAndReturn, (arity + 1)*4);
+    cm->types.length += (arity + 2);
 }
 
 
@@ -2963,7 +2967,7 @@ private void buildOperator(Int operId, Int typeId, Compiler* cm) {
         cm->entCap *= 2;
     }    
 
-    cm->overloadCounts[-operId - 2] += SIXTEENPLUSONE;    
+    cm->overloadCounts[operId] += SIXTEENPLUSONE;    
 }
 
 /** Operators are the first-ever functions to be defined. This function builds their types, entities and overload counts. */
@@ -3285,22 +3289,20 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     Int countOverls = -1;
     Int sentinel = -1;
 
-    print("countOperatorEntities %d countNonparsedEntities %d", cm->countOperatorEntities, cm->countNonparsedEntities)
-    
     // operators
     for (Int i = 0; i < cm->countOperatorEntities; i++) {
         Entity ent = cm->entities[i];
+        
         if (ent.nameId != currOperId) {
             currOperId = ent.nameId;
             o = cm->overloadCounts[currOperId] + 1;
             countOverls = cm->overloads.content[cm->overloadCounts[currOperId]];
             sentinel = o + countOverls;
         }
-#if SAFETY            
-        VALIDATEI(o < sentinel, iErrorOverloadsOverflow)
-#endif            
-        cm->overloads.content[o] = getLastParamType(ent.typeId, cm);
-        cm->overloads.content[o + countOverls] = i;        
+        if (countOverls > 0) {
+            cm->overloads.content[o] = getLastParamType(ent.typeId, cm);
+            cm->overloads.content[o + countOverls] = i;
+        }
         
         o++;
     }
@@ -3310,6 +3312,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     Int currFuncId = -1;
     for (Int i = cm->countOperatorEntities; i < cm->countNonparsedEntities; i++) {
         Entity ent = cm->entities[i];
+        print("ent.typeId %d", ent.typeId);
         if (!isFunction(ent.typeId, cm)) {
             continue;
         }
@@ -3320,7 +3323,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 #if SAFETY
             VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
 #endif            
-            o = cm->overloadCounts[currFuncId] + 1;
+            o = cm->overloadCounts[-currFuncId - 2] + 1;
             countOverls = cm->overloads.content[cm->overloadCounts[currOperId]];
             sentinel = o + countOverls;
         }
@@ -3330,7 +3333,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 #endif        
         
         cm->overloads.content[o] = getLastParamType(ent.typeId, cm);
-        cm->overloads.content[o + countOverls] = i;        
+        cm->overloads.content[o + countOverls] = i;
         
         o++;
     }
@@ -3338,21 +3341,21 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 
 /** Allocates the table with overloads and changes the overloadCounts table to contain indices into the new table (not counts) */
 testable void createOverloads(Compiler* cm) {
-    print("len of m->overloadCounts %d", cm->overlCNext);
     Int neededCount = 0;
     for (Int i = 0; i < cm->overlCNext; i++) {
         // a typeId and an entityId for each overload, plus a length field for the list
         neededCount += (2*(cm->overloadCounts[i] >> 16) + 1);
     }
-    print("total number of overload cells needed: %d", neededCount);
     StackInt* overloads = createStackint32_t(neededCount, cm->a);
     cm->overloads = *overloads;
 
     Int j = 0;
     for (Int i = 0; i < cm->overlCNext; i++) {
-        overloads->content[j] = cm->overloadCounts[i] >> 16; // length of the overload list (to be filled during type check/resolution)
+        // length of the overload list (to be filled during type check/resolution)
+        Int maxCountOverloads = (Int)(cm->overloadCounts[i] >> 16);
+        cm->overloads.content[j] = maxCountOverloads;
         cm->overloadCounts[i] = j;
-        j += (2*(cm->overloadCounts[i] >> 16) + 1);
+        j += (2*maxCountOverloads + 1);
     }
 
     populateOverloadsForOperatorsAndImports(cm);
@@ -3374,10 +3377,13 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
     cm->expStack->length -= byHowMany;
 }
 
-private void printExpSt(Compiler *cm) {
-    for (int i = 0; i < cm->expStack->length; i++) {
-        printf("%d ", cm->expStack->content[i]);
+
+private void printExpSt(StackInt* st) {
+    printf("[");
+    for (int i = 0; i < st->length; i++) {
+        printf("%d ", st->content[i]);
     }
+    print("]\n");
 }
 
 /** Typechecks and type-resolves a single expression */
@@ -3387,14 +3393,13 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
     Int currAhead = 0; // how many elements ahead we are compared to the token array
     StackInt* st = cm->expStack;
 
-    // populate the stack with types, known and unknown
+    // populate the expression's type stack with known and unknown types
     for (int i = indExpr + 1; i < sentinelNode; ++i) {
         Node nd = cm->nodes[i];
         if (nd.tp <= tokString) {
             push((Int)nd.tp, st);
         } else if (nd.tp == nodCall) {
             push(BIG + nd.pl2, st); // signifies that it's a call, and its arity
-            print("cm->overloadCounts %p len %d", cm->overloadCounts, nd.pl1)
             push(cm->overloadCounts[-nd.pl1 - 2], st); // this is no count of overloads anymore, but an index into the overloads
             currAhead++;
         } else if (nd.pl1 > -1) { // bindingId            
@@ -3403,56 +3408,72 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
             push(nd.pl1, st); // overloadId            
         }
     }
-    print("expStack len is %d", st->length)
+    printExpSt(st);
 
     // now go from back to front, resolving the calls, typechecking & collapsing args, and replacing calls with their return types
     Int j = expr.pl2 + currAhead - 1;
     Arr(Int) cont = st->content;
-    while (j > -1) {        
-        if (cont[j] >= BIG) { // a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
-            Int arity = cont[j] - BIG;
-            Int o = cont[j + 1]; // index into the table of overloads
-            Int overlCount = cm->overloads.content[o];
-            if (arity == 0) {
-                VALIDATEP(overlCount == 1, errorTypeZeroArityOverload)
-                Int functionTypeInd = cm->overloads.content[o + 1];
-                Int typeLength = cm->types.content[functionTypeInd];
-                if (typeLength == 1) { // the function returns something
-                    cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
-                } else {
-                    shiftTypeStackLeft(j + 1, 1, cm); // the function returns nothing, so there's no return type to write
-                }
-                --j;
+    print("j %d", j);
+    while (j > -1) {
+        if (cont[j] < BIG) {
+            --j;
+            continue;
+        }
+        // a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
+        
+        print("j is big %d", j)
+        Int arity = cont[j] - BIG;
+        Int o = cont[j + 1]; // index into the table of overloads
+        Int overlCount = cm->overloads.content[o];
+        print("arity %d o %d overlCount %d should be %d", arity, o, overlCount);
+        if (arity == 0) {
+            VALIDATEP(overlCount == 1, errorTypeZeroArityOverload)
+            Int functionTypeInd = cm->overloads.content[o + 1];
+            Int typeLength = cm->types.content[functionTypeInd];
+            if (typeLength == 1) { // the function returns something
+                cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
             } else {
-                Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
-                VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
-                Int ov = o + overlCount;
-                while (ov > o && cm->overloads.content[ov] != typeLastArg) {
-                    --ov;
-                }
-                VALIDATEP(ov > o, errorTypeNoMatchingOverload)
-                
-                Int typeOfFunc = cm->overloadCounts[ov];
-                VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last param matches, but not arity
-
-                // We know the type of the function, now to validate arg types against param types
-                for (int k = j + arity; k > j + 1; k--) { // not "j + arity + 1", because we've already checked the last param
-                    if (cont[k] > -1) {
-                        VALIDATEP(cont[k] == cm->types.content[ov + k - j], errorTypeWrongArgumentType)
-                    } else {
-                        Int argBindingId = cm->nodes[indExpr + k - currAhead].pl1;
-                        print("argBindingId %d", argBindingId)
-                        cm->entities[argBindingId].typeId = cm->types.content[ov + k - j];
-                    }
-                }
-                cont[j] = cm->types.content[ov + 1]; // the function return type
-                shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
-                j -= 2;
+                shiftTypeStackLeft(j + 1, 1, cm); // the function returns nothing, so there's no return type to write
+                printExpSt(st);
             }
+            --j;
         } else {
-            j--;
+            Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
+            VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
+            Int ov = o + overlCount;
+            print("o %d ov %d typeLastArg %d overlCount %d", o, ov, typeLastArg, overlCount)
+            while (ov > o && cm->overloads.content[ov] != typeLastArg) {
+                print("type in overload is %d", cm->overloads.content[ov])
+                --ov;
+            }
+            print("ov after decrement %d", ov);
+            VALIDATEP(ov > o, errorTypeNoMatchingOverload)
+            
+            Int typeOfFunc = cm->entities[cm->overloads.content[ov + overlCount]].typeId;
+            print("typeOfFunc %d", typeOfFunc)
+            VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last param matches, but not arity
+
+            // We know the type of the function, now to validate arg types against param types
+            for (int k = j + arity; k > j + 1; k--) { // not "j + arity + 1", because we've already checked the last param
+                if (cont[k] > -1) {
+                    VALIDATEP(cont[k] == cm->types.content[ov + k - j], errorTypeWrongArgumentType)
+                } else {
+                    Int argBindingId = cm->nodes[indExpr + k - currAhead].pl1;
+                    print("argBindingId %d", argBindingId)
+                    cm->entities[argBindingId].typeId = cm->types.content[ov + k - j];
+                }
+            }
+            cont[j] = cm->types.content[ov + 1]; // the function return type
+            shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
+            printExpSt(st);
+            j -= 2;
         }
     }
+    if (st->length == 1) {
+        return st->content[0];
+    } else {
+        return -1;
+    }    
 }
 
 //}}}
