@@ -141,7 +141,7 @@ struct Lexer {
     Int capacity;              // current capacity of token storage
     Int nextInd;               // the  index for the next token to be added    
     
-    Arr(int) newlines;
+    Arr(Int) newlines;
     Int newlinesCapacity;
     Int newlinesNextInd;
     
@@ -434,27 +434,32 @@ typedef struct {
 
 
 DEFINE_STACK_HEADER(ParseFrame)
+DEFINE_STACK_HEADER(Entity)
 #define pop(X) _Generic((X), \
     StackBtToken*: popBtToken, \
     StackParseFrame*: popParseFrame, \
+    StackEntity*: popEntity, \
     Stackint32_t*: popint32_t \
     )(X)
 
 #define peek(X) _Generic((X), \
     StackBtToken*: peekBtToken, \
     StackParseFrame*: peekParseFrame, \
+    StackEntity*: peekEntity, \
     Stackint32_t*: peekint32_t \
     )(X)
 
 #define push(A, X) _Generic((X), \
     StackBtToken*: pushBtToken, \
     StackParseFrame*: pushParseFrame, \
+    StackEntity*: pushEntity, \
     Stackint32_t*: pushint32_t \
     )(A, X)
     
 #define hasValues(X) _Generic((X), \
     StackBtToken*: hasValuesBtToken, \
     StackParseFrame*: hasValuesParseFrame, \
+    StackEntity*: hasValuesEntity, \
     Stackint32_t*:  hasValuesint32_t \
     )(X)
 
@@ -518,9 +523,7 @@ struct Compiler {
     Int capacity;               // current capacity of node storage
     Int nextInd;                // the index for the next token to be added    
 
-    Arr(Entity) entities;      // growing array of all bindings ever encountered
-    Int entNext;
-    Int entCap;
+    StackEntity entities;       // growing array of all entities (variables, function defs, constants etc) ever encountered
     Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overloaded binding
     Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
 

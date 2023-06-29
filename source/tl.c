@@ -28,45 +28,47 @@
 
 jmp_buf excBuf;
 
-#define DEFINE_STACK(T)                                                                  \
-    Stack##T * createStack##T (int initCapacity, Arena* a) {                             \
-        int capacity = initCapacity < 4 ? 4 : initCapacity;                              \
-        Stack##T * result = allocateOnArena(sizeof(Stack##T), a);                        \
-        result->capacity = capacity;                                                     \
-        result->length = 0;                                                              \
-        result->arena = a;                                                               \
-        T* arr = allocateOnArena(capacity*sizeof(T), a);                                 \
-        result->content = arr;                                                           \
-        return result;                                                                   \
-    }                                                                                    \
-    bool hasValues ## T (Stack ## T * st) {                                              \
-        return st->length > 0;                                                           \
-    }                                                                                    \
-    T pop##T (Stack ## T * st) {                                                         \
-        st->length--;                                                                    \
-        return st->content[st->length];                                                  \
-    }                                                                                    \
-    T peek##T(Stack##T * st) {                                                           \
-        return st->content[st->length - 1];                                              \
-    }                                                                                    \
-    void push##T (T newItem, Stack ## T * st) {                                          \
-        if (st->length < st->capacity) {                                                 \
-            memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));               \
-        } else {                                                                         \
+#define DEFINE_STACK(T)                                                             \
+    Stack##T * createStack##T (int initCapacity, Arena* a) {                        \
+        int capacity = initCapacity < 4 ? 4 : initCapacity;                         \
+        Stack##T * result = allocateOnArena(sizeof(Stack##T), a);                   \
+        result->capacity = capacity;                                                \
+        result->length = 0;                                                         \
+        result->arena = a;                                                          \
+        T* arr = allocateOnArena(capacity*sizeof(T), a);                            \
+        result->content = arr;                                                      \
+        return result;                                                              \
+    }                                                                               \
+    bool hasValues ## T (Stack ## T * st) {                                         \
+        return st->length > 0;                                                      \
+    }                                                                               \
+    T pop##T (Stack ## T * st) {                                                    \
+        st->length--;                                                               \
+        return st->content[st->length];                                             \
+    }                                                                               \
+    T peek##T(Stack##T * st) {                                                      \
+        return st->content[st->length - 1];                                         \
+    }                                                                               \
+    void push##T (T newItem, Stack ## T * st) {                                     \
+        if (st->length < st->capacity) {                                            \
+            memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));          \
+        } else {                                                                    \
             T* newContent = allocateOnArena(2*(st->capacity)*sizeof(T), st->arena); \
-            memcpy(newContent, st->content, st->length*sizeof(T));                       \
-            memcpy((T*)(newContent) + (st->length), &newItem, sizeof(T));                \
-            st->capacity *= 2;                                                           \
-            st->content = newContent;                                                  \
-        }                                                                                \
-        st->length++;                                                                    \
-    }                                                                                    \
-    void clear##T (Stack##T * st) {                                                      \
-        st->length = 0;                                                                  \
+            memcpy(newContent, st->content, st->length*sizeof(T));                  \
+            memcpy((T*)(newContent) + (st->length), &newItem, sizeof(T));           \
+            st->capacity *= 2;                                                      \
+            st->content = newContent;                                               \
+        }                                                                           \
+        st->length++;                                                               \
+    }                                                                               \
+    void clear##T (Stack##T * st) {                                                 \
+        st->length = 0;                                                             \
     }                                             
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
+DEFINE_STACK(Entity)
+
 //}}}
 
 //{{{ Arena
@@ -950,8 +952,8 @@ private void addNewLine(Int j, Lexer* lx) {
     lx->newlines[lx->newlinesNextInd] = j;
     lx->newlinesNextInd++;
     if (lx->newlinesNextInd == lx->newlinesCapacity) {
-        Arr(int) newNewlines = allocateOnArena(lx->newlinesCapacity*2*sizeof(int), lx->arena);
-        memcpy(newNewlines, lx->newlines, lx->newlinesCapacity);
+        Arr(Int) newNewlines = allocateOnArena(lx->newlinesCapacity*2*4, lx->arena);
+        memcpy(newNewlines, lx->newlines, lx->newlinesCapacity*4);
         lx->newlines = newNewlines;
         lx->newlinesCapacity *= 2;
     }
@@ -1032,7 +1034,7 @@ private void addNumeric(byte b, Lexer* lx) {
         lx->numeric[lx->numericNextInd] = b;
     } else {
         Arr(byte) newNumeric = allocateOnArena(lx->numericCapacity*2, lx->arena);
-        memcpy(newNumeric, lx->numeric, lx->numericCapacity);
+        memcpy(newNumeric, lx->numeric, lx->numericCapacity*4);
         newNumeric[lx->numericCapacity] = b;
         
         lx->numeric = newNumeric;
@@ -1914,7 +1916,7 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[10] = (OpDef){.name=s("++"),   .arity=1, .bytes={aPlus, aPlus, 0, 0}, .overloadable=true };
     p[11] = (OpDef){.name=s("+."),   .arity=2, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
     p[12] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[13] = (OpDef){.name=s(","),    .arity=3, .bytes={aComma, 0, 0, 0}};    
+    p[13] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0}};    
     p[14] = (OpDef){.name=s("--"),   .arity=1, .bytes={aMinus, aMinus, 0, 0}, .overloadable=true};
     p[15] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
     p[16] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
@@ -2135,7 +2137,7 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
             scopeStack->currChunk = scopeStack->currChunk->next;
             Arr(int) newContent = scopeStack->currChunk->content;
             
-            memcpy(topScope->bindings, newContent, initLength*sizeof(Int));
+            memcpy(topScope->bindings, newContent, initLength*4);
             topScope->bindings = newContent;                        
         }
     } else if (newLength == 256) {
@@ -2196,8 +2198,6 @@ private void popScopeFrame(Compiler* cm) {
     scopeStack->length--;
 }
 
-
-#define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser(errMsg, cm); }
 #define BIG 70000000
 
 _Noreturn private void throwExcParser(const char errMsg[], Compiler* cm) {   
@@ -2213,22 +2213,15 @@ _Noreturn private void throwExcParser(const char errMsg[], Compiler* cm) {
 private bool parseLiteralOrIdentifier(Token tok, Compiler* cm);
 
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
-private Int createBinding(Token bindingToken, Entity b, Compiler* cm) {
+private Int createBinding(Token bindingToken, Entity e, Compiler* cm) {
     VALIDATEP(bindingToken.tp == tokWord, errorAssignment)
 
     Int nameId = bindingToken.pl2;
     Int mbBinding = cm->activeBindings[nameId];
     VALIDATEP(mbBinding == -1, errorAssignmentShadowing)
-    
-    cm->entities[cm->entNext] = b;
-    Int newBindingId = cm->entNext;
-    cm->entNext++;
-    if (cm->entNext == cm->entCap) {
-        Arr(Entity) newBindings = allocateOnArena(2*cm->entCap*sizeof(Entity), cm->a);
-        memcpy(newBindings, cm->entities, cm->entCap*sizeof(Entity));
-        cm->entities = newBindings;
-        cm->entCap *= 2;
-    }    
+
+    Int newBindingId = cm->entities.length;    
+    push(e, &cm->entities);
     
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
@@ -2264,17 +2257,10 @@ private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
     Int mbBinding = cm->activeBindings[nameId];
     Int typeLength = cm->types.content[ent.typeId];
     VALIDATEP(mbBinding == -1 || typeLength > 0, errorAssignmentShadowing) // either the name unique, or it's a function
-    
-    cm->entities[cm->entNext] = ent;
-    Int newEntityId = cm->entNext;
-    cm->entNext++;
-    if (cm->entNext == cm->entCap) {
-        Arr(Entity) newBindings = allocateOnArena(2*cm->entCap*sizeof(Entity), cm->a);
-        memcpy(newBindings, cm->entities, cm->entCap*sizeof(Entity));
-        cm->entities = newBindings;
-        cm->entCap *= 2;
-    }    
 
+    Int newEntityId = cm->entities.length;
+    push(ent, &cm->entities);
+    
     if (typeLength == 0) { // not a function
         if (cm->scopeStack->length > 0) {
             // adds it to the ScopeStack so it will be cleaned up when the scope is over
@@ -2925,7 +2911,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Compile
             Int newBindingId = importEntity(mbNameId, impts[i].entity, cm);
         }
     }
-    cm->countNonparsedEntities = cm->entNext;
+    cm->countNonparsedEntities = cm->entities.length;
     print("import end")
 }
 
@@ -2941,32 +2927,23 @@ testable void importOverloads(Arr(OverloadImport) impts, Int countImports, Compi
 
 /** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
 testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
-
     Int newInd = cm->types.length;
     Int neededLen = newInd + arity + 2; // + 2 because one cell will hold total length, and another the return type
     while (cm->types.capacity < neededLen) {
-        StackInt* newTypes = createStackint32_t(cm->types.capacity*2*4, cm->a);
-        memcpy(newTypes->content, cm->types.content, cm->types.length);
+        StackInt* newTypes = createStackint32_t(cm->types.capacity*2, cm->a);
+        memcpy(newTypes->content, cm->types.content, cm->types.length*4);
         cm->types = *newTypes;
         cm->types.capacity *= 2;
     }
     cm->types.content[newInd] = arity + 1;
+
     memcpy(cm->types.content + newInd + 1, paramsAndReturn, (arity + 1)*4);
     cm->types.length += (arity + 2);
 }
 
 
-private void buildOperator(Int operId, Int typeId, Compiler* cm) {   
-    cm->entities[cm->entNext] = (Entity){.typeId = typeId, .nameId = operId};
-    Int newEntityId = cm->entNext;
-    cm->entNext++;
-    if (cm->entNext == cm->entCap) {
-        Arr(Entity) newEntities = allocateOnArena(2*cm->entCap*sizeof(Entity), cm->a);
-        memcpy(newEntities, cm->entities, cm->entCap*sizeof(Entity));
-        cm->entities = newEntities;
-        cm->entCap *= 2;
-    }    
-
+private void buildOperator(Int operId, Int typeId, Compiler* cm) {
+    push(((Entity){.typeId = typeId, .nameId = operId}), &cm->entities);
     cm->overloadCounts[operId] += SIXTEENPLUSONE;    
 }
 
@@ -3005,14 +2982,13 @@ private void buildInOperators(Compiler* cm) {
     Int strOfBool = cm->types.length;
     addFunctionType(1, (Int[]){tokString, tokBool}, cm);
     Int strOfStrStr = cm->types.length;
-    addFunctionType(2, (Int[]){tokString, tokString, tokString}, cm);    
+    addFunctionType(2, (Int[]){tokString, tokString, tokString}, cm);
     Int flOfFlFl = cm->types.length;
     addFunctionType(2, (Int[]){tokFloat, tokFloat, tokFloat}, cm);
     Int flOfInt = cm->types.length;
     addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
     Int flOfFl = cm->types.length;
     addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
-
     buildOperator(opTNotEqual, boolOfIntInt, cm);
     buildOperator(opTNotEqual, boolOfFlFl, cm);
     buildOperator(opTNotEqual, boolOfStrStr, cm);
@@ -3055,7 +3031,7 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTNegation, intOfInt, cm);
     buildOperator(opTNegation, flOfFl, cm);
     cm->overlCNext = countOperators;
-    cm->countOperatorEntities = cm->entNext;
+    cm->countOperatorEntities = cm->entities.length;
 }
 
 /* Entities and overloads for the built-in operators, types and functions. */
@@ -3106,7 +3082,7 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
         
         .nodes = allocateOnArena(sizeof(Node)*initNodeCap, a), .nextInd = 0, .capacity = initNodeCap,
         
-        .entities = allocateOnArena(sizeof(Entity)*64, a), .entNext = 0, .entCap = 64,        
+        .entities = *createStackEntity(64, a),
         .overloadCounts = allocateOnArena(4*(countOperators + 10), aTmp),
         .overlCNext = 0, .overlCCap = countOperators + 10,        
         .activeBindings = allocateOnArena(4*stringTableLength, a),
@@ -3213,7 +3189,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
         Int typeBindingId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
         VALIDATEP(typeBindingId > -1, errorUnknownType)
         
-        cm->entities[newBindingId].typeId = typeBindingId;
+        cm->entities.content[newBindingId].typeId = typeBindingId;
         cm->i++; // CONSUME the param's type name
         
         addNode(paramNode, cm);        
@@ -3291,7 +3267,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 
     // operators
     for (Int i = 0; i < cm->countOperatorEntities; i++) {
-        Entity ent = cm->entities[i];
+        Entity ent = cm->entities.content[i];
         
         if (ent.nameId != currOperId) {
             currOperId = ent.nameId;
@@ -3311,8 +3287,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     Int currFuncNameId = -1;
     Int currFuncId = -1;
     for (Int i = cm->countOperatorEntities; i < cm->countNonparsedEntities; i++) {
-        Entity ent = cm->entities[i];
-        print("ent.typeId %d", ent.typeId);
+        Entity ent = cm->entities.content[i];
         if (!isFunction(ent.typeId, cm)) {
             continue;
         }
@@ -3386,46 +3361,47 @@ private void printExpSt(StackInt* st) {
     print("]\n");
 }
 
-/** Typechecks and type-resolves a single expression */
+/** Populates the expression's type stack with the operands and functions of an expression */
+private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
+    for (int i = indExpr + 1; i < sentinelNode; ++i) {
+        Node nd = cm->nodes[i];
+        if (nd.tp <= tokString) {
+            push((Int)nd.tp, cm->expStack);
+        } else if (nd.tp == nodCall) {
+            push(BIG + nd.pl2, cm->expStack); // signifies that it's a call, and its arity
+            push(cm->overloadCounts[-nd.pl1 - 2], cm->expStack); // this is no count of overloads anymore, but an index into the overloads
+            currAhead++;
+        } else if (nd.pl1 > -1) { // bindingId            
+            push(cm->entities.content[nd.pl1].typeId, cm->expStack);
+        } else { // overloadId
+            push(nd.pl1, cm->expStack); // overloadId            
+        }
+    }
+}
+
+/** Typechecks and overload-resolves a single expression */
 testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
     Node expr = cm->nodes[indExpr];
     Int sentinelNode = indExpr + expr.pl2 + 1;
     Int currAhead = 0; // how many elements ahead we are compared to the token array
     StackInt* st = cm->expStack;
-
-    // populate the expression's type stack with known and unknown types
-    for (int i = indExpr + 1; i < sentinelNode; ++i) {
-        Node nd = cm->nodes[i];
-        if (nd.tp <= tokString) {
-            push((Int)nd.tp, st);
-        } else if (nd.tp == nodCall) {
-            push(BIG + nd.pl2, st); // signifies that it's a call, and its arity
-            push(cm->overloadCounts[-nd.pl1 - 2], st); // this is no count of overloads anymore, but an index into the overloads
-            currAhead++;
-        } else if (nd.pl1 > -1) { // bindingId            
-            push(cm->entities[nd.pl1].typeId, st);
-        } else { // overloadId
-            push(nd.pl1, st); // overloadId            
-        }
-    }
+    
+    populateExpStack(indExpr, sentinelNode, &currAhead, cm);
     printExpSt(st);
 
     // now go from back to front, resolving the calls, typechecking & collapsing args, and replacing calls with their return types
     Int j = expr.pl2 + currAhead - 1;
     Arr(Int) cont = st->content;
-    print("j %d", j);
     while (j > -1) {
         if (cont[j] < BIG) {
             --j;
             continue;
         }
-        // a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
         
-        print("j is big %d", j)
+        // It's a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
         Int arity = cont[j] - BIG;
         Int o = cont[j + 1]; // index into the table of overloads
         Int overlCount = cm->overloads.content[o];
-        print("arity %d o %d overlCount %d should be %d", arity, o, overlCount);
         if (arity == 0) {
             VALIDATEP(overlCount == 1, errorTypeZeroArityOverload)
             Int functionTypeInd = cm->overloads.content[o + 1];
@@ -3434,6 +3410,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
                 cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
             } else {
                 shiftTypeStackLeft(j + 1, 1, cm); // the function returns nothing, so there's no return type to write
+                --currAhead;
                 printExpSt(st);
             }
             --j;
@@ -3441,30 +3418,26 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
             Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
             VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
             Int ov = o + overlCount;
-            print("o %d ov %d typeLastArg %d overlCount %d", o, ov, typeLastArg, overlCount)
             while (ov > o && cm->overloads.content[ov] != typeLastArg) {
-                print("type in overload is %d", cm->overloads.content[ov])
                 --ov;
             }
-            print("ov after decrement %d", ov);
             VALIDATEP(ov > o, errorTypeNoMatchingOverload)
             
-            Int typeOfFunc = cm->entities[cm->overloads.content[ov + overlCount]].typeId;
-            print("typeOfFunc %d", typeOfFunc)
-            VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last param matches, but not arity
-
+            Int typeOfFunc = cm->entities.content[cm->overloads.content[ov + overlCount]].typeId;
+            VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last parm matches, but not arity
+            
             // We know the type of the function, now to validate arg types against param types
             for (int k = j + arity; k > j + 1; k--) { // not "j + arity + 1", because we've already checked the last param
                 if (cont[k] > -1) {
-                    VALIDATEP(cont[k] == cm->types.content[ov + k - j], errorTypeWrongArgumentType)
+                    VALIDATEP(cont[k] == cm->types.content[typeOfFunc + k - j], errorTypeWrongArgumentType)
                 } else {
                     Int argBindingId = cm->nodes[indExpr + k - currAhead].pl1;
-                    print("argBindingId %d", argBindingId)
-                    cm->entities[argBindingId].typeId = cm->types.content[ov + k - j];
+                    cm->entities.content[argBindingId].typeId = cm->types.content[typeOfFunc + k - j];
                 }
             }
-            cont[j] = cm->types.content[ov + 1]; // the function return type
+            cont[j] = cm->types.content[typeOfFunc + 1]; // the function return type
             shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
+            --currAhead;
             printExpSt(st);
             j -= 2;
         }

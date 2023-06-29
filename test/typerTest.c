@@ -52,7 +52,7 @@ void printParser(Compiler* a, Arena* ar) {
     }
 }
 
-int main() {
+Int typerTest1() {
     Arena *a = mkArena();
     LanguageDefinition* langDef = buildLanguageDefinitions(a);
     ParserDefinition* parsDef = buildParserDefinitions(langDef, a);
@@ -68,16 +68,16 @@ int main() {
         printLexer(lx);
 
         cm = createCompiler(lx, a);
-        cm->entBindingZero = cm->entNext;
+        cm->entBindingZero = cm->entities.length;
         cm->entOverloadZero = cm->overlCNext;
         Int firstTypeId = cm->types.length;
         
         // Float(Int Float)
-        addFunctionType(2, (Int[]){tokFloat, tokInt, tokFloat}, cm);
+        addFunctionType(2, (Int[]){tokString, tokInt, tokFloat}, cm);
         
         Int secondTypeId = cm->types.length;
         // String(Int Float) - String is the return type
-        addFunctionType(2, (Int[]){tokString, tokFloat, tokInt}, cm);
+        addFunctionType(2, (Int[]){tokFloat, tokFloat, tokInt}, cm);
 
         String* foo = s("foo");
         importEntities(((EntityImport[]) {
@@ -104,4 +104,61 @@ int main() {
     }
     
     return 0;
+}
+
+Int typerTest2() {
+    Arena *a = mkArena();
+    LanguageDefinition* langDef = buildLanguageDefinitions(a);
+    ParserDefinition* parsDef = buildParserDefinitions(langDef, a);
+    Compiler* cm = NULL;
+    
+    if (setjmp(excBuf) == 0) {    
+        Lexer* lx = lexicallyAnalyze(s("x = - 1.2 ,(+ 5 7)"), langDef, a);    
+        if (lx->wasError) {
+            print("lexer error")
+            printString(lx->errMsg);
+            return 0;
+        }
+        printLexer(lx);
+
+        cm = createCompiler(lx, a);
+        cm->entBindingZero = cm->entities.length;
+        cm->entOverloadZero = cm->overlCNext;
+        Int firstTypeId = cm->types.length;
+        
+        // Float(Int Float)
+        addFunctionType(2, (Int[]){tokString, tokInt, tokFloat}, cm);
+        
+        Int secondTypeId = cm->types.length;
+        // String(Int Float) - String is the return type
+        addFunctionType(2, (Int[]){tokFloat, tokFloat, tokInt}, cm);
+
+
+        parseWithCompiler(lx, cm, a);
+        printParser(cm, a);
+        if (cm->wasError) {
+            print("Compiler error")
+            printString(cm->errMsg);
+            return 0;
+        }
+        createOverloads(cm);
+        Int typerResult = typeCheckResolveExpr(2, cm);
+        if (cm->wasError) {
+            printString(cm->errMsg);
+        } else {
+            print("the result from the typer is %d", typerResult);
+        }
+    } else {
+        print("Exception")
+        if (cm != NULL) {
+            printString(cm->errMsg);
+        }
+    }
+    
+    return 0;
+}
+
+int main() {
+    typerTest1();
+    return typerTest2();
 }
