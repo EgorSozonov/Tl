@@ -3148,21 +3148,30 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
     Int byteSentinel = fnDef.startBt + fnDef.lenBts;
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nextInd, .sentinelToken = fnSentinel };
     Token fnName = lx->tokens[cm->i];
+    Int fnNameId = fnName.pl2;
     cm->i++; // CONSUME the function name token
+
+    Int fnTypeId = cm->types.length;
+    push(0, &cm->types); // will overwrite it with the type's length once we know it
 
     // the function's return type, it's optional
     if (lx->tokens[cm->i].tp == tokTypeName) {
         Token fnReturnType = lx->tokens[cm->i];
 
-        VALIDATEP(cm->activeBindings[fnReturnType.pl2] > -1, errorUnknownType)
+        Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
+        VALIDATEP(returnTypeId > -1, errorUnknownType)
+        push(returnTypeId, &cm->types);
         
         cm->i++; // CONSUME the function return type token
     }
 
     // the fnDef scope & node
     push(newParseFrame, cm->backtrack);
-    encounterFnDefinition(fnName.pl2, cm);
+    encounterFnDefinition(fnNameId, cm);
+    Int fnEntityId = cm->entities.length;
+    push((Entity){.nameId = fnNameId, .typeId = fnTypeId}, &cm->entities);
     addNode((Node){.tp = nodFnDef, .pl1 = cm->activeBindings[fnName.pl2], .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
+    addNode((Node){.tp = nodBinding, .pl1 = fnEntityId, .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
 
     // the scope for the function body
     VALIDATEP(lx->tokens[cm->i].tp == tokParens, errorFnNameAndParams)
@@ -3174,28 +3183,32 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
     
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
-    
+
+    Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = lx->tokens[cm->i];
         VALIDATEP(paramName.tp == tokWord, errorFnNameAndParams)
-        Int newBindingId = createBinding(paramName, (Entity){.nameId = paramName.pl2}, cm);
-        Node paramNode = (Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
-        cm->i++; // CONSUME a param name
+        Int newEntityId = createBinding(paramName, (Entity){.nameId = paramName.pl2}, cm);
+        Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
+        ++cm->i; // CONSUME a param name
+        ++arity;
         
         VALIDATEP(cm->i < paramsSentinel, errorFnNameAndParams)
         Token paramType = lx->tokens[cm->i];
         VALIDATEP(paramType.tp == tokTypeName, errorFnNameAndParams)
         
-        Int typeBindingId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
-        VALIDATEP(typeBindingId > -1, errorUnknownType)
+        Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
+        VALIDATEP(paramTypeId > -1, errorUnknownType)
+        cm->entities[newEntityId].typeId = paramTypeId;
+        push(paramTypeId, &cm->types);
         
-        cm->entities.content[newBindingId].typeId = typeBindingId;
-        cm->i++; // CONSUME the param's type name
+        ++cm->i; // CONSUME the param's type name
         
-        addNode(paramNode, cm);        
+        addNode(paramNode, cm);
     }
     
     VALIDATEP(cm->i < fnSentinel && lx->tokens[cm->i].tp >= firstPunctuationTokenType, errorFnMissingBody)
+    cm->types.content[fnTypeId] = arity + 1;
 }
 
 /** Parses top-level function params and bodies */
@@ -3334,6 +3347,7 @@ testable void createOverloads(Compiler* cm) {
     }
 
     populateOverloadsForOperatorsAndImports(cm);
+    // TODO walk the top-level function signatures and add their overloads, too. This should complete the overloads table
 }
 
 /** Shifts elements from start and until the end to the left.

@@ -336,18 +336,18 @@ typedef struct {
     void* scopeStackFrame; // only for tp = scope or expr
 } ParseFrame;
 
-#define nodId           7      // pl1 = index of binding, pl2 = index of name
-#define nodCall         8      // pl1 = index of binding, pl2 = arity
-#define nodBinding      9      // pl1 = index of binding
-#define nodTypeId      10      // pl1 = index of binding
+#define nodId           7      // pl1 = index of entity, pl2 = index of name
+#define nodCall         8      // pl1 = index of entity, pl2 = arity
+#define nodBinding      9      // pl1 = index of entity
+#define nodTypeId      10      // pl1 = index of entity
 #define nodAnd         11
 #define nodOr          12
 
 
 // Punctuation (inner node)
-#define nodScope       13       // (: This is resumable but trivially so, that's why it's not grouped with the others
+#define nodScope       13       // (. This is resumable but trivially so, that's why it's not grouped with the others
 #define nodExpr        14
-#define nodAssignment  15       // pl1 = 1 if mutable assignment, 0 if immutable
+#define nodAssignment  15
 #define nodReassign    16       // :=
 #define nodMutation    17       // pl1 = like in topOperator. This is the "+=", operatorful type of mutations
 
@@ -365,7 +365,7 @@ typedef struct {
 #define nodEmbed       27       // noParen. Embed a text file as a string literal, or a binary resource file
 #define nodExport      28       
 #define nodExposePriv  29       
-#define nodFnDef       30       // pl1 = index of binding
+#define nodFnDef       30       // pl1 = index of overload
 #define nodIface       31
 #define nodLambda      32
 #define nodMeta        33       
