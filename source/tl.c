@@ -349,7 +349,7 @@ private void setSpanLengthParser(Int, Compiler* cm);
 
 //{{{ Int Hashmap
 
-private IntMap* createIntMap(int initSize, Arena* a) {
+testable IntMap* createIntMap(int initSize, Arena* a) {
     IntMap* result = allocateOnArena(sizeof(IntMap), a);
     int realInitSize = (initSize >= 4 && initSize < 1024) ? initSize : (initSize >= 4 ? 1024 : 4);
     Arr(int*) dict = allocateOnArena(sizeof(int*)*realInitSize, a);
@@ -368,7 +368,7 @@ private IntMap* createIntMap(int initSize, Arena* a) {
 }
 
 
-private void addIntMap(int key, int value, IntMap* hm) {
+testable void addIntMap(int key, int value, IntMap* hm) {
     if (key < 0) return;
 
     int hash = key % (hm->dictSize);
@@ -404,7 +404,7 @@ private void addIntMap(int key, int value, IntMap* hm) {
 }
 
 
-private bool hasKeyIntMap(int key, IntMap* hm) {
+testable bool hasKeyIntMap(int key, IntMap* hm) {
     if (key < 0) return false;
     
     int hash = key % hm->dictSize;
@@ -1950,20 +1950,6 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
 }
 
 
-
-/*
-* Definition of the operators, reserved words and lexer dispatch for the lexer.
-*/
-testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
-    LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
-    result->possiblyReservedDispatch = tabulateReservedBytes(a);
-    result->dispatchTable = tabulateDispatch(a);
-    result->operators = tabulateOperators(a);
-    result->reservedParensOrNot = tabulateReserved(a);
-    return result;
-}
-
-
 testable Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* a) {
     Lexer* lx = allocateOnArena(sizeof(Lexer), a);
     Arena* aTmp = mkArena();
@@ -2060,7 +2046,7 @@ private size_t floor4(size_t sz) {
 #define FRESH_CHUNK_LEN floor4(CHUNK_SIZE - sizeof(ScopeChunk))/4
 
 
-private ScopeStack* createScopeStack() {    
+testable ScopeStack* createScopeStack() {
     ScopeStack* result = malloc(sizeof(ScopeStack));
 
     ScopeChunk* firstChunk = malloc(CHUNK_SIZE);
@@ -2098,7 +2084,7 @@ private void mbNewChunk(ScopeStack* scopeStack) {
  * Scopes have a simple size policy: 64 elements at first, then 256, then throw exception. This is because
  * only 256 local variables are allowed in one function, and transitively in one scope.
  */
-private void pushScope(ScopeStack* scopeStack) {
+testable void pushScope(ScopeStack* scopeStack) {
     // check whether the free space in currChunk is enough for the hashmap header + dict
     // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
     int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
@@ -2145,7 +2131,7 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
     }
 }
 
-private void addBinding(int nameId, int bindingId, Compiler* cm) {
+testable void addBinding(int nameId, int bindingId, Compiler* cm) {
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
     
@@ -2159,7 +2145,7 @@ private void addBinding(int nameId, int bindingId, Compiler* cm) {
  * Pops a scope frame. For a scope type of frame, also deactivates its bindings.
  * Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
  */
-private void popScopeFrame(Compiler* cm) {  
+testable void popScopeFrame(Compiler* cm) {
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     ScopeStack* scopeStack = cm->scopeStack;
     if (topScope->bindings) {
@@ -2168,7 +2154,7 @@ private void popScopeFrame(Compiler* cm) {
             if (bindingOrOverload > -1) {
                 cm->activeBindings[*(topScope->bindings + i)] = -1;
             } else {
-                --cm->overloadCounts[-bindingOrOverload - 2];
+                --cm->overloadIds[-bindingOrOverload - 2];
             }            
         }    
     }
@@ -2238,17 +2224,17 @@ private void encounterFnDefinition(Int nameId, Compiler* cm) {
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
     VALIDATEP(activeValue < 0, errorAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
-        cm->overloadCounts[cm->overlCNext] = SIXTEENPLUSONE;
+        cm->overloadIds[cm->overlCNext] = SIXTEENPLUSONE;
         cm->activeBindings[nameId] = -cm->overlCNext - 2;
         cm->overlCNext++;
         if (cm->overlCNext == cm->overlCCap) {
             Arr(Int) newOverloadCounts = allocateOnArena(2*cm->overlCCap*4, cm->a);
-            memcpy(newOverloadCounts, cm->overloadCounts, cm->overlCCap*4);
-            cm->overloadCounts = newOverloadCounts;
+            memcpy(newOverloadCounts, cm->overloadIds, cm->overlCCap*4);
+            cm->overloadIds = newOverloadCounts;
             cm->overlCCap *= 2;
         }
     } else { // other overloads have already been registered, so just increment the counts
-        cm->overloadCounts[-activeValue - 2] += SIXTEENPLUSONE;
+        cm->overloadIds[-activeValue - 2] += SIXTEENPLUSONE;
     }
 }
 
@@ -2332,7 +2318,7 @@ private void exprSingleItem(Token tk, Compiler* cm) {
         addNode((Node){.tp = nodCall, .pl1 = mbOverload, .pl2 = 0, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);        
     } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
-        OpDef operDefinition = (*cm->parDef->operators)[operBindingId];
+        OpDef operDefinition = (*cm->langDef->operators)[operBindingId];
         if (operDefinition.arity == 1) {
             addNode((Node){ .tp = nodId, .pl1 = operBindingId, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
         } else {
@@ -2355,7 +2341,7 @@ private void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Co
     while (j < sentinelToken) {
         Token tok = tokens[j];
         j += (tok.tp < firstPunctuationTokenType) ? 1 : (tok.pl2 + 1);
-        if (tok.tp != tokOperator || (*cm->parDef->operators)[tok.pl1].arity > 1) {            
+        if (tok.tp != tokOperator || (*cm->langDef->operators)[tok.pl1].arity > 1) {            
             (*arity)++;
         }
     }
@@ -2385,7 +2371,7 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Compiler
             if (firstTk.tp == tokWord) {
                 mbBnd = cm->activeBindings[firstTk.pl2];
             } else if (firstTk.tp == tokOperator) {
-                VALIDATEP(*arity == (*cm->parDef->operators)[firstTk.pl1].arity, errorOperatorWrongArity)
+                VALIDATEP(*arity == (*cm->langDef->operators)[firstTk.pl1].arity, errorOperatorWrongArity)
                 mbBnd = -firstTk.pl1 - 2;
             }
             
@@ -2413,7 +2399,7 @@ private void subexprClose(Arr(Token) tokens, Compiler* cm) {
 /** An operator token in non-initial position is either a funcall (if unary) or an operand. Consumes no tokens. */
 private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tokens, Compiler* cm) {
     Int bindingId = tok.pl1;
-    OpDef operDefinition = (*cm->parDef->operators)[bindingId];
+    OpDef operDefinition = (*cm->langDef->operators)[bindingId];
 
     if (operDefinition.arity == 1) {
         addNode((Node){ .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
@@ -2490,11 +2476,11 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
         
         // pre-parse hooks that let contextful syntax forms (e.g. "if") detect parsing errors and maintain their state
         if (contextType >= firstResumableForm) {
-            ((*cm->parDef->resumableTable)[contextType - firstResumableForm])(&currTok, tokens, cm);
+            ((*cm->langDef->resumableTable)[contextType - firstResumableForm])(&currTok, tokens, cm);
         } else {
             cm->i++; // CONSUME any span token
         }
-        ((*cm->parDef->nonResumableTable)[currTok.tp])(currTok, tokens, cm);
+        ((*cm->langDef->nonResumableTable)[currTok.tp])(currTok, tokens, cm);
         
         maybeCloseSpans(cm);
     }    
@@ -2892,13 +2878,16 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
 }
 
 /*
-* Definition of the operators, reserved words and lexer dispatch for the lexer.
+* Definition of the operators, reserved words, lexer dispatch and parser dispatch for the compiler.
 */
-testable ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a) {
-    ParserDefinition* result = allocateOnArena(sizeof(ParserDefinition), a);
+testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
+    LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
+    result->possiblyReservedDispatch = tabulateReservedBytes(a);
+    result->dispatchTable = tabulateDispatch(a);
+    result->operators = tabulateOperators(a);
+    result->reservedParensOrNot = tabulateReserved(a);
     result->resumableTable = tabulateResumableDispatch(a);    
     result->nonResumableTable = tabulateNonresumableDispatch(a);
-    result->operators = langDef->operators;
     return result;
 }
 
@@ -2944,7 +2933,7 @@ testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm)
 
 private void buildOperator(Int operId, Int typeId, Compiler* cm) {
     push(((Entity){.typeId = typeId, .nameId = operId}), &cm->entities);
-    cm->overloadCounts[operId] += SIXTEENPLUSONE;    
+    cm->overloadIds[operId] += SIXTEENPLUSONE;    
 }
 
 /** Operators are the first-ever functions to be defined. This function builds their types, entities and overload counts. */
@@ -3076,14 +3065,14 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
     Int stringTableLength = lx->stringTable->length;
     Int initNodeCap = lx->totalTokens > 64 ? lx->totalTokens : 64;
     (*result) = (Compiler) {
-        .text = lx->inp, .inp = lx, .inpLength = lx->totalTokens, .parDef = buildParserDefinitions(lx->langDef, a),
+        .text = lx->inp, .inp = lx, .inpLength = lx->totalTokens, .langDef = lx->langDef,
         .scopeStack = createScopeStack(),
         .backtrack = createStackParseFrame(16, aTmp), .i = 0,
         
         .nodes = allocateOnArena(sizeof(Node)*initNodeCap, a), .nextInd = 0, .capacity = initNodeCap,
         
         .entities = *createStackEntity(64, a),
-        .overloadCounts = allocateOnArena(4*(countOperators + 10), aTmp),
+        .overloadIds = allocateOnArena(4*(countOperators + 10), aTmp),
         .overlCNext = 0, .overlCCap = countOperators + 10,        
         .activeBindings = allocateOnArena(4*stringTableLength, a),
 
@@ -3097,7 +3086,7 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
     if (stringTableLength > 0) {
         memset(result->activeBindings, 0xFF, stringTableLength*sizeof(Int)); // activeBindings is filled with -1
     }
-    memset(result->overloadCounts, 0x00, (countOperators + 10)*4);
+    memset(result->overloadIds, 0x00, (countOperators + 10)*4);
     importBuiltins(lx->langDef, result);
     return result;    
 }
@@ -3169,7 +3158,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
     push(newParseFrame, cm->backtrack);
     encounterFnDefinition(fnNameId, cm);
     Int fnEntityId = cm->entities.length;
-    push((Entity){.nameId = fnNameId, .typeId = fnTypeId}, &cm->entities);
+    push(((Entity){.nameId = fnNameId, .typeId = fnTypeId}), &cm->entities);
     addNode((Node){.tp = nodFnDef, .pl1 = cm->activeBindings[fnName.pl2], .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
     addNode((Node){.tp = nodBinding, .pl1 = fnEntityId, .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
 
@@ -3199,7 +3188,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
         
         Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
         VALIDATEP(paramTypeId > -1, errorUnknownType)
-        cm->entities[newEntityId].typeId = paramTypeId;
+        cm->entities.content[newEntityId].typeId = paramTypeId;
         push(paramTypeId, &cm->types);
         
         ++cm->i; // CONSUME the param's type name
@@ -3234,7 +3223,7 @@ private void parseFunctionBodies(Lexer* lx, Compiler* cm) {
 
 
 testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
-    ParserDefinition* pDef = cm->parDef;
+    LanguageDefinition* pDef = cm->langDef;
     int inpLength = lx->totalTokens;
     int i = 0;
 
@@ -3244,6 +3233,7 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
         parseToplevelTypes(lx, cm);
         parseToplevelConstants(lx, cm);
         parseToplevelFunctionNames(lx, cm);
+        // createOverloads(cm);
         parseFunctionBodies(lx, cm);
     }
     return cm;
@@ -3284,8 +3274,8 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
         
         if (ent.nameId != currOperId) {
             currOperId = ent.nameId;
-            o = cm->overloadCounts[currOperId] + 1;
-            countOverls = cm->overloads.content[cm->overloadCounts[currOperId]];
+            o = cm->overloadIds[currOperId] + 1;
+            countOverls = cm->overloads.content[cm->overloadIds[currOperId]];
             sentinel = o + countOverls;
         }
         if (countOverls > 0) {
@@ -3311,8 +3301,8 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 #if SAFETY
             VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
 #endif            
-            o = cm->overloadCounts[-currFuncId - 2] + 1;
-            countOverls = cm->overloads.content[cm->overloadCounts[currOperId]];
+            o = cm->overloadIds[-currFuncId - 2] + 1;
+            countOverls = cm->overloads.content[cm->overloadIds[currOperId]];
             sentinel = o + countOverls;
         }
 
@@ -3327,12 +3317,31 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     }
 }
 
-/** Allocates the table with overloads and changes the overloadCounts table to contain indices into the new table (not counts) */
+/**
+ * Performs a "twin" sort: for every swap of param types, the same swap on entityIds is also performed.
+ * Example of such a swap: [countConcrete type1 type2 type3 entity1 entity2 entity3] ->
+ *                         [countConcrete type3 type1 type2 entity3 entity1 entity2]
+ * Sorts only the concrete group of overloads, doesn't touch the generic part.
+ */
+testable void sortOverloads(Compiler* cm) {
+}
+
+
+testable Int binarySearch(Arr(Int) arr, Int toFind, Int start, Int end) {
+    return 0;
+}
+
+
+testable Int findOverload(Int typeId, Int start, Int end, Entity* ent, Compiler* cm) {
+    return 0;
+}
+
+/** Allocates the table with overloads and changes the overloadIds table to contain indices into the new table (not counts) */
 testable void createOverloads(Compiler* cm) {
     Int neededCount = 0;
     for (Int i = 0; i < cm->overlCNext; i++) {
         // a typeId and an entityId for each overload, plus a length field for the list
-        neededCount += (2*(cm->overloadCounts[i] >> 16) + 1);
+        neededCount += (2*(cm->overloadIds[i] >> 16) + 1);
     }
     StackInt* overloads = createStackint32_t(neededCount, cm->a);
     cm->overloads = *overloads;
@@ -3340,9 +3349,9 @@ testable void createOverloads(Compiler* cm) {
     Int j = 0;
     for (Int i = 0; i < cm->overlCNext; i++) {
         // length of the overload list (to be filled during type check/resolution)
-        Int maxCountOverloads = (Int)(cm->overloadCounts[i] >> 16);
+        Int maxCountOverloads = (Int)(cm->overloadIds[i] >> 16);
         cm->overloads.content[j] = maxCountOverloads;
-        cm->overloadCounts[i] = j;
+        cm->overloadIds[i] = j;
         j += (2*maxCountOverloads + 1);
     }
 
@@ -3383,7 +3392,7 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
             push((Int)nd.tp, cm->expStack);
         } else if (nd.tp == nodCall) {
             push(BIG + nd.pl2, cm->expStack); // signifies that it's a call, and its arity
-            push(cm->overloadCounts[-nd.pl1 - 2], cm->expStack); // this is no count of overloads anymore, but an index into the overloads
+            push(cm->overloadIds[-nd.pl1 - 2], cm->expStack); // this is no count of overloads anymore, but an index into the overloads
             currAhead++;
         } else if (nd.pl1 > -1) { // bindingId            
             push(cm->entities.content[nd.pl1].typeId, cm->expStack);

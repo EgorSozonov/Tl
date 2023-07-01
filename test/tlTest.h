@@ -120,5 +120,22 @@ extern const char errorTypeUnknownLastArg[];
 extern const char errorTypeZeroArityOverload[];
 extern const char errorTypeNoMatchingOverload[];
 extern const char errorTypeWrongArgumentType[];
+Int findOverload(Int typeId, Int start, Int end, Entity* ent, Compiler* cm);
+
+#endif
+
+#ifdef UTILS_TEST
+
+IntMap* createIntMap(int initSize, Arena* a);
+void addIntMap(int key, int value, IntMap* hm);
+bool hasKeyIntMap(int key, IntMap* hm);
+ScopeStack* createScopeStack();
+void pushScope(ScopeStack* scopeStack);
+void addBinding(int nameId, int bindingId, Compiler* cm);
+void popScopeFrame(Compiler* cm);
+
+void sortOverloads(Compiler* cm);
+Int binarySearch(Arr(Int) arr, Int toFind, Int start, Int end);
+
 
 #endif

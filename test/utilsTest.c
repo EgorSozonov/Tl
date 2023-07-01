@@ -1,72 +1,31 @@
 #include <stdio.h>
+#include <stdbool.h>
+#include <string.h>
+#include <stdarg.h>
+#include <stdint.h>
 #include <setjmp.h>
-#include "../source/utils/arena.h"
-#include "../source/utils/aliases.h"
-#include "../source/utils/goodString.h"
-#include "../source/utils/structures/intMap.h"
-#include "../source/utils/structures/stringMap.h"
-#include "../source/utils/structures/scopeStack.h"
+#include "../source/tl.internal.h"
+#include "tlTest.h"
 
-jmp_buf excBuf;
+extern jmp_buf excBuf;
 
 #define add(K, V, X) _Generic((X), \
-    IntMap*: addIntMap, \
-    StringMap*: addStringMap \
+    IntMap*: addIntMap \
     )(K, V, X)
 
 #define hasKey(K, X) _Generic((X), \
-    IntMap*: hasKeyIntMap, \
-    StringMap*: hasKeyStringMap \
+    IntMap*: hasKeyIntMap \
     )(K, X)
 
 #define get(A, V, X) _Generic((X), \
-    IntMap*: getIntMap, \
-    StringMap*: getStringMap \
+    IntMap*: getIntMap \
     )(A, V, X)
  
 #define getUnsafe(A, X) _Generic((X), \
-    IntMap*: getUnsafeIntMap, \
-    StringMap*: getUnsafeStringMap \
+    IntMap*: getUnsafeIntMap \
     )(A, X) 
     
     
-
-private void testStringMap(Arena* a) {
-    StringMap* sm = createStringMap(1024, a);
-    String* foo = str("foo", a);
-    String* bar = str("barr", a);
-    String* baz = str("baz", a);
-    String* notAdded = str("notAdded", a);
-    
-    add(foo, 100, sm);
-    add(bar, 200, sm);
-    add(baz, 78, sm);
-    int valueFromMap = 0;
-    int errCode = get(foo, &valueFromMap, sm);
-    if (errCode != 0 || valueFromMap != 100) {
-        printString(foo);
-        longjmp(excBuf, 1);
-    }
-    
-    int valueBar = getUnsafe(bar, sm);
-    if (valueBar != 200) {
-        printString(bar);
-        longjmp(excBuf, 1);
-    }
-    
-    errCode = get(notAdded, &valueFromMap, sm);
-    if (errCode != 1) {
-        printString(notAdded);
-        longjmp(excBuf, 1);
-    }    
-    
-    errCode = get(baz, &valueFromMap, sm);
-    if (errCode != 0 || valueFromMap != 78) {
-        printString(baz);
-        longjmp(excBuf, 1);
-    }    
-}
-
 
 private void testIntMap(Arena* a) {
     IntMap* hm = createIntMap(150, a);
@@ -76,31 +35,30 @@ private void testIntMap(Arena* a) {
 }
 
 private void testScopeStack(Arena* a) {
-    ScopeStack* st = createScopeStack();
-    Arr(int) bindingsInScope = allocateOnArena(1000*sizeof(int), a);
-    pushScope(st);
-    addBinding(999, 1, bindingsInScope, st);
-    printf("Lookup of nameId = %d is bindingId = %d\n", 999, bindingsInScope[999]);
+    Compiler* cm = allocateOnArena(sizeof(Compiler), a);
+    cm->scopeStack = createScopeStack();
+    cm->activeBindings = allocateOnArena(1000*sizeof(int), a);
+    pushScope(cm->scopeStack);
+    addBinding(999, 1, cm);
+    printf("Lookup of nameId = %d is bindingId = %d\n", 999, cm->activeBindings[999]);
+    ScopeStack* st = cm->scopeStack;
 
     for (int i = 0; i < 500; i++) {
         pushScope(st);
-        addBinding(i, i + 1, bindingsInScope, st);
+        addBinding(i, i + 1, cm);
     }    
-    printf("500 scopes in, lookup of nameId = %d is bindingId = %d, expected = 1\n", 999, bindingsInScope[999]);
-    
-    pushSubexpr(st);
-    addFunCall((FunctionCall){.startByte = 10, .lenBytes = 15, .bindingId = 7}, st);
-    popScopeFrame(bindingsInScope, st);
+    printf("500 scopes in, lookup of nameId = %d is bindingId = %d, expected = 1\n", 999, cm->activeBindings[999]);
+
     
     for (int i = 0; i < 500; i++) {
-        popScopeFrame(bindingsInScope, st);
+        popScopeFrame(cm);
     } 
     
     printf("p1\n");
-    popScopeFrame(bindingsInScope, st);
+    popScopeFrame(cm);
     printf("p2\n");
     
-    printf("Finally, lookup of nameId = %d is bindingId = %d, should be = 0\n", 999, bindingsInScope[999]);
+    printf("Finally, lookup of nameId = %d is bindingId = %d, should be = 0\n", 999, cm->activeBindings[999]);
     
 }
 

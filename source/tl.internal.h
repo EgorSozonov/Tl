@@ -319,12 +319,8 @@ typedef struct {
 #define firstCoreFormTokenType tokAlias
 
 #define countCoreForms (tokLoop - tokAlias + 1)
-struct LanguageDefinition {
-    OpDef (*operators)[countOperators];
-    LexerFunc (*dispatchTable)[256];
-    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
-    Int (*reservedParensOrNot)[countCoreForms];
-};
+#define countSyntaxForms (tokLoop + 1)
+
 
 //}}}
 //{{{ Parser
@@ -385,8 +381,21 @@ typedef struct {
 #define nodImpl        45       
 #define nodMatch       46       // pattern matching on sum type tag
 
-
+#define firstResumableForm nodIf
+#define countResumableForms (nodMatch - nodIf + 1)
 typedef struct Compiler Compiler;
+typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
+typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
+
+struct LanguageDefinition {
+    OpDef (*operators)[countOperators];
+    LexerFunc (*dispatchTable)[256];
+    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
+    Int (*reservedParensOrNot)[countCoreForms];
+    ParserFunc (*nonResumableTable)[countSyntaxForms];
+    ResumeFunc (*resumableTable)[countResumableForms];
+};
+
 typedef struct {
     untt tp : 6;
     untt lenBts: 26;
@@ -416,19 +425,6 @@ typedef struct {
     String* name;
     Int count;
 } OverloadImport;
-
-
-#define countSyntaxForms (tokLoop + 1)
-#define firstResumableForm nodIf
-#define countResumableForms (nodMatch - nodIf + 1)
-typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
-typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
-typedef struct {
-    ParserFunc (*nonResumableTable)[countSyntaxForms];
-    ResumeFunc (*resumableTable)[countResumableForms];
-    bool (*allowedSpanContexts)[countResumableForms + countSyntaxForms][countResumableForms];
-    OpDef (*operators)[countOperators];
-} ParserDefinition;
 
 //}}}
 
@@ -514,7 +510,7 @@ struct Compiler {
     String* text;
     Lexer* inp;
     Int inpLength;
-    ParserDefinition* parDef;
+    LanguageDefinition* langDef;
     StackParseFrame* backtrack;// [aTmp] 
     ScopeStack* scopeStack;
     Int i;                     // index of current token in the input
@@ -529,9 +525,9 @@ struct Compiler {
 
     /**
      * [aTmp] growing array of counts of all fn name definitions encountered (for the typechecker to use)
-     * Upper 16 bits contain max count, lower 16 bits current count
+     * Upper 16 bits contain concrete count, lower 16 bits total count
      */
-    Arr(untt) overloadCounts;
+    Arr(untt) overloadIds;
     Int overlCNext;
     Int overlCCap;
 
