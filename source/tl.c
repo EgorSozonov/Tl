@@ -63,11 +63,52 @@ jmp_buf excBuf;
     }                                                                               \
     void clear##T (Stack##T * st) {                                                 \
         st->length = 0;                                                             \
-    }                                             
+    }
+
+
+
+#define DEFINE_INTERNAL_STACK_CONSTRUCTOR(T) \
+InStack##T createInStack##T(Int initCap, Arena* a) {                                          \
+    return (InStack##T){ \
+        .content = allocateOnArena(initCap*sizeof(T), a), .length = 0, .capacity = initCap }; \
+}
+
+#define DEFINE_INTERNAL_STACK(fieldName, T)                                         \
+    bool hasValuesIn##fieldName(Compiler* cm) {                                        \
+        return cm->fieldName.length > 0;                                          \
+    }                                                                               \
+    T popIn##fieldName(Compiler* cm) {                                                \
+        cm->fieldName.length--;                                                   \
+        return cm->fieldName.content[cm->fieldName.length];                     \
+    }                                                                               \
+    T peekIn##fieldName(Compiler* cm) {                                               \
+        return cm->fieldName.content[cm->fieldName.length - 1];                 \
+    }                                                                               \
+    void pushIn##fieldName(T newItem, Compiler* cm) {                                 \
+        if (cm->fieldName.length < cm->fieldName.capacity) {                    \
+            memcpy((T*)(cm->fieldName.content) + (cm->fieldName.length), &newItem, sizeof(T));          \
+        } else {                                                                    \
+            T* newContent = allocateOnArena(2*(cm->fieldName.capacity)*sizeof(T), cm->a); \
+            memcpy(newContent, cm->fieldName.content, cm->fieldName.length*sizeof(T));                  \
+            memcpy((T*)(newContent) + (cm->fieldName.length), &newItem, sizeof(T));           \
+            cm->fieldName.capacity *= 2;                                                      \
+            cm->fieldName.content = newContent;                                               \
+        }                                                                           \
+        cm->fieldName.length++;                                                               \
+    }                                                                               \
+    void clearIn##fieldName (Compiler* cm) {                                                  \
+        cm->fieldName.length = 0;                                                 \
+    }    
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
-DEFINE_STACK(Entity)
+
+DEFINE_INTERNAL_STACK_CONSTRUCTOR(Entity)
+DEFINE_INTERNAL_STACK(entities, Entity)
+
+DEFINE_INTERNAL_STACK_CONSTRUCTOR(Int)
+DEFINE_INTERNAL_STACK(overloads, Int)
+DEFINE_INTERNAL_STACK(types, Int)
 
 //}}}
 
@@ -2207,7 +2248,7 @@ private Int createBinding(Token bindingToken, Entity e, Compiler* cm) {
     VALIDATEP(mbBinding == -1, errorAssignmentShadowing)
 
     Int newBindingId = cm->entities.length;    
-    push(e, &cm->entities);
+    pushInentities(e, cm);
     
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
@@ -2245,7 +2286,7 @@ private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
     VALIDATEP(mbBinding == -1 || typeLength > 0, errorAssignmentShadowing) // either the name unique, or it's a function
 
     Int newEntityId = cm->entities.length;
-    push(ent, &cm->entities);
+    pushInentities(ent, cm);
     
     if (typeLength == 0) { // not a function
         if (cm->scopeStack->length > 0) {
@@ -2919,9 +2960,9 @@ testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm)
     Int newInd = cm->types.length;
     Int neededLen = newInd + arity + 2; // + 2 because one cell will hold total length, and another the return type
     while (cm->types.capacity < neededLen) {
-        StackInt* newTypes = createStackint32_t(cm->types.capacity*2, cm->a);
-        memcpy(newTypes->content, cm->types.content, cm->types.length*4);
-        cm->types = *newTypes;
+        Arr(Int) newTypes = allocateOnArena(cm->types.capacity*2*4, cm->a);
+        memcpy(newTypes, cm->types.content, cm->types.length*4);
+        cm->types.content = newTypes;
         cm->types.capacity *= 2;
     }
     cm->types.content[newInd] = arity + 1;
@@ -2932,7 +2973,7 @@ testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm)
 
 
 private void buildOperator(Int operId, Int typeId, Compiler* cm) {
-    push(((Entity){.typeId = typeId, .nameId = operId}), &cm->entities);
+    pushInentities((Entity){.typeId = typeId, .nameId = operId}, cm);
     cm->overloadIds[operId] += SIXTEENPLUSONE;    
 }
 
@@ -3032,7 +3073,7 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
     baseTypes[tokString] = str("String", cm->aTmp);
     baseTypes[tokBool] = str("Bool", cm->aTmp);
     for (int i = 0; i < 5; i++) {
-        push(0, &cm->types);
+        pushIntypes(0, cm);
         Int typeNameId = getStringStore(cm->text->content, baseTypes[i], cm->stringTable, cm->stringStore);
         if (typeNameId > -1) {
             cm->activeBindings[typeNameId] = i;
@@ -3071,13 +3112,13 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
         
         .nodes = allocateOnArena(sizeof(Node)*initNodeCap, a), .nextInd = 0, .capacity = initNodeCap,
         
-        .entities = *createStackEntity(64, a),
+        .entities = createInStackEntity(64, a),
         .overloadIds = allocateOnArena(4*(countOperators + 10), aTmp),
         .overlCNext = 0, .overlCCap = countOperators + 10,        
         .activeBindings = allocateOnArena(4*stringTableLength, a),
 
-        .overloads = (StackInt){.content = NULL, .length = 0, .capacity = 0},
-        .types = *createStackint32_t(64, a),
+        .overloads = (InStackInt){.length = 0, .content = NULL},
+        .types = createInStackInt(64, a),
         .expStack = createStackint32_t(16, aTmp),
         
         .stringStore = lx->stringStore, .stringTable = lx->stringTable, .strLength = stringTableLength,
@@ -3141,7 +3182,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
     cm->i++; // CONSUME the function name token
 
     Int fnTypeId = cm->types.length;
-    push(0, &cm->types); // will overwrite it with the type's length once we know it
+    pushIntypes(0, cm); // will overwrite it with the type's length once we know it
 
     // the function's return type, it's optional
     if (lx->tokens[cm->i].tp == tokTypeName) {
@@ -3149,7 +3190,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
 
         Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
         VALIDATEP(returnTypeId > -1, errorUnknownType)
-        push(returnTypeId, &cm->types);
+        pushIntypes(returnTypeId, cm);
         
         cm->i++; // CONSUME the function return type token
     }
@@ -3158,9 +3199,10 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
     push(newParseFrame, cm->backtrack);
     encounterFnDefinition(fnNameId, cm);
     Int fnEntityId = cm->entities.length;
-    push(((Entity){.nameId = fnNameId, .typeId = fnTypeId}), &cm->entities);
-    addNode((Node){.tp = nodFnDef, .pl1 = cm->activeBindings[fnName.pl2], .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
-    addNode((Node){.tp = nodBinding, .pl1 = fnEntityId, .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
+    pushInentities((Entity){.nameId = fnNameId, .typeId = fnTypeId}, cm);
+    addNode((Node){.tp = nodFnDef, .pl1 = fnEntityId, .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
+    //addNode((Node){.tp = nodFnDef, .pl1 = cm->activeBindings[fnName.pl2], .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
+    //addNode((Node){.tp = nodBinding, .pl1 = fnEntityId, .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
 
     // the scope for the function body
     VALIDATEP(lx->tokens[cm->i].tp == tokParens, errorFnNameAndParams)
@@ -3189,7 +3231,7 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
         Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
         VALIDATEP(paramTypeId > -1, errorUnknownType)
         cm->entities.content[newEntityId].typeId = paramTypeId;
-        push(paramTypeId, &cm->types);
+        pushIntypes(paramTypeId, cm);
         
         ++cm->i; // CONSUME the param's type name
         
@@ -3331,22 +3373,19 @@ testable void sortOverloads(Int startInd, Int endInd, Arr(Int) overloads) {
     
     Int concreteEndInd = startInd + overloads[startInd]; // inclusive
     Int i = startInd + 1; // skipping the cell with the count of concrete overloads
-    while (i < concreteEndInd) {
-        Int j = i + 1;
+    for (i = startInd + 1; i < concreteEndInd; i++) {
         Int minValue = overloads[i];
         Int minInd = i;
-        while (j <= concreteEndInd) {
+        for (Int j = i + 1; j <= concreteEndInd; j++) {
             if (overloads[j] < minValue) {
                 minValue = overloads[j];
                 minInd = j;
             }
-            ++j;
         }
         if (minInd == i) {
-            ++i;
             continue;
         }
-        print("minInd %d", minInd);
+        
         // swap the typeIds
         Int tmp = overloads[i];
         overloads[i] = overloads[minInd];
@@ -3355,7 +3394,6 @@ testable void sortOverloads(Int startInd, Int endInd, Arr(Int) overloads) {
         tmp = overloads[i + countAllOverloads];
         overloads[i + countAllOverloads] = overloads[minInd + countAllOverloads];
         overloads[minInd + countAllOverloads] = tmp;
-        ++i;
     }
 }
 
@@ -3379,21 +3417,45 @@ testable bool makeSureOverloadsUnique(Int startInd, Int endInd, Arr(Int) overloa
     return true;
 }
 
-/** Performs a binary search among the concrete overloads. Returns -1 if nothing is found */
-testable Int binarySearch(Int typeIdToFind, Int startInd, Int endInd, Int* entityId, Arr(Int) overloads) {
+/** Performs a binary search among the concrete overloads. Returns false if nothing is found */
+testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int endInd, Int* entityId, Arr(Int) overloads) {
     Int countAllOverloads = (endInd - startInd)/2;
     Int i = startInd + 1;
     Int j = startInd + overloads[startInd];
-    if (i == j) {
-        return (overloads[i] == typeIdToFind) ? overloads[i + countAllOverloads] : -1;
+    
+    if (overloads[i] == typeIdToFind) {
+        *entityId = overloads[i + countAllOverloads];
+        return true;
+    } else if (overloads[j] == typeIdToFind) {
+        *entityId = overloads[j + countAllOverloads];
+        return true;
     }
     
-    return -1;
+    while (i < j) {
+        if (j - i == 1) {
+            return false;            
+        }
+        Int midInd = (i + j)/2;
+        Int mid = overloads[midInd];
+        if (mid > typeIdToFind) {
+            j = midInd;
+        } else if (mid < typeIdToFind) {
+            i = midInd;
+        } else {
+            *entityId = overloads[midInd + countAllOverloads];
+            return true;
+        }                        
+    }    
+    return false;
 }
 
-
-testable Int findOverload(Int typeId, Int start, Int end, Entity* ent, Compiler* cm) {
-    return 0;
+/**
+ * Params: start = ind of the first element of the overload
+ *         end = ind of the last entityId of the overload (inclusive)
+ *         entityId = address where to store the result, if successful
+ */
+testable bool findOverload(Int typeId, Int start, Int end, Int* entityId, Compiler* cm) {
+    return overloadBinarySearch(typeId, start, end, entityId, cm->overloads.content);
 }
 
 /** Allocates the table with overloads and changes the overloadIds table to contain indices into the new table (not counts) */
@@ -3403,8 +3465,7 @@ testable void createOverloads(Compiler* cm) {
         // a typeId and an entityId for each overload, plus a length field for the list
         neededCount += (2*(cm->overloadIds[i] >> 16) + 1);
     }
-    StackInt* overloads = createStackint32_t(neededCount, cm->a);
-    cm->overloads = *overloads;
+    cm->overloads = createInStackInt(neededCount, cm->a);
 
     Int j = 0;
     for (Int i = 0; i < cm->overlCNext; i++) {
@@ -3452,7 +3513,7 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
             push((Int)nd.tp, cm->expStack);
         } else if (nd.tp == nodCall) {
             push(BIG + nd.pl2, cm->expStack); // signifies that it's a call, and its arity
-            push(cm->overloadIds[-nd.pl1 - 2], cm->expStack); // this is no count of overloads anymore, but an index into the overloads
+            push((-nd.pl1 - 2), cm->expStack); // index into overloadIds
             currAhead++;
         } else if (nd.pl1 > -1) { // bindingId            
             push(cm->entities.content[nd.pl1].typeId, cm->expStack);
@@ -3484,9 +3545,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
         // It's a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
         Int arity = cont[j] - BIG;
         Int o = cont[j + 1]; // index into the table of overloads
-        Int overlCount = cm->overloads.content[o];
+        Int overlEndInd = cm->overloadIds[o];
         if (arity == 0) {
-            VALIDATEP(overlCount == 1, errorTypeZeroArityOverload)
+            VALIDATEP(overlEndInd == o + 2, errorTypeZeroArityOverload) // + 2 for the single typeId and the single entityId
             Int functionTypeInd = cm->overloads.content[o + 1];
             Int typeLength = cm->types.content[functionTypeInd];
             if (typeLength == 1) { // the function returns something
@@ -3500,13 +3561,11 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
         } else {
             Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
             VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
-            Int ov = o + overlCount;
-            while (ov > o && cm->overloads.content[ov] != typeLastArg) {
-                --ov;
-            }
-            VALIDATEP(ov > o, errorTypeNoMatchingOverload)
+            Int entityId;
+            VALIDATEP(findOverload(typeLastArg, cm->overloadIds[o], cm->overloadIds[o] - 1, &entityId, cm),
+                errorTypeNoMatchingOverload)
             
-            Int typeOfFunc = cm->entities.content[cm->overloads.content[ov + overlCount]].typeId;
+            Int typeOfFunc = cm->entities.content[entityId].typeId;
             VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last parm matches, but not arity
             
             // We know the type of the function, now to validate arg types against param types

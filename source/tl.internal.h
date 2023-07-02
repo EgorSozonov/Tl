@@ -2,6 +2,7 @@
 
 #define Int int32_t
 #define StackInt Stackint32_t
+//#define InStackInt InStackint32_t
 #define private static
 #define byte unsigned char
 #define Arr(T) T*
@@ -51,6 +52,20 @@ void deleteArena(Arena* ar);
     void push ## T (T newItem, Stack ## T * st);                \
     void clear ## T (Stack ## T * st);
 
+#define DEFINE_INTERNAL_STACK_TYPE(T) \
+typedef struct {    \
+    Int capacity;   \
+    Int length;     \
+    Arr(T) content; \
+} InStack##T;
+
+#define DEFINE_INTERNAL_STACK_HEADER(fieldName, T)              \
+    InStack##T createInStack ## T (Int initCapacity, Arena* a); \
+    bool hasInValues ## fieldName (Compiler* cm);                      \
+    T popIn ## fieldName (Compiler* cm);                               \
+    T peekIn ## fieldName(Compiler* cm);                               \
+    void pushIn ## fieldName (T newItem, Compiler* cm);                \
+    void clearIn ## fieldName (Compiler* cm);
 
 typedef struct {
     int length;
@@ -430,32 +445,35 @@ typedef struct {
 
 
 DEFINE_STACK_HEADER(ParseFrame)
-DEFINE_STACK_HEADER(Entity)
+
+DEFINE_INTERNAL_STACK_TYPE(Entity)
+DEFINE_INTERNAL_STACK_HEADER(entity, Entity)
+
+DEFINE_INTERNAL_STACK_TYPE(Int)
+DEFINE_INTERNAL_STACK_HEADER(overloads, Int)
+DEFINE_INTERNAL_STACK_HEADER(types, Int)
+
 #define pop(X) _Generic((X), \
     StackBtToken*: popBtToken, \
     StackParseFrame*: popParseFrame, \
-    StackEntity*: popEntity, \
     Stackint32_t*: popint32_t \
     )(X)
 
 #define peek(X) _Generic((X), \
     StackBtToken*: peekBtToken, \
     StackParseFrame*: peekParseFrame, \
-    StackEntity*: peekEntity, \
     Stackint32_t*: peekint32_t \
     )(X)
 
 #define push(A, X) _Generic((X), \
     StackBtToken*: pushBtToken, \
     StackParseFrame*: pushParseFrame, \
-    StackEntity*: pushEntity, \
     Stackint32_t*: pushint32_t \
     )(A, X)
     
 #define hasValues(X) _Generic((X), \
     StackBtToken*: hasValuesBtToken, \
     StackParseFrame*: hasValuesParseFrame, \
-    StackEntity*: hasValuesEntity, \
     Stackint32_t*:  hasValuesint32_t \
     )(X)
 
@@ -519,7 +537,7 @@ struct Compiler {
     Int capacity;               // current capacity of node storage
     Int nextInd;                // the index for the next token to be added    
 
-    StackEntity entities;       // growing array of all entities (variables, function defs, constants etc) ever encountered
+    InStackEntity entities;      // growing array of all entities (variables, function defs, constants etc) ever encountered
     Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overloaded binding
     Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
 
@@ -531,9 +549,9 @@ struct Compiler {
     Int overlCNext;
     Int overlCCap;
 
-    StackInt overloads;
+    InStackInt overloads;
 
-    StackInt types;
+    InStackInt types;
 
     Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression
 

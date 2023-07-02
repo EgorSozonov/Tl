@@ -57,8 +57,8 @@ extern const char errorDocComment[];
 #ifdef PARSER_TEST
 
 void addNode(Node n, Compiler* cm);
-ParserDefinition* buildParserDefinitions(LanguageDefinition* langDef, Arena* a);
 void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* cm);
+LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int equalityParser(Compiler a, Compiler b);
 Compiler* createCompiler(Lexer* lx, Arena* a);
 Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a);
@@ -136,7 +136,7 @@ void popScopeFrame(Compiler* cm);
 
 void sortOverloads(Int startInd, Int endInd, Arr(Int) overloads);
 bool makeSureOverloadsUnique(Int startInd, Int endInd, Arr(Int) overloads);
-Int binarySearch(Arr(Int) arr, Int toFind, Int start, Int end);
+Int overloadBinarySearch(Int typeIdToFind, Int startInd, Int endInd, Int* entityId, Arr(Int) overloads);
 
 
 #endif

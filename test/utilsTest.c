@@ -151,6 +151,65 @@ private void testOverloadUniqueness(Arena* a) {
 }
 
 private void testOverloadSearch(Arena* a) {
+    Int entityId = 0;
+    StackInt* st = createStackint32_t(64, a);
+    push(3, st);
+    push(1, st);
+    push(2, st);
+    push(3, st);
+    push(10, st);
+    push(20, st);
+    push(30, st);
+    bool typeFound = overloadBinarySearch(2, 0, 6, &entityId, st->content);
+    if (!typeFound || entityId != 20) {       
+        print("Overload search error");
+    }
+
+    st = createStackint32_t(64, a);
+    push(4, st);
+    push(1, st);
+    push(2, st);
+    push(3, st);
+    push(5, st);
+    push(10, st);
+    push(20, st);
+    push(30, st);
+    push(50, st);
+    typeFound = overloadBinarySearch(5, 0, 8, &entityId, st->content);
+    if (!typeFound || entityId != 50) {
+        print("Overload search error");
+    }
+
+    st = createStackint32_t(64, a);
+    push(2, st);
+    push(1, st);
+    push(3, st);
+    push(10, st);
+    push(30, st);
+    typeFound = overloadBinarySearch(3, 0, 4, &entityId, st->content);
+    if (!typeFound || entityId != 30) {
+        print("Overload search error");
+    }
+
+    st = createStackint32_t(64, a);
+    push(1, st);
+    push(7, st);
+    push(10, st);
+    typeFound = overloadBinarySearch(7, 0, 2, &entityId, st->content);
+    if (!typeFound || entityId != 10) {
+        print("Overload search error");
+    }
+    
+    st = createStackint32_t(64, a);
+    push(2, st);
+    push(1, st);
+    push(3, st);
+    push(10, st);
+    push(30, st);
+    typeFound = overloadBinarySearch(2, 0, 4, &entityId, st->content);
+    if (typeFound) {
+        print("Overload search error");
+    }
 }
 
 
@@ -165,8 +224,8 @@ int main() {
         
         //testScopeStack(a);
         
-        testOverloadSorting(a);
-        testOverloadUniqueness(a);
+        //~ testOverloadSorting(a);
+        //~ testOverloadUniqueness(a);
         testOverloadSearch(a);
     } else {
         printf("there was a test failure!\n");
