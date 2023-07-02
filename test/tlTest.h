@@ -134,7 +134,8 @@ void pushScope(ScopeStack* scopeStack);
 void addBinding(int nameId, int bindingId, Compiler* cm);
 void popScopeFrame(Compiler* cm);
 
-void sortOverloads(Compiler* cm);
+void sortOverloads(Int startInd, Int endInd, Arr(Int) overloads);
+bool makeSureOverloadsUnique(Int startInd, Int endInd, Arr(Int) overloads);
 Int binarySearch(Arr(Int) arr, Int toFind, Int start, Int end);
 
 

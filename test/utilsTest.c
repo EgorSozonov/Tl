@@ -24,7 +24,19 @@ extern jmp_buf excBuf;
 #define getUnsafe(A, X) _Generic((X), \
     IntMap*: getUnsafeIntMap \
     )(A, X) 
-    
+
+
+private void printStack(StackInt* st) {
+    if (st->length == 0) {
+        print("[]");
+        return;
+    }
+    printf("[ %d", st->content[0]);
+    for (int i = 1; i < st->length; i++) {
+        printf(", %d", st->content[i]);        
+    }
+    print(" ]");    
+}    
     
 
 private void testIntMap(Arena* a) {
@@ -62,6 +74,85 @@ private void testScopeStack(Arena* a) {
     
 }
 
+private void testOverloadSorting(Arena* a) {
+    StackInt* st = createStackint32_t(64, a);
+    push(3, st);
+    push(1, st);
+    push(10, st);
+    push(5, st);
+    push(1, st);
+    push(2, st);
+    push(3, st);
+    printStack(st);
+    sortOverloads(0, 6, st->content);
+    print("After sorting: ");
+    printStack(st);
+
+    st = createStackint32_t(64, a);
+    push(1, st);
+    push(100, st);
+    push(1, st);
+    printStack(st);
+    sortOverloads(0, 2, st->content);
+    print("After sorting: ");
+    printStack(st);
+
+    st = createStackint32_t(64, a);
+    push(3, st);
+    push(300, st);
+    push(200, st);
+    push(100, st);
+    push(1, st);
+    push(2, st);
+    push(3, st);
+    printStack(st);
+    sortOverloads(0, 6, st->content);
+    print("After sorting: ");
+    printStack(st);    
+}
+
+
+private void testOverloadUniqueness(Arena* a) {
+    StackInt* st = createStackint32_t(64, a);
+    push(1, st);
+    push(1, st);
+    push(3, st);
+    bool areUnique = makeSureOverloadsUnique(0, 2, st->content);
+    if (!areUnique) {
+        print("Overload uniqueness error");
+    }
+
+    st = createStackint32_t(64, a);
+    push(3, st);
+    push(1, st);
+    push(2, st);
+    push(3, st);
+    push(10, st);
+    push(10, st);
+    push(10, st);
+    areUnique = makeSureOverloadsUnique(0, 6, st->content);
+    if (!areUnique) {
+        print("Overload uniqueness error");
+    }
+
+
+    st = createStackint32_t(64, a);
+    push(3, st);
+    push(2, st);
+    push(2, st);
+    push(3, st);
+    push(10, st);
+    push(10, st);
+    push(10, st);
+    areUnique = makeSureOverloadsUnique(0, 6, st->content);
+    if (areUnique) {
+        print("Overload uniqueness error");
+    }
+}
+
+private void testOverloadSearch(Arena* a) {
+}
+
 
 int main() {
     printf("----------------------------\n");
@@ -72,8 +163,11 @@ int main() {
     if (setjmp(excBuf) == 0) {
         //testStringMap(a);
         
-        testScopeStack(a);
-
+        //testScopeStack(a);
+        
+        testOverloadSorting(a);
+        testOverloadUniqueness(a);
+        testOverloadSearch(a);
     } else {
         printf("there was a test failure!\n");
     }

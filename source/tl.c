@@ -3321,14 +3321,74 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
  * Performs a "twin" sort: for every swap of param types, the same swap on entityIds is also performed.
  * Example of such a swap: [countConcrete type1 type2 type3 entity1 entity2 entity3] ->
  *                         [countConcrete type3 type1 type2 entity3 entity1 entity2]
- * Sorts only the concrete group of overloads, doesn't touch the generic part.
+ * Sorts only the concrete group of overloads, doesn't touch the generic part. Sorts ASCENDING.
+ * Params: startInd = the first index of the overload (the one with the count of concrete overloads)
+ *         endInd = the last index belonging to the overload (the one with the last entityId)
  */
-testable void sortOverloads(Compiler* cm) {
+testable void sortOverloads(Int startInd, Int endInd, Arr(Int) overloads) {
+    Int countAllOverloads = (endInd - startInd)/2;
+    if (countAllOverloads == 1) return;
+    
+    Int concreteEndInd = startInd + overloads[startInd]; // inclusive
+    Int i = startInd + 1; // skipping the cell with the count of concrete overloads
+    while (i < concreteEndInd) {
+        Int j = i + 1;
+        Int minValue = overloads[i];
+        Int minInd = i;
+        while (j <= concreteEndInd) {
+            if (overloads[j] < minValue) {
+                minValue = overloads[j];
+                minInd = j;
+            }
+            ++j;
+        }
+        if (minInd == i) {
+            ++i;
+            continue;
+        }
+        print("minInd %d", minInd);
+        // swap the typeIds
+        Int tmp = overloads[i];
+        overloads[i] = overloads[minInd];
+        overloads[minInd] = tmp;
+        // swap the corresponding entities
+        tmp = overloads[i + countAllOverloads];
+        overloads[i + countAllOverloads] = overloads[minInd + countAllOverloads];
+        overloads[minInd + countAllOverloads] = tmp;
+        ++i;
+    }
 }
 
+/**
+ * After the overloads have been sorted, we need to make sure they're all unique.
+ * Params: startInd = the first index of the overload (the one with the count of concrete overloads)
+ *         endInd = the last index belonging to the overload (the one with the last entityId)
+ * Returns: true if they're all unique
+ */
+testable bool makeSureOverloadsUnique(Int startInd, Int endInd, Arr(Int) overloads) {
+    Int concreteEndInd = startInd + overloads[startInd]; // inclusive
+    Int currTypeId = overloads[startInd + 1];
+    Int i = startInd + 2;
+    while (i <= concreteEndInd) {
+        if (overloads[i] == currTypeId) {
+            return false;
+        }
+        currTypeId = overloads[i];
+        ++i;
+    }
+    return true;
+}
 
-testable Int binarySearch(Arr(Int) arr, Int toFind, Int start, Int end) {
-    return 0;
+/** Performs a binary search among the concrete overloads. Returns -1 if nothing is found */
+testable Int binarySearch(Int typeIdToFind, Int startInd, Int endInd, Int* entityId, Arr(Int) overloads) {
+    Int countAllOverloads = (endInd - startInd)/2;
+    Int i = startInd + 1;
+    Int j = startInd + overloads[startInd];
+    if (i == j) {
+        return (overloads[i] == typeIdToFind) ? overloads[i + countAllOverloads] : -1;
+    }
+    
+    return -1;
 }
 
 
