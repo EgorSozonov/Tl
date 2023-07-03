@@ -539,16 +539,11 @@ private untt hashCode(byte* start, Int len) {
     untt result = 5381;
 
     byte* p = start;
-    for (int i = 0; i < len; i++) {        
+    for (Int i = 0; i < len; i++) {
         result = ((result << 5) + result) + p[i]; /* hash*33 + c */
     }
 
     return result;
-}
-
-
-private bool equalStringRefs(byte* text, Int a, Int b, Int len) {
-    return memcmp(text + a, text + b, len) == 0;
 }
 
 
@@ -571,19 +566,18 @@ private void addValueToBucket(Bucket** ptrToBucket, Int startBt, Int lenBts, Int
     }
 }
 
-
+/** Unique'ing of symbols within source code */
 private Int addStringStore(byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringStore* hm) {
     Int hash = hashCode(text + startBt, lenBts) % (hm->dictSize);
     Int newIndString;
     if (*(hm->dict + hash) == NULL) {
-
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (8 << 16) + 1; // left u16 = capacity, right u16 = length
         StringValue* firstElem = (StringValue*)newBucket->content;
         
         newIndString = stringTable->length;
         push(startBt, stringTable);
-                
+
         *firstElem = (StringValue){.length = lenBts, .indString = newIndString };
         *(hm->dict + hash) = newBucket;
     } else {
@@ -591,14 +585,15 @@ private Int addStringStore(byte* text, Int startBt, Int lenBts, Stackint32_t* st
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == lenBts 
-                && equalStringRefs(text, stringTable->content[stringValues[i].indString], startBt, lenBts)) { // key already present                
+            if (stringValues[i].length == lenBts
+                && memcmp(text + stringTable->content[stringValues[i].indString], text + startBt, lenBts) == 0) {
+                // key already present                
                 return stringValues[i].indString;
             }
         }
         
-        push(startBt, stringTable);
         newIndString = stringTable->length;
+        push(startBt, stringTable);        
         addValueToBucket((hm->dict + hash), startBt, lenBts, newIndString, hm->a);
     }
     return newIndString;
@@ -2934,6 +2929,36 @@ testable void importOverloads(Arr(OverloadImport) impts, Int countImports, Compi
     }
 }
 
+/** Unique'ing of types. Returns the index of existing type if this one isn't new, and -1 otherwise */
+private Int addTypeToStore(Int startBt, Int lenBts, Compiler* cm) {
+    byte* types = (byte*)cm->types.content;
+    StringStore* hm = cm->typesDict;
+    Int hash = hashCode(types + startBt, lenBts) % (hm->dictSize);
+    Int newIndString;
+    if (*(hm->dict + hash) == NULL) {
+        Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
+        newBucket->capAndLen = (8 << 16) + 1; // left u16 = capacity, right u16 = length
+        StringValue* firstElem = (StringValue*)newBucket->content;       
+
+        *firstElem = (StringValue){.length = lenBts, .indString = startBt*4 };
+        *(hm->dict + hash) = newBucket;
+    } else {
+        Bucket* p = *(hm->dict + hash);
+        int lenBucket = (p->capAndLen & 0xFFFF);
+        Arr(StringValue) stringValues = (StringValue*)p->content;
+        for (int i = 0; i < lenBucket; i++) {
+            if (stringValues[i].length == lenBts
+                && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {
+                // key already present                
+                return stringValues[i].indString;
+            }
+        }        
+        addValueToBucket((hm->dict + hash), startBt, lenBts, startBt*4, hm->a);
+    }
+    return -1;
+}
+
+
 /** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
 testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
     Int newInd = cm->types.length;
@@ -2947,7 +2972,10 @@ testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm)
     cm->types.content[newInd] = arity + 1;
 
     memcpy(cm->types.content + newInd + 1, paramsAndReturn, (arity + 1)*4);
-    cm->types.length += (arity + 2);
+    bool wasTypeNew = addTypeToStore(newInd*4, (arity + 2)*4, cm);
+    if (wasTypeNew) {        
+        cm->types.length += (arity + 2);
+    }
 }
 
 
@@ -3099,7 +3127,7 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
         .activeBindings = allocateOnArena(4*stringTableLength, a),
 
         .overloads = (InStackInt){.length = 0, .content = NULL},
-        .types = createInStackInt(64, a),
+        .types = createInStackInt(64, a), .typeIds = createStackint32_t(64, a), .typesDict = createStringStore(100, aTmp),
         .expStack = createStackint32_t(16, aTmp),
         
         .stringStore = lx->stringStore, .stringTable = lx->stringTable, .strLength = stringTableLength,

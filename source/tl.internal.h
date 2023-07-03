@@ -555,6 +555,7 @@ struct Compiler {
     InStackInt overloads;
 
     InStackInt types;
+    StringStore* typesDict;
 
     Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression
 
