@@ -22,15 +22,16 @@ const char* nodeNames[] = {
 };
 
 
-void printParser(Compiler* a, Arena* ar) {
-    if (a->wasError) {
+void printParser(Compiler* cm, Arena* a) {
+    if (cm->wasError) {
         printf("Error: ");
-        printString(a->errMsg);
+        printString(cm->errMsg);
     }
     Int indent = 0;
-    Stackint32_t* sentinels = createStackint32_t(16, ar);
-    for (int i = 0; i < a->nextInd; i++) {
-        Node nod = a->nodes[i];
+    Stackint32_t* sentinels = createStackint32_t(16, a);
+    
+    for (int i = 0; i < cm->nodes.length; i++) {
+        Node nod = cm->nodes.content[i];
         for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
             popint32_t(sentinels);
             indent--;
@@ -55,7 +56,6 @@ void printParser(Compiler* a, Arena* ar) {
 Int typerTest1() {
     Arena *a = mkArena();
     LanguageDefinition* langDef = buildLanguageDefinitions(a);
-    ParserDefinition* parsDef = buildParserDefinitions(langDef, a);
     Compiler* cm = NULL;
     
     if (setjmp(excBuf) == 0) {    
@@ -69,7 +69,7 @@ Int typerTest1() {
 
         cm = createCompiler(lx, a);
         cm->entBindingZero = cm->entities.length;
-        cm->entOverloadZero = cm->overlCNext;
+        cm->entOverloadZero = cm->overloadIds.length;
         Int firstTypeId = cm->types.length;
         
         // Float(Int Float)
@@ -109,7 +109,6 @@ Int typerTest1() {
 Int typerTest2() {
     Arena *a = mkArena();
     LanguageDefinition* langDef = buildLanguageDefinitions(a);
-    ParserDefinition* parsDef = buildParserDefinitions(langDef, a);
     Compiler* cm = NULL;
     
     if (setjmp(excBuf) == 0) {    
@@ -123,7 +122,7 @@ Int typerTest2() {
 
         cm = createCompiler(lx, a);
         cm->entBindingZero = cm->entities.length;
-        cm->entOverloadZero = cm->overlCNext;
+        cm->entOverloadZero = cm->overloadIds.length;
         Int firstTypeId = cm->types.length;
         
         // Float(Int Float)

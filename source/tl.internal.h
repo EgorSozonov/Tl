@@ -3,6 +3,7 @@
 #define Int int32_t
 #define StackInt Stackint32_t
 //#define InStackInt InStackint32_t
+#define InStackUns InStackuint32_t
 #define private static
 #define byte unsigned char
 #define Arr(T) T*
@@ -446,12 +447,18 @@ typedef struct {
 
 DEFINE_STACK_HEADER(ParseFrame)
 
+DEFINE_INTERNAL_STACK_TYPE(Node)
+DEFINE_INTERNAL_STACK_HEADER(nodes, Node)
+
 DEFINE_INTERNAL_STACK_TYPE(Entity)
-DEFINE_INTERNAL_STACK_HEADER(entity, Entity)
+DEFINE_INTERNAL_STACK_HEADER(entities, Entity)
 
 DEFINE_INTERNAL_STACK_TYPE(Int)
 DEFINE_INTERNAL_STACK_HEADER(overloads, Int)
 DEFINE_INTERNAL_STACK_HEADER(types, Int)
+
+DEFINE_INTERNAL_STACK_TYPE(uint32_t)
+DEFINE_INTERNAL_STACK_HEADER(overloadIds, uint32_t)
 
 #define pop(X) _Generic((X), \
     StackBtToken*: popBtToken, \
@@ -530,14 +537,12 @@ struct Compiler {
     Int inpLength;
     LanguageDefinition* langDef;
     StackParseFrame* backtrack;// [aTmp] 
-    ScopeStack* scopeStack;
+    ScopeStack* scopeStack;    // stack of currently active scopes (for active bindings tracking)
     Int i;                     // index of current token in the input
 
-    Arr(Node) nodes; 
-    Int capacity;               // current capacity of node storage
-    Int nextInd;                // the index for the next token to be added    
+    InStackNode nodes;
 
-    InStackEntity entities;      // growing array of all entities (variables, function defs, constants etc) ever encountered
+    InStackEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered
     Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overloaded binding
     Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
 
@@ -545,9 +550,7 @@ struct Compiler {
      * [aTmp] growing array of counts of all fn name definitions encountered (for the typechecker to use)
      * Upper 16 bits contain concrete count, lower 16 bits total count
      */
-    Arr(untt) overloadIds;
-    Int overlCNext;
-    Int overlCCap;
+    InStackUns overloadIds;
 
     InStackInt overloads;
 
