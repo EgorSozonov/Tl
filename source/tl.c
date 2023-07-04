@@ -547,7 +547,7 @@ private untt hashCode(byte* start, Int len) {
 }
 
 
-private void addValueToBucket(Bucket** ptrToBucket, Int startBt, Int lenBts, Int newIndString, Arena* a) {    
+private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, Int lenBts, Arena* a) {    
     Bucket* p = *ptrToBucket;                                        
     Int capacity = (p->capAndLen) >> 16;
     Int lenBucket = (p->capAndLen & 0xFFFF);
@@ -594,7 +594,7 @@ private Int addStringStore(byte* text, Int startBt, Int lenBts, Stackint32_t* st
         
         newIndString = stringTable->length;
         push(startBt, stringTable);        
-        addValueToBucket((hm->dict + hash), startBt, lenBts, newIndString, hm->a);
+        addValueToBucket((hm->dict + hash), newIndString, lenBts, hm->a);
     }
     return newIndString;
 }
@@ -2934,13 +2934,12 @@ private Int addTypeToStore(Int startBt, Int lenBts, Compiler* cm) {
     byte* types = (byte*)cm->types.content;
     StringStore* hm = cm->typesDict;
     Int hash = hashCode(types + startBt, lenBts) % (hm->dictSize);
-    Int newIndString;
     if (*(hm->dict + hash) == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (8 << 16) + 1; // left u16 = capacity, right u16 = length
-        StringValue* firstElem = (StringValue*)newBucket->content;       
+        StringValue* firstElem = (StringValue*)newBucket->content;        
 
-        *firstElem = (StringValue){.length = lenBts, .indString = startBt*4 };
+        *firstElem = (StringValue){.length = lenBts, .indString = startBt };
         *(hm->dict + hash) = newBucket;
     } else {
         Bucket* p = *(hm->dict + hash);
@@ -2950,17 +2949,16 @@ private Int addTypeToStore(Int startBt, Int lenBts, Compiler* cm) {
             if (stringValues[i].length == lenBts
                 && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {
                 // key already present                
-                return stringValues[i].indString;
+                return stringValues[i].indString/4;
             }
         }        
-        addValueToBucket((hm->dict + hash), startBt, lenBts, startBt*4, hm->a);
+        addValueToBucket((hm->dict + hash), startBt, lenBts, hm->a);
     }
     return -1;
 }
 
-
 /** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
-testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
+testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
     Int newInd = cm->types.length;
     Int neededLen = newInd + arity + 2; // + 2 because one cell will hold total length, and another the return type
     while (cm->types.capacity < neededLen) {
@@ -2970,11 +2968,14 @@ testable void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm)
         cm->types.capacity *= 2;
     }
     cm->types.content[newInd] = arity + 1;
-
     memcpy(cm->types.content + newInd + 1, paramsAndReturn, (arity + 1)*4);
-    bool wasTypeNew = addTypeToStore(newInd*4, (arity + 2)*4, cm);
-    if (wasTypeNew) {        
+    
+    Int existingTypeId = addTypeToStore(newInd*4, (arity + 2)*4, cm);
+    if (existingTypeId == -1) {        
         cm->types.length += (arity + 2);
+        return newInd;
+    } else {
+        return existingTypeId;
     }
 }
 
@@ -2990,46 +2991,26 @@ private void buildOperator(Int operId, Int typeId, Compiler* cm) {
 
 /** Operators are the first-ever functions to be defined. This function builds their types, entities and overload counts. */
 private void buildInOperators(Compiler* cm) {
-    Int boolOfIntInt = cm->types.length;
-    addFunctionType(2, (Int[]){tokBool, tokInt, tokInt}, cm);
-    Int boolOfIntIntInt = cm->types.length;
-    addFunctionType(3, (Int[]){tokBool, tokInt, tokInt, tokInt}, cm);    
-    Int boolOfFlFl = cm->types.length;
-    addFunctionType(2, (Int[]){tokBool, tokFloat, tokFloat}, cm);
-    Int boolOfFlFlFl = cm->types.length;
-    addFunctionType(3, (Int[]){tokBool, tokFloat, tokFloat, tokFloat}, cm);
-    Int boolOfStrStr = cm->types.length;
-    addFunctionType(2, (Int[]){tokBool, tokString, tokString}, cm);
-    Int boolOfBool = cm->types.length;
-    addFunctionType(1, (Int[]){tokBool, tokBool}, cm);
-    Int boolOfBoolBool = cm->types.length;
-    addFunctionType(2, (Int[]){tokBool, tokBool, tokBool}, cm);
-    Int intOfStr = cm->types.length;
-    addFunctionType(1, (Int[]){tokInt, tokString}, cm);
-    Int intOfInt = cm->types.length;
-    addFunctionType(1, (Int[]){tokInt, tokInt}, cm);
-    Int intOfFl = cm->types.length;
-    addFunctionType(1, (Int[]){tokInt, tokFloat}, cm);
-    Int intOfIntInt = cm->types.length;
-    addFunctionType(2, (Int[]){tokInt, tokInt, tokInt}, cm);
-    Int intOfFlFl = cm->types.length;
-    addFunctionType(2, (Int[]){tokInt, tokFloat, tokFloat}, cm);
-    Int intOfStrStr = cm->types.length;
-    addFunctionType(2, (Int[]){tokInt, tokString, tokString}, cm);
-    Int strOfInt = cm->types.length;
-    addFunctionType(1, (Int[]){tokString, tokInt}, cm);
-    Int strOfFloat = cm->types.length;
-    addFunctionType(1, (Int[]){tokString, tokFloat}, cm);
-    Int strOfBool = cm->types.length;
-    addFunctionType(1, (Int[]){tokString, tokBool}, cm);
-    Int strOfStrStr = cm->types.length;
-    addFunctionType(2, (Int[]){tokString, tokString, tokString}, cm);
-    Int flOfFlFl = cm->types.length;
-    addFunctionType(2, (Int[]){tokFloat, tokFloat, tokFloat}, cm);
-    Int flOfInt = cm->types.length;
-    addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
-    Int flOfFl = cm->types.length;
-    addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
+    Int boolOfIntInt = addFunctionType(2, (Int[]){tokBool, tokInt, tokInt}, cm);
+    Int boolOfIntIntInt = addFunctionType(3, (Int[]){tokBool, tokInt, tokInt, tokInt}, cm);    
+    Int boolOfFlFl = addFunctionType(2, (Int[]){tokBool, tokFloat, tokFloat}, cm);
+    Int boolOfFlFlFl = addFunctionType(3, (Int[]){tokBool, tokFloat, tokFloat, tokFloat}, cm);
+    Int boolOfStrStr = addFunctionType(2, (Int[]){tokBool, tokString, tokString}, cm);
+    Int boolOfBool = addFunctionType(1, (Int[]){tokBool, tokBool}, cm);
+    Int boolOfBoolBool = addFunctionType(2, (Int[]){tokBool, tokBool, tokBool}, cm);
+    Int intOfStr = addFunctionType(1, (Int[]){tokInt, tokString}, cm);
+    Int intOfInt = addFunctionType(1, (Int[]){tokInt, tokInt}, cm);
+    Int intOfFl = addFunctionType(1, (Int[]){tokInt, tokFloat}, cm);
+    Int intOfIntInt = addFunctionType(2, (Int[]){tokInt, tokInt, tokInt}, cm);
+    Int intOfFlFl = addFunctionType(2, (Int[]){tokInt, tokFloat, tokFloat}, cm);
+    Int intOfStrStr = addFunctionType(2, (Int[]){tokInt, tokString, tokString}, cm);
+    Int strOfInt = addFunctionType(1, (Int[]){tokString, tokInt}, cm);
+    Int strOfFloat = addFunctionType(1, (Int[]){tokString, tokFloat}, cm);
+    Int strOfBool = addFunctionType(1, (Int[]){tokString, tokBool}, cm);
+    Int strOfStrStr = addFunctionType(2, (Int[]){tokString, tokString, tokString}, cm);
+    Int flOfFlFl = addFunctionType(2, (Int[]){tokFloat, tokFloat, tokFloat}, cm);
+    Int flOfInt = addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
+    Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
     buildOperator(opTNotEqual, boolOfIntInt, cm);
     buildOperator(opTNotEqual, boolOfFlFl, cm);
     buildOperator(opTNotEqual, boolOfStrStr, cm);
@@ -3127,7 +3108,7 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
         .activeBindings = allocateOnArena(4*stringTableLength, a),
 
         .overloads = (InStackInt){.length = 0, .content = NULL},
-        .types = createInStackInt(64, a), .typeIds = createStackint32_t(64, a), .typesDict = createStringStore(100, aTmp),
+        .types = createInStackInt(64, a), .typesDict = createStringStore(100, aTmp),
         .expStack = createStackint32_t(16, aTmp),
         
         .stringStore = lx->stringStore, .stringTable = lx->stringTable, .strLength = stringTableLength,
