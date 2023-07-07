@@ -898,7 +898,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .startBt = 1, .lenBts = 3 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
-             .input = s("(.f (foo Int : x Int y Int). x - y)"),
+             .input = s("(.f foo Int(x Int y Int) = x - y)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokFnDef, .pl1 = 1, .pl2 = 13, .startBt = 0, .lenBts = 35 },
                  
@@ -919,7 +919,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .pl2 = 3, .startBt = 33, .lenBts = 1 } // y
          }))},
          (LexerTest) { .name = s("Function simple error"),
-             .input = s("x + (.f (foo Int x Int y Int) x - y)"),
+             .input = s("x + (.f foo Int(x Int y Int) = x - y)"),
              .expectedOutput = buildLexerWithError(s(errorPunctuationScope), ((Token[]) {
                  (Token){ .tp = tokStmt },
                  (Token){ .tp = tokWord, .startBt = 0, .lenBts = 1 },                // x

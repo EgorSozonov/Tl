@@ -2074,6 +2074,15 @@ struct ScopeStackFrame {
 };
 
 
+typedef struct {
+    Int entityId;
+    Int tokenInd;
+    Int sentinelTokenInd;
+} ToplevelSignature;
+
+DEFINE_STACK_HEADER(ToplevelSignature)
+DEFINE_STACK(ToplevelSignature)
+
 private size_t ceiling4(size_t sz) {
     size_t rem = sz % 4;
     return sz + 4 - rem;
@@ -2259,7 +2268,7 @@ private Int createBinding(Token bindingToken, Entity e, Compiler* cm) {
 }
 
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
-private void encounterFnDefinition(Int nameId, Compiler* cm) {    
+private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
     VALIDATEP(activeValue < 0, errorAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
@@ -2286,7 +2295,7 @@ private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
         }
         cm->activeBindings[nameId] = newEntityId; // makes it active
     } else {
-        encounterFnDefinition(nameId, cm);
+        fnDefIncrementOverlCount(nameId, cm);
     }
            
     return newEntityId;
@@ -2924,7 +2933,7 @@ testable void importOverloads(Arr(OverloadImport) impts, Int countImports, Compi
     for (int i = 0; i < countImports; i++) {        
         Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
         if (mbNameId > -1) {
-            encounterFnDefinition(mbNameId, cm);
+            fnDefIncrementOverlCount(mbNameId, cm);
         }
     }
 }
@@ -3057,13 +3066,14 @@ private void buildInOperators(Compiler* cm) {
 
 /* Entities and overloads for the built-in operators, types and functions. */
 private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
-    Arr(String*) baseTypes = allocateOnArena(5*sizeof(String*), cm->aTmp);
+    Arr(String*) baseTypes = allocateOnArena(6*sizeof(String*), cm->aTmp);
     baseTypes[tokInt] = str("Int", cm->aTmp);
     baseTypes[tokLong] = str("Long", cm->aTmp);
     baseTypes[tokFloat] = str("Float", cm->aTmp);
     baseTypes[tokString] = str("String", cm->aTmp);
     baseTypes[tokBool] = str("Bool", cm->aTmp);
-    for (int i = 0; i < 5; i++) {
+    baseTypes[tokUnderscore] = str("Void", cm->aTmp);
+    for (int i = 0; i < 6; i++) {
         pushIntypes(0, cm);
         Int typeNameId = getStringStore(cm->text->content, baseTypes[i], cm->stringTable, cm->stringStore);
         if (typeNameId > -1) {
@@ -3183,14 +3193,11 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     }
 }
 
-
-private void populateOverloadsForTopelevelFunctions(Compiler* cm) {
-    // TODO
-}
-
-/** Allocates the table with overloads and changes the overloadIds table to contain indices into the new table (not counts) */
-testable void createOverloads(Compiler* cm) {
-    
+/**
+ * Allocates the table with overloads and semi-fills it (only the imports and built-ins, not toplevel).
+ * Also finalizes the overloadIds table to contain actual indices (not counts that were there initially)
+ */
+testable void createOverloads(Compiler* cm) {    
     Int neededCount = 0;
     for (Int i = 0; i < cm->overloadIds.length; i++) {
         // a typeId and an entityId for each overload, plus a length field for the list
@@ -3231,7 +3238,7 @@ private void parseToplevelConstants(Lexer* lx, Compiler* cm) {
 }
 
 /** Parses top-level function names, and adds their bindings to the scope */
-private void parseToplevelFunctionNames(Lexer* lx, Compiler* cm) {
+private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
     cm->i = 0;
     const Int len = lx->totalTokens;
     while (cm->i < len) {
@@ -3243,7 +3250,7 @@ private void parseToplevelFunctionNames(Lexer* lx, Compiler* cm) {
             Token fnName = lx->tokens[(cm->i) + 2]; // + 2 because we skip over the "fn" and "stmt" span tokens
             VALIDATEP(fnName.tp == tokWord, errorFnNameAndParams)
             
-            encounterFnDefinition(fnName.pl2, cm);
+            fnDefIncrementOverlCount(fnName.pl2, cm);
         }
         cm->i += (tok.pl2 + 1);        
     } 
@@ -3251,38 +3258,100 @@ private void parseToplevelFunctionNames(Lexer* lx, Compiler* cm) {
 
 /** 
  * Parses a top-level function signature.
- * The result is [FnDef EntityName Scope EntityParam1 EntityParam2 ... ]
+ * Emits no nodes, only an entity and an overload
  */
-private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
+private void parseToplevelSignature(Token fnDef, StackToplevelSignature* toplevelSignatures, Lexer* lx, Compiler* cm) {
+    // addTypeToStore    
     Int fnSentinel = cm->i + fnDef.pl2 - 1;
     Int byteSentinel = fnDef.startBt + fnDef.lenBts;
-    ParseFrame newParseFrame = (ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinel };
+    
     Token fnName = lx->tokens[cm->i];
     Int fnNameId = fnName.pl2;
     cm->i++; // CONSUME the function name token
 
-    Int fnTypeId = cm->types.length;
+    Int fnTypeStartInd = cm->types.length;
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
 
-    // the function's return type, it's optional
+    // the function's return type, interpreted to be Void if absent
     if (lx->tokens[cm->i].tp == tokTypeName) {
         Token fnReturnType = lx->tokens[cm->i];
-
         Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
         VALIDATEP(returnTypeId > -1, errorUnknownType)
         pushIntypes(returnTypeId, cm);
         
         cm->i++; // CONSUME the function return type token
+    } else {
+        pushInTypes(tokUnderscore, cm); // underscore stands for the Void type
     }
 
     // the fnDef scope & node
-    push(newParseFrame, cm->backtrack);
-    encounterFnDefinition(fnNameId, cm);
     Int fnEntityId = cm->entities.length;
-    pushInentities((Entity){.nameId = fnNameId, .typeId = fnTypeId}, cm);
+    pushInentities((Entity){.nameId = fnNameId }, cm); // we don't know the new typeId yet, until the end of this function
+
+    // the scope for the function body
+    VALIDATEP(lx->tokens[cm->i].tp == tokParens, errorFnNameAndParams)
+    Token parens = lx->tokens[cm->i];
+    
+    Int paramsSentinel = cm->i + parens.pl2 + 1;
+    cm->i++; // CONSUME the parens token for the param list            
+
+    Int arity = 0;
+    while (cm->i < paramsSentinel) {
+        Token paramName = lx->tokens[cm->i];
+        VALIDATEP(paramName.tp == tokWord, errorFnNameAndParams)
+        ++cm->i; // CONSUME a param name
+        ++arity;
+        
+        VALIDATEP(cm->i < paramsSentinel, errorFnNameAndParams)
+        Token paramType = lx->tokens[cm->i];
+        VALIDATEP(paramType.tp == tokTypeName, errorFnNameAndParams)
+        
+        Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
+        VALIDATEP(paramTypeId > -1, errorUnknownType)
+        cm->entities.content[newEntityId].typeId = paramTypeId;
+        pushIntypes(paramTypeId, cm);
+        
+        ++cm->i; // CONSUME the param's type name
+        
+        pushInnodes(paramNode, cm);
+    }
+    
+    VALIDATEP(cm->i < fnSentinel && lx->tokens[cm->i].tp >= firstPunctuationTokenType, errorFnMissingBody)
+    cm->types.content[fnTypeId] = arity + 1;
+}
+
+/** 
+ * Parses a top-level function signature.
+ * The result is the AST [FnDef EntityName Scope EntityParam1 EntityParam2 ... ]
+ */
+private void parseToplevelBody(ToplevelSignature toplevelSignature, Arr(Token) tokens, Compiler* cm) {
+    Int fnSentinel = cm->i + fnDef.pl2 - 1;
+    Int byteSentinel = fnDef.startBt + fnDef.lenBts;
+    
+    Token fnName = lx->tokens[cm->i];
+    Int fnNameId = fnName.pl2;
+    cm->i++; // CONSUME the function name token
+
+    Int fnTypeStartInd = cm->types.length;
+    pushIntypes(0, cm); // will overwrite it with the type's length once we know it
+
+    // the function's return type, it's optional
+    if (lx->tokens[cm->i].tp == tokTypeName) {
+        Token fnReturnType = lx->tokens[cm->i];
+        Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
+        VALIDATEP(returnTypeId > -1, errorUnknownType)
+        pushIntypes(returnTypeId, cm);
+        
+        cm->i++; // CONSUME the function return type token
+    } else {
+        pushInTypes(tokUnderscore, cm); // underscore stands for the Void type
+    }
+
+    // the fnDef scope & node
+    push((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinel }, cm->backtrack);
+    Int fnEntityId = cm->entities.length;
+    pushInentities((Entity){.nameId = fnNameId }, cm); // we don't know the new typeId yet, until the end of this function
     pushInnodes((Node){.tp = nodFnDef, .pl1 = fnEntityId, .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
-    //pushInnodes((Node){.tp = nodFnDef, .pl1 = cm->activeBindings[fnName.pl2], .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
-    //pushInnodes((Node){.tp = nodBinding, .pl1 = fnEntityId, .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
 
     // the scope for the function body
     VALIDATEP(lx->tokens[cm->i].tp == tokParens, errorFnNameAndParams)
@@ -3319,11 +3388,18 @@ private void parseFnSignature(Token fnDef, Lexer* lx, Compiler* cm) {
     }
     
     VALIDATEP(cm->i < fnSentinel && lx->tokens[cm->i].tp >= firstPunctuationTokenType, errorFnMissingBody)
-    cm->types.content[fnTypeId] = arity + 1;
+    cm->types.content[fnTypeId] = arity + 1;    
 }
 
 /** Parses top-level function params and bodies */
-private void parseFunctionBodies(Lexer* lx, Compiler* cm) {
+private void parseFunctionBodies(StackToplevelSignature* toplevelSignatures, Lexer* lx, Compiler* cm) {
+    for (int j = 0; j < toplevelSignatures->length; j++) {
+        parseToplevelBody(toplevelSignatures->content[j], lx->tokens, cm);
+    }
+}
+
+private StackToplevelSignature* parseTopLevelSignatures(Lexer* lx, Compiler* cm) {
+    StackToplevelSignature* topLevelSignatures = createStackToplevelSignature(16, cm->aTemp);
     cm->i = 0;
     const Int len = lx->totalTokens;
     while (cm->i < len) {
@@ -3334,15 +3410,14 @@ private void parseFunctionBodies(Lexer* lx, Compiler* cm) {
             VALIDATEP(lenTokens >= 2, errorFnNameAndParams)
             
             cm->i += 2; // CONSUME the function def token and the stmt token
-            parseFnSignature(tok, lx, cm);
-            parseUpTo(sentinelToken, lx->tokens, cm);
+            parseFnSignature(tok, topLevelSignatures, lx, cm);
             cm->i = sentinelToken;
         } else {            
-            cm->i += (tok.pl2 + 1);    // CONSUME the whole non-function span
+            cm->i += (tok.pl2 + 1);  // CONSUME the whole non-function span
         }
     }
+    return topLevelSignatures;
 }
-
 
 testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
     LanguageDefinition* pDef = cm->langDef;
@@ -3354,9 +3429,16 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(lx, cm);
         parseToplevelConstants(lx, cm);
-        parseToplevelFunctionNames(lx, cm);
+
+        // This gives us overload counts
+        surveyToplevelFunctionNames(lx, cm);
+
+        // This gives us the complete overloads & overloadIds tables
+        StackToplevelSignature* topLevelSignatures = parseTopLevelSignatures(lx, cm);
         createOverloads(cm);
-        parseFunctionBodies(lx, cm);
+
+        // The main parse (all top-level function bodies)
+        parseFunctionBodies(lx, topLevelSignatures, cm);
     }
     return cm;
 }

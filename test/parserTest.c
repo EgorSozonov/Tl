@@ -742,7 +742,7 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Simple function definition 2"),
-            s("(.f newFn Int (x Int y Float)\n"
+            s("(.f newFn Int (x Int y Float) =\n"
               "    a = x\n"
               "    return a\n"
               ")"
@@ -763,16 +763,16 @@ ParserTestSet* functionTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Mutually recursive function definitions"),
-            s("(.f foo Int (x Int y Float)\n"
+            s("(.f foo Int (x Int y Float) =\n"
               "    a = x\n"
               "    return bar a y\n"
               ")\n"
-              "(.f bar Int (x Int y Float)\n"
+              "(.f bar Int (x Int y Float) =\n"
               "    return foo x y"
               ")"
             ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 11, .startBt = 0, .lenBts = 58 }, // foo
+                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 11, .startBt = 0, .lenBts = 62 }, // foo
                 (Node){ .tp = nodScope,           .pl2 = 10, .startBt = 12, .lenBts = 46 },
                 (Node){ .tp = nodBinding, .pl1 = 0,          .startBt = 13, .lenBts = 1 },  // param x. First 2 bindings = types
                 (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 19, .lenBts = 1 },  // param y
@@ -967,7 +967,7 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
         createTest(
             s("Simple loop 1"),
-            s("(.f f Int(). (.loop (< x 101) (x 1). print x))"),
+            s("(.f f Int() = (.loop (< x 101) (x 1). print x))"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 14, .lenBts = 46 },
                 (Node){ .tp = nodScope, .pl2 = 13, .startBt = 9, .lenBts = 37 }, // function body
@@ -995,7 +995,7 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Loop with two complex initializers"),
-            s("(.f f Int()\n"
+            s("(.f f Int() =\n"
               "    (.loop (< x 101) (x 7 y (>> 5 x))\n"
               "        print x))"),
             ((Node[]) {
@@ -1031,7 +1031,7 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Loop without initializers"),
-            s("(.f f Int()\n"
+            s("(.f f Int() =\n"
               "    x = 4\n"
               "    (.loop (< x 101) \n"
               "        print x))"),
@@ -1062,7 +1062,7 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
         ),
         createTest(
             s("Loop with break and continue"),
-            s("(.f f Int()\n"
+            s("(.f f Int() =\n"
               "    (.loop (< x 101) (x 0)\n"
               "        break\n"
               "        continue 3))"),

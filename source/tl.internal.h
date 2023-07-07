@@ -189,7 +189,7 @@ struct Lexer {
 #define tokFloat        2
 #define tokBool         3      // pl2 = value (1 or 0)
 #define tokString       4
-#define tokUnderscore   5
+#define tokUnderscore   5      // in the world of types, signifies the Void type
 #define tokDocComment   6
 
 // This group requires analysis in the parser
@@ -377,7 +377,7 @@ typedef struct {
 #define nodEmbed       27       // noParen. Embed a text file as a string literal, or a binary resource file
 #define nodExport      28       
 #define nodExposePriv  29       
-#define nodFnDef       30       // pl1 = index of overload
+#define nodFnDef       30       // pl1 = entityId
 #define nodIface       31
 #define nodLambda      32
 #define nodMeta        33       
