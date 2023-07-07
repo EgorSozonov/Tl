@@ -1453,9 +1453,6 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         } else if (mbReservedWord == reservedFalse) {
             wrapInAStatementStarting(startBt, lx, inp);
             add((Token){.tp=tokBool, .pl2=0, .startBt=realStartByte, .lenBts=5}, lx);
-        } else if (mbReservedWord == tokDispose) {
-            wrapInAStatementStarting(startBt, lx, inp);
-            add((Token){.tp=tokDispose, .pl2=0, .startBt=realStartByte, .lenBts=7}, lx);
         }
     } else {
         lexReservedWord(mbReservedWord, realStartByte, lx, inp);
@@ -1580,7 +1577,7 @@ private void lexOperator(Lexer* lx, Arr(byte) inp) {
     lx->i = j; // CONSUME the operator
 }
 
-
+/** The humble "=" can be the definition statement, a marker that separates signature from definition, or an arrow "=>" */
 private void lexEqual(Lexer* lx, Arr(byte) inp) {
     checkPrematureEnd(2, lx);
     byte nextBt = NEXT_BT;
@@ -1596,6 +1593,13 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
         add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
+        if (lx->backtrack->length > 0) {
+            if (peek(lx->backtrack).tp == tokFnDef) {
+                add((Token){ .tp = tokEqualsSign, .startBt = lx->i, .lenBts = 1 }, lx);
+                lx->i++; // CONSUME the =
+                return;
+            }
+        }
         processAssignment(0, 0, lx);
         lx->i++; // CONSUME the =
     }
@@ -1799,11 +1803,11 @@ private void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
-    "word", "Type", ".word", "operator", "dispose", 
+    "word", "Type", ".word", "operator", "equals sign", 
     ":", "(.", "stmt", "(", "type(", "(:", "=", ":=", "mutation", "=>", "else",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "each", "embed", "export", "exposePriv", "fn", "interface", 
-    "lambda", "meta", "package", "return", "struct", "try", "yield",
+    "lambda", "meta", "package", "return", "struct", "try", "typeDef", "yield",
     "if", "ifPr", "match", "impl", "loop"
 };
 
@@ -2074,14 +2078,8 @@ struct ScopeStackFrame {
 };
 
 
-typedef struct {
-    Int entityId;
-    Int tokenInd;
-    Int sentinelTokenInd;
-} ToplevelSignature;
-
-DEFINE_STACK_HEADER(ToplevelSignature)
-DEFINE_STACK(ToplevelSignature)
+DEFINE_STACK_HEADER(Node)
+DEFINE_STACK(Node)
 
 private size_t ceiling4(size_t sz) {
     size_t rem = sz % 4;
@@ -2984,7 +2982,7 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
         cm->types.length += (arity + 2);
         return newInd;
     } else {
-        return existingTypeId;
+        return existingTypeId; // since the type is non-unique, its nodes are marked to be overwritten
     }
 }
 
@@ -3073,7 +3071,7 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
     baseTypes[tokString] = str("String", cm->aTmp);
     baseTypes[tokBool] = str("Bool", cm->aTmp);
     baseTypes[tokUnderscore] = str("Void", cm->aTmp);
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 5; i++) {
         pushIntypes(0, cm);
         Int typeNameId = getStringStore(cm->text->content, baseTypes[i], cm->stringTable, cm->stringStore);
         if (typeNameId > -1) {
@@ -3215,7 +3213,6 @@ testable void createOverloads(Compiler* cm) {
     }
 
     populateOverloadsForOperatorsAndImports(cm);
-    populateOverloadsForTopelevelFunctions(cm);
     pushInoverloadIds(cm->overloads.length, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds    
 }
 
@@ -3260,16 +3257,16 @@ private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
  * Parses a top-level function signature.
  * Emits no nodes, only an entity and an overload
  */
-private void parseToplevelSignature(Token fnDef, StackToplevelSignature* toplevelSignatures, Lexer* lx, Compiler* cm) {
+private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Lexer* lx, Compiler* cm) {
     // addTypeToStore    
-    Int fnSentinel = cm->i + fnDef.pl2 - 1;
+    Int fnSentinelToken = cm->i + fnDef.pl2 - 1;
     Int byteSentinel = fnDef.startBt + fnDef.lenBts;
     
     Token fnName = lx->tokens[cm->i];
     Int fnNameId = fnName.pl2;
     cm->i++; // CONSUME the function name token
 
-    Int fnTypeStartInd = cm->types.length;
+    Int tentativeTypeInd = cm->types.length;
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
 
     // the function's return type, interpreted to be Void if absent
@@ -3281,17 +3278,15 @@ private void parseToplevelSignature(Token fnDef, StackToplevelSignature* topleve
         
         cm->i++; // CONSUME the function return type token
     } else {
-        pushInTypes(tokUnderscore, cm); // underscore stands for the Void type
+        pushIntypes(tokUnderscore, cm); // underscore stands for the Void type
     }
 
-    // the fnDef scope & node
     Int fnEntityId = cm->entities.length;
     pushInentities((Entity){.nameId = fnNameId }, cm); // we don't know the new typeId yet, until the end of this function
-
-    // the scope for the function body
     VALIDATEP(lx->tokens[cm->i].tp == tokParens, errorFnNameAndParams)
-    Token parens = lx->tokens[cm->i];
     
+    Int paramsTokenInd = cm->i;
+    Token parens = lx->tokens[paramsTokenInd];   
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
 
@@ -3308,98 +3303,63 @@ private void parseToplevelSignature(Token fnDef, StackToplevelSignature* topleve
         
         Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
         VALIDATEP(paramTypeId > -1, errorUnknownType)
-        cm->entities.content[newEntityId].typeId = paramTypeId;
         pushIntypes(paramTypeId, cm);
         
         ++cm->i; // CONSUME the param's type name
-        
-        pushInnodes(paramNode, cm);
     }
     
-    VALIDATEP(cm->i < fnSentinel && lx->tokens[cm->i].tp >= firstPunctuationTokenType, errorFnMissingBody)
-    cm->types.content[fnTypeId] = arity + 1;
+    VALIDATEP(cm->i < (fnSentinelToken - 1) && lx->tokens[cm->i].tp == tokEqualsSign, errorFnMissingBody)
+    cm->types.content[tentativeTypeInd] = arity + 1;
+    Int uniqueTypeId = addTypeToStore(tentativeTypeInd*4, (arity + 2)*4, cm);
+    cm->entities.content[fnEntityId].typeId = uniqueTypeId;
+    // overloadAdd!
+    pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = fnSentinelToken,
+         .startBt = fnDef.startBt, .lenBts = fnDef.lenBts }, toplevelSignatures);
 }
 
 /** 
- * Parses a top-level function signature.
+ * Parses a top-level function.
  * The result is the AST [FnDef EntityName Scope EntityParam1 EntityParam2 ... ]
  */
-private void parseToplevelBody(ToplevelSignature toplevelSignature, Arr(Token) tokens, Compiler* cm) {
-    Int fnSentinel = cm->i + fnDef.pl2 - 1;
-    Int byteSentinel = fnDef.startBt + fnDef.lenBts;
-    
-    Token fnName = lx->tokens[cm->i];
-    Int fnNameId = fnName.pl2;
-    cm->i++; // CONSUME the function name token
-
-    Int fnTypeStartInd = cm->types.length;
-    pushIntypes(0, cm); // will overwrite it with the type's length once we know it
-
-    // the function's return type, it's optional
-    if (lx->tokens[cm->i].tp == tokTypeName) {
-        Token fnReturnType = lx->tokens[cm->i];
-        Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
-        VALIDATEP(returnTypeId > -1, errorUnknownType)
-        pushIntypes(returnTypeId, cm);
-        
-        cm->i++; // CONSUME the function return type token
-    } else {
-        pushInTypes(tokUnderscore, cm); // underscore stands for the Void type
-    }
+private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compiler* cm) {
+    Int fnSentinelToken = toplevelSignature.pl2;
+    cm->i = toplevelSignature.tokenInd;
 
     // the fnDef scope & node
-    push((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinel }, cm->backtrack);
-    Int fnEntityId = cm->entities.length;
-    pushInentities((Entity){.nameId = fnNameId }, cm); // we don't know the new typeId yet, until the end of this function
-    pushInnodes((Node){.tp = nodFnDef, .pl1 = fnEntityId, .startBt = fnDef.startBt, .lenBts = fnDef.lenBts} , cm);
-
+    push((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinel }, cm->backtrack);    
+    pushInnodes(toplevelSignature, cm);
+    
     // the scope for the function body
-    VALIDATEP(lx->tokens[cm->i].tp == tokParens, errorFnNameAndParams)
     push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, 
         .sentinelToken = fnSentinel }), cm->backtrack);        
     pushScope(cm->scopeStack);
     Token parens = lx->tokens[cm->i];
-    pushInnodes((Node){ .tp = nodScope, .startBt = parens.startBt, .lenBts = byteSentinel - parens.startBt }, cm);           
-    
+        
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
 
     Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = lx->tokens[cm->i];
-        VALIDATEP(paramName.tp == tokWord, errorFnNameAndParams)
         Int newEntityId = createBinding(paramName, (Entity){.nameId = paramName.pl2}, cm);
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
         ++cm->i; // CONSUME a param name
-        ++arity;
-        
-        VALIDATEP(cm->i < paramsSentinel, errorFnNameAndParams)
-        Token paramType = lx->tokens[cm->i];
-        VALIDATEP(paramType.tp == tokTypeName, errorFnNameAndParams)
-        
-        Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
-        VALIDATEP(paramTypeId > -1, errorUnknownType)
-        cm->entities.content[newEntityId].typeId = paramTypeId;
-        pushIntypes(paramTypeId, cm);
-        
         ++cm->i; // CONSUME the param's type name
-        
         pushInnodes(paramNode, cm);
     }
     
-    VALIDATEP(cm->i < fnSentinel && lx->tokens[cm->i].tp >= firstPunctuationTokenType, errorFnMissingBody)
-    cm->types.content[fnTypeId] = arity + 1;    
+    ++cm->i; // CONSUME the "=" sign
 }
 
 /** Parses top-level function params and bodies */
-private void parseFunctionBodies(StackToplevelSignature* toplevelSignatures, Lexer* lx, Compiler* cm) {
+private void parseFunctionBodies(StackNode* toplevelSignatures, Lexer* lx, Compiler* cm) {
     for (int j = 0; j < toplevelSignatures->length; j++) {
         parseToplevelBody(toplevelSignatures->content[j], lx->tokens, cm);
     }
 }
 
-private StackToplevelSignature* parseTopLevelSignatures(Lexer* lx, Compiler* cm) {
-    StackToplevelSignature* topLevelSignatures = createStackToplevelSignature(16, cm->aTemp);
+private StackNode* parseToplevelSignatures(Lexer* lx, Compiler* cm) {
+    StackNode* topLevelSignatures = createStackNode(16, cm->aTemp);
     cm->i = 0;
     const Int len = lx->totalTokens;
     while (cm->i < len) {
@@ -3434,8 +3394,9 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
         surveyToplevelFunctionNames(lx, cm);
 
         // This gives us the complete overloads & overloadIds tables
-        StackToplevelSignature* topLevelSignatures = parseTopLevelSignatures(lx, cm);
         createOverloads(cm);
+        StackNode* topLevelSignatures = parseToplevelSignatures(lx, cm);
+        
 
         // The main parse (all top-level function bodies)
         parseFunctionBodies(lx, topLevelSignatures, cm);

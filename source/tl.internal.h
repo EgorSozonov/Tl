@@ -197,7 +197,7 @@ struct Lexer {
 #define tokTypeName     8
 #define tokDotWord      9      // ".fieldName", pl's the same as tokWord
 #define tokOperator    10      // pl1 = OperatorToken, one of the "opT" constants below
-#define tokDispose     11
+#define tokEqualsSign  11
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon       12 
@@ -235,14 +235,15 @@ struct Lexer {
 #define tokReturn      40
 #define tokStruct      41
 #define tokTry         42       // early exit
-#define tokYield       43
+#define tokTypeDef     43
+#define tokYield       44
 
 // Resumable core forms
-#define tokIf          44    // "(if " or "(-i". pl1 = 1 if it's the "(-" variant
-#define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       46    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        47    // "(-impl " 
-#define tokLoop        48    // "(-loop "
+#define tokIf          45    // "(if " or "(-i". pl1 = 1 if it's the "(-" variant
+#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       47    // "(-m " or "(match " pattern matching on sum type tag 
+#define tokImpl        48    // "(-impl " 
+#define tokLoop        49    // "(-loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 
