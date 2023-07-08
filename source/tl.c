@@ -628,7 +628,9 @@ testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* strin
 
 #define iErrorInconsistentSpans          1 // Inconsistent span length / structure of token scopes!;
 #define iErrorImportedFunctionNotInScope 2 // There is a -1 or something else in the activeBindings table for an imported function
-#define iErrorOverloadsOverflow          3 // There were more overloads for a function than what was allocated
+#define iErrorParsedFunctionNotInScope   3 // There is a -1 or something else in the activeBindings table for an imported function
+#define iErrorOverloadsOverflow          4 // There were more overloads for a function than what was allocated
+#define iErrorOverloadsNotFull           5 // There were fewer overloads for a function than what was allocated
 
 //}}}
 //{{{ Syntax errors
@@ -1593,8 +1595,9 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
         add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
-        if (lx->backtrack->length > 0) {
-            if (peek(lx->backtrack).tp == tokFnDef) {
+        if (lx->backtrack->length > 1) {
+            if (lx->backtrack->content[lx->backtrack->length - 2].tp == tokFnDef) {                
+                closeStatement(lx);
                 add((Token){ .tp = tokEqualsSign, .startBt = lx->i, .lenBts = 1 }, lx);
                 lx->i++; // CONSUME the =
                 return;
@@ -2923,7 +2926,6 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Compile
         }
     }
     cm->countNonparsedEntities = cm->entities.length;
-    print("import end")
 }
 
 
@@ -3253,17 +3255,49 @@ private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
     } 
 }
 
+private void addParsedOverload(Int overloadId, Int lastParamTypeId, Int entityId, Compiler* cm) {
+    Int overloadInd = cm->overloadIds.content[overloadId];
+    Int nextOverloadInd = cm->overloadIds.content[overloadId + 1];
+    Int maxOverloadCount = (nextOverloadInd - overloadInd - 1)/2;
+    Int currConcreteOverloadCount = cm->overloads.content[overloadInd];
+    print("maxOverloadCount %d currConcreteOverloadCount %d")
+
+    Int sentinel = overloadInd + maxOverloadCount + 1;
+    Int j = overloadInd + currConcreteOverloadCount + 1;
+    for (; j < sentinel && cm->overloads.content[j] > -1; j++) {}
+    
+#if SAFETY
+    VALIDATEI(j < sentinel, iErrorOverloadsOverflow)
+#endif
+
+    cm->overloads.content[j] = lastParamTypeId;
+    cm->overloads.content[j + maxOverloadCount] = entityId;
+    ++cm->overloads.content[overloadInd];
+}
+
+#if SAFETY
+private void validateOverloadsFull(Compiler* cm) {
+    
+}
+#endif
+
 /** 
  * Parses a top-level function signature.
  * Emits no nodes, only an entity and an overload
  */
 private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Lexer* lx, Compiler* cm) {
-    // addTypeToStore    
-    Int fnSentinelToken = cm->i + fnDef.pl2 - 1;
+    Int fnStartTokenId = cm->i - 2;    
+    Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
     Int byteSentinel = fnDef.startBt + fnDef.lenBts;
     
     Token fnName = lx->tokens[cm->i];
     Int fnNameId = fnName.pl2;
+    Int overloadId = cm->activeBindings[fnNameId];
+    
+#if SAFETY
+    VALIDATEI(overloadId < -1, iErrorParsedFunctionNotInScope)
+#endif
+
     cm->i++; // CONSUME the function name token
 
     Int tentativeTypeInd = cm->types.length;
@@ -3312,9 +3346,9 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     cm->types.content[tentativeTypeInd] = arity + 1;
     Int uniqueTypeId = addTypeToStore(tentativeTypeInd*4, (arity + 2)*4, cm);
     cm->entities.content[fnEntityId].typeId = uniqueTypeId;
-    // overloadAdd!
-    pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = fnSentinelToken,
-         .startBt = fnDef.startBt, .lenBts = fnDef.lenBts }, toplevelSignatures);
+    addParsedOverload(overloadId, cm->types.content[uniqueTypeId + arity + 1], fnEntityId, cm);
+    pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = paramsTokenInd,
+         .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
 }
 
 /** 
@@ -3322,25 +3356,29 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
  * The result is the AST [FnDef EntityName Scope EntityParam1 EntityParam2 ... ]
  */
 private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compiler* cm) {
-    Int fnSentinelToken = toplevelSignature.pl2;
-    cm->i = toplevelSignature.tokenInd;
+    Int fnSentinelToken = toplevelSignature.lenBts;
+    cm->i = toplevelSignature.pl2; // paramsTokenInd from fn "parseToplevelSignature"
+    Token fnDefToken = tokens[toplevelSignature.startBt];
 
     // the fnDef scope & node
-    push((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinel }, cm->backtrack);    
-    pushInnodes(toplevelSignature, cm);
+    push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken }), cm->backtrack);
+    pushInnodes(((Node){ .tp = nodFnDef, .pl1 = toplevelSignature.pl1,
+        .startBt = fnDefToken.startBt, .lenBts = fnDefToken.lenBts }), cm);
     
     // the scope for the function body
-    push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, 
-        .sentinelToken = fnSentinel }), cm->backtrack);        
+    push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken }), cm->backtrack);
+    print("here %d", cm->i)
     pushScope(cm->scopeStack);
-    Token parens = lx->tokens[cm->i];
+    pushInnodes(((Node){ .tp = nodScope, .startBt = tokens[cm->i].startBt,
+        .lenBts = fnDefToken.lenBts - tokens[cm->i].startBt + fnDefToken.startBt }), cm);
+    Token parens = tokens[cm->i];
         
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
 
     Int arity = 0;
     while (cm->i < paramsSentinel) {
-        Token paramName = lx->tokens[cm->i];
+        Token paramName = tokens[cm->i];
         Int newEntityId = createBinding(paramName, (Entity){.nameId = paramName.pl2}, cm);
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
         ++cm->i; // CONSUME a param name
@@ -3349,6 +3387,7 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     }
     
     ++cm->i; // CONSUME the "=" sign
+    parseUpTo(fnSentinelToken, tokens, cm);
 }
 
 /** Parses top-level function params and bodies */
@@ -3359,7 +3398,7 @@ private void parseFunctionBodies(StackNode* toplevelSignatures, Lexer* lx, Compi
 }
 
 private StackNode* parseToplevelSignatures(Lexer* lx, Compiler* cm) {
-    StackNode* topLevelSignatures = createStackNode(16, cm->aTemp);
+    StackNode* topLevelSignatures = createStackNode(16, cm->aTmp);
     cm->i = 0;
     const Int len = lx->totalTokens;
     while (cm->i < len) {
@@ -3370,7 +3409,7 @@ private StackNode* parseToplevelSignatures(Lexer* lx, Compiler* cm) {
             VALIDATEP(lenTokens >= 2, errorFnNameAndParams)
             
             cm->i += 2; // CONSUME the function def token and the stmt token
-            parseFnSignature(tok, topLevelSignatures, lx, cm);
+            parseToplevelSignature(tok, topLevelSignatures, lx, cm);
             cm->i = sentinelToken;
         } else {            
             cm->i += (tok.pl2 + 1);  // CONSUME the whole non-function span
@@ -3395,11 +3434,15 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
 
         // This gives us the complete overloads & overloadIds tables
         createOverloads(cm);
+        // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
         StackNode* topLevelSignatures = parseToplevelSignatures(lx, cm);
         
+#if SAFETY
+        validateOverloadsFull(cm);
+#endif
 
         // The main parse (all top-level function bodies)
-        parseFunctionBodies(lx, topLevelSignatures, cm);
+        parseFunctionBodies(topLevelSignatures, lx, cm);
     }
     return cm;
 }

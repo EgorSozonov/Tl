@@ -548,8 +548,9 @@ struct Compiler {
     Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
 
     /**
-     * [aTmp] growing array of counts of all fn name definitions encountered (for the typechecker to use)
-     * Upper 16 bits contain concrete count, lower 16 bits total count
+     * [aTmp] Initially, growing array of counts of all fn names encountered.
+     * Upper 16 bits contain concrete count, lower 16 bits total count. After "createOverloads", contains overload indices
+     * into the "overloads" table.
      */
     InStackUns overloadIds;
 

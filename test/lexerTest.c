@@ -900,23 +900,23 @@ LexerTestSet* coreFormTests(Arena* a) {
          (LexerTest) { .name = s("Function simple 1"),
              .input = s("(.f foo Int(x Int y Int) = x - y)"),
              .expectedOutput = buildLexer(((Token[]){
-                 (Token){ .tp = tokFnDef, .pl1 = 1, .pl2 = 13, .startBt = 0, .lenBts = 35 },
+                 (Token){ .tp = tokFnDef, .pl1 = 1, .pl2 = 13, .startBt = 0, .lenBts = 33 },
                  
-                 (Token){ .tp = tokStmt, .pl2 = 8, .startBt = 4, .lenBts = 23 },
-                 (Token){ .tp = tokParens, .pl2 = 7, .startBt = 4, .lenBts = 23 },
-                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 5, .lenBts = 3 },     // foo
-                 (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 9, .lenBts = 3 }, // Int
+                 (Token){ .tp = tokStmt, .pl2 = 7, .startBt = 4, .lenBts = 20 },
+                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 4, .lenBts = 3 }, // foo
+                 (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 8, .lenBts = 3 }, // Int                 
+                 (Token){ .tp = tokParens, .pl2 = 4, .startBt = 11, .lenBts = 13 },
+                 (Token){ .tp = tokWord, .pl2 = 2, .startBt = 12, .lenBts = 1 }, // x
+                 (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 14, .lenBts = 3 }, // Int
+                 (Token){ .tp = tokWord, .pl2 = 3, .startBt = 18, .lenBts = 1 }, // y
+                 (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 20, .lenBts = 3 }, // Int
                  
-                 (Token){ .tp = tokParens, .pl2 = 4, .startBt = 13, .lenBts = 13 },
-                 (Token){ .tp = tokWord, .pl2 = 2, .startBt = 15, .lenBts = 1 }, // x
-                 (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 17, .lenBts = 3 }, // Int
-                 (Token){ .tp = tokWord, .pl2 = 3, .startBt = 21, .lenBts = 1 }, // y
-                 (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 23, .lenBts = 3 }, // Int
+                 (Token){ .tp = tokEqualsSign, .startBt = 25, .lenBts = 1 },
                  
-                 (Token){ .tp = tokStmt, .pl2 = 3, .startBt = 29, .lenBts = 5 },
-                 (Token){ .tp = tokWord, .pl2 = 2, .startBt = 29, .lenBts = 1 },                
-                 (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 31, .lenBts = 1 },      
-                 (Token){ .tp = tokWord, .pl2 = 3, .startBt = 33, .lenBts = 1 } // y
+                 (Token){ .tp = tokStmt, .pl2 = 3, .startBt = 27, .lenBts = 5 },
+                 (Token){ .tp = tokWord, .pl2 = 2, .startBt = 27, .lenBts = 1 }, // x       
+                 (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 29, .lenBts = 1 },      
+                 (Token){ .tp = tokWord, .pl2 = 3, .startBt = 31, .lenBts = 1 } // y
          }))},
          (LexerTest) { .name = s("Function simple error"),
              .input = s("x + (.f foo Int(x Int y Int) = x - y)"),
