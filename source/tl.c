@@ -3040,12 +3040,25 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTIncrement, intOfInt, cm);
     buildOperator(opTPlus, intOfIntInt, cm);    
     buildOperator(opTPlus, flOfFlFl, cm);
+    buildOperator(opTPlus, strOfStrStr, cm);
     buildOperator(opTToFloat, flOfInt, cm);
+#ifdef TEST
+    cm->langDef->entOpPlusInt = cm->entities.length - 4;
+    cm->langDef->entOpPlusFloat = cm->entities.length - 3;
+    cm->langDef->entOpPlusString = cm->entities.length - 2;
+    cm->langDef->entOpToFloatInt = cm->entities.length - 1;
+#endif
     buildOperator(opTDecrement, intOfInt, cm);
     buildOperator(opTMinus, intOfIntInt, cm);
     buildOperator(opTMinus, flOfFlFl, cm);
     buildOperator(opTDivBy, intOfIntInt, cm);
     buildOperator(opTDivBy, flOfFlFl, cm);
+#ifdef TEST
+    cm->langDef->entOpMinusInt = cm->entities.length - 4;
+    cm->langDef->entOpMinusFloat = cm->entities.length - 3;
+    cm->langDef->entOpDivInt = cm->entities.length - 2;
+    cm->langDef->entOpDivFloat = cm->entities.length - 1;
+#endif
     buildOperator(opTComparator, intOfIntInt, cm);
     buildOperator(opTComparator, intOfFlFl, cm);
     buildOperator(opTComparator, intOfStrStr, cm);
@@ -3061,10 +3074,22 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTGreaterThan, boolOfIntInt, cm);
     buildOperator(opTGreaterThan, boolOfFlFl, cm);
     buildOperator(opTGreaterThan, boolOfStrStr, cm);
+    buildOperator(opTEquality, boolOfIntInt, cm);
+#ifdef TEST
+    cm->langDef->entOpLtInt = cm->entities.length - 7;
+    cm->langDef->entOpLtFloat = cm->entities.length - 6;
+    cm->langDef->entOpGtInt = cm->entities.length - 4;
+    cm->langDef->entOpGtFloat = cm->entities.length - 3;
+    cm->langDef->entOpEqualityInt = cm->entities.length - 1;
+#endif
     buildOperator(opTExponent, intOfIntInt, cm);
     buildOperator(opTExponent, flOfFlFl, cm);
     buildOperator(opTNegation, intOfInt, cm);
     buildOperator(opTNegation, flOfFl, cm);
+#ifdef TEST
+    cm->langDef->entOpNegateInt = cm->entities.length - 2;
+    cm->langDef->entOpNegateFloat = cm->entities.length - 1;
+#endif
     cm->countOperatorEntities = cm->entities.length;
 }
 

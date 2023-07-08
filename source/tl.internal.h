@@ -412,6 +412,23 @@ struct LanguageDefinition {
     Int (*reservedParensOrNot)[countCoreForms];
     ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
+#ifdef TEST
+    Int entOpPlusInt;
+    Int entOpPlusFloat;
+    Int entOpPlusString;
+    Int entOpToFloatInt;
+    Int entOpDivInt;
+    Int entOpDivFloat;
+    Int entOpMinusInt;
+    Int entOpMinusFloat;
+    Int entOpNegateInt;
+    Int entOpNegateFloat;
+    Int entOpLtInt;
+    Int entOpLtFloat;
+    Int entOpGtInt;
+    Int entOpGtFloat;
+    Int entOpEqualityInt;
+#endif
 };
 
 typedef struct {
@@ -544,9 +561,9 @@ struct Compiler {
 
     InStackNode nodes;
 
-    InStackEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered
-    Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overload
-    Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded entity
+    InStackEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered    
+    Int entImportedZero;      // the index of the first imported entity
+    Int entParsedZero;         // the index of the first parsed (as opposed to being built-in or imported) entity
 
     /**
      * [aTmp] Initially, growing array of counts of all fn names encountered.
