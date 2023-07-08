@@ -628,9 +628,10 @@ testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* strin
 
 #define iErrorInconsistentSpans          1 // Inconsistent span length / structure of token scopes!;
 #define iErrorImportedFunctionNotInScope 2 // There is a -1 or something else in the activeBindings table for an imported function
-#define iErrorParsedFunctionNotInScope   3 // There is a -1 or something else in the activeBindings table for an imported function
+#define iErrorParsedFunctionNotInScope   3 // There is a -1 or something else in the activeBindings table for a parsed function
 #define iErrorOverloadsOverflow          4 // There were more overloads for a function than what was allocated
 #define iErrorOverloadsNotFull           5 // There were fewer overloads for a function than what was allocated
+#define iErrorOverloadsIncoherent        6 // The overloads table is incoherent
 
 //}}}
 //{{{ Syntax errors
@@ -1596,7 +1597,10 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
         if (lx->backtrack->length > 1) {
-            if (lx->backtrack->content[lx->backtrack->length - 2].tp == tokFnDef) {                
+
+            BtToken grandparent = lx->backtrack->content[lx->backtrack->length - 2];
+            BtToken parent = lx->backtrack->content[lx->backtrack->length - 1];
+            if (grandparent.tp == tokFnDef && parent.tokenInd == (grandparent.tokenInd + 1)) { // we are in the 1st stmt of fn def
                 closeStatement(lx);
                 add((Token){ .tp = tokEqualsSign, .startBt = lx->i, .lenBts = 1 }, lx);
                 lx->i++; // CONSUME the =
@@ -2401,7 +2405,7 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Compiler
             }
             
             VALIDATEP(mbBnd < -1, errorUnknownFunction)            
-
+            print("emitting call %d overloadId %d cm->entOverloadZero %d", cm->i, mbBnd, cm->entOverloadZero)
             pushInnodes((Node){.tp = nodCall, .pl1 = mbBnd, .pl2 = *arity, .startBt = firstTk.startBt, .lenBts = firstTk.lenBts}, cm);
             *arity = 0;
             cm->i++; // CONSUME the function or operator call token
@@ -3081,6 +3085,7 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
         }
     }
     buildInOperators(cm);
+    cm->importedOverloadZero = cm->overloadIds.length;
 
     Int voidOfStr = cm->types.length;
     addFunctionType(1, (Int[]){tokString}, cm);
@@ -3260,7 +3265,6 @@ private void addParsedOverload(Int overloadId, Int lastParamTypeId, Int entityId
     Int nextOverloadInd = cm->overloadIds.content[overloadId + 1];
     Int maxOverloadCount = (nextOverloadInd - overloadInd - 1)/2;
     Int currConcreteOverloadCount = cm->overloads.content[overloadInd];
-    print("maxOverloadCount %d currConcreteOverloadCount %d")
 
     Int sentinel = overloadInd + maxOverloadCount + 1;
     Int j = overloadInd + currConcreteOverloadCount + 1;
@@ -3277,7 +3281,34 @@ private void addParsedOverload(Int overloadId, Int lastParamTypeId, Int entityId
 
 #if SAFETY
 private void validateOverloadsFull(Compiler* cm) {
-    
+    Int lenTypes = cm->types.length;
+    Int lenEntities = cm->entities.length;
+    for (Int i = 1; i < cm->overloadIds.length; i++) {
+        Int currInd = cm->overloadIds.content[i - 1];
+        Int nextInd = cm->overloadIds.content[i];
+        VALIDATEI((nextInd > currInd + 2) && (nextInd - currInd) % 2 == 1, iErrorOverloadsIncoherent)
+
+        Int countOverloads = (nextInd - currInd - 1)/2;
+        Int countConcreteOverloads = cm->overloads[currInd];
+        VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
+
+        for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
+            if (cm->overloads[j] < 0) {
+                throwExcInternal(iErrorOverloadsNotFull, cm);
+            }
+            if (cm->overloads[j] >= lenTypes) {
+                throwExcInternal(iErrorOverloadsIncoherent, cm);
+            }
+        }
+        for (Int j = currInt + countOverloads + 1; j < nextInd; j++) {
+            if (cm->overloads[j] < 0) {
+                throwExcInternal(iErrorOverloadsNotFull, cm);
+            }
+            if (cm->overloads[j] >= lenEntities) {
+                throwExcInternal(iErrorOverloadsIncoherent, cm);
+            }
+        }
+    }
 }
 #endif
 
@@ -3367,7 +3398,6 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     
     // the scope for the function body
     push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken }), cm->backtrack);
-    print("here %d", cm->i)
     pushScope(cm->scopeStack);
     pushInnodes(((Node){ .tp = nodScope, .startBt = tokens[cm->i].startBt,
         .lenBts = fnDefToken.lenBts - tokens[cm->i].startBt + fnDefToken.startBt }), cm);

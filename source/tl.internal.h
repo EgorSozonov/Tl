@@ -330,6 +330,7 @@ typedef struct {
  */ 
 #define countLexOperators   40
 #define countOperators      43 // count of things that are stored as operators, regardless of how they are lexed
+#define countOpersWithDefs  22 // count of operators that have at least one built-in definition
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType tokScope
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
@@ -544,8 +545,8 @@ struct Compiler {
     InStackNode nodes;
 
     InStackEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered
-    Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overloaded binding
-    Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded binding
+    Int entOverloadZero;       // the index of the first parsed (as opposed to being built-in or imported) overload
+    Int entBindingZero;        // the index of the first parsed (as opposed to being built-in or imported) non-overloaded entity
 
     /**
      * [aTmp] Initially, growing array of counts of all fn names encountered.

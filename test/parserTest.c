@@ -20,9 +20,10 @@ typedef struct {
     ParserTest* tests;
 } ParserTestSet;
 
-#define B  70000000 // A constant larger than the largest allowed file size to distinguish unshifted binding ids
-#define M 140000000 // The "zero" for construction of bindings and overloads
-#define F (M - countOperators - 2) // The base index for imported (but not built-in) overloads
+#define B   70000000 // A constant larger than the largest allowed file size. Separates parsed entities from others
+#define M  140000000 // The "zero" for construction of built-in entities and overloads
+#define B2 210000000 // The separator between built-ins and imports
+#define F  280000000 // The base index for imported entities/overloads
 
 /** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
@@ -68,11 +69,13 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(ParserTest), tests)
 
 private Int transformBindingEntityId(Int inputFromTestData, Compiler* pr) {
-    if (inputFromTestData < B) {
+    if (inputFromTestData < B) { // parsed stuff
         return (inputFromTestData < 0) ? (inputFromTestData - pr->entOverloadZero)
                                        : (inputFromTestData + pr->entBindingZero);
+    } else if (inputFromTestData < B2) { // built-in and imported stuff
+        
     } else {
-        return inputFromTestData - M;
+        return inputFromTestData - F;
     }
 }
 
@@ -83,7 +86,7 @@ private Int transformBindingEntityId(Int inputFromTestData, Compiler* pr) {
  *  it will be inserted as 1 + (the number of built-in bindings)
  */
 private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int countNodes, 
-                               Arr(EntityImport) bindings, Int countBindings,
+                               Arr(EntityImport) imports, Int countImports,
                                Arr(OverloadImport) overloadCounts, Int countOverloadCounts,
                                LanguageDefinition* langDef, Arena* a) {
     Lexer* lx = lexicallyAnalyze(input, langDef, a);
@@ -93,8 +96,8 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
         return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
     }
     
-    importEntities(bindings, countBindings, initParser);
-    importEntities(bindings, countBindings, expectedParser);
+    importEntities(imports, countImports, initParser);
+    importEntities(imports, countImports, expectedParser);
     importOverloads(overloadCounts, countOverloadCounts, initParser);
     importOverloads(overloadCounts, countOverloadCounts, expectedParser);
     initParser->entBindingZero = initParser->entities.length;
@@ -1036,25 +1039,25 @@ ParserTestSet* loopTests(LanguageDefinition* langDef, Arena* a) {
               "    (.loop (< x 101) \n"
               "        print x))"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 14,               .lenBts = 61 },
-                (Node){ .tp = nodScope, .pl2 = 13,           .startBt = 9, .lenBts = 52 }, // function body
+                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 14,               .lenBts = 63 },
+                (Node){ .tp = nodScope, .pl2 = 13,           .startBt = 9, .lenBts = 54 }, // function body
 
-                (Node){ .tp = nodAssignment, .pl2 = 2,       .startBt = 16, .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 0,          .startBt = 16, .lenBts = 1 },  // x
-                (Node){ .tp = tokInt, .pl2 = 4,              .startBt = 20, .lenBts = 1 },
+                (Node){ .tp = nodAssignment, .pl2 = 2,       .startBt = 18, .lenBts = 5 },
+                (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 18, .lenBts = 1 },  // x
+                (Node){ .tp = tokInt, .pl2 = 4,              .startBt = 22, .lenBts = 1 },
                 
-                (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 9, .startBt = 26, .lenBts = 34 },                
-                (Node){ .tp = nodScope, .pl2 = 8,           .startBt = 52, .lenBts = 8 },
+                (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 9, .startBt = 28, .lenBts = 34 },                
+                (Node){ .tp = nodScope, .pl2 = 8,           .startBt = 54, .lenBts = 8 },
                 
-                (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 33, .lenBts = 9 },
-                (Node){ .tp = nodExpr, .pl2 = 3,            .startBt = 33, .lenBts = 9 },
-                (Node){ .tp = nodCall, .pl1 = -opTLessThan - 2 + M, .pl2 = 2, .startBt = 34, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2,    .startBt = 36, .lenBts = 1 }, // x
-                (Node){ .tp = tokInt, .pl2 = 101,           .startBt = 38, .lenBts = 3 },
+                (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 35, .lenBts = 9 },
+                (Node){ .tp = nodExpr, .pl2 = 3,            .startBt = 35, .lenBts = 9 },
+                (Node){ .tp = nodCall, .pl1 = -opTLessThan - 2 + M, .pl2 = 2, .startBt = 36, .lenBts = 1 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 38, .lenBts = 1 }, // x
+                (Node){ .tp = tokInt, .pl2 = 101,           .startBt = 40, .lenBts = 3 },
                 
-                (Node){ .tp = nodExpr, .pl2 = 2,            .startBt = 52, .lenBts = 7 },
-                (Node){ .tp = nodCall, .pl1 = F, .pl2 = 1,  .startBt = 52, .lenBts = 5 }, // print
-                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2,    .startBt = 58, .lenBts = 1 }  // x
+                (Node){ .tp = nodExpr, .pl2 = 2,            .startBt = 54, .lenBts = 7 },
+                (Node){ .tp = nodCall, .pl1 = F, .pl2 = 1,  .startBt = 54, .lenBts = 5 }, // print
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2,    .startBt = 50, .lenBts = 1 }  // x
 
             }),
             ((EntityImport[]) {}),
