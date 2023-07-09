@@ -2275,9 +2275,12 @@ private Int createBinding(Token bindingToken, Entity e, Compiler* cm) {
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
 private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
+
+    print("fnDefIncrementOverlCount activeValue %d", activeValue)
     VALIDATEP(activeValue < 0, errorAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
         cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
+        print("pushing overl id  %d", cm->overloadIds.length)
         pushInoverloadIds(SIXTEENPLUSONE, cm);        
     } else { // other overloads have already been registered, so just increment the counts
         cm->overloadIds.content[-activeValue - 2] += SIXTEENPLUSONE;
@@ -2404,9 +2407,9 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Compiler
                 mbBnd = -firstTk.pl1 - 2;
             }
             
-            VALIDATEP(mbBnd < -1, errorUnknownFunction)            
-            print("emitting call %d overloadId %d cm->entOverloadZero %d", cm->i, mbBnd, cm->entOverloadZero)
-            pushInnodes((Node){.tp = nodCall, .pl1 = mbBnd, .pl2 = *arity, .startBt = firstTk.startBt, .lenBts = firstTk.lenBts}, cm);
+            VALIDATEP(mbBnd < -1, errorUnknownFunction)
+            pushInnodes((Node){.tp = nodCall, .pl1 = mbBnd, .pl2 = *arity, .startBt = firstTk.startBt, .lenBts = firstTk.lenBts},
+                        cm);
             *arity = 0;
             cm->i++; // CONSUME the function or operator call token
         }
@@ -2490,7 +2493,7 @@ private void maybeCloseSpans(Compiler* cm) {
         if (cm->i < frame.sentinelToken) {
             return;
         }
-#if SAFETY
+#ifdef SAFETY
         VALIDATEI(cm->i == frame.sentinelToken, iErrorInconsistentSpans)
 #endif        
         popFrame(cm);
@@ -2932,16 +2935,6 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Compile
     cm->countNonparsedEntities = cm->entities.length;
 }
 
-
-testable void importOverloads(Arr(OverloadImport) impts, Int countImports, Compiler* cm) {
-    for (int i = 0; i < countImports; i++) {        
-        Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
-        if (mbNameId > -1) {
-            fnDefIncrementOverlCount(mbNameId, cm);
-        }
-    }
-}
-
 /** Unique'ing of types. Returns the index of existing type if this one isn't new, and -1 otherwise */
 private Int addTypeToStore(Int startBt, Int lenBts, Compiler* cm) {
     byte* types = (byte*)cm->types.content;
@@ -2993,12 +2986,12 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
 }
 
 
-private void buildOperator(Int operId, Int typeId, Compiler* cm) {
+private void buildOperator(Int operId, bool isFirst, Int typeId, Compiler* cm) {
     pushInentities((Entity){.typeId = typeId, .nameId = operId}, cm);
-    if (operId < cm->overloadIds.length) {        
-        cm->overloadIds.content[operId] += SIXTEENPLUSONE;
-    } else {
+    if (isFirst) {
         pushInoverloadIds(SIXTEENPLUSONE, cm);
+    } else {
+        cm->overloadIds.content[cm->overloadIds.length - 1] += SIXTEENPLUSONE;
     }
 }
 
@@ -3024,57 +3017,58 @@ private void buildInOperators(Compiler* cm) {
     Int flOfFlFl = addFunctionType(2, (Int[]){tokFloat, tokFloat, tokFloat}, cm);
     Int flOfInt = addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
     Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
-    buildOperator(opTNotEqual, boolOfIntInt, cm);
-    buildOperator(opTNotEqual, boolOfFlFl, cm);
-    buildOperator(opTNotEqual, boolOfStrStr, cm);
-    buildOperator(opTBoolNegation, boolOfBool, cm);
-    buildOperator(opTSize, intOfStr, cm);
-    buildOperator(opTSize, intOfInt, cm);
-    buildOperator(opTToString, strOfInt, cm);
-    buildOperator(opTToString, strOfFloat, cm);
-    buildOperator(opTToString, strOfBool, cm);
-    buildOperator(opTRemainder, intOfIntInt, cm);
-    buildOperator(opTBinaryAnd, boolOfBoolBool, cm);
-    buildOperator(opTTimes, intOfIntInt, cm);
-    buildOperator(opTTimes, flOfFlFl, cm);
-    buildOperator(opTIncrement, intOfInt, cm);
-    buildOperator(opTPlus, intOfIntInt, cm);    
-    buildOperator(opTPlus, flOfFlFl, cm);
-    buildOperator(opTPlus, strOfStrStr, cm);
-    buildOperator(opTToFloat, flOfInt, cm);
+    Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
+    buildOperator(opTNotEqual, true, boolOfIntInt, cm);
+    buildOperator(opTNotEqual, false, boolOfFlFl, cm);
+    buildOperator(opTNotEqual, false, boolOfStrStr, cm);
+    buildOperator(opTBoolNegation, true, boolOfBool, cm);
+    buildOperator(opTSize, true, intOfStr, cm);
+    buildOperator(opTSize, false, intOfInt, cm);
+    buildOperator(opTToString, true, strOfInt, cm);
+    buildOperator(opTToString, false, strOfFloat, cm);
+    buildOperator(opTToString, false, strOfBool, cm);
+    buildOperator(opTRemainder, true, intOfIntInt, cm);
+    buildOperator(opTBinaryAnd, true, boolOfBoolBool, cm);
+    buildOperator(opTTimes, true, intOfIntInt, cm);
+    buildOperator(opTTimes, false, flOfFlFl, cm);
+    buildOperator(opTIncrement, true, intOfInt, cm);
+    buildOperator(opTPlus, true, intOfIntInt, cm);    
+    buildOperator(opTPlus, false, flOfFlFl, cm);
+    buildOperator(opTPlus, false, strOfStrStr, cm);
+    buildOperator(opTToFloat, true, flOfInt, cm);
 #ifdef TEST
     cm->langDef->entOpPlusInt = cm->entities.length - 4;
     cm->langDef->entOpPlusFloat = cm->entities.length - 3;
     cm->langDef->entOpPlusString = cm->entities.length - 2;
     cm->langDef->entOpToFloatInt = cm->entities.length - 1;
 #endif
-    buildOperator(opTDecrement, intOfInt, cm);
-    buildOperator(opTMinus, intOfIntInt, cm);
-    buildOperator(opTMinus, flOfFlFl, cm);
-    buildOperator(opTDivBy, intOfIntInt, cm);
-    buildOperator(opTDivBy, flOfFlFl, cm);
+    buildOperator(opTDecrement, true, intOfInt, cm);
+    buildOperator(opTMinus, true, intOfIntInt, cm);
+    buildOperator(opTMinus, false, flOfFlFl, cm);
+    buildOperator(opTDivBy, true, intOfIntInt, cm);
+    buildOperator(opTDivBy, false, flOfFlFl, cm);
 #ifdef TEST
     cm->langDef->entOpMinusInt = cm->entities.length - 4;
     cm->langDef->entOpMinusFloat = cm->entities.length - 3;
     cm->langDef->entOpDivInt = cm->entities.length - 2;
     cm->langDef->entOpDivFloat = cm->entities.length - 1;
 #endif
-    buildOperator(opTComparator, intOfIntInt, cm);
-    buildOperator(opTComparator, intOfFlFl, cm);
-    buildOperator(opTComparator, intOfStrStr, cm);
-    buildOperator(opTLTEQ, boolOfIntInt, cm);
-    buildOperator(opTLTEQ, boolOfFlFl, cm);
-    buildOperator(opTLTEQ, boolOfStrStr, cm);
-    buildOperator(opTGTEQ, boolOfIntInt, cm);
-    buildOperator(opTGTEQ, boolOfFlFl, cm);
-    buildOperator(opTGTEQ, boolOfStrStr, cm);
-    buildOperator(opTLessThan, boolOfIntInt, cm);
-    buildOperator(opTLessThan, boolOfFlFl, cm);
-    buildOperator(opTLessThan, boolOfStrStr, cm);
-    buildOperator(opTGreaterThan, boolOfIntInt, cm);
-    buildOperator(opTGreaterThan, boolOfFlFl, cm);
-    buildOperator(opTGreaterThan, boolOfStrStr, cm);
-    buildOperator(opTEquality, boolOfIntInt, cm);
+    buildOperator(opTComparator, true, intOfIntInt, cm);
+    buildOperator(opTComparator, false, intOfFlFl, cm);
+    buildOperator(opTComparator, false, intOfStrStr, cm);
+    buildOperator(opTLTEQ, true, boolOfIntInt, cm);
+    buildOperator(opTLTEQ, false, boolOfFlFl, cm);
+    buildOperator(opTLTEQ, false, boolOfStrStr, cm);
+    buildOperator(opTGTEQ, true, boolOfIntInt, cm);
+    buildOperator(opTGTEQ, false, boolOfFlFl, cm);
+    buildOperator(opTGTEQ, false, boolOfStrStr, cm);
+    buildOperator(opTLessThan, true, boolOfIntInt, cm);
+    buildOperator(opTLessThan, false, boolOfFlFl, cm);
+    buildOperator(opTLessThan, false, boolOfStrStr, cm);
+    buildOperator(opTGreaterThan, true, boolOfIntInt, cm);
+    buildOperator(opTGreaterThan, false, boolOfFlFl, cm);
+    buildOperator(opTGreaterThan, false, boolOfStrStr, cm);
+    buildOperator(opTEquality, true, boolOfIntInt, cm);
 #ifdef TEST
     cm->langDef->entOpLtInt = cm->entities.length - 7;
     cm->langDef->entOpLtFloat = cm->entities.length - 6;
@@ -3082,15 +3076,26 @@ private void buildInOperators(Compiler* cm) {
     cm->langDef->entOpGtFloat = cm->entities.length - 3;
     cm->langDef->entOpEqualityInt = cm->entities.length - 1;
 #endif
-    buildOperator(opTExponent, intOfIntInt, cm);
-    buildOperator(opTExponent, flOfFlFl, cm);
-    buildOperator(opTNegation, intOfInt, cm);
-    buildOperator(opTNegation, flOfFl, cm);
+    buildOperator(opTExponent, true, intOfIntInt, cm);
+    buildOperator(opTExponent, false, flOfFlFl, cm);
+    buildOperator(opTNegation, true, intOfInt, cm);
+    buildOperator(opTNegation, false, flOfFl, cm);
 #ifdef TEST
     cm->langDef->entOpNegateInt = cm->entities.length - 2;
     cm->langDef->entOpNegateFloat = cm->entities.length - 1;
 #endif
     cm->countOperatorEntities = cm->entities.length;
+
+#ifdef TEST
+    cm->langDef->typBoolOfVoid = addFunctionType(0, (Int[]){tokBool}, cm);
+    cm->langDef->typStringOfIntBoolFloat = addFunctionType(3, (Int[]){tokString, tokInt, tokBool, tokFloat}, cm);
+    cm->langDef->typFloatOfIntIntInt = addFunctionType(3, (Int[]){tokFloat, tokInt, tokInt, tokInt}, cm);
+    cm->langDef->typIntOfInt = intOfInt;
+    cm->langDef->typIntOfIntInt = intOfIntInt;
+    cm->langDef->typIntOfIntIntIntInt = addFunctionType(4, (Int[]){tokInt, tokInt, tokInt, tokInt, tokInt}, cm);
+    cm->langDef->typVoidOfStr = voidOfStr;
+#endif
+    print("after opers, overloadId len %d", cm->overloadIds.length)
 }
 
 /* Entities and overloads for the built-in operators, types and functions. */
@@ -3110,7 +3115,9 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
         }
     }
     buildInOperators(cm);
-    cm->importedOverloadZero = cm->overloadIds.length;
+    print("here %d", cm->overloads.length)
+    print("after operators %d %d %d", cm->overloads.content[107], cm->overloads.content[108], cm->overloads.content[109])
+    cm->entImportedZero = cm->overloadIds.length;
 
     Int voidOfStr = cm->types.length;
     addFunctionType(1, (Int[]){tokString}, cm);
@@ -3181,9 +3188,10 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
         if (ent.nameId != currOperId) {
             currOperId = ent.nameId;
             o = cm->overloadIds.content[currOperId] + 1;
-            countOverls = cm->overloads.content[cm->overloadIds.content[currOperId]];
-            sentinel = o + countOverls;
+            countOverls = (cm->overloadIds.content[currOperId + 1] - cm->overloadIds.content[currOperId] - 1)/2;
+            sentinel = cm->overloadIds.content[currOperId + 1];
         }
+        print("o = %d", o)
         if (countOverls > 0) {
             cm->overloads.content[o] = getLastParamType(ent.typeId, cm);
             cm->overloads.content[o + countOverls] = i;
@@ -3191,7 +3199,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
         
         o++;
     }
-
+    print("after operators %d %d %d", cm->overloads.content[118], cm->overloads.content[119], cm->overloads.content[120])
     // imported functions
     Int currFuncNameId = -1;
     Int currFuncId = -1;
@@ -3204,7 +3212,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
         if (ent.nameId != currFuncNameId) {
             currFuncNameId = ent.nameId;
             currFuncId = cm->activeBindings[currFuncNameId];
-#if SAFETY
+#ifdef SAFETY
             VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
 #endif            
             o = cm->overloadIds.content[-currFuncId - 2] + 1;
@@ -3212,7 +3220,8 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
             sentinel = o + countOverls;
         }
 
-#if SAFETY
+#ifdef SAFETY
+        print("overflow o %d sentinel %d", o, sentinel)
         VALIDATEI(o < sentinel, iErrorOverloadsOverflow)
 #endif        
         
@@ -3227,14 +3236,19 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
  * Allocates the table with overloads and semi-fills it (only the imports and built-ins, not toplevel).
  * Also finalizes the overloadIds table to contain actual indices (not counts that were there initially)
  */
-testable void createOverloads(Compiler* cm) {    
+testable void createOverloads(Compiler* cm) {
+    print("create overloads")
     Int neededCount = 0;
     for (Int i = 0; i < cm->overloadIds.length; i++) {
         // a typeId and an entityId for each overload, plus a length field for the list
         neededCount += (2*(cm->overloadIds.content[i] >> 16) + 1);
     }
+    print("overls neededCount %d", neededCount);
     cm->overloads = createInStackInt(neededCount, cm->a);
+    cm->overloads.length = neededCount;
+    memset(cm->overloads.content, 0xFF, neededCount*4);
 
+    print("after memset %d %d %d", cm->overloads.content[107], cm->overloads.content[108], cm->overloads.content[109])
     Int j = 0;
     for (Int i = 0; i < cm->overloadIds.length; i++) {
         // length of the overload list (to be filled during type check/resolution)
@@ -3243,9 +3257,8 @@ testable void createOverloads(Compiler* cm) {
         cm->overloadIds.content[i] = j;
         j += (2*maxCountOverloads + 1);
     }
-
     populateOverloadsForOperatorsAndImports(cm);
-    pushInoverloadIds(cm->overloads.length, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds    
+    pushInoverloadIds(neededCount, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds    
 }
 
 /** Parses top-level types but not functions and adds their bindings to the scope */
@@ -3285,6 +3298,7 @@ private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
     } 
 }
 
+/** Called when parsing a top-level function signature. A new parsed overload. */
 private void addParsedOverload(Int overloadId, Int lastParamTypeId, Int entityId, Compiler* cm) {
     Int overloadInd = cm->overloadIds.content[overloadId];
     Int nextOverloadInd = cm->overloadIds.content[overloadId + 1];
@@ -3295,7 +3309,11 @@ private void addParsedOverload(Int overloadId, Int lastParamTypeId, Int entityId
     Int j = overloadInd + currConcreteOverloadCount + 1;
     for (; j < sentinel && cm->overloads.content[j] > -1; j++) {}
     
-#if SAFETY
+#ifdef SAFETY
+    print("overflow overloads[118] %d overloads[119] %d overloads[120] %d" ,
+        cm->overloads.content[118], cm->overloads.content[119], cm->overloads.content[120])
+    print("overflow cm-i %d maxOverloadCount %d entityId %d overloadId %d overloadInd %d j %d sentinel %d",
+        cm->i, maxOverloadCount, entityId, overloadId, overloadInd, j, sentinel)
     VALIDATEI(j < sentinel, iErrorOverloadsOverflow)
 #endif
 
@@ -3304,8 +3322,9 @@ private void addParsedOverload(Int overloadId, Int lastParamTypeId, Int entityId
     ++cm->overloads.content[overloadInd];
 }
 
-#if SAFETY
+#ifdef SAFETY
 private void validateOverloadsFull(Compiler* cm) {
+    print("validatin overloads")
     Int lenTypes = cm->types.length;
     Int lenEntities = cm->entities.length;
     for (Int i = 1; i < cm->overloadIds.length; i++) {
@@ -3314,22 +3333,22 @@ private void validateOverloadsFull(Compiler* cm) {
         VALIDATEI((nextInd > currInd + 2) && (nextInd - currInd) % 2 == 1, iErrorOverloadsIncoherent)
 
         Int countOverloads = (nextInd - currInd - 1)/2;
-        Int countConcreteOverloads = cm->overloads[currInd];
+        Int countConcreteOverloads = cm->overloads.content[currInd];
         VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
 
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
-            if (cm->overloads[j] < 0) {
+            if (cm->overloads.content[j] < 0) {
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
-            if (cm->overloads[j] >= lenTypes) {
+            if (cm->overloads.content[j] >= lenTypes) {
                 throwExcInternal(iErrorOverloadsIncoherent, cm);
             }
         }
-        for (Int j = currInt + countOverloads + 1; j < nextInd; j++) {
-            if (cm->overloads[j] < 0) {
+        for (Int j = currInd + countOverloads + 1; j < nextInd; j++) {
+            if (cm->overloads.content[j] < 0) {
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
-            if (cm->overloads[j] >= lenEntities) {
+            if (cm->overloads.content[j] >= lenEntities) {
                 throwExcInternal(iErrorOverloadsIncoherent, cm);
             }
         }
@@ -3338,8 +3357,8 @@ private void validateOverloadsFull(Compiler* cm) {
 #endif
 
 /** 
- * Parses a top-level function signature.
- * Emits no nodes, only an entity and an overload
+ * Parses a top-level function signature. Emits no nodes, only an entity and an overload.
+ * Pre-condition: we are 2 tokens past the fnDef.
  */
 private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Lexer* lx, Compiler* cm) {
     Int fnStartTokenId = cm->i - 2;    
@@ -3347,12 +3366,13 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     Int byteSentinel = fnDef.startBt + fnDef.lenBts;
     
     Token fnName = lx->tokens[cm->i];
-    Int fnNameId = fnName.pl2;
-    Int overloadId = cm->activeBindings[fnNameId];
-    
-#if SAFETY
-    VALIDATEI(overloadId < -1, iErrorParsedFunctionNotInScope)
+    Int fnNameId = fnName.pl1;
+    Int overloadIdEncoded = cm->activeBindings[fnNameId];
+
+#ifdef SAFETY // all toplevel fn names should've been activated in "surveyToplevelFunctionNames()"
+    VALIDATEI(overloadIdEncoded < -1, iErrorParsedFunctionNotInScope)
 #endif
+    Int overloadId = -overloadIdEncoded - 2;
 
     cm->i++; // CONSUME the function name token
 
@@ -3492,7 +3512,7 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
         StackNode* topLevelSignatures = parseToplevelSignatures(lx, cm);
         
-#if SAFETY
+#ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
 

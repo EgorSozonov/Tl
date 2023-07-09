@@ -428,6 +428,13 @@ struct LanguageDefinition {
     Int entOpGtInt;
     Int entOpGtFloat;
     Int entOpEqualityInt;
+    Int typBoolOfVoid;
+    Int typStringOfIntBoolFloat;
+    Int typIntOfInt;
+    Int typIntOfIntInt;
+    Int typIntOfIntIntIntInt;
+    Int typVoidOfStr;
+    Int typFloatOfIntIntInt;
 #endif
 };
 
@@ -454,12 +461,6 @@ typedef struct {
     String* name;
     Entity entity;
 } EntityImport;
-
-
-typedef struct {
-    String* name;
-    Int count;
-} OverloadImport;
 
 //}}}
 
@@ -563,7 +564,6 @@ struct Compiler {
 
     InStackEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered    
     Int entImportedZero;      // the index of the first imported entity
-    Int entParsedZero;         // the index of the first parsed (as opposed to being built-in or imported) entity
 
     /**
      * [aTmp] Initially, growing array of counts of all fn names encountered.
@@ -585,7 +585,7 @@ struct Compiler {
     Arr(int) activeBindings;
 
     Int countOperatorEntities;
-    Int countNonparsedEntities;
+    Int countNonparsedEntities; // the index of the first parsed (as opposed to being built-in or imported) entity
 
     Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startByte of each string.       
     StringStore* stringStore;  // A hash table for quickly deduplicating strings. Points into stringTable 

@@ -62,7 +62,6 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int equalityParser(Compiler a, Compiler b);
 Compiler* createCompiler(Lexer* lx, Arena* a);
 Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a);
-void importOverloads(Arr(OverloadImport) impts, Int countImports, Compiler* cm);
 
 
 extern const char errorBareAtom[];
