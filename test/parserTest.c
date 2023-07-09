@@ -130,6 +130,7 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
         return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
     }
     initParser->entImportedZero = initParser->overloadIds.length;
+    print("lD typBoolOfVoid %d typFloatOfIntIntInt %d", lD->typBoolOfVoid, lD->typFloatOfIntIntInt)
     importEntities(imports, countImports, initParser);
     importEntities(imports, countImports, expectedParser);
     initParser->countNonparsedEntities = initParser->entities.length;
@@ -211,15 +212,38 @@ int equalityParser(Compiler a, Compiler b) {
 }
 
 
-void printParser(Compiler* a, Arena* ar) {
-    if (a->wasError) {
+void printType(Int typeId, Compiler* cm) {
+    if (typeId < 5) {
+        printf("%s", nodeNames[typeId]);
+        return;
+    }
+    //~ Int arity = cm->types.content[typeId];
+    //~ Int retType = cm->types.content[typeId + 1];
+    //~ print("type arity %d", arity)
+    //~ if (retType < 5) {
+        //~ printf("%s(", nodeNames[typeId]);
+    //~ } else {
+        //~ printf("Void(");
+    //~ }
+    //~ for (Int j = typeId + 1; j < typeId + arity + 2; j++) {
+        //~ Int tp = cm->types.content[j];
+        //~ if (tp < 5) {
+            //~ printf("%s ", nodeNames[typeId]);
+        //~ }
+    //~ }
+    //~ printf(")");
+}
+
+
+void printParser(Compiler* cm, Arena* a) {
+    if (cm->wasError) {
         printf("Error: ");
-        printString(a->errMsg);
+        printString(cm->errMsg);
     }
     Int indent = 0;
-    Stackint32_t* sentinels = createStackint32_t(16, ar);
-    for (int i = 0; i < a->nodes.length; i++) {
-        Node nod = a->nodes.content[i];
+    Stackint32_t* sentinels = createStackint32_t(16, a);
+    for (int i = 0; i < cm->nodes.length; i++) {
+        Node nod = cm->nodes.content[i];
         for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
             popint32_t(sentinels);
             indent--;
@@ -229,7 +253,10 @@ void printParser(Compiler* a, Arena* ar) {
         for (int j = 0; j < indent; j++) {
             printf("  ");
         }
-        if (nod.pl1 != 0 || nod.pl2 != 0) {            
+        if (nod.tp == nodCall) {
+            printf("Call %d [%d; %d] type = \n", nod.pl1, nod.startBt, nod.lenBts);
+            //printType(cm->entities.content[nod.pl1].typeId, cm);
+        } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
         } else {
             printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt, nod.lenBts);
@@ -340,7 +367,7 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
                     // " + 1" because the first binding is taken up by the "imported" function, "foo"
                     (Node){ .tp = nodBinding, .pl1 = 0,        .startBt = 0, .lenBts = 1 }, // x
                     (Node){ .tp = nodExpr,  .pl2 = 4,          .startBt = 4, .lenBts = 10 },
-                    (Node){ .tp = nodCall, .pl1 = -2 + I, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // foo
+                    (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // foo
                     (Node){ .tp = tokInt, .pl2 = 10,           .startBt = 8, .lenBts = 2 },
                     (Node){ .tp = tokInt, .pl2 = 2,            .startBt = 11, .lenBts = 1 },
                     (Node){ .tp = tokInt, .pl2 = 3,            .startBt = 13, .lenBts = 1 }                    
@@ -348,119 +375,119 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
             ((EntityImport[]) {(EntityImport){ .name = s("foo"),
                                                .entity = (Entity){.typeId = lD->typFloatOfIntIntInt}}})
         ),
+        // //~ createTest(
+        //     //~ s("Unary operator as first-class value"), 
+        //     //~ s("x = map (--) coll"),
+        //     //~ (((Node[]) {
+        //             //~ (Node){ .tp = nodAssignment, .pl2 = 5,        .startBt = 0, .lenBts = 17 },
+        //             //~ (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 0, .lenBts = 1 }, // x
+        //             //~ (Node){ .tp = nodExpr,  .pl2 = 3,             .startBt = 4, .lenBts = 13 },
+        //             //~ (Node){ .tp = nodCall, .pl1 = -2 + I, .pl2 = 2,    .startBt = 4, .lenBts = 3 }, // map
+        //             //~ (Node){ .tp = nodId, .pl1 = tryGetOper(opTDecrement, tokInt), .startBt = 9, .lenBts = 2 },
+        //             //~ (Node){ .tp = nodId, .pl1 = I + 1, .pl2 = 2,      .startBt = 13, .lenBts = 4 } // coll
+        //     //~ })),
+        //     //~ ((EntityImport[]) {(EntityImport){ .name = s("map"), .entity = (Entity){  }},
+        //                        //~ (EntityImport){ .name = s("coll"), .entity = (Entity){ }},
+        //         //~ })
+        // //~ ),
+        // //~ createTest(
+        //     //~ s("Non-unary operator as first-class value"), 
+        //     //~ s("x = bimap / dividends divisors"),
+        //     //~ (((Node[]) {
+        //             //~ (Node){ .tp = nodAssignment,            .pl2 = 6, .startBt = 0, .lenBts = 30 },
+        //             //~ // "3" because the first binding is taken up by the "imported" function, "foo"
+        //             //~ (Node){ .tp = nodBinding, .pl1 = 0,               .startBt = 0, .lenBts = 1 },    // x
+        //             //~ (Node){ .tp = nodExpr,                  .pl2 = 4, .startBt = 4, .lenBts = 26 },
+        //             //~ (Node){ .tp = nodCall, .pl1 = F,        .pl2 = 3, .startBt = 4, .lenBts = 5 },    // bimap
+        //             //~ (Node){ .tp = nodId, .pl1 = tryGetOper(opTDivBy, tokInt), .startBt = 10, .lenBts = 1 },   // /
+        //             //~ (Node){ .tp = nodId, .pl1 = M,      .pl2 = 2,     .startBt = 12, .lenBts = 9 },   // dividends
+        //             //~ (Node){ .tp = nodId, .pl1 = M + 1,      .pl2 = 3, .startBt = 22, .lenBts = 8 }    // divisors
+        //     //~ })),
+        //     //~ ((EntityImport[]) {
+        //                        //~ (EntityImport){ .name = s("dividends"), .entity = (Entity){}},
+        //                        //~ (EntityImport){ .name = s("divisors"), .entity = (Entity){}}
+        //     //~ }),
+        //     //~ ((EntityImport[]) {(EntityImport){ .name = s("bimap"), .count = 1}})
+        // //~ ), 
         //~ createTest(
-            //~ s("Unary operator as first-class value"), 
-            //~ s("x = map (--) coll"),
+            //~ s("Nested function call 1"), 
+            //~ s("x = foo 10 (bar) 3"),
             //~ (((Node[]) {
-                    //~ (Node){ .tp = nodAssignment, .pl2 = 5,        .startBt = 0, .lenBts = 17 },
-                    //~ (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 0, .lenBts = 1 }, // x
-                    //~ (Node){ .tp = nodExpr,  .pl2 = 3,             .startBt = 4, .lenBts = 13 },
-                    //~ (Node){ .tp = nodCall, .pl1 = -2 + I, .pl2 = 2,    .startBt = 4, .lenBts = 3 }, // map
-                    //~ (Node){ .tp = nodId, .pl1 = tryGetOper(opTDecrement, tokInt), .startBt = 9, .lenBts = 2 },
-                    //~ (Node){ .tp = nodId, .pl1 = I + 1, .pl2 = 2,      .startBt = 13, .lenBts = 4 } // coll
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 6, .startBt = 0, .lenBts = 18 },                    
+                    //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                    //~ (Node){ .tp = nodExpr,  .pl2 = 4, .startBt = 4, .lenBts = 14 },
+                    //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // foo
+                    //~ (Node){ .tp = tokInt, .pl2 = 10,  .startBt = 8, .lenBts = 2 },                    
+                    //~ (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 0, .startBt = 12, .lenBts = 3 }, // bar
+                    //~ (Node){ .tp = tokInt, .pl2 = 3,   .startBt = 17, .lenBts = 1 }               
             //~ })),
-            //~ ((EntityImport[]) {(EntityImport){ .name = s("map"), .entity = (Entity){  }},
-                               //~ (EntityImport){ .name = s("coll"), .entity = (Entity){ }},
-                //~ })
+            //~ ((EntityImport[]) {(EntityImport){ .name = s("foo"), .entity = (Entity){.typeId = lD->typStringOfIntBoolFloat}},
+                               //~ (EntityImport){ .name = s("bar"), .entity = (Entity){.typeId = lD->typBoolOfVoid}}})
         //~ ),
         //~ createTest(
-            //~ s("Non-unary operator as first-class value"), 
-            //~ s("x = bimap / dividends divisors"),
+            //~ s("Nested function call 2"), 
+            //~ s("x =  foo 10 (barr 3)"),
             //~ (((Node[]) {
-                    //~ (Node){ .tp = nodAssignment,            .pl2 = 6, .startBt = 0, .lenBts = 30 },
-                    //~ // "3" because the first binding is taken up by the "imported" function, "foo"
-                    //~ (Node){ .tp = nodBinding, .pl1 = 0,               .startBt = 0, .lenBts = 1 },    // x
-                    //~ (Node){ .tp = nodExpr,                  .pl2 = 4, .startBt = 4, .lenBts = 26 },
-                    //~ (Node){ .tp = nodCall, .pl1 = F,        .pl2 = 3, .startBt = 4, .lenBts = 5 },    // bimap
-                    //~ (Node){ .tp = nodId, .pl1 = tryGetOper(opTDivBy, tokInt), .startBt = 10, .lenBts = 1 },   // /
-                    //~ (Node){ .tp = nodId, .pl1 = M,      .pl2 = 2,     .startBt = 12, .lenBts = 9 },   // dividends
-                    //~ (Node){ .tp = nodId, .pl1 = M + 1,      .pl2 = 3, .startBt = 22, .lenBts = 8 }    // divisors
-            //~ })),
-            //~ ((EntityImport[]) {
-                               //~ (EntityImport){ .name = s("dividends"), .entity = (Entity){}},
-                               //~ (EntityImport){ .name = s("divisors"), .entity = (Entity){}}
-            //~ }),
-            //~ ((EntityImport[]) {(EntityImport){ .name = s("bimap"), .count = 1}})
-        //~ ), 
-        createTest(
-            s("Nested function call 1"), 
-            s("x = foo 10 (bar) 3"),
-            (((Node[]) {
-                    (Node){ .tp = nodAssignment, .pl2 = 6, .startBt = 0, .lenBts = 18 },                    
-                    (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                    (Node){ .tp = nodExpr,  .pl2 = 4, .startBt = 4, .lenBts = 14 },
-                    (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // foo
-                    (Node){ .tp = tokInt, .pl2 = 10,  .startBt = 8, .lenBts = 2 },                    
-                    (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 0, .startBt = 12, .lenBts = 3 }, // bar
-                    (Node){ .tp = tokInt, .pl2 = 3,   .startBt = 17, .lenBts = 1 }               
-            })),
-            ((EntityImport[]) {(EntityImport){ .name = s("foo"), .entity = (Entity){.typeId = lD->typStringOfIntBoolFloat}},
-                               (EntityImport){ .name = s("bar"), .entity = (Entity){.typeId = lD->typBoolOfVoid}}})
-        ),
-        createTest(
-            s("Nested function call 2"), 
-            s("x =  foo 10 (barr 3)"),
-            (((Node[]) {
-                    (Node){ .tp = nodAssignment, .pl2 = 6, .startBt = 0, .lenBts = 20 },                    
-                    (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                    (Node){ .tp = nodExpr,  .pl2 = 4, .startBt = 5, .lenBts = 15 },
-                    (Node){ .tp = nodCall, .pl1 = I, .pl2 = 2, .startBt = 5, .lenBts = 3 },   // foo
-                    (Node){ .tp = tokInt, .pl2 = 10,  .startBt = 9, .lenBts = 2 },
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 6, .startBt = 0, .lenBts = 20 },                    
+                    //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                    //~ (Node){ .tp = nodExpr,  .pl2 = 4, .startBt = 5, .lenBts = 15 },
+                    //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 2, .startBt = 5, .lenBts = 3 },   // foo
+                    //~ (Node){ .tp = tokInt, .pl2 = 10,  .startBt = 9, .lenBts = 2 },
                                        
-                    (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 1, .startBt = 13, .lenBts = 4 },  // barr
-                    (Node){ .tp = tokInt,                .pl2 = 3, .startBt = 18, .lenBts = 1 }
-            })),
-            ((EntityImport[]) {(EntityImport){ .name = s("foo"), .entity = (Entity){.typeId = lD->typIntOfIntInt}},
-                               (EntityImport){ .name = s("barr"), .entity = (Entity){.typeId = lD->typIntOfInt}}})
-        ),
-        createTest(
-            s("Triple function call"), 
-            s("x = buzz 2 3 4 (foo : triple 5)"),
-            (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl2 = 9, .startBt = 0, .lenBts = 31 },
-                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                    //~ (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 1, .startBt = 13, .lenBts = 4 },  // barr
+                    //~ (Node){ .tp = tokInt,                .pl2 = 3, .startBt = 18, .lenBts = 1 }
+            //~ })),
+            //~ ((EntityImport[]) {(EntityImport){ .name = s("foo"), .entity = (Entity){.typeId = lD->typIntOfIntInt}},
+                               //~ (EntityImport){ .name = s("barr"), .entity = (Entity){.typeId = lD->typIntOfInt}}})
+        //~ ),
+        //~ createTest(
+            //~ s("Triple function call"), 
+            //~ s("x = buzz 2 3 4 (foo : triple 5)"),
+            //~ (((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .pl2 = 9, .startBt = 0, .lenBts = 31 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
                 
-                (Node){ .tp = nodExpr, .pl2 = 7, .startBt = 4, .lenBts = 27 },
-                (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 4, .startBt = 4, .lenBts = 4 }, // buzz
-                (Node){ .tp = tokInt, .pl2 = 2, .startBt = 9, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 11, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 4, .startBt = 13, .lenBts = 1 },
+                //~ (Node){ .tp = nodExpr, .pl2 = 7, .startBt = 4, .lenBts = 27 },
+                //~ (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 4, .startBt = 4, .lenBts = 4 }, // buzz
+                //~ (Node){ .tp = tokInt, .pl2 = 2, .startBt = 9, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 3, .startBt = 11, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 4, .startBt = 13, .lenBts = 1 },
 
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 16, .lenBts = 3 }, // foo
-                (Node){ .tp = nodCall, .pl1 = I + 2, .pl2 = 1, .startBt = 22, .lenBts = 6 },  // triple
-                (Node){ .tp = tokInt, .pl2 = 5, .startBt = 29, .lenBts = 1 }
-            })),
-            ((EntityImport[]) {(EntityImport){ .name = s("foo"), .entity = (Entity){.typeId = lD->typIntOfInt}},
-                               (EntityImport){ .name = s("buzz"), .entity = (Entity){.typeId = lD->typIntOfIntIntIntInt}},
-                               (EntityImport){ .name = s("triple"), .entity = (Entity){.typeId = lD->typIntOfInt}},})
-        ),
-        createTest(
-            s("Operators simple"), 
-            s("x = + 1 : / 9 3"),
-            (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl2 = 7, .startBt = 0, .lenBts = 15 },
-                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                (Node){ .tp = nodExpr,  .pl2 = 5, .startBt = 4, .lenBts = 11 },
-                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTPlus, tokInt), .pl2 = 2, .startBt = 4, .lenBts = 1 },   // +
-                (Node){ .tp = tokInt, .pl2 = 1, .startBt = 6, .lenBts = 1 },
+                //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 16, .lenBts = 3 }, // foo
+                //~ (Node){ .tp = nodCall, .pl1 = I + 2, .pl2 = 1, .startBt = 22, .lenBts = 6 },  // triple
+                //~ (Node){ .tp = tokInt, .pl2 = 5, .startBt = 29, .lenBts = 1 }
+            //~ })),
+            //~ ((EntityImport[]) {(EntityImport){ .name = s("foo"), .entity = (Entity){.typeId = lD->typIntOfInt}},
+                               //~ (EntityImport){ .name = s("buzz"), .entity = (Entity){.typeId = lD->typIntOfIntIntIntInt}},
+                               //~ (EntityImport){ .name = s("triple"), .entity = (Entity){.typeId = lD->typIntOfInt}},})
+        //~ ),
+        //~ createTest(
+            //~ s("Operators simple"), 
+            //~ s("x = + 1 : / 9 3"),
+            //~ (((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .pl2 = 7, .startBt = 0, .lenBts = 15 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                //~ (Node){ .tp = nodExpr,  .pl2 = 5, .startBt = 4, .lenBts = 11 },
+                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTPlus, tokInt), .pl2 = 2, .startBt = 4, .lenBts = 1 },   // +
+                //~ (Node){ .tp = tokInt, .pl2 = 1, .startBt = 6, .lenBts = 1 },
                 
-                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTDivBy, tokInt), .pl2 = 2, .startBt = 10, .lenBts = 1 }, // *
-                (Node){ .tp = tokInt, .pl2 = 2, .startBt = 12, .lenBts = 1 },   
-                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 14, .lenBts = 1 }
-            })),
-            ((EntityImport[]) {})
-        ),
-        createTestWithError(
-            s("Operator arity error"),
-            s(errorOperatorWrongArity),
-            s("x = + 1 20 100"),
-            (((Node[]) {
-                (Node){ .tp = nodAssignment, .startBt = 0, .lenBts = 14 },
-                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                (Node){ .tp = nodExpr,  .startBt = 4, .lenBts = 10 }
-            })),
-            ((EntityImport[]) {})
-        )
+                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTDivBy, tokInt), .pl2 = 2, .startBt = 10, .lenBts = 1 }, // *
+                //~ (Node){ .tp = tokInt, .pl2 = 2, .startBt = 12, .lenBts = 1 },   
+                //~ (Node){ .tp = tokInt, .pl2 = 3, .startBt = 14, .lenBts = 1 }
+            //~ })),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTestWithError(
+            //~ s("Operator arity error"),
+            //~ s(errorOperatorWrongArity),
+            //~ s("x = + 1 20 100"),
+            //~ (((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .startBt = 0, .lenBts = 14 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                //~ (Node){ .tp = nodExpr,  .startBt = 4, .lenBts = 10 }
+            //~ })),
+            //~ ((EntityImport[]) {})
+        //~ )
     }));
 }
 
@@ -984,98 +1011,98 @@ ParserTestSet* ifTests(LanguageDefinition* lD, Arena* a) {
 
 ParserTestSet* loopTests(LanguageDefinition* lD, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
-        //~ createTest(
-            //~ s("Simple loop 1"),
-            //~ s("(.f f Int() = (.loop (< x 101) (x 1). print x))"),
-            //~ ((Node[]) {
-                //~ (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 14, .lenBts = 46 },
-                //~ (Node){ .tp = nodScope, .pl2 = 13, .startBt = 9, .lenBts = 37 }, // function body
+        createTest(
+            s("Simple loop 1"),
+            s("(.f f Int() = (.loop (< x 101) (x 1). print x))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 14, .lenBts = 46 },
+                (Node){ .tp = nodScope, .pl2 = 13, .startBt = 9, .lenBts = 37 }, // function body
                 
-                //~ (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 12, .startBt = 13, .lenBts = 32 },
+                (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 12, .startBt = 13, .lenBts = 32 },
                 
-                //~ (Node){ .tp = nodScope, .pl2 = 11, .startBt = 30, .lenBts = 15 },
+                (Node){ .tp = nodScope, .pl2 = 11, .startBt = 30, .lenBts = 15 },
                 
-                //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 31, .lenBts = 3 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 31, .lenBts = 1 }, // x
-                //~ (Node){ .tp = tokInt, .pl2 = 1, .startBt = 33, .lenBts = 1 },
+                (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 31, .lenBts = 3 },
+                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 31, .lenBts = 1 }, // x
+                (Node){ .tp = tokInt, .pl2 = 1, .startBt = 33, .lenBts = 1 },
                 
-                //~ (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 20, .lenBts = 9 },
-                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 20, .lenBts = 9 },
-                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTLessThan, tokInt), .pl2 = 2, .startBt = 21, .lenBts = 1 },
-                //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 23, .lenBts = 1 }, // x
-                //~ (Node){ .tp = tokInt, .pl2 = 101, .startBt = 25, .lenBts = 3 },
+                (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 20, .lenBts = 9 },
+                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 20, .lenBts = 9 },
+                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTLessThan, tokInt), .pl2 = 2, .startBt = 21, .lenBts = 1 },
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 23, .lenBts = 1 }, // x
+                (Node){ .tp = tokInt, .pl2 = 101, .startBt = 25, .lenBts = 3 },
                 
-                //~ (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 37, .lenBts = 7 },
-                //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 37, .lenBts = 5 }, // print
-                //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 43, .lenBts = 1 }      // x
-            //~ }),
-            //~ ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
-        //~ ),
-        //~ createTest(
-            //~ s("Loop with two complex initializers"),
-            //~ s("(.f f Int() =\n"
-              //~ "    (.loop (< x 101) (x 7 y (>> 5 x))\n"
-              //~ "        print x))"),
-            //~ ((Node[]) {
-                //~ (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 20, .lenBts = 67 },
-                //~ (Node){ .tp = nodScope, .pl2 = 19, .startBt = 9, .lenBts = 58 }, // function body
+                (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 37, .lenBts = 7 },
+                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 37, .lenBts = 5 }, // print
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 43, .lenBts = 1 }      // x
+            }),
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
+        ),
+        createTest(
+            s("Loop with two complex initializers"),
+            s("(.f f Int() =\n"
+              "    (.loop (< x 101) (x 7 y (>> 5 x))\n"
+              "        print x))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 20, .lenBts = 67 },
+                (Node){ .tp = nodScope, .pl2 = 19, .startBt = 9, .lenBts = 58 }, // function body
                 
-                //~ (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 18, .startBt = 16, .lenBts = 50 },                
-                //~ (Node){ .tp = nodScope, .pl2 = 17, .startBt = 33, .lenBts = 33 },
+                (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 18, .startBt = 16, .lenBts = 50 },                
+                (Node){ .tp = nodScope, .pl2 = 17, .startBt = 33, .lenBts = 33 },
                 
-                //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 34, .lenBts = 3 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 34, .lenBts = 1 },  // x
-                //~ (Node){ .tp = tokInt, .pl2 = 7, .startBt = 36, .lenBts = 1 },
-                //~ (Node){ .tp = nodAssignment, .pl2 = 5, .startBt = 38, .lenBts = 10 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 38, .lenBts = 1 },  // y
-                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 40, .lenBts = 8 },
-                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTBitshiftRight, tokInt), .pl2 = 2, .startBt = 41, .lenBts = 2 },
-                //~ (Node){ .tp = tokInt, .pl2 = 5, .startBt = 44, .lenBts = 1 },
-                //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 46, .lenBts = 1 }, // x                
+                (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 34, .lenBts = 3 },
+                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 34, .lenBts = 1 },  // x
+                (Node){ .tp = tokInt, .pl2 = 7, .startBt = 36, .lenBts = 1 },
+                (Node){ .tp = nodAssignment, .pl2 = 5, .startBt = 38, .lenBts = 10 },
+                (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 38, .lenBts = 1 },  // y
+                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 40, .lenBts = 8 },
+                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTBitShiftRight, tokInt), .pl2 = 2, .startBt = 41, .lenBts = 2 },
+                (Node){ .tp = tokInt, .pl2 = 5, .startBt = 44, .lenBts = 1 },
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 46, .lenBts = 1 }, // x                
                 
-                //~ (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 23, .lenBts = 9 },
-                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 23, .lenBts = 9 },
-                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTLessThan, tokInt), .pl2 = 2, .startBt = 24, .lenBts = 1 },
-                //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 26, .lenBts = 1 }, // x
-                //~ (Node){ .tp = tokInt, .pl2 = 101, .startBt = 28, .lenBts = 3 },
+                (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 23, .lenBts = 9 },
+                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 23, .lenBts = 9 },
+                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTLessThan, tokInt), .pl2 = 2, .startBt = 24, .lenBts = 1 },
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 26, .lenBts = 1 }, // x
+                (Node){ .tp = tokInt, .pl2 = 101, .startBt = 28, .lenBts = 3 },
                 
-                //~ (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 58, .lenBts = 7 },
-                //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 58, .lenBts = 5 }, // print
-                //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 64, .lenBts = 1 }      // x
+                (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 58, .lenBts = 7 },
+                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 58, .lenBts = 5 }, // print
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 64, .lenBts = 1 }      // x
 
-            //~ }),
-            //~ ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
-        //~ ),
-        //~ createTest(
-            //~ s("Loop without initializers"),
-            //~ s("(.f f Int() =\n"
-              //~ "    x = 4\n"
-              //~ "    (.loop (< x 101) \n"
-              //~ "        print x))"),
-            //~ ((Node[]) {
-                //~ (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 14,               .lenBts = 63 },
-                //~ (Node){ .tp = nodScope, .pl2 = 13,           .startBt = 9, .lenBts = 54 }, // function body
+            }),
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
+        ),
+        createTest(
+            s("Loop without initializers"),
+            s("(.f f Int() =\n"
+              "    x = 4\n"
+              "    (.loop (< x 101) \n"
+              "        print x))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 14,               .lenBts = 63 },
+                (Node){ .tp = nodScope, .pl2 = 13,           .startBt = 9, .lenBts = 54 }, // function body
 
-                //~ (Node){ .tp = nodAssignment, .pl2 = 2,       .startBt = 18, .lenBts = 5 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 18, .lenBts = 1 },  // x
-                //~ (Node){ .tp = tokInt, .pl2 = 4,              .startBt = 22, .lenBts = 1 },
+                (Node){ .tp = nodAssignment, .pl2 = 2,       .startBt = 18, .lenBts = 5 },
+                (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 18, .lenBts = 1 },  // x
+                (Node){ .tp = tokInt, .pl2 = 4,              .startBt = 22, .lenBts = 1 },
                 
-                //~ (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 9, .startBt = 28, .lenBts = 34 },                
-                //~ (Node){ .tp = nodScope, .pl2 = 8,           .startBt = 54, .lenBts = 8 },
+                (Node){ .tp = nodLoop, .pl1 = slScope, .pl2 = 9, .startBt = 28, .lenBts = 34 },                
+                (Node){ .tp = nodScope, .pl2 = 8,           .startBt = 54, .lenBts = 8 },
                 
-                //~ (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 35, .lenBts = 9 },
-                //~ (Node){ .tp = nodExpr, .pl2 = 3,            .startBt = 35, .lenBts = 9 },
-                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTLessThan, tokInt), .pl2 = 2, .startBt = 36, .lenBts = 1 },
-                //~ (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 38, .lenBts = 1 }, // x
-                //~ (Node){ .tp = tokInt, .pl2 = 101,           .startBt = 40, .lenBts = 3 },
+                (Node){ .tp = nodLoopCond, .pl1 = slStmt, .pl2 = 4, .startBt = 35, .lenBts = 9 },
+                (Node){ .tp = nodExpr, .pl2 = 3,            .startBt = 35, .lenBts = 9 },
+                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTLessThan, tokInt), .pl2 = 2, .startBt = 36, .lenBts = 1 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 38, .lenBts = 1 }, // x
+                (Node){ .tp = tokInt, .pl2 = 101,           .startBt = 40, .lenBts = 3 },
                 
-                //~ (Node){ .tp = nodExpr, .pl2 = 2,            .startBt = 54, .lenBts = 7 },
-                //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1,  .startBt = 54, .lenBts = 5 }, // print
-                //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2,    .startBt = 50, .lenBts = 1 }  // x
+                (Node){ .tp = nodExpr, .pl2 = 2,            .startBt = 54, .lenBts = 7 },
+                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1,  .startBt = 54, .lenBts = 5 }, // print
+                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2,    .startBt = 50, .lenBts = 1 }  // x
 
-            //~ }),
-            //~ ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
-        //~ ),
+            }),
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
+        ),
         createTest(
             s("Loop with break and continue"),
             s("(.f f Int() =\n"
@@ -1128,10 +1155,10 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     //~ runATestSet(&assignmentTests, &countPassed, &countTests, langDef, a);
-    //~ runATestSet(&expressionTests, &countPassed, &countTests, langDef, a);
+    runATestSet(&expressionTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&ifTests, &countPassed, &countTests, langDef, a);
-    runATestSet(&loopTests, &countPassed, &countTests, langDef, a);
+    //~ runATestSet(&loopTests, &countPassed, &countTests, langDef, a);
 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");

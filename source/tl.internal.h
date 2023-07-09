@@ -284,7 +284,7 @@ struct Lexer {
 #define opTIntervalExcl     28 // ><   exclusive interval check
 #define opTGTEQ             29 // >=
 #define opTBitShiftRightExt 30 // >>.  unsigned right bit shift
-#define opTBitshiftRight    31 // >>   right bit shift
+#define opTBitShiftRight    31 // >>   right bit shift
 #define opTGreaterThan      32 // >
 #define opTNullCoalesce     33 // ?:   null coalescing operator
 #define opTQuestionMark     34 // ?    nullable type operator
