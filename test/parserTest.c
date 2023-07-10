@@ -166,7 +166,6 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     
     Arr(Int) typeIds = importTypes(types, countTypes, initParser);
     importTypes(types, countTypes, expectedParser);
-    
     importEntities(imports, countImports, typeIds, initParser);
     importEntities(imports, countImports, typeIds, expectedParser);
     initParser->countNonparsedEntities = initParser->entities.length;
@@ -250,26 +249,25 @@ int equalityParser(Compiler a, Compiler b) {
 }
 
 
-void printType(Int typeId, Compiler* cm) {
-    if (typeId < 5) {
-        printf("%s", nodeNames[typeId]);
+void printType(Int typeInd, Compiler* cm) {
+    if (typeInd < 5) {
+        printf("%s", nodeNames[typeInd]);
         return;
     }
-    Int arity = cm->types.content[typeId];
-    Int retType = cm->types.content[typeId + 1];
-    print("type arity %d", arity)
+    Int arity = cm->types.content[typeInd];
+    Int retType = cm->types.content[typeInd + 1];
     if (retType < 5) {
-        printf("%s(", nodeNames[typeId]);
+        printf("%s(", nodeNames[retType]);
     } else {
         printf("Void(");
     }
-    for (Int j = typeId + 1; j < typeId + arity + 2; j++) {
+    for (Int j = typeInd + 2; j < typeInd + arity + 2; j++) {
         Int tp = cm->types.content[j];
         if (tp < 5) {
-            printf("%s ", nodeNames[typeId]);
+            printf("%s ", nodeNames[tp]);
         }
     }
-    printf(")");
+    print(")");
 }
 
 
@@ -292,8 +290,8 @@ void printParser(Compiler* cm, Arena* a) {
             printf("  ");
         }
         if (nod.tp == nodCall) {
-            printf("Call %d [%d; %d] type = \n", nod.pl1, nod.startBt, nod.lenBts);
-            //printType(cm->entities.content[nod.pl1].typeId, cm);
+            printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
+            printType(cm->entities.content[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
         } else {

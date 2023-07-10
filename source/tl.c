@@ -2473,7 +2473,6 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* cm) {
     }
     subexprClose(tokens, cm);
     Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.length, cm);
-    print("exprType after typecheck/resolve %d", exprType)
 }
 
 /**
@@ -3272,7 +3271,7 @@ testable void createOverloads(Compiler* cm) {
         j += (2*maxCountOverloads + 1);
     }
     populateOverloadsForOperatorsAndImports(cm);
-    pushInoverloadIds(neededCount, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds    
+    pushInoverloadIds(neededCount, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds
 }
 
 /** Parses top-level types but not functions and adds their bindings to the scope */
@@ -3345,7 +3344,6 @@ private void validateOverloadsFull(Compiler* cm) {
         VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
             if (cm->overloads.content[j] < 0) {
-                print("not full type j %d cm->overloads.content[j] %d", j, cm->overloads.content[j]) 
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
@@ -3354,7 +3352,6 @@ private void validateOverloadsFull(Compiler* cm) {
         }
         for (Int j = currInd + countOverloads + 1; j < nextInd; j++) {
             if (cm->overloads.content[j] < 0) {
-                print("not full entity j %d cm->overloads.content[j] %d", j, cm->overloads.content[j]) 
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenEntities) {
@@ -3506,18 +3503,18 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
     LanguageDefinition* pDef = cm->langDef;
     int inpLength = lx->totalTokens;
     int i = 0;
-
     ParserFunc (*dispatch)[countSyntaxForms] = pDef->nonResumableTable;
     ResumeFunc (*dispatchResumable)[countResumableForms] = pDef->resumableTable;
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(lx, cm);
-        parseToplevelConstants(lx, cm);
-
+        
         // This gives us overload counts
         surveyToplevelFunctionNames(lx, cm);
-
         // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
         createOverloads(cm);
+        
+        parseToplevelConstants(lx, cm);
+
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
         StackNode* topLevelSignatures = parseToplevelSignatures(lx, cm);
         
@@ -3676,7 +3673,6 @@ private void printExpSt(StackInt* st) {
 
 /** Populates the expression's type stack with the operands and functions of an expression */
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
-    print("populateExpStack %d %d", indExpr + 1, sentinelNode)
     for (int i = indExpr + 1; i < sentinelNode; ++i) {
         Node nd = cm->nodes.content[i];
         if (nd.tp <= tokString) {
@@ -3714,7 +3710,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
         
         // It's a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
         Int arity = cont[j] - BIG;
-        Int o = cont[j + 1]; // index into the table of overloads
+        Int o = cont[j + 1]; // index into the table of overloadIds
         Int overlEndInd = cm->overloadIds.content[o];
         if (arity == 0) {
             VALIDATEP(overlEndInd == o + 2, errorTypeZeroArityOverload) // + 2 for the single typeId and the single entityId
@@ -3729,13 +3725,11 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             }
             --j;
         } else {
-            print("else clause o = %d", o)
             Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
             VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
             Int entityId;
-            print("overloadInd %d nextind %d", 
-            VALIDATEP(findOverload(typeLastArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm),
-                      errorTypeNoMatchingOverload)
+            Int resolvedOv = findOverload(typeLastArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm);
+            VALIDATEP(resolvedOv > -1, errorTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
             VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last parm matches, but not arity
@@ -3750,15 +3744,16 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
                 }
             }
             print("resolved the func entity to %d, retType %d", entityId, cm->types.content[typeOfFunc + 1])
-            cm->nodes.content[j + 1 - currAhead].pl1 = entityId; // the type-resolved function of the call
+            cm->nodes.content[j + indExpr + 1 - currAhead].pl1 = entityId; // the type-resolved function of the call
             cont[j] = cm->types.content[typeOfFunc + 1];         // the function return type
+            
             shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
             --currAhead;
-            printExpSt(st);
             j -= 2;
+            
+            printExpSt(st);
         }
     }
-    print("pAfter")
     if (st->length == 1) {
         return st->content[0]; // the last remaining element is the type of the expression
     } else {
