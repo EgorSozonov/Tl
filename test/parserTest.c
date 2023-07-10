@@ -114,6 +114,39 @@ private Int transformBindingEntityId(Int inp, Compiler* pr) {
     }
 }
 
+private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
+    Int countActualTypes = 0;
+    Int j = 0;
+    while (j < countTypes) {
+        if (types[j] == 0) {
+            return NULL;
+        }
+        ++countActualTypes;
+        j += types[j] + 1;
+    }
+    Arr(Int) typeIds = allocateOnArena(countActualTypes*4, cm->aTmp);
+    j = 0;
+    Int t = 0;
+    while (j < countTypes) {
+        Int sentinel = j + types[j] + 1;
+        Int initTypeId = cm->types.length;
+        for (Int k = j; k < sentinel; k++) {
+            pushIntypes(types[k], cm);
+        }
+        Int uniqueTypeId = addType(initTypeId*4, (sentinel - j)*4, cm);
+        typeIds[t] = uniqueTypeId;
+        t++;
+        j = sentinel;
+    }
+    print("Imported types: ")
+    printf("[");
+    for (Int a = 0; a < t; a++) {
+        printf("%d ", typeIds[a]);
+    }
+    print("]")
+    return typeIds;
+}
+
 /** Creates a test with two parser: one is the init parser (contains all the "imported" bindings)
  *  and one is the output parser (with the bindings and the expected nodes). When the test is run,
  *  the init parser will parse the tokens and then will be compared to the expected output parser.
@@ -121,7 +154,7 @@ private Int transformBindingEntityId(Int inp, Compiler* pr) {
  *  it will be inserted as 1 + (the number of built-in bindings)
  */
 private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int countNodes, 
-                               Arr(EntityImport) imports, Int countImports,
+                               Arr(Int) types, Int countTypes, Arr(EntityImport) imports, Int countImports,
                                LanguageDefinition* lD, Arena* a) {
     Lexer* lx = lexicallyAnalyze(input, lD, a);
     Compiler* initParser     = createCompiler(lx, a);
@@ -130,13 +163,18 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
         return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
     }
     initParser->entImportedZero = initParser->overloadIds.length;
-    print("lD typBoolOfVoid %d typFloatOfIntIntInt %d", lD->typBoolOfVoid, lD->typFloatOfIntIntInt)
-    importEntities(imports, countImports, initParser);
-    importEntities(imports, countImports, expectedParser);
+    
+    Arr(Int) typeIds = importTypes(types, countTypes, initParser);
+    importTypes(types, countTypes, expectedParser);
+    
+    importEntities(imports, countImports, typeIds, initParser);
+    importEntities(imports, countImports, typeIds, expectedParser);
     initParser->countNonparsedEntities = initParser->entities.length;
 
     expectedParser->countNonparsedEntities = initParser->countNonparsedEntities;
     expectedParser->entImportedZero = initParser->entImportedZero;
+
+
 
     for (Int i = 0; i < countNodes; i++) {
         untt nodeType = nodes[i].tp;
@@ -153,8 +191,8 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
 }
 
-#define createTest(name, input, nodes, bindings) createTest0((name), (input), \
-    (nodes), sizeof(nodes)/sizeof(Node), bindings, sizeof(bindings)/sizeof(EntityImport), \
+#define createTest(name, input, nodes, types, entities) createTest0((name), (input), \
+    (nodes), sizeof(nodes)/sizeof(Node), types, sizeof(types)/4, entities, sizeof(entities)/sizeof(EntityImport), \
     lD, a)
 
 /** Creates a test with two parser: one is the init parser (contains all the "imported" bindings)
@@ -164,17 +202,17 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
  *  it will be inserted as 1 + (the number of built-in bindings)
  */
 private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes, Int countNodes, 
-                               Arr(EntityImport) entities, Int countEntities,
+                               Arr(Int) types, Int countTypes, Arr(EntityImport) entities, Int countEntities,
                                LanguageDefinition* lD, Arena* a) {
-    ParserTest theTest = createTest0(name, input, nodes, countNodes, entities, countEntities, lD, a);
+    ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities, countEntities, lD, a);
     theTest.expectedOutput->wasError = true;
     theTest.expectedOutput->errMsg = message;
     return theTest;
 }
 
-#define createTestWithError(name, errorMessage, input, nodes, entities) createTestWithError0((name), \
-    errorMessage, (input), (nodes), sizeof(nodes)/sizeof(Node), entities, sizeof(entities)/sizeof(EntityImport), \
-    lD, a)    
+#define createTestWithError(name, errorMessage, input, nodes, types, entities) createTestWithError0((name), \
+    errorMessage, (input), (nodes), sizeof(nodes)/sizeof(Node), types, sizeof(types)/4, \
+    entities, sizeof(entities)/sizeof(EntityImport), lD, a)    
 
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
@@ -217,21 +255,21 @@ void printType(Int typeId, Compiler* cm) {
         printf("%s", nodeNames[typeId]);
         return;
     }
-    //~ Int arity = cm->types.content[typeId];
-    //~ Int retType = cm->types.content[typeId + 1];
-    //~ print("type arity %d", arity)
-    //~ if (retType < 5) {
-        //~ printf("%s(", nodeNames[typeId]);
-    //~ } else {
-        //~ printf("Void(");
-    //~ }
-    //~ for (Int j = typeId + 1; j < typeId + arity + 2; j++) {
-        //~ Int tp = cm->types.content[j];
-        //~ if (tp < 5) {
-            //~ printf("%s ", nodeNames[typeId]);
-        //~ }
-    //~ }
-    //~ printf(")");
+    Int arity = cm->types.content[typeId];
+    Int retType = cm->types.content[typeId + 1];
+    print("type arity %d", arity)
+    if (retType < 5) {
+        printf("%s(", nodeNames[typeId]);
+    } else {
+        printf("Void(");
+    }
+    for (Int j = typeId + 1; j < typeId + arity + 2; j++) {
+        Int tp = cm->types.content[j];
+        if (tp < 5) {
+            printf("%s ", nodeNames[typeId]);
+        }
+    }
+    printf(")");
 }
 
 
@@ -323,6 +361,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* lD, Arena* a) {
                     (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
                     (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 }
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         ),
         createTest(
@@ -338,6 +377,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* lD, Arena* a) {
                     (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
                     (Node){ .tp = nodId, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         ),        
         createTestWithError(
@@ -351,8 +391,9 @@ ParserTestSet* assignmentTests(LanguageDefinition* lD, Arena* a) {
                     (Node){ .tp = nodBinding, .pl2 = 0, .startBt = 0, .lenBts = 1 },
                     (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
-        )          
+        )
     }));
 }
 
@@ -372,8 +413,8 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
                     (Node){ .tp = tokInt, .pl2 = 2,            .startBt = 11, .lenBts = 1 },
                     (Node){ .tp = tokInt, .pl2 = 3,            .startBt = 13, .lenBts = 1 }                    
             })),
-            ((EntityImport[]) {(EntityImport){ .name = s("foo"),
-                                               .entity = (Entity){.typeId = lD->typFloatOfIntIntInt}}})
+            ((Int[]) {4, tokFloat, tokInt, tokInt, tokInt}),
+            ((EntityImport[]) {(EntityImport){ .name = s("foo"), .typeInd = 0}})
         ),
         // //~ createTest(
         //     //~ s("Unary operator as first-class value"), 
@@ -790,6 +831,7 @@ ParserTestSet* functionTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 31, .lenBts = 1 },  // local a
                 (Node){ .tp = nodId, .pl1 = 0,      .pl2 = 2, .startBt = 35, .lenBts = 1 }   // x                
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         ),
         createTest(
@@ -810,6 +852,7 @@ ParserTestSet* functionTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodReturn,           .pl2 = 1, .startBt = 44, .lenBts = 8 },
                 (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 5, .startBt = 51, .lenBts = 1 } // a
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         ),
         createTest(
@@ -846,6 +889,7 @@ ParserTestSet* functionTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 2,  .startBt = 102, .lenBts = 1 }, // x
                 (Node){ .tp = nodId, .pl1 = 4,     .pl2 = 3,  .startBt = 104, .lenBts = 1 }  // y
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         )
         //~ (ParserTest) { 
@@ -926,7 +970,8 @@ ParserTestSet* ifTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 18, .lenBts = 5 }, // print
                 (Node){ .tp = tokString, .startBt = 24, .lenBts = 3 }
             }),
-            ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
+            ((Int[]) {2, tokUnderscore, tokString}),
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .typeInd = 0}})
         ),
         createTest(
             s("If with else"),
@@ -947,6 +992,7 @@ ParserTestSet* ifTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodElse, .pl2 = 1, .startBt = 26, .lenBts = 4 },
                 (Node){ .tp = tokString,         .startBt = 26, .lenBts = 4 },
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         ),
         createTest(
@@ -973,6 +1019,7 @@ ParserTestSet* ifTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = tokInt, .pl2 = 3, .startBt = 33, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 4, .startBt = 38, .lenBts = 1 }
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         ),
         createTest(
@@ -1003,6 +1050,7 @@ ParserTestSet* ifTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodElse, .pl2 = 1, .startBt = 59, .lenBts = 3 },
                 (Node){ .tp = tokInt, .pl2 = 100, .startBt = 59, .lenBts = 3 }
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         ),    
     }));
@@ -1036,7 +1084,8 @@ ParserTestSet* loopTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 37, .lenBts = 5 }, // print
                 (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 43, .lenBts = 1 }      // x
             }),
-            ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
+            ((Int[]) {2, tokUnderscore, tokString}),
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .typeInd = 0}})
         ),
         createTest(
             s("Loop with two complex initializers"),
@@ -1069,9 +1118,9 @@ ParserTestSet* loopTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 58, .lenBts = 7 },
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 58, .lenBts = 5 }, // print
                 (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2, .startBt = 64, .lenBts = 1 }      // x
-
             }),
-            ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
+            ((Int[]) {2, tokUnderscore, tokString}),
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .typeInd = 0}})
         ),
         createTest(
             s("Loop without initializers"),
@@ -1099,9 +1148,9 @@ ParserTestSet* loopTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodExpr, .pl2 = 2,            .startBt = 54, .lenBts = 7 },
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1,  .startBt = 54, .lenBts = 5 }, // print
                 (Node){ .tp = nodId, .pl1 = 0, .pl2 = 2,    .startBt = 50, .lenBts = 1 }  // x
-
             }),
-            ((EntityImport[]) {(EntityImport){ .name = s("print"), .entity = ((Entity){.typeId = lD->typVoidOfStr})}})
+            ((Int[]) {2, tokUnderscore, tokString}),
+            ((EntityImport[]) {(EntityImport){ .name = s("print"), .typeInd = 0}})
         ),
         createTest(
             s("Loop with break and continue"),
@@ -1130,6 +1179,7 @@ ParserTestSet* loopTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodBreak, .pl1 = 1, .startBt = 49, .lenBts = 5 },
                 (Node){ .tp = nodContinue, .pl1 = 3, .startBt = 63, .lenBts = 10 }
             }),
+            ((Int[]) {}),
             ((EntityImport[]) {})
         ),
     }));

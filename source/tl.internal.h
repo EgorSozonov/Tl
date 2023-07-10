@@ -459,7 +459,7 @@ typedef struct {
 
 typedef struct {
     String* name;
-    Entity entity;
+    Int typeInd;
 } EntityImport;
 
 //}}}
@@ -574,7 +574,7 @@ struct Compiler {
 
     InStackInt overloads;
 
-    InStackInt types;
+    InStackInt types; // (: (arity + 1) returnType param1Type param2Type...)
     StringStore* typesDict;
 
     Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression

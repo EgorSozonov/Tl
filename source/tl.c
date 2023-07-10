@@ -29,7 +29,7 @@
 jmp_buf excBuf;
 
 #define DEFINE_STACK(T)                                                             \
-    Stack##T * createStack##T (int initCapacity, Arena* a) {                        \
+    testable Stack##T * createStack##T (int initCapacity, Arena* a) {               \
         int capacity = initCapacity < 4 ? 4 : initCapacity;                         \
         Stack##T * result = allocateOnArena(sizeof(Stack##T), a);                   \
         result->capacity = capacity;                                                \
@@ -39,17 +39,17 @@ jmp_buf excBuf;
         result->content = arr;                                                      \
         return result;                                                              \
     }                                                                               \
-    bool hasValues ## T (Stack ## T * st) {                                         \
+    testable bool hasValues ## T (Stack ## T * st) {                                \
         return st->length > 0;                                                      \
     }                                                                               \
-    T pop##T (Stack ## T * st) {                                                    \
+    testable T pop##T (Stack ## T * st) {                                           \
         st->length--;                                                               \
         return st->content[st->length];                                             \
     }                                                                               \
-    T peek##T(Stack##T * st) {                                                      \
+    testable T peek##T(Stack##T * st) {                                             \
         return st->content[st->length - 1];                                         \
     }                                                                               \
-    void push##T (T newItem, Stack ## T * st) {                                     \
+    testable void push##T (T newItem, Stack ## T * st) {                            \
         if (st->length < st->capacity) {                                            \
             memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));          \
         } else {                                                                    \
@@ -61,31 +61,31 @@ jmp_buf excBuf;
         }                                                                           \
         st->length++;                                                               \
     }                                                                               \
-    void clear##T (Stack##T * st) {                                                 \
+    testable void clear##T (Stack##T * st) {                                        \
         st->length = 0;                                                             \
     }
 
 
 
-#define DEFINE_INTERNAL_STACK_CONSTRUCTOR(T)                \
-InStack##T createInStack##T(Int initCap, Arena* a) {        \
-    return (InStack##T){                                    \
-        .content = allocateOnArena(initCap*sizeof(T), a),   \
-        .length = 0, .capacity = initCap };                 \
+#define DEFINE_INTERNAL_STACK_CONSTRUCTOR(T)                  \
+testable InStack##T createInStack##T(Int initCap, Arena* a) { \
+    return (InStack##T){                                      \
+        .content = allocateOnArena(initCap*sizeof(T), a),     \
+        .length = 0, .capacity = initCap };                   \
 }
 
 #define DEFINE_INTERNAL_STACK(fieldName, T, aName)              \
-    bool hasValuesIn##fieldName(Compiler* cm) {                 \
+    testable bool hasValuesIn##fieldName(Compiler* cm) {        \
         return cm->fieldName.length > 0;                        \
     }                                                           \
-    T popIn##fieldName(Compiler* cm) {                          \
+    testable T popIn##fieldName(Compiler* cm) {                 \
         cm->fieldName.length--;                                 \
         return cm->fieldName.content[cm->fieldName.length];     \
     }                                                           \
-    T peekIn##fieldName(Compiler* cm) {                         \
+    testable T peekIn##fieldName(Compiler* cm) {                \
         return cm->fieldName.content[cm->fieldName.length - 1]; \
     }                                                           \
-    void pushIn##fieldName(T newItem, Compiler* cm) {           \
+    testable void pushIn##fieldName(T newItem, Compiler* cm) {  \
         if (cm->fieldName.length < cm->fieldName.capacity) {    \
             memcpy((T*)(cm->fieldName.content) + (cm->fieldName.length), &newItem, sizeof(T)); \
         } else {                                                                               \
@@ -97,7 +97,7 @@ InStack##T createInStack##T(Int initCap, Arena* a) {        \
         }                                                                                      \
         cm->fieldName.length++;                                                                \
     }                                                                                          \
-    void clearIn##fieldName (Compiler* cm) {                                                   \
+    testable void clearIn##fieldName (Compiler* cm) {                                          \
         cm->fieldName.length = 0;                                                              \
     }
 
@@ -802,10 +802,8 @@ typedef union {
 } FloatingBits;
 
 _Noreturn private void throwExcInternal(Int errInd, Compiler* cm) {   
-    cm->wasError = true;
-#ifdef TRACE    
-    printf("Internal error %d\n", errInd);
-#endif    
+    cm->wasError = true;    
+    printf("Internal error %d\n", errInd);  
     cm->errMsg = stringOfInt(errInd, cm->a);
     printString(cm->errMsg);
     longjmp(excBuf, 1);
@@ -2276,11 +2274,9 @@ private Int createBinding(Token bindingToken, Entity e, Compiler* cm) {
 private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
 
-    print("fnDefIncrementOverlCount activeValue %d", activeValue)
     VALIDATEP(activeValue < 0, errorAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
         cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
-        print("pushing overl id  %d", cm->overloadIds.length)
         pushInoverloadIds(SIXTEENPLUSONE, cm);        
     } else { // other overloads have already been registered, so just increment the counts
         cm->overloadIds.content[-activeValue - 2] += SIXTEENPLUSONE;
@@ -2291,23 +2287,16 @@ private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
 private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
     Int mbBinding = cm->activeBindings[nameId];
     Int typeLength = cm->types.content[ent.typeId];
-    print("importEntity typeId %d typeLength %d", ent.typeId, typeLength)
     VALIDATEP(mbBinding == -1 || typeLength > 0, errorAssignmentShadowing) // either the name unique, or it's a function
 
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
 
-    print("typeLength %d", typeLength)
     if (typeLength == 0) { // not a function
-        if (cm->scopeStack->length > 0) {
-            // adds it to the ScopeStack so it will be cleaned up when the scope is over
-            addBinding(nameId, newEntityId, cm); 
-        }
-        cm->activeBindings[nameId] = newEntityId; // makes it active
+        cm->activeBindings[nameId] = newEntityId;
     } else {
         fnDefIncrementOverlCount(nameId, cm);
     }
-    print("newEntity %d", newEntityId)
     return newEntityId;
 }
 
@@ -2441,7 +2430,7 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
     }
 }
 
-Int typeCheckResolveExpr(Int indExpr, Compiler* cm);
+Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
 /** Parses an expression. Precondition: we are 1 past the span token */
 private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* cm) {
@@ -2483,8 +2472,8 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* cm) {
         }
     }
     subexprClose(tokens, cm);
-    Int exprType = typeCheckResolveExpr(startNodeInd, cm);
-    print("exprType %d", exprType)
+    Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.length, cm);
+    print("exprType after typecheck/resolve %d", exprType)
 }
 
 /**
@@ -2506,7 +2495,7 @@ private void maybeCloseSpans(Compiler* cm) {
     }
 }
 
-/** Parses top-level function bodies */
+/** Parses anything from current cm->i to "sentinelToken" */
 private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
     while (cm->i < sentinelToken) {
         Token currTok = tokens[cm->i];
@@ -2547,13 +2536,13 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     
     Int sentinelToken = cm->i + tok.pl2;
 
-    Token bindingToken = tokens[cm->i];
-    Int newBindingId = createBinding(bindingToken, (Entity){ }, cm);
+    Token bindingTk = tokens[cm->i];
+    Int newBindingId = createBinding(bindingTk, (Entity){ }, cm);
 
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     
-    pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingToken.startBt, .lenBts = bindingToken.lenBts}, cm);
+    pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
     
     cm->i++; // CONSUME the word token before the assignment sign
     Token rTk = tokens[cm->i];
@@ -2688,16 +2677,12 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodReturn, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     
     Token rTk = tokens[cm->i];
-    if (rTk.tp == tokScope) {
-        print("scope %d", rTk.tp);
-        //openScope(pr);
-    } else {        
-        if (lenTokens == 1) {
-            VALIDATEP(parseLiteralOrIdentifier(rTk, cm), errorReturn)            
-        } else {
-            parseExpr((Token){ .pl2 = lenTokens, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt }, 
-                       tokens, cm);
-        }
+       
+    if (lenTokens == 1) {
+        VALIDATEP(parseLiteralOrIdentifier(rTk, cm), errorReturn)            
+    } else {
+        parseExpr((Token){ .pl2 = lenTokens, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt }, 
+                   tokens, cm);
     }
 }
 
@@ -2735,14 +2720,14 @@ private void ifAddClause(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(j + 1 < cm->inpLength, errorPrematureEndOfTokens)
     VALIDATEP(tokens[j].tp == tokArrow, errorIfMalformed)
     
-    j++; // the arrow
+    j++; // CONSUMEthe arrow
     
     Token rightToken = tokens[j];
     Int rightTokLength = (rightToken.tp >= firstPunctuationTokenType) ? (rightToken.pl2 + 1) : 1;    
     Int sentinelByte = rightToken.startBt + rightToken.lenBts;
     
-    ParseFrame clauseFrame = (ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length, .sentinelToken = j + rightTokLength };
-    push(clauseFrame, cm->backtrack);
+    ParseFrame clause = (ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length, .sentinelToken = j + rightTokLength };
+    push(clause, cm->backtrack);
     pushInnodes((Node){.tp = nodIfClause, .pl1 = leftTokSkip, .startBt = tok.startBt, .lenBts = sentinelByte - tok.startBt }, cm);
 }
 
@@ -2766,13 +2751,13 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     Token lTk = tokens[lInd]; // + 1 because cm->i points at the stmt so far
 
     VALIDATEP(lTk.tp == tokWord || lTk.tp == tokBool || lTk.tp == tokParens, errorLoopHeader)
-    Int lSentin = calcSentinel(lTk, lInd); 
+    Int lSent = calcSentinel(lTk, lInd); 
 
     Int startOfScope = sentinelStmt;
     Int startBtScope = tokens[startOfScope].startBt;
     Int indRightSide = -1;
-    if (lSentin < sentinelStmt) {
-        indRightSide = lSentin;
+    if (lSent < sentinelStmt) {
+        indRightSide = lSent;
         startOfScope = indRightSide;
         Token tokRightSide = tokens[indRightSide];
         startBtScope = tokRightSide.startBt;
@@ -2824,7 +2809,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     if (startBtScope < 0) {
         startBtScope = tokBody.startBt;
     }    
-    pushInnodes((Node){.tp = nodLoopCond, .pl1 = slStmt, .pl2 = lSentin - lInd, .startBt = lTk.startBt, .lenBts = lTk.lenBts}, cm);
+    pushInnodes((Node){.tp = nodLoopCond, .pl1 = slStmt, .pl2 = lSent - lInd, .startBt = lTk.startBt, .lenBts = lTk.lenBts}, cm);
     cm->i = lInd + 1;
     parseExpr(tokens[lInd], tokens, cm);    
     
@@ -2930,20 +2915,19 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 }
 
 
-testable void importEntities(Arr(EntityImport) impts, Int countEntities, Compiler* cm) {
+testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
     for (int i = 0; i < countEntities; i++) {
         Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
         if (mbNameId > -1) {
-            impts[i].entity.nameId = mbNameId;
-            print("entity type %d", impts[i].entity.typeId)
-            Int newBindingId = importEntity(mbNameId, impts[i].entity, cm);
+            Int typeInd = typeIds[impts[i].typeInd];
+            Int newBindingId = importEntity(mbNameId, (Entity){.nameId = mbNameId, .typeId = typeInd }, cm);
         }
     }
     cm->countNonparsedEntities = cm->entities.length;
 }
 
 /** Unique'ing of types. Returns the index of existing type if this one isn't new, and -1 otherwise */
-private Int addTypeToStore(Int startBt, Int lenBts, Compiler* cm) {
+testable Int addType(Int startBt, Int lenBts, Compiler* cm) {
     byte* types = (byte*)cm->types.content;
     StringStore* hm = cm->typesDict;
     Int hash = hashCode(types + startBt, lenBts) % (hm->dictSize);
@@ -2983,7 +2967,7 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
     cm->types.content[newInd] = arity + 1;
     memcpy(cm->types.content + newInd + 1, paramsAndReturn, (arity + 1)*4);
     
-    Int existingTypeId = addTypeToStore(newInd*4, (arity + 2)*4, cm);
+    Int existingTypeId = addType(newInd*4, (arity + 2)*4, cm);
     if (existingTypeId == -1) {        
         cm->types.length += (arity + 2);
         return newInd;
@@ -3159,12 +3143,12 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
     addFunctionType(1, (Int[]){tokString}, cm);
     
     EntityImport builtins[3] =  {
-        (EntityImport) { .name = str("math-pi", cm->a), .entity = (Entity){.typeId = tokFloat} },
-        (EntityImport) { .name = str("math-e", cm->a),  .entity = (Entity){.typeId = tokFloat} },
-        (EntityImport) { .name = str("print", cm->a),  .entity = (Entity){.typeId = voidOfStr} }
+        (EntityImport) { .name = str("math-pi", cm->a), .typeInd = 0 },
+        (EntityImport) { .name = str("math-e", cm->a),  .typeInd = 0 },
+        (EntityImport) { .name = str("print", cm->a),  .typeInd = 1 }
     };    
 
-    importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), cm);
+    importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), ((Int[]){tokFloat, voidOfStr}), cm);
 }
 //}}}
 
@@ -3251,14 +3235,13 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
             VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
 #endif            
             o = cm->overloadIds.content[-currFuncId - 2] + 1;
-            countOverls = cm->overloads.content[cm->overloadIds.content[currOperId]];
+            countOverls = cm->overloads.content[o - 1];
             sentinel = o + countOverls;
         }
 
 #ifdef SAFETY
         VALIDATEI(o < sentinel, iErrorOverloadsOverflow)
-#endif        
-        
+#endif
         cm->overloads.content[o] = getLastParamType(ent.typeId, cm);
         cm->overloads.content[o + countOverls] = i;
         
@@ -3362,6 +3345,7 @@ private void validateOverloadsFull(Compiler* cm) {
         VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
             if (cm->overloads.content[j] < 0) {
+                print("not full type j %d cm->overloads.content[j] %d", j, cm->overloads.content[j]) 
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
@@ -3370,6 +3354,7 @@ private void validateOverloadsFull(Compiler* cm) {
         }
         for (Int j = currInd + countOverloads + 1; j < nextInd; j++) {
             if (cm->overloads.content[j] < 0) {
+                print("not full entity j %d cm->overloads.content[j] %d", j, cm->overloads.content[j]) 
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenEntities) {
@@ -3444,7 +3429,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     
     VALIDATEP(cm->i < (fnSentinelToken - 1) && lx->tokens[cm->i].tp == tokEqualsSign, errorFnMissingBody)
     cm->types.content[tentativeTypeInd] = arity + 1;
-    Int uniqueTypeId = addTypeToStore(tentativeTypeInd*4, (arity + 2)*4, cm);
+    Int uniqueTypeId = addType(tentativeTypeInd*4, (arity + 2)*4, cm);
     cm->entities.content[fnEntityId].typeId = uniqueTypeId;
     addParsedOverload(overloadId, cm->types.content[uniqueTypeId + arity + 1], fnEntityId, cm);
     pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = paramsTokenInd,
@@ -3453,7 +3438,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
 
 /** 
  * Parses a top-level function.
- * The result is the AST [FnDef EntityName Scope EntityParam1 EntityParam2 ... ]
+ * The result is the AST (: FnDef EntityName Scope EntityParam1 EntityParam2 ... )
  */
 private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compiler* cm) {
     Int fnSentinelToken = toplevelSignature.lenBts;
@@ -3465,7 +3450,7 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     pushInnodes(((Node){ .tp = nodFnDef, .pl1 = toplevelSignature.pl1,
         .startBt = fnDefToken.startBt, .lenBts = fnDefToken.lenBts }), cm);
     
-    // the scope for the function body
+    // the scope for the function's body
     push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken }), cm->backtrack);
     pushScope(cm->scopeStack);
     pushInnodes(((Node){ .tp = nodScope, .startBt = tokens[cm->i].startBt,
@@ -3531,7 +3516,7 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
         // This gives us overload counts
         surveyToplevelFunctionNames(lx, cm);
 
-        // This gives us the complete overloads & overloadIds tables
+        // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
         createOverloads(cm);
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
         StackNode* topLevelSignatures = parseToplevelSignatures(lx, cm);
@@ -3624,8 +3609,8 @@ testable bool makeSureOverloadsUnique(Int startInd, Int endInd, Arr(Int) overloa
 }
 
 /** Performs a binary search among the concrete overloads. Returns false if nothing is found */
-testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int endInd, Int* entityId, Arr(Int) overloads) {
-    Int countAllOverloads = (endInd - startInd)/2;
+testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int sentinelInd, Int* entityId, Arr(Int) overloads) {
+    Int countAllOverloads = (sentinelInd - startInd - 1)/2;
     Int i = startInd + 1;
     Int j = startInd + overloads[startInd];
     
@@ -3660,8 +3645,8 @@ testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int endInd, I
  *         end = ind of the last entityId of the overload (inclusive)
  *         entityId = address where to store the result, if successful
  */
-testable bool findOverload(Int typeId, Int start, Int end, Int* entityId, Compiler* cm) {
-    return overloadBinarySearch(typeId, start, end, entityId, cm->overloads.content);
+testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm) {
+    return overloadBinarySearch(typeId, start, sentinel, entityId, cm->overloads.content);
 }
 
 /** Shifts elements from start and until the end to the left.
@@ -3691,6 +3676,7 @@ private void printExpSt(StackInt* st) {
 
 /** Populates the expression's type stack with the operands and functions of an expression */
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
+    print("populateExpStack %d %d", indExpr + 1, sentinelNode)
     for (int i = indExpr + 1; i < sentinelNode; ++i) {
         Node nd = cm->nodes.content[i];
         if (nd.tp <= tokString) {
@@ -3708,9 +3694,8 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
 }
 
 /** Typechecks and overload-resolves a single expression */
-testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
+testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     Node expr = cm->nodes.content[indExpr];
-    Int sentinelNode = indExpr + expr.pl2 + 1;
     Int currAhead = 0; // how many elements ahead we are compared to the token array (because of extra call indicators)
     StackInt* st = cm->expStack;
     
@@ -3718,7 +3703,8 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
     printExpSt(st);
 
     // now go from back to front, resolving the calls, typechecking & collapsing args, and replacing calls with their return types
-    Int j = expr.pl2 + currAhead - 1;
+    Int j = sentinelNode - 1;
+
     Arr(Int) cont = st->content;
     while (j > -1) {
         if (cont[j] < BIG) { // it's not a function call, because function call indicators have BIG in them
@@ -3743,10 +3729,12 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
             }
             --j;
         } else {
+            print("else clause o = %d", o)
             Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
             VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
             Int entityId;
-            VALIDATEP(findOverload(typeLastArg, cm->overloadIds.content[o], cm->overloadIds.content[o] - 1, &entityId, cm),
+            print("overloadInd %d nextind %d", 
+            VALIDATEP(findOverload(typeLastArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm),
                       errorTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
@@ -3761,7 +3749,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
                     cm->entities.content[argBindingId].typeId = cm->types.content[typeOfFunc + k - j];
                 }
             }
-
+            print("resolved the func entity to %d, retType %d", entityId, cm->types.content[typeOfFunc + 1])
             cm->nodes.content[j + 1 - currAhead].pl1 = entityId; // the type-resolved function of the call
             cont[j] = cm->types.content[typeOfFunc + 1];         // the function return type
             shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
@@ -3770,6 +3758,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Compiler* cm) {
             j -= 2;
         }
     }
+    print("pAfter")
     if (st->length == 1) {
         return st->content[0]; // the last remaining element is the type of the expression
     } else {

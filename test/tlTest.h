@@ -57,12 +57,12 @@ extern const char errorDocComment[];
 #ifdef PARSER_TEST
 
 void addNode(Node n, Compiler* cm);
-void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* cm);
+void importEntities(Arr(EntityImport) impts, Int countBindings, Arr(Int) typeInds, Compiler* cm);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int equalityParser(Compiler a, Compiler b);
 Compiler* createCompiler(Lexer* lx, Arena* a);
 Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a);
-
+Int addType(Int startBt, Int lenBts, Compiler* cm);
 
 extern const char errorBareAtom[];
 extern const char errorImportsNonUnique[];
