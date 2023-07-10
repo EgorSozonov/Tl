@@ -2285,14 +2285,14 @@ private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
 
 
 private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
-    Int mbBinding = cm->activeBindings[nameId];
+    Int existingBinding = cm->activeBindings[nameId];
     Int typeLength = cm->types.content[ent.typeId];
-    VALIDATEP(mbBinding == -1 || typeLength > 0, errorAssignmentShadowing) // either the name unique, or it's a function
+    VALIDATEP(existingBinding == -1 || typeLength > 0, errorAssignmentShadowing) // either the name unique, or it's a function
 
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
 
-    if (typeLength == 0) { // not a function
+    if (typeLength <= 1) { // not a function, or 0-arity function => not overloaded
         cm->activeBindings[nameId] = newEntityId;
     } else {
         fnDefIncrementOverlCount(nameId, cm);
@@ -2332,12 +2332,12 @@ private Int calcSentinel(Token tok, Int tokInd) {
 }
 
 /**
- * A single-item subexpression, like "(foo)" or "(!)". Consumes no tokens.
+ * A single-item subexpression, like "(foo)". Consumes no tokens.
  */
 private void exprSingleItem(Token tk, Compiler* cm) {
     if (tk.tp == tokWord) {
         Int mbOverload = cm->activeBindings[tk.pl2];
-        VALIDATEP(mbOverload != -1, errorUnknownFunction)
+        VALIDATEP(mbOverload > -1, errorUnknownFunction)
         pushInnodes((Node){.tp = nodCall, .pl1 = mbOverload, .pl2 = 0, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);        
     } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
@@ -3189,7 +3189,7 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
 
 
 private Int getLastParamType(Int funcTypeId, Compiler* cm);
-private bool isFunction(Int typeId, Compiler* cm);
+private bool isFunctionWithParams(Int typeId, Compiler* cm);
 
 /** Now that the overloads are freshly allocated, we need to write all the existing entities (operators and imported functions)
  * to the table. The table consists of variable-length entries of the form: [count typeId1 typeId2 entId1 entId2]
@@ -3223,7 +3223,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     Int currFuncId = -1;
     for (Int i = cm->countOperatorEntities; i < cm->countNonparsedEntities; i++) {
         Entity ent = cm->entities.content[i];
-        if (!isFunction(ent.typeId, cm)) {
+        if (!isFunctionWithParams(ent.typeId, cm)) {
             continue;
         }
 
@@ -3243,7 +3243,6 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 #endif
         cm->overloads.content[o] = getLastParamType(ent.typeId, cm);
         cm->overloads.content[o + countOverls] = i;
-        
         o++;
     }
 }
@@ -3304,7 +3303,7 @@ private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
             
             Token fnName = lx->tokens[(cm->i) + 2]; // + 2 because we skip over the "fn" and "stmt" span tokens
             VALIDATEP(fnName.tp == tokWord, errorFnNameAndParams)
-            
+            // TODO handle 0-arity funcs
             fnDefIncrementOverlCount(fnName.pl2, cm);
         }
         cm->i += (tok.pl2 + 1);        
@@ -3376,7 +3375,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     Int overloadIdEncoded = cm->activeBindings[fnNameId];
 
 #ifdef SAFETY // all toplevel fn names should've been activated in "surveyToplevelFunctionNames()"
-    VALIDATEI(overloadIdEncoded < -1, iErrorParsedFunctionNotInScope)
+    VALIDATEI(overloadIdEncoded != -1, iErrorParsedFunctionNotInScope)
 #endif
     Int overloadId = -overloadIdEncoded - 2;
 
@@ -3428,7 +3427,10 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     cm->types.content[tentativeTypeInd] = arity + 1;
     Int uniqueTypeId = addType(tentativeTypeInd*4, (arity + 2)*4, cm);
     cm->entities.content[fnEntityId].typeId = uniqueTypeId;
-    addParsedOverload(overloadId, cm->types.content[uniqueTypeId + arity + 1], fnEntityId, cm);
+
+    if (arity > 0) {
+        addParsedOverload(overloadId, cm->types.content[uniqueTypeId + arity + 1], fnEntityId, cm);
+    }
     pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = paramsTokenInd,
          .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
 }
@@ -3543,8 +3545,8 @@ private Int getLastParamType(Int funcTypeId, Compiler* cm) {
     return cm->types.content[funcTypeId + cm->types.content[funcTypeId]];
 }
 
-private bool isFunction(Int typeId, Compiler* cm) {
-    return cm->types.content[typeId] > 0;
+private bool isFunctionWithParams(Int typeId, Compiler* cm) {
+    return cm->types.content[typeId] > 1;
 }
 
 /**
@@ -3647,7 +3649,7 @@ testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, C
 }
 
 /** Shifts elements from start and until the end to the left.
- * E.g. the call with args (5, 3) takes the stack from [x x x x x 1 2 3] to [x x 1 2 3]
+ * E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
  */
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
     Int from = startInd;
@@ -3655,7 +3657,7 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
     Int sentinel = cm->expStack->length;
     while (from < sentinel) {
         Int pieceSize = MIN(byHowMany, sentinel - from);
-        memcpy(cm->expStack + to, cm->expStack + from, pieceSize*4);
+        memcpy(cm->expStack->content + to, cm->expStack->content + from, pieceSize*4);
         from += pieceSize;
         to += pieceSize;
     }
@@ -3673,14 +3675,14 @@ private void printExpSt(StackInt* st) {
 
 /** Populates the expression's type stack with the operands and functions of an expression */
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
-    for (int i = indExpr + 1; i < sentinelNode; ++i) {
-        Node nd = cm->nodes.content[i];
+    for (Int j = indExpr + 1; j < sentinelNode; ++j) {
+        Node nd = cm->nodes.content[j];
         if (nd.tp <= tokString) {
             push((Int)nd.tp, cm->expStack);
         } else if (nd.tp == nodCall) {
             push(BIG + nd.pl2, cm->expStack); // signifies that it's a call, and its arity
-            push((-nd.pl1 - 2), cm->expStack); // index into overloadIds
-            currAhead++;
+            push((nd.pl2 > 0 ? -nd.pl1 - 2 : nd.pl1), cm->expStack); // index into overloadIds, or entityId for 0-arity fns
+            ++(*currAhead);
         } else if (nd.pl1 > -1) { // bindingId            
             push(cm->entities.content[nd.pl1].typeId, cm->expStack);
         } else { // overloadId
@@ -3700,7 +3702,6 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 
     // now go from back to front, resolving the calls, typechecking & collapsing args, and replacing calls with their return types
     Int j = sentinelNode - 1;
-
     Arr(Int) cont = st->content;
     while (j > -1) {
         if (cont[j] < BIG) { // it's not a function call, because function call indicators have BIG in them
@@ -3710,20 +3711,20 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
         
         // It's a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
         Int arity = cont[j] - BIG;
-        Int o = cont[j + 1]; // index into the table of overloadIds
-        Int overlEndInd = cm->overloadIds.content[o];
+        Int o = cont[j + 1]; // index into the table of overloadIds, or, for 0-arity funcs, directly their entityId
         if (arity == 0) {
-            VALIDATEP(overlEndInd == o + 2, errorTypeZeroArityOverload) // + 2 for the single typeId and the single entityId
-            Int functionTypeInd = cm->overloads.content[o + 1];
+            VALIDATEP(o > -1, errorTypeZeroArityOverload)
+
+            Int functionTypeInd = cm->entities.content[o].typeId;
             Int typeLength = cm->types.content[functionTypeInd];
-            if (typeLength == 1) { // the function returns something
-                cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
-            } else {
-                shiftTypeStackLeft(j + 1, 1, cm); // the function returns nothing, so there's no return type to write
-                --currAhead;
-                printExpSt(st);
-            }
-            --j;
+#ifdef SAFETY
+            VALIDATEI(typeLength == 1, iErrorOverloadsIncoherent)
+#endif
+            
+            cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
+            shiftTypeStackLeft(j + 2, 1, cm); // the function returns nothing, so there's no return type to write
+            --currAhead;
+            printExpSt(st);
         } else {
             Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
             VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
@@ -3743,16 +3744,15 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
                     cm->entities.content[argBindingId].typeId = cm->types.content[typeOfFunc + k - j];
                 }
             }
-            print("resolved the func entity to %d, retType %d", entityId, cm->types.content[typeOfFunc + 1])
+            --currAhead;
             cm->nodes.content[j + indExpr + 1 - currAhead].pl1 = entityId; // the type-resolved function of the call
             cont[j] = cm->types.content[typeOfFunc + 1];         // the function return type
             
             shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
-            --currAhead;
-            j -= 2;
-            
+
             printExpSt(st);
         }
+        --j;
     }
     if (st->length == 1) {
         return st->content[0]; // the last remaining element is the type of the expression

@@ -134,20 +134,27 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
     while (j < countTypes) {
         Int sentinel = j + types[j] + 1;
         Int initTypeId = cm->types.length;
+
         for (Int k = j; k < sentinel; k++) {
             pushIntypes(types[k], cm);
         }
-        Int uniqueTypeId = addType(initTypeId*4, (sentinel - j)*4, cm);
-        typeIds[t] = uniqueTypeId;
+        Int existingTypeId = addType(initTypeId*4, (sentinel - j)*4, cm);
+        if (existingTypeId == -1) {
+            cm->types.length += (sentinel - j);
+            typeIds[t] = initTypeId;
+        } else {
+            typeIds[t] = existingTypeId;
+        }
+                
         t++;
         j = sentinel;
     }
-    print("Imported types: ")
-    printf("[");
-    for (Int a = 0; a < t; a++) {
-        printf("%d ", typeIds[a]);
-    }
-    print("]")
+    //~ print("Imported types: ")
+    //~ printf("[");
+    //~ for (Int a = 0; a < t; a++) {
+        //~ printf("%d ", typeIds[a]);
+    //~ }
+    //~ print("]")
     return typeIds;
 }
 
@@ -295,7 +302,7 @@ void printParser(Compiler* cm, Arena* a) {
         }
         if (nod.tp == nodCall) {
             printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
-            printType(cm->entities.content[nod.pl1].typeId, cm);
+            //printType(cm->entities.content[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
         } else {
@@ -402,22 +409,22 @@ ParserTestSet* assignmentTests(LanguageDefinition* lD, Arena* a) {
 
 ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
-        //~ createTest(
-            //~ s("Simple function call"), 
-            //~ s("x = foo 10 2 3"),
-            //~ (((Node[]) {
-                    //~ (Node){ .tp = nodAssignment, .pl2 = 6, .startBt = 0, .lenBts = 14 },
-                    //~ // " + 1" because the first binding is taken up by the "imported" function, "foo"
-                    //~ (Node){ .tp = nodBinding, .pl1 = 0,        .startBt = 0, .lenBts = 1 }, // x
-                    //~ (Node){ .tp = nodExpr,  .pl2 = 4,          .startBt = 4, .lenBts = 10 },
-                    //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // foo
-                    //~ (Node){ .tp = tokInt, .pl2 = 10,           .startBt = 8, .lenBts = 2 },
-                    //~ (Node){ .tp = tokInt, .pl2 = 2,            .startBt = 11, .lenBts = 1 },
-                    //~ (Node){ .tp = tokInt, .pl2 = 3,            .startBt = 13, .lenBts = 1 }                    
-            //~ })),
-            //~ ((Int[]) {4, tokFloat, tokInt, tokInt, tokInt}),
-            //~ ((EntityImport[]) {(EntityImport){ .name = s("foo"), .typeInd = 0}})
-        //~ ),
+        createTest(
+            s("Simple function call"), 
+            s("x = foo 10 2 3"),
+            (((Node[]) {
+                    (Node){ .tp = nodAssignment, .pl2 = 6, .startBt = 0, .lenBts = 14 },
+                    // " + 1" because the first binding is taken up by the "imported" function, "foo"
+                    (Node){ .tp = nodBinding, .pl1 = 0,        .startBt = 0, .lenBts = 1 }, // x
+                    (Node){ .tp = nodExpr,  .pl2 = 4,          .startBt = 4, .lenBts = 10 },
+                    (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // foo
+                    (Node){ .tp = tokInt, .pl2 = 10,           .startBt = 8, .lenBts = 2 },
+                    (Node){ .tp = tokInt, .pl2 = 2,            .startBt = 11, .lenBts = 1 },
+                    (Node){ .tp = tokInt, .pl2 = 3,            .startBt = 13, .lenBts = 1 }                    
+            })),
+            ((Int[]) {4, tokFloat, tokInt, tokInt, tokInt}),
+            ((EntityImport[]) {(EntityImport){ .name = s("foo"), .typeInd = 0}})
+        ),
         // //~ createTest(
         //     //~ s("Unary operator as first-class value"), 
         //     //~ s("x = map (--) coll"),
@@ -464,9 +471,9 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
                     (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 0, .startBt = 12, .lenBts = 3 }, // bar
                     (Node){ .tp = tokInt, .pl2 = 3,   .startBt = 17, .lenBts = 1 }               
             })),
-            ((Int[]) {4, tokFloat, tokInt, tokInt, tokInt, 1, tokFloat}),
+            ((Int[]) {4, tokFloat, tokInt, tokFloat, tokInt, 1, tokFloat}),
             ((EntityImport[]) {(EntityImport){ .name = s("foo"), .typeInd = 0},
-                               (EntityImport){ .name = s("bar"), .typeInd = 5}})
+                               (EntityImport){ .name = s("bar"), .typeInd = 1}})
         ),
         //~ createTest(
             //~ s("Nested function call 2"), 
