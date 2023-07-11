@@ -1,6 +1,7 @@
 Lexer* lexicallyAnalyze(String*, LanguageDefinition*, Arena*);
 void printLexer(Lexer* a);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
+int64_t longOfDoubleBits(double d);
 
 #ifdef LEXER_TEST
 
@@ -10,8 +11,6 @@ Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 void add(Token t, Lexer* lexer);
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
-
-int64_t longOfDoubleBits(double d);
 void printLexer(Lexer* a);
 int equalityLexer(Lexer a, Lexer b);
 
@@ -106,6 +105,13 @@ extern const char errorReturn[];
 extern const char errorScope[];
 extern const char errorLoopBreakOutside[];
 extern const char errorTemp[];
+
+extern const char errorTypeUnknownLastArg[];
+extern const char errorTypeZeroArityOverload[];
+extern const char errorTypeNoMatchingOverload[];
+extern const char errorTypeWrongArgumentType[];
+extern const char errorTypeMismatch[];
+extern const char errorTypeMustBeBool[];
 
 #endif
 

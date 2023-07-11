@@ -680,7 +680,7 @@ const char errorIfLeft[]                     = "A left-hand clause in an if can 
 const char errorIfRight[]                    = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
 const char errorIfEmpty[]                    = "Empty `if` expression";
 const char errorIfMalformed[]                = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
-const char errorFnNameAndParams[]            = "Function signature must look like this: `(-f fnName ReturnType(x Type1 y Type2). body...)`";
+const char errorFnNameAndParams[]            = "Function signature must look like this: `(.f fnName ReturnType(x Type1 y Type2). body...)`";
 const char errorFnMissingBody[]              = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
 const char errorLoopSyntaxError[]            = "A loop should look like `(.loop (< x 101) (x 0). loopBody)`";
 const char errorLoopHeader[]                 = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
@@ -689,7 +689,7 @@ const char errorBreakContinueTooComplex[]    = "This statement is too complex! C
 const char errorBreakContinueInvalidDepth[]  = "Invalid depth of break/continue! It must be a positive 32-bit integer!"; 
 const char errorDuplicateFunction[]          = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
 const char errorExpressionInfixNotSecond[]   = "An infix expression must have the infix operator in second position (not counting possible prefix operators)!";
-const char errorExpressionError[]            = "Cannot parse expression!";
+const char errorExpressionError[]             = "Cannot parse expression!";
 const char errorExpressionCannotContain[]     = "Expressions cannot contain scopes or statements!";
 const char errorExpressionFunctionless[]      = "Functionless expression!";
 const char errorTypeDeclCannotContain[]       = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
@@ -704,7 +704,7 @@ const char errorAssignment[]                  = "Cannot parse assignment, it mus
 const char errorAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
 const char errorReturn[]                      = "Cannot parse return statement, it must look like `return ` {expression}";
 const char errorScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
-const char errorLoopBreakOutside[]            = "The break keyword can only be used outside a loop scope!";
+const char errorLoopBreakOutside[]            = "The break keyword can only be used inside a loop scope!";
 const char errorTemp[]                        = "Temporary, delete it when finished";
 
 //}}}
@@ -715,6 +715,8 @@ const char errorTypeUnknownLastArg[]          = "The type of last argument to a 
 const char errorTypeZeroArityOverload[]       = "A function with no parameters cannot be overloaded.";
 const char errorTypeNoMatchingOverload[]      = "No matching function overload was found";
 const char errorTypeWrongArgumentType[]       = "Wrong argument type";
+const char errorTypeMismatch[]                = "Declared type doesn't match actual type";
+const char errorTypeMustBeBool[]              = "Expression must have the Bool type";
 
 //}}}
 //}}}
@@ -2247,10 +2249,10 @@ _Noreturn private void throwExcParser(const char errMsg[], Compiler* cm) {
 }
 
 
-private bool parseLiteralOrIdentifier(Token tok, Compiler* cm);
+private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
-private Int createBinding(Token bindingToken, Entity e, Compiler* cm) {
+private Int createEntity(Token bindingToken, Entity e, Compiler* cm) {
     VALIDATEP(bindingToken.tp == tokWord, errorAssignment)
 
     Int nameId = bindingToken.pl2;
@@ -2332,27 +2334,33 @@ private Int calcSentinel(Token tok, Int tokInd) {
 }
 
 /**
- * A single-item subexpression, like "(foo)". Consumes no tokens.
+ * A single-item subexpression, like "(foo)". Consumes no tokens. Returns the type of the subexpression.
  */
-private void exprSingleItem(Token tk, Compiler* cm) {
+private Int exprSingleItem(Token tk, Compiler* cm) {
+    Int typeId = -1;
     if (tk.tp == tokWord) {
         Int mbOverload = cm->activeBindings[tk.pl2];
         VALIDATEP(mbOverload > -1, errorUnknownFunction)
-        pushInnodes((Node){.tp = nodCall, .pl1 = mbOverload, .pl2 = 0, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);        
+        Int fnTypeId = cm->entities.content[mbOverload].typeId;
+        if (fnTypeId > -1) {
+            VALIDATEP(cm->types.content[fnTypeId] == 1, errorOperatorWrongArity)
+            typeId = cm->types.content[fnTypeId + 1];
+        }
+        pushInnodes((Node){.tp = nodCall, .pl1 = mbOverload, .pl2 = 0, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
     } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
         OpDef operDefinition = (*cm->langDef->operators)[operBindingId];
-        if (operDefinition.arity == 1) {
-            pushInnodes((Node){ .tp = nodId, .pl1 = operBindingId, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
-        } else {
-            throwExcParser(errorUnexpectedToken, cm);
-        }
-    } else if (tk.tp <= topVerbatimTokenVariant) {
+        VALIDATEP(operDefinition.arity == 1, errorOperatorWrongArity)
+        pushInnodes((Node){ .tp = nodId, .pl1 = operBindingId, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
+        // TODO add the type when we support first-class functions
+    } else if (tk.tp <= topVerbatimType) {
         pushInnodes((Node){.tp = tk.tp, .pl1 = tk.pl1, .pl2 = tk.pl2, .startBt = tk.startBt, .lenBts = tk.lenBts }, cm);
+        typeId = tk.tp;
     } else VALIDATEP(tk.tp < firstCoreFormTokenType, errorCoreFormInappropriate)
     else {
         throwExcParser(errorUnexpectedToken, cm);
     }
+    return typeId;
 }
 
 /** Counts the arity of the call, including skipping unary operators. Consumes no tokens. */
@@ -2432,15 +2440,15 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
 
 Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
-/** Parses an expression. Precondition: we are 1 past the span token */
-private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* cm) {
+/** Parses an expression. Precondition: we are 1 past the span token. Returns the expression type */
+private Int expr(Token exprTok, Arr(Token) tokens, Compiler* cm) {
     Int sentinelToken = cm->i + exprTok.pl2;
     Int arity = 0;
     Int startNodeInd = cm->nodes.length;
     if (exprTok.pl2 == 1) {
-        exprSingleItem(tokens[cm->i], cm);
+        Int typeId = exprSingleItem(tokens[cm->i], cm);
         cm->i++; // CONSUME the single item within parens
-        return;
+        return typeId;
     }
 
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = cm->i + exprTok.pl2 }), cm->backtrack);        
@@ -2473,6 +2481,12 @@ private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* cm) {
     }
     subexprClose(tokens, cm);
     Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.length, cm);
+    return exprType;
+}
+
+/** Parses an expression. Precondition: we are 1 past the span token */
+private void parseExpr(Token exprTok, Arr(Token) tokens, Compiler* cm) {
+    expr(exprTok, tokens, cm);
 }
 
 /**
@@ -2512,31 +2526,36 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
     }    
 }
 
-/** Consumes 0 or 1 tokens. Returns false if didn't parse anything. */
-private bool parseLiteralOrIdentifier(Token tok, Compiler* cm) {
+/** Consumes 0 or 1 tokens. Returns the type of what it parsed, including -1 if unknown. Returns -2 if didn't parse. */
+private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
+    Int typeId = -1;
     if (tok.tp <= topVerbatimTokenVariant) {
         parseVerbatim(tok, cm);
+        typeId = tok.tp;
     } else if (tok.tp == tokWord) {        
         Int nameId = tok.pl2;
         Int mbBinding = cm->activeBindings[nameId];
         VALIDATEP(mbBinding != -1, errorUnknownBinding)    
         pushInnodes((Node){.tp = nodId, .pl1 = mbBinding, .pl2 = nameId, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+        if (mbBinding > -1) {
+            typeId = cm->entities.content[mbBinding].typeId;
+        }
     } else {
-        return false;        
+        return -2;
     }
     cm->i++; // CONSUME the literal or ident token
-    return true;
+    return typeId;
 }
 
 
 private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
-    const Int rLen = tok.pl2 - 1;
+    Int rLen = tok.pl2 - 1;
     VALIDATEP(rLen >= 1, errorAssignment)
     
     Int sentinelToken = cm->i + tok.pl2;
 
     Token bindingTk = tokens[cm->i];
-    Int newBindingId = createBinding(bindingTk, (Entity){ }, cm);
+    Int newBindingId = createEntity(bindingTk, (Entity){ }, cm);
 
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
@@ -2544,14 +2563,27 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
     
     cm->i++; // CONSUME the word token before the assignment sign
+
+    Int typeId = -1;
+    Int declaredTypeId = -1;
+    if (tokens[cm->i].tp == tokTypeName) {
+        declaredTypeId = cm->activeBindings[tokens[cm->i].pl1];
+        VALIDATEP(declaredTypeId > -1, errorUnknownType)
+        ++cm->i; // CONSUME the type decl of the binding
+        --rLen; // for the type decl token
+    }
     Token rTk = tokens[cm->i];
-    if (rTk.tp == tokScope) {
-        //openScope(pr); 
-    } else if (rLen == 1) {
-            VALIDATEP(parseLiteralOrIdentifier(rTk, cm), errorAssignment)
+    if (rLen == 1) {
+            typeId = parseLiteralOrIdentifier(rTk, cm);
+            VALIDATEP(typeId != -2, errorAssignment)
     } else if (rTk.tp == tokIf) { // TODO
     } else {
-        parseExpr((Token){ .pl2 = rLen, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt  }, tokens, cm);        
+        typeId = expr(
+                (Token){ .pl2 = rLen, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt  }, tokens, cm);
+    }
+    VALIDATEP(declaredTypeId == -1 || typeId == declaredTypeId, errorTypeMismatch)
+    if (typeId > -1) {
+        cm->entities.content[newBindingId].typeId = typeId;
     }
 }
 
@@ -2680,8 +2712,9 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
     if (lenTokens == 1) {
         VALIDATEP(parseLiteralOrIdentifier(rTk, cm), errorReturn)            
     } else {
-        parseExpr((Token){ .pl2 = lenTokens, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt }, 
+        Int typeId = expr((Token){ .pl2 = lenTokens, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt }, 
                    tokens, cm);
+        // TODO find func above
     }
 }
 
@@ -2778,25 +2811,28 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
             Token binding = tokens[cm->i];
             VALIDATEP(binding.tp = tokWord, errorLoopSyntaxError)
             
-            Token expr = tokens[cm->i + 1];
+            Token exprTk = tokens[cm->i + 1];
             
-            VALIDATEP(expr.tp < firstPunctuationTokenType || expr.tp == tokParens, errorLoopSyntaxError)
+            VALIDATEP(exprTk.tp < firstPunctuationTokenType || exprTk.tp == tokParens, errorLoopSyntaxError)
             
-            Int initializationSentinel = calcSentinel(expr, cm->i + 1);
-            Int bindingId = createBinding(binding, ((Entity){}), cm);
+            Int initializationSentinel = calcSentinel(exprTk, cm->i + 1);
+            Int newBindingId = createEntity(binding, ((Entity){}), cm);
             Int indBindingSpan = cm->nodes.length;
             pushInnodes((Node){.tp = nodAssignment, .pl2 = initializationSentinel - cm->i,
-                           .startBt = binding.startBt, .lenBts = expr.lenBts + expr.startBt - binding.startBt}, cm);
-            pushInnodes((Node){.tp = nodBinding, .pl1 = bindingId,
+                           .startBt = binding.startBt, .lenBts = exprTk.lenBts + exprTk.startBt - binding.startBt}, cm);
+            pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId,
                            .startBt = binding.startBt, .lenBts = binding.lenBts}, cm);
-                        
-            if (expr.tp == tokParens) {
+            Int typeId = -1;
+            if (exprTk.tp == tokParens) {
                 cm->i += 2;
-                parseExpr(expr, tokens, cm);
+                typeId = expr(exprTk, tokens, cm);
             } else {
-                exprSingleItem(expr, cm);
+                typeId = exprSingleItem(exprTk, cm);
             }
             setSpanLength(indBindingSpan, cm);
+            if (typeId > -1) {
+                cm->entities.content[newBindingId].typeId = typeId;
+            }
             
             cm->i = initializationSentinel;
         }
@@ -2810,7 +2846,8 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     }    
     pushInnodes((Node){.tp = nodLoopCond, .pl1 = slStmt, .pl2 = lSent - lInd, .startBt = lTk.startBt, .lenBts = lTk.lenBts}, cm);
     cm->i = lInd + 1;
-    parseExpr(tokens[lInd], tokens, cm);    
+    Int condTypeId = expr(tokens[lInd], tokens, cm);
+    VALIDATEP(condTypeId == tokBool, errorTypeMustBeBool)
     
     cm->i = sentinelStmt; // CONSUME the loop token and its first statement
 }
@@ -3269,8 +3306,8 @@ testable void createOverloads(Compiler* cm) {
         cm->overloadIds.content[i] = j;
         j += (2*maxCountOverloads + 1);
     }
-    populateOverloadsForOperatorsAndImports(cm);
     pushInoverloadIds(neededCount, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds
+    populateOverloadsForOperatorsAndImports(cm);
 }
 
 /** Parses top-level types but not functions and adds their bindings to the scope */
@@ -3343,6 +3380,7 @@ private void validateOverloadsFull(Compiler* cm) {
         VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
             if (cm->overloads.content[j] < 0) {
+                print("here j %d cm->overloads.content[j]%d", j, cm->overloads.content[j]) 
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
@@ -3351,6 +3389,15 @@ private void validateOverloadsFull(Compiler* cm) {
         }
         for (Int j = currInd + countOverloads + 1; j < nextInd; j++) {
             if (cm->overloads.content[j] < 0) {
+                print("here ent currInd %d nextInd %d j %d cm->overloads.content[j] %d", currInd, nextInd,
+                    j, cm->overloads.content[j])
+                    printf("[");
+                    for (Int k = currInd; k < nextInd; k++) {
+
+                        printf("%d ", cm->overloads.content[k]);
+
+                    }
+                    print("]");
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenEntities) {
@@ -3462,7 +3509,7 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = tokens[cm->i];
-        Int newEntityId = createBinding(paramName, (Entity){.nameId = paramName.pl2}, cm);
+        Int newEntityId = createEntity(paramName, (Entity){.nameId = paramName.pl2}, cm);
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
         ++cm->i; // CONSUME a param name
         ++cm->i; // CONSUME the param's type name

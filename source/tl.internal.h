@@ -239,13 +239,14 @@ struct Lexer {
 #define tokYield       44
 
 // Resumable core forms
-#define tokIf          45    // "(if " or "(-i". pl1 = 1 if it's the "(-" variant
+#define tokIf          45    // "(if " or "(.i". pl1 = 1 if it's the "(.i" variant
 #define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       47    // "(-m " or "(match " pattern matching on sum type tag 
-#define tokImpl        48    // "(-impl " 
-#define tokLoop        49    // "(-loop "
+#define tokMatch       47    // "(.m " or "(match " pattern matching on sum type tag 
+#define tokImpl        48    // "(.impl " 
+#define tokLoop        49    // "(.loop "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
+#define topVerbatimType tokString
 
 /**
  * OperatorType
@@ -339,7 +340,6 @@ typedef struct {
 #define countCoreForms (tokLoop - tokAlias + 1)
 #define countSyntaxForms (tokLoop + 1)
 
-
 //}}}
 //{{{ Parser
 
@@ -347,6 +347,7 @@ typedef struct {
     untt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
+    Int typeId;            // valid only for fnDef, if, loopCond and the like
     void* scopeStackFrame; // only for tp = scope or expr
 } ParseFrame;
 
