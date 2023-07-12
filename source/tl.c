@@ -715,6 +715,7 @@ const char errorTypeUnknownLastArg[]          = "The type of last argument to a 
 const char errorTypeZeroArityOverload[]       = "A function with no parameters cannot be overloaded.";
 const char errorTypeNoMatchingOverload[]      = "No matching function overload was found";
 const char errorTypeWrongArgumentType[]       = "Wrong argument type";
+const char errorTypeWrongReturnType[]         = "Wrong return type";
 const char errorTypeMismatch[]                = "Declared type doesn't match actual type";
 const char errorTypeMustBeBool[]              = "Expression must have the Bool type";
 
@@ -1731,18 +1732,15 @@ private void openScope(Lexer* lx, Arr(byte) inp) {
     openPunctuation(tokScope, slScope, startBt, lx);    
 }
 
-/** Handles the "(*" case (doc-comment), the "(:" case (data initializer) as well as the common subexpression case */
+/** Handles the "(*" case (scope) as well as the common (subexpression) case */
 private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errorPunctuationUnmatched)
-    if (inp[j] == aColon) { // "(:" starts a new data initializer        
+    if (inp[j] == aColon) { // "(*" starts a new data initializer        
         openPunctuation(tokData, slSubexpr, lx->i, lx);
-        lx->i += 2; // CONSUME the "(:"
-    } else if (inp[j] == aTimes) {
         lx->i += 2; // CONSUME the "(*"
-        docComment(lx, inp);
-    } else if (inp[j] == aDot) {
+    } else if (inp[j] == aTimes) {
         openScope(lx, inp);
     } else {
         wrapInAStatement(lx, inp);
@@ -1753,7 +1751,7 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
 
 
 private void lexParenRight(Lexer* lx, Arr(byte) inp) {
-    // TODO handle syntax like "(foo 5).field" and "arr[5].field"
+    // TODO handle syntax like "(foo 5).field" and "(: id 5 name "asdf").id"
     Int startInd = lx->i;
     closeRegularPunctuation(tokParens, lx);
     
@@ -2700,6 +2698,19 @@ private void parsePackage(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
+private void typecheckFnReturn(Int typeId, Compiler* cm) {
+    print("typeId %d", typeId)
+    Int j = cm->backtrack->length - 1;
+    while (j > -1 && cm->backtrack->content[j].tp != nodFnDef) {
+        --j;
+    }
+    Int fnTypeInd = cm->backtrack->content[j].typeId;
+    print("cm->types.content[fnTypeInd + 1] %d typeId %d fnTypeInd %d", cm->types.content[fnTypeInd + 1], typeId, fnTypeInd)
+    print("fn %d %d %d", cm->types.content[fnTypeInd], cm->types.content[fnTypeInd + 1], cm->types.content[fnTypeInd + 2])
+    VALIDATEP(cm->types.content[fnTypeInd + 1] == typeId, errorTypeWrongReturnType)
+}
+
+
 private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int lenTokens = tok.pl2;
     Int sentinelToken = cm->i + lenTokens;        
@@ -2710,7 +2721,12 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
     Token rTk = tokens[cm->i];
        
     if (lenTokens == 1) {
-        VALIDATEP(parseLiteralOrIdentifier(rTk, cm), errorReturn)            
+        Int typeId = parseLiteralOrIdentifier(rTk, cm);
+
+        VALIDATEP(typeId > -1, errorReturn)
+        if (typeId > -1) {
+            typecheckFnReturn(typeId, cm);
+        }
     } else {
         Int typeId = expr((Token){ .pl2 = lenTokens, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt }, 
                    tokens, cm);
@@ -2974,6 +2990,7 @@ testable Int addType(Int startBt, Int lenBts, Compiler* cm) {
 
         *firstElem = (StringValue){.length = lenBts, .indString = startBt };
         *(hm->dict + hash) = newBucket;
+        return startBt/4;
     } else {
         Bucket* p = *(hm->dict + hash);
         int lenBucket = (p->capAndLen & 0xFFFF);
@@ -2986,8 +3003,8 @@ testable Int addType(Int startBt, Int lenBts, Compiler* cm) {
             }
         }        
         addValueToBucket((hm->dict + hash), startBt, lenBts, hm->a);
+        return startBt/4;
     }
-    return -1;
 }
 
 /** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
@@ -3393,9 +3410,7 @@ private void validateOverloadsFull(Compiler* cm) {
                     j, cm->overloads.content[j])
                     printf("[");
                     for (Int k = currInd; k < nextInd; k++) {
-
                         printf("%d ", cm->overloads.content[k]);
-
                     }
                     print("]");
                 throwExcInternal(iErrorOverloadsNotFull, cm);
@@ -3474,6 +3489,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     cm->types.content[tentativeTypeInd] = arity + 1;
     Int uniqueTypeId = addType(tentativeTypeInd*4, (arity + 2)*4, cm);
     cm->entities.content[fnEntityId].typeId = uniqueTypeId;
+    print("uniqueTYpe %d tentativeTypeInd %d", uniqueTypeId, tentativeTypeInd)
 
     if (arity > 0) {
         addParsedOverload(overloadId, cm->types.content[uniqueTypeId + arity + 1], fnEntityId, cm);
@@ -3509,9 +3525,13 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = tokens[cm->i];
-        Int newEntityId = createEntity(paramName, (Entity){.nameId = paramName.pl2}, cm);
+        Entity newEntity = (Entity){.nameId = paramName.pl2};
+        ++cm->i; // CONSUME the param name
+        newEntity.typeId = cm->activeBindings[tokens[cm->i].pl2];
+        
+        Int newEntityId = createEntity(paramName, newEntity, cm);
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
-        ++cm->i; // CONSUME a param name
+
         ++cm->i; // CONSUME the param's type name
         pushInnodes(paramNode, cm);
     }

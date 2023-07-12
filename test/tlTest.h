@@ -110,6 +110,7 @@ extern const char errorTypeUnknownLastArg[];
 extern const char errorTypeZeroArityOverload[];
 extern const char errorTypeNoMatchingOverload[];
 extern const char errorTypeWrongArgumentType[];
+extern const char errorTypeWrongReturnType[];
 extern const char errorTypeMismatch[];
 extern const char errorTypeMustBeBool[];
 

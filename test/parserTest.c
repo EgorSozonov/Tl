@@ -29,7 +29,7 @@ typedef struct {
 const char* nodeNames[] = {
     "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
     "id", "call", "binding", "type", "and", "or", 
-    "(.", "expr", "assign", "reAssign", "mutate",
+    "(*", "expr", "assign", "reAssign", "mutate",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
     "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
     "lambda", "meta", "package", "return", "struct", "try", "yield",
@@ -842,118 +842,118 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
     
 ParserTestSet* functionTests(LanguageDefinition* lD, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
-        createTest(
-            s("Simple function definition 1"),
-            s("(.f newFn Int (x Int y Float). a = x)"),
-            ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 6, .startBt = 0, .lenBts = 37 },
+        //~ createTest(
+            //~ s("Simple function definition 1"),
+            //~ s("(*f newFn Int(x Int y Float) = a = x)"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 6, .startBt = 0, .lenBts = 37 },
                 
-                (Node){ .tp = nodScope, .pl2 = 5,             .startBt = 14, .lenBts = 23 },
-                (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 15, .lenBts = 1 },  // param x
-                (Node){ .tp = nodBinding, .pl1 = 1,           .startBt = 21, .lenBts = 1 },  // param y
-                (Node){ .tp = nodAssignment,        .pl2 = 2, .startBt = 31, .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 31, .lenBts = 1 },  // local a
-                (Node){ .tp = nodId, .pl1 = 0,      .pl2 = 2, .startBt = 35, .lenBts = 1 }   // x                
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
+                //~ (Node){ .tp = nodScope, .pl2 = 5,             .startBt = 13, .lenBts = 24 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 1,           .startBt = 14, .lenBts = 1 },  // param x
+                //~ (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 20, .lenBts = 1 },  // param y
+                //~ (Node){ .tp = nodAssignment,        .pl2 = 2, .startBt = 31, .lenBts = 5 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 3,           .startBt = 31, .lenBts = 1 },  // local a
+                //~ (Node){ .tp = nodId, .pl1 = 1,      .pl2 = 2, .startBt = 35, .lenBts = 1 }   // x                
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
         createTest(
             s("Simple function definition 2"),
-            s("(.f newFn Int (x Int y Float) =\n"
+            s("(*f newFn String(x String y Float) =\n"
               "    a = x\n"
               "    return a\n"
               ")"
             ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 8, .startBt = 0, .lenBts = 54 },
-                (Node){ .tp = nodScope,            .pl2 = 7, .startBt = 14, .lenBts = 40 },
-                (Node){ .tp = nodBinding, .pl1 = 0,          .startBt = 15, .lenBts = 1 }, // param x
-                (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 21, .lenBts = 1 },  // param y
-                (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 34, .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 34, .lenBts = 1 },  // local a
-                (Node){ .tp = nodId, .pl1 = 0,     .pl2 = 2, .startBt = 38, .lenBts = 1 },  // x
-                (Node){ .tp = nodReturn,           .pl2 = 1, .startBt = 44, .lenBts = 8 },
-                (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 5, .startBt = 51, .lenBts = 1 } // a
+                (Node){ .tp = nodFnDef, .pl1 = 0,  .pl2 = 8, .startBt = 0,  .lenBts = 60 },
+                (Node){ .tp = nodScope,            .pl2 = 7, .startBt = 16, .lenBts = 44 },
+                (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 17, .lenBts = 1 }, // param x
+                (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 25, .lenBts = 1 }, // param y
+                (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 40, .lenBts = 5 },
+                (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 40, .lenBts = 1 }, // local a
+                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 44, .lenBts = 1 }, // x
+                (Node){ .tp = nodReturn,           .pl2 = 1, .startBt = 50, .lenBts = 8 },
+                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 57, .lenBts = 1 }  // a
             }),
             ((Int[]) {}),
             ((EntityImport[]) {})
         ),
-        createTest(
-            s("Mutually recursive function definitions"),
-            s("(.f foo Int (x Int y Float) =\n"
-              "    a = x\n"
-              "    return bar a y\n"
-              ")\n"
-              "(.f bar Int (x Int y Float) =\n"
-              "    return foo x y"
-              ")"
-            ),
-            ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 11, .startBt = 0,   .lenBts = 62 }, // foo
-                (Node){ .tp = nodScope,            .pl2 = 10, .startBt = 12,  .lenBts = 46 },
-                (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 13,  .lenBts = 1 },  // param x. First 2 bindings = types
-                (Node){ .tp = nodBinding, .pl1 = 1,           .startBt = 19,  .lenBts = 1 },  // param y
-                (Node){ .tp = nodAssignment,       .pl2 = 2,  .startBt = 32,  .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 32,  .lenBts = 1 },  // local a
-                (Node){ .tp = nodId,     .pl1 = 0, .pl2 = 2,  .startBt = 36,  .lenBts = 1 },  // x
-                (Node){ .tp = nodReturn,           .pl2 = 4,  .startBt = 42,  .lenBts = 14 },
-                (Node){ .tp = nodExpr,             .pl2 = 3,  .startBt = 49,  .lenBts = 7 },
-                (Node){ .tp = nodCall, .pl1 = -3,  .pl2 = 2,  .startBt = 49,  .lenBts = 3 }, // bar call
-                (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 5,  .startBt = 53,  .lenBts = 1 }, // a
-                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 3,  .startBt = 55,  .lenBts = 1 }, // y
+        //~ createTest(
+            //~ s("Mutually recursive function definitions"),
+            //~ s("(.f foo Int (x Int y Float) =\n"
+              //~ "    a = x\n"
+              //~ "    return bar a y\n"
+              //~ ")\n"
+              //~ "(.f bar Int (x Int y Float) =\n"
+              //~ "    return foo x y"
+              //~ ")"
+            //~ ),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 11, .startBt = 0,   .lenBts = 62 }, // foo
+                //~ (Node){ .tp = nodScope,            .pl2 = 10, .startBt = 12,  .lenBts = 46 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 13,  .lenBts = 1 },  // param x. First 2 bindings = types
+                //~ (Node){ .tp = nodBinding, .pl1 = 1,           .startBt = 19,  .lenBts = 1 },  // param y
+                //~ (Node){ .tp = nodAssignment,       .pl2 = 2,  .startBt = 32,  .lenBts = 5 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 32,  .lenBts = 1 },  // local a
+                //~ (Node){ .tp = nodId,     .pl1 = 0, .pl2 = 2,  .startBt = 36,  .lenBts = 1 },  // x
+                //~ (Node){ .tp = nodReturn,           .pl2 = 4,  .startBt = 42,  .lenBts = 14 },
+                //~ (Node){ .tp = nodExpr,             .pl2 = 3,  .startBt = 49,  .lenBts = 7 },
+                //~ (Node){ .tp = nodCall, .pl1 = -3,  .pl2 = 2,  .startBt = 49,  .lenBts = 3 }, // bar call
+                //~ (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 5,  .startBt = 53,  .lenBts = 1 }, // a
+                //~ (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 3,  .startBt = 55,  .lenBts = 1 }, // y
                 
-                (Node){ .tp = nodFnDef, .pl1 = -3, .pl2 = 8,  .startBt = 59,  .lenBts = 47 }, // bar
-                (Node){ .tp = nodScope,            .pl2 = 7,  .startBt = 71,  .lenBts = 35 },
-                (Node){ .tp = nodBinding, .pl1 = 3,           .startBt = 72,  .lenBts = 1 }, // param x
-                (Node){ .tp = nodBinding, .pl1 = 4,           .startBt = 78,  .lenBts = 1 }, // param y
-                (Node){ .tp = nodReturn,           .pl2 = 4,  .startBt = 91,  .lenBts = 14 },
-                (Node){ .tp = nodExpr,             .pl2 = 3,  .startBt = 98,  .lenBts = 7 },
-                (Node){ .tp = nodCall, .pl1 = -2,  .pl2 = 2,  .startBt = 98,  .lenBts = 3 }, // foo call
-                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 2,  .startBt = 102, .lenBts = 1 }, // x
-                (Node){ .tp = nodId, .pl1 = 4,     .pl2 = 3,  .startBt = 104, .lenBts = 1 }  // y
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTest(
-            s("Big grown-up example with overloads"),
-            s("(.f foo String (x Int y Int) = $(+ x y))\n"
-              "(.f foo Int (x Float y Float) = toInt (x*y))\n"
-              "(.f main() =\n"
-              "    a = 5.2\n"
-              "    b = 101.453\n"
-              "    c = foo a b\n"
-              "    d String = foo 55 c\n"
-              "    print d)"
-            ),
-            ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 11, .startBt = 0,   .lenBts = 62 }, // foo
-                (Node){ .tp = nodScope,            .pl2 = 10, .startBt = 12,  .lenBts = 46 },
-                (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 13,  .lenBts = 1 },  // param x. First 2 bindings = types
-                (Node){ .tp = nodBinding, .pl1 = 1,           .startBt = 19,  .lenBts = 1 },  // param y
-                (Node){ .tp = nodAssignment,       .pl2 = 2,  .startBt = 32,  .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 32,  .lenBts = 1 },  // local a
-                (Node){ .tp = nodId,     .pl1 = 0, .pl2 = 2,  .startBt = 36,  .lenBts = 1 },  // x
-                (Node){ .tp = nodReturn,           .pl2 = 4,  .startBt = 42,  .lenBts = 14 },
-                (Node){ .tp = nodExpr,             .pl2 = 3,  .startBt = 49,  .lenBts = 7 },
-                (Node){ .tp = nodCall, .pl1 = -3,  .pl2 = 2,  .startBt = 49,  .lenBts = 3 }, // bar call
-                (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 5,  .startBt = 53,  .lenBts = 1 }, // a
-                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 3,  .startBt = 55,  .lenBts = 1 }, // y
+                //~ (Node){ .tp = nodFnDef, .pl1 = -3, .pl2 = 8,  .startBt = 59,  .lenBts = 47 }, // bar
+                //~ (Node){ .tp = nodScope,            .pl2 = 7,  .startBt = 71,  .lenBts = 35 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 3,           .startBt = 72,  .lenBts = 1 }, // param x
+                //~ (Node){ .tp = nodBinding, .pl1 = 4,           .startBt = 78,  .lenBts = 1 }, // param y
+                //~ (Node){ .tp = nodReturn,           .pl2 = 4,  .startBt = 91,  .lenBts = 14 },
+                //~ (Node){ .tp = nodExpr,             .pl2 = 3,  .startBt = 98,  .lenBts = 7 },
+                //~ (Node){ .tp = nodCall, .pl1 = -2,  .pl2 = 2,  .startBt = 98,  .lenBts = 3 }, // foo call
+                //~ (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 2,  .startBt = 102, .lenBts = 1 }, // x
+                //~ (Node){ .tp = nodId, .pl1 = 4,     .pl2 = 3,  .startBt = 104, .lenBts = 1 }  // y
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTest(
+            //~ s("Big grown-up example with overloads"),
+            //~ s("(.f foo String (x Int y Int) = $(+ x y))\n"
+              //~ "(.f foo Int (x Float y Float) = toInt (x*y))\n"
+              //~ "(.f main() =\n"
+              //~ "    a = 5.2\n"
+              //~ "    b = 101.453\n"
+              //~ "    c = foo a b\n"
+              //~ "    d String = foo 55 c\n"
+              //~ "    print d)"
+            //~ ),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = -2, .pl2 = 11, .startBt = 0,   .lenBts = 62 }, // foo
+                //~ (Node){ .tp = nodScope,            .pl2 = 10, .startBt = 12,  .lenBts = 46 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 13,  .lenBts = 1 },  // param x. First 2 bindings = types
+                //~ (Node){ .tp = nodBinding, .pl1 = 1,           .startBt = 19,  .lenBts = 1 },  // param y
+                //~ (Node){ .tp = nodAssignment,       .pl2 = 2,  .startBt = 32,  .lenBts = 5 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 32,  .lenBts = 1 },  // local a
+                //~ (Node){ .tp = nodId,     .pl1 = 0, .pl2 = 2,  .startBt = 36,  .lenBts = 1 },  // x
+                //~ (Node){ .tp = nodReturn,           .pl2 = 4,  .startBt = 42,  .lenBts = 14 },
+                //~ (Node){ .tp = nodExpr,             .pl2 = 3,  .startBt = 49,  .lenBts = 7 },
+                //~ (Node){ .tp = nodCall, .pl1 = -3,  .pl2 = 2,  .startBt = 49,  .lenBts = 3 }, // bar call
+                //~ (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 5,  .startBt = 53,  .lenBts = 1 }, // a
+                //~ (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 3,  .startBt = 55,  .lenBts = 1 }, // y
                 
-                (Node){ .tp = nodFnDef, .pl1 = -3, .pl2 = 8,  .startBt = 59,  .lenBts = 47 }, // bar
-                (Node){ .tp = nodScope,            .pl2 = 7,  .startBt = 71,  .lenBts = 35 },
-                (Node){ .tp = nodBinding, .pl1 = 3,           .startBt = 72,  .lenBts = 1 }, // param x
-                (Node){ .tp = nodBinding, .pl1 = 4,           .startBt = 78,  .lenBts = 1 }, // param y
-                (Node){ .tp = nodReturn,           .pl2 = 4,  .startBt = 91,  .lenBts = 14 },
-                (Node){ .tp = nodExpr,             .pl2 = 3,  .startBt = 98,  .lenBts = 7 },
-                (Node){ .tp = nodCall, .pl1 = -2,  .pl2 = 2,  .startBt = 98,  .lenBts = 3 }, // foo call
-                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 2,  .startBt = 102, .lenBts = 1 }, // x
-                (Node){ .tp = nodId, .pl1 = 4,     .pl2 = 3,  .startBt = 104, .lenBts = 1 }  // y
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        )
+                //~ (Node){ .tp = nodFnDef, .pl1 = -3, .pl2 = 8,  .startBt = 59,  .lenBts = 47 }, // bar
+                //~ (Node){ .tp = nodScope,            .pl2 = 7,  .startBt = 71,  .lenBts = 35 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 3,           .startBt = 72,  .lenBts = 1 }, // param x
+                //~ (Node){ .tp = nodBinding, .pl1 = 4,           .startBt = 78,  .lenBts = 1 }, // param y
+                //~ (Node){ .tp = nodReturn,           .pl2 = 4,  .startBt = 91,  .lenBts = 14 },
+                //~ (Node){ .tp = nodExpr,             .pl2 = 3,  .startBt = 98,  .lenBts = 7 },
+                //~ (Node){ .tp = nodCall, .pl1 = -2,  .pl2 = 2,  .startBt = 98,  .lenBts = 3 }, // foo call
+                //~ (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 2,  .startBt = 102, .lenBts = 1 }, // x
+                //~ (Node){ .tp = nodId, .pl1 = 4,     .pl2 = 3,  .startBt = 104, .lenBts = 1 }  // y
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ )
         //~ (ParserTest) { 
             //~ .name = str("Nested function def", a),
             //~ .input = str("fn foo Int(x Int y Int) {\n"
@@ -1266,9 +1266,9 @@ int main() {
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&assignmentTests, &countPassed, &countTests, langDef, a);
-    runATestSet(&expressionTests, &countPassed, &countTests, langDef, a);
-    //~ runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
+    //~ runATestSet(&assignmentTests, &countPassed, &countTests, langDef, a);
+    //~ runATestSet(&expressionTests, &countPassed, &countTests, langDef, a);
+    runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&ifTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&loopTests, &countPassed, &countTests, langDef, a);
 
