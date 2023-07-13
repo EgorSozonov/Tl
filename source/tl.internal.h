@@ -443,8 +443,8 @@ typedef struct {
     untt tp : 6;
     untt lenBts: 26;
     untt startBt;
-    untt pl1;
-    untt pl2;   
+    Int pl1;
+    Int pl2;   
 } Node;
 
 

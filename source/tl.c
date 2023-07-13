@@ -119,6 +119,22 @@ DEFINE_INTERNAL_STACK(types, Int, a)
 DEFINE_INTERNAL_STACK_CONSTRUCTOR(uint32_t)
 DEFINE_INTERNAL_STACK(overloadIds, uint32_t, aTmp)
 
+testable void printIntArray(Int count, Arr(Int) arr) {
+    printf("[");
+    for (Int k = 0; k < count; k++) {
+        printf("%d ", arr[k]);
+    }
+    printf("]\n");
+}
+
+testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
+    printf("[...");
+    for (Int k = 0; k < count; k++) {
+        printf("%d ", arr[startInd + k]);
+    }
+    printf("...]\n");
+}
+
 //}}}
 
 //{{{ Arena
@@ -635,89 +651,89 @@ testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* strin
 
 //}}}
 //{{{ Syntax errors
-const char errorNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";
-const char errorPrematureEndOfInput[]        = "Premature end of input";
-const char errorUnrecognizedByte[]           = "Unrecognized byte in source code!";
-const char errorWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
-const char errorWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
-const char errorWordUnderscoresOnlyAtStart[] = "Underscores are only allowed at start of word (snake case is forbidden)!";
-const char errorWordWrongAccessor[]          = "Only regular identifier words may be used for data access with []!";
-const char errorWordReservedWithDot[]        = "Reserved words may not be called like functions!";
-const char errorNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
-const char errorNumericWidthExceeded[]       = "Numeric literal width is exceeded!";
-const char errorNumericBinWidthExceeded[]    = "Integer literals cannot exceed 64 bit!";
-const char errorNumericFloatWidthExceeded[]  = "Floating-point literals cannot exceed 2**53 in the significant bits, and 22 in the decimal power!";
-const char errorNumericEmpty[]               = "Could not lex a numeric literal, empty sequence!";
-const char errorNumericMultipleDots[]        = "Multiple dots in numeric literals are not allowed!";
-const char errorNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
-const char errorPunctuationExtraOpening[]    = "Extra opening punctuation";
-const char errorPunctuationExtraClosing[]    = "Extra closing punctuation";
-const char errorPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like (: )";
-const char errorPunctuationUnmatched[]       = "Unmatched closing punctuation";
-const char errorPunctuationWrongOpen[]       = "Wrong opening punctuation";
-const char errorPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
-const char errorOperatorUnknown[]            = "Unknown operator";
-const char errorOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name!";
-const char errorOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
-const char errorOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
-const char errorOperatorMutableDef[]         = "Definition of a mutable var should look like this: `mut x = 10`";
-const char errorCoreNotInsideStmt[]          = "Core form must be directly inside statement";
-const char errorCoreMisplacedArrow[]         = "The arrow separator (=>) must be inside an if, ifEq, ifPr or match form";
-const char errorCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
-const char errorCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
-const char errorCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
-const char errorDocComment[]                 = "Doc comments must have the syntax: (*comment)";
-const char errorBareAtom[]                   = "Malformed token stream (atoms and parentheses must not be bare)";
-const char errorImportsNonUnique[]           = "Import names must be unique!";
-const char errorLengthOverflow[]             = "AST nodes length overflow";
-const char errorPrematureEndOfTokens[]       = "Premature end of input";
-const char errorUnexpectedToken[]            = "Unexpected token";
-const char errorCoreFormTooShort[]           = "Core syntax form too short";
-const char errorCoreFormUnexpected[]         = "Unexpected core form";
-const char errorCoreFormAssignment[]         = "A core form may not contain any assignments!";
-const char errorCoreFormInappropriate[]      = "Inappropriate reserved word!";
-const char errorIfLeft[]                     = "A left-hand clause in an if can only contain variables, boolean literals and expressions!";
-const char errorIfRight[]                    = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
-const char errorIfEmpty[]                    = "Empty `if` expression";
-const char errorIfMalformed[]                = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
-const char errorFnNameAndParams[]            = "Function signature must look like this: `(.f fnName ReturnType(x Type1 y Type2). body...)`";
-const char errorFnMissingBody[]              = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
-const char errorLoopSyntaxError[]            = "A loop should look like `(.loop (< x 101) (x 0). loopBody)`";
-const char errorLoopHeader[]                 = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
-const char errorLoopEmptyBody[]              = "Empty loop body!";
-const char errorBreakContinueTooComplex[]    = "This statement is too complex! Continues and breaks may contain one thing only: the number of enclosing loops to continue/break!";
-const char errorBreakContinueInvalidDepth[]  = "Invalid depth of break/continue! It must be a positive 32-bit integer!"; 
-const char errorDuplicateFunction[]          = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
-const char errorExpressionInfixNotSecond[]   = "An infix expression must have the infix operator in second position (not counting possible prefix operators)!";
-const char errorExpressionError[]             = "Cannot parse expression!";
-const char errorExpressionCannotContain[]     = "Expressions cannot contain scopes or statements!";
-const char errorExpressionFunctionless[]      = "Functionless expression!";
-const char errorTypeDeclCannotContain[]       = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
-const char errorTypeDeclError[]               = "Cannot parse type declaration!";
-const char errorUnknownType[]                 = "Unknown type";
-const char errorUnknownTypeFunction[]         = "Unknown type constructor";
-const char errorOperatorWrongArity[]          = "Wrong number of arguments for operator!";
-const char errorUnknownBinding[]              = "Unknown binding!";
-const char errorUnknownFunction[]             = "Unknown function!";
-const char errorOperatorUsedInappropriately[] = "Operator used in an inappropriate location!";
-const char errorAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
-const char errorAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
-const char errorReturn[]                      = "Cannot parse return statement, it must look like `return ` {expression}";
-const char errorScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
-const char errorLoopBreakOutside[]            = "The break keyword can only be used inside a loop scope!";
-const char errorTemp[]                        = "Temporary, delete it when finished";
+const char errNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";
+const char errPrematureEndOfInput[]        = "Premature end of input";
+const char errUnrecognizedByte[]           = "Unrecognized byte in source code!";
+const char errWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
+const char errWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
+const char errWordUnderscoresOnlyAtStart[] = "Underscores are only allowed at start of word (snake case is forbidden)!";
+const char errWordWrongAccessor[]          = "Only regular identifier words may be used for data access with []!";
+const char errWordReservedWithDot[]        = "Reserved words may not be called like functions!";
+const char errNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
+const char errNumericWidthExceeded[]       = "Numeric literal width is exceeded!";
+const char errNumericBinWidthExceeded[]    = "Integer literals cannot exceed 64 bit!";
+const char errNumericFloatWidthExceeded[]  = "Floating-point literals cannot exceed 2**53 in the significant bits, and 22 in the decimal power!";
+const char errNumericEmpty[]               = "Could not lex a numeric literal, empty sequence!";
+const char errNumericMultipleDots[]        = "Multiple dots in numeric literals are not allowed!";
+const char errNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
+const char errPunctuationExtraOpening[]    = "Extra opening punctuation";
+const char errPunctuationExtraClosing[]    = "Extra closing punctuation";
+const char errPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like (: )";
+const char errPunctuationUnmatched[]       = "Unmatched closing punctuation";
+const char errPunctuationWrongOpen[]       = "Wrong opening punctuation";
+const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
+const char errOperatorUnknown[]            = "Unknown operator";
+const char errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name!";
+const char errOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
+const char errOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
+const char errOperatorMutableDef[]         = "Definition of a mutable var should look like this: `mut x = 10`";
+const char errCoreNotInsideStmt[]          = "Core form must be directly inside statement";
+const char errCoreMisplacedArrow[]         = "The arrow separator (=>) must be inside an if, ifEq, ifPr or match form";
+const char errCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
+const char errCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
+const char errCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
+const char errDocComment[]                 = "Doc comments must have the syntax: (*comment)";
+const char errBareAtom[]                   = "Malformed token stream (atoms and parentheses must not be bare)";
+const char errImportsNonUnique[]           = "Import names must be unique!";
+const char errLengthOverflow[]             = "AST nodes length overflow";
+const char errPrematureEndOfTokens[]       = "Premature end of input";
+const char errUnexpectedToken[]            = "Unexpected token";
+const char errCoreFormTooShort[]           = "Core syntax form too short";
+const char errCoreFormUnexpected[]         = "Unexpected core form";
+const char errCoreFormAssignment[]         = "A core form may not contain any assignments!";
+const char errCoreFormInappropriate[]      = "Inappropriate reserved word!";
+const char errIfLeft[]                     = "A left-hand clause in an if can only contain variables, boolean literals and expressions!";
+const char errIfRight[]                    = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
+const char errIfEmpty[]                    = "Empty `if` expression";
+const char errIfMalformed[]                = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
+const char errFnNameAndParams[]            = "Function signature must look like this: `(.f fnName ReturnType(x Type1 y Type2). body...)`";
+const char errFnMissingBody[]              = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
+const char errLoopSyntaxError[]            = "A loop should look like `(.loop (< x 101) (x 0). loopBody)`";
+const char errLoopHeader[]                 = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
+const char errLoopEmptyBody[]              = "Empty loop body!";
+const char errBreakContinueTooComplex[]    = "This statement is too complex! Continues and breaks may contain one thing only: the number of enclosing loops to continue/break!";
+const char errBreakContinueInvalidDepth[]  = "Invalid depth of break/continue! It must be a positive 32-bit integer!"; 
+const char errDuplicateFunction[]          = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
+const char errExpressionInfixNotSecond[]   = "An infix expression must have the infix operator in second position (not counting possible prefix operators)!";
+const char errExpressionError[]             = "Cannot parse expression!";
+const char errExpressionCannotContain[]     = "Expressions cannot contain scopes or statements!";
+const char errExpressionFunctionless[]      = "Functionless expression!";
+const char errTypeDeclCannotContain[]       = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
+const char errTypeDeclError[]               = "Cannot parse type declaration!";
+const char errUnknownType[]                 = "Unknown type";
+const char errUnknownTypeFunction[]         = "Unknown type constructor";
+const char errOperatorWrongArity[]          = "Wrong number of arguments for operator!";
+const char errUnknownBinding[]              = "Unknown binding!";
+const char errUnknownFunction[]             = "Unknown function!";
+const char errOperatorUsedInappropriately[] = "Operator used in an inappropriate location!";
+const char errAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
+const char errAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
+const char errReturn[]                      = "Cannot parse return statement, it must look like `return ` {expression}";
+const char errScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
+const char errLoopBreakOutside[]            = "The break keyword can only be used inside a loop scope!";
+const char errTemp[]                        = "Temporary, delete it when finished";
 
 //}}}
 
 //{{{ Type errors
 
-const char errorTypeUnknownLastArg[]          = "The type of last argument to a call must be known, otherwise I can't resolve the function overload!";
-const char errorTypeZeroArityOverload[]       = "A function with no parameters cannot be overloaded.";
-const char errorTypeNoMatchingOverload[]      = "No matching function overload was found";
-const char errorTypeWrongArgumentType[]       = "Wrong argument type";
-const char errorTypeWrongReturnType[]         = "Wrong return type";
-const char errorTypeMismatch[]                = "Declared type doesn't match actual type";
-const char errorTypeMustBeBool[]              = "Expression must have the Bool type";
+const char errTypeUnknownFirstArg[]         = "The type of first argument to a call must be known, otherwise I can't resolve the function overload!";
+const char errTypeZeroArityOverload[]       = "A function with no parameters cannot be overloaded.";
+const char errTypeNoMatchingOverload[]      = "No matching function overload was found";
+const char errTypeWrongArgumentType[]       = "Wrong argument type";
+const char errTypeWrongReturnType[]         = "Wrong return type";
+const char errTypeMismatch[]                = "Declared type doesn't match actual type";
+const char errTypeMustBeBool[]              = "Expression must have the Bool type";
 
 //}}}
 //}}}
@@ -827,7 +843,7 @@ _Noreturn private void throwExcLexer(const char errMsg[], Lexer* lx) {
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
 private void checkPrematureEnd(Int requiredSymbols, Lexer* lx) {
-    VALIDATEL(lx->i + requiredSymbols <= lx->inpLength, errorPrematureEndOfInput)
+    VALIDATEL(lx->i + requiredSymbols <= lx->inpLength, errPrematureEndOfInput)
 }
 
 /** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
@@ -874,7 +890,7 @@ private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
     Token lastToken = lx->tokens[lx->nextInd - 1];
     Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
 
-    // This is for correctly calculating lengths of statements when they are ended by parens or brackets
+    // This is for correctly calculating lengths of statements when they are ended by parens, even if there is a gap before ")"
     Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
     Int lenBts = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken) 
                     - lx->tokens[topTokenInd].startBt;
@@ -1061,13 +1077,12 @@ private void maybeBreakStatement(Lexer* lx) {
 private void closeRegularPunctuation(Int closingType, Lexer* lx) {
     StackBtToken* bt = lx->backtrack;
     closeColons(lx);
-    VALIDATEL(hasValues(bt), errorPunctuationExtraClosing)
+    VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
     // since a closing bracket might be closing something with statements inside it, like a lex scope
     // or a core syntax form, we need to close the last statement before closing its parent
     if (bt->length > 0 && top.spanLevel != slScope 
           && (bt->content[bt->length - 1].spanLevel <= slParenMulti)) {
-
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
@@ -1160,11 +1175,11 @@ private void hexNumber(Lexer* lx, Arr(byte) inp) {
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
             addNumeric(cByte - aAUpper + 10, lx);
         } else if (cByte == aUnderscore && (j == lx->inpLength - 1 || isHexDigit(inp[j + 1]))) {            
-            throwExcLexer(errorNumericEndUnderscore, lx);            
+            throwExcLexer(errNumericEndUnderscore, lx);            
         } else {
             break;
         }
-        VALIDATEL(lx->numericNextInd <= 16, errorNumericBinWidthExceeded)
+        VALIDATEL(lx->numericNextInd <= 16, errNumericBinWidthExceeded)
         j++;
     }
     int64_t resultValue = calcHexNumber(lx);
@@ -1254,13 +1269,13 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
             }
             if (metDot) digitsAfterDot++;
         } else if (cByte == aUnderscore) {
-            VALIDATEL(j != (lx->inpLength - 1) && isDigit(inp[j + 1]), errorNumericEndUnderscore)
+            VALIDATEL(j != (lx->inpLength - 1) && isDigit(inp[j + 1]), errNumericEndUnderscore)
         } else if (cByte == aDot) {
             if (j + 1 < maximumInd && !isDigit(inp[j + 1])) { // this dot is not decimal - it's a statement closer
                 break;
             }
             
-            VALIDATEL(!metDot, errorNumericMultipleDots)
+            VALIDATEL(!metDot, errNumericMultipleDots)
             metDot = true;
         } else {
             break;
@@ -1268,12 +1283,12 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
         j++;
     }
 
-    VALIDATEL(j >= lx->inpLength || !isDigit(inp[j]), errorNumericWidthExceeded)
+    VALIDATEL(j >= lx->inpLength || !isDigit(inp[j]), errNumericWidthExceeded)
 
     if (metDot) {
         double resultValue = 0;
         Int errorCode = calcFloating(&resultValue, -digitsAfterDot, lx, inp);
-        VALIDATEL(errorCode == 0, errorNumericFloatWidthExceeded)
+        VALIDATEL(errorCode == 0, errNumericFloatWidthExceeded)
 
         int64_t bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
         add((Token){ .tp = tokFloat, .pl1 = (bitsOfFloat >> 32), .pl2 = (bitsOfFloat & LOWER32BITS),
@@ -1281,7 +1296,7 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
     } else {
         int64_t resultValue = 0;
         Int errorCode = calcInteger(&resultValue, lx);
-        VALIDATEL(errorCode == 0, errorNumericIntWidthExceeded)
+        VALIDATEL(errorCode == 0, errNumericIntWidthExceeded)
 
         if (isNegative) resultValue = -resultValue;
         add((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
@@ -1329,13 +1344,13 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Lexer* lx, Arr(
     
     Int expectations = (*lx->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
-        VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errorCoreNotInsideStmt)
+        VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
         addStatement(reservedWordType, startBt, lx);
     } else if (expectations == 1) { // the "(core" case
-        VALIDATEL(hasValues(bt), errorCoreMissingParen)
+        VALIDATEL(hasValues(bt), errCoreMissingParen)
         
         BtToken top = peek(bt);
-        VALIDATEL(top.tokenInd == lx->nextInd - 1, errorCoreNotAtSpanStart) // if this isn't the first token inside the parens
+        VALIDATEL(top.tokenInd == lx->nextInd - 1, errCoreNotAtSpanStart) // if this isn't the first token inside the parens
         
         if (bt->length > 1 && bt->content[bt->length - 2].tp == tokStmt) {
             // Parens are wrapped in statements because we didn't know that the following token is a reserved word.
@@ -1370,20 +1385,20 @@ private bool wordChunk(Lexer* lx, Arr(byte) inp) {
 
     if (isCapitalLetter(CURR_BT)) {
         result = true;
-    } else VALIDATEL(isLowercaseLetter(CURR_BT), errorWordChunkStart)
+    } else VALIDATEL(isLowercaseLetter(CURR_BT), errWordChunkStart)
     lx->i++; // CONSUME the first letter of the word
 
     while (lx->i < lx->inpLength && isAlphanumeric(CURR_BT)) {
         lx->i++; // CONSUME alphanumeric characters
     }
-    VALIDATEL(lx->i >= lx->inpLength || CURR_BT != aUnderscore, errorWordUnderscoresOnlyAtStart)
+    VALIDATEL(lx->i >= lx->inpLength || CURR_BT != aUnderscore, errWordUnderscoresOnlyAtStart)
     return result;
 }
 
 /** Closes the current statement. Consumes no tokens */
 private void closeStatement(Lexer* lx) {
     BtToken top = peek(lx->backtrack);
-    VALIDATEL(top.spanLevel != slSubexpr, errorPunctuationOnlyInMultiline)
+    VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline)
     if (top.spanLevel == slStmt) {
         setStmtSpanLength(top.tokenInd, lx);
         pop(lx->backtrack);
@@ -1408,7 +1423,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
             if (isLetter(nextBt) || nextBt == aUnderscore) {
                 lx->i++; // CONSUME the letter or underscore
                 bool isCurrCapitalized = wordChunk(lx, inp);
-                VALIDATEL(!wasCapitalized, errorWordCapitalizationOrder)
+                VALIDATEL(!wasCapitalized, errWordCapitalizationOrder)
                 wasCapitalized = isCurrCapitalized;
             } else {
                 break;
@@ -1439,7 +1454,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         return;
     }
 
-    VALIDATEL(wordType != tokDotWord, errorWordReservedWithDot)
+    VALIDATEL(wordType != tokDotWord, errWordReservedWithDot)
 
     if (mbReservedWord == tokElse){
         closeStatement(lx);
@@ -1494,9 +1509,9 @@ private void processAssignment(Int mutType, untt opType, Lexer* lx) {
     BtToken currSpan = peek(lx->backtrack);
 
     if (currSpan.tp == tokAssignment || currSpan.tp == tokReassign || currSpan.tp == tokMutation) {
-        throwExcLexer(errorOperatorMultipleAssignment, lx);
+        throwExcLexer(errOperatorMultipleAssignment, lx);
     } else if (currSpan.spanLevel != slStmt) {
-        throwExcLexer(errorOperatorAssignmentPunct, lx);
+        throwExcLexer(errOperatorAssignmentPunct, lx);
     }
     Int tokenInd = currSpan.tokenInd;
     Token* tok = (lx->tokens + tokenInd);
@@ -1562,7 +1577,7 @@ private void lexOperator(Lexer* lx, Arr(byte) inp) {
         opType = k;
         break;
     }
-    VALIDATEL(opType > -1, errorOperatorUnknown)
+    VALIDATEL(opType > -1, errOperatorUnknown)
     
     OpDef opDef = (*operators)[opType];
     bool isAssignment = false;
@@ -1589,10 +1604,10 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
         lexOperator(lx, inp); // ==        
     } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes        
         // arrows are only allowed inside "if"s and the like
-        VALIDATEL(lx->backtrack->length >= 2, errorCoreMisplacedArrow)
+        VALIDATEL(lx->backtrack->length >= 2, errCoreMisplacedArrow)
         
         BtToken grandparent = lx->backtrack->content[lx->backtrack->length - 2];
-        VALIDATEL(grandparent.tp == tokIf, errorCoreMisplacedArrow)
+        VALIDATEL(grandparent.tp == tokIf, errCoreMisplacedArrow)
         closeStatement(lx);
         add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
@@ -1637,7 +1652,7 @@ private void docComment(Lexer* lx, Arr(byte) inp) {
             }
         }
     }
-    VALIDATEL(parenLevel == 0, errorPunctuationExtraOpening)
+    VALIDATEL(parenLevel == 0, errPunctuationExtraOpening)
     if (j > lx->i) {
         add((Token){.tp = tokDocComment, .startBt = lx->i - 2, .lenBts = j - lx->i + 2}, lx);
     }
@@ -1711,8 +1726,8 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
 private void openScope(Lexer* lx, Arr(byte) inp) {
     Int startBt = lx->i;
     lx->i += 2; // CONSUME the "(."
-    VALIDATEL(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope, errorPunctuationScope)
-    VALIDATEL(lx->i < lx->inpLength, errorPrematureEndOfInput)
+    VALIDATEL(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope, errPunctuationScope)
+    VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
     byte currBt = CURR_BT;
     if (currBt == aLLower && testForWord(lx->inp, lx->i, reservedBytesLoop, 4)) {
             openPunctuation(tokLoop, slScope, startBt, lx);
@@ -1736,7 +1751,7 @@ private void openScope(Lexer* lx, Arr(byte) inp) {
 private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
-    VALIDATEL(j < lx->inpLength, errorPunctuationUnmatched)
+    VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     if (inp[j] == aColon) { // "(*" starts a new data initializer        
         openPunctuation(tokData, slSubexpr, lx->i, lx);
         lx->i += 2; // CONSUME the "(*"
@@ -1791,18 +1806,18 @@ private void lexStringLiteral(Lexer* lx, Arr(byte) inp) {
     wrapInAStatement(lx, inp);
     Int j = lx->i + 1;
     for (; j < lx->inpLength && inp[j] != aQuote; j++);
-    VALIDATEL(j != lx->inpLength, errorPrematureEndOfInput)
+    VALIDATEL(j != lx->inpLength, errPrematureEndOfInput)
     add((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
     lx->i = j + 1; // CONSUME the string literal, including the closing quote character
 }
 
 
 private void lexUnexpectedSymbol(Lexer* lx, Arr(byte) inp) {
-    throwExcLexer(errorUnrecognizedByte, lx);
+    throwExcLexer(errUnrecognizedByte, lx);
 }
 
 private void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
-    throwExcLexer(errorNonAscii, lx);
+    throwExcLexer(errNonAscii, lx);
 }
 
 /** Must agree in order with token types in LexerConstants.h */
@@ -2025,7 +2040,7 @@ private void finalizeLexer(Lexer* lx) {
     if (!hasValues(lx->backtrack)) return;
     closeColons(lx);
     BtToken top = pop(lx->backtrack);
-    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->backtrack), errorPunctuationExtraOpening)
+    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->backtrack), errPunctuationExtraOpening)
 
     setStmtSpanLength(top.tokenInd, lx);    
     deleteArena(lx->aTmp);
@@ -2251,11 +2266,11 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
 private Int createEntity(Token bindingToken, Entity e, Compiler* cm) {
-    VALIDATEP(bindingToken.tp == tokWord, errorAssignment)
+    VALIDATEP(bindingToken.tp == tokWord, errAssignment)
 
     Int nameId = bindingToken.pl2;
     Int mbBinding = cm->activeBindings[nameId];
-    VALIDATEP(mbBinding == -1, errorAssignmentShadowing)
+    VALIDATEP(mbBinding == -1, errAssignmentShadowing)
 
     Int newBindingId = cm->entities.length;    
     pushInentities(e, cm);
@@ -2274,7 +2289,7 @@ private Int createEntity(Token bindingToken, Entity e, Compiler* cm) {
 private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
 
-    VALIDATEP(activeValue < 0, errorAssignmentShadowing);
+    VALIDATEP(activeValue < 0, errAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
         cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
         pushInoverloadIds(SIXTEENPLUSONE, cm);        
@@ -2287,7 +2302,7 @@ private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
 private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
     Int existingBinding = cm->activeBindings[nameId];
     Int typeLength = cm->types.content[ent.typeId];
-    VALIDATEP(existingBinding == -1 || typeLength > 0, errorAssignmentShadowing) // either the name unique, or it's a function
+    VALIDATEP(existingBinding == -1 || typeLength > 0, errAssignmentShadowing) // either the name unique, or it's a function
 
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
@@ -2313,7 +2328,7 @@ private void parseVerbatim(Token tok, Compiler* cm) {
 }
 
 private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
@@ -2338,25 +2353,25 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
     Int typeId = -1;
     if (tk.tp == tokWord) {
         Int mbOverload = cm->activeBindings[tk.pl2];
-        VALIDATEP(mbOverload > -1, errorUnknownFunction)
+        VALIDATEP(mbOverload > -1, errUnknownFunction)
         Int fnTypeId = cm->entities.content[mbOverload].typeId;
         if (fnTypeId > -1) {
-            VALIDATEP(cm->types.content[fnTypeId] == 1, errorOperatorWrongArity)
+            VALIDATEP(cm->types.content[fnTypeId] == 1, errOperatorWrongArity)
             typeId = cm->types.content[fnTypeId + 1];
         }
         pushInnodes((Node){.tp = nodCall, .pl1 = mbOverload, .pl2 = 0, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
     } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
         OpDef operDefinition = (*cm->langDef->operators)[operBindingId];
-        VALIDATEP(operDefinition.arity == 1, errorOperatorWrongArity)
+        VALIDATEP(operDefinition.arity == 1, errOperatorWrongArity)
         pushInnodes((Node){ .tp = nodId, .pl1 = operBindingId, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
         // TODO add the type when we support first-class functions
     } else if (tk.tp <= topVerbatimType) {
         pushInnodes((Node){.tp = tk.tp, .pl1 = tk.pl1, .pl2 = tk.pl2, .startBt = tk.startBt, .lenBts = tk.lenBts }, cm);
         typeId = tk.tp;
-    } else VALIDATEP(tk.tp < firstCoreFormTokenType, errorCoreFormInappropriate)
+    } else VALIDATEP(tk.tp < firstCoreFormTokenType, errCoreFormInappropriate)
     else {
-        throwExcParser(errorUnexpectedToken, cm);
+        throwExcParser(errUnexpectedToken, cm);
     }
     return typeId;
 }
@@ -2400,10 +2415,10 @@ private void exprSubexpr(Token parenTok, Int* arity, Arr(Token) tokens, Compiler
             if (firstTk.tp == tokWord) {
                 mbBnd = cm->activeBindings[firstTk.pl2];
             } else if (firstTk.tp == tokOperator) {
-                VALIDATEP(*arity == (*cm->langDef->operators)[firstTk.pl1].arity, errorOperatorWrongArity)
+                VALIDATEP(*arity == (*cm->langDef->operators)[firstTk.pl1].arity, errOperatorWrongArity)
                 mbBnd = -firstTk.pl1 - 2;
             }
-            VALIDATEP(mbBnd < -1, errorUnknownFunction)
+            VALIDATEP(mbBnd < -1, errUnknownFunction)
             pushInnodes((Node){.tp = nodCall, .pl1 = mbBnd, .pl2 = *arity, .startBt = firstTk.startBt, .lenBts = firstTk.lenBts},
                         cm);
             *arity = 0;
@@ -2462,14 +2477,14 @@ private Int expr(Token exprTok, Arr(Token) tokens, Compiler* cm) {
         if (tokType == tokParens) {
             cm->i++; // CONSUME the parens token
             exprSubexpr(cTk, &arity, tokens, cm);
-        } else VALIDATEP(tokType < firstPunctuationTokenType, errorExpressionCannotContain)
+        } else VALIDATEP(tokType < firstPunctuationTokenType, errExpressionCannotContain)
         else if (tokType <= topVerbatimTokenVariant) {
             pushInnodes((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2, .startBt = cTk.startBt, .lenBts = cTk.lenBts }, cm);
             cm->i++; // CONSUME the verbatim token
         } else {
             if (tokType == tokWord) {
                 Int mbBnd = cm->activeBindings[cTk.pl2];
-                VALIDATEP(mbBnd != -1, errorUnknownBinding)
+                VALIDATEP(mbBnd != -1, errUnknownBinding)
                 pushInnodes((Node){ .tp = nodId, .pl1 = mbBnd, .pl2 = cTk.pl2, .startBt = cTk.startBt, .lenBts = cTk.lenBts}, cm);                
             } else if (tokType == tokOperator) {
                 exprOperator(cTk, topSubexpr, tokens, cm);
@@ -2533,7 +2548,7 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
     } else if (tok.tp == tokWord) {        
         Int nameId = tok.pl2;
         Int mbBinding = cm->activeBindings[nameId];
-        VALIDATEP(mbBinding != -1, errorUnknownBinding)    
+        VALIDATEP(mbBinding != -1, errUnknownBinding)    
         pushInnodes((Node){.tp = nodId, .pl1 = mbBinding, .pl2 = nameId, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
         if (mbBinding > -1) {
             typeId = cm->entities.content[mbBinding].typeId;
@@ -2548,7 +2563,7 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
 
 private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int rLen = tok.pl2 - 1;
-    VALIDATEP(rLen >= 1, errorAssignment)
+    VALIDATEP(rLen >= 1, errAssignment)
     
     Int sentinelToken = cm->i + tok.pl2;
 
@@ -2566,57 +2581,57 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int declaredTypeId = -1;
     if (tokens[cm->i].tp == tokTypeName) {
         declaredTypeId = cm->activeBindings[tokens[cm->i].pl1];
-        VALIDATEP(declaredTypeId > -1, errorUnknownType)
+        VALIDATEP(declaredTypeId > -1, errUnknownType)
         ++cm->i; // CONSUME the type decl of the binding
         --rLen; // for the type decl token
     }
     Token rTk = tokens[cm->i];
     if (rLen == 1) {
             typeId = parseLiteralOrIdentifier(rTk, cm);
-            VALIDATEP(typeId != -2, errorAssignment)
+            VALIDATEP(typeId != -2, errAssignment)
     } else if (rTk.tp == tokIf) { // TODO
     } else {
         typeId = expr(
                 (Token){ .pl2 = rLen, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt  }, tokens, cm);
     }
-    VALIDATEP(declaredTypeId == -1 || typeId == declaredTypeId, errorTypeMismatch)
+    VALIDATEP(declaredTypeId == -1 || typeId == declaredTypeId, errTypeMismatch)
     if (typeId > -1) {
         cm->entities.content[newBindingId].typeId = typeId;
     }
 }
 
 private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 private void parseAlias(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 private void parseAssert(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseAssertDbg(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseAwait(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 // TODO validate we are inside at least as many loops as we are breaking out of
 private void parseBreak(Token tok, Arr(Token) tokens, Compiler* cm) {
-    VALIDATEP(tok.pl2 <= 1, errorBreakContinueTooComplex);
+    VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
     if (tok.pl2 == 1) {
         Token nextTok = tokens[cm->i];
-        VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errorBreakContinueInvalidDepth)
+        VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errBreakContinueInvalidDepth)
         pushInnodes((Node){.tp = nodBreak, .pl1 = nextTok.pl2, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
         cm->i++; // CONSUME the Int after the "break"
     } else {
@@ -2626,15 +2641,15 @@ private void parseBreak(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseCatch(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseContinue(Token tok, Arr(Token) tokens, Compiler* cm) {
-    VALIDATEP(tok.pl2 <= 1, errorBreakContinueTooComplex);
+    VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
     if (tok.pl2 == 1) {
         Token nextTok = tokens[cm->i];
-        VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errorBreakContinueInvalidDepth)
+        VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errBreakContinueInvalidDepth)
         pushInnodes((Node){.tp = nodContinue, .pl1 = nextTok.pl2, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
         cm->i++; // CONSUME the Int after the "continue"
     } else {
@@ -2644,70 +2659,67 @@ private void parseContinue(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseDefer(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseDispose(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseExposePrivates(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseInterface(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseImpl(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseLambda(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseLambda1(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseLambda2(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseLambda3(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parsePackage(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void typecheckFnReturn(Int typeId, Compiler* cm) {
-    print("typeId %d", typeId)
     Int j = cm->backtrack->length - 1;
     while (j > -1 && cm->backtrack->content[j].tp != nodFnDef) {
         --j;
     }
     Int fnTypeInd = cm->backtrack->content[j].typeId;
-    print("cm->types.content[fnTypeInd + 1] %d typeId %d fnTypeInd %d", cm->types.content[fnTypeInd + 1], typeId, fnTypeInd)
-    print("fn %d %d %d", cm->types.content[fnTypeInd], cm->types.content[fnTypeInd + 1], cm->types.content[fnTypeInd + 2])
-    VALIDATEP(cm->types.content[fnTypeInd + 1] == typeId, errorTypeWrongReturnType)
+    VALIDATEP(cm->types.content[fnTypeInd + 1] == typeId, errTypeWrongReturnType)
 }
 
 
@@ -2719,18 +2731,16 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodReturn, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     
     Token rTk = tokens[cm->i];
-       
+    Int typeId;
     if (lenTokens == 1) {
-        Int typeId = parseLiteralOrIdentifier(rTk, cm);
-
-        VALIDATEP(typeId > -1, errorReturn)
-        if (typeId > -1) {
-            typecheckFnReturn(typeId, cm);
-        }
+        typeId = parseLiteralOrIdentifier(rTk, cm);
     } else {
-        Int typeId = expr((Token){ .pl2 = lenTokens, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt }, 
+        typeId = expr((Token){ .pl2 = lenTokens, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt }, 
                    tokens, cm);
-        // TODO find func above
+    }
+    VALIDATEP(typeId > -1, errReturn)
+    if (typeId > -1) {
+        typecheckFnReturn(typeId, cm);
     }
 }
 
@@ -2741,32 +2751,32 @@ private void parseSkip(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseScope(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 private void parseStruct(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseTry(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
 private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
-/** To be called at the start of an "if" clause. It validates the grammar and emits nodes. Consumes no tokens.
+/** To be called at the start of an "if" clause. It validates the grammar and emits span nodes. Consumes no tokens.
  * Precondition: we are pointing at the init token of left side of "if" (i.e. at a tokStmt or the like)
  */
 private void ifAddClause(Token tok, Arr(Token) tokens, Compiler* cm) {
-    VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errorIfLeft)
+    VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
     Int leftTokSkip = (tok.tp >= firstPunctuationTokenType) ? (tok.pl2 + 1) : 1;
     Int j = cm->i + leftTokSkip;
-    VALIDATEP(j + 1 < cm->inpLength, errorPrematureEndOfTokens)
-    VALIDATEP(tokens[j].tp == tokArrow, errorIfMalformed)
+    VALIDATEP(j + 1 < cm->inpLength, errPrematureEndOfTokens)
+    VALIDATEP(tokens[j].tp == tokArrow, errIfMalformed)
     
     j++; // CONSUMEthe arrow
     
@@ -2792,13 +2802,13 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
 private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     Token tokenStmt = tokens[cm->i];
     Int sentinelStmt = cm->i + tokenStmt.pl2 + 1;
-    VALIDATEP(tokenStmt.tp == tokStmt, errorLoopSyntaxError)    
-    VALIDATEP(sentinelStmt < cm->i + loopTok.pl2, errorLoopEmptyBody)
+    VALIDATEP(tokenStmt.tp == tokStmt, errLoopSyntaxError)    
+    VALIDATEP(sentinelStmt < cm->i + loopTok.pl2, errLoopEmptyBody)
     
     Int lInd = cm->i + 1;
     Token lTk = tokens[lInd]; // + 1 because cm->i points at the stmt so far
 
-    VALIDATEP(lTk.tp == tokWord || lTk.tp == tokBool || lTk.tp == tokParens, errorLoopHeader)
+    VALIDATEP(lTk.tp == tokWord || lTk.tp == tokBool || lTk.tp == tokParens, errLoopHeader)
     Int lSent = calcSentinel(lTk, lInd); 
 
     Int startOfScope = sentinelStmt;
@@ -2809,7 +2819,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
         startOfScope = indRightSide;
         Token tokRightSide = tokens[indRightSide];
         startBtScope = tokRightSide.startBt;
-        VALIDATEP(calcSentinel(tokRightSide, indRightSide) == sentinelStmt, errorLoopHeader)
+        VALIDATEP(calcSentinel(tokRightSide, indRightSide) == sentinelStmt, errLoopHeader)
     }
     
     Int sentToken = startOfScope - cm->i + loopTok.pl2;
@@ -2825,11 +2835,11 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
         cm->i = indRightSide + 1;
         while (cm->i < sentinelStmt) {
             Token binding = tokens[cm->i];
-            VALIDATEP(binding.tp = tokWord, errorLoopSyntaxError)
+            VALIDATEP(binding.tp = tokWord, errLoopSyntaxError)
             
             Token exprTk = tokens[cm->i + 1];
             
-            VALIDATEP(exprTk.tp < firstPunctuationTokenType || exprTk.tp == tokParens, errorLoopSyntaxError)
+            VALIDATEP(exprTk.tp < firstPunctuationTokenType || exprTk.tp == tokParens, errLoopSyntaxError)
             
             Int initializationSentinel = calcSentinel(exprTk, cm->i + 1);
             Int newBindingId = createEntity(binding, ((Entity){}), cm);
@@ -2863,15 +2873,15 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodLoopCond, .pl1 = slStmt, .pl2 = lSent - lInd, .startBt = lTk.startBt, .lenBts = lTk.lenBts}, cm);
     cm->i = lInd + 1;
     Int condTypeId = expr(tokens[lInd], tokens, cm);
-    VALIDATEP(condTypeId == tokBool, errorTypeMustBeBool)
+    VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
     
     cm->i = sentinelStmt; // CONSUME the loop token and its first statement
 }
 
-
+/** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
     if (tok->tp == tokElse) {        
-        VALIDATEP(cm->i < cm->inpLength, errorPrematureEndOfTokens)
+        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
         cm->i++; // CONSUME the "else"
         *tok = tokens[cm->i];        
 
@@ -2886,15 +2896,15 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 private void resumeIfPr(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 private void resumeImpl(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 private void resumeMatch(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errorTemp, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
@@ -2953,7 +2963,7 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
 }
 
 /*
-* Definition of the operators, reserved words, lexer dispatch and parser dispatch for the compiler.
+* Definition of the operators, reserved words, lexer dispatch and parser dispatch tables for the compiler.
 */
 testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
@@ -2978,10 +2988,14 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int
     cm->countNonparsedEntities = cm->entities.length;
 }
 
-/** Unique'ing of types. Returns the index of existing type if this one isn't new, and -1 otherwise */
-testable Int addType(Int startBt, Int lenBts, Compiler* cm) {
+/** Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its tail.
+ *  Returns the resulting index of this type and updates the length of cm->types accordingly.
+ */
+testable Int mergeType(Int startInd, Int len, Compiler* cm) {
     byte* types = (byte*)cm->types.content;
     StringStore* hm = cm->typesDict;
+    Int startBt = startInd*4;
+    Int lenBts = len*4;
     Int hash = hashCode(types + startBt, lenBts) % (hm->dictSize);
     if (*(hm->dict + hash) == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
@@ -2990,43 +3004,34 @@ testable Int addType(Int startBt, Int lenBts, Compiler* cm) {
 
         *firstElem = (StringValue){.length = lenBts, .indString = startBt };
         *(hm->dict + hash) = newBucket;
-        return startBt/4;
+        return startInd;
     } else {
         Bucket* p = *(hm->dict + hash);
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
             if (stringValues[i].length == lenBts
-                && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {
-                // key already present                
+                  && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {                    
+                // key already present
+                cm->types.length -= (len + 1);
                 return stringValues[i].indString/4;
             }
         }        
         addValueToBucket((hm->dict + hash), startBt, lenBts, hm->a);
-        return startBt/4;
+        return startInd;
     }
 }
 
 /** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
 testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
     Int newInd = cm->types.length;
-    Int neededLen = newInd + arity + 2; // + 2 because one cell will hold total length, and another the return type
-    while (cm->types.capacity < neededLen) {
-        Arr(Int) newTypes = allocateOnArena(cm->types.capacity*2*4, cm->a);
-        memcpy(newTypes, cm->types.content, cm->types.length*4);
-        cm->types.content = newTypes;
-        cm->types.capacity *= 2;
+    pushIntypes(arity + 1, cm);
+    pushIntypes(paramsAndReturn[0], cm);
+    for (Int k = 0; k < arity; k++) {
+        pushIntypes(paramsAndReturn[k + 1], cm);
     }
-    cm->types.content[newInd] = arity + 1;
-    memcpy(cm->types.content + newInd + 1, paramsAndReturn, (arity + 1)*4);
     
-    Int existingTypeId = addType(newInd*4, (arity + 2)*4, cm);
-    if (existingTypeId == -1) {        
-        cm->types.length += (arity + 2);
-        return newInd;
-    } else {
-        return existingTypeId; // since the type is non-unique, its nodes are marked to be overwritten
-    }
+    return mergeType(newInd, arity + 2, cm);
 }
 
 //{{{ Built-ins
@@ -3242,7 +3247,7 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
 }
 
 
-private Int getLastParamType(Int funcTypeId, Compiler* cm);
+private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(Int typeId, Compiler* cm);
 
 /** Now that the overloads are freshly allocated, we need to write all the existing entities (operators and imported functions)
@@ -3266,7 +3271,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
         }
         
         if (countOverls > 0) {
-            cm->overloads.content[o] = getLastParamType(ent.typeId, cm);
+            cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
             cm->overloads.content[o + countOverls] = i;
         }
         
@@ -3295,7 +3300,7 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 #ifdef SAFETY
         VALIDATEI(o < sentinel, iErrorOverloadsOverflow)
 #endif
-        cm->overloads.content[o] = getLastParamType(ent.typeId, cm);
+        cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
         cm->overloads.content[o + countOverls] = i;
         o++;
     }
@@ -3353,10 +3358,10 @@ private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
         Token tok = lx->tokens[cm->i];
         if (tok.tp == tokFnDef) {
             Int lenTokens = tok.pl2;
-            VALIDATEP(lenTokens >= 3, errorFnNameAndParams)
+            VALIDATEP(lenTokens >= 3, errFnNameAndParams)
             
             Token fnName = lx->tokens[(cm->i) + 2]; // + 2 because we skip over the "fn" and "stmt" span tokens
-            VALIDATEP(fnName.tp == tokWord, errorFnNameAndParams)
+            VALIDATEP(fnName.tp == tokWord, errFnNameAndParams)
             // TODO handle 0-arity funcs
             fnDefIncrementOverlCount(fnName.pl2, cm);
         }
@@ -3365,8 +3370,7 @@ private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
 }
 
 /** A new parsed overload (i.e. a top-level function). Called when parsing a top-level function signature.  */
-private void addParsedOverload(Int overloadId, Int lastParamTypeId, Int entityId, Compiler* cm) {
-
+private void addParsedOverload(Int overloadId, Int firstParamTypeId, Int entityId, Compiler* cm) {
     Int overloadInd = cm->overloadIds.content[overloadId];
     Int nextOverloadInd = cm->overloadIds.content[overloadId + 1];
     Int maxOverloadCount = (nextOverloadInd - overloadInd - 1)/2;
@@ -3379,7 +3383,7 @@ private void addParsedOverload(Int overloadId, Int lastParamTypeId, Int entityId
     VALIDATEI(j < sentinel, iErrorOverloadsOverflow)
 #endif
 
-    cm->overloads.content[j] = lastParamTypeId;
+    cm->overloads.content[j] = firstParamTypeId;
     cm->overloads.content[j + maxOverloadCount] = entityId;
 }
 
@@ -3397,7 +3401,8 @@ private void validateOverloadsFull(Compiler* cm) {
         VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
             if (cm->overloads.content[j] < 0) {
-                print("here j %d cm->overloads.content[j]%d", j, cm->overloads.content[j]) 
+                print("ERR overload missing type currInd %d j %d cm->overloads.content[j] %d",
+                    currInd, j, cm->overloads.content[j]) 
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
@@ -3406,13 +3411,8 @@ private void validateOverloadsFull(Compiler* cm) {
         }
         for (Int j = currInd + countOverloads + 1; j < nextInd; j++) {
             if (cm->overloads.content[j] < 0) {
-                print("here ent currInd %d nextInd %d j %d cm->overloads.content[j] %d", currInd, nextInd,
+                print("ERR overload missing entity currInd %d nextInd %d j %d cm->overloads.content[j] %d", currInd, nextInd,
                     j, cm->overloads.content[j])
-                    printf("[");
-                    for (Int k = currInd; k < nextInd; k++) {
-                        printf("%d ", cm->overloads.content[k]);
-                    }
-                    print("]");
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenEntities) {
@@ -3450,7 +3450,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     if (lx->tokens[cm->i].tp == tokTypeName) {
         Token fnReturnType = lx->tokens[cm->i];
         Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
-        VALIDATEP(returnTypeId > -1, errorUnknownType)
+        VALIDATEP(returnTypeId > -1, errUnknownType)
         pushIntypes(returnTypeId, cm);
         
         cm->i++; // CONSUME the function return type token
@@ -3460,7 +3460,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
 
     Int fnEntityId = cm->entities.length;
     pushInentities((Entity){.nameId = fnNameId }, cm); // we don't know the new typeId yet, until the end of this function
-    VALIDATEP(lx->tokens[cm->i].tp == tokParens, errorFnNameAndParams)
+    VALIDATEP(lx->tokens[cm->i].tp == tokParens, errFnNameAndParams)
     
     Int paramsTokenInd = cm->i;
     Token parens = lx->tokens[paramsTokenInd];   
@@ -3470,29 +3470,28 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = lx->tokens[cm->i];
-        VALIDATEP(paramName.tp == tokWord, errorFnNameAndParams)
+        VALIDATEP(paramName.tp == tokWord, errFnNameAndParams)
         ++cm->i; // CONSUME a param name
         ++arity;
         
-        VALIDATEP(cm->i < paramsSentinel, errorFnNameAndParams)
+        VALIDATEP(cm->i < paramsSentinel, errFnNameAndParams)
         Token paramType = lx->tokens[cm->i];
-        VALIDATEP(paramType.tp == tokTypeName, errorFnNameAndParams)
+        VALIDATEP(paramType.tp == tokTypeName, errFnNameAndParams)
         
         Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
-        VALIDATEP(paramTypeId > -1, errorUnknownType)
+        VALIDATEP(paramTypeId > -1, errUnknownType)
         pushIntypes(paramTypeId, cm);
         
         ++cm->i; // CONSUME the param's type name
     }
     
-    VALIDATEP(cm->i < (fnSentinelToken - 1) && lx->tokens[cm->i].tp == tokEqualsSign, errorFnMissingBody)
+    VALIDATEP(cm->i < (fnSentinelToken - 1) && lx->tokens[cm->i].tp == tokEqualsSign, errFnMissingBody)
     cm->types.content[tentativeTypeInd] = arity + 1;
-    Int uniqueTypeId = addType(tentativeTypeInd*4, (arity + 2)*4, cm);
+    Int uniqueTypeId = mergeType(tentativeTypeInd, arity + 2, cm);
     cm->entities.content[fnEntityId].typeId = uniqueTypeId;
-    print("uniqueTYpe %d tentativeTypeInd %d", uniqueTypeId, tentativeTypeInd)
 
     if (arity > 0) {
-        addParsedOverload(overloadId, cm->types.content[uniqueTypeId + arity + 1], fnEntityId, cm);
+        addParsedOverload(overloadId, cm->types.content[uniqueTypeId + 2], fnEntityId, cm);
     }
     pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = paramsTokenInd,
          .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
@@ -3508,9 +3507,10 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     Token fnDefToken = tokens[toplevelSignature.startBt];
 
     // the fnDef scope & node
-    push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken }), cm->backtrack);
-    pushInnodes(((Node){ .tp = nodFnDef, .pl1 = toplevelSignature.pl1,
-        .startBt = fnDefToken.startBt, .lenBts = fnDefToken.lenBts }), cm);
+    Int entityId = toplevelSignature.pl1;
+    push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken,
+                        .typeId = cm->entities.content[entityId].typeId}), cm->backtrack);
+    pushInnodes(((Node){ .tp = nodFnDef, .pl1 = entityId, .startBt = fnDefToken.startBt, .lenBts = fnDefToken.lenBts }), cm);
     
     // the scope for the function's body
     push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken }), cm->backtrack);
@@ -3547,6 +3547,9 @@ private void parseFunctionBodies(StackNode* toplevelSignatures, Lexer* lx, Compi
     }
 }
 
+/** Walks the top-level functions' signatures (but not bodies).
+ * Result: the complete overloads & overloadIds tables, and the list of toplevel functions to parse bodies for.
+ */
 private StackNode* parseToplevelSignatures(Lexer* lx, Compiler* cm) {
     StackNode* topLevelSignatures = createStackNode(16, cm->aTmp);
     cm->i = 0;
@@ -3556,7 +3559,7 @@ private StackNode* parseToplevelSignatures(Lexer* lx, Compiler* cm) {
         if (tok.tp == tokFnDef) {
             Int lenTokens = tok.pl2;
             Int sentinelToken = cm->i + lenTokens + 1;
-            VALIDATEP(lenTokens >= 2, errorFnNameAndParams)
+            VALIDATEP(lenTokens >= 2, errFnNameAndParams)
             
             cm->i += 2; // CONSUME the function def token and the stmt token
             parseToplevelSignature(tok, topLevelSignatures, lx, cm);
@@ -3608,8 +3611,8 @@ private Compiler* parse(Lexer* lx, Arena* a) {
 //{{{ Typer
 
 /** Gets the type of the last param of a function. */
-private Int getLastParamType(Int funcTypeId, Compiler* cm) {
-    return cm->types.content[funcTypeId + cm->types.content[funcTypeId]];
+private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
+    return cm->types.content[funcTypeId + 2];
 }
 
 private bool isFunctionWithParams(Int typeId, Compiler* cm) {
@@ -3733,11 +3736,7 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
 
 
 private void printExpSt(StackInt* st) {
-    printf("[");
-    for (int i = 0; i < st->length; i++) {
-        printf("%d ", st->content[i]);
-    }
-    print("]\n");
+    printIntArray(st->length, st->content);
 }
 
 /** Populates the expression's type stack with the operands and functions of an expression */
@@ -3750,7 +3749,7 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
             push(BIG + nd.pl2, cm->expStack); // signifies that it's a call, and its arity
             push((nd.pl2 > 0 ? -nd.pl1 - 2 : nd.pl1), cm->expStack); // index into overloadIds, or entityId for 0-arity fns
             ++(*currAhead);
-        } else if (nd.pl1 > -1) { // bindingId            
+        } else if (nd.pl1 > -1) { // entityId 
             push(cm->entities.content[nd.pl1].typeId, cm->expStack);
         } else { // overloadId
             push(nd.pl1, cm->expStack); // overloadId            
@@ -3758,7 +3757,7 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
     }
 }
 
-/** Typechecks and overload-resolves a single expression */
+/** Typechecks and resolves overloads in a single expression */
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     Node expr = cm->nodes.content[indExpr];
     Int currAhead = 0; // how many elements ahead we are compared to the token array (because of extra call indicators)
@@ -3780,7 +3779,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
         Int arity = cont[j] - BIG;
         Int o = cont[j + 1]; // index into the table of overloadIds, or, for 0-arity funcs, directly their entityId
         if (arity == 0) {
-            VALIDATEP(o > -1, errorTypeZeroArityOverload)
+            VALIDATEP(o > -1, errTypeZeroArityOverload)
 
             Int functionTypeInd = cm->entities.content[o].typeId;
             Int typeLength = cm->types.content[functionTypeInd];
@@ -3793,19 +3792,23 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             --currAhead;
             printExpSt(st);
         } else {
-            Int typeLastArg = cont[j + arity + 1]; // + 1 for the element with the overloadId of the func
-            VALIDATEP(typeLastArg > -1, errorTypeUnknownLastArg)
+            Int typeFirstArg = cont[j + 2]; // + 1 for the element with the overloadId of the func, +1 for return type
+            VALIDATEP(typeFirstArg > -1, errTypeUnknownFirstArg)
             Int entityId;
-            Int resolvedOv = findOverload(typeLastArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm);
-            VALIDATEP(resolvedOv > -1, errorTypeNoMatchingOverload)
+            bool ovFound = findOverload(typeFirstArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm);
+            if (!ovFound) {
+                print("overl not found for type %d", typeFirstArg)
+                printExpSt(st);
+            }
+            VALIDATEP(ovFound, errTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
-            VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errorTypeNoMatchingOverload) // last parm matches, but not arity
+            VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) // last parm matches, but not arity
             
             // We know the type of the function, now to validate arg types against param types
             for (int k = j + arity; k > j + 1; k--) { // not "k = j + arity + 1", because we've already checked the last param
                 if (cont[k] > -1) {
-                    VALIDATEP(cont[k] == cm->types.content[typeOfFunc + k - j], errorTypeWrongArgumentType)
+                    VALIDATEP(cont[k] == cm->types.content[typeOfFunc + k - j], errTypeWrongArgumentType)
                 } else {
                     Int argBindingId = cm->nodes.content[indExpr + k - currAhead].pl1;
                     cm->entities.content[argBindingId].typeId = cm->types.content[typeOfFunc + k - j];

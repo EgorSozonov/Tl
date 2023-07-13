@@ -118,17 +118,17 @@ private Int transformBindingEntityId(Int inp, Compiler* pr) {
     }
 }
 
-private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
-    Int countActualTypes = 0;
+private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Int* countImportedTypes, Compiler* cm) {
+    *countImportedTypes = 0;
     Int j = 0;
     while (j < countTypes) {
         if (types[j] == 0) {
             return NULL;
         }
-        ++countActualTypes;
+        ++(*countImportedTypes);
         j += types[j] + 1;
     }
-    Arr(Int) typeIds = allocateOnArena(countActualTypes*4, cm->aTmp);
+    Arr(Int) typeIds = allocateOnArena((*countImportedTypes)*4, cm->aTmp);
     j = 0;
     Int t = 0;
     while (j < countTypes) {
@@ -138,23 +138,12 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
         for (Int k = j; k < sentinel; k++) {
             pushIntypes(types[k], cm);
         }
-        Int existingTypeId = addType(initTypeId*4, (sentinel - j)*4, cm);
-        if (existingTypeId == -1) {
-            cm->types.length += (sentinel - j);
-            typeIds[t] = initTypeId;
-        } else {
-            typeIds[t] = existingTypeId;
-        }
-                
+        //printIntArrayOff(initTypeId, sentinel - j, cm->types.content);
+        Int mergedTypeId = mergeType(initTypeId, sentinel - j, cm);
+        typeIds[t] = mergedTypeId;
         t++;
         j = sentinel;
     }
-    //~ print("Imported types: ")
-    //~ printf("[");
-    //~ for (Int a = 0; a < t; a++) {
-        //~ printf("%d ", typeIds[a]);
-    //~ }
-    //~ print("]")
     return typeIds;
 }
 
@@ -175,16 +164,16 @@ private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int
     }
     initParser->entImportedZero = initParser->overloadIds.length;
     
-    Arr(Int) typeIds = importTypes(types, countTypes, initParser);
-    importTypes(types, countTypes, expectedParser);
+    Int countImportedTypes;
+    Arr(Int) typeIds = importTypes(types, countTypes, &countImportedTypes, initParser);
+    importTypes(types, countTypes, &countImportedTypes, expectedParser);
+    
     importEntities(imports, countImports, typeIds, initParser);
     importEntities(imports, countImports, typeIds, expectedParser);
     initParser->countNonparsedEntities = initParser->entities.length;
 
     expectedParser->countNonparsedEntities = initParser->countNonparsedEntities;
     expectedParser->entImportedZero = initParser->entImportedZero;
-
-
 
     for (Int i = 0; i < countNodes; i++) {
         untt nodeType = nodes[i].tp;
@@ -391,7 +380,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* lD, Arena* a) {
         ),
         createTestWithError(
             s("Assignment shadowing error"), 
-            s(errorAssignmentShadowing),
+            s(errAssignmentShadowing),
             s("x = 12\n"
               "x = 7"  
             ),
@@ -405,7 +394,7 @@ ParserTestSet* assignmentTests(LanguageDefinition* lD, Arena* a) {
         ),
         createTestWithError(
             s("Assignment type declaration error"), 
-            s(errorTypeMismatch),
+            s(errTypeMismatch),
             s("x String = 12"),
             ((Node[]) {
                     (Node){ .tp = nodAssignment,           .startBt = 0,  .lenBts = 13 },
@@ -510,7 +499,7 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
         //~ ),
         //~ createTestWithError(
             //~ s("Operator arity error"),
-            //~ s(errorOperatorWrongArity),
+            //~ s(errOperatorWrongArity),
             //~ s("x = + 1 20 100"),
             //~ (((Node[]) {
                 //~ (Node){ .tp = nodAssignment, .startBt = 0, .lenBts = 14 },
@@ -858,27 +847,71 @@ ParserTestSet* functionTests(LanguageDefinition* lD, Arena* a) {
             //~ ((Int[]) {}),
             //~ ((EntityImport[]) {})
         //~ ),
+        //~ createTest(
+            //~ s("Simple function definition 2"),
+            //~ s("(*f newFn String(x String y Float) =\n"
+              //~ "    a = x\n"
+              //~ "    return a\n"
+              //~ ")"
+            //~ ),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = 0,  .pl2 = 8, .startBt = 0,  .lenBts = 61 },
+                //~ (Node){ .tp = nodScope,            .pl2 = 7, .startBt = 16, .lenBts = 45 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 17, .lenBts = 1 }, // param x
+                //~ (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 26, .lenBts = 1 }, // param y
+                //~ (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 41, .lenBts = 5 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 41, .lenBts = 1 }, // local a
+                //~ (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 45, .lenBts = 1 }, // x
+                //~ (Node){ .tp = nodReturn,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
+                //~ (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 58, .lenBts = 1 }  // a
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTestWithError(
+            //~ s("Function definition wrong return type"),
+            //~ s(errTypeWrongReturnType),
+            //~ s("(*f newFn String(x Float y Float) =\n"
+              //~ "    a = x\n"
+              //~ "    return a\n"
+              //~ ")"
+            //~ ),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = 0,            .startBt = 0,  .lenBts = 60 },
+                //~ (Node){ .tp = nodScope,                      .startBt = 16, .lenBts = 44 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 17, .lenBts = 1 }, // param x
+                //~ (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 25, .lenBts = 1 }, // param y
+                //~ (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 40, .lenBts = 5 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 40, .lenBts = 1 }, // local a
+                //~ (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 44, .lenBts = 1 }, // x
+                //~ (Node){ .tp = nodReturn,                     .startBt = 50, .lenBts = 8 },
+                //~ (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 57, .lenBts = 1 }  // a
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
         createTest(
-            s("Simple function definition 2"),
-            s("(*f newFn String(x String y Float) =\n"
-              "    a = x\n"
-              "    return a\n"
+            s("Function definition with complex return"),
+            s("(*f newFn String(x Int y Float) =\n"
+              "    return $(- ,x y)\n"
               ")"
             ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = 0,  .pl2 = 8, .startBt = 0,  .lenBts = 60 },
-                (Node){ .tp = nodScope,            .pl2 = 7, .startBt = 16, .lenBts = 44 },
+                (Node){ .tp = nodFnDef, .pl1 = 0,  .pl2 = 10, .startBt = 0,  .lenBts = 56 },
+                (Node){ .tp = nodScope,            .pl2 = 9, .startBt = 16, .lenBts = 40 },
                 (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 17, .lenBts = 1 }, // param x
-                (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 25, .lenBts = 1 }, // param y
-                (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 40, .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 40, .lenBts = 1 }, // local a
-                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 44, .lenBts = 1 }, // x
-                (Node){ .tp = nodReturn,           .pl2 = 1, .startBt = 50, .lenBts = 8 },
-                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 57, .lenBts = 1 }  // a
+                (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 23, .lenBts = 1 }, // param y
+                (Node){ .tp = nodReturn,           .pl2 = 6, .startBt = 38, .lenBts = 16 },
+                (Node){ .tp = nodExpr,           .pl2 = 5, .startBt = 45, .lenBts = 9 },
+                (Node){ .tp = nodCall,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
+                (Node){ .tp = nodCall,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
+                (Node){ .tp = nodCall,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
+                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 58, .lenBts = 1 },  // x
+                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 58, .lenBts = 1 }  // y
             }),
             ((Int[]) {}),
             ((EntityImport[]) {})
-        ),
+        )
         //~ createTest(
             //~ s("Mutually recursive function definitions"),
             //~ s("(.f foo Int (x Int y Float) =\n"
