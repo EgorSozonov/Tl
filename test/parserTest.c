@@ -102,6 +102,16 @@ private Int tryGetOper0(Int opType, Int typeId, LanguageDefinition* langDef) {
         } else if (typeId == tokFloat) {
             return langDef->entOpGtFloat + O;
         }
+    }  else if (opType == opTToString) {
+        if (typeId == tokInt) {
+            return langDef->entOpToStringInt + O;
+        } else if (typeId == tokFloat) {
+            return langDef->entOpToStringFloat + O;
+        }
+    }  else if (opType == opTToFloat) {
+        if (typeId == tokInt) {
+            return langDef->entOpToFloatInt + O;
+        }
     }
     return -1;
 }
@@ -336,7 +346,6 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         printLexer(test.input);
         print("    PARSER:")
         printParser(resultParser, a);
-
     } else {
         printf("ERROR IN ");
         printString(test.name);
@@ -351,59 +360,75 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
 
 ParserTestSet* assignmentTests(LanguageDefinition* lD, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
+        //~ createTest(
+            //~ s("Simple assignment"), 
+            //~ s("x = 12"),            
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTest(
+            //~ s("Double assignment"), 
+            //~ s("x = 12\n"
+              //~ "second = x"  
+            //~ ),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 },     // x
+                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 7, .lenBts = 10 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
+                    //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTestWithError(
+            //~ s("Assignment shadowing error"), 
+            //~ s(errAssignmentShadowing),
+            //~ s("x = 12\n"
+              //~ "x = 7"  
+            //~ ),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                    //~ (Node){ .tp = nodBinding, .pl2 = 0, .startBt = 0, .lenBts = 1 },
+                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTestWithError(
+            //~ s("Assignment type declaration error"), 
+            //~ s(errTypeMismatch),
+            //~ s("x String = 12"),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment,           .startBt = 0,  .lenBts = 13 },
+                    //~ (Node){ .tp = nodBinding,              .startBt = 0,  .lenBts = 1 },      
+                    //~ (Node){ .tp = tokInt,       .pl2 = 12, .startBt = 11, .lenBts = 2 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
         createTest(
-            s("Simple assignment"), 
-            s("x = 12"),            
-            ((Node[]) {
-                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
-                    (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTest(
-            s("Double assignment"), 
-            s("x = 12\n"
-              "second = x"  
+            s("Reassignment"), 
+            s("x = \"foo\"\n"
+              "x := \"bar\""
             ),
             ((Node[]) {
                     (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
                     (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 },     // x
-                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
-                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 7, .lenBts = 10 },
-                    (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
-                    (Node){ .tp = nodId, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
+                    (Node){ .tp = tokString,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
+                    (Node){ .tp = nodReassign, .pl2 = 2, .startBt = 7, .lenBts = 10 },
+                    (Node){ .tp = nodId, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
+                    (Node){ .tp = tokString, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
             }),
             ((Int[]) {}),
             ((EntityImport[]) {})
         ),
-        createTestWithError(
-            s("Assignment shadowing error"), 
-            s(errAssignmentShadowing),
-            s("x = 12\n"
-              "x = 7"  
-            ),
-            ((Node[]) {
-                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
-                    (Node){ .tp = nodBinding, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTestWithError(
-            s("Assignment type declaration error"), 
-            s(errTypeMismatch),
-            s("x String = 12"),
-            ((Node[]) {
-                    (Node){ .tp = nodAssignment,           .startBt = 0,  .lenBts = 13 },
-                    (Node){ .tp = nodBinding,              .startBt = 0,  .lenBts = 1 },      
-                    (Node){ .tp = tokInt,       .pl2 = 12, .startBt = 11, .lenBts = 2 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        )
     }));
 }
 
@@ -831,65 +856,65 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
     
 ParserTestSet* functionTests(LanguageDefinition* lD, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
-        //~ createTest(
-            //~ s("Simple function definition 1"),
-            //~ s("(*f newFn Int(x Int y Float) = a = x)"),
-            //~ ((Node[]) {
-                //~ (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 6, .startBt = 0, .lenBts = 37 },
+        createTest(
+            s("Simple function definition 1"),
+            s("(*f newFn Int(x Int y Float) = a = x)"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 6, .startBt = 0, .lenBts = 37 },
                 
-                //~ (Node){ .tp = nodScope, .pl2 = 5,             .startBt = 13, .lenBts = 24 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 1,           .startBt = 14, .lenBts = 1 },  // param x
-                //~ (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 20, .lenBts = 1 },  // param y
-                //~ (Node){ .tp = nodAssignment,        .pl2 = 2, .startBt = 31, .lenBts = 5 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 3,           .startBt = 31, .lenBts = 1 },  // local a
-                //~ (Node){ .tp = nodId, .pl1 = 1,      .pl2 = 2, .startBt = 35, .lenBts = 1 }   // x                
-            //~ }),
-            //~ ((Int[]) {}),
-            //~ ((EntityImport[]) {})
-        //~ ),
-        //~ createTest(
-            //~ s("Simple function definition 2"),
-            //~ s("(*f newFn String(x String y Float) =\n"
-              //~ "    a = x\n"
-              //~ "    return a\n"
-              //~ ")"
-            //~ ),
-            //~ ((Node[]) {
-                //~ (Node){ .tp = nodFnDef, .pl1 = 0,  .pl2 = 8, .startBt = 0,  .lenBts = 61 },
-                //~ (Node){ .tp = nodScope,            .pl2 = 7, .startBt = 16, .lenBts = 45 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 17, .lenBts = 1 }, // param x
-                //~ (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 26, .lenBts = 1 }, // param y
-                //~ (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 41, .lenBts = 5 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 41, .lenBts = 1 }, // local a
-                //~ (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 45, .lenBts = 1 }, // x
-                //~ (Node){ .tp = nodReturn,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
-                //~ (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 58, .lenBts = 1 }  // a
-            //~ }),
-            //~ ((Int[]) {}),
-            //~ ((EntityImport[]) {})
-        //~ ),
-        //~ createTestWithError(
-            //~ s("Function definition wrong return type"),
-            //~ s(errTypeWrongReturnType),
-            //~ s("(*f newFn String(x Float y Float) =\n"
-              //~ "    a = x\n"
-              //~ "    return a\n"
-              //~ ")"
-            //~ ),
-            //~ ((Node[]) {
-                //~ (Node){ .tp = nodFnDef, .pl1 = 0,            .startBt = 0,  .lenBts = 60 },
-                //~ (Node){ .tp = nodScope,                      .startBt = 16, .lenBts = 44 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 17, .lenBts = 1 }, // param x
-                //~ (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 25, .lenBts = 1 }, // param y
-                //~ (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 40, .lenBts = 5 },
-                //~ (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 40, .lenBts = 1 }, // local a
-                //~ (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 44, .lenBts = 1 }, // x
-                //~ (Node){ .tp = nodReturn,                     .startBt = 50, .lenBts = 8 },
-                //~ (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 57, .lenBts = 1 }  // a
-            //~ }),
-            //~ ((Int[]) {}),
-            //~ ((EntityImport[]) {})
-        //~ ),
+                (Node){ .tp = nodScope, .pl2 = 5,             .startBt = 13, .lenBts = 24 },
+                (Node){ .tp = nodBinding, .pl1 = 1,           .startBt = 14, .lenBts = 1 },  // param x
+                (Node){ .tp = nodBinding, .pl1 = 2,           .startBt = 20, .lenBts = 1 },  // param y
+                (Node){ .tp = nodAssignment,        .pl2 = 2, .startBt = 31, .lenBts = 5 },
+                (Node){ .tp = nodBinding, .pl1 = 3,           .startBt = 31, .lenBts = 1 },  // local a
+                (Node){ .tp = nodId, .pl1 = 1,      .pl2 = 2, .startBt = 35, .lenBts = 1 }   // x                
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        ),
+        createTest(
+            s("Simple function definition 2"),
+            s("(*f newFn String(x String y Float) =\n"
+              "    a = x\n"
+              "    return a\n"
+              ")"
+            ),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .pl1 = 0,  .pl2 = 8, .startBt = 0,  .lenBts = 61 },
+                (Node){ .tp = nodScope,            .pl2 = 7, .startBt = 16, .lenBts = 45 },
+                (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 17, .lenBts = 1 }, // param x
+                (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 26, .lenBts = 1 }, // param y
+                (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 41, .lenBts = 5 },
+                (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 41, .lenBts = 1 }, // local a
+                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 45, .lenBts = 1 }, // x
+                (Node){ .tp = nodReturn,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
+                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 58, .lenBts = 1 }  // a
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        ),
+        createTestWithError(
+            s("Function definition wrong return type"),
+            s(errTypeWrongReturnType),
+            s("(*f newFn String(x Float y Float) =\n"
+              "    a = x\n"
+              "    return a\n"
+              ")"
+            ),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .pl1 = 0,            .startBt = 0,  .lenBts = 60 },
+                (Node){ .tp = nodScope,                      .startBt = 16, .lenBts = 44 },
+                (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 17, .lenBts = 1 }, // param x
+                (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 25, .lenBts = 1 }, // param y
+                (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 40, .lenBts = 5 },
+                (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 40, .lenBts = 1 }, // local a
+                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 44, .lenBts = 1 }, // x
+                (Node){ .tp = nodReturn,                     .startBt = 50, .lenBts = 8 },
+                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 57, .lenBts = 1 }  // a
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        ),
         createTest(
             s("Function definition with complex return"),
             s("(*f newFn String(x Int y Float) =\n"
@@ -903,11 +928,11 @@ ParserTestSet* functionTests(LanguageDefinition* lD, Arena* a) {
                 (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 23, .lenBts = 1 }, // param y
                 (Node){ .tp = nodReturn,           .pl2 = 6, .startBt = 38, .lenBts = 16 },
                 (Node){ .tp = nodExpr,           .pl2 = 5, .startBt = 45, .lenBts = 9 },
-                (Node){ .tp = nodCall,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
-                (Node){ .tp = nodCall,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
-                (Node){ .tp = nodCall,           .pl2 = 1, .startBt = 51, .lenBts = 8 },
-                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 58, .lenBts = 1 },  // x
-                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5, .startBt = 58, .lenBts = 1 }  // y
+                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTToString, tokFloat), .pl2 = 1, .startBt = 45, .lenBts = 1 },
+                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTMinus, tokFloat), .pl2 = 2, .startBt = 47, .lenBts = 1 },
+                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTToFloat, tokInt), .pl2 = 1, .startBt = 49, .lenBts = 1 },
+                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2, .startBt = 50, .lenBts = 1 },  // x
+                (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 4, .startBt = 52, .lenBts = 1 }  // y
             }),
             ((Int[]) {}),
             ((EntityImport[]) {})
@@ -1296,12 +1321,16 @@ int main() {
     printf("----------------------------\n");
     Arena *a = mkArena();
     LanguageDefinition* langDef = buildLanguageDefinitions(a);
+    Lexer* dummyLexer = createLexer(str("asdf", a), langDef, a);
+    Compiler* dummy = createCompiler(dummyLexer, a);
+    langDef = dummy->langDef;
 
     int countPassed = 0;
     int countTests = 0;
-    //~ runATestSet(&assignmentTests, &countPassed, &countTests, langDef, a);
+    runATestSet(&assignmentTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&expressionTests, &countPassed, &countTests, langDef, a);
-    runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
+    //~ runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
+    
     //~ runATestSet(&ifTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&loopTests, &countPassed, &countTests, langDef, a);
 

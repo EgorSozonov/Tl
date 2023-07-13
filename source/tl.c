@@ -2601,7 +2601,43 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
+    Int rLen = tok.pl2 - 1;
+    VALIDATEP(rLen >= 1, errAssignment)
+    
+    Int sentinelToken = cm->i + tok.pl2;
+
+    Token bindingTk = tokens[cm->i];
+    Int bindingId = cm->activeBindings[bindingTk.pl2];
+    VALIDATEP(bindingId > -1, errUnknownBinding)
+
+    push(((ParseFrame){ .tp = nodReassign, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
+    pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+    pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
+    
+    cm->i++; // CONSUME the word token before the assignment sign
+
+    Int typeId = -1;
+    Int declaredTypeId = -1;
+    if (tokens[cm->i].tp == tokTypeName) {
+        declaredTypeId = cm->activeBindings[tokens[cm->i].pl1];
+        VALIDATEP(declaredTypeId > -1, errUnknownType)
+        ++cm->i; // CONSUME the type decl of the binding
+        --rLen; // for the type decl token
+    }
+    
+    Token rTk = tokens[cm->i];
+    if (rLen == 1) {
+            typeId = parseLiteralOrIdentifier(rTk, cm);
+            VALIDATEP(typeId != -2, errAssignment)
+    } else if (rTk.tp == tokIf) { // TODO
+    } else {
+        typeId = expr(
+                (Token){ .pl2 = rLen, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt  }, tokens, cm);
+    }
+    VALIDATEP(declaredTypeId == -1 || typeId == declaredTypeId, errTypeMismatch)
+    if (typeId > -1) {
+        cm->entities.content[newBindingId].typeId = typeId;
+    }
 }
 
 private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
@@ -3080,6 +3116,10 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTToString, strOfInt, cm);
     buildOperator(opTToString, strOfFloat, cm);
     buildOperator(opTToString, strOfBool, cm);
+#ifdef TEST
+    cm->langDef->entOpToStringInt = cm->entities.length - 3;
+    cm->langDef->entOpToStringFloat = cm->entities.length - 2;
+#endif
     buildOperator(opTRemainder, intOfIntInt, cm);
     buildOperator(opTBinaryAnd, boolOfBoolBool, cm); // dummy
     buildOperator(opTTypeAnd, boolOfBoolBool, cm); // dummy
@@ -3108,8 +3148,8 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTDivBy, intOfIntInt, cm);
     buildOperator(opTDivBy, flOfFlFl, cm);
 #ifdef TEST
-    cm->langDef->entOpMinusInt = cm->entities.length - 4;
-    cm->langDef->entOpMinusFloat = cm->entities.length - 3;
+    cm->langDef->entOpMinusInt = cm->entities.length - 5;
+    cm->langDef->entOpMinusFloat = cm->entities.length - 4;
     cm->langDef->entOpDivInt = cm->entities.length - 2;
     cm->langDef->entOpDivFloat = cm->entities.length - 1;
 #endif
@@ -3735,9 +3775,11 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
 }
 
 
+#ifdef TEST
 private void printExpSt(StackInt* st) {
     printIntArray(st->length, st->content);
 }
+#endif
 
 /** Populates the expression's type stack with the operands and functions of an expression */
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
@@ -3764,8 +3806,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     StackInt* st = cm->expStack;
     
     populateExpStack(indExpr, sentinelNode, &currAhead, cm);
+#ifdef TEST
     printExpSt(st);
-
+#endif
     // now go from back to front, resolving the calls, typechecking & collapsing args, and replacing calls with their return types
     Int j = sentinelNode - 1;
     Arr(Int) cont = st->content;
@@ -3790,16 +3833,20 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
             shiftTypeStackLeft(j + 2, 1, cm); // the function returns nothing, so there's no return type to write
             --currAhead;
+#ifdef TEST
             printExpSt(st);
+#endif
         } else {
             Int typeFirstArg = cont[j + 2]; // + 1 for the element with the overloadId of the func, +1 for return type
             VALIDATEP(typeFirstArg > -1, errTypeUnknownFirstArg)
             Int entityId;
             bool ovFound = findOverload(typeFirstArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm);
+#ifdef TEST
             if (!ovFound) {
-                print("overl not found for type %d", typeFirstArg)
+                print("overload not found for type %d", typeFirstArg)
                 printExpSt(st);
             }
+#endif
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
@@ -3819,8 +3866,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             cont[j] = cm->types.content[typeOfFunc + 1];         // the function return type
             
             shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
-
+#ifdef TEST
             printExpSt(st);
+#endif
         }
         --j;
     }

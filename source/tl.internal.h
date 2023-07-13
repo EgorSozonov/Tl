@@ -360,7 +360,7 @@ typedef struct {
 
 
 // Punctuation (inner node)
-#define nodScope       13       // (. This is resumable but trivially so, that's why it's not grouped with the others
+#define nodScope       13       // (* This is resumable but trivially so, that's why it's not grouped with the others
 #define nodExpr        14
 #define nodAssignment  15
 #define nodReassign    16       // :=
@@ -418,6 +418,8 @@ struct LanguageDefinition {
     Int entOpPlusFloat;
     Int entOpPlusString;
     Int entOpToFloatInt;
+    Int entOpToStringInt;
+    Int entOpToStringFloat;
     Int entOpDivInt;
     Int entOpDivFloat;
     Int entOpMinusInt;
@@ -429,13 +431,13 @@ struct LanguageDefinition {
     Int entOpGtInt;
     Int entOpGtFloat;
     Int entOpEqualityInt;
-    Int typBoolOfVoid;
-    Int typStringOfIntBoolFloat;
-    Int typIntOfInt;
-    Int typIntOfIntInt;
-    Int typIntOfIntIntIntInt;
-    Int typVoidOfStr;
-    Int typFloatOfIntIntInt;
+    //~ Int typBoolOfVoid;
+    //~ Int typStringOfIntBoolFloat;
+    //~ Int typIntOfInt;
+    //~ Int typIntOfIntInt;
+    //~ Int typIntOfIntIntIntInt;
+    //~ Int typVoidOfStr;
+    //~ Int typFloatOfIntIntInt;   
 #endif
 };
 
@@ -451,6 +453,7 @@ typedef struct {
 typedef struct {
     Int typeId;
     Int nameId;
+    bool isMutable;
     bool appendUnderscore;
     bool emitAsPrefix;
     bool emitAsOperator;

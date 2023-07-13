@@ -4,12 +4,13 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int64_t longOfDoubleBits(double d);
 void printIntArray(Int count, Arr(Int) arr);
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
+Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 
 #ifdef LEXER_TEST
 
 Int getStringStore(byte* text, String* strToSearch, StackInt* stringTable, StringStore* hm);
 
-Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
+
 void add(Token t, Lexer* lexer);
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
