@@ -360,71 +360,74 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
 
 ParserTestSet* assignmentTests(LanguageDefinition* lD, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
-        //~ createTest(
-            //~ s("Simple assignment"), 
-            //~ s("x = 12"),            
-            //~ ((Node[]) {
-                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
-                    //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 }
-            //~ }),
-            //~ ((Int[]) {}),
-            //~ ((EntityImport[]) {})
-        //~ ),
-        //~ createTest(
-            //~ s("Double assignment"), 
-            //~ s("x = 12\n"
-              //~ "second = x"  
-            //~ ),
-            //~ ((Node[]) {
-                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
-                    //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 },     // x
-                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
-                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 7, .lenBts = 10 },
-                    //~ (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
-                    //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
-            //~ }),
-            //~ ((Int[]) {}),
-            //~ ((EntityImport[]) {})
-        //~ ),
-        //~ createTestWithError(
-            //~ s("Assignment shadowing error"), 
-            //~ s(errAssignmentShadowing),
-            //~ s("x = 12\n"
-              //~ "x = 7"  
-            //~ ),
-            //~ ((Node[]) {
-                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
-                    //~ (Node){ .tp = nodBinding, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
-            //~ }),
-            //~ ((Int[]) {}),
-            //~ ((EntityImport[]) {})
-        //~ ),
-        //~ createTestWithError(
-            //~ s("Assignment type declaration error"), 
-            //~ s(errTypeMismatch),
-            //~ s("x String = 12"),
-            //~ ((Node[]) {
-                    //~ (Node){ .tp = nodAssignment,           .startBt = 0,  .lenBts = 13 },
-                    //~ (Node){ .tp = nodBinding,              .startBt = 0,  .lenBts = 1 },      
-                    //~ (Node){ .tp = tokInt,       .pl2 = 12, .startBt = 11, .lenBts = 2 }
-            //~ }),
-            //~ ((Int[]) {}),
-            //~ ((EntityImport[]) {})
-        //~ ),
         createTest(
-            s("Reassignment"), 
-            s("x = \"foo\"\n"
-              "x := \"bar\""
+            s("Simple assignment"), 
+            s("x = 12"),            
+            ((Node[]) {
+                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                    (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 }
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        ),
+        createTest(
+            s("Double assignment"), 
+            s("x = 12\n"
+              "second = x"  
             ),
             ((Node[]) {
                     (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
                     (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 },     // x
-                    (Node){ .tp = tokString,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
-                    (Node){ .tp = nodReassign, .pl2 = 2, .startBt = 7, .lenBts = 10 },
-                    (Node){ .tp = nodId, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
-                    (Node){ .tp = tokString, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
+                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
+                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 7, .lenBts = 10 },
+                    (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
+                    (Node){ .tp = nodId, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        ),
+        createTestWithError(
+            s("Assignment shadowing error"), 
+            s(errAssignmentShadowing),
+            s("x = 12\n"
+              "x = 7"  
+            ),
+            ((Node[]) {
+                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                    (Node){ .tp = nodBinding, .pl2 = 0, .startBt = 0, .lenBts = 1 },
+                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        ),
+        createTestWithError(
+            s("Assignment type declaration error"), 
+            s(errTypeMismatch),
+            s("x String = 12"),
+            ((Node[]) {
+                    (Node){ .tp = nodAssignment,           .startBt = 0,  .lenBts = 13 },
+                    (Node){ .tp = nodBinding,              .startBt = 0,  .lenBts = 1 },      
+                    (Node){ .tp = tokInt,       .pl2 = 12, .startBt = 11, .lenBts = 2 }
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        ),
+        createTest(
+            s("Reassignment"), 
+            s("(*f main() = \n"
+                   "x = \"foo\"\n"
+                   "x := \"bar\")"
+            ),
+            ((Node[]) {
+                    (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 7, .startBt = 0, .lenBts = 35 },
+                    (Node){ .tp = nodScope,           .pl2 = 6, .startBt = 8, .lenBts = 27 },
+                    (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 14, .lenBts = 9 },
+                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 14, .lenBts = 1 },     // x
+                    (Node){ .tp = tokString,                    .startBt = 18, .lenBts = 5 },
+                    (Node){ .tp = nodReassign, .pl2 = 2,        .startBt = 24, .lenBts = 10 },
+                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 24, .lenBts = 1 }, // second
+                    (Node){ .tp = tokString,                    .startBt = 29, .lenBts = 5 }
             }),
             ((Int[]) {}),
             ((EntityImport[]) {})
@@ -1327,9 +1330,9 @@ int main() {
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&assignmentTests, &countPassed, &countTests, langDef, a);
+    //~ runATestSet(&assignmentTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&expressionTests, &countPassed, &countTests, langDef, a);
-    //~ runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
+    runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
     
     //~ runATestSet(&ifTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&loopTests, &countPassed, &countTests, langDef, a);

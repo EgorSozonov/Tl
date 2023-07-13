@@ -2265,15 +2265,12 @@ _Noreturn private void throwExcParser(const char errMsg[], Compiler* cm) {
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
-private Int createEntity(Token bindingToken, Entity e, Compiler* cm) {
-    VALIDATEP(bindingToken.tp == tokWord, errAssignment)
-
-    Int nameId = bindingToken.pl2;
+private Int createEntity(Int nameId, Compiler* cm) {
     Int mbBinding = cm->activeBindings[nameId];
     VALIDATEP(mbBinding == -1, errAssignmentShadowing)
 
     Int newBindingId = cm->entities.length;    
-    pushInentities(e, cm);
+    pushInentities(((Entity){.nameId = nameId}), cm);
     
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
@@ -2288,7 +2285,7 @@ private Int createEntity(Token bindingToken, Entity e, Compiler* cm) {
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
 private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
-
+    
     VALIDATEP(activeValue < 0, errAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
         cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
@@ -2568,7 +2565,8 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int sentinelToken = cm->i + tok.pl2;
 
     Token bindingTk = tokens[cm->i];
-    Int newBindingId = createEntity(bindingTk, (Entity){ }, cm);
+    VALIDATEP(bindingTk.tp == tokWord, errAssignment)
+    Int newBindingId = createEntity(bindingTk.pl2, cm);
 
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
@@ -2587,8 +2585,8 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     }
     Token rTk = tokens[cm->i];
     if (rLen == 1) {
-            typeId = parseLiteralOrIdentifier(rTk, cm);
-            VALIDATEP(typeId != -2, errAssignment)
+        typeId = parseLiteralOrIdentifier(rTk, cm);
+        VALIDATEP(typeId != -2, errAssignment)
     } else if (rTk.tp == tokIf) { // TODO
     } else {
         typeId = expr(
@@ -2612,32 +2610,22 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 
     push(((ParseFrame){ .tp = nodReassign, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
+    pushInnodes((Node){.tp = nodBinding, .pl1 = bindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
     
     cm->i++; // CONSUME the word token before the assignment sign
 
-    Int typeId = -1;
-    Int declaredTypeId = -1;
-    if (tokens[cm->i].tp == tokTypeName) {
-        declaredTypeId = cm->activeBindings[tokens[cm->i].pl1];
-        VALIDATEP(declaredTypeId > -1, errUnknownType)
-        ++cm->i; // CONSUME the type decl of the binding
-        --rLen; // for the type decl token
-    }
-    
+    Int typeId = cm->entities.content[bindingId].typeId;
+    Int rightSideTypeId = -1;
     Token rTk = tokens[cm->i];
     if (rLen == 1) {
-            typeId = parseLiteralOrIdentifier(rTk, cm);
+        rightSideTypeId = parseLiteralOrIdentifier(rTk, cm);
             VALIDATEP(typeId != -2, errAssignment)
     } else if (rTk.tp == tokIf) { // TODO
     } else {
-        typeId = expr(
+        rightSideTypeId = expr(
                 (Token){ .pl2 = rLen, .startBt = rTk.startBt, .lenBts = tok.lenBts - rTk.startBt + tok.startBt  }, tokens, cm);
     }
-    VALIDATEP(declaredTypeId == -1 || typeId == declaredTypeId, errTypeMismatch)
-    if (typeId > -1) {
-        cm->entities.content[newBindingId].typeId = typeId;
-    }
+    VALIDATEP(rightSideTypeId == typeId, errTypeMismatch)
 }
 
 private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
@@ -2878,7 +2866,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
             VALIDATEP(exprTk.tp < firstPunctuationTokenType || exprTk.tp == tokParens, errLoopSyntaxError)
             
             Int initializationSentinel = calcSentinel(exprTk, cm->i + 1);
-            Int newBindingId = createEntity(binding, ((Entity){}), cm);
+            Int newBindingId = createEntity(binding.pl2, cm);
             Int indBindingSpan = cm->nodes.length;
             pushInnodes((Node){.tp = nodAssignment, .pl2 = initializationSentinel - cm->i,
                            .startBt = binding.startBt, .lenBts = exprTk.lenBts + exprTk.startBt - binding.startBt}, cm);
@@ -3205,16 +3193,6 @@ private void buildInOperators(Compiler* cm) {
 #endif
 
     cm->countOperatorEntities = cm->entities.length;
-
-#ifdef TEST
-    cm->langDef->typBoolOfVoid = addFunctionType(0, (Int[]){tokBool}, cm);
-    cm->langDef->typStringOfIntBoolFloat = addFunctionType(3, (Int[]){tokString, tokInt, tokBool, tokFloat}, cm);
-    cm->langDef->typFloatOfIntIntInt = addFunctionType(3, (Int[]){tokFloat, tokInt, tokInt, tokInt}, cm);
-    cm->langDef->typIntOfInt = intOfInt;
-    cm->langDef->typIntOfIntInt = intOfIntInt;
-    cm->langDef->typIntOfIntIntIntInt = addFunctionType(4, (Int[]){tokInt, tokInt, tokInt, tokInt, tokInt}, cm);
-    cm->langDef->typVoidOfStr = voidOfStr;
-#endif
 }
 
 /* Entities and overloads for the built-in operators, types and functions. */
@@ -3394,16 +3372,24 @@ private void parseToplevelConstants(Lexer* lx, Compiler* cm) {
 private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
     cm->i = 0;
     const Int len = lx->totalTokens;
+    Token* tokens = lx->tokens;
     while (cm->i < len) {
-        Token tok = lx->tokens[cm->i];
+        Token tok = tokens[cm->i];
         if (tok.tp == tokFnDef) {
             Int lenTokens = tok.pl2;
             VALIDATEP(lenTokens >= 3, errFnNameAndParams)
             
-            Token fnName = lx->tokens[(cm->i) + 2]; // + 2 because we skip over the "fn" and "stmt" span tokens
+            Token fnName = tokens[(cm->i) + 2]; // + 2 because we skip over the "fn" and "stmt" span tokens
             VALIDATEP(fnName.tp == tokWord, errFnNameAndParams)
-            // TODO handle 0-arity funcs
-            fnDefIncrementOverlCount(fnName.pl2, cm);
+            Int j = cm->i + 3;
+            if (tokens[j].tp == tokTypeName) {
+                ++j;
+            }
+            VALIDATEP(tokens[j].tp == tokParens, errFnNameAndParams)
+            Int nameId = fnName.pl2;
+            if (tokens[j].pl2 > 0) {
+                fnDefIncrementOverlCount(nameId, cm);
+            }
         }
         cm->i += (tok.pl2 + 1);        
     } 
@@ -3464,7 +3450,7 @@ private void validateOverloadsFull(Compiler* cm) {
 #endif
 
 /** 
- * Parses a top-level function signature. Emits no nodes, only an entity and an overload.
+ * Parses a top-level function signature. Emits no nodes, only an entity and an overload. Saves the info to "toplevelSignatures"
  * Pre-condition: we are 2 tokens past the fnDef.
  */
 private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Lexer* lx, Compiler* cm) {
@@ -3474,12 +3460,10 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     
     Token fnName = lx->tokens[cm->i];
     Int fnNameId = fnName.pl1;
-    Int overloadIdEncoded = cm->activeBindings[fnNameId];
-
-#ifdef SAFETY // all toplevel fn names should've been activated in "surveyToplevelFunctionNames()"
-    VALIDATEI(overloadIdEncoded != -1, iErrorParsedFunctionNotInScope)
-#endif
-    Int overloadId = -overloadIdEncoded - 2;
+    Int fnEntityId = createEntity(fnNameId, cm); // we don't know the new typeId yet, until the end of this function
+    
+    Int activeBinding = cm->activeBindings[fnNameId];
+    Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
 
     cm->i++; // CONSUME the function name token
 
@@ -3498,8 +3482,6 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
         pushIntypes(tokUnderscore, cm); // underscore stands for the Void type
     }
 
-    Int fnEntityId = cm->entities.length;
-    pushInentities((Entity){.nameId = fnNameId }, cm); // we don't know the new typeId yet, until the end of this function
     VALIDATEP(lx->tokens[cm->i].tp == tokParens, errFnNameAndParams)
     
     Int paramsTokenInd = cm->i;
@@ -3565,11 +3547,11 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = tokens[cm->i];
-        Entity newEntity = (Entity){.nameId = paramName.pl2};
+        Int newEntityId = createEntity(paramName.pl2, cm);
         ++cm->i; // CONSUME the param name
-        newEntity.typeId = cm->activeBindings[tokens[cm->i].pl2];
-        
-        Int newEntityId = createEntity(paramName, newEntity, cm);
+        Int typeId = cm->activeBindings[tokens[cm->i].pl2];
+        cm->entities.content[newEntityId].typeId = typeId;
+
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
 
         ++cm->i; // CONSUME the param's type name
