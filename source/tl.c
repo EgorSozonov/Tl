@@ -2267,7 +2267,7 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
 private Int createEntity(Int nameId, Compiler* cm) {
     Int mbBinding = cm->activeBindings[nameId];
-    VALIDATEP(mbBinding == -1, errAssignmentShadowing)
+    VALIDATEP(mbBinding < 0, errAssignmentShadowing) // if it's a binding, it should be -1, and if overload, <-1
 
     Int newBindingId = cm->entities.length;    
     pushInentities(((Entity){.nameId = nameId}), cm);
@@ -2285,7 +2285,6 @@ private Int createEntity(Int nameId, Compiler* cm) {
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
 private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
-    
     VALIDATEP(activeValue < 0, errAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
         cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
@@ -3428,7 +3427,8 @@ private void validateOverloadsFull(Compiler* cm) {
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
             if (cm->overloads.content[j] < 0) {
                 print("ERR overload missing type currInd %d j %d cm->overloads.content[j] %d",
-                    currInd, j, cm->overloads.content[j]) 
+                    currInd, j, cm->overloads.content[j])
+                printIntArrayOff(173, 3, cm->overloads.content);
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
@@ -3460,11 +3460,11 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     
     Token fnName = lx->tokens[cm->i];
     Int fnNameId = fnName.pl1;
-    Int fnEntityId = createEntity(fnNameId, cm); // we don't know the new typeId yet, until the end of this function
+
     
     Int activeBinding = cm->activeBindings[fnNameId];
     Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
-
+    Int fnEntityId = createEntity(fnNameId, cm); // we don't know the new typeId yet, until the end of this function
     cm->i++; // CONSUME the function name token
 
     Int tentativeTypeInd = cm->types.length;
@@ -3765,6 +3765,7 @@ private void printExpSt(StackInt* st) {
 
 /** Populates the expression's type stack with the operands and functions of an expression */
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
+    cm->expStack->length = 0;
     for (Int j = indExpr + 1; j < sentinelNode; ++j) {
         Node nd = cm->nodes.content[j];
         if (nd.tp <= tokString) {
@@ -3846,7 +3847,6 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             --currAhead;
             cm->nodes.content[j + indExpr + 1 - currAhead].pl1 = entityId; // the type-resolved function of the call
             cont[j] = cm->types.content[typeOfFunc + 1];         // the function return type
-            
             shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
 #ifdef TEST
             printExpSt(st);
@@ -3854,11 +3854,12 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
         }
         --j;
     }
+    
     if (st->length == 1) {
         return st->content[0]; // the last remaining element is the type of the expression
     } else {
         return -1;
-    }    
+    }
 }
 
 //}}}

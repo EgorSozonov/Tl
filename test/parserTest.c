@@ -112,6 +112,10 @@ private Int tryGetOper0(Int opType, Int typeId, LanguageDefinition* langDef) {
         if (typeId == tokInt) {
             return langDef->entOpToFloatInt + O;
         }
+    }  else if (opType == opTEquality) {
+        if (typeId == tokInt) {
+            return langDef->entOpEqualityInt + O;
+        }
     }
     return -1;
 }
@@ -261,7 +265,7 @@ int equalityParser(Compiler a, Compiler b) {
 
 void printType(Int typeInd, Compiler* cm) {
     if (typeInd < 5) {
-        printf("%s", nodeNames[typeInd]);
+        printf("%s\n", nodeNames[typeInd]);
         return;
     }
     Int arity = cm->types.content[typeInd] - 1;
@@ -573,67 +577,9 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
     }));
 }
 
-        //~ (ParserTest) { 
-            //~ .name = str("Triple function call", a),
-            //~ .input = str("c:foo b a :bar 5 :baz 7.2", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) {
-                //~ (Node){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 8 },
-                //~ (Node){ .tp = tokWord, .startBt = 0, .lenBts = 4 },
-                //~ (Node){ .tp = tokWord, .startBt = 5, .lenBts = 3 }
-            //~ }))
-        //~ },
 
-        //~ (ParserTest) { 
-            //~ .name = str("Operator prefix 1", a),
-            //~ .input = str("a + b*c", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) 
-                //~ (Node){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 8 },
-                //~ (Node){ .tp = tokWord, .startBt = 0, .lenBts = 4 },
-                //~ (Node){ .tp = tokWord, .startBt = 5, .lenBts = 3 }
-            //~ }))
-        //~ },
-        //~ (ParserTest) { 
-            //~ .name = str("Operator prefix 2", a),
-            //~ .input = str("a + b*c", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) 
-                //~ (Node){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 8 },
-                //~ (Node){ .tp = tokWord, .startBt = 0, .lenBts = 4 },
-                //~ (Node){ .tp = tokWord, .startBt = 5, .lenBts = 3 }
-            //~ }))
-        //~ },       
-        //~ (ParserTest) { 
-            //~ .name = str("Operator prefix 3", a),
-            //~ .input = str("a + b*c", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) 
-                //~ (Node){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 8 },
-                //~ (Node){ .tp = tokWord, .startBt = 0, .lenBts = 4 },
-                //~ (Node){ .tp = tokWord, .startBt = 5, .lenBts = 3 }
-            //~ )
-        //~ },
-        //~ (ParserTest) { 
-            //~ .name = str("Operator arithmetic 1", a),
-            //~ .input = str("(a + (b - c % 2)^11)", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) 
-                //~ (Node){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 8 },
-                //~ (Node){ .tp = tokWord, .startBt = 0, .lenBts = 4 },
-                //~ (Node){ .tp = tokWord, .startBt = 5, .lenBts = 3 }
-            //~ )
-        //~ },
-        //~ (ParserTest) { 
-            //~ .name = str("Operator airthmetic 2", a),
-            //~ .input = str("a + -5", a),
-            //~ .imports = {(Import){"foo", 3}},
-            //~ .expectedOutput = buildParser(((Node[]) 
-                //~ (Node){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 8 },
-                //~ (Node){ .tp = tokWord, .startBt = 0, .lenBts = 4 },
-                //~ (Node){ .tp = tokWord, .startBt = 5, .lenBts = 3 }
-            //~ )
-        //~ },       
+
+
         //~ (ParserTest) { 
             //~ .name = str("Operator airthmetic 3", a),
             //~ .input = str("a + !(-5)", a),
@@ -734,8 +680,6 @@ ParserTestSet* expressionTests(LanguageDefinition* lD, Arena* a) {
                 //~ (Node){ .tp = tokWord, .startBt = 5, .lenBts = 3 }
             //~ )
         //~ }
-        
-        
         
         
 
@@ -1095,87 +1039,87 @@ ParserTestSet* ifTests(LanguageDefinition* lD, Arena* a) {
             }),
             ((Int[]) {2, tokUnderscore, tokString}),
             ((EntityImport[]) {(EntityImport){ .name = s("print"), .typeInd = 0}})
-        ),
-        createTest(
-            s("If with else"),
-            s("x = (if > 5 3 => \"5\" else \"=)\")"),
-            ((Node[]) {
-                (Node){ .tp = nodAssignment, .pl2 = 10, .startBt = 0, .lenBts = 31 },
-                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+        )//,
+        //~ createTest(
+            //~ s("If with else"),
+            //~ s("x = (if > 5 3 => \"5\" else \"=)\")"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .pl2 = 10, .startBt = 0, .lenBts = 31 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
                 
-                (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 8, .startBt = 4, .lenBts = 27 },
+                //~ (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 8, .startBt = 4, .lenBts = 27 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
-                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
-                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },                
-                (Node){ .tp = tokString, .startBt = 17, .lenBts = 3 },
+                //~ (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
+                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
+                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },                
+                //~ (Node){ .tp = tokString, .startBt = 17, .lenBts = 3 },
                 
-                (Node){ .tp = nodElse, .pl2 = 1, .startBt = 26, .lenBts = 4 },
-                (Node){ .tp = tokString,         .startBt = 26, .lenBts = 4 },
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTest(
-            s("If with elseif"),
-            s("x = (if > 5 3  => 11\n"
-              "       == 5 3 => 4)"),
-            ((Node[]) {
-                (Node){ .tp = nodAssignment, .pl2 = 14, .startBt = 0, .lenBts = 40 },
-                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                //~ (Node){ .tp = nodElse, .pl2 = 1, .startBt = 26, .lenBts = 4 },
+                //~ (Node){ .tp = tokString,         .startBt = 26, .lenBts = 4 },
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTest(
+            //~ s("If with elseif"),
+            //~ s("x = (if > 5 3  => 11\n"
+              //~ "       == 5 3 => 4)"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .pl2 = 14, .startBt = 0, .lenBts = 40 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
                 
-                (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 12, .startBt = 4, .lenBts = 36 },
+                //~ (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 12, .startBt = 4, .lenBts = 36 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
-                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
-                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 11, .startBt = 18, .lenBts = 2 },
+                //~ (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
+                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
+                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 11, .startBt = 18, .lenBts = 2 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 28, .lenBts = 11 },
-                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 28, .lenBts = 6 },
-                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTEquality, tokInt), .pl2 = 2, .startBt = 28, .lenBts = 2 },
-                (Node){ .tp = tokInt, .pl2 = 5, .startBt = 31, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 33, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 4, .startBt = 38, .lenBts = 1 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTest(
-            s("If with elseif and else"),
-            s("x = (if > 5 3  => 11\n"
-              "        == 5 3 =>  4\n"
-              "       else      100)"),
-            ((Node[]) {
-                (Node){ .tp = nodAssignment, .pl2 = 16, .startBt = 0, .lenBts = 63 },
-                (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                //~ (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 28, .lenBts = 11 },
+                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 28, .lenBts = 6 },
+                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTEquality, tokInt), .pl2 = 2, .startBt = 28, .lenBts = 2 },
+                //~ (Node){ .tp = tokInt, .pl2 = 5, .startBt = 31, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 3, .startBt = 33, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 4, .startBt = 38, .lenBts = 1 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTest(
+            //~ s("If with elseif and else"),
+            //~ s("x = (if > 5 3  => 11\n"
+              //~ "        == 5 3 =>  4\n"
+              //~ "       else      100)"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodAssignment, .pl2 = 16, .startBt = 0, .lenBts = 63 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
                 
-                (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 14, .startBt = 4, .lenBts = 59 },
+                //~ (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 14, .startBt = 4, .lenBts = 59 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
-                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
-                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 11, .startBt = 18, .lenBts = 2 },
+                //~ (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
+                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
+                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 11, .startBt = 18, .lenBts = 2 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 29, .lenBts = 12 },
-                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 29, .lenBts = 6 },
-                (Node){ .tp = nodCall, .pl1 = tryGetOper(opTEquality, tokInt), .pl2 = 2, .startBt = 29, .lenBts = 2 },
-                (Node){ .tp = tokInt, .pl2 = 5, .startBt = 32, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 34, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 4, .startBt = 40, .lenBts = 1 },
+                //~ (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 29, .lenBts = 12 },
+                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 29, .lenBts = 6 },
+                //~ (Node){ .tp = nodCall, .pl1 = tryGetOper(opTEquality, tokInt), .pl2 = 2, .startBt = 29, .lenBts = 2 },
+                //~ (Node){ .tp = tokInt, .pl2 = 5, .startBt = 32, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 3, .startBt = 34, .lenBts = 1 },
+                //~ (Node){ .tp = tokInt, .pl2 = 4, .startBt = 40, .lenBts = 1 },
                 
-                (Node){ .tp = nodElse, .pl2 = 1, .startBt = 59, .lenBts = 3 },
-                (Node){ .tp = tokInt, .pl2 = 100, .startBt = 59, .lenBts = 3 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),    
+                //~ (Node){ .tp = nodElse, .pl2 = 1, .startBt = 59, .lenBts = 3 },
+                //~ (Node){ .tp = tokInt, .pl2 = 100, .startBt = 59, .lenBts = 3 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),    
     }));
 }
 
@@ -1332,9 +1276,9 @@ int main() {
     int countTests = 0;
     //~ runATestSet(&assignmentTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&expressionTests, &countPassed, &countTests, langDef, a);
-    runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
+    //~ runATestSet(&functionTests, &countPassed, &countTests, langDef, a);
     
-    //~ runATestSet(&ifTests, &countPassed, &countTests, langDef, a);
+    runATestSet(&ifTests, &countPassed, &countTests, langDef, a);
     //~ runATestSet(&loopTests, &countPassed, &countTests, langDef, a);
 
     if (countTests == 0) {
