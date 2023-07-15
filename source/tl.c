@@ -2303,7 +2303,9 @@ private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
 
-    if (typeLength <= 1) { // not a function, or 0-arity function => not overloaded
+    print("imported entity %d type %d", newEntityId, ent.typeId)
+
+    if (typeLength <= 1) { // not a function, or a 0-arity function => not overloaded
         cm->activeBindings[nameId] = newEntityId;
     } else {
         fnDefIncrementOverlCount(nameId, cm);
@@ -3001,6 +3003,7 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 
 testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
+    printIntArray(2, typeIds);
     for (int i = 0; i < countEntities; i++) {
         Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
         if (mbNameId > -1) {
@@ -3214,8 +3217,7 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
 
     cm->entImportedZero = cm->overloadIds.length;
 
-    Int voidOfStr = cm->types.length;
-    addFunctionType(1, (Int[]){tokString}, cm);
+    Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     
     EntityImport builtins[3] =  {
         (EntityImport) { .name = str("math-pi", cm->a), .typeInd = 0 },
@@ -3426,9 +3428,6 @@ private void validateOverloadsFull(Compiler* cm) {
         VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
             if (cm->overloads.content[j] < 0) {
-                print("ERR overload missing type currInd %d j %d cm->overloads.content[j] %d",
-                    currInd, j, cm->overloads.content[j])
-                printIntArrayOff(173, 3, cm->overloads.content);
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
@@ -3460,7 +3459,6 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     
     Token fnName = lx->tokens[cm->i];
     Int fnNameId = fnName.pl1;
-
     
     Int activeBinding = cm->activeBindings[fnNameId];
     Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
@@ -3469,7 +3467,6 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
 
     Int tentativeTypeInd = cm->types.length;
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
-
     // the function's return type, interpreted to be Void if absent
     if (lx->tokens[cm->i].tp == tokTypeName) {
         Token fnReturnType = lx->tokens[cm->i];
@@ -3481,14 +3478,12 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     } else {
         pushIntypes(tokUnderscore, cm); // underscore stands for the Void type
     }
-
     VALIDATEP(lx->tokens[cm->i].tp == tokParens, errFnNameAndParams)
     
     Int paramsTokenInd = cm->i;
     Token parens = lx->tokens[paramsTokenInd];   
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
-
     Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = lx->tokens[cm->i];
@@ -3506,12 +3501,14 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
         
         ++cm->i; // CONSUME the param's type name
     }
-    
+
     VALIDATEP(cm->i < (fnSentinelToken - 1) && lx->tokens[cm->i].tp == tokEqualsSign, errFnMissingBody)
     cm->types.content[tentativeTypeInd] = arity + 1;
     Int uniqueTypeId = mergeType(tentativeTypeInd, arity + 2, cm);
+    print("tentativeTypeInd %d uniqueTypeId %d length %d", tentativeTypeInd, uniqueTypeId, cm->types.length)
+    printIntArrayOff(80, 2, cm->types.content);
     cm->entities.content[fnEntityId].typeId = uniqueTypeId;
-
+    print("entity %d is now %d type", fnEntityId, uniqueTypeId)
     if (arity > 0) {
         addParsedOverload(overloadId, cm->types.content[uniqueTypeId + 2], fnEntityId, cm);
     }
@@ -3604,17 +3601,22 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
         
         // This gives us overload counts
         surveyToplevelFunctionNames(lx, cm);
+
         // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
         createOverloads(cm);
-        
-        parseToplevelConstants(lx, cm);
 
+        parseToplevelConstants(lx, cm);
+        print("p4")
+        printIntArrayOff(81, 3, cm->types.content);
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
         StackNode* topLevelSignatures = parseToplevelSignatures(lx, cm);
-        
+        print("p5")
+        printIntArrayOff(81, 3, cm->types.content);
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
+        print("before main parse")
+        printIntArrayOff(81, 3, cm->types.content);
 
         // The main parse (all top-level function bodies)
         parseFunctionBodies(topLevelSignatures, lx, cm);
@@ -3784,6 +3786,8 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
 
 /** Typechecks and resolves overloads in a single expression */
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
+    print("at start of tc")
+    printIntArrayOff(81, 3, cm->types.content);
     Node expr = cm->nodes.content[indExpr];
     Int currAhead = 0; // how many elements ahead we are compared to the token array (because of extra call indicators)
     StackInt* st = cm->expStack;
@@ -3833,6 +3837,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
+            print("entityId %d typeOfFunc %d (cm->types.content[typeOfFunc] - 1) %d arity %d",
+                entityId, typeOfFunc, cm->types.content[typeOfFunc], arity)
+            
             VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) // last parm matches, but not arity
             
             // We know the type of the function, now to validate arg types against param types
