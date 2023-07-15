@@ -203,7 +203,7 @@ struct Lexer {
 #define tokColon       12 
 
 // Punctuation (inner node) Token types
-#define tokScope       13       // denoted by (.)
+#define tokScope       13       // denoted by (*)
 #define tokStmt        14
 #define tokParens      15
 #define tokTypeParens  16
@@ -239,11 +239,11 @@ struct Lexer {
 #define tokYield       44
 
 // Resumable core forms
-#define tokIf          45    // "(if " or "(.i". pl1 = 1 if it's the "(.i" variant
+#define tokIf          45    // "(if " or "(*i". pl1 = 1 if it's the "(*i" variant
 #define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       47    // "(.m " or "(match " pattern matching on sum type tag 
-#define tokImpl        48    // "(.impl " 
-#define tokLoop        49    // "(.loop "
+#define tokMatch       47    // "(*m " or "(match " pattern matching on sum type tag 
+#define tokImpl        48    // "(*impl " 
+#define tokWhile       49    // "(*while "
 // "(-iface"
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
@@ -337,8 +337,8 @@ typedef struct {
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType tokAlias
 
-#define countCoreForms (tokLoop - tokAlias + 1)
-#define countSyntaxForms (tokLoop + 1)
+#define countCoreForms (tokWhile - tokAlias + 1)
+#define countSyntaxForms (tokWhile + 1)
 
 //}}}
 //{{{ Parser
@@ -391,8 +391,8 @@ typedef struct {
 #define nodYield       38       
 #define nodIfClause    39       // pl1 = number of tokens in the left side of the clause
 #define nodElse        40
-#define nodLoop        41       //
-#define nodLoopCond    42
+#define nodWhile       41       //
+#define nodWhileCond   42
 
 // Resumable core forms
 #define nodIf          43       // paren
@@ -413,32 +413,6 @@ struct LanguageDefinition {
     Int (*reservedParensOrNot)[countCoreForms];
     ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
-#ifdef TEST
-    Int entOpPlusInt;
-    Int entOpPlusFloat;
-    Int entOpPlusString;
-    Int entOpToFloatInt;
-    Int entOpToStringInt;
-    Int entOpToStringFloat;
-    Int entOpDivInt;
-    Int entOpDivFloat;
-    Int entOpMinusInt;
-    Int entOpMinusFloat;
-    Int entOpNegateInt;
-    Int entOpNegateFloat;
-    Int entOpLtInt;
-    Int entOpLtFloat;
-    Int entOpGtInt;
-    Int entOpGtFloat;
-    Int entOpEqualityInt;
-    //~ Int typBoolOfVoid;
-    //~ Int typStringOfIntBoolFloat;
-    //~ Int typIntOfInt;
-    //~ Int typIntOfIntInt;
-    //~ Int typIntOfIntIntIntInt;
-    //~ Int typVoidOfStr;
-    //~ Int typFloatOfIntIntInt;   
-#endif
 };
 
 typedef struct {

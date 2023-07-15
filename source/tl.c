@@ -227,7 +227,7 @@ testable void deleteArena(Arena* ar) {
 #define aALower       97
 #define aFLower      102
 #define aILower      105
-#define aLLower      108
+#define aWLower      119
 #define aXLower      120
 #define aYLower      121
 #define aZLower      122
@@ -789,7 +789,6 @@ static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
 static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
 static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
 static const byte reservedBytesLambda[]      = { 108, 97, 109 };
-static const byte reservedBytesLoop[]        = { 108, 111, 111, 112 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
 static const byte reservedBytesMut[]         = { 109, 117, 116 }; // replace with "immut" or "val" for struct fields
 static const byte reservedBytesOr[]          = { 111, 114 };
@@ -798,6 +797,7 @@ static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
 static const byte reservedBytesTry[]         = { 116, 114, 121 };
 static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
+static const byte reservedBytesWhile[]       = { 119, 104, 105, 108, 101 };
 
 /** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" is handled by lexEqual
  */
@@ -959,7 +959,7 @@ private Int determineReservedI(Int startBt, Int lenBts, Lexer* lx) {
 private Int determineReservedL(Int startBt, Int lenBts, Lexer* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
-    PROBERESERVED(reservedBytesLoop, tokLoop)
+    PROBERESERVED(reservedBytesWhile, tokWhile)
     return 0;
 }
 
@@ -1725,14 +1725,14 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
  */
 private void openScope(Lexer* lx, Arr(byte) inp) {
     Int startBt = lx->i;
-    lx->i += 2; // CONSUME the "(."
+    lx->i += 2; // CONSUME the "(*"
     VALIDATEL(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope, errPunctuationScope)
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
     byte currBt = CURR_BT;
-    if (currBt == aLLower && testForWord(lx->inp, lx->i, reservedBytesLoop, 4)) {
-            openPunctuation(tokLoop, slScope, startBt, lx);
-            lx->i += 4; // CONSUME the "loop"
-            return; 
+    if (currBt == aWLower && testForWord(lx->inp, lx->i, reservedBytesWhile, 5)) {
+        openPunctuation(tokWhile, slScope, startBt, lx);
+        lx->i += 5; // CONSUME the "while"
+        return; 
     } else if (lx->i < lx->inpLength - 2 && isSpace(inp[lx->i + 1])) {        
         if (currBt == aFLower) {
             openPunctuation(tokFnDef, slScope, startBt, lx);
@@ -1752,7 +1752,7 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
-    if (inp[j] == aColon) { // "(*" starts a new data initializer        
+    if (inp[j] == aColon) { // "(:" starts a new data initializer        
         openPunctuation(tokData, slSubexpr, lx->i, lx);
         lx->i += 2; // CONSUME the "(*"
     } else if (inp[j] == aTimes) {
@@ -2303,8 +2303,6 @@ private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
 
-    print("imported entity %d type %d", newEntityId, ent.typeId)
-
     if (typeLength <= 1) { // not a function, or a 0-arity function => not overloaded
         cm->activeBindings[nameId] = newEntityId;
     } else {
@@ -2803,7 +2801,7 @@ private void ifAddClause(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(j + 1 < cm->inpLength, errPrematureEndOfTokens)
     VALIDATEP(tokens[j].tp == tokArrow, errIfMalformed)
     
-    j++; // CONSUMEthe arrow
+    j++; // CONSUME the arrow
     
     Token rightToken = tokens[j];
     Int rightTokLength = (rightToken.tp >= firstPunctuationTokenType) ? (rightToken.pl2 + 1) : 1;    
@@ -2824,7 +2822,7 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
+private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     Token tokenStmt = tokens[cm->i];
     Int sentinelStmt = cm->i + tokenStmt.pl2 + 1;
     VALIDATEP(tokenStmt.tp == tokStmt, errLoopSyntaxError)    
@@ -2849,8 +2847,8 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     
     Int sentToken = startOfScope - cm->i + loopTok.pl2;
         
-    push(((ParseFrame){ .tp = nodLoop, .startNodeInd = cm->nodes.length, .sentinelToken = cm->i + loopTok.pl2 }), cm->backtrack);
-    pushInnodes((Node){.tp = nodLoop, .pl1 = slScope, .startBt = loopTok.startBt, .lenBts = loopTok.lenBts}, cm);
+    push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.length, .sentinelToken = cm->i + loopTok.pl2 }), cm->backtrack);
+    pushInnodes((Node){.tp = nodWhile, .pl1 = slScope, .startBt = loopTok.startBt, .lenBts = loopTok.lenBts}, cm);
 
     push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = cm->i + loopTok.pl2 }), cm->backtrack);
     pushInnodes((Node){.tp = nodScope, .startBt = startBtScope, .lenBts = loopTok.lenBts - startBtScope + loopTok.startBt}, cm);
@@ -2867,11 +2865,11 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
             VALIDATEP(exprTk.tp < firstPunctuationTokenType || exprTk.tp == tokParens, errLoopSyntaxError)
             
             Int initializationSentinel = calcSentinel(exprTk, cm->i + 1);
-            Int newBindingId = createEntity(binding.pl2, cm);
+            Int newEntityId = createEntity(binding.pl2, cm);
             Int indBindingSpan = cm->nodes.length;
             pushInnodes((Node){.tp = nodAssignment, .pl2 = initializationSentinel - cm->i,
                            .startBt = binding.startBt, .lenBts = exprTk.lenBts + exprTk.startBt - binding.startBt}, cm);
-            pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId,
+            pushInnodes((Node){.tp = nodBinding, .pl1 = newEntityId,
                            .startBt = binding.startBt, .lenBts = binding.lenBts}, cm);
             Int typeId = -1;
             if (exprTk.tp == tokParens) {
@@ -2882,7 +2880,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
             }
             setSpanLength(indBindingSpan, cm);
             if (typeId > -1) {
-                cm->entities.content[newBindingId].typeId = typeId;
+                cm->entities.content[newEntityId].typeId = typeId;
             }
             
             cm->i = initializationSentinel;
@@ -2895,7 +2893,7 @@ private void parseLoop(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     if (startBtScope < 0) {
         startBtScope = tokBody.startBt;
     }    
-    pushInnodes((Node){.tp = nodLoopCond, .pl1 = slStmt, .pl2 = lSent - lInd, .startBt = lTk.startBt, .lenBts = lTk.lenBts}, cm);
+    pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = lSent - lInd, .startBt = lTk.startBt, .lenBts = lTk.lenBts}, cm);
     cm->i = lInd + 1;
     Int condTypeId = expr(tokens[lInd], tokens, cm);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
@@ -2971,7 +2969,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
 
     p[tokIf]         = &parseIf;
     p[tokElse]       = &parseSkip;
-    p[tokLoop]       = &parseLoop;
+    p[tokWhile]      = &parseWhile;
     return result;
 }
  
@@ -3003,7 +3001,6 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 
 testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
-    printIntArray(2, typeIds);
     for (int i = 0; i < countEntities; i++) {
         Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
         if (mbNameId > -1) {
@@ -3094,8 +3091,7 @@ private void buildInOperators(Compiler* cm) {
     Int flOfInt = addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
     Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
     Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
-
-    Int prevOperId;
+    Int voidOfInt = addFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
     
     buildOperator(opTNotEqual, boolOfIntInt, cm);
     buildOperator(opTNotEqual, boolOfFlFl, cm);
@@ -3106,10 +3102,6 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTToString, strOfInt, cm);
     buildOperator(opTToString, strOfFloat, cm);
     buildOperator(opTToString, strOfBool, cm);
-#ifdef TEST
-    cm->langDef->entOpToStringInt = cm->entities.length - 3;
-    cm->langDef->entOpToStringFloat = cm->entities.length - 2;
-#endif
     buildOperator(opTRemainder, intOfIntInt, cm);
     buildOperator(opTBinaryAnd, boolOfBoolBool, cm); // dummy
     buildOperator(opTTypeAnd, boolOfBoolBool, cm); // dummy
@@ -3117,32 +3109,19 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTTimesExt, flOfFlFl, cm);
     buildOperator(opTTimes, intOfIntInt, cm);
     buildOperator(opTTimes, flOfFlFl, cm);
-    buildOperator(opTIncrement, intOfInt, cm);
+    buildOperator(opTIncrement, voidOfInt, cm);
     buildOperator(opTPlusExt, strOfStrStr, cm); // dummy
     buildOperator(opTPlus, intOfIntInt, cm);    
     buildOperator(opTPlus, flOfFlFl, cm);
     buildOperator(opTPlus, strOfStrStr, cm);
     buildOperator(opTToFloat, flOfInt, cm);
-    
-#ifdef TEST
-    cm->langDef->entOpPlusInt = cm->entities.length - 4;
-    cm->langDef->entOpPlusFloat = cm->entities.length - 3;
-    cm->langDef->entOpPlusString = cm->entities.length - 2;
-    cm->langDef->entOpToFloatInt = cm->entities.length - 1;
-#endif
-    buildOperator(opTDecrement, intOfInt, cm);
+    buildOperator(opTDecrement, voidOfInt, cm);
     buildOperator(opTMinusExt, intOfIntInt, cm); // dummy
     buildOperator(opTMinus, intOfIntInt, cm);
     buildOperator(opTMinus, flOfFlFl, cm);
     buildOperator(opTDivByExt, intOfIntInt, cm); // dummy
     buildOperator(opTDivBy, intOfIntInt, cm);
     buildOperator(opTDivBy, flOfFlFl, cm);
-#ifdef TEST
-    cm->langDef->entOpMinusInt = cm->entities.length - 5;
-    cm->langDef->entOpMinusFloat = cm->entities.length - 4;
-    cm->langDef->entOpDivInt = cm->entities.length - 2;
-    cm->langDef->entOpDivFloat = cm->entities.length - 1;
-#endif
     buildOperator(opTBitShiftLeftExt, intOfIntInt, cm);  // dummy
     buildOperator(opTBitShiftLeft, intOfFlFl, cm);  // dummy
     buildOperator(opTBitShiftRightExt, intOfIntInt, cm);  // dummy
@@ -3164,13 +3143,6 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTGreaterThan, boolOfFlFl, cm);
     buildOperator(opTGreaterThan, boolOfStrStr, cm);
     buildOperator(opTEquality, boolOfIntInt, cm);
-#ifdef TEST
-    cm->langDef->entOpLtInt = cm->entities.length - 7;
-    cm->langDef->entOpLtFloat = cm->entities.length - 6;
-    cm->langDef->entOpGtInt = cm->entities.length - 4;
-    cm->langDef->entOpGtFloat = cm->entities.length - 3;
-    cm->langDef->entOpEqualityInt = cm->entities.length - 1;
-#endif
 
     buildOperator(opTIntervalBoth, intOfIntInt, cm); // dummy
     buildOperator(opTIntervalLeft, flOfFlFl, cm); // dummy
@@ -3189,10 +3161,6 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTExponent, flOfFlFl, cm);
     buildOperator(opTNegation, intOfInt, cm);
     buildOperator(opTNegation, flOfFl, cm);
-#ifdef TEST
-    cm->langDef->entOpNegateInt = cm->entities.length - 2;
-    cm->langDef->entOpNegateFloat = cm->entities.length - 1;
-#endif
 
     cm->countOperatorEntities = cm->entities.length;
 }
@@ -3505,10 +3473,8 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     VALIDATEP(cm->i < (fnSentinelToken - 1) && lx->tokens[cm->i].tp == tokEqualsSign, errFnMissingBody)
     cm->types.content[tentativeTypeInd] = arity + 1;
     Int uniqueTypeId = mergeType(tentativeTypeInd, arity + 2, cm);
-    print("tentativeTypeInd %d uniqueTypeId %d length %d", tentativeTypeInd, uniqueTypeId, cm->types.length)
-    printIntArrayOff(80, 2, cm->types.content);
     cm->entities.content[fnEntityId].typeId = uniqueTypeId;
-    print("entity %d is now %d type", fnEntityId, uniqueTypeId)
+
     if (arity > 0) {
         addParsedOverload(overloadId, cm->types.content[uniqueTypeId + 2], fnEntityId, cm);
     }
@@ -3606,17 +3572,13 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
         createOverloads(cm);
 
         parseToplevelConstants(lx, cm);
-        print("p4")
-        printIntArrayOff(81, 3, cm->types.content);
+
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
         StackNode* topLevelSignatures = parseToplevelSignatures(lx, cm);
-        print("p5")
-        printIntArrayOff(81, 3, cm->types.content);
+
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
-        print("before main parse")
-        printIntArrayOff(81, 3, cm->types.content);
 
         // The main parse (all top-level function bodies)
         parseFunctionBodies(topLevelSignatures, lx, cm);
@@ -3786,8 +3748,6 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
 
 /** Typechecks and resolves overloads in a single expression */
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
-    print("at start of tc")
-    printIntArrayOff(81, 3, cm->types.content);
     Node expr = cm->nodes.content[indExpr];
     Int currAhead = 0; // how many elements ahead we are compared to the token array (because of extra call indicators)
     StackInt* st = cm->expStack;
@@ -3797,7 +3757,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     printExpSt(st);
 #endif
     // now go from back to front, resolving the calls, typechecking & collapsing args, and replacing calls with their return types
-    Int j = sentinelNode - 1;
+    Int j = cm->expStack->length - 1;
     Arr(Int) cont = st->content;
     while (j > -1) {
         if (cont[j] < BIG) { // it's not a function call, because function call indicators have BIG in them
@@ -3830,15 +3790,14 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             bool ovFound = findOverload(typeFirstArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm);
 #ifdef TEST
             if (!ovFound) {
-                print("overload not found for type %d", typeFirstArg)
+                print("overload not found for type %d between %d and %d, o = %d",
+                    typeFirstArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], o)
                 printExpSt(st);
             }
 #endif
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
-            print("entityId %d typeOfFunc %d (cm->types.content[typeOfFunc] - 1) %d arity %d",
-                entityId, typeOfFunc, cm->types.content[typeOfFunc], arity)
             
             VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) // last parm matches, but not arity
             
