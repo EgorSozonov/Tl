@@ -63,7 +63,7 @@ void importEntities(Arr(EntityImport) impts, Int countBindings, Arr(Int) typeInd
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int equalityParser(Compiler a, Compiler b);
 Compiler* createCompiler(Lexer* lx, Arena* a);
-Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a);
+Compiler* parseMain(Lexer* lx, Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Int len, Compiler* cm);
 
 extern const char errBareAtom[];

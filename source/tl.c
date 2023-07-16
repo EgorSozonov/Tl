@@ -2268,20 +2268,19 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
 private Int createEntity(Int nameId, Compiler* cm) {
     Int mbBinding = cm->activeBindings[nameId];
-    print("here mbBinding %d i %d", mbBinding, cm->i)
     VALIDATEP(mbBinding < 0, errAssignmentShadowing) // if it's a binding, it should be -1, and if overload, <-1
 
-    Int newBindingId = cm->entities.length;    
+    Int newEntityId = cm->entities.length;    
     pushInentities(((Entity){.nameId = nameId}), cm);
     
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
-            addBinding(nameId, newBindingId, cm); // adds it to the ScopeStack
+            addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
         }
-        cm->activeBindings[nameId] = newBindingId; // makes it active
+        cm->activeBindings[nameId] = newEntityId; // makes it active
     }
     
-    return newBindingId;
+    return newEntityId;
 }
 
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
@@ -2290,7 +2289,7 @@ private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
     VALIDATEP(activeValue < 0, errAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
         cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
-        pushInoverloadIds(SIXTEENPLUSONE, cm);        
+        pushInoverloadIds(SIXTEENPLUSONE, cm);
     } else { // other overloads have already been registered, so just increment the counts
         cm->overloadIds.content[-activeValue - 2] += SIXTEENPLUSONE;
     }
@@ -2345,7 +2344,7 @@ private Int calcSentinel(Token tok, Int tokInd) {
 }
 
 /**
- * A single-item expression, like "foo". Consumes no tokens. Returns the type of the subexpression.
+ * A single-item expression, like "foo". Consumes 1 token. Returns the type of the subexpression.
  */
 private Int exprSingleItem(Token tk, Compiler* cm) {
     Int typeId = -1;
@@ -2368,6 +2367,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
     else {
         throwExcParser(errUnexpectedToken, cm);
     }
+    ++cm->i; // CONSUME the single item
     return typeId;
 }
 
@@ -2439,17 +2439,13 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
 
 Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
-/** General expression parser. Parses an expression whether there is a token or not.
+/** General "big" expression parser. Parses an expression whether there is a token or not.
  *  Starts from cm->i and goes up to the sentinel token. Returns the expression's type
+ * Precondition: we are looking 1 past the tokExpr, unlike "exprOrSingleItem".
  */
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
     Int arity = 0;
     Int startNodeInd = cm->nodes.length;
-    if (sentinelToken - cm->i == 1) {
-        Int typeId = exprSingleItem(tokens[cm->i], cm);
-        cm->i++; // CONSUME the single item within parens
-        return typeId;
-    }
 
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = sentinelToken }), cm->backtrack);        
     pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
@@ -2479,29 +2475,35 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
             cm->i++; // CONSUME any leaf token
         }
     }
+
     subexprClose(tokens, cm);
     Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.length, cm);
     return exprType;
 }
 
-/** Parses an expression from an actual token. Precondition: we are 1 past that token.
- * Handles both single tokens and parentheses. Returns the expression type
+/**
+ * Precondition: we are looking at the first token of expr, not 1 past it (unlike "exprUpTo"). Consumes 1 or more tokens.
  */
-private Int expr(Token tok, Arr(Token) tokens, Compiler* cm) {
-    Int arity = 0;
-    Int startNodeInd = cm->nodes.length;
-    if (tok.tp == tokParens) {
-        return exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, tokens, cm);
+private Int exprOrSingleItem(Arr(Token) tokens, Compiler* cm) {
+    Token tk = tokens[cm->i];
+    if (tk.tp == tokParens) {
+        ++cm->i; // CONSUME the "("
+        exprUpTo(cm->i + tk.pl2, tk.startBt, tk.lenBts, tokens, cm);
     } else {
-        return exprUpTo(cm->i, tok.startBt, tok.lenBts, tokens, cm);;
+        Int typeId = exprSingleItem(tokens[cm->i], cm);
+        return typeId;
     }
 }
 
-/** Parses an expression from an actual token. Precondition: we are 1 past that token.
- * Handles both single tokens and parentheses. Returns the expression type
+/**
+ * Parses an expression from an actual token. Precondition: we are 1 past that token. Handles statements only, not single items.
  */
 private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
-    expr(tok, tokens, cm);
+    if (tok.pl2 > 1) {
+        exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, tokens, cm);
+    } else {
+        exprSingleItem(tokens[cm->i], cm);
+    }
 }
 
 /**
@@ -2622,8 +2624,10 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int rightSideTypeId = -1;
     Token rTk = tokens[cm->i];
     if (rTk.tp == tokIf) { // TODO
-    } else {
+    } else if (sentinelToken > cm->i + 1) {
         rightSideTypeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    } else {
+        rightSideTypeId = exprSingleItem(rTk, cm);
     }
     VALIDATEP(rightSideTypeId == typeId, errTypeMismatch)
 }
@@ -2680,7 +2684,6 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(rightType == cm->types.content[opTypeInd + 3], errTypeNoMatchingOverload)
 
     Node rNd = cm->nodes.content[resInd + 2];
-    print("resInd %d len %d", resInd, cm->nodes.length);
     if (rNd.tp == nodExpr) {
         Node exprNd = cm->nodes.content[resInd + 2];
         cm->nodes.content[resInd] = (Node){.tp = nodExpr, .pl2 = exprNd.pl2 + 2, .startBt = tok.startBt, .lenBts = tok.lenBts};
@@ -2818,7 +2821,13 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodReturn, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     
     Token rTk = tokens[cm->i];
-    Int typeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    Int typeId;
+    if (sentinelToken > cm->i + 1) {
+        typeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    } else {
+        typeId = exprSingleItem(rTk, cm);
+    }
+    
     VALIDATEP(typeId > -1, errReturn)
     if (typeId > -1) {
         typecheckFnReturn(typeId, cm);
@@ -2930,8 +2939,9 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
                            .startBt = binding.startBt, .lenBts = exprTk.lenBts + exprTk.startBt - binding.startBt}, cm);
             pushInnodes((Node){.tp = nodBinding, .pl1 = newEntityId,
                            .startBt = binding.startBt, .lenBts = binding.lenBts}, cm);
-            cm->i++; // CONSUME the new binding name
-            Int typeId = expr(exprTk, tokens, cm);
+            ++cm->i; // CONSUME the new binding name
+
+            Int typeId = exprOrSingleItem(tokens, cm);
             setSpanLength(indBindingSpan, cm);
             if (typeId > -1) {
                 cm->entities.content[newEntityId].typeId = typeId;
@@ -3415,7 +3425,6 @@ private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
             VALIDATEP(tokens[j].tp == tokParens, errFnNameAndParams)
             Int nameId = fnName.pl2;
             if (tokens[j].pl2 > 0) {
-                print("incrementing overlCount %d", nameId)
                 fnDefIncrementOverlCount(nameId, cm);
             }
         }
@@ -3448,6 +3457,7 @@ private void validateOverloadsFull(Compiler* cm) {
     for (Int i = 1; i < cm->overloadIds.length; i++) {
         Int currInd = cm->overloadIds.content[i - 1];
         Int nextInd = cm->overloadIds.content[i];
+
         VALIDATEI((nextInd > currInd + 2) && (nextInd - currInd) % 2 == 1, iErrorOverloadsIncoherent)
 
         Int countOverloads = (nextInd - currInd - 1)/2;
@@ -3458,6 +3468,7 @@ private void validateOverloadsFull(Compiler* cm) {
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
+                print("p1")
                 throwExcInternal(iErrorOverloadsIncoherent, cm);
             }
         }
@@ -3468,6 +3479,7 @@ private void validateOverloadsFull(Compiler* cm) {
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenEntities) {
+                print("p2")
                 throwExcInternal(iErrorOverloadsIncoherent, cm);
             }
         }
@@ -3485,13 +3497,14 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     Int byteSentinel = fnDef.startBt + fnDef.lenBts;
     
     Token fnName = lx->tokens[cm->i];
-    Int fnNameId = fnName.pl1;
-    
+    Int fnNameId = fnName.pl2;
     Int activeBinding = cm->activeBindings[fnNameId];
     Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
-    Int fnEntityId = createEntity(fnNameId, cm); // we don't know the new typeId yet, until the end of this function
+    Int fnEntityId = cm->entities.length;    
+    pushInentities(((Entity){.nameId = fnNameId}), cm);
+    
     cm->i++; // CONSUME the function name token
-
+    
     Int tentativeTypeInd = cm->types.length;
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
     // the function's return type, interpreted to be Void if absent
@@ -3506,7 +3519,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
         pushIntypes(tokUnderscore, cm); // underscore stands for the Void type
     }
     VALIDATEP(lx->tokens[cm->i].tp == tokParens, errFnNameAndParams)
-    
+
     Int paramsTokenInd = cm->i;
     Token parens = lx->tokens[paramsTokenInd];   
     Int paramsSentinel = cm->i + parens.pl2 + 1;
@@ -3531,6 +3544,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
 
     VALIDATEP(cm->i < (fnSentinelToken - 1) && lx->tokens[cm->i].tp == tokEqualsSign, errFnMissingBody)
     cm->types.content[tentativeTypeInd] = arity + 1;
+    
     Int uniqueTypeId = mergeType(tentativeTypeInd, arity + 2, cm);
     cm->entities.content[fnEntityId].typeId = uniqueTypeId;
 
@@ -3616,7 +3630,7 @@ private StackNode* parseToplevelSignatures(Lexer* lx, Compiler* cm) {
     return topLevelSignatures;
 }
 
-testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
+testable Compiler* parseMain(Lexer* lx, Compiler* cm, Arena* a) {
     LanguageDefinition* pDef = cm->langDef;
     int inpLength = lx->totalTokens;
     int i = 0;
@@ -3630,7 +3644,7 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
 
         // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
         createOverloads(cm);
-
+        
         parseToplevelConstants(lx, cm);
 
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
@@ -3649,7 +3663,7 @@ testable Compiler* parseWithCompiler(Lexer* lx, Compiler* cm, Arena* a) {
 /** Parses a single file in 4 passes, see docs/parser.txt */
 private Compiler* parse(Lexer* lx, Arena* a) {
     Compiler* cm = createCompiler(lx, a);
-    return parseWithCompiler(lx, cm, a);
+    return parseMain(lx, cm, a);
 }
 
 //}}}
@@ -3834,6 +3848,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             Int functionTypeInd = cm->entities.content[o].typeId;
             Int typeLength = cm->types.content[functionTypeInd];
 #ifdef SAFETY
+            if(typeLength != 1) {
+                print("p3 typeLength %d", typeLength);
+            }
             VALIDATEI(typeLength == 1, iErrorOverloadsIncoherent)
 #endif
             
@@ -3844,26 +3861,25 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             printExpSt(st);
 #endif
         } else {
-            Int typeFirstArg = cont[j + 2]; // + 1 for the element with the overloadId of the func, +1 for return type
-            VALIDATEP(typeFirstArg > -1, errTypeUnknownFirstArg)
+            Int tpFstArg = cont[j + 2]; // + 1 for the element with the overloadId of the func, +1 for return type
+            VALIDATEP(tpFstArg > -1, errTypeUnknownFirstArg)
             Int entityId;
-            bool ovFound = findOverload(typeFirstArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm);
+
+            bool ovFound = findOverload(tpFstArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm);
+
 #ifdef TRACE
             if (!ovFound) {
-                print("overload not found for type %d between %d and %d, o = %d",
-                    typeFirstArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], o)
                 printExpSt(st);
             }
 #endif
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
-            
-            VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) // last parm matches, but not arity
+            VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) // first parm matches, but not arity
             
             // We know the type of the function, now to validate arg types against param types
-            for (int k = j + arity; k > j + 1; k--) { // not "k = j + arity + 1", because we've already checked the last param
-                if (cont[k] > -1) {
+            for (int k = j + 3; k < j + arity + 2; k++) { // not "k = j + 2", because we've already checked the first param
+                if (cont[k] > -1) {                  
                     VALIDATEP(cont[k] == cm->types.content[typeOfFunc + k - j], errTypeWrongArgumentType)
                 } else {
                     Int argBindingId = cm->nodes.content[indExpr + k - currAhead].pl1;
