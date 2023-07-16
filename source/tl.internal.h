@@ -536,6 +536,7 @@ struct Compiler {
     StackParseFrame* backtrack;// [aTmp] 
     ScopeStack* scopeStack;    // stack of currently active scopes (for active bindings tracking)
     Int i;                     // index of current token in the input
+    Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
 
     InStackNode nodes;
 
