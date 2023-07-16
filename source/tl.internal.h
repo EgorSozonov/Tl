@@ -388,16 +388,15 @@ typedef struct {
 #define nodStruct      35
 #define nodTry         36
 #define nodYield       37
-#define nodIfClause    38       // pl1 = number of tokens in the left side of the clause
-#define nodElse        39
-#define nodWhile       40       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
-#define nodWhileCond   41
+#define nodIfClause    38       
+#define nodWhile       39       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
+#define nodWhileCond   40
 
 // Resumable core forms
-#define nodIf          42       // paren
-#define nodIfPr        43       // like if, but every branch is a value compared using custom predicate
-#define nodImpl        44
-#define nodMatch       45       // pattern matching on sum type tag
+#define nodIf          41       // paren
+#define nodIfPr        42       // like if, but every branch is a value compared using custom predicate
+#define nodImpl        43
+#define nodMatch       44       // pattern matching on sum type tag
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)

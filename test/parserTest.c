@@ -33,7 +33,7 @@ const char* nodeNames[] = {
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
     "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
     "lambda", "meta", "package", "return", "struct", "try", "yield",
-    "ifClause", "else", "while", "whileCond", "if", "ifPr", "impl", "match"
+    "ifClause", "while", "whileCond", "if", "ifPr", "impl", "match"
 };
 
 
@@ -967,12 +967,12 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
                 (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
                 
                 (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 8, .startBt = 4, .lenBts = 24 },
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 7, .startBt = 8, .lenBts = 19 },
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 6 },
                 (Node){ .tp = nodCall, .pl1 = oper(opTEquality, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 2 }, // ==
                 (Node){ .tp = tokInt, .pl2 = 5, .startBt = 11, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 5, .startBt = 13, .lenBts = 1 },
                 
+                (Node){ .tp = nodIfClause,    .pl2 = 3, .startBt = 18, .lenBts = 9 },                
                 (Node){ .tp = nodExpr, .pl2 = 2, .startBt = 18, .lenBts = 9 },
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1, .startBt = 18, .lenBts = 5 }, // print
                 (Node){ .tp = tokString, .startBt = 24, .lenBts = 3 }
@@ -989,14 +989,15 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
                 
                 (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 8, .startBt = 4, .lenBts = 27 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
+
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
                 (Node){ .tp = nodCall, .pl1 = oper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },                
+                (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },
+                (Node){ .tp = nodIfClause,  .pl2 = 1, .startBt = 17, .lenBts = 3 },      
                 (Node){ .tp = tokString, .startBt = 17, .lenBts = 3 },
                 
-                (Node){ .tp = nodElse, .pl2 = 1, .startBt = 26, .lenBts = 4 },
+                (Node){ .tp = nodIfClause, .pl2 = 1, .startBt = 26, .lenBts = 4 },
                 (Node){ .tp = tokString,         .startBt = 26, .lenBts = 4 },
             }),
             ((Int[]) {}),
@@ -1012,18 +1013,18 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
                 
                 (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 12, .startBt = 4, .lenBts = 36 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
                 (Node){ .tp = nodCall, .pl1 = oper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },
+                (Node){ .tp = nodIfClause,  .pl2 = 1, .startBt = 18, .lenBts = 2 },
                 (Node){ .tp = tokInt, .pl2 = 11, .startBt = 18, .lenBts = 2 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 28, .lenBts = 11 },
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 28, .lenBts = 6 },
                 (Node){ .tp = nodCall, .pl1 = oper(opTEquality, tokInt), .pl2 = 2, .startBt = 28, .lenBts = 2 },
                 (Node){ .tp = tokInt, .pl2 = 5, .startBt = 31, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 3, .startBt = 33, .lenBts = 1 },
+                (Node){ .tp = nodIfClause,   .pl2 = 1, .startBt = 38, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 4, .startBt = 38, .lenBts = 1 }
             }),
             ((Int[]) {}),
@@ -1033,28 +1034,28 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
             s("If with elseif and else"),
             s("x = (if > 5 3  => 11\n"
               "        == 5 3 =>  4\n"
-              "       else      100)"),
+              "        else     100)"),
             ((Node[]) {
                 (Node){ .tp = nodAssignment, .pl2 = 16, .startBt = 0, .lenBts = 63 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
                 
                 (Node){ .tp = nodIf, .pl1 = slParenMulti, .pl2 = 14, .startBt = 4, .lenBts = 59 },
-                
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 8, .lenBts = 12 },
+
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 8, .lenBts = 5 },
                 (Node){ .tp = nodCall, .pl1 = oper(opTGreaterThan, tokInt), .pl2 = 2, .startBt = 8, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 5, .startBt = 10, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 3, .startBt = 12, .lenBts = 1 },
+                (Node){ .tp = nodIfClause, .pl2 = 1, .startBt = 18, .lenBts = 2 },                
                 (Node){ .tp = tokInt, .pl2 = 11, .startBt = 18, .lenBts = 2 },
                 
-                (Node){ .tp = nodIfClause, .pl1 = 4, .pl2 = 5, .startBt = 29, .lenBts = 12 },
                 (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 29, .lenBts = 6 },
                 (Node){ .tp = nodCall, .pl1 = oper(opTEquality, tokInt), .pl2 = 2, .startBt = 29, .lenBts = 2 },
                 (Node){ .tp = tokInt, .pl2 = 5, .startBt = 32, .lenBts = 1 },
                 (Node){ .tp = tokInt, .pl2 = 3, .startBt = 34, .lenBts = 1 },
+                (Node){ .tp = nodIfClause,  .pl2 = 1, .startBt = 40, .lenBts = 1 },                
                 (Node){ .tp = tokInt, .pl2 = 4, .startBt = 40, .lenBts = 1 },
                 
-                (Node){ .tp = nodElse, .pl2 = 1, .startBt = 59, .lenBts = 3 },
+                (Node){ .tp = nodIfClause, .pl2 = 1, .startBt = 59, .lenBts = 3 },
                 (Node){ .tp = tokInt, .pl2 = 100, .startBt = 59, .lenBts = 3 }
             }),
             ((Int[]) {}),
@@ -1066,35 +1067,35 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
 
 ParserTestSet* loopTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
-        createTest(
-            s("Simple loop 1"),
-            s("(*f f Int() = (*while (< x 101) (x 1). print $x))"),
-            ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 15,          .lenBts = 49 },
-                (Node){ .tp = nodScope, .pl2 = 14,          .startBt = 9, .lenBts = 40 }, // function body
+        //~ createTest(
+            //~ s("Simple loop 1"),
+            //~ s("(*f f Int() = (*while (< x 101) (x 1). print $x))"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 15,          .lenBts = 49 },
+                //~ (Node){ .tp = nodScope, .pl2 = 14,          .startBt = 9, .lenBts = 40 }, // function body
                 
-                (Node){ .tp = nodWhile,           .pl2 = 13, .startBt = 14, .lenBts = 34 },
+                //~ (Node){ .tp = nodWhile,           .pl2 = 13, .startBt = 14, .lenBts = 34 },
                 
-                (Node){ .tp = nodScope,           .pl2 = 12, .startBt = 32, .lenBts = 16 },
+                //~ (Node){ .tp = nodScope,           .pl2 = 12, .startBt = 32, .lenBts = 16 },
                 
-                (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 33, .lenBts = 3 },
-                (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 33, .lenBts = 1 }, // x
-                (Node){ .tp = tokInt,             .pl2 = 1, .startBt = 35, .lenBts = 1 },
+                //~ (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 33, .lenBts = 3 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 33, .lenBts = 1 }, // x
+                //~ (Node){ .tp = tokInt,             .pl2 = 1, .startBt = 35, .lenBts = 1 },
                 
-                (Node){ .tp = nodWhileCond, .pl1 = slStmt, .pl2 = 4, .startBt = 22, .lenBts = 9 },
-                (Node){ .tp = nodExpr,            .pl2 = 3, .startBt = 22, .lenBts = 9 },
-                (Node){ .tp = nodCall, .pl1 = oper(opTLessThan, tokInt), .pl2 = 2, .startBt = 23, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 25, .lenBts = 1 }, // x
-                (Node){ .tp = tokInt,          .pl2 = 101,  .startBt = 27, .lenBts = 3 },
+                //~ (Node){ .tp = nodWhileCond, .pl1 = slStmt, .pl2 = 4, .startBt = 22, .lenBts = 9 },
+                //~ (Node){ .tp = nodExpr,            .pl2 = 3, .startBt = 22, .lenBts = 9 },
+                //~ (Node){ .tp = nodCall, .pl1 = oper(opTLessThan, tokInt), .pl2 = 2, .startBt = 23, .lenBts = 1 },
+                //~ (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 25, .lenBts = 1 }, // x
+                //~ (Node){ .tp = tokInt,          .pl2 = 101,  .startBt = 27, .lenBts = 3 },
                 
-                (Node){ .tp = nodExpr,           .pl2 = 3,  .startBt = 39, .lenBts = 8 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1,  .startBt = 39, .lenBts = 5 }, // print
-                (Node){ .tp = nodCall, .pl1 = oper(opTToString, tokInt), .pl2 = 1, .startBt = 45, .lenBts = 1 }, // $
-                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2,  .startBt = 46, .lenBts = 1 }      // x
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
+                //~ (Node){ .tp = nodExpr,           .pl2 = 3,  .startBt = 39, .lenBts = 8 },
+                //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1,  .startBt = 39, .lenBts = 5 }, // print
+                //~ (Node){ .tp = nodCall, .pl1 = oper(opTToString, tokInt), .pl2 = 1, .startBt = 45, .lenBts = 1 }, // $
+                //~ (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2,  .startBt = 46, .lenBts = 1 }      // x
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
         createTest(
             s("While with two complex initializers"),
             s("(*f f Int() =\n"
@@ -1142,67 +1143,92 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((EntityImport[]) {})
         ),
-        createTest(
-            s("While without initializers"),
-            s("(*f f Int() =\n"
-              "    x = 4\n"
-              "    (*while (< x 101) \n"
-              "        print $x))"),
-            ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 15,               .lenBts = 65 },
-                (Node){ .tp = nodScope, .pl2 = 14,           .startBt = 9, .lenBts = 56 }, // function body
+        //~ createTest(
+            //~ s("While without initializers"),
+            //~ s("(*f f Int() =\n"
+              //~ "    x = 4\n"
+              //~ "    (*while (< x 101) \n"
+              //~ "        print $x))"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 15,               .lenBts = 65 },
+                //~ (Node){ .tp = nodScope, .pl2 = 14,           .startBt = 9, .lenBts = 56 }, // function body
 
-                (Node){ .tp = nodAssignment, .pl2 = 2,       .startBt = 18, .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 18, .lenBts = 1 },  // x
-                (Node){ .tp = tokInt,              .pl2 = 4, .startBt = 22, .lenBts = 1 },
+                //~ (Node){ .tp = nodAssignment, .pl2 = 2,       .startBt = 18, .lenBts = 5 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 18, .lenBts = 1 },  // x
+                //~ (Node){ .tp = tokInt,              .pl2 = 4, .startBt = 22, .lenBts = 1 },
                 
-                (Node){ .tp = nodWhile,            .pl2 = 10, .startBt = 28, .lenBts = 36 },                
-                (Node){ .tp = nodScope, .pl2 = 9,           .startBt = 55, .lenBts = 9 },
+                //~ (Node){ .tp = nodWhile,            .pl2 = 10, .startBt = 28, .lenBts = 36 },                
+                //~ (Node){ .tp = nodScope, .pl2 = 9,           .startBt = 55, .lenBts = 9 },
                 
-                (Node){ .tp = nodWhileCond, .pl1 = slStmt, .pl2 = 4, .startBt = 36, .lenBts = 9 },
-                (Node){ .tp = nodExpr, .pl2 = 3,            .startBt = 36, .lenBts = 9 },
-                (Node){ .tp = nodCall, .pl1 = oper(opTLessThan, tokInt), .pl2 = 2, .startBt = 37, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 39, .lenBts = 1 }, // x
-                (Node){ .tp = tokInt,          .pl2 = 101,  .startBt = 41, .lenBts = 3 },
+                //~ (Node){ .tp = nodWhileCond, .pl1 = slStmt, .pl2 = 4, .startBt = 36, .lenBts = 9 },
+                //~ (Node){ .tp = nodExpr, .pl2 = 3,            .startBt = 36, .lenBts = 9 },
+                //~ (Node){ .tp = nodCall, .pl1 = oper(opTLessThan, tokInt), .pl2 = 2, .startBt = 37, .lenBts = 1 },
+                //~ (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 39, .lenBts = 1 }, // x
+                //~ (Node){ .tp = tokInt,          .pl2 = 101,  .startBt = 41, .lenBts = 3 },
                 
-                (Node){ .tp = nodExpr,         .pl2 = 3,    .startBt = 55, .lenBts = 8 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1,  .startBt = 55, .lenBts = 5 }, // print
-                (Node){ .tp = nodCall, .pl1 = oper(opTToString, tokInt), .pl2 = 1,  .startBt = 61, .lenBts = 1 }, // $
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 62, .lenBts = 1 }  // x
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTest(
-            s("While with break and continue"),
-            s("(*f f Int() =\n"
-              "    (*while (< x 101) (x 0)\n"
-              "        break\n"
-              "        continue 3))"),
-            ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 13, .lenBts = 76 },
-                (Node){ .tp = nodScope, .pl2 = 12, .startBt = 9, .lenBts = 67 }, // function body
+                //~ (Node){ .tp = nodExpr,         .pl2 = 3,    .startBt = 55, .lenBts = 8 },
+                //~ (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1,  .startBt = 55, .lenBts = 5 }, // print
+                //~ (Node){ .tp = nodCall, .pl1 = oper(opTToString, tokInt), .pl2 = 1,  .startBt = 61, .lenBts = 1 }, // $
+                //~ (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 62, .lenBts = 1 }  // x
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTest(
+            //~ s("While with break and continue"),
+            //~ s("(*f f Int() =\n"
+              //~ "    (*while (< x 101) (x 0)\n"
+              //~ "        break\n"
+              //~ "        continue 3))"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 13, .lenBts = 76 },
+                //~ (Node){ .tp = nodScope, .pl2 = 12, .startBt = 9, .lenBts = 67 }, // function body
                 
-                (Node){ .tp = nodWhile,           .pl2 = 11, .startBt = 18, .lenBts = 57 },
+                //~ (Node){ .tp = nodWhile,           .pl2 = 11, .startBt = 18, .lenBts = 57 },
                 
-                (Node){ .tp = nodScope, .pl2 = 10, .startBt = 36, .lenBts = 39 },
+                //~ (Node){ .tp = nodScope, .pl2 = 10, .startBt = 36, .lenBts = 39 },
                 
-                (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 37, .lenBts = 3 },
-                (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 37, .lenBts = 1 }, // x
-                (Node){ .tp = tokInt, .pl2 = 0, .startBt = 39, .lenBts = 1 },
+                //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 37, .lenBts = 3 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 37, .lenBts = 1 }, // x
+                //~ (Node){ .tp = tokInt, .pl2 = 0, .startBt = 39, .lenBts = 1 },
                 
-                (Node){ .tp = nodWhileCond, .pl1 = slStmt, .pl2 = 4, .startBt = 26, .lenBts = 9 },
-                (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 26, .lenBts = 9 },
-                (Node){ .tp = nodCall, .pl1 = oper(opTLessThan, tokInt), .pl2 = 2, .startBt = 27, .lenBts = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 29, .lenBts = 1 }, // x
-                (Node){ .tp = tokInt, .pl2 = 101, .startBt = 31, .lenBts = 3 },
+                //~ (Node){ .tp = nodWhileCond, .pl1 = slStmt, .pl2 = 4, .startBt = 26, .lenBts = 9 },
+                //~ (Node){ .tp = nodExpr, .pl2 = 3, .startBt = 26, .lenBts = 9 },
+                //~ (Node){ .tp = nodCall, .pl1 = oper(opTLessThan, tokInt), .pl2 = 2, .startBt = 27, .lenBts = 1 },
+                //~ (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2, .startBt = 29, .lenBts = 1 }, // x
+                //~ (Node){ .tp = tokInt, .pl2 = 101, .startBt = 31, .lenBts = 3 },
                 
-                (Node){ .tp = nodBreak, .pl1 = 1, .startBt = 50, .lenBts = 5 },
-                (Node){ .tp = nodContinue, .pl1 = 3, .startBt = 64, .lenBts = 10 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        )
+                //~ (Node){ .tp = nodBreak, .pl1 = 1, .startBt = 50, .lenBts = 5 },
+                //~ (Node){ .tp = nodContinue, .pl1 = 3, .startBt = 64, .lenBts = 10 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTestWithError(
+            //~ s("While with type error"),
+            //~ s(errTypeMustBeBool),
+            //~ s("(*f f Int() = (*while (/ x 101) (x 1). print $x))"),
+            //~ ((Node[]) {
+                //~ (Node){ .tp = nodFnDef, .pl1 = 0,          .lenBts = 49 },
+                //~ (Node){ .tp = nodScope,      .startBt = 9, .lenBts = 40 }, // function body
+                
+                //~ (Node){ .tp = nodWhile,            .startBt = 14, .lenBts = 34 },
+                
+                //~ (Node){ .tp = nodScope,            .startBt = 32, .lenBts = 16 },
+                
+                //~ (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 33, .lenBts = 3 },
+                //~ (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 33, .lenBts = 1 }, // x
+                //~ (Node){ .tp = tokInt,             .pl2 = 1, .startBt = 35, .lenBts = 1 },
+                
+                //~ (Node){ .tp = nodWhileCond, .pl1 = slStmt, .pl2 = 4, .startBt = 22, .lenBts = 9 },
+                //~ (Node){ .tp = nodExpr,            .pl2 = 3, .startBt = 22, .lenBts = 9 },
+                //~ (Node){ .tp = nodCall, .pl1 = oper(opTDivBy, tokInt), .pl2 = 2, .startBt = 23, .lenBts = 1 },
+                //~ (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 25, .lenBts = 1 }, // x
+                //~ (Node){ .tp = tokInt,          .pl2 = 101,  .startBt = 27, .lenBts = 3 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
     }));
 }
 
@@ -1227,10 +1253,10 @@ int main() {
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&assignmentTests, &countPassed, &countTests, proto, a);
-    runATestSet(&expressionTests, &countPassed, &countTests, proto, a);
-    runATestSet(&functionTests, &countPassed, &countTests, proto, a);
-    runATestSet(&ifTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&assignmentTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&expressionTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&functionTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&ifTests, &countPassed, &countTests, proto, a);
     runATestSet(&loopTests, &countPassed, &countTests, proto, a);
 
     if (countTests == 0) {

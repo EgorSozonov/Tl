@@ -2444,6 +2444,7 @@ Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
  * Precondition: we are looking 1 past the tokExpr, unlike "exprOrSingleItem".
  */
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
+    print("expr up to  i %d %d", cm->i, sentinelToken)
     Int arity = 0;
     Int startNodeInd = cm->nodes.length;
 
@@ -2486,12 +2487,11 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
  */
 private Int exprOrSingleItem(Arr(Token) tokens, Compiler* cm) {
     Token tk = tokens[cm->i];
-    if (tk.tp == tokParens) {
+    if (tk.tp == tokStmt) {
         ++cm->i; // CONSUME the "("
         exprUpTo(cm->i + tk.pl2, tk.startBt, tk.lenBts, tokens, cm);
     } else {
-        Int typeId = exprSingleItem(tokens[cm->i], cm);
-        return typeId;
+        return exprSingleItem(tokens[cm->i], cm);
     }
 }
 
@@ -2519,6 +2519,7 @@ private void maybeCloseSpans(Compiler* cm) {
             return;
         }
 #ifdef SAFETY
+        print("cm->i %d == frame.sentinelToken %d frame.tp %d", cm->i, frame.sentinelToken, frame.tp)
         VALIDATEI(cm->i == frame.sentinelToken, iErrorInconsistentSpans)
 #endif        
         popFrame(cm);
@@ -2530,13 +2531,14 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
     while (cm->i < sentinelToken) {
         Token currTok = tokens[cm->i];
         untt contextType = peek(cm->backtrack).tp;
-        
+        print("parseIup to %d contextType %d currTok %d", cm->i, contextType, currTok.tp)
         // pre-parse hooks that let contextful syntax forms (e.g. "if") detect parsing errors and maintain their state
         if (contextType >= firstResumableForm) {
             ((*cm->langDef->resumableTable)[contextType - firstResumableForm])(&currTok, tokens, cm);
         } else {
             cm->i++; // CONSUME any span token
         }
+        print("dispatching at i %d to %d", cm->i, currTok.tp)
         ((*cm->langDef->nonResumableTable)[currTok.tp])(currTok, tokens, cm);
         
         maybeCloseSpans(cm);
@@ -2836,7 +2838,7 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseSkip(Token tok, Arr(Token) tokens, Compiler* cm) {
-    
+    print("skipping at %d", cm->i)
 }
 
 
@@ -2859,24 +2861,41 @@ private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 /** To be called at the start of an "if" clause. It validates the grammar and emits span nodes. Consumes no tokens.
- * Precondition: we are pointing at the init token of left side of "if" (i.e. at a tokStmt or the like)
+ * Precondition: we are pointing at the stmt token of left side of an if clause
  */
 private void ifAddClause(Token tok, Arr(Token) tokens, Compiler* cm) {
+    Int leftSentinel = calcSentinel(tok, cm->i);
+
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
-    Int leftTokSkip = (tok.tp >= firstPunctuationTokenType) ? (tok.pl2 + 1) : 1;
-    Int j = cm->i + leftTokSkip;
-    VALIDATEP(j + 1 < cm->inpLength, errPrematureEndOfTokens)
-    VALIDATEP(tokens[j].tp == tokArrow, errIfMalformed)
-    
-    j++; // CONSUME the arrow
+
+    VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
+    VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
+
+    Int j = leftSentinel + 1; // +1 for the arrow
     
     Token rightToken = tokens[j];
-    Int rightTokLength = (rightToken.tp >= firstPunctuationTokenType) ? (rightToken.pl2 + 1) : 1;    
+    Int rightSentinel = calcSentinel(rightToken, j);
+    print("right sent %d", rightSentinel)  
     Int sentinelByte = rightToken.startBt + rightToken.lenBts;
     
-    ParseFrame clause = (ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length, .sentinelToken = j + rightTokLength };
+    ParseFrame clause = (ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length, .sentinelToken = rightSentinel };
     push(clause, cm->backtrack);
-    pushInnodes((Node){.tp = nodIfClause, .pl1 = leftTokSkip, .startBt = tok.startBt, .lenBts = sentinelByte - tok.startBt }, cm);
+    pushInnodes((Node){.tp = nodIfClause, .pl1 = (leftSentinel - cm->i),
+                       .startBt = tok.startBt, .lenBts = sentinelByte - tok.startBt }, cm);
+}
+
+/** Precondition: we are 1 past the "stmt token*/
+private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
+    Int leftSentinel = calcSentinel(tok, cm->i - 1);
+    print("tok. tp %d leftSentinel %d", tok.tp, leftSentinel)
+    VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
+
+    VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
+    VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
+
+    Int typeLeft = exprUpTo(leftSentinel, tok.startBt, tok.lenBts, tokens, cm);
+    print("typeLeft %d i %d", typeLeft, cm->i)
+    VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
 
 
@@ -2885,9 +2904,39 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
     push(newParseFrame, cm->backtrack);
     pushInnodes((Node){.tp = nodIf, .pl1 = tok.pl1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
 
-    ifAddClause(tokens[cm->i], tokens, cm);
+    Token stmtTok = tokens[cm->i];
+    ++cm->i; // CONSUME the stmt token
+    ifLeftSide(stmtTok, tokens, cm);
 }
 
+
+
+/** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
+private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
+    if (tok->tp == tokArrow) {
+        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
+        ++cm->i; // CONSUME the "else"
+        *tok = tokens[cm->i];
+
+        push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
+                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
+        pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
+        cm->i++; // CONSUME the token after the "else"
+    } else if (tok->tp == tokElse) {
+        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
+        ++cm->i; // CONSUME the "=>"
+        *tok = tokens[cm->i];
+
+        push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
+                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
+        pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
+        ++cm->i; // CONSUME the token after the "else"
+    } else {
+        ++cm->i; // CONSUME the stmt token
+        ifLeftSide(*tok, tokens, cm);
+        *tok = tokens[cm->i];
+    }
+}
 
 private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     ++cm->loopCounter;
@@ -2969,22 +3018,6 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     cm->i = sentinelStmt; // CONSUME the loop token and its first statement
 }
 
-/** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
-private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    if (tok->tp == tokElse) {        
-        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
-        cm->i++; // CONSUME the "else"
-        *tok = tokens[cm->i];        
-
-        push(((ParseFrame){ .tp = nodElse, .startNodeInd = cm->nodes.length,
-                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
-        pushInnodes((Node){.tp = nodElse, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);       
-        cm->i++; // CONSUME the token after the "else"
-    } else {
-        ifAddClause(*tok, tokens, cm);
-        cm->i++; // CONSUME the init token of the span
-    }
-}
 
 private void resumeIfPr(Token* tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);

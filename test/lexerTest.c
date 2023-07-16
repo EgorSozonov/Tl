@@ -513,7 +513,7 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord,   .pl2 = 2, .startBt = 17, .lenBts = 3 }            
         }))},
         (LexerTest) { .name = s("Scope simple"),
-            .input = s("(.car cdr)"),
+            .input = s("(*car cdr)"),
             .expectedOutput = buildLexer(((Token[]){                
                 (Token){ .tp = tokScope, .pl2 = 3, .startBt = 0, .lenBts = 10 },
                 (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 2, .lenBts = 7 },
@@ -521,7 +521,7 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord, .pl2 = 1, .startBt = 6, .lenBts = 3 }            
         }))},              
         (LexerTest) { .name = s("Scopes nested"),
-            .input = s("(.car. (.other car) cdr)"),
+            .input = s("(*car. (*other car) cdr)"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokScope, .pl2 = 8, .startBt = 0, .lenBts = 24 },
                 (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 2, .lenBts = 3 },                
@@ -575,9 +575,9 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokWord, .pl2 = 3, .startBt = 14, .lenBts = 3 }  // bcj      
         }))}, 
         (LexerTest) { .name = s("Punctuation all types"),
-            .input = s("(.\n"
+            .input = s("(*\n"
                        "    asdf (b (d Ef (y z)))\n"
-                       "    (.\n"
+                       "    (*\n"
                        "        bcjk (: m b )))"
             ),
             .expectedOutput = buildLexer(((Token[]){
@@ -815,7 +815,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokBool, .pl2 = 1, .startBt = 20, .lenBts = 4 },
          }))},
         (LexerTest) { .name = s("Scope-type core form"),
-             .input = s("(.i > (<> x 7) 0 => true)"),
+             .input = s("(*i > (<> x 7) 0 => true)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokIf, .pl1 = 1, .pl2 = 10, .startBt = 0, .lenBts = 25 },
                  (Token){ .tp = tokStmt, .pl2 = 6, .startBt = 4, .lenBts = 12 },
@@ -898,7 +898,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .startBt = 1, .lenBts = 3 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
-             .input = s("(.f foo Int(x Int y Int) = x - y)"),
+             .input = s("(*f foo Int(x Int y Int) = x - y)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokFnDef, .pl1 = 1, .pl2 = 13, .startBt = 0, .lenBts = 33 },
                  
@@ -919,14 +919,14 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .pl2 = 3, .startBt = 31, .lenBts = 1 } // y
          }))},
          (LexerTest) { .name = s("Function simple error"),
-             .input = s("x + (.f foo Int(x Int y Int) = x - y)"),
+             .input = s("x + (*f foo Int(x Int y Int) = x - y)"),
              .expectedOutput = buildLexerWithError(s(errorPunctuationScope), ((Token[]) {
                  (Token){ .tp = tokStmt },
                  (Token){ .tp = tokWord, .startBt = 0, .lenBts = 1 },                // x
                  (Token){ .tp = tokOperator, .pl1 = opTPlus, .startBt = 2, .lenBts = 1 }
          }))},
          (LexerTest) { .name = s("Loop simple"),
-             .input = s("(.loop (< x 101) (x 1). print x)"),
+             .input = s("(*while (< x 101) (x 1). print x)"),
              .expectedOutput = buildLexer(((Token[]) {
                  (Token){ .tp = tokLoop, .pl1 = slScope, .pl2 = 11, .lenBts = 32 },
                  
