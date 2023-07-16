@@ -244,7 +244,7 @@ struct Lexer {
 #define tokMatch       47    // "(*m " or "(match " pattern matching on sum type tag 
 #define tokImpl        48    // "(*impl " 
 #define tokWhile       49    // "(*while "
-// "(-iface"
+// "(*iface"
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
 
@@ -364,41 +364,40 @@ typedef struct {
 #define nodExpr        14
 #define nodAssignment  15
 #define nodReassign    16       // :=
-#define nodMutation    17       // pl1 = like in topOperator. This is the "+=", operatorful type of mutations
 
 
 // Single-shot core syntax forms
-#define nodAlias       18       
-#define nodAssert      19       
-#define nodAssertDbg   20       
-#define nodAwait       21       
-#define nodBreak       22       
-#define nodCatch       23       // "(catch e. e,print)"
-#define nodContinue    24       
-#define nodDefer       25       
-#define nodEach        26       
-#define nodEmbed       27       // noParen. Embed a text file as a string literal, or a binary resource file
-#define nodExport      28       
-#define nodExposePriv  29       
-#define nodFnDef       30       // pl1 = entityId
-#define nodIface       31
-#define nodLambda      32
-#define nodMeta        33       
-#define nodPackage     34       // for single-file packages
-#define nodReturn      35       
-#define nodStruct      36       
-#define nodTry         37       
-#define nodYield       38       
-#define nodIfClause    39       // pl1 = number of tokens in the left side of the clause
-#define nodElse        40
-#define nodWhile       41       //
-#define nodWhileCond   42
+#define nodAlias       17
+#define nodAssert      18
+#define nodAssertDbg   19
+#define nodAwait       20
+#define nodBreak       21
+#define nodCatch       22       // "(catch e => print e)"
+#define nodContinue    23       
+#define nodDefer       24       
+#define nodEach        25       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
+#define nodEmbed       26       // noParen. Embed a text file as a string literal, or a binary resource file
+#define nodExport      27       
+#define nodExposePriv  28       
+#define nodFnDef       29       // pl1 = entityId
+#define nodIface       30
+#define nodLambda      31
+#define nodMeta        32       
+#define nodPackage     33       // for single-file packages
+#define nodReturn      34
+#define nodStruct      35
+#define nodTry         36
+#define nodYield       37
+#define nodIfClause    38       // pl1 = number of tokens in the left side of the clause
+#define nodElse        39
+#define nodWhile       40       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
+#define nodWhileCond   41
 
 // Resumable core forms
-#define nodIf          43       // paren
-#define nodIfPr        44       // like if, but every branch is a value compared using custom predicate
-#define nodImpl        45       
-#define nodMatch       46       // pattern matching on sum type tag
+#define nodIf          42       // paren
+#define nodIfPr        43       // like if, but every branch is a value compared using custom predicate
+#define nodImpl        44
+#define nodMatch       45       // pattern matching on sum type tag
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)

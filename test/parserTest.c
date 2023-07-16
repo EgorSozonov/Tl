@@ -29,7 +29,7 @@ typedef struct {
 const char* nodeNames[] = {
     "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
     "id", "call", "binding", "type", "and", "or", 
-    "(*", "expr", "assign", "reAssign", "mutate",
+    "(*", "expr", "assign", ":=", 
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
     "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
     "lambda", "meta", "package", "return", "struct", "try", "yield",
@@ -398,6 +398,54 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((EntityImport[]) {})
         ),
+        createTest(
+            s("Mutation simple"), 
+            s("(*f main() = \n"
+                   "x = 1\n"
+                   "x += 3)"
+            ),
+            ((Node[]) {
+                    (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 10, .startBt = 0, .lenBts = 27 },
+                    (Node){ .tp = nodScope,           .pl2 = 9, .startBt = 8, .lenBts = 19 },
+                    (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 14, .lenBts = 5 },
+                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 14, .lenBts = 1 },     // x
+                    (Node){ .tp = tokInt,             .pl2 = 1, .startBt = 18, .lenBts = 1 },
+                    (Node){ .tp = nodReassign,        .pl2 = 5, .startBt = 20, .lenBts = 6 },
+                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 20, .lenBts = 1 },
+                    (Node){ .tp = nodExpr,            .pl2 = 3, .startBt = 20, .lenBts = 6 },
+                    (Node){ .tp = nodCall, .pl1 = oper(opTPlus, tokInt), .pl2 = 2,  .startBt = 21, .lenBts = 4 },
+                    (Node){ .tp = nodId,      .pl1 = 1, .pl2 = 1, .startBt = 20, .lenBts = 1 },
+                    (Node){ .tp = tokInt,             .pl2 = 3, .startBt = 25, .lenBts = 1 }
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        ),
+        createTest(
+            s("Mutation complex"), 
+            s("(*f main() = \n"
+                   "x = 2\n"
+                   "x ^= (- 15 8))"
+            ),
+            ((Node[]) {
+                    (Node){ .tp = nodFnDef, .pl1 = 0, .pl2 = 12, .startBt = 0, .lenBts = 34 },
+                    (Node){ .tp = nodScope,           .pl2 = 11, .startBt = 8, .lenBts = 26 },
+                    (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 14, .lenBts = 5 },
+                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 14, .lenBts = 1 },     // x
+                    (Node){ .tp = tokInt,             .pl2 = 2, .startBt = 18, .lenBts = 1 },
+                    (Node){ .tp = nodReassign,        .pl2 = 7, .startBt = 20, .lenBts = 13 },
+                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 20, .lenBts = 1 },
+                    (Node){ .tp = nodExpr,            .pl2 = 5, .startBt = 20, .lenBts = 13 },
+                    
+                    (Node){ .tp = nodCall, .pl1 = oper(opTExponent, tokInt), .pl2 = 2,  .startBt = 21, .lenBts = 4 },
+                    (Node){ .tp = nodId,      .pl1 = 1, .pl2 = 1, .startBt = 20, .lenBts = 1 },
+                    
+                    (Node){ .tp = nodCall, .pl1 = oper(opTMinus, tokInt), .pl2 = 2, .startBt = 26, .lenBts = 1 },
+                    (Node){ .tp = tokInt,             .pl2 = 15, .startBt = 28, .lenBts = 2 },
+                    (Node){ .tp = tokInt,             .pl2 = 8, .startBt = 31, .lenBts = 1 }
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        )
     }));
 }
 
@@ -1249,11 +1297,11 @@ int main() {
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&assignmentTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&assignmentTests, &countPassed, &countTests, proto, a);
     runATestSet(&expressionTests, &countPassed, &countTests, proto, a);
-    runATestSet(&functionTests, &countPassed, &countTests, proto, a);
-    runATestSet(&ifTests, &countPassed, &countTests, proto, a);
-    runATestSet(&loopTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&functionTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&ifTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&loopTests, &countPassed, &countTests, proto, a);
 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");

@@ -104,6 +104,7 @@ extern const char errIncorrectPrefixSequence[];
 extern const char errOperatorUsedInappropriately[];
 extern const char errAssignment[];
 extern const char errAssignmentShadowing[];
+extern const char errMutation[];
 extern const char errReturn[];
 extern const char errScope[];
 extern const char errLoopBreakOutside[];
