@@ -1829,7 +1829,7 @@ const char* tokNames[] = {
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "each", "embed", "export", "exposePriv", "fn", "interface", 
     "lambda", "meta", "package", "return", "struct", "try", "typeDef", "yield",
-    "if", "ifPr", "match", "impl", "loop"
+    "if", "ifPr", "match", "impl", "while"
 };
 
 
@@ -2444,7 +2444,6 @@ Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
  * Precondition: we are looking 1 past the tokExpr, unlike "exprOrSingleItem".
  */
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
-    print("expr up to  i %d %d", cm->i, sentinelToken)
     Int arity = 0;
     Int startNodeInd = cm->nodes.length;
 
@@ -2487,7 +2486,7 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
  */
 private Int exprOrSingleItem(Arr(Token) tokens, Compiler* cm) {
     Token tk = tokens[cm->i];
-    if (tk.tp == tokStmt) {
+    if (tk.tp == tokStmt || tk.tp == tokParens) {
         ++cm->i; // CONSUME the "("
         exprUpTo(cm->i + tk.pl2, tk.startBt, tk.lenBts, tokens, cm);
     } else {
@@ -2519,7 +2518,10 @@ private void maybeCloseSpans(Compiler* cm) {
             return;
         }
 #ifdef SAFETY
-        print("cm->i %d == frame.sentinelToken %d frame.tp %d", cm->i, frame.sentinelToken, frame.tp)
+        if (cm->i != frame.sentinelToken) {
+            print("Span inconsistency i %d  frame.sentinelToken %d frametp %d startInd %d",
+                cm->i, frame.sentinelToken, frame.tp, frame.startNodeInd);
+        }
         VALIDATEI(cm->i == frame.sentinelToken, iErrorInconsistentSpans)
 #endif        
         popFrame(cm);
@@ -2531,14 +2533,12 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
     while (cm->i < sentinelToken) {
         Token currTok = tokens[cm->i];
         untt contextType = peek(cm->backtrack).tp;
-        print("parseIup to %d contextType %d currTok %d", cm->i, contextType, currTok.tp)
         // pre-parse hooks that let contextful syntax forms (e.g. "if") detect parsing errors and maintain their state
         if (contextType >= firstResumableForm) {
             ((*cm->langDef->resumableTable)[contextType - firstResumableForm])(&currTok, tokens, cm);
         } else {
             cm->i++; // CONSUME any span token
         }
-        print("dispatching at i %d to %d", cm->i, currTok.tp)
         ((*cm->langDef->nonResumableTable)[currTok.tp])(currTok, tokens, cm);
         
         maybeCloseSpans(cm);
@@ -2718,37 +2718,77 @@ private void parseAwait(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
 }
 
-// TODO validate we are inside at least as many loops as we are breaking out of
-private void parseBreak(Token tok, Arr(Token) tokens, Compiler* cm) {
+
+private Int breakContinueUnwind(Int unwindLevel, Compiler* cm) {
+    Int level = unwindLevel;
+    Int j = cm->backtrack->length;
+    while (j > -1) {
+        Int pfType = cm->backtrack->content[j].tp;
+        if (pfType == nodWhile || pfType == nodEach) {
+            --level;
+            if (level == 0) {
+                ParseFrame loopFrame = cm->backtrack->content[j];
+                Int loopId = loopFrame.typeId;
+                cm->nodes.content[loopFrame.startNodeInd].pl1 = loopId;
+                return unwindLevel == 1 ? -1 : loopId;
+            }
+        }
+        --j;
+    }
+    throwExcParser(errBreakContinueInvalidDepth, cm);
+}
+
+private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
+    Int unwindLevel = 1;
+    *sentinel = cm->i;
     if (tok.pl2 == 1) {
         Token nextTok = tokens[cm->i];
         VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errBreakContinueInvalidDepth)
-        pushInnodes((Node){.tp = nodBreak, .pl1 = nextTok.pl2, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-        cm->i++; // CONSUME the Int after the "break"
-    } else {
-        pushInnodes((Node){.tp = nodBreak, .pl1 = 1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    }    
+        unwindLevel = nextTok.pl2;
+        ++(*sentinel); // CONSUME the Int after the "break"
+    }
+    if (unwindLevel == 1) {
+        return -1;
+    }
+    
+    Int j = cm->backtrack->length;
+    while (j > -1) {
+        Int pfType = cm->backtrack->content[j].tp;
+        if (pfType == nodWhile || pfType == nodEach) {
+            --unwindLevel;
+            if (unwindLevel == 0) {
+                ParseFrame loopFrame = cm->backtrack->content[j];
+                Int loopId = loopFrame.typeId;
+                cm->nodes.content[loopFrame.startNodeInd].pl1 = loopId;
+                return unwindLevel == 1 ? -1 : loopId;
+            }
+        }
+        --j;
+    }
+    throwExcParser(errBreakContinueInvalidDepth, cm);
+}
+
+
+private void parseBreak(Token tok, Arr(Token) tokens, Compiler* cm) {
+    Int sentinel = cm->i;
+    Int loopId = breakContinue(tok, &sentinel, tokens, cm);
+    pushInnodes((Node){.tp = nodBreak, .pl1 = loopId, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+    cm->i = sentinel; // CONSUME the whole break statement
+}
+
+
+private void parseContinue(Token tok, Arr(Token) tokens, Compiler* cm) {
+    Int sentinel = cm->i;
+    Int loopId = breakContinue(tok, &sentinel, tokens, cm);
+    pushInnodes((Node){.tp = nodContinue, .pl1 = loopId, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+    cm->i = sentinel; // CONSUME the whole break statement
 }
 
 
 private void parseCatch(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
 }
-
-
-private void parseContinue(Token tok, Arr(Token) tokens, Compiler* cm) {
-    VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
-    if (tok.pl2 == 1) {
-        Token nextTok = tokens[cm->i];
-        VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errBreakContinueInvalidDepth)
-        pushInnodes((Node){.tp = nodContinue, .pl1 = nextTok.pl2, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-        cm->i++; // CONSUME the Int after the "continue"
-    } else {
-        pushInnodes((Node){.tp = nodContinue, .pl1 = 1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    }    
-}
-
 
 private void parseDefer(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
@@ -2838,7 +2878,6 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseSkip(Token tok, Arr(Token) tokens, Compiler* cm) {
-    print("skipping at %d", cm->i)
 }
 
 
@@ -2860,41 +2899,15 @@ private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
 }
 
-/** To be called at the start of an "if" clause. It validates the grammar and emits span nodes. Consumes no tokens.
- * Precondition: we are pointing at the stmt token of left side of an if clause
- */
-private void ifAddClause(Token tok, Arr(Token) tokens, Compiler* cm) {
-    Int leftSentinel = calcSentinel(tok, cm->i);
-
-    VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
-
-    VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
-    VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
-
-    Int j = leftSentinel + 1; // +1 for the arrow
-    
-    Token rightToken = tokens[j];
-    Int rightSentinel = calcSentinel(rightToken, j);
-    print("right sent %d", rightSentinel)  
-    Int sentinelByte = rightToken.startBt + rightToken.lenBts;
-    
-    ParseFrame clause = (ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length, .sentinelToken = rightSentinel };
-    push(clause, cm->backtrack);
-    pushInnodes((Node){.tp = nodIfClause, .pl1 = (leftSentinel - cm->i),
-                       .startBt = tok.startBt, .lenBts = sentinelByte - tok.startBt }, cm);
-}
-
 /** Precondition: we are 1 past the "stmt token*/
 private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
-    print("tok. tp %d leftSentinel %d", tok.tp, leftSentinel)
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
     VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
 
     Int typeLeft = exprUpTo(leftSentinel, tok.startBt, tok.lenBts, tokens, cm);
-    print("typeLeft %d i %d", typeLeft, cm->i)
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
 
@@ -2941,21 +2954,23 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
 private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     ++cm->loopCounter;
     Token tokenStmt = tokens[cm->i];
+    Int sentinel = cm->i + loopTok.pl2;
     Int sentinelStmt = cm->i + tokenStmt.pl2 + 1;
     VALIDATEP(tokenStmt.tp == tokStmt, errLoopSyntaxError)    
     VALIDATEP(sentinelStmt < cm->i + loopTok.pl2, errLoopEmptyBody)
     
     Int lInd = cm->i + 1; // + 1 because cm->i points at the stmt so far
-    Token lTk = tokens[lInd]; 
+    Token condTk = tokens[lInd]; 
 
-    VALIDATEP(lTk.tp == tokWord || lTk.tp == tokBool || lTk.tp == tokParens, errLoopHeader)
-    Int lSent = calcSentinel(lTk, lInd); 
+    VALIDATEP(condTk.tp == tokWord || condTk.tp == tokBool || condTk.tp == tokParens, errLoopHeader)
+    Int lSent = calcSentinel(condTk, lInd); 
 
     Int startOfScope = sentinelStmt;
     Int startBtScope = tokens[startOfScope].startBt;
     Int indRightSide = -1;
     if (lSent < sentinelStmt) {
         indRightSide = lSent;
+        
         startOfScope = indRightSide;
         Token tokRightSide = tokens[indRightSide];
         startBtScope = tokRightSide.startBt;
@@ -2964,11 +2979,13 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     
     Int sentToken = startOfScope - cm->i + loopTok.pl2;
         
-    push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.length, .sentinelToken = cm->i + loopTok.pl2 }), cm->backtrack);
+    push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.length, .sentinelToken = sentinel, .typeId = cm->loopCounter }),
+         cm->backtrack);
     pushInnodes((Node){.tp = nodWhile,  .startBt = loopTok.startBt, .lenBts = loopTok.lenBts}, cm);
 
-    push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = cm->i + loopTok.pl2 }), cm->backtrack);
+    push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = sentinel }), cm->backtrack);
     pushInnodes((Node){.tp = nodScope, .startBt = startBtScope, .lenBts = loopTok.lenBts - startBtScope + loopTok.startBt}, cm);
+    pushScope(cm->scopeStack);
 
     // variable initializations, if any
     if (indRightSide > -1) {
@@ -2989,7 +3006,6 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
             pushInnodes((Node){.tp = nodBinding, .pl1 = newEntityId,
                            .startBt = binding.startBt, .lenBts = binding.lenBts}, cm);
             ++cm->i; // CONSUME the new binding name
-
             Int typeId = exprOrSingleItem(tokens, cm);
             setSpanLength(indBindingSpan, cm);
             if (typeId > -1) {
@@ -3000,20 +3016,25 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
         }
     }
 
-    // loop body
+    // loop condition
     
     Token tokBody = tokens[sentinelStmt];
     if (startBtScope < 0) {
         startBtScope = tokBody.startBt;
     }    
-    pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = lSent - lInd, .startBt = lTk.startBt, .lenBts = lTk.lenBts}, cm);
+    pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = lSent - lInd, .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
     cm->i = lInd + 1;
-    Token condTk = tokens[lInd];
     
     Int condSentinel = cm->i + condTk.pl2;
-    
     Int condTypeId = exprUpTo(condSentinel, condTk.startBt, condTk.lenBts, tokens, cm);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
+
+    // pop the frame of the expression inside cond
+    ParseFrame condFrame = peek(cm->backtrack);
+    if (condFrame.tp == nodExpr) {
+        pop(cm->backtrack);
+        setSpanLengthParser(condFrame.startNodeInd, cm);
+    }
     
     cm->i = sentinelStmt; // CONSUME the loop token and its first statement
 }

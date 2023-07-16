@@ -371,9 +371,9 @@ typedef struct {
 #define nodAssert      18
 #define nodAssertDbg   19
 #define nodAwait       20
-#define nodBreak       21
+#define nodBreak       21       // pl1 = number of label to break to, or -1 if none needed
 #define nodCatch       22       // "(catch e => print e)"
-#define nodContinue    23       
+#define nodContinue    23       // pl1 = number of label to continue to, or -1 if none needed
 #define nodDefer       24       
 #define nodEach        25       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
 #define nodEmbed       26       // noParen. Embed a text file as a string literal, or a binary resource file
