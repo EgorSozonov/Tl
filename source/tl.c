@@ -696,9 +696,9 @@ const char errIfLeft[]                     = "A left-hand clause in an if can on
 const char errIfRight[]                    = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
 const char errIfEmpty[]                    = "Empty `if` expression";
 const char errIfMalformed[]                = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
-const char errFnNameAndParams[]            = "Function signature must look like this: `(.f fnName ReturnType(x Type1 y Type2). body...)`";
+const char errFnNameAndParams[]            = "Function signature must look like this: `(:f fnName ReturnType(x Type1 y Type2). body...)`";
 const char errFnMissingBody[]              = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
-const char errLoopSyntaxError[]            = "A loop should look like `(.loop (< x 101) (x 0). loopBody)`";
+const char errLoopSyntaxError[]            = "A loop should look like `(:loop (< x 101) x = 0. loopBody)`";
 const char errLoopHeader[]                 = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
 const char errLoopEmptyBody[]              = "Empty loop body!";
 const char errBreakContinueTooComplex[]    = "This statement is too complex! Continues and breaks may contain one thing only: the postitive number of enclosing loops to continue/break!";
@@ -1721,7 +1721,7 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
     }
 }
 
-/** An opener for a scope or a scopeful core form. Precondition: we are past the "(-".
+/** An opener for a scope or a scopeful core form. Precondition: we are past the "(:" token.
  * Consumes zero or 1 byte
  */
 private void openScope(Lexer* lx, Arr(byte) inp) {
@@ -1753,10 +1753,7 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
-    if (inp[j] == aColon) { // "(:" starts a new data initializer        
-        openPunctuation(tokData, slSubexpr, lx->i, lx);
-        lx->i += 2; // CONSUME the "(*"
-    } else if (inp[j] == aTimes) {
+    if (inp[j] == aColon) {
         openScope(lx, inp);
     } else {
         wrapInAStatement(lx, inp);
@@ -2155,7 +2152,7 @@ private void mbNewChunk(ScopeStack* scopeStack) {
  * Scopes have a simple size policy: 64 elements at first, then 256, then throw exception. This is because
  * only 256 local variables are allowed in one function, and transitively in one scope.
  */
-testable void pushScope(ScopeStack* scopeStack) {
+testable void pushLexScope(ScopeStack* scopeStack) {
     // check whether the free space in currChunk is enough for the hashmap header + dict
     // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
     int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
@@ -2446,7 +2443,6 @@ Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
     Int arity = 0;
     Int startNodeInd = cm->nodes.length;
-
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = sentinelToken }), cm->backtrack);        
     pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
 
@@ -2477,6 +2473,13 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
     }
 
     subexprClose(tokens, cm);
+    //ParseFrame exprFrame = pop(cm->backtrack); // the same frame we've pushed earlier in this function
+#if SAFETY
+    //print("at i %d frame tp %d", cm->i, exprFrame.tp)
+    //VALIDATEI(exprFrame.tp == nodExpr, iErrorInconsistentSpans)
+#endif
+    //setSpanLengthParser(exprFrame.startNodeInd, cm);
+    
     Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.length, cm);
     return exprType;
 }
@@ -2566,7 +2569,7 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
     return typeId;
 }
 
-
+/** Parses an assignment like "x = 5". The right side must never be a scope or contain any loops, or recursion will ensue */
 private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int rLen = tok.pl2 - 1;
     VALIDATEP(rLen >= 1, errAssignment)
@@ -2951,92 +2954,56 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
     }
 }
 
+/** Performs coordinated insertions to start a scope within the parser */
+private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
+    push(((ParseFrame){.tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
+    pushInnodes((Node){.tp = nodScope, .startBt = startBt, .lenBts = lenBts}, cm);
+    pushLexScope(cm->scopeStack);
+}
+
+/** While loops. Look like "(:while < x 100. x = 0. ++x)" This function handles assignments being lexically after the condition */
 private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     ++cm->loopCounter;
-    Token tokenStmt = tokens[cm->i];
     Int sentinel = cm->i + loopTok.pl2;
-    Int sentinelStmt = cm->i + tokenStmt.pl2 + 1;
-    VALIDATEP(tokenStmt.tp == tokStmt, errLoopSyntaxError)    
-    VALIDATEP(sentinelStmt < cm->i + loopTok.pl2, errLoopEmptyBody)
-    
-    Int lInd = cm->i + 1; // + 1 because cm->i points at the stmt so far
-    Token condTk = tokens[lInd]; 
 
-    VALIDATEP(condTk.tp == tokWord || condTk.tp == tokBool || condTk.tp == tokParens, errLoopHeader)
-    Int lSent = calcSentinel(condTk, lInd); 
-
-    Int startOfScope = sentinelStmt;
-    Int startBtScope = tokens[startOfScope].startBt;
-    Int indRightSide = -1;
-    if (lSent < sentinelStmt) {
-        indRightSide = lSent;
-        
-        startOfScope = indRightSide;
-        Token tokRightSide = tokens[indRightSide];
-        startBtScope = tokRightSide.startBt;
-        VALIDATEP(calcSentinel(tokRightSide, indRightSide) == sentinelStmt, errLoopHeader)
-    }
+    Int condInd = cm->i;
+    Token condTk = tokens[condInd]; 
+    VALIDATEP(condTk.tp == tokStmt, errLoopSyntaxError)
     
-    Int sentToken = startOfScope - cm->i + loopTok.pl2;
+    Int condSent = calcSentinel(condTk, condInd);
+    Int startBtScope = tokens[condSent].startBt;
         
     push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.length, .sentinelToken = sentinel, .typeId = cm->loopCounter }),
          cm->backtrack);
     pushInnodes((Node){.tp = nodWhile,  .startBt = loopTok.startBt, .lenBts = loopTok.lenBts}, cm);
 
-    push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = sentinel }), cm->backtrack);
-    pushInnodes((Node){.tp = nodScope, .startBt = startBtScope, .lenBts = loopTok.lenBts - startBtScope + loopTok.startBt}, cm);
-    pushScope(cm->scopeStack);
+    addParsedScope(sentinel, startBtScope, loopTok.lenBts - startBtScope + loopTok.startBt, cm);
 
     // variable initializations, if any
-    if (indRightSide > -1) {
-        cm->i = indRightSide + 1;
-        while (cm->i < sentinelStmt) {
-            Token binding = tokens[cm->i];
-            VALIDATEP(binding.tp = tokWord, errLoopSyntaxError)
-            
-            Token exprTk = tokens[cm->i + 1];
-            
-            VALIDATEP(exprTk.tp < firstPunctuationTokenType || exprTk.tp == tokParens, errLoopSyntaxError)
-            
-            Int initializationSentinel = calcSentinel(exprTk, cm->i + 1);
-            Int newEntityId = createEntity(binding.pl2, cm);
-            Int indBindingSpan = cm->nodes.length;
-            pushInnodes((Node){.tp = nodAssignment, .pl2 = initializationSentinel - cm->i,
-                           .startBt = binding.startBt, .lenBts = exprTk.lenBts + exprTk.startBt - binding.startBt}, cm);
-            pushInnodes((Node){.tp = nodBinding, .pl1 = newEntityId,
-                           .startBt = binding.startBt, .lenBts = binding.lenBts}, cm);
-            ++cm->i; // CONSUME the new binding name
-            Int typeId = exprOrSingleItem(tokens, cm);
-            setSpanLength(indBindingSpan, cm);
-            if (typeId > -1) {
-                cm->entities.content[newEntityId].typeId = typeId;
-            }
-            
-            cm->i = initializationSentinel;
+
+    cm->i = condSent;
+    while (cm->i < sentinel) {
+        Token tok = tokens[cm->i];
+        if (tok.tp != tokAssignment) {
+            break;
         }
+        ++cm->i; // CONSUME the assignment span marker
+        parseAssignment(tok, tokens, cm);
+        maybeCloseSpans(cm);
     }
+    Int indBody = cm->i;
+    VALIDATEP(indBody < sentinel, errLoopEmptyBody);
 
     // loop condition
+    push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.length, .sentinelToken = condSent }), cm->backtrack);
+    pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = condSent - condInd,
+                       .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
+    cm->i = condInd + 1;
     
-    Token tokBody = tokens[sentinelStmt];
-    if (startBtScope < 0) {
-        startBtScope = tokBody.startBt;
-    }    
-    pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = lSent - lInd, .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
-    cm->i = lInd + 1;
-    
-    Int condSentinel = cm->i + condTk.pl2;
-    Int condTypeId = exprUpTo(condSentinel, condTk.startBt, condTk.lenBts, tokens, cm);
+    Int condTypeId = exprUpTo(condSent, condTk.startBt, condTk.lenBts, tokens, cm);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
-
-    // pop the frame of the expression inside cond
-    ParseFrame condFrame = peek(cm->backtrack);
-    if (condFrame.tp == nodExpr) {
-        pop(cm->backtrack);
-        setSpanLengthParser(condFrame.startNodeInd, cm);
-    }
     
-    cm->i = sentinelStmt; // CONSUME the loop token and its first statement
+    cm->i = indBody; // CONSUME the while token, its condition and variable initializations (if any)
 }
 
 
@@ -3625,10 +3592,8 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     pushInnodes(((Node){ .tp = nodFnDef, .pl1 = entityId, .startBt = fnDefToken.startBt, .lenBts = fnDefToken.lenBts }), cm);
     
     // the scope for the function's body
-    push(((ParseFrame){ .tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken }), cm->backtrack);
-    pushScope(cm->scopeStack);
-    pushInnodes(((Node){ .tp = nodScope, .startBt = tokens[cm->i].startBt,
-        .lenBts = fnDefToken.lenBts - tokens[cm->i].startBt + fnDefToken.startBt }), cm);
+    addParsedScope(fnSentinelToken, tokens[cm->i].startBt, fnDefToken.lenBts - tokens[cm->i].startBt + fnDefToken.startBt, cm);
+
     Token parens = tokens[cm->i];
         
     Int paramsSentinel = cm->i + parens.pl2 + 1;
