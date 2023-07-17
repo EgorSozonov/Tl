@@ -10,13 +10,11 @@ Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 
 Int getStringStore(byte* text, String* strToSearch, StackInt* stringTable, StringStore* hm);
 
-
 void add(Token t, Lexer* lexer);
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 void printLexer(Lexer* a);
 int equalityLexer(Lexer a, Lexer b);
-
 
 extern const char errLengthOverflow[];
 extern const char errNonAscii[];
@@ -126,13 +124,14 @@ extern const char errTypeMustBeBool[];
 void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm);
 Int typeCheckResolveExpr(Int indExpr, Compiler* cm);
 Arr(Int) createOverloads(Compiler* cm);
-extern const char errorTypeUnknownLastArg[];
-extern const char errorTypeZeroArityOverload[];
-extern const char errorTypeNoMatchingOverload[];
-extern const char errorTypeWrongArgumentType[];
+extern const char errTypeUnknownLastArg[];
+extern const char errTypeZeroArityOverload[];
+extern const char errTypeNoMatchingOverload[];
+extern const char errTypeWrongArgumentType[];
 Int findOverload(Int typeId, Int start, Int end, Entity* ent, Compiler* cm);
 
 #endif
+
 
 #ifdef UTILS_TEST
 

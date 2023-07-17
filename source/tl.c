@@ -2641,6 +2641,7 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
         rightSideTypeId = exprSingleItem(rTk, cm);
     }
     VALIDATEP(rightSideTypeId == typeId, errTypeMismatch)
+    cm->entities.content[bindingId].isMutable = true;
 }
 
 bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm);
@@ -2660,7 +2661,6 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
 #ifdef SAFETY
     VALIDATEP(bindingTk.tp == tokWord, errMutation);
 #endif
-
     Int leftEntityId = cm->activeBindings[bindingTk.pl2];
     VALIDATEP(leftEntityId > -1 && cm->entities.content[leftEntityId].typeId > -1, errUnknownBinding);
     Int leftType = cm->entities.content[leftEntityId].typeId;
@@ -2707,6 +2707,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
                                            .startBt = operStartBt, .lenBts = operLenBts};
     cm->nodes.content[resInd + 2] = (Node){.tp = nodId, .pl1 = leftEntityId, .pl2 = bindingTk.pl2,
                                        .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts};
+    cm->entities.content[leftEntityId].isMutable = true;
 }
 
 private void parseAlias(Token tok, Arr(Token) tokens, Compiler* cm) {
@@ -3926,44 +3927,128 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 
 //{{{ Codegen
 
-private fun pushNewFrame(arity: Int) {
+
+typedef struct {
+    untt spanAst;
+    Int arity;
+    Int startNode;
+    Int sentinelNode;
+    String* bindingNameIfAssignment;
+} CodegenFrame;
+
+typedef struct {
+    Int indentation;
+    Int length;
+    Int capacity;
+    Arr(byte) buffer;
+    Arena* a;
+} Codegen;
+
+typedef struct {
+    Int start;
+    Int length;
+} StringRef;
+
+const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalse";
+const StringRef strReturn = (StringRef){.start = 0, .length = 6};
+const StringRef strIf = (StringRef){.start = 6, .length = 2};
+const StringRef strElse = (StringRef){.start = 8, .length = 4};
+const StringRef strFunction = (StringRef){.start = 12, .length = 8};
+const StringRef strWhile = (StringRef){.start = 20, .length = 5};
+const StringRef strConst = (StringRef){.start = 25, .length = 5};
+const StringRef strLet = (StringRef){.start = 30, .length = 3};
+const StringRef strBreak = (StringRef){.start = 33, .length = 5};
+const StringRef strContinue = (StringRef){.start = 38, .length = 8};
+const StringRef strTrue = (StringRef){.start = 46, .length = 4};
+const StringRef strFalse = (StringRef){.start = 50, .length = 5};
+const StringRef strQuote = (StringRef){.start = 55, .length = 1};
+
+/** Ensures that the buffer has space for at least that many bytes by increasing its capacity if necessary */
+private void ensureBufferLength(Int additionalLength, Codegen* cg) {
+    if (cg->length + additionalLength < cg->capacity) {
+        return;
+    }
+    
+    Int sumLength = cg->length + additionalLength;
+    Int newCap = 2*cg->capacity;
+    while (newCap <= sumLength) {
+        newCap *= 2;
+    }
+    Arr(byte) new = allocateOnArena(newCap, cg->a);
+    memcpy(new, cg->buffer, cg->length);
+    cg->buffer = new;
+    cg->capacity = newCap;
 }
 
-private fun writeEntryPointSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+private void writeIndentation(Codegen* cg) {
+    Int lenBytes = cg->indentation*4;
+    ensureBufferLength(lenBytes, cg);
+    for (Int i = cg->length + lenBytes - 1; i >= cg->length; i--) {
+        cg->buffer[i] = 32;
+    }
+    cg->length += lenBytes;    
 }
 
-private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+private void write(byte* start, Int len, Codegen* cg) {
+    
+}
+
+private void writeRef(StringRef strRef, Codegen* cg) {
+    ensureBufferLength(strRef.length, cg);
+    memcpy(cg->buffer + cg->length, constantStrings + strRef.start, strRef.length);
+    cg->length += (strRef.length + 1);
+    cg->buffer[cg->length - 1] = 32; // extra space after the keyword
+}
+
+private void writeStr(String* str, Codegen* cg) {
+    ensureBufferLength(str->length + 2, cg);
+    cg->buffer[cg->length] = aQuote;
+    memcpy(cg->buffer + cg->length + 1, str->content, str->length);
+    cg->length += (str->length + 2);
+    cg->buffer[cg->length - 1] = aQuote;
+}
+
+private void pushNewFrame(Int arity) {
+}
+
+private void writeEntryPointSignature(CodegenFrame fr, Int lenNodes, Codegen* wr) {
+}
+
+private void writeFnSignature(CodegenFrame fr, Int lenNodes, Codegen* cg) {
 }
 
 /**
  * Assignments of the type 'a = b + 5' are written out as 'const a = b + 5;'
  * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
  */
-private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+private void writeAssignment(CodegenFrame fr, Int lenNodes, Codegen* cg) {
 }
 
-private fun writeReturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+private void writeReturn(CodegenFrame fr, Int lenNodes, Codegen* cg) {
+    writeIndentation(cg);
+    writeRef(strReturn, cg);
+    
 }
 
 /** Writes out the reverse Polish notation expression in JS prefix+infix form.
  *  Consumes all nodes of the expression
  */
-private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
+private void writeExpressionBody(Int lenNodes, Codegen* cg) {
 }
 
-private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+private void writeExpression(CodegenFrame fr, Int lenNodes, Codegen* cg) {
 }
 
-private fun writeExturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+private void writeExturn(CodegenFrame fr, Int lenNodes, Codegen* cg) {
 }
 
-private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+private void writeScope(CodegenFrame fr, Int lenNodes, Codegen* cg) {
 }
 
 /**
  * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
  */
-private fun writeScopeRightHandInAssignment(bindingName: String, fr: CodegenFrame, wr: StringBuilder) {
+private void writeScopeRightHandInAssignment(String* bindingName, CodegenFrame fr, Codegen* cg) {
 }
 
 /**
@@ -3972,27 +4057,27 @@ private fun writeScopeRightHandInAssignment(bindingName: String, fr: CodegenFram
  * in which case this function handles all the corresponding stack poppin'.
  * It also always handles updating all inner frames with consumed tokens.
  */
-private fun maybeCloseFrames(wr: StringBuilder) {
+private void maybeCloseFrames(Codegen* cg) {
 }
 
-private fun closeFrame(fr: CodegenFrame, wr: StringBuilder) {
+private void closeFrame(CodegenFrame fr, Codegen* cg) {
 }
 
-Codegen* createCodegen(Arena* a) {
+private Codegen* createCodegen(Compiler* cm, Arena* a) {
     Codegen* cg = allocateOnArena(sizeof(Codegen), a);
     (*cg) = (Codegen) {};
     return cg;
 }
 
-Codegen* generateCode(Compiler* cm, Arena* a) {
-    if (cm.wasError) {
-        return;
+private Codegen* generateCode(Compiler* cm, Arena* a) {
+    if (cm->wasError) {
+        return NULL;
     }
-    Codegen* cg = createCodegen(a);
+    Codegen* cg = createCodegen(cm, a);
     Int c = 0;
-    const Int len = cm->nextInd;
+    const Int len = cm->nodes.length;
     while (c < len) {
-        untt spanType = cm->nodes[c];
+        untt spanType = cm->nodes.content[c].tp;
         
         ++c;
     }
@@ -4000,6 +4085,26 @@ Codegen* generateCode(Compiler* cm, Arena* a) {
 
 //}}}
 
-Int compile(unsigned char *src) {
+Codegen* compile() {
+    Arena* a = mkArena();
+    LanguageDefinition* langDef = buildLanguageDefinitions(a);
+    String* inp = str(
+              "(:f foo Int(x Int y Float) =\n"
+              "    a = x\n"
+              "    return bar y a)\n"
+              "(:f bar Int(x Float y Int) =\n"
+              "    return foo y x)", a);
+    Lexer* lx = lexicallyAnalyze(inp, langDef, a);
+    Compiler* cm = createCompiler(lx, a);
+    Codegen* cg = generateCode(cm, a);
+    return cg;
+}
+
+Int main(int argc, char* argv) {
+    print("Hello world");
+    Codegen* result = compile();
+    if (result != NULL) {
+        fwrite(result->buffer, 1, result->length, stdout);
+    }
     return 0;
 }

@@ -576,17 +576,3 @@ struct Compiler {
 
 //}}}
 
-//{{{ Codegen
-
-typedef struct {
-    untt spanAst;
-    Int arity;
-    Int startNode;
-    Int sentinelNode;
-    String* bindingNameIfAssignment;
-} CodegenFrame;
-
-typedef struct {
-    Int i;
-} Codegen;
-//}}}

@@ -1,0 +1,4 @@
+clear
+gcc -g3 -Wshadow -Wfatal-errors -Werror=implicit-function-declaration --std=c17 -o _bin/tlc \
+-iquote source source/tl.c  \
+-lm
