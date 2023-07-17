@@ -792,10 +792,43 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((EntityImport[]) {})
         ),
-        
+        createTest(
+            s("Function definition with nested scope"),
+            s("(:f main(x Int y Float) =\n"
+              "    (:\n"
+              "        a = 5"
+              "    )\n"
+              "    a = (- ,x y)\n"
+              "    print $a\n"
+              ")"
+            ),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef, .pl1 = 0,  .pl2 = 18, .startBt = 0,  .lenBts = 83 },
+                (Node){ .tp = nodScope,            .pl2 = 17, .startBt = 8, .lenBts = 75 },
+                (Node){ .tp = nodBinding, .pl1 = 1,          .startBt = 9, .lenBts = 1 }, // param x
+                (Node){ .tp = nodBinding, .pl1 = 2,          .startBt = 15, .lenBts = 1 }, // param y
+                
+                (Node){ .tp = nodScope,            .pl2 = 3, .startBt = 30, .lenBts = 21 },
+                (Node){ .tp = nodAssignment,       .pl2 = 2, .startBt = 41, .lenBts = 5 }, 
+                (Node){ .tp = nodBinding, .pl1 = 3,          .startBt = 41, .lenBts = 1 }, // first a =
+                (Node){ .tp = tokInt,              .pl2 = 5, .startBt = 45, .lenBts = 1 },
+                
+                (Node){ .tp = nodAssignment,       .pl2 = 6, .startBt = 56, .lenBts = 12 }, 
+                (Node){ .tp = nodBinding, .pl1 = 4,          .startBt = 56, .lenBts = 1 }, // second a =
+                (Node){ .tp = nodExpr,            .pl2 = 4, .startBt = 60, .lenBts = 8 },
+                (Node){ .tp = nodCall, .pl1 = oper(opTMinus, tokFloat), .pl2 = 2,  .startBt = 61, .lenBts = 1 },
+                (Node){ .tp = nodCall, .pl1 = oper(opTToFloat, tokInt), .pl2 = 1, .startBt = 63, .lenBts = 1 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1, .startBt = 64, .lenBts = 1 }, // x
+                (Node){ .tp = nodId, .pl1 = 2, .pl2 = 3, .startBt = 66, .lenBts = 1 }, // y
 
-
-        
+                (Node){ .tp = nodExpr,            .pl2 = 3, .startBt = 73, .lenBts = 8 },
+                (Node){ .tp = nodCall, .pl1 = I,  .pl2 = 1, .startBt = 73, .lenBts = 5 }, // print
+                (Node){ .tp = nodCall, .pl1 = oper(opTToString, tokFloat), .pl2 = 1, .startBt = 79, .lenBts = 1 }, // $
+                (Node){ .tp = nodId, .pl1 = 4,  .pl2 = 5, .startBt = 80, .lenBts = 1 } // a
+            }),
+            ((Int[]) {}),
+            ((EntityImport[]) {})
+        )//,
         //~ (ParserTest) { 
             //~ .name = str("Nested function def", a),
             //~ .input = str("fn foo Int(x Int y Int) {\n"
@@ -849,7 +882,7 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
                 //~ (Node){ .tp = tokWord, .startBt = 0, .lenBts = 4 },
                 //~ (Node){ .tp = tokWord, .startBt = 5, .lenBts = 3 }
             //~ )
-        //~ } 
+        //~ }
     }));
 }
 

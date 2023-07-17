@@ -1629,33 +1629,30 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
     }
 }
 
-/**
- *  Doc comments, syntax is (* Doc comment ).
- *  Precondition: we are past the opening "(*"
- */
-private void docComment(Lexer* lx, Arr(byte) inp) {
+/** Doc comments, syntax is "{ Doc comment }" */
+private void lexDocComment(Lexer* lx, Arr(byte) inp) {
     Int startBt = lx->i;
     
-    Int parenLevel = 1;
+    Int curlyLevel = 0;
     Int j = lx->i;
     for (; j < lx->inpLength; j++) {
         byte cByte = inp[j];
         // Doc comments may contain arbitrary UTF-8 symbols, but we care only about newlines and parentheses
         if (cByte == aNewline) {
             addNewLine(j, lx);
-        } else if (cByte == aParenLeft) {
-            parenLevel++;
-        } else if (cByte == aParenRight) {
-            parenLevel--;
-            if (parenLevel == 0) {
-                j++; // CONSUME the right parenthesis
+        } else if (cByte == aCurlyLeft) {
+            curlyLevel++;
+        } else if (cByte == aCurlyRight) {
+            curlyLevel--;
+            if (curlyLevel == 0) {
+                j++; // CONSUME the right curly brace
                 break;
             }
         }
     }
-    VALIDATEL(parenLevel == 0, errPunctuationExtraOpening)
+    VALIDATEL(curlyLevel == 0, errPunctuationExtraOpening)
     if (j > lx->i) {
-        add((Token){.tp = tokDocComment, .startBt = lx->i - 2, .lenBts = j - lx->i + 2}, lx);
+        add((Token){.tp = tokDocComment, .startBt = startBt, .lenBts = j - startBt}, lx);
     }
     lx->i = j; // CONSUME the doc comment
 }
@@ -1910,11 +1907,13 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aMinus] = &lexMinus;
     p[aParenLeft] = &lexParenLeft;
     p[aParenRight] = &lexParenRight;
+    
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
     p[aNewline] = &lexNewline;
     p[aQuote] = &lexStringLiteral;
     p[aSemicolon] = &lexComment;
+    p[aCurlyLeft] = &lexDocComment;
     return result;
 }
 
@@ -2325,6 +2324,13 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
 }
 
+
+/** Performs coordinated insertions to start a scope within the parser */
+private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
+    push(((ParseFrame){.tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
+    pushInnodes((Node){.tp = nodScope, .startBt = startBt, .lenBts = lenBts}, cm);
+    pushLexScope(cm->scopeStack);
+}
 
 private ParseFrame popFrame(Compiler* cm) {    
     ParseFrame frame = pop(cm->backtrack);
@@ -2885,7 +2891,7 @@ private void parseSkip(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseScope(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
+    addParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
 }
 
 private void parseStruct(Token tok, Arr(Token) tokens, Compiler* cm) {
@@ -2952,13 +2958,6 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
         ifLeftSide(*tok, tokens, cm);
         *tok = tokens[cm->i];
     }
-}
-
-/** Performs coordinated insertions to start a scope within the parser */
-private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
-    push(((ParseFrame){.tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
-    pushInnodes((Node){.tp = nodScope, .startBt = startBt, .lenBts = lenBts}, cm);
-    pushLexScope(cm->scopeStack);
 }
 
 /** While loops. Look like "(:while < x 100. x = 0. ++x)" This function handles assignments being lexically after the condition */
@@ -3921,6 +3920,14 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     } else {
         return -1;
     }
+}
+
+//}}}
+
+//{{{ Codegen
+
+Codegen* codeGen(Compiler* cm, Arena* a) {
+    
 }
 
 //}}}

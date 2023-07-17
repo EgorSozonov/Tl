@@ -440,34 +440,34 @@ LexerTestSet* commentTests(Arena* a) {
         (LexerTest) { .name = s("Comment simple"),
             .input = s("; this is a comment"),
             .expectedOutput = buildLexer((Token[]){}
-        )},     
+        )},
         (LexerTest) { .name = s("Doc comment"),
             .input = s("{ Documentation comment }"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 25 }
-        }))},  
+        }))},
         (LexerTest) { .name = s("Doc comment before something"),
-            .input = s("{ Documentation comment}\n"
+            .input = s("{ Documentation comment { with nesting } }\n"
                        "print \"hw\" "),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 25 },
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 26, .lenBts = 10 },
-                (Token){ .tp = tokWord, .startBt = 26, .lenBts = 5 },
-                (Token){ .tp = tokString, .startBt = 32, .lenBts = 4 }
+                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 42 },
+                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 43, .lenBts = 10 },
+                (Token){ .tp = tokWord, .startBt = 43, .lenBts = 5 },
+                (Token){ .tp = tokString, .startBt = 49, .lenBts = 4 }
         }))},
         (LexerTest) { .name = s("Doc comment empty"),
             .input = s("{} \n" 
                        "print \"hw\" "),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 3 },
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 5, .lenBts = 10 },
-                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 5, .lenBts = 5 },
-                (Token){ .tp = tokString, .startBt = 11, .lenBts = 4 }
-        }))},     
+                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 2 },
+                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 4, .lenBts = 10 },
+                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 4, .lenBts = 5 },
+                (Token){ .tp = tokString, .startBt = 10, .lenBts = 4 }
+        }))},
         (LexerTest) { .name = s("Doc comment multiline"),
             .input = s("{ First line\n" 
                        " Second line\n" 
-                       " Third line}\n" 
+                       " Third line }\n" 
                        "print \"hw\" "
             ),
             .expectedOutput = buildLexer(((Token[]){
@@ -475,7 +475,7 @@ LexerTestSet* commentTests(Arena* a) {
                 (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 40, .lenBts = 10 },
                 (Token){ .tp = tokWord, .startBt = 40, .lenBts = 5 },
                 (Token){ .tp = tokString, .startBt = 46, .lenBts = 4 }
-        }))}            
+        }))}
     }));
 }
 

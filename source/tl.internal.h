@@ -574,4 +574,10 @@ struct Compiler {
     Arena* aTmp;
 };
 
-//}}}    
+//}}}
+
+//{{{ Codegen
+typedef struct {
+    Int i;
+} Codegen;
+//}}}
