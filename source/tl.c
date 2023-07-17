@@ -3926,8 +3926,76 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 
 //{{{ Codegen
 
-Codegen* codeGen(Compiler* cm, Arena* a) {
-    
+private fun pushNewFrame(arity: Int) {
+}
+
+private fun writeEntryPointSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+}
+
+private fun writeFnSignature(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+}
+
+/**
+ * Assignments of the type 'a = b + 5' are written out as 'const a = b + 5;'
+ * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
+ */
+private fun writeAssignment(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+}
+
+private fun writeReturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+}
+
+/** Writes out the reverse Polish notation expression in JS prefix+infix form.
+ *  Consumes all nodes of the expression
+ */
+private fun writeExpressionBody(lenNodes: Int, wr: StringBuilder) {
+}
+
+private fun writeExpression(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+}
+
+private fun writeExturn(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+}
+
+private fun writeScope(fr: CodegenFrame, lenNodes: Int, wr: StringBuilder) {
+}
+
+/**
+ * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
+ */
+private fun writeScopeRightHandInAssignment(bindingName: String, fr: CodegenFrame, wr: StringBuilder) {
+}
+
+/**
+ * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
+ * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
+ * in which case this function handles all the corresponding stack poppin'.
+ * It also always handles updating all inner frames with consumed tokens.
+ */
+private fun maybeCloseFrames(wr: StringBuilder) {
+}
+
+private fun closeFrame(fr: CodegenFrame, wr: StringBuilder) {
+}
+
+Codegen* createCodegen(Arena* a) {
+    Codegen* cg = allocateOnArena(sizeof(Codegen), a);
+    (*cg) = (Codegen) {};
+    return cg;
+}
+
+Codegen* generateCode(Compiler* cm, Arena* a) {
+    if (cm.wasError) {
+        return;
+    }
+    Codegen* cg = createCodegen(a);
+    Int c = 0;
+    const Int len = cm->nextInd;
+    while (c < len) {
+        untt spanType = cm->nodes[c];
+        
+        ++c;
+    }
 }
 
 //}}}
