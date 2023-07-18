@@ -67,14 +67,14 @@ jmp_buf excBuf;
 
 
 
-#define DEFINE_INTERNAL_STACK_CONSTRUCTOR(T)                  \
-testable InStack##T createInStack##T(Int initCap, Arena* a) { \
-    return (InStack##T){                                      \
+#define DEFINE_INTERNAL_LIST_CONSTRUCTOR(T)                  \
+testable InList##T createInList##T(Int initCap, Arena* a) { \
+    return (InList##T){                                      \
         .content = allocateOnArena(initCap*sizeof(T), a),     \
         .length = 0, .capacity = initCap };                   \
 }
 
-#define DEFINE_INTERNAL_STACK(fieldName, T, aName)              \
+#define DEFINE_INTERNAL_LIST(fieldName, T, aName)              \
     testable bool hasValuesIn##fieldName(Compiler* cm) {        \
         return cm->fieldName.length > 0;                        \
     }                                                           \
@@ -96,9 +96,6 @@ testable InStack##T createInStack##T(Int initCap, Arena* a) { \
             cm->fieldName.content = newContent;                                                \
         }                                                                                      \
         cm->fieldName.length++;                                                                \
-    }                                                                                          \
-    testable void clearIn##fieldName (Compiler* cm) {                                          \
-        cm->fieldName.length = 0;                                                              \
     }
 
       
@@ -106,18 +103,18 @@ DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
 
-DEFINE_INTERNAL_STACK_CONSTRUCTOR(Node)
-DEFINE_INTERNAL_STACK(nodes, Node, a)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node)
+DEFINE_INTERNAL_LIST(nodes, Node, a)
 
-DEFINE_INTERNAL_STACK_CONSTRUCTOR(Entity)
-DEFINE_INTERNAL_STACK(entities, Entity, a)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity)
+DEFINE_INTERNAL_LIST(entities, Entity, a)
 
-DEFINE_INTERNAL_STACK_CONSTRUCTOR(Int)
-DEFINE_INTERNAL_STACK(overloads, Int, a)
-DEFINE_INTERNAL_STACK(types, Int, a)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int)
+DEFINE_INTERNAL_LIST(overloads, Int, a)
+DEFINE_INTERNAL_LIST(types, Int, a)
 
-DEFINE_INTERNAL_STACK_CONSTRUCTOR(uint32_t)
-DEFINE_INTERNAL_STACK(overloadIds, uint32_t, aTmp)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(uint32_t)
+DEFINE_INTERNAL_LIST(overloadIds, uint32_t, aTmp)
 
 testable void printIntArray(Int count, Arr(Int) arr) {
     printf("[");
@@ -648,6 +645,7 @@ testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* strin
 #define iErrorOverloadsOverflow          4 // There were more overloads for a function than what was allocated
 #define iErrorOverloadsNotFull           5 // There were fewer overloads for a function than what was allocated
 #define iErrorOverloadsIncoherent        6 // The overloads table is incoherent
+#define iErrorExpressionIsNotAnExpr      7 // What is supposed to be an expression in the AST is not a nodExpr
 
 //}}}
 //{{{ Syntax errors
@@ -2095,7 +2093,7 @@ struct ScopeStackFrame {
 };
 
 
-DEFINE_STACK_HEADER(Node)
+
 DEFINE_STACK(Node)
 
 private size_t ceiling4(size_t sz) {
@@ -3302,14 +3300,14 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
         .scopeStack = createScopeStack(),
         .backtrack = createStackParseFrame(16, aTmp), .i = 0, .loopCounter = 0,
         
-        .nodes = createInStackNode(initNodeCap, a),
+        .nodes = createInListNode(initNodeCap, a),
         
-        .entities = createInStackEntity(64, a),
-        .overloadIds = createInStackuint32_t(64, aTmp),
+        .entities = createInListEntity(64, a),
+        .overloadIds = createInListuint32_t(64, aTmp),
         .activeBindings = allocateOnArena(4*stringTableLength, a),
 
-        .overloads = (InStackInt){.length = 0, .content = NULL},
-        .types = createInStackInt(64, a), .typesDict = createStringStore(100, aTmp),
+        .overloads = (InListInt){.length = 0, .content = NULL},
+        .types = createInListInt(64, a), .typesDict = createStringStore(100, aTmp),
         .expStack = createStackint32_t(16, aTmp),
         
         .stringStore = lx->stringStore, .stringTable = lx->stringTable, .strLength = stringTableLength,
@@ -3392,7 +3390,7 @@ testable void createOverloads(Compiler* cm) {
         // a typeId and an entityId for each overload, plus a length field for the list
         neededCount += (2*(cm->overloadIds.content[i] >> 16) + 1);
     }
-    cm->overloads = createInStackInt(neededCount, cm->a);
+    cm->overloads = createInListInt(neededCount, cm->a);
     cm->overloads.length = neededCount;
     memset(cm->overloads.content, 0xFF, neededCount*4);
 
@@ -3867,9 +3865,6 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             Int functionTypeInd = cm->entities.content[o].typeId;
             Int typeLength = cm->types.content[functionTypeInd];
 #ifdef SAFETY
-            if(typeLength != 1) {
-                print("p3 typeLength %d", typeLength);
-            }
             VALIDATEI(typeLength == 1, iErrorOverloadsIncoherent)
 #endif
             
@@ -3927,51 +3922,54 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 
 //{{{ Codegen
 
-
 typedef struct {
-    untt spanAst;
-    Int arity;
-    Int startNode;
-    Int sentinelNode;
-    String* bindingNameIfAssignment;
-} CodegenFrame;
-
-typedef struct {
+    Int i; // current node index
     Int indentation;
     Int length;
     Int capacity;
     Arr(byte) buffer;
+
+    StackNode backtrack; // these "nodes" are modified from what is in the AST. .startBt = sentinelNode
+
+    String* sourceCode;
+    Compiler* cm;
     Arena* a;
 } Codegen;
 
-typedef struct {
-    Int start;
-    Int length;
-} StringRef;
 
-const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalse";
-const StringRef strReturn = (StringRef){.start = 0, .length = 6};
-const StringRef strIf = (StringRef){.start = 6, .length = 2};
-const StringRef strElse = (StringRef){.start = 8, .length = 4};
-const StringRef strFunction = (StringRef){.start = 12, .length = 8};
-const StringRef strWhile = (StringRef){.start = 20, .length = 5};
-const StringRef strConst = (StringRef){.start = 25, .length = 5};
-const StringRef strLet = (StringRef){.start = 30, .length = 3};
-const StringRef strBreak = (StringRef){.start = 33, .length = 5};
-const StringRef strContinue = (StringRef){.start = 38, .length = 8};
-const StringRef strTrue = (StringRef){.start = 46, .length = 4};
-const StringRef strFalse = (StringRef){.start = 50, .length = 5};
-const StringRef strQuote = (StringRef){.start = 55, .length = 1};
+const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor";
+const Int constantOffsets[] = {
+    0,   6,  8, 12,
+    20, 25, 30, 33,
+    38, 46, 50, 55,
+    66, 69
+};
 
-/** Ensures that the buffer has space for at least that many bytes by increasing its capacity if necessary */
+#define strReturn   0
+#define strIf       1
+#define strElse     2
+#define strFunction 3
+
+#define strWhile    4
+#define strConst    5
+#define strLet      6
+#define strBreak    7
+
+#define strContinue 8
+#define strTrue     9
+#define strFalse   10
+#define strPrint   11
+#define strFor     12
+
+/** Ensures that the buffer has space for at least that many bytes plus 10 by increasing its capacity if necessary */
 private void ensureBufferLength(Int additionalLength, Codegen* cg) {
-    if (cg->length + additionalLength < cg->capacity) {
+    if (cg->length + additionalLength + 10 < cg->capacity) {
         return;
     }
     
-    Int sumLength = cg->length + additionalLength;
+    Int newLength = cg->length + additionalLength + 10;
     Int newCap = 2*cg->capacity;
-    while (newCap <= sumLength) {
+    while (newCap <= newLength) {
         newCap *= 2;
     }
     Arr(byte) new = allocateOnArena(newCap, cg->a);
@@ -3979,6 +3977,7 @@ private void ensureBufferLength(Int additionalLength, Codegen* cg) {
     cg->buffer = new;
     cg->capacity = newCap;
 }
+
 
 private void writeIndentation(Codegen* cg) {
     Int lenBytes = cg->indentation*4;
@@ -3989,16 +3988,30 @@ private void writeIndentation(Codegen* cg) {
     cg->length += lenBytes;    
 }
 
-private void write(byte* start, Int len, Codegen* cg) {
-    
+
+private void writeBytes(byte* ptr, Int countBytes, Codegen* cg) {
+    ensureBufferLength(countBytes, cg);
+    memcpy(cg->buffer + cg->length, ptr, 10);
+    cg->length += countBytes;
 }
 
-private void writeRef(StringRef strRef, Codegen* cg) {
-    ensureBufferLength(strRef.length, cg);
-    memcpy(cg->buffer + cg->length, constantStrings + strRef.start, strRef.length);
-    cg->length += (strRef.length + 1);
-    cg->buffer[cg->length - 1] = 32; // extra space after the keyword
+/** Write a constant to codegen */
+private void writeConstant(Int indConst, Codegen* cg) {
+    Int len = constantOffsets[indConst + 1] - constantOffsets[indConst];
+    ensureBufferLength(len, cg);
+    memcpy(cg->buffer + cg->length, constantStrings + constantOffsets[indConst], len);
+    cg->length += len;
 }
+
+/** Write a constant to codegen and add a space after it */
+private void writeConstantWithSpace(Int indConst, Codegen* cg) {
+    Int len = constantOffsets[indConst + 1] - constantOffsets[indConst];
+    ensureBufferLength(len, cg); // no need for a "+ 1", for the function automatically ensures 10 extra bytes
+    memcpy(cg->buffer + cg->length, constantStrings + constantOffsets[indConst], len);
+    cg->length += (len + 1);
+    cg->buffer[cg->length - 1] = 32;
+}
+
 
 private void writeStr(String* str, Codegen* cg) {
     ensureBufferLength(str->length + 2, cg);
@@ -4008,25 +4021,39 @@ private void writeStr(String* str, Codegen* cg) {
     cg->buffer[cg->length - 1] = aQuote;
 }
 
-private void pushNewFrame(Int arity) {
+/** Precondition: we are looking directly at the first node of the expression. Consumes all nodes of the expr */
+private void writeExpr(Arr(Node) nodes, Codegen* cg) {
+    Node nd = nodes[cg->i];
+    if (nd.tp <= topVerbatimType) {
+        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+        ++cg->i; // CONSUME the single node of the expression
+    }
+#if SAFETY
+    VALIDATEI(nd.tp == nodExpr, iErrorExpressionIsNotAnExpr)
+#endif
+    
 }
 
-private void writeEntryPointSignature(CodegenFrame fr, Int lenNodes, Codegen* wr) {
+
+private void writeEntryPointSignature(Node fr, Int lenNodes, Codegen* wr) {
 }
 
-private void writeFnSignature(CodegenFrame fr, Int lenNodes, Codegen* cg) {
+
+private void writeFnSignature(Node fr, Int lenNodes, Codegen* cg) {
 }
 
 /**
  * Assignments of the type 'a = b + 5' are written out as 'const a = b + 5;'
  * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
  */
-private void writeAssignment(CodegenFrame fr, Int lenNodes, Codegen* cg) {
+private void writeAssignment(Node fr, Int lenNodes, Codegen* cg) {
 }
 
-private void writeReturn(CodegenFrame fr, Int lenNodes, Codegen* cg) {
+private void writeReturn(Node fr, Arr(Node) nodes, Codegen* cg) {
     writeIndentation(cg);
-    writeRef(strReturn, cg);
+    writeConstantWithSpace(strReturn, cg);
+    ++cg->i; // CONSUME the "return" node
+    writeExpr(nodes, cg);
     
 }
 
@@ -4036,19 +4063,75 @@ private void writeReturn(CodegenFrame fr, Int lenNodes, Codegen* cg) {
 private void writeExpressionBody(Int lenNodes, Codegen* cg) {
 }
 
-private void writeExpression(CodegenFrame fr, Int lenNodes, Codegen* cg) {
+
+
+private void writeChar(byte chr, Codegen* cg) {
+    ensureBufferLength(10, cg);
+    cg->buffer[cg->length] = chr;
+    ++cg->length;
 }
 
-private void writeExturn(CodegenFrame fr, Int lenNodes, Codegen* cg) {
+private void writeScope(Node fr, Int lenNodes, Codegen* cg) {
 }
 
-private void writeScope(CodegenFrame fr, Int lenNodes, Codegen* cg) {
+private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    if (!isEntry) {
+        return;
+    }
+    writeConstantWithSpace(strIf, cg);
+    writeChar(aParenLeft, cg);
+    writeExpr(nodes, cg);
+    writeChar(aParenRight, cg);
+    writeChar(32, cg);
+}
+
+private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    Int sentinel = cg->i + nd.pl2;
+    if (isEntry) {
+        writeChar(aCurlyLeft, cg);
+        cg->indentation += 4;
+        push(((Node){.tp = nodWhile, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), cg->backtrack);
+    } else {
+        cg->indentation -= 4;
+        writeChar(aCurlyRight, cg);
+        Node top = peekNode(cg->backtrack);
+        Int ifSentinel = top.startBt + top.pl2;
+        if (ifSentinel == sentinel) {
+            return;
+        } else if (nodes[sentinel].tp == nodIfClause) {
+            // there is only the "else" clause after this clause
+            writeChar(32, cg);
+            writeConstantWithSpace(strElse, cg);
+        } else {
+            // there is another condition after this clause, so we write it out as an "else if"
+            writeChar(32, cg);
+            writeChar(aParenLeft, cg);
+            cg->i = sentinel;
+            writeExpr(nodes, cg);
+            writeChar(aParenRight, cg);
+            writeChar(32, cg);
+        }
+
+    }
+}
+
+private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    if (isEntry) {
+        
+        writeConstantWithSpace(strFor, cg);
+        writeChar(aParenLeft, cg);
+        Int j = cg->i;
+        
+        return;
+    } else {
+        
+    }
 }
 
 /**
  * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
  */
-private void writeScopeRightHandInAssignment(String* bindingName, CodegenFrame fr, Codegen* cg) {
+private void writeScopeRightHandInAssignment(String* bindingName, Node fr, Codegen* cg) {
 }
 
 /**
@@ -4058,14 +4141,20 @@ private void writeScopeRightHandInAssignment(String* bindingName, CodegenFrame f
  * It also always handles updating all inner frames with consumed tokens.
  */
 private void maybeCloseFrames(Codegen* cg) {
+    for (Int j = cg->backtrack.length; j > -1; j--) {
+        
+    }
 }
 
-private void closeFrame(CodegenFrame fr, Codegen* cg) {
+private void closeFrame(Node fr, Codegen* cg) {
 }
 
 private Codegen* createCodegen(Compiler* cm, Arena* a) {
     Codegen* cg = allocateOnArena(sizeof(Codegen), a);
-    (*cg) = (Codegen) {};
+    (*cg) = (Codegen) {
+        .i = 0,
+        .sourceCode = cm->text, .cm = cm, .a = a
+    };
     return cg;
 }
 

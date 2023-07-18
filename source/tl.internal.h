@@ -2,8 +2,7 @@
 
 #define Int int32_t
 #define StackInt Stackint32_t
-//#define InStackInt InStackint32_t
-#define InStackUns InStackuint32_t
+#define InListUns InListuint32_t
 #define private static
 #define byte unsigned char
 #define Arr(T) T*
@@ -53,20 +52,16 @@ void deleteArena(Arena* ar);
     void push ## T (T newItem, Stack ## T * st);                \
     void clear ## T (Stack ## T * st);
 
-#define DEFINE_INTERNAL_STACK_TYPE(T) \
+#define DEFINE_INTERNAL_LIST_TYPE(T) \
 typedef struct {    \
     Int capacity;   \
     Int length;     \
     Arr(T) content; \
-} InStack##T;
+} InList##T;
 
-#define DEFINE_INTERNAL_STACK_HEADER(fieldName, T)              \
-    InStack##T createInStack ## T (Int initCapacity, Arena* a); \
-    bool hasInValues ## fieldName (Compiler* cm);                      \
-    T popIn ## fieldName (Compiler* cm);                               \
-    T peekIn ## fieldName(Compiler* cm);                               \
-    void pushIn ## fieldName (T newItem, Compiler* cm);                \
-    void clearIn ## fieldName (Compiler* cm);
+#define DEFINE_INTERNAL_LIST_HEADER(fieldName, T)              \
+    InList##T createInList ## T (Int initCapacity, Arena* a); \
+    void pushIn ## fieldName (T newItem, Compiler* cm);
 
 typedef struct {
     int length;
@@ -83,6 +78,7 @@ bool endsWith(String* a, String* b);
 
 
 //{{{ Int Hashmap
+
 DEFINE_STACK_HEADER(int32_t)
 typedef struct {
     Arr(int*) dict;
@@ -442,42 +438,47 @@ typedef struct {
 
 
 DEFINE_STACK_HEADER(ParseFrame)
+DEFINE_STACK_HEADER(Node)
 
-DEFINE_INTERNAL_STACK_TYPE(Node)
-DEFINE_INTERNAL_STACK_HEADER(nodes, Node)
+DEFINE_INTERNAL_LIST_TYPE(Node)
+DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
 
-DEFINE_INTERNAL_STACK_TYPE(Entity)
-DEFINE_INTERNAL_STACK_HEADER(entities, Entity)
+DEFINE_INTERNAL_LIST_TYPE(Entity)
+DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
 
-DEFINE_INTERNAL_STACK_TYPE(Int)
-DEFINE_INTERNAL_STACK_HEADER(overloads, Int)
-DEFINE_INTERNAL_STACK_HEADER(types, Int)
+DEFINE_INTERNAL_LIST_TYPE(Int)
+DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
+DEFINE_INTERNAL_LIST_HEADER(types, Int)
 
-DEFINE_INTERNAL_STACK_TYPE(uint32_t)
-DEFINE_INTERNAL_STACK_HEADER(overloadIds, uint32_t)
+DEFINE_INTERNAL_LIST_TYPE(uint32_t)
+DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 
 #define pop(X) _Generic((X), \
     StackBtToken*: popBtToken, \
     StackParseFrame*: popParseFrame, \
-    Stackint32_t*: popint32_t \
+    Stackint32_t*: popint32_t, \
+    StackNode*: popNode \
     )(X)
 
 #define peek(X) _Generic((X), \
     StackBtToken*: peekBtToken, \
     StackParseFrame*: peekParseFrame, \
-    Stackint32_t*: peekint32_t \
+    Stackint32_t*: peekint32_t, \
+    StackNode*: peekNode \
     )(X)
 
 #define push(A, X) _Generic((X), \
     StackBtToken*: pushBtToken, \
     StackParseFrame*: pushParseFrame, \
-    Stackint32_t*: pushint32_t \
+    Stackint32_t*: pushint32_t, \
+    StackNode*: pushNode \
     )(A, X)
     
 #define hasValues(X) _Generic((X), \
     StackBtToken*: hasValuesBtToken, \
     StackParseFrame*: hasValuesParseFrame, \
-    Stackint32_t*:  hasValuesint32_t \
+    Stackint32_t*:  hasValuesint32_t, \
+    StackNode*: hasValuesNode \
     )(X)
 
 typedef struct ScopeStackFrame ScopeStackFrame;
@@ -505,10 +506,10 @@ typedef struct {
  * 
  * 1) a = Arena for the results
  * AST (i.e. the resulting code)
- * Entitys
+ * Entities
  * Types
  *
- * 2) aBt = Arena for the temporary stuff (backtrack). Freed after end of parsing
+ * 2) aBt = Arena for the temporary stuff (like the backtrack). Freed after end of parsing
  *
  * 3) ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
  *
@@ -537,9 +538,9 @@ struct Compiler {
     Int i;                     // index of current token in the input
     Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
 
-    InStackNode nodes;
+    InListNode nodes;
 
-    InStackEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered    
+    InListEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered    
     Int entImportedZero;      // the index of the first imported entity
 
     /**
@@ -547,11 +548,11 @@ struct Compiler {
      * Upper 16 bits contain concrete count, lower 16 bits total count. After "createOverloads", contains overload indices
      * into the "overloads" table.
      */
-    InStackUns overloadIds;
+    InListUns overloadIds;
 
-    InStackInt overloads;
+    InListInt overloads;
 
-    InStackInt types; // (: (arity + 1) returnType param1Type param2Type...)
+    InListInt types; // ([] (arity + 1) returnType param1Type param2Type...)
     StringStore* typesDict;
 
     Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression

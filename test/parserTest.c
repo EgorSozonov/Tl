@@ -40,7 +40,7 @@ const char* nodeNames[] = {
 private Compiler* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int nextInd, Arr(Node) nodes) {
     Compiler* result = createCompiler(lx, a);
     (*result) = (Compiler) { .wasError = true, .errMsg = errMsg, 
-        .nodes = createInStackNode(64, a)};
+        .nodes = createInListNode(64, a)};
 
     if (result == NULL) return result;
     
