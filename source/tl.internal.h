@@ -396,6 +396,7 @@ typedef struct {
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)
+#define countSpanForms (nodMatch - nodScope + 1)
 typedef struct Compiler Compiler;
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);

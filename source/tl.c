@@ -3651,8 +3651,6 @@ testable Compiler* parseMain(Lexer* lx, Compiler* cm, Arena* a) {
     LanguageDefinition* pDef = cm->langDef;
     int inpLength = lx->totalTokens;
     int i = 0;
-    ParserFunc (*dispatch)[countSyntaxForms] = pDef->nonResumableTable;
-    ResumeFunc (*dispatchResumable)[countResumableForms] = pDef->resumableTable;
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(lx, cm);
         
@@ -3922,7 +3920,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 
 //{{{ Codegen
 
-typedef struct {
+typedef struct Codegen Codegen;
+typedef void CgFunc(Node, bool, Arr(Node), Codegen*);
+struct Codegen {
     Int i; // current node index
     Int indentation;
     Int length;
@@ -3930,11 +3930,11 @@ typedef struct {
     Arr(byte) buffer;
 
     StackNode backtrack; // these "nodes" are modified from what is in the AST. .startBt = sentinelNode
-
+    CgFunc* cgTable[countSpanForms];
     String* sourceCode;
     Compiler* cm;
     Arena* a;
-} Codegen;
+};
 
 
 const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor";
@@ -3966,26 +3966,16 @@ private void ensureBufferLength(Int additionalLength, Codegen* cg) {
     if (cg->length + additionalLength + 10 < cg->capacity) {
         return;
     }
-    
-    Int newLength = cg->length + additionalLength + 10;
+    print("enlarging")
+    Int neededLength = cg->length + additionalLength + 10;
     Int newCap = 2*cg->capacity;
-    while (newCap <= newLength) {
+    while (newCap <= neededLength) {
         newCap *= 2;
     }
     Arr(byte) new = allocateOnArena(newCap, cg->a);
     memcpy(new, cg->buffer, cg->length);
     cg->buffer = new;
     cg->capacity = newCap;
-}
-
-
-private void writeIndentation(Codegen* cg) {
-    Int lenBytes = cg->indentation*4;
-    ensureBufferLength(lenBytes, cg);
-    for (Int i = cg->length + lenBytes - 1; i >= cg->length; i--) {
-        cg->buffer[i] = 32;
-    }
-    cg->length += lenBytes;    
 }
 
 
@@ -4013,6 +4003,23 @@ private void writeConstantWithSpace(Int indConst, Codegen* cg) {
 }
 
 
+private void writeChar(byte chr, Codegen* cg) {
+    ensureBufferLength(1, cg);
+    cg->buffer[cg->length] = chr;
+    ++cg->length;
+}
+
+
+private void writeChars0(Codegen* cg, Int count, Arr(byte) chars){
+    ensureBufferLength(count, cg);
+    for (Int j = 0; j < count; j++) {
+        cg->buffer[cg->length + j] = chars[j];
+    }
+    cg->length += count;
+}
+
+#define writeChars(cg, chars) writeChars0(cg, sizeof(chars), chars)
+
 private void writeStr(String* str, Codegen* cg) {
     ensureBufferLength(str->length + 2, cg);
     cg->buffer[cg->length] = aQuote;
@@ -4027,6 +4034,9 @@ private void writeExpr(Arr(Node) nodes, Codegen* cg) {
     if (nd.tp <= topVerbatimType) {
         writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
         ++cg->i; // CONSUME the single node of the expression
+    } else {
+        writeChar(aParenLeft, cg);
+        writeChar(aParenRight, cg);
     }
 #if SAFETY
     VALIDATEI(nd.tp == nodExpr, iErrorExpressionIsNotAnExpr)
@@ -4034,45 +4044,93 @@ private void writeExpr(Arr(Node) nodes, Codegen* cg) {
     
 }
 
-
-private void writeEntryPointSignature(Node fr, Int lenNodes, Codegen* wr) {
+private void pushCodegenFrame(Node nd, Codegen* cg) {
+    push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), &cg->backtrack);
 }
 
 
-private void writeFnSignature(Node fr, Int lenNodes, Codegen* cg) {
+private void writeIndentation(Codegen* cg) {
+    ensureBufferLength(cg->indentation, cg);
+    memset(cg->buffer + cg->length, aSpace, cg->indentation);
+    cg->length += cg->indentation;
 }
 
-/**
- * Assignments of the type 'a = b + 5' are written out as 'const a = b + 5;'
- * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
- */
-private void writeAssignment(Node fr, Int lenNodes, Codegen* cg) {
+private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    if (isEntry) {
+        pushCodegenFrame(nd, cg);
+        writeIndentation(cg);
+        writeConstantWithSpace(strFunction, cg);
+        Entity fnEnt = cg->cm->entities.content[nd.pl1];
+        writeChar(aParenLeft, cg);
+        Int sentinel = cg->i + nd.pl2;
+        Int j = cg->i + 1; // +1 to skip the nodScope
+        if (nodes[j].tp == nodBinding) {
+            Node binding = nodes[j];
+            writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+            ++j;
+        }
+        while (j < sentinel && nodes[j].tp == nodBinding) {
+            writeChar(aComma, cg);
+            writeChar(aSpace, cg);
+            Node binding = nodes[j];
+            writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+            ++j;
+        }
+        cg->i = j;
+        writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
+        cg->indentation += 4;
+    } else {
+        cg->indentation -= 4;
+        writeIndentation(cg);
+        writeChars(cg, ((byte[]){aCurlyRight, aNewline, aNewline}));
+    }
+
 }
 
-private void writeReturn(Node fr, Arr(Node) nodes, Codegen* cg) {
-    writeIndentation(cg);
-    writeConstantWithSpace(strReturn, cg);
-    ++cg->i; // CONSUME the "return" node
-    writeExpr(nodes, cg);
+private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     
 }
-
-/** Writes out the reverse Polish notation expression in JS prefix+infix form.
- *  Consumes all nodes of the expression
+/**
+ * 
  */
-private void writeExpressionBody(Int lenNodes, Codegen* cg) {
+private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    writeIndentation(cg);
+    
+    Node binding = nodes[cg->i];
+    writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+    writeChars(cg, ((byte[]){aSpace, aEqual, aSpace}));
+    
+    Node rightSide = nodes[cg->i + 1];
+    if (rightSide.tp == nodId) {
+        writeBytes(cg->sourceCode->content + rightSide.startBt, rightSide.lenBts, cg);
+    }
+
+    writeChar(aSemicolon, cg);
+    writeChar(aNewline, cg);
+    cg->i += fr.pl2;
+}
+
+private void writeReturn(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    writeIndentation(cg);
+    writeConstantWithSpace(strReturn, cg);
+    writeChar(aSemicolon, cg);
+    writeChar(aNewline, cg);
+    cg->i += fr.pl2; // CONSUME the "return" node
 }
 
 
-
-private void writeChar(byte chr, Codegen* cg) {
-    ensureBufferLength(10, cg);
-    cg->buffer[cg->length] = chr;
-    ++cg->length;
+private void writeScope(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    if (isEntry) {
+        writeIndentation(cg);
+        writeChar(aCurlyLeft, cg);
+        cg->indentation += 4;
+        pushCodegenFrame(fr, cg);
+    } else {
+        cg->indentation -= 4;
+        writeChar(aCurlyRight, cg);
+    }
 }
 
-private void writeScope(Node fr, Int lenNodes, Codegen* cg) {
-}
 
 private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (!isEntry) {
@@ -4083,18 +4141,23 @@ private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     writeExpr(nodes, cg);
     writeChar(aParenRight, cg);
     writeChar(32, cg);
+    
+    cg->indentation += 4;
+    pushCodegenFrame(fr, cg);
 }
 
 private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     Int sentinel = cg->i + nd.pl2;
     if (isEntry) {
+        pushCodegenFrame(nd, cg);
+        writeIndentation(cg);
         writeChar(aCurlyLeft, cg);
         cg->indentation += 4;
-        push(((Node){.tp = nodWhile, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), cg->backtrack);
     } else {
         cg->indentation -= 4;
+        writeIndentation(cg);
         writeChar(aCurlyRight, cg);
-        Node top = peekNode(cg->backtrack);
+        Node top = peek(&cg->backtrack);
         Int ifSentinel = top.startBt + top.pl2;
         if (ifSentinel == sentinel) {
             return;
@@ -4117,21 +4180,20 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
 
 private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
-        
+        writeIndentation(cg);
         writeConstantWithSpace(strFor, cg);
         writeChar(aParenLeft, cg);
-        Int j = cg->i;
-        
-        return;
+        writeChar(aSemicolon, cg);
+        writeChar(aSemicolon, cg);
+        writeChar(aParenRight, cg);
+        writeChar(aSpace, cg);
+        writeChar(aCurlyLeft, cg);
+        cg->indentation += 4;
     } else {
-        
+        cg->indentation -= 4;
+        writeIndentation(cg);
+        writeChar(aCurlyRight, cg);
     }
-}
-
-/**
- * Assignments of the type 'a = { b = a + 1; 4*b } are written as 'let a; { const b = a + 1; a = 4*b }'
- */
-private void writeScopeRightHandInAssignment(String* bindingName, Node fr, Codegen* cg) {
 }
 
 /**
@@ -4140,21 +4202,38 @@ private void writeScopeRightHandInAssignment(String* bindingName, Node fr, Codeg
  * in which case this function handles all the corresponding stack poppin'.
  * It also always handles updating all inner frames with consumed tokens.
  */
-private void maybeCloseFrames(Codegen* cg) {
-    for (Int j = cg->backtrack.length; j > -1; j--) {
-        
+private void maybeCloseCgFrames(Codegen* cg) {
+    for (Int j = cg->backtrack.length - 1; j > -1; j--) {
+        if (cg->backtrack.content[j].startBt != cg->i) {
+            return;
+        }
+        Node fr = pop(&cg->backtrack);
+        (*cg->cgTable[fr.tp - nodScope])(fr, false, cg->cm->nodes.content, cg);
     }
 }
 
-private void closeFrame(Node fr, Codegen* cg) {
+private void tabulateCgDispatch(Codegen* cg) {
+    for (Int j = 0; j < countSpanForms; j++) {
+        cg->cgTable[j] = &writeDummy;
+    }
+    cg->cgTable[0] = writeScope;
+    cg->cgTable[nodAssignment - nodScope] = &writeAssignment;
+    cg->cgTable[nodScope      - nodScope] = &writeScope;
+    cg->cgTable[nodWhile      - nodScope] = &writeWhile;
+    cg->cgTable[nodIf         - nodScope] = &writeIf;
+    cg->cgTable[nodFnDef      - nodScope] = &writeFn;
+    cg->cgTable[nodReturn     - nodScope] = &writeReturn;
 }
+
 
 private Codegen* createCodegen(Compiler* cm, Arena* a) {
     Codegen* cg = allocateOnArena(sizeof(Codegen), a);
     (*cg) = (Codegen) {
-        .i = 0,
+        .i = 0, .backtrack = *createStackNode(16, a),
+        .length = 0, .capacity = 64, .buffer = allocateOnArena(64, a),
         .sourceCode = cm->text, .cm = cm, .a = a
     };
+    tabulateCgDispatch(cg);
     return cg;
 }
 
@@ -4163,13 +4242,15 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
         return NULL;
     }
     Codegen* cg = createCodegen(cm, a);
-    Int c = 0;
     const Int len = cm->nodes.length;
-    while (c < len) {
-        untt spanType = cm->nodes.content[c].tp;
-        
-        ++c;
+    while (cg->i < len) {
+        Node nd = cm->nodes.content[cg->i];
+        ++cg->i; // CONSUME the span node
+
+        (cg->cgTable[nd.tp - nodScope])(nd, true, cg->cm->nodes.content, cg);
+        maybeCloseCgFrames(cg);
     }
+    return cg;
 }
 
 //}}}
@@ -4181,19 +4262,25 @@ Codegen* compile() {
               "(:f foo Int(x Int y Float) =\n"
               "    a = x\n"
               "    return bar y a)\n"
-              "(:f bar Int(x Float y Int) =\n"
-              "    return foo y x)", a);
+              "(:f bar Int(y Float c Int) =\n"
+              "    return foo c y)", a);
     Lexer* lx = lexicallyAnalyze(inp, langDef, a);
-    Compiler* cm = createCompiler(lx, a);
+    if (lx->wasError) {
+        print("lexer error");
+    }
+    Compiler* cm = parse(lx, a);
+    if (cm->wasError) {
+        print("parser error");
+    }
     Codegen* cg = generateCode(cm, a);
     return cg;
 }
 
 Int main(int argc, char* argv) {
-    print("Hello world");
-    Codegen* result = compile();
-    if (result != NULL) {
-        fwrite(result->buffer, 1, result->length, stdout);
+    Codegen* cg = compile();
+    if (cg != NULL) {
+        print(";---------- len %d\n", cg->length)
+        fwrite(cg->buffer, 1, cg->length, stdout);
     }
     return 0;
 }
