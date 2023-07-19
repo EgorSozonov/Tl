@@ -418,15 +418,17 @@ typedef struct {
     Int pl2;   
 } Node;
 
+#define emitPrefix         0  // normal native names
+#define emitPrefixShielded 1  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
+#define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
+#define emitInfix          3  // infix operators that match between source code and target (e.g. arithmetic operators)
+#define emitInfixExternal  4  // infix operators that have external names for emission
 
 typedef struct {
     Int typeId;
-    Int nameId;
-    bool isMutable;
-    bool appendUnderscore;
-    bool emitAsPrefix;
-    bool emitAsOperator;
-    bool emitAsMethod;
+    uint16_t externalNameId;
+    uint8_t isNullable;
+    uint8_t class;
 } Entity;
 
 

@@ -3146,12 +3146,43 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
 
 //{{{ Built-ins
 
-private void buildOperator(Int operId, Int typeId, Compiler* cm) {
-    pushInentities((Entity){.typeId = typeId, .nameId = operId}, cm);
+const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
+                                "toStringMath.pow";
+const Int constantOffsets[] = {
+    0,   6,  8, 12,
+    20, 25, 30, 33,
+    38, 46, 50, 55,
+    66, 69, 77, 85
+};
+
+#define strReturn   0
+#define strIf       1
+#define strElse     2
+#define strFunction 3
+
+#define strWhile    4
+#define strConst    5
+#define strLet      6
+#define strBreak    7
+
+#define strContinue 8
+#define strTrue     9
+#define strFalse   10
+#define strPrint   11
+#define strFor     12
+
+#define strToStr   13
+#define strExpon   14
+
+private void buildOperator(Int operId, Int typeId, Int* lastOper, Compiler* cm) {
+    pushInentities((Entity){.typeId = typeId, .externalNameId = operId}, cm);
     cm->overloadIds.content[operId] += SIXTEENPLUSONE;
+    *lastOper = operId;
 }
 
-/** Operators are the first-ever functions to be defined. This function builds their types, entities and overload counts. */
+/** Operators are the first-ever functions to be defined. This function builds their types, entities and overload counts. 
+ * The order must agree with the order of operator definitions, and every operator must have at least one entity.
+*/
 private void buildInOperators(Compiler* cm) {
     for (Int j = 0; j < countOperators; j++) {
         pushInoverloadIds(0, cm);
@@ -3179,75 +3210,75 @@ private void buildInOperators(Compiler* cm) {
     Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
     Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int voidOfInt = addFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
-    
-    buildOperator(opTNotEqual, boolOfIntInt, cm);
-    buildOperator(opTNotEqual, boolOfFlFl, cm);
-    buildOperator(opTNotEqual, boolOfStrStr, cm);
-    buildOperator(opTBoolNegation, boolOfBool, cm);
-    buildOperator(opTSize, intOfStr, cm);
-    buildOperator(opTSize, intOfInt, cm);
-    buildOperator(opTToString, strOfInt, cm);
-    buildOperator(opTToString, strOfFloat, cm);
-    buildOperator(opTToString, strOfBool, cm);
-    buildOperator(opTRemainder, intOfIntInt, cm);
-    buildOperator(opTBinaryAnd, boolOfBoolBool, cm); // dummy
-    buildOperator(opTTypeAnd, boolOfBoolBool, cm); // dummy
-    buildOperator(opTIsNull, boolOfBoolBool, cm); // dummy
-    buildOperator(opTTimesExt, flOfFlFl, cm);
-    buildOperator(opTTimes, intOfIntInt, cm);
-    buildOperator(opTTimes, flOfFlFl, cm);
-    buildOperator(opTIncrement, voidOfInt, cm);
-    buildOperator(opTPlusExt, strOfStrStr, cm); // dummy
-    buildOperator(opTPlus, intOfIntInt, cm);    
-    buildOperator(opTPlus, flOfFlFl, cm);
-    buildOperator(opTPlus, strOfStrStr, cm);
-    buildOperator(opTToFloat, flOfInt, cm);
-    buildOperator(opTDecrement, voidOfInt, cm);
-    buildOperator(opTMinusExt, intOfIntInt, cm); // dummy
-    buildOperator(opTMinus, intOfIntInt, cm);
-    buildOperator(opTMinus, flOfFlFl, cm);
-    buildOperator(opTDivByExt, intOfIntInt, cm); // dummy
-    buildOperator(opTDivBy, intOfIntInt, cm);
-    buildOperator(opTDivBy, flOfFlFl, cm);
-    buildOperator(opTBitShiftLeftExt, intOfIntInt, cm);  // dummy
-    buildOperator(opTBitShiftLeft, intOfFlFl, cm);  // dummy
-    buildOperator(opTBitShiftRightExt, intOfIntInt, cm);  // dummy
-    buildOperator(opTBitShiftRight, intOfFlFl, cm);  // dummy
+    Int lastOper = -1;
+    buildOperator(opTNotEqual, boolOfIntInt, &lastOper, cm);
+    buildOperator(opTNotEqual, boolOfFlFl, &lastOper, cm);
+    buildOperator(opTNotEqual, boolOfStrStr, &lastOper, cm);
+    buildOperator(opTBoolNegation, boolOfBool, &lastOper, cm);
+    buildOperator(opTSize, intOfStr, &lastOper, cm);
+    buildOperator(opTSize, intOfInt, &lastOper, cm);
+    buildOperator(opTToString, strOfInt, &lastOper, cm);
+    buildOperator(opTToString, strOfFloat, &lastOper, cm);
+    buildOperator(opTToString, strOfBool, &lastOper, cm);
+    buildOperator(opTRemainder, intOfIntInt, &lastOper, cm);
+    buildOperator(opTBinaryAnd, boolOfBoolBool, &lastOper, cm); // dummy
+    buildOperator(opTTypeAnd, boolOfBoolBool, &lastOper, cm); // dummy
+    buildOperator(opTIsNull, boolOfBoolBool, &lastOper, cm); // dummy
+    buildOperator(opTTimesExt, flOfFlFl, &lastOper, cm);
+    buildOperator(opTTimes, intOfIntInt, &lastOper, cm);
+    buildOperator(opTTimes, flOfFlFl, &lastOper, cm);
+    buildOperator(opTIncrement, voidOfInt, &lastOper, cm);
+    buildOperator(opTPlusExt, strOfStrStr, &lastOper, cm); // dummy
+    buildOperator(opTPlus, intOfIntInt, &lastOper, cm);
+    buildOperator(opTPlus, flOfFlFl, &lastOper, cm);
+    buildOperator(opTPlus, strOfStrStr, &lastOper, cm);
+    buildOperator(opTToFloat, flOfInt, &lastOper, cm);
+    buildOperator(opTDecrement, voidOfInt, &lastOper, cm);
+    buildOperator(opTMinusExt, intOfIntInt, &lastOper, cm); // dummy
+    buildOperator(opTMinus, intOfIntInt, &lastOper, cm);
+    buildOperator(opTMinus, flOfFlFl, &lastOper, cm);
+    buildOperator(opTDivByExt, intOfIntInt, &lastOper, cm); // dummy
+    buildOperator(opTDivBy, intOfIntInt, &lastOper, cm);
+    buildOperator(opTDivBy, flOfFlFl, &lastOper, cm);
+    buildOperator(opTBitShiftLeftExt, intOfIntInt, &lastOper, cm);  // dummy
+    buildOperator(opTBitShiftLeft, intOfFlFl, &lastOper, cm);  // dummy
+    buildOperator(opTBitShiftRightExt, intOfIntInt, &lastOper, cm);  // dummy
+    buildOperator(opTBitShiftRight, intOfFlFl, &lastOper, cm);  // dummy
        
-    buildOperator(opTComparator, intOfIntInt, cm);
-    buildOperator(opTComparator, intOfFlFl, cm);
-    buildOperator(opTComparator, intOfStrStr, cm);
-    buildOperator(opTLTEQ, boolOfIntInt, cm);
-    buildOperator(opTLTEQ, boolOfFlFl, cm);
-    buildOperator(opTLTEQ, boolOfStrStr, cm);
-    buildOperator(opTGTEQ, boolOfIntInt, cm);
-    buildOperator(opTGTEQ, boolOfFlFl, cm);
-    buildOperator(opTGTEQ, boolOfStrStr, cm);
-    buildOperator(opTLessThan, boolOfIntInt, cm);
-    buildOperator(opTLessThan, boolOfFlFl, cm);
-    buildOperator(opTLessThan, boolOfStrStr, cm);
-    buildOperator(opTGreaterThan, boolOfIntInt, cm);
-    buildOperator(opTGreaterThan, boolOfFlFl, cm);
-    buildOperator(opTGreaterThan, boolOfStrStr, cm);
-    buildOperator(opTEquality, boolOfIntInt, cm);
+    buildOperator(opTComparator, intOfIntInt, &lastOper, cm);
+    buildOperator(opTComparator, intOfFlFl, &lastOper, cm);
+    buildOperator(opTComparator, intOfStrStr, &lastOper, cm);
+    buildOperator(opTLTEQ, boolOfIntInt, &lastOper, cm);
+    buildOperator(opTLTEQ, boolOfFlFl, &lastOper, cm);
+    buildOperator(opTLTEQ, boolOfStrStr, &lastOper, cm);
+    buildOperator(opTGTEQ, boolOfIntInt, &lastOper, cm);
+    buildOperator(opTGTEQ, boolOfFlFl, &lastOper, cm);
+    buildOperator(opTGTEQ, boolOfStrStr, &lastOper, cm);
+    buildOperator(opTLessThan, boolOfIntInt, &lastOper, cm);
+    buildOperator(opTLessThan, boolOfFlFl, &lastOper, cm);
+    buildOperator(opTLessThan, boolOfStrStr, &lastOper, cm);
+    buildOperator(opTGreaterThan, boolOfIntInt, &lastOper, cm);
+    buildOperator(opTGreaterThan, boolOfFlFl, &lastOper, cm);
+    buildOperator(opTGreaterThan, boolOfStrStr, &lastOper, cm);
+    buildOperator(opTEquality, boolOfIntInt, &lastOper, cm);
 
-    buildOperator(opTIntervalBoth, intOfIntInt, cm); // dummy
-    buildOperator(opTIntervalLeft, flOfFlFl, cm); // dummy
-    buildOperator(opTIntervalRight, intOfInt, cm); // dummy
-    buildOperator(opTIntervalExcl, flOfFl, cm); // dummy 
-    buildOperator(opTNullCoalesce, intOfIntInt, cm); // dummy
-    buildOperator(opTQuestionMark, flOfFlFl, cm); // dummy
-    buildOperator(opTAccessor, intOfInt, cm); // dummy
-    buildOperator(opTBoolOr, flOfFl, cm); // dummy
-    buildOperator(opTXor, flOfFlFl, cm); // dummy
-    buildOperator(opTAnd, boolOfBoolBool, cm);
-    buildOperator(opTOr, boolOfBoolBool, cm);
+    buildOperator(opTIntervalBoth, intOfIntInt, &lastOper, cm); // dummy
+    buildOperator(opTIntervalLeft, flOfFlFl, &lastOper, cm); // dummy
+    buildOperator(opTIntervalRight, intOfInt, &lastOper, cm); // dummy
+    buildOperator(opTIntervalExcl, flOfFl, &lastOper, cm); // dummy 
+    buildOperator(opTNullCoalesce, intOfIntInt, &lastOper, cm); // dummy
+    buildOperator(opTQuestionMark, flOfFlFl, &lastOper, cm); // dummy
+    buildOperator(opTAccessor, intOfInt, &lastOper, cm); // dummy
+    buildOperator(opTBoolOr, flOfFl, &lastOper, cm); // dummy
+    buildOperator(opTXor, flOfFlFl, &lastOper, cm); // dummy
+    buildOperator(opTAnd, boolOfBoolBool, &lastOper, cm);
+    buildOperator(opTOr, boolOfBoolBool, &lastOper, cm);
     
-    buildOperator(opTExponentExt, intOfIntInt, cm); // dummy
-    buildOperator(opTExponent, intOfIntInt, cm);
-    buildOperator(opTExponent, flOfFlFl, cm);
-    buildOperator(opTNegation, intOfInt, cm);
-    buildOperator(opTNegation, flOfFl, cm);
+    buildOperator(opTExponentExt, intOfIntInt, &lastOper, cm); // dummy
+    buildOperator(opTExponent, intOfIntInt, &lastOper, cm);
+    buildOperator(opTExponent, flOfFlFl, &lastOper, cm);
+    buildOperator(opTNegation, intOfInt, &lastOper, cm);
+    buildOperator(opTNegation, flOfFl, &lastOper, cm);
 
     cm->countOperatorEntities = cm->entities.length;
 }
@@ -3941,30 +3972,6 @@ struct Codegen {
     Arena* a;
 };
 
-
-const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor";
-const Int constantOffsets[] = {
-    0,   6,  8, 12,
-    20, 25, 30, 33,
-    38, 46, 50, 55,
-    66, 69
-};
-
-#define strReturn   0
-#define strIf       1
-#define strElse     2
-#define strFunction 3
-
-#define strWhile    4
-#define strConst    5
-#define strLet      6
-#define strBreak    7
-
-#define strContinue 8
-#define strTrue     9
-#define strFalse   10
-#define strPrint   11
-#define strFor     12
 
 /** Ensures that the buffer has space for at least that many bytes plus 10 by increasing its capacity if necessary */
 private void ensureBufferLength(Int additionalLength, Codegen* cg) {
