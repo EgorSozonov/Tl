@@ -3570,27 +3570,32 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     if (arity > 0) {
         addParsedOverload(overloadId, cm->types.content[uniqueTypeId + 2], fnEntityId, cm);
     }
+    // not a real node, just a record to later find this signature
     pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = paramsTokenInd,
-         .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
+                     .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
 }
 
 /** 
  * Parses a top-level function.
- * The result is the AST (: FnDef EntityName Scope EntityParam1 EntityParam2 ... )
+ * The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... )
  */
 private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compiler* cm) {
-    Int fnSentinelToken = toplevelSignature.lenBts;
+    Int fnStartInd = toplevelSignature.startBt;
+    Int fnSentinel = toplevelSignature.lenBts;
+
     cm->i = toplevelSignature.pl2; // paramsTokenInd from fn "parseToplevelSignature"
-    Token fnDefToken = tokens[toplevelSignature.startBt];
+    Token fnDefTk = tokens[fnStartInd];
+    Token fnNameTk = tokens[fnStartInd + 2];
 
     // the fnDef scope & node
     Int entityId = toplevelSignature.pl1;
-    push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinelToken,
+    push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinel,
                         .typeId = cm->entities.content[entityId].typeId}), cm->backtrack);
-    pushInnodes(((Node){ .tp = nodFnDef, .pl1 = entityId, .startBt = fnDefToken.startBt, .lenBts = fnDefToken.lenBts }), cm);
+    pushInnodes(((Node){ .tp = nodFnDef, .startBt = fnDefTk.startBt, .lenBts = fnDefTk.lenBts }), cm);
+    pushInnodes((Node){ .tp = nodBinding, .pl1 = entityId, .startBt = fnNameTk.startBt, .lenBts = fnNameTk.lenBts }, cm);
     
     // the scope for the function's body
-    addParsedScope(fnSentinelToken, tokens[cm->i].startBt, fnDefToken.lenBts - tokens[cm->i].startBt + fnDefToken.startBt, cm);
+    addParsedScope(fnSentinel, tokens[cm->i].startBt, fnDefTk.lenBts - tokens[cm->i].startBt + fnDefTk.startBt, cm);
 
     Token parens = tokens[cm->i];
         
@@ -3612,7 +3617,7 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     }
     
     ++cm->i; // CONSUME the "=" sign
-    parseUpTo(fnSentinelToken, tokens, cm);
+    parseUpTo(fnSentinel, tokens, cm);
 }
 
 /** Parses top-level function params and bodies */
@@ -4039,7 +4044,9 @@ private void writeExpr(Arr(Node) nodes, Codegen* cg) {
         writeChar(aParenRight, cg);
     }
 #if SAFETY
-    VALIDATEI(nd.tp == nodExpr, iErrorExpressionIsNotAnExpr)
+    if(nd.tp != nodExpr) {
+        throwExcInternal(iErrorExpressionIsNotAnExpr, cg->cm);
+    }
 #endif
     
 }
@@ -4090,6 +4097,7 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     
 }
+
 /**
  * 
  */
@@ -4097,6 +4105,11 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
     writeIndentation(cg);
     
     Node binding = nodes[cg->i];
+    if (cg->cm->entities.content[binding.pl1].isMutable) {
+        writeConstantWithSpace(strLet, cg);
+    } else {
+        writeConstantWithSpace(strConst, cg);
+    }
     writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
     writeChars(cg, ((byte[]){aSpace, aEqual, aSpace}));
     
@@ -4276,6 +4289,7 @@ Codegen* compile() {
     return cg;
 }
 
+#ifndef TEST
 Int main(int argc, char* argv) {
     Codegen* cg = compile();
     if (cg != NULL) {
@@ -4284,3 +4298,4 @@ Int main(int argc, char* argv) {
     }
     return 0;
 }
+#endif

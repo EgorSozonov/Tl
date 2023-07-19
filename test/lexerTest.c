@@ -901,8 +901,7 @@ LexerTestSet* coreFormTests(Arena* a) {
          (LexerTest) { .name = s("Function simple 1"),
              .input = s("(:f foo Int(x Int y Int) = x - y)"),
              .expectedOutput = buildLexer(((Token[]){
-                 (Token){ .tp = tokFnDef, .pl1 = 1, .pl2 = 13, .startBt = 0, .lenBts = 33 },
-                 
+                 (Token){ .tp = tokFnDef,  .pl1 = 1, .pl2 = 13, .startBt = 0, .lenBts = 33 },
                  (Token){ .tp = tokStmt, .pl2 = 7, .startBt = 4, .lenBts = 20 },
                  (Token){ .tp = tokWord, .pl2 = 0, .startBt = 4, .lenBts = 3 }, // foo
                  (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 8, .lenBts = 3 }, // Int                 
