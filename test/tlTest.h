@@ -66,6 +66,7 @@ Int mergeType(Int startInd, Int len, Compiler* cm);
 
 extern const char errBareAtom[];
 extern const char errImportsNonUnique[];
+extern const char errCannotMutateImmutable[];
 extern const char errLengthOverflow[];
 extern const char errPrematureEndOfTokens[];
 extern const char errUnexpectedToken[];

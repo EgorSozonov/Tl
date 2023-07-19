@@ -70,13 +70,21 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
 
 /** Try and convert test value to operator entityId (not all operators are supported, only the ones used in tests) */
 private Int tryGetOper0(Int opType, Int typeId, Compiler* proto) {
+    OpDef opDef = (*proto->langDef->operators)[0];
+    Int entitySentinel = opDef.builtinOverloads;
+    Int operId = 0;
     for (Int j = 0; j < proto->countOperatorEntities; j++) {
+        if (j == entitySentinel) {
+            ++operId;
+            entitySentinel += (*proto->langDef->operators)[operId].builtinOverloads;
+        }
+        if (operId != opType) {
+            continue;
+        }
         Entity ent = proto->entities.content[j];
-        if (ent.nameId == opType) {
-            Int firstArgType = proto->types.content[ent.typeId + 2];
-            if (firstArgType == typeId) {
-                return j + O;
-            }
+        Int firstArgType = proto->types.content[ent.typeId + 2];
+        if (firstArgType == typeId) {
+            return j + O;
         }
     }
     return -1;

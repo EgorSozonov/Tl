@@ -683,6 +683,7 @@ const char errCoreNotAtSpanStart[]         = "Reserved word must be at the start
 const char errDocComment[]                 = "Doc comments must have the syntax: (*comment)";
 const char errBareAtom[]                   = "Malformed token stream (atoms and parentheses must not be bare)";
 const char errImportsNonUnique[]           = "Import names must be unique!";
+const char errCannotMutateImmutable[]      = "Immutable variables cannot be reassigned to!";
 const char errLengthOverflow[]             = "AST nodes length overflow";
 const char errPrematureEndOfTokens[]       = "Premature end of input";
 const char errUnexpectedToken[]            = "Unexpected token";
@@ -2265,7 +2266,7 @@ private Int createEntity(Int nameId, Compiler* cm) {
     VALIDATEP(mbBinding < 0, errAssignmentShadowing) // if it's a binding, it should be -1, and if overload, <-1
 
     Int newEntityId = cm->entities.length;    
-    pushInentities(((Entity){.nameId = nameId}), cm);
+    pushInentities(((Entity){.emit = emitPrefix, .class = classMutableGuarantted}), cm);
     
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
@@ -2613,6 +2614,16 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     }
 }
 
+/** Changes a mutable variable to mutated, and throws an exception for an immutable one */
+private void setClassToMutated(Int bindingId, Compiler* cm) {
+    Int class = cm->entities.content[bindingId].class;
+    VALIDATEP(class < classImmutable, errCannotMutateImmutable);
+    if (class % 2 == 0) {
+        ++cm->entities.content[bindingId].class;
+    }
+}
+
+
 private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int rLen = tok.pl2 - 1;
     VALIDATEP(rLen >= 1, errAssignment)
@@ -2639,7 +2650,7 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
         rightSideTypeId = exprSingleItem(rTk, cm);
     }
     VALIDATEP(rightSideTypeId == typeId, errTypeMismatch)
-    cm->entities.content[bindingId].isMutable = true;
+    setClassToMutated(bindingId, cm);
 }
 
 bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm);
@@ -2705,7 +2716,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
                                            .startBt = operStartBt, .lenBts = operLenBts};
     cm->nodes.content[resInd + 2] = (Node){.tp = nodId, .pl1 = leftEntityId, .pl2 = bindingTk.pl2,
                                        .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts};
-    cm->entities.content[leftEntityId].isMutable = true;
+    setClassToMutated(leftEntityId, cm);
 }
 
 private void parseAlias(Token tok, Arr(Token) tokens, Compiler* cm) {
@@ -3091,8 +3102,11 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int
     for (int i = 0; i < countEntities; i++) {
         Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
         if (mbNameId > -1) {
-            Int typeInd = typeIds[impts[i].typeInd];
-            Int newEntityId = importEntity(mbNameId, (Entity){.nameId = mbNameId, .typeId = typeInd }, cm);
+            EntityImport impt = impts[i];
+            Int typeInd = typeIds[impt.typeInd];
+            Int newEntityId = importEntity(mbNameId, (Entity){
+                .class = classImmutable, .typeId = typeInd, .emit = emitPrefixExternal, .externalNameId = impt.externalNameId },
+                cm);
         }
     }
     cm->countNonparsedEntities = cm->entities.length;
@@ -3147,37 +3161,50 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
 //{{{ Built-ins
 
 const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
-                                "toStringMath.pow";
+                               "toStringMath.powMath.piMath.e!==lengthMath.abs&&||===";
 const Int constantOffsets[] = {
     0,   6,  8, 12,
     20, 25, 30, 33,
     38, 46, 50, 55,
-    66, 69, 77, 85
+    66, 69, 77, 85,
+    92, 98, 101, 107,
+    115, 117, 119, 122,
+    
 };
 
 #define strReturn   0
 #define strIf       1
 #define strElse     2
 #define strFunction 3
-
 #define strWhile    4
+
 #define strConst    5
 #define strLet      6
 #define strBreak    7
-
 #define strContinue 8
 #define strTrue     9
+
 #define strFalse   10
 #define strPrint   11
 #define strFor     12
-
 #define strToStr   13
 #define strExpon   14
 
-private void buildOperator(Int operId, Int typeId, Int* lastOper, Compiler* cm) {
-    pushInentities((Entity){.typeId = typeId, .externalNameId = operId}, cm);
+#define strPi       15
+#define strE        16
+#define strNotEqual 17
+#define strLength   18
+#define strAbsolute 19
+
+#define strLogicalAnd 20
+#define strLogicalOr  21
+#define strEquality   22
+
+private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t externalNameId, Compiler* cm) {
+    pushInentities((Entity){
+        .typeId = typeId, .emit = emitAs, .class = classImmutable, .externalNameId = externalNameId}, cm);
     cm->overloadIds.content[operId] += SIXTEENPLUSONE;
-    *lastOper = operId;
+    ++((*cm->langDef->operators)[operId].builtinOverloads);
 }
 
 /** Operators are the first-ever functions to be defined. This function builds their types, entities and overload counts. 
@@ -3210,75 +3237,75 @@ private void buildInOperators(Compiler* cm) {
     Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
     Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int voidOfInt = addFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
-    Int lastOper = -1;
-    buildOperator(opTNotEqual, boolOfIntInt, &lastOper, cm);
-    buildOperator(opTNotEqual, boolOfFlFl, &lastOper, cm);
-    buildOperator(opTNotEqual, boolOfStrStr, &lastOper, cm);
-    buildOperator(opTBoolNegation, boolOfBool, &lastOper, cm);
-    buildOperator(opTSize, intOfStr, &lastOper, cm);
-    buildOperator(opTSize, intOfInt, &lastOper, cm);
-    buildOperator(opTToString, strOfInt, &lastOper, cm);
-    buildOperator(opTToString, strOfFloat, &lastOper, cm);
-    buildOperator(opTToString, strOfBool, &lastOper, cm);
-    buildOperator(opTRemainder, intOfIntInt, &lastOper, cm);
-    buildOperator(opTBinaryAnd, boolOfBoolBool, &lastOper, cm); // dummy
-    buildOperator(opTTypeAnd, boolOfBoolBool, &lastOper, cm); // dummy
-    buildOperator(opTIsNull, boolOfBoolBool, &lastOper, cm); // dummy
-    buildOperator(opTTimesExt, flOfFlFl, &lastOper, cm);
-    buildOperator(opTTimes, intOfIntInt, &lastOper, cm);
-    buildOperator(opTTimes, flOfFlFl, &lastOper, cm);
-    buildOperator(opTIncrement, voidOfInt, &lastOper, cm);
-    buildOperator(opTPlusExt, strOfStrStr, &lastOper, cm); // dummy
-    buildOperator(opTPlus, intOfIntInt, &lastOper, cm);
-    buildOperator(opTPlus, flOfFlFl, &lastOper, cm);
-    buildOperator(opTPlus, strOfStrStr, &lastOper, cm);
-    buildOperator(opTToFloat, flOfInt, &lastOper, cm);
-    buildOperator(opTDecrement, voidOfInt, &lastOper, cm);
-    buildOperator(opTMinusExt, intOfIntInt, &lastOper, cm); // dummy
-    buildOperator(opTMinus, intOfIntInt, &lastOper, cm);
-    buildOperator(opTMinus, flOfFlFl, &lastOper, cm);
-    buildOperator(opTDivByExt, intOfIntInt, &lastOper, cm); // dummy
-    buildOperator(opTDivBy, intOfIntInt, &lastOper, cm);
-    buildOperator(opTDivBy, flOfFlFl, &lastOper, cm);
-    buildOperator(opTBitShiftLeftExt, intOfIntInt, &lastOper, cm);  // dummy
-    buildOperator(opTBitShiftLeft, intOfFlFl, &lastOper, cm);  // dummy
-    buildOperator(opTBitShiftRightExt, intOfIntInt, &lastOper, cm);  // dummy
-    buildOperator(opTBitShiftRight, intOfFlFl, &lastOper, cm);  // dummy
-       
-    buildOperator(opTComparator, intOfIntInt, &lastOper, cm);
-    buildOperator(opTComparator, intOfFlFl, &lastOper, cm);
-    buildOperator(opTComparator, intOfStrStr, &lastOper, cm);
-    buildOperator(opTLTEQ, boolOfIntInt, &lastOper, cm);
-    buildOperator(opTLTEQ, boolOfFlFl, &lastOper, cm);
-    buildOperator(opTLTEQ, boolOfStrStr, &lastOper, cm);
-    buildOperator(opTGTEQ, boolOfIntInt, &lastOper, cm);
-    buildOperator(opTGTEQ, boolOfFlFl, &lastOper, cm);
-    buildOperator(opTGTEQ, boolOfStrStr, &lastOper, cm);
-    buildOperator(opTLessThan, boolOfIntInt, &lastOper, cm);
-    buildOperator(opTLessThan, boolOfFlFl, &lastOper, cm);
-    buildOperator(opTLessThan, boolOfStrStr, &lastOper, cm);
-    buildOperator(opTGreaterThan, boolOfIntInt, &lastOper, cm);
-    buildOperator(opTGreaterThan, boolOfFlFl, &lastOper, cm);
-    buildOperator(opTGreaterThan, boolOfStrStr, &lastOper, cm);
-    buildOperator(opTEquality, boolOfIntInt, &lastOper, cm);
-
-    buildOperator(opTIntervalBoth, intOfIntInt, &lastOper, cm); // dummy
-    buildOperator(opTIntervalLeft, flOfFlFl, &lastOper, cm); // dummy
-    buildOperator(opTIntervalRight, intOfInt, &lastOper, cm); // dummy
-    buildOperator(opTIntervalExcl, flOfFl, &lastOper, cm); // dummy 
-    buildOperator(opTNullCoalesce, intOfIntInt, &lastOper, cm); // dummy
-    buildOperator(opTQuestionMark, flOfFlFl, &lastOper, cm); // dummy
-    buildOperator(opTAccessor, intOfInt, &lastOper, cm); // dummy
-    buildOperator(opTBoolOr, flOfFl, &lastOper, cm); // dummy
-    buildOperator(opTXor, flOfFlFl, &lastOper, cm); // dummy
-    buildOperator(opTAnd, boolOfBoolBool, &lastOper, cm);
-    buildOperator(opTOr, boolOfBoolBool, &lastOper, cm);
     
-    buildOperator(opTExponentExt, intOfIntInt, &lastOper, cm); // dummy
-    buildOperator(opTExponent, intOfIntInt, &lastOper, cm);
-    buildOperator(opTExponent, flOfFlFl, &lastOper, cm);
-    buildOperator(opTNegation, intOfInt, &lastOper, cm);
-    buildOperator(opTNegation, flOfFl, &lastOper, cm);
+    buildOperator(opTNotEqual, boolOfIntInt, emitInfixExternal, strNotEqual, cm);
+    buildOperator(opTNotEqual, boolOfFlFl, emitInfixExternal, strNotEqual, cm);
+    buildOperator(opTNotEqual, boolOfStrStr, emitInfixExternal, strNotEqual, cm);
+    buildOperator(opTBoolNegation, boolOfBool, emitPrefix, 0, cm);
+    buildOperator(opTSize,     intOfStr, emitField, strLength, cm);
+    buildOperator(opTSize,     intOfInt, emitPrefixExternal, strAbsolute, cm);
+    buildOperator(opTToString, strOfInt, emitPostfix, strToStr, cm);
+    buildOperator(opTToString, strOfFloat, emitPostfix, strToStr, cm);
+    buildOperator(opTToString, strOfBool, emitPostfix, strToStr, cm);
+    buildOperator(opTRemainder, intOfIntInt, emitPrefix, 0, cm);
+    buildOperator(opTBinaryAnd, boolOfBoolBool, 0, 0, cm); // dummy
+    buildOperator(opTTypeAnd,   boolOfBoolBool, 0, 0, cm); // dummy
+    buildOperator(opTIsNull,    boolOfBoolBool, 0, 0, cm); // dummy
+    buildOperator(opTTimesExt, flOfFlFl, 0, 0, cm); // dummy
+    buildOperator(opTTimes,     intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTTimes,     flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opTIncrement, voidOfInt, emitPrefix, 0, cm);
+    buildOperator(opTPlusExt,   strOfStrStr, 0, 0, cm); // dummy
+    buildOperator(opTPlus,      intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTPlus,      flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opTPlus,      strOfStrStr, emitInfix, 0, cm);
+    buildOperator(opTToFloat,   flOfInt, emitNop, 0, cm);
+    buildOperator(opTDecrement, voidOfInt, emitPrefix, 0, cm);
+    buildOperator(opTMinusExt,  intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opTMinus,     intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTMinus,     flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opTDivByExt, intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opTDivBy,     intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTDivBy,     flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opTBitShiftLeftExt, intOfIntInt, 0, 0, cm);  // dummy
+    buildOperator(opTBitShiftLeft, intOfFlFl, 0, 0, cm);  // dummy
+    buildOperator(opTBitShiftRightExt, intOfIntInt, 0, 0, cm);  // dummy
+    buildOperator(opTBitShiftRight, intOfFlFl, 0, 0, cm);  // dummy
+       
+    buildOperator(opTComparator, intOfIntInt, 0, 0, cm);  // dummy
+    buildOperator(opTComparator, intOfFlFl, 0, 0, cm);  // dummy
+    buildOperator(opTComparator, intOfStrStr, 0, 0, cm);  // dummy
+    buildOperator(opTLTEQ, boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTLTEQ, boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opTLTEQ, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opTGTEQ, boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTGTEQ, boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opTGTEQ, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opTLessThan, boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTLessThan, boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opTLessThan, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opTGreaterThan, boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTGreaterThan, boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opTGreaterThan, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opTEquality, boolOfIntInt, emitInfixExternal, strEquality, cm);
+
+    buildOperator(opTIntervalBoth, intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opTIntervalLeft, flOfFlFl, 0, 0, cm); // dummy
+    buildOperator(opTIntervalRight, intOfInt, 0, 0, cm); // dummy
+    buildOperator(opTIntervalExcl, flOfFl, 0, 0, cm); // dummy 
+    buildOperator(opTNullCoalesce, intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opTQuestionMark, flOfFlFl, 0, 0, cm); // dummy
+    buildOperator(opTAccessor, intOfInt, 0, 0, cm); // dummy
+    buildOperator(opTBoolOr, flOfFl, 0, 0, cm); // dummy
+    buildOperator(opTXor, flOfFlFl, 0, 0, cm); // dummy
+    buildOperator(opTAnd, boolOfBoolBool, emitInfixExternal, strLogicalAnd, cm);
+    buildOperator(opTOr, boolOfBoolBool, emitInfixExternal, strLogicalOr, cm);
+    
+    buildOperator(opTExponentExt, intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opTExponent, intOfIntInt, emitPrefixExternal, strExpon, cm);
+    buildOperator(opTExponent, flOfFlFl, emitPrefixExternal, strExpon, cm);
+    buildOperator(opTNegation, intOfInt, emitPrefix, 0, cm);
+    buildOperator(opTNegation, flOfFl, emitPrefix, 0, cm);
 
     cm->countOperatorEntities = cm->entities.length;
 }
@@ -3306,9 +3333,9 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
     Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     
     EntityImport builtins[3] =  {
-        (EntityImport) { .name = str("math-pi", cm->a), .typeInd = 0 },
-        (EntityImport) { .name = str("math-e", cm->a),  .typeInd = 0 },
-        (EntityImport) { .name = str("print", cm->a),  .typeInd = 1 }
+        (EntityImport) { .name = str("math-pi", cm->a), .externalNameId = strPi, .typeInd = 0 },
+        (EntityImport) { .name = str("math-e", cm->a), .externalNameId = strE, .typeInd = 0 },
+        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint, .typeInd = 1 }
     };    
 
     importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), ((Int[]){tokFloat, voidOfStr}), cm);
@@ -3341,7 +3368,7 @@ testable Compiler* createCompiler(Lexer* lx, Arena* a) {
         .types = createInListInt(64, a), .typesDict = createStringStore(100, aTmp),
         .expStack = createStackint32_t(16, aTmp),
         
-        .stringStore = lx->stringStore, .stringTable = lx->stringTable, .strLength = stringTableLength,
+        .stringStore = lx->stringStore, .stringTable = lx->stringTable, .countStrings = stringTableLength,
         .wasError = false, .errMsg = &empty, .a = a, .aTmp = aTmp
     };
     if (stringTableLength > 0) {
@@ -3356,29 +3383,32 @@ private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(Int typeId, Compiler* cm);
 
 /** Now that the overloads are freshly allocated, we need to write all the existing entities (operators and imported functions)
- * to the table. The table consists of variable-length entries of the form: [count typeId1 typeId2 entId1 entId2]
+ * to the overloads table, which consists of variable-length entries of the form: [count typeId1 typeId2 entId1 entId2]
  */
 private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
-    Int currOperId = -1;
+    Int currOperId = 0;
     Int o = -1;
     Int countOverls = -1;
-    Int sentinel = -1;
+    Int entitySentinel = (*cm->langDef->operators)[currOperId].builtinOverloads;
+    print("overlSentinel %d", entitySentinel);
 
     // operators
     for (Int i = 0; i < cm->countOperatorEntities; i++) {
         Entity ent = cm->entities.content[i];
+
         
-        if (ent.nameId != currOperId) {
-            currOperId = ent.nameId;
+        if (i == entitySentinel) {
+            ++currOperId;
             o = cm->overloadIds.content[currOperId] + 1;
             countOverls = (cm->overloadIds.content[currOperId + 1] - cm->overloadIds.content[currOperId] - 1)/2;
-            sentinel = cm->overloadIds.content[currOperId + 1];
+            entitySentinel += (*cm->langDef->operators)[currOperId].builtinOverloads;
         }
         
-        if (countOverls > 0) {
-            cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
-            cm->overloads.content[o + countOverls] = i;
-        }
+        cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
+#ifdef SAFETY
+        VALIDATEI(cm->overloads.content[o + countOverls] == -1, iErrorOverloadsOverflow)
+#endif
+        cm->overloads.content[o + countOverls] = i;
         
         o++;
     }
@@ -3399,11 +3429,11 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
 #endif            
             o = cm->overloadIds.content[-currFuncId - 2] + 1;
             countOverls = cm->overloads.content[o - 1];
-            sentinel = o + countOverls;
+
         }
 
 #ifdef SAFETY
-        VALIDATEI(o < sentinel, iErrorOverloadsOverflow)
+        VALIDATEI(cm->overloads.content[o + countOverls] == -1, iErrorOverloadsOverflow)
 #endif
         cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
         cm->overloads.content[o + countOverls] = i;

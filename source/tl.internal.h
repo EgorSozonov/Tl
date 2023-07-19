@@ -320,6 +320,7 @@ typedef struct {
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool overloadable;
     bool assignable;
+    Int builtinOverloads;
 } OpDef;
 
 /** Count of lexical operators, i.e. things that are lexed as operator tokens.
@@ -418,22 +419,30 @@ typedef struct {
     Int pl2;   
 } Node;
 
+#define classMutableGuarantted 0
+#define classMutatedGuaranteed 1
+#define classMutableNullable   2
+#define classMutatedNullable   3
+#define classImmutable         4
 #define emitPrefix         0  // normal native names
 #define emitPrefixShielded 1  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
 #define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
 #define emitInfix          3  // infix operators that match between source code and target (e.g. arithmetic operators)
-#define emitInfixExternal  4  // infix operators that have external names for emission
-
+#define emitInfixExternal  4  // infix operators that have a separate external name
+#define emitField          5  // emitted as field accesses, like "length"
+#define emitPostfix        6  // emitted as a "dot-call", like ".toString()"
+#define emitNop            7  // for unary operators that don't need to be emitted, like ","
 typedef struct {
     Int typeId;
     uint16_t externalNameId;
-    uint8_t isNullable;
     uint8_t class;
+    uint8_t emit;
 } Entity;
 
 
 typedef struct {
     String* name;
+    Int externalNameId;
     Int typeInd;
 } EntityImport;
 
@@ -570,7 +579,7 @@ struct Compiler {
 
     Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startByte of each string.       
     StringStore* stringStore;  // A hash table for quickly deduplicating strings. Points into stringTable 
-    Int strLength;             // length of stringTable
+    Int countStrings;             // length of stringTable
 
     bool wasError;
     String* errMsg;
