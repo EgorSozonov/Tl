@@ -3988,12 +3988,23 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 
 typedef struct Codegen Codegen;
 typedef void CgFunc(Node, bool, Arr(Node), Codegen*);
+typedef struct {
+    Int startId; // or externalNameId
+    Int length; // only for native names
+    uint8_t emit;
+    Int arity;
+} CgCall;
+
+DEFINE_STACK_HEADER(CgCall)
+DEFINE_STACK(CgCall)
+
 struct Codegen {
     Int i; // current node index
     Int indentation;
     Int length;
     Int capacity;
     Arr(byte) buffer;
+    StackCgCall* calls; // temporary stack for generating expressions
 
     StackNode backtrack; // these "nodes" are modified from what is in the AST. .startBt = sentinelNode
     CgFunc* cgTable[countSpanForms];
@@ -4077,7 +4088,18 @@ private void writeExpr(Arr(Node) nodes, Codegen* cg) {
         writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
         ++cg->i; // CONSUME the single node of the expression
     } else {
+        Int sentinel = cg->i + nd.pl2 + 1;
+        ++cg->i; // CONSUME the expr node
         writeChar(aParenLeft, cg);
+        while (cg->i < sentinel) {
+            Node n = nodes[cg->i];
+            if (n.tp == nodCall) {
+                Entity ent = cg->cm->entities.content[n.pl1];
+                pushCgCall(((CgCall){.emit = ent.emit, }, cg->calls);
+            }
+            ++cg->i;
+        }
+
         writeChar(aParenRight, cg);
     }
 #if SAFETY
@@ -4305,6 +4327,7 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
 
 //}}}
 
+//{{{ Main
 Codegen* compile() {
     Arena* a = mkArena();
     LanguageDefinition* langDef = buildLanguageDefinitions(a);
@@ -4336,3 +4359,4 @@ Int main(int argc, char* argv) {
     return 0;
 }
 #endif
+//}}}
