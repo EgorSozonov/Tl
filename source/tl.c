@@ -404,7 +404,6 @@ String empty = { .length = 0 };
 //{{{ Stack
 
 private void setSpanLengthParser(Int, Compiler* cm);
-#define setSpanLength(A, X) _Generic((X), Lexer*: setSpanLengthLexer, Compiler*: setSpanLengthParser)(A, X)
 
 //}}}
 
@@ -830,44 +829,38 @@ _Noreturn private void throwExcInternal(Int errInd, Compiler* cm) {
 
 
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
-_Noreturn private void throwExcLexer(const char errMsg[], Lexer* lx) {   
+_Noreturn private void throwExcLexer(const char errMsg[], Compiler* lx) {   
     lx->wasError = true;
 #ifdef TRACE    
     printf("Error on i = %d: %s\n", lx->i, errMsg);
 #endif    
-    lx->errMsg = str(errMsg, lx->arena);
+    lx->errMsg = str(errMsg, lx->a);
     longjmp(excBuf, 1);
 }
 
 /**
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
  */
-private void checkPrematureEnd(Int requiredSymbols, Lexer* lx) {
+private void checkPrematureEnd(Int requiredSymbols, Compiler* lx) {
     VALIDATEL(lx->i + requiredSymbols <= lx->inpLength, errPrematureEndOfInput)
 }
 
-/** The current chunk is full, so we move to the next one and, if needed, reallocate to increase the capacity for the next one */
-private void handleFullChunkLexer(Lexer* lexer) {
-    Token* newStorage = allocateOnArena(lexer->capacity*2*sizeof(Token), lexer->arena);
-    memcpy(newStorage, lexer->tokens, (lexer->capacity)*(sizeof(Token)));
-    lexer->tokens = newStorage;
 
-    lexer->capacity *= 2;
-}
-
-
-testable void add(Token t, Lexer* lexer) {
-    lexer->tokens[lexer->nextInd] = t;
-    lexer->nextInd++;
-    if (lexer->nextInd == lexer->capacity) {
-        handleFullChunkLexer(lexer);
+testable void add(Token t, Compiler* lx) {
+    lx->tokens[lx->nextInd] = t;
+    ++lx->nextInd;
+    if (lx->nextInd == lx->capacity) {
+        Token* newStorage = allocateOnArena(lx->capacity*2*sizeof(Token), lx->a);
+        memcpy(newStorage, lx->tokens, (lx->capacity)*(sizeof(Token)));
+        lx->tokens = newStorage;
+        lx->capacity *= 2;
     }
 }
 
 /** For all the dollars at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
-private void closeColons(Lexer* lx) {
-    while (hasValues(lx->backtrack) && peek(lx->backtrack).wasOrigColon) {
-        BtToken top = pop(lx->backtrack);
+private void closeColons(Compiler* lx) {
+    while (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).wasOrigColon) {
+        BtToken top = pop(lx->lexBtrack);
         Int j = top.tokenInd;        
         lx->tokens[j].lenBts = lx->i - lx->tokens[j].startBt;
         lx->tokens[j].pl2 = lx->nextInd - j - 1;
@@ -878,7 +871,7 @@ private void closeColons(Lexer* lx) {
  * Finds the top-level punctuation opener by its index, and sets its lengths.
  * Called when the matching closer is lexed.
  */
-private void setSpanLengthLexer(Int tokenInd, Lexer* lx) {
+private void setSpanLengthLexer(Int tokenInd, Compiler* lx) {
     lx->tokens[tokenInd].lenBts = lx->i - lx->tokens[tokenInd].startBt + 1;
     lx->tokens[tokenInd].pl2 = lx->nextInd - tokenInd - 1;
 }
@@ -886,7 +879,7 @@ private void setSpanLengthLexer(Int tokenInd, Lexer* lx) {
 /**
  * Correctly calculates the lenBts for a single-line, statement-type span.
  */
-private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
+private void setStmtSpanLength(Int topTokenInd, Compiler* lx) {
     Token lastToken = lx->tokens[lx->nextInd - 1];
     Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
 
@@ -902,11 +895,11 @@ private void setStmtSpanLength(Int topTokenInd, Lexer* lx) {
 
 #define PROBERESERVED(reservedBytesName, returnVarName)    \
     lenReser = sizeof(reservedBytesName); \
-    if (lenBts == lenReser && testForWord(lx->inp, startBt, reservedBytesName, lenReser)) \
+    if (lenBts == lenReser && testForWord(lx->sourceCode, startBt, reservedBytesName, lenReser)) \
         return returnVarName;
 
 
-private Int determineReservedA(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedA(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesAlias, tokAlias)
     PROBERESERVED(reservedBytesAnd, reservedAnd)
@@ -916,13 +909,13 @@ private Int determineReservedA(Int startBt, Int lenBts, Lexer* lx) {
     return 0;
 }
 
-private Int determineReservedB(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedB(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesBreak, tokBreak)
     return 0;
 }
 
-private Int determineReservedC(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesCatch, tokCatch)
     PROBERESERVED(reservedBytesContinue, tokContinue)
@@ -930,7 +923,7 @@ private Int determineReservedC(Int startBt, Int lenBts, Lexer* lx) {
 }
 
 
-private Int determineReservedE(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesElse, tokElse)
     PROBERESERVED(reservedBytesEmbed, tokEmbed)
@@ -938,7 +931,7 @@ private Int determineReservedE(Int startBt, Int lenBts, Lexer* lx) {
 }
 
 
-private Int determineReservedF(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedF(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesFalse, reservedFalse)
     PROBERESERVED(reservedBytesFn, tokFnDef)
@@ -946,7 +939,7 @@ private Int determineReservedF(Int startBt, Int lenBts, Lexer* lx) {
 }
 
 
-private Int determineReservedI(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesIf, tokIf)
     PROBERESERVED(reservedBytesIfPr, tokIfPr)
@@ -956,7 +949,7 @@ private Int determineReservedI(Int startBt, Int lenBts, Lexer* lx) {
 }
 
 
-private Int determineReservedL(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedL(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
     PROBERESERVED(reservedBytesWhile, tokWhile)
@@ -964,35 +957,35 @@ private Int determineReservedL(Int startBt, Int lenBts, Lexer* lx) {
 }
 
 
-private Int determineReservedM(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedM(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesMatch, tokMatch)
     return 0;
 }
 
 
-private Int determineReservedO(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedO(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesOr, reservedOr)
     return 0;
 }
 
 
-private Int determineReservedR(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedR(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesReturn, tokReturn)
     return 0;
 }
 
 
-private Int determineReservedS(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedS(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesStruct, tokStruct)
     return 0;
 }
 
 
-private Int determineReservedT(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedT(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesTrue, reservedTrue)
     PROBERESERVED(reservedBytesTry, tokTry)
@@ -1000,29 +993,29 @@ private Int determineReservedT(Int startBt, Int lenBts, Lexer* lx) {
 }
 
 
-private Int determineReservedY(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineReservedY(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesYield, tokYield)
     return 0;
 }
 
-private Int determineUnreserved(Int startBt, Int lenBts, Lexer* lx) {
+private Int determineUnreserved(Int startBt, Int lenBts, Compiler* lx) {
     return -1;
 }
 
 
-private void addNewLine(Int j, Lexer* lx) {
+private void addNewLine(Int j, Compiler* lx) {
     lx->newlines[lx->newlinesNextInd] = j;
     lx->newlinesNextInd++;
     if (lx->newlinesNextInd == lx->newlinesCapacity) {
-        Arr(Int) newNewlines = allocateOnArena(lx->newlinesCapacity*2*4, lx->arena);
+        Arr(Int) newNewlines = allocateOnArena(lx->newlinesCapacity*2*4, lx->a);
         memcpy(newNewlines, lx->newlines, lx->newlinesCapacity*4);
         lx->newlines = newNewlines;
         lx->newlinesCapacity *= 2;
     }
 }
 
-private void addStatement(untt stmtType, Int startBt, Lexer* lx) {
+private void addStatement(untt stmtType, Int startBt, Compiler* lx) {
     Int lenBts = 0;
     // Some types of statements may legitimately consist of 0 tokens; for them, we need to write their lenBts in the init token
     if (stmtType == tokBreak) {
@@ -1030,15 +1023,15 @@ private void addStatement(untt stmtType, Int startBt, Lexer* lx) {
     } else if (stmtType == tokContinue) {
         lenBts = 8;
     }
-    push(((BtToken){ .tp = stmtType, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->backtrack);
+    push(((BtToken){ .tp = stmtType, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
     add((Token){ .tp = stmtType, .startBt = startBt, .lenBts = lenBts}, lx);
 }
 
 
-private void wrapInAStatementStarting(Int startBt, Lexer* lx, Arr(byte) inp) {    
-    if (hasValues(lx->backtrack)) {
-        if (peek(lx->backtrack).spanLevel <= slParenMulti) {            
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->backtrack);
+private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) inp) {    
+    if (hasValues(lx->lexBtrack)) {
+        if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {            
+            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
             add((Token){ .tp = tokStmt, .startBt = startBt},  lx);
         }
     } else {
@@ -1047,10 +1040,10 @@ private void wrapInAStatementStarting(Int startBt, Lexer* lx, Arr(byte) inp) {
 }
 
 
-private void wrapInAStatement(Lexer* lx, Arr(byte) inp) {
-    if (hasValues(lx->backtrack)) {
-        if (peek(lx->backtrack).spanLevel <= slParenMulti) {
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->backtrack);
+private void wrapInAStatement(Compiler* lx, Arr(byte) inp) {
+    if (hasValues(lx->lexBtrack)) {
+        if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {
+            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
             add((Token){ .tp = tokStmt, .startBt = lx->i},  lx);
         }
     } else {
@@ -1058,13 +1051,13 @@ private void wrapInAStatement(Lexer* lx, Arr(byte) inp) {
     }
 }
 
-private void maybeBreakStatement(Lexer* lx) {
-    if (hasValues(lx->backtrack)) {
-        BtToken top = peek(lx->backtrack);
+private void maybeBreakStatement(Compiler* lx) {
+    if (hasValues(lx->lexBtrack)) {
+        BtToken top = peek(lx->lexBtrack);
         if(top.spanLevel == slStmt) {
-            Int len = lx->backtrack->length;
+            Int len = lx->lexBtrack->length;
             setStmtSpanLength(top.tokenInd, lx);
-            pop(lx->backtrack);
+            pop(lx->lexBtrack);
         }
     }
 }
@@ -1074,8 +1067,8 @@ private void maybeBreakStatement(Lexer* lx) {
  * This doesn't actually add any tokens to the array, just performs validation and sets the token length
  * for the opener token.
  */
-private void closeRegularPunctuation(Int closingType, Lexer* lx) {
-    StackBtToken* bt = lx->backtrack;
+private void closeRegularPunctuation(Int closingType, Compiler* lx) {
+    StackBtToken* bt = lx->lexBtrack;
     closeColons(lx);
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
@@ -1086,16 +1079,16 @@ private void closeRegularPunctuation(Int closingType, Lexer* lx) {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
-    setSpanLength(top.tokenInd, lx);
+    setSpanLengthLexer(top.tokenInd, lx);
     lx->i++; // CONSUME the closing ")" or "]"
 }
 
 
-private void addNumeric(byte b, Lexer* lx) {
+private void addNumeric(byte b, Compiler* lx) {
     if (lx->numericNextInd < lx->numericCapacity) {
         lx->numeric[lx->numericNextInd] = b;
     } else {
-        Arr(byte) newNumeric = allocateOnArena(lx->numericCapacity*2, lx->arena);
+        Arr(byte) newNumeric = allocateOnArena(lx->numericCapacity*2, lx->a);
         memcpy(newNumeric, lx->numeric, lx->numericCapacity*4);
         newNumeric[lx->numericCapacity] = b;
         
@@ -1106,7 +1099,7 @@ private void addNumeric(byte b, Lexer* lx) {
 }
 
 
-private int64_t calcIntegerWithinLimits(Lexer* lx) {
+private int64_t calcIntegerWithinLimits(Compiler* lx) {
     int64_t powerOfTen = (int64_t)1;
     int64_t result = 0;
     Int j = lx->numericNextInd - 1;
@@ -1123,7 +1116,7 @@ private int64_t calcIntegerWithinLimits(Lexer* lx) {
 /**
  * Checks if the current numeric <= b if they are regarded as arrays of decimal digits (0 to 9).
  */
-private bool integerWithinDigits(const byte* b, Int bLength, Lexer* lx){
+private bool integerWithinDigits(const byte* b, Int bLength, Compiler* lx){
     if (lx->numericNextInd != bLength) return (lx->numericNextInd < bLength);
     for (Int j = 0; j < lx->numericNextInd; j++) {
         if (lx->numeric[j] < b[j]) return true;
@@ -1133,14 +1126,14 @@ private bool integerWithinDigits(const byte* b, Int bLength, Lexer* lx){
 }
 
 
-private Int calcInteger(int64_t* result, Lexer* lx) {
+private Int calcInteger(int64_t* result, Compiler* lx) {
     if (lx->numericNextInd > 19 || !integerWithinDigits(maxInt, sizeof(maxInt), lx)) return -1;
     *result = calcIntegerWithinLimits(lx);
     return 0;
 }
 
 
-private int64_t calcHexNumber(Lexer* lx) {
+private int64_t calcHexNumber(Compiler* lx) {
     int64_t result = 0;
     int64_t powerOfSixteen = 1;
     Int j = lx->numericNextInd - 1;
@@ -1162,7 +1155,7 @@ private int64_t calcHexNumber(Lexer* lx) {
  * Checks that the input fits into a signed 64-bit fixnum.
  * TODO add floating-pointt literals like 0x12FA.
  */
-private void hexNumber(Lexer* lx, Arr(byte) inp) {
+private void hexNumber(Compiler* lx, Arr(byte) inp) {
     checkPrematureEnd(2, lx);
     lx->numericNextInd = 0;
     Int j = lx->i + 2;
@@ -1201,7 +1194,7 @@ private void hexNumber(Lexer* lx, Arr(byte) inp) {
  * Example, for input text '1.23' this function would get the args: ([1 2 3] 1)
  * Output: a 64-bit floating-pointt number, encoded as a long (same bits)
  */
-private Int calcFloating(double* result, Int powerOfTen, Lexer* lx, Arr(byte) inp){
+private Int calcFloating(double* result, Int powerOfTen, Compiler* lx, Arr(byte) inp){
     Int indTrailingZeroes = lx->numericNextInd - 1;
     Int ind = lx->numericNextInd;
     while (indTrailingZeroes > -1 && lx->numeric[indTrailingZeroes] == 0) { 
@@ -1251,7 +1244,7 @@ testable int64_t longOfDoubleBits(double d) {
  * Lexes a decimal numeric literal (integer or floating-point).
  * TODO: add support for the '1.23E4' format
  */
-private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
+private void decNumber(bool isNegative, Compiler* lx, Arr(byte) inp) {
     Int j = (isNegative) ? (lx->i + 1) : lx->i;
     Int digitsAfterDot = 0; // this is relative to first digit, so it includes the leading zeroes
     bool metDot = false;
@@ -1305,7 +1298,7 @@ private void decNumber(bool isNegative, Lexer* lx, Arr(byte) inp) {
     lx->i = j; // CONSUME the decimal number
 }
 
-private void lexNumber(Lexer* lx, Arr(byte) inp) {
+private void lexNumber(Compiler* lx, Arr(byte) inp) {
     wrapInAStatement(lx, inp);
     byte cByte = CURR_BT;
     if (lx->i == lx->inpLength - 1 && isDigit(cByte)) {
@@ -1330,8 +1323,8 @@ private void lexNumber(Lexer* lx, Arr(byte) inp) {
  * once it is known.
  * Consumes no bytes.
  */
-private void openPunctuation(untt tType, untt spanLevel, Int startBt, Lexer* lx) {
-    push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->backtrack);
+private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* lx) {
+    push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->lexBtrack);
     add((Token) {.tp = tType, .pl1 = (tType < firstCoreFormTokenType) ? 0 : spanLevel, .startBt = startBt }, lx);
 }
 
@@ -1339,8 +1332,8 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Lexer* lx)
  * Lexer action for a paren-type reserved word. It turns parentheses into an slParenMulti core form.
  * If necessary (parens inside statement) it also deletes last token and removes the top frame
  */
-private void lexReservedWord(untt reservedWordType, Int startBt, Lexer* lx, Arr(byte) inp) {    
-    StackBtToken* bt = lx->backtrack;
+private void lexReservedWord(untt reservedWordType, Int startBt, Compiler* lx, Arr(byte) inp) {    
+    StackBtToken* bt = lx->lexBtrack;
     
     Int expectations = (*lx->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
@@ -1374,7 +1367,7 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Lexer* lx, Arr(
  * (or the whole word if there are no dots).
  * Returns True if the lexed chunk was capitalized
  */
-private bool wordChunk(Lexer* lx, Arr(byte) inp) {
+private bool wordChunk(Compiler* lx, Arr(byte) inp) {
     bool result = false;
     if (CURR_BT == aUnderscore) {
         checkPrematureEnd(2, lx);
@@ -1396,12 +1389,12 @@ private bool wordChunk(Lexer* lx, Arr(byte) inp) {
 }
 
 /** Closes the current statement. Consumes no tokens */
-private void closeStatement(Lexer* lx) {
-    BtToken top = peek(lx->backtrack);
+private void closeStatement(Compiler* lx) {
+    BtToken top = peek(lx->lexBtrack);
     VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline)
     if (top.spanLevel == slStmt) {
         setStmtSpanLength(top.tokenInd, lx);
-        pop(lx->backtrack);
+        pop(lx->lexBtrack);
     }    
 }
 
@@ -1411,7 +1404,7 @@ private void closeStatement(Lexer* lx) {
  * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45
  * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
-private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
+private void wordInternal(untt wordType, Compiler* lx, Arr(byte) inp) {
     Int startBt = lx->i;
 
     bool wasCapitalized = wordChunk(lx, inp);
@@ -1436,7 +1429,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
     Int realStartByte = (wordType == tokWord) ? startBt : (startBt - 1); // accounting for the . or @ at the start
     untt finalTokType = wasCapitalized ? tokTypeName : wordType;
 
-    byte firstByte = lx->inp->content[startBt];
+    byte firstByte = lx->sourceCode->content[startBt];
     Int lenBts = lx->i - realStartByte;
     Int lenString = lx->i - startBt;
         
@@ -1446,7 +1439,7 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
         add((Token){ .tp = finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
         return;
     }
-    Int mbReservedWord = (*lx->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
+    Int mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
     if (mbReservedWord <= 0) {
         wrapInAStatementStarting(startBt, lx, inp);
         Int uniqueStringInd = addStringStore(inp, startBt, lenString, lx->stringTable, lx->stringStore);
@@ -1479,20 +1472,20 @@ private void wordInternal(untt wordType, Lexer* lx, Arr(byte) inp) {
 }
 
 
-private void lexWord(Lexer* lx, Arr(byte) inp) {
+private void lexWord(Compiler* lx, Arr(byte) inp) {
     wordInternal(tokWord, lx, inp);
 }
 
 /** 
  * The dot is a statement separator
  */
-private void lexDot(Lexer* lx, Arr(byte) inp) {
+private void lexDot(Compiler* lx, Arr(byte) inp) {
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {        
         lx->i++; // CONSUME the dot
         wordInternal(tokDotWord, lx, inp);
         return;        
     }
-    if (!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope) {
+    if (!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope) {
         // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
     } else {
         closeStatement(lx);
@@ -1505,8 +1498,8 @@ private void lexDot(Lexer* lx, Arr(byte) inp) {
  * Changes existing tokens and parent span to accout for the fact that we met an assignment operator 
  * mutType = 0 if it's immutable assignment, 1 if it's ":=", 2 if it's a regular operator mut "+="
  */
-private void processAssignment(Int mutType, untt opType, Lexer* lx) {
-    BtToken currSpan = peek(lx->backtrack);
+private void processAssignment(Int mutType, untt opType, Compiler* lx) {
+    BtToken currSpan = peek(lx->lexBtrack);
 
     if (currSpan.tp == tokAssignment || currSpan.tp == tokReassign || currSpan.tp == tokMutation) {
         throwExcLexer(errOperatorMultipleAssignment, lx);
@@ -1525,26 +1518,26 @@ private void processAssignment(Int mutType, untt opType, Lexer* lx) {
         tok->tp = tokMutation;
         tok->pl1 = opType;
     } 
-    lx->backtrack->content[lx->backtrack->length - 1] = (BtToken){ .tp = tok->tp, .spanLevel = slStmt, .tokenInd = tokenInd }; 
+    lx->lexBtrack->content[lx->lexBtrack->length - 1] = (BtToken){ .tp = tok->tp, .spanLevel = slStmt, .tokenInd = tokenInd }; 
 }
 
 /**
  * A single colon means "parentheses until the next closing paren or end of statement"
  */
-private void lexColon(Lexer* lx, Arr(byte) inp) {           
+private void lexColon(Compiler* lx, Arr(byte) inp) {           
     if (lx->i < lx->inpLength && NEXT_BT == aEqual) { // mutation assignment, :=
         lx->i += 2; // CONSUME the ":="
         processAssignment(1, 0, lx);
     } else {
         push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .spanLevel = slSubexpr, .wasOrigColon = true}),
-             lx->backtrack);
+             lx->lexBtrack);
         add((Token) {.tp = tokParens, .startBt = lx->i }, lx);
         lx->i++; // CONSUME the ":"
     }    
 }
 
 
-private void lexOperator(Lexer* lx, Arr(byte) inp) {
+private void lexOperator(Compiler* lx, Arr(byte) inp) {
     wrapInAStatement(lx, inp);    
     
     byte firstSymbol = CURR_BT;
@@ -1597,25 +1590,25 @@ private void lexOperator(Lexer* lx, Arr(byte) inp) {
 }
 
 /** The humble "=" can be the definition statement, a marker that separates signature from definition, or an arrow "=>" */
-private void lexEqual(Lexer* lx, Arr(byte) inp) {
+private void lexEqual(Compiler* lx, Arr(byte) inp) {
     checkPrematureEnd(2, lx);
     byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
         lexOperator(lx, inp); // ==        
     } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes        
         // arrows are only allowed inside "if"s and the like
-        VALIDATEL(lx->backtrack->length >= 2, errCoreMisplacedArrow)
+        VALIDATEL(lx->lexBtrack->length >= 2, errCoreMisplacedArrow)
         
-        BtToken grandparent = lx->backtrack->content[lx->backtrack->length - 2];
+        BtToken grandparent = lx->lexBtrack->content[lx->lexBtrack->length - 2];
         VALIDATEL(grandparent.tp == tokIf, errCoreMisplacedArrow)
         closeStatement(lx);
         add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
-        if (lx->backtrack->length > 1) {
+        if (lx->lexBtrack->length > 1) {
 
-            BtToken grandparent = lx->backtrack->content[lx->backtrack->length - 2];
-            BtToken parent = lx->backtrack->content[lx->backtrack->length - 1];
+            BtToken grandparent = lx->lexBtrack->content[lx->lexBtrack->length - 2];
+            BtToken parent = lx->lexBtrack->content[lx->lexBtrack->length - 1];
             if (grandparent.tp == tokFnDef && parent.tokenInd == (grandparent.tokenInd + 1)) { // we are in the 1st stmt of fn def
                 closeStatement(lx);
                 add((Token){ .tp = tokEqualsSign, .startBt = lx->i, .lenBts = 1 }, lx);
@@ -1629,7 +1622,7 @@ private void lexEqual(Lexer* lx, Arr(byte) inp) {
 }
 
 /** Doc comments, syntax is "{ Doc comment }" */
-private void lexDocComment(Lexer* lx, Arr(byte) inp) {
+private void lexDocComment(Compiler* lx, Arr(byte) inp) {
     Int startBt = lx->i;
     
     Int curlyLevel = 0;
@@ -1657,7 +1650,7 @@ private void lexDocComment(Lexer* lx, Arr(byte) inp) {
 }
 
 /** Handles the binary operator as well as the unary negation operator */
-private void lexMinus(Lexer* lx, Arr(byte) inp) {
+private void lexMinus(Compiler* lx, Arr(byte) inp) {
     if (lx->i == lx->inpLength - 1) {        
         lexOperator(lx, inp);
     } else {
@@ -1678,7 +1671,7 @@ private void lexMinus(Lexer* lx, Arr(byte) inp) {
 /** An ordinary until-line-end comment. It doesn't get included in the AST, just discarded by the lexer.
  * Just like a newline, this needs to test if we're in a breakable statement because a comment goes until the line end.
  */
-private void lexComment(Lexer* lx, Arr(byte) inp) {    
+private void lexComment(Compiler* lx, Arr(byte) inp) {    
     if (lx->i >= lx->inpLength) return;
     
     maybeBreakStatement(lx);
@@ -1697,22 +1690,22 @@ private void lexComment(Lexer* lx, Arr(byte) inp) {
 }
 
 /** If we are inside a compound (=2) core form, we need to increment the clause count */ 
-private void mbIncrementClauseCount(Lexer* lx) {
-    if (hasValues(lx->backtrack)) {
-        BtToken top = peek(lx->backtrack);
+private void mbIncrementClauseCount(Compiler* lx) {
+    if (hasValues(lx->lexBtrack)) {
+        BtToken top = peek(lx->lexBtrack);
         if (top.tp >= firstCoreFormTokenType && (*lx->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
-            lx->backtrack->content[lx->backtrack->length - 1].countClauses++;
+            lx->lexBtrack->content[lx->lexBtrack->length - 1].countClauses++;
         }
     }
 }
 
 /** If we're inside a compound (=2) core form, we need to check if its clause count is saturated */ 
-private void mbCloseCompoundCoreForm(Lexer* lx) {
-    BtToken top = peek(lx->backtrack);
+private void mbCloseCompoundCoreForm(Compiler* lx) {
+    BtToken top = peek(lx->lexBtrack);
     if (top.tp >= firstCoreFormTokenType && (*lx->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
         if (top.countClauses == 2) {
-            setSpanLength(top.tokenInd, lx);
-            pop(lx->backtrack);
+            setSpanLengthLexer(top.tokenInd, lx);
+            pop(lx->lexBtrack);
         }
     }
 }
@@ -1720,13 +1713,13 @@ private void mbCloseCompoundCoreForm(Lexer* lx) {
 /** An opener for a scope or a scopeful core form. Precondition: we are past the "(:" token.
  * Consumes zero or 1 byte
  */
-private void openScope(Lexer* lx, Arr(byte) inp) {
+private void openScope(Compiler* lx, Arr(byte) inp) {
     Int startBt = lx->i;
     lx->i += 2; // CONSUME the "(*"
-    VALIDATEL(!hasValues(lx->backtrack) || peek(lx->backtrack).spanLevel == slScope, errPunctuationScope)
+    VALIDATEL(!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope, errPunctuationScope)
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
     byte currBt = CURR_BT;
-    if (currBt == aWLower && testForWord(lx->inp, lx->i, reservedBytesWhile, 5)) {
+    if (currBt == aWLower && testForWord(lx->sourceCode, lx->i, reservedBytesWhile, 5)) {
         openPunctuation(tokWhile, slScope, startBt, lx);
         lx->i += 5; // CONSUME the "while"
         return; 
@@ -1745,7 +1738,7 @@ private void openScope(Lexer* lx, Arr(byte) inp) {
 }
 
 /** Handles the "(*" case (scope) as well as the common (subexpression) case */
-private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
+private void lexParenLeft(Compiler* lx, Arr(byte) inp) {
     mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
@@ -1759,19 +1752,19 @@ private void lexParenLeft(Lexer* lx, Arr(byte) inp) {
 }
 
 
-private void lexParenRight(Lexer* lx, Arr(byte) inp) {
+private void lexParenRight(Compiler* lx, Arr(byte) inp) {
     // TODO handle syntax like "(foo 5).field" and "(: id 5 name "asdf").id"
     Int startInd = lx->i;
     closeRegularPunctuation(tokParens, lx);
     
-    if (!hasValues(lx->backtrack)) return;    
+    if (!hasValues(lx->lexBtrack)) return;    
     mbCloseCompoundCoreForm(lx);
     
     lx->lastClosingPunctInd = startInd;    
 }
 
 
-private void lexSpace(Lexer* lx, Arr(byte) inp) {
+private void lexSpace(Compiler* lx, Arr(byte) inp) {
     lx->i++; // CONSUME the space
     while (lx->i < lx->inpLength && CURR_BT == aSpace) {
         lx->i++; // CONSUME a space
@@ -1782,7 +1775,7 @@ private void lexSpace(Lexer* lx, Arr(byte) inp) {
  * Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes the current
  * statement unless it's inside an inline span (i.e. parens or accessor parens)
  */
-private void lexNewline(Lexer* lx, Arr(byte) inp) {
+private void lexNewline(Compiler* lx, Arr(byte) inp) {
     addNewLine(lx->i, lx);    
     maybeBreakStatement(lx);
     
@@ -1796,7 +1789,7 @@ private void lexNewline(Lexer* lx, Arr(byte) inp) {
 }
 
 
-private void lexStringLiteral(Lexer* lx, Arr(byte) inp) {
+private void lexStringLiteral(Compiler* lx, Arr(byte) inp) {
     wrapInAStatement(lx, inp);
     Int j = lx->i + 1;
     for (; j < lx->inpLength && inp[j] != aQuote; j++);
@@ -1806,11 +1799,11 @@ private void lexStringLiteral(Lexer* lx, Arr(byte) inp) {
 }
 
 
-private void lexUnexpectedSymbol(Lexer* lx, Arr(byte) inp) {
+private void lexUnexpectedSymbol(Compiler* lx, Arr(byte) inp) {
     throwExcLexer(errUnrecognizedByte, lx);
 }
 
-private void lexNonAsciiError(Lexer* lx, Arr(byte) inp) {
+private void lexNonAsciiError(Compiler* lx, Arr(byte) inp) {
     throwExcLexer(errNonAscii, lx);
 }
 
@@ -1826,7 +1819,7 @@ const char* tokNames[] = {
 };
 
 
-testable void printLexer(Lexer* a) {
+testable void printLexer(Compiler* a) {
     if (a->wasError) {
         printf("Error: ");
         printString(a->errMsg);
@@ -1842,7 +1835,7 @@ testable void printLexer(Lexer* a) {
 }
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
-testable int equalityLexer(Lexer a, Lexer b) {    
+testable int equalityLexer(Compiler a, Compiler b) {    
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
@@ -2013,18 +2006,18 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
 }
 
 
-testable Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* a) {
-    Lexer* lx = allocateOnArena(sizeof(Lexer), a);
+testable Compiler* createLexer(String* sourceCode, LanguageDefinition* langDef, Arena* a) {
+    Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = mkArena();
-    (*lx) = (Lexer){
-        .i = 0, .langDef = langDef, .inp = inp, .nextInd = 0, .inpLength = inp->length,
+    (*lx) = (Compiler){
+        .i = 0, .langDef = langDef, .sourceCode = sourceCode, .nextInd = 0, .inpLength = sourceCode->length,
         .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
         .newlines = allocateOnArena(500*sizeof(int), a), .newlinesCapacity = 500,
         .numeric = allocateOnArena(50*sizeof(int), aTmp), .numericCapacity = 50,
-        .backtrack = createStackBtToken(16, aTmp),
+        .lexBtrack = createStackBtToken(16, aTmp),
         .stringTable = createStackint32_t(16, a), .stringStore = createStringStore(100, a),
         .wasError = false, .errMsg = &empty,
-        .arena = a, .aTmp = aTmp
+        .a = a, .aTmp = aTmp
     };
     return lx;
 }
@@ -2032,19 +2025,19 @@ testable Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* a) 
 /**
  * Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and an open statement, if any.
  */
-private void finalizeLexer(Lexer* lx) {
-    if (!hasValues(lx->backtrack)) return;
+private void finalizeLexer(Compiler* lx) {
+    if (!hasValues(lx->lexBtrack)) return;
     closeColons(lx);
-    BtToken top = pop(lx->backtrack);
-    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->backtrack), errPunctuationExtraOpening)
+    BtToken top = pop(lx->lexBtrack);
+    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
 
     setStmtSpanLength(top.tokenInd, lx);    
     deleteArena(lx->aTmp);
 }
 
 
-testable Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
-    Lexer* lx = createLexer(input, langDef, a);
+testable Compiler* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
+    Compiler* lx = createLexer(input, langDef, a);
 
     Int inpLength = input->length;
     Arr(byte) inp = input->content;
@@ -2059,7 +2052,6 @@ testable Lexer* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Are
         lx->i = 3;
     }
     LexerFunc (*dispatch)[256] = langDef->dispatchTable;
-    lx->possiblyReservedDispatch = langDef->possiblyReservedDispatch;
 
     // Main loop over the input
     if (setjmp(excBuf) == 0) {
@@ -2336,7 +2328,7 @@ private ParseFrame popFrame(Compiler* cm) {
     if (frame.tp == nodScope) {
         popScopeFrame(cm);
     }
-    setSpanLength(frame.startNodeInd, cm);
+    setSpanLengthParser(frame.startNodeInd, cm);
     return frame;
 }
 
@@ -3100,7 +3092,7 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
     for (int i = 0; i < countEntities; i++) {
-        Int mbNameId = getStringStore(cm->text->content, impts[i].name, cm->stringTable, cm->stringStore);
+        Int mbNameId = getStringStore(cm->sourceCode->content, impts[i].name, cm->stringTable, cm->stringStore);
         if (mbNameId > -1) {
             EntityImport impt = impts[i];
             Int typeInd = typeIds[impt.typeInd];
@@ -3244,9 +3236,9 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTBoolNegation, boolOfBool, emitPrefix, 0, cm);
     buildOperator(opTSize,     intOfStr, emitField, strLength, cm);
     buildOperator(opTSize,     intOfInt, emitPrefixExternal, strAbsolute, cm);
-    buildOperator(opTToString, strOfInt, emitPostfix, strToStr, cm);
-    buildOperator(opTToString, strOfFloat, emitPostfix, strToStr, cm);
-    buildOperator(opTToString, strOfBool, emitPostfix, strToStr, cm);
+    buildOperator(opTToString, strOfInt, emitInfixDot, strToStr, cm);
+    buildOperator(opTToString, strOfFloat, emitInfixDot, strToStr, cm);
+    buildOperator(opTToString, strOfBool, emitInfixDot, strToStr, cm);
     buildOperator(opTRemainder, intOfIntInt, emitPrefix, 0, cm);
     buildOperator(opTBinaryAnd, boolOfBoolBool, 0, 0, cm); // dummy
     buildOperator(opTTypeAnd,   boolOfBoolBool, 0, 0, cm); // dummy
@@ -3321,7 +3313,7 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
     baseTypes[tokUnderscore] = str("Void", cm->aTmp);
     for (int i = 0; i < 5; i++) {
         pushIntypes(0, cm);
-        Int typeNameId = getStringStore(cm->text->content, baseTypes[i], cm->stringTable, cm->stringStore);
+        Int typeNameId = getStringStore(cm->sourceCode->content, baseTypes[i], cm->stringTable, cm->stringStore);
         if (typeNameId > -1) {
             cm->activeBindings[typeNameId] = i;
         }
@@ -3342,40 +3334,32 @@ private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
 }
 //}}}
 
-testable Compiler* createCompiler(Lexer* lx, Arena* a) {
+testable void createCompiler(Compiler* lx) {
     if (lx->wasError) {
-        Compiler* result = allocateOnArena(sizeof(Compiler), a);
-        result->wasError = true;
-        return result;
+        return;
     }
-    
-    Compiler* result = allocateOnArena(sizeof(Compiler), a);
-    Arena* aTmp = mkArena();
-    Int stringTableLength = lx->stringTable->length;
+    Arena* a = lx->a;
     Int initNodeCap = lx->totalTokens > 64 ? lx->totalTokens : 64;
-    (*result) = (Compiler) {
-        .text = lx->inp, .inp = lx, .inpLength = lx->totalTokens, .langDef = lx->langDef,
-        .scopeStack = createScopeStack(),
-        .backtrack = createStackParseFrame(16, aTmp), .i = 0, .loopCounter = 0,
-        
-        .nodes = createInListNode(initNodeCap, a),
-        
-        .entities = createInListEntity(64, a),
-        .overloadIds = createInListuint32_t(64, aTmp),
-        .activeBindings = allocateOnArena(4*stringTableLength, a),
 
-        .overloads = (InListInt){.length = 0, .content = NULL},
-        .types = createInListInt(64, a), .typesDict = createStringStore(100, aTmp),
-        .expStack = createStackint32_t(16, aTmp),
+    lx->scopeStack = createScopeStack();
+    lx->backtrack = createStackParseFrame(16, lx->aTmp);
+    lx->i = 0;
+    lx->loopCounter = 0;
         
-        .stringStore = lx->stringStore, .stringTable = lx->stringTable, .countStrings = stringTableLength,
-        .wasError = false, .errMsg = &empty, .a = a, .aTmp = aTmp
-    };
-    if (stringTableLength > 0) {
-        memset(result->activeBindings, 0xFF, stringTableLength*sizeof(Int)); // activeBindings is filled with -1
+    lx->nodes = createInListNode(initNodeCap, a);
+        
+    lx->entities = createInListEntity(64, a),
+    lx->overloadIds = createInListuint32_t(64, lx->aTmp),
+    lx->activeBindings = allocateOnArena(4*lx->countStrings, a),
+
+    lx->overloads = (InListInt){.length = 0, .content = NULL};
+    lx->types = createInListInt(64, a);
+    lx->typesDict = createStringStore(100, lx->aTmp);
+    lx->expStack = createStackint32_t(16, lx->aTmp);
+    
+    if (lx->countStrings > 0) {
+        memset(lx->activeBindings, 0xFF, lx->countStrings*4); // activeBindings is filled with -1
     }
-    importBuiltins(lx->langDef, result);
-    return result;    
 }
 
 
@@ -3390,7 +3374,6 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     Int o = -1;
     Int countOverls = -1;
     Int entitySentinel = (*cm->langDef->operators)[currOperId].builtinOverloads;
-    print("overlSentinel %d", entitySentinel);
 
     // operators
     for (Int i = 0; i < cm->countOperatorEntities; i++) {
@@ -3468,11 +3451,11 @@ testable void createOverloads(Compiler* cm) {
 }
 
 /** Parses top-level types but not functions and adds their bindings to the scope */
-private void parseToplevelTypes(Lexer* lr, Compiler* cm) {
+private void parseToplevelTypes(Compiler* lr, Compiler* cm) {
 }
 
 /** Parses top-level constants but not functions, and adds their bindings to the scope */
-private void parseToplevelConstants(Lexer* lx, Compiler* cm) {
+private void parseToplevelConstants(Compiler* lx, Compiler* cm) {
     cm->i = 0;
     const Int len = lx->totalTokens;
     while (cm->i < len) {
@@ -3486,7 +3469,7 @@ private void parseToplevelConstants(Lexer* lx, Compiler* cm) {
 }
 
 /** Parses top-level function names, and adds their bindings to the scope */
-private void surveyToplevelFunctionNames(Lexer* lx, Compiler* cm) {
+private void surveyToplevelFunctionNames(Compiler* lx, Compiler* cm) {
     cm->i = 0;
     const Int len = lx->totalTokens;
     Token* tokens = lx->tokens;
@@ -3571,7 +3554,7 @@ private void validateOverloadsFull(Compiler* cm) {
  * Parses a top-level function signature. Emits no nodes, only an entity and an overload. Saves the info to "toplevelSignatures"
  * Pre-condition: we are 2 tokens past the fnDef.
  */
-private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Lexer* lx, Compiler* cm) {
+private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* lx, Compiler* cm) {
     Int fnStartTokenId = cm->i - 2;    
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
     Int byteSentinel = fnDef.startBt + fnDef.lenBts;
@@ -3682,7 +3665,7 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
 }
 
 /** Parses top-level function params and bodies */
-private void parseFunctionBodies(StackNode* toplevelSignatures, Lexer* lx, Compiler* cm) {
+private void parseFunctionBodies(StackNode* toplevelSignatures, Compiler* lx, Compiler* cm) {
     for (int j = 0; j < toplevelSignatures->length; j++) {
         cm->loopCounter = 0;
         parseToplevelBody(toplevelSignatures->content[j], lx->tokens, cm);
@@ -3692,7 +3675,7 @@ private void parseFunctionBodies(StackNode* toplevelSignatures, Lexer* lx, Compi
 /** Walks the top-level functions' signatures (but not bodies).
  * Result: the complete overloads & overloadIds tables, and the list of toplevel functions to parse bodies for.
  */
-private StackNode* parseToplevelSignatures(Lexer* lx, Compiler* cm) {
+private StackNode* parseToplevelSignatures(Compiler* lx, Compiler* cm) {
     StackNode* topLevelSignatures = createStackNode(16, cm->aTmp);
     cm->i = 0;
     const Int len = lx->totalTokens;
@@ -3713,10 +3696,11 @@ private StackNode* parseToplevelSignatures(Lexer* lx, Compiler* cm) {
     return topLevelSignatures;
 }
 
-testable Compiler* parseMain(Lexer* lx, Compiler* cm, Arena* a) {
+testable Compiler* parseMain(Compiler* lx, Compiler* cm, Arena* a) {
     LanguageDefinition* pDef = cm->langDef;
     int inpLength = lx->totalTokens;
     int i = 0;
+    importBuiltins(lx->langDef, result);
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(lx, cm);
         
@@ -3742,7 +3726,7 @@ testable Compiler* parseMain(Lexer* lx, Compiler* cm, Arena* a) {
 }
 
 /** Parses a single file in 4 passes, see docs/parser.txt */
-private Compiler* parse(Lexer* lx, Arena* a) {
+private Compiler* parse(Compiler* lx, Arena* a) {
     Compiler* cm = createCompiler(lx, a);
     return parseMain(lx, cm, a);
 }
@@ -3989,10 +3973,11 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 typedef struct Codegen Codegen;
 typedef void CgFunc(Node, bool, Arr(Node), Codegen*);
 typedef struct {
-    Int startId; // or externalNameId
+    Int startInd; // or externalNameId
     Int length; // only for native names
     uint8_t emit;
-    Int arity;
+    uint8_t arity;
+    uint8_t countArgs;
 } CgCall;
 
 DEFINE_STACK_HEADER(CgCall)
@@ -4084,31 +4069,101 @@ private void writeStr(String* str, Codegen* cg) {
 /** Precondition: we are looking directly at the first node of the expression. Consumes all nodes of the expr */
 private void writeExpr(Arr(Node) nodes, Codegen* cg) {
     Node nd = nodes[cg->i];
+    ++cg->i; // CONSUME the first/only node of the expr
     if (nd.tp <= topVerbatimType) {
         writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
-        ++cg->i; // CONSUME the single node of the expression
     } else {
-        Int sentinel = cg->i + nd.pl2 + 1;
-        ++cg->i; // CONSUME the expr node
-        writeChar(aParenLeft, cg);
-        while (cg->i < sentinel) {
-            Node n = nodes[cg->i];
-            if (n.tp == nodCall) {
-                Entity ent = cg->cm->entities.content[n.pl1];
-                pushCgCall(((CgCall){.emit = ent.emit, }, cg->calls);
-            }
-            ++cg->i;
-        }
-
-        writeChar(aParenRight, cg);
+        writeExprWorker(cg->i + nd.pl2, tokens, cg);
     }
 #if SAFETY
     if(nd.tp != nodExpr) {
         throwExcInternal(iErrorExpressionIsNotAnExpr, cg->cm);
     }
 #endif
-    
 }
+    //~ Int startInd; // or externalNameId
+    //~ Int length; // only for native names
+    //~ uint8_t emit;
+    //~ uint8_t arity;
+    //~ uint8_t countArgs;
+private void writeBytesFromSource(Node nd, Codegen* cg) {
+    writeBytes(cg->sourceCode + nd.startBt, nd->lenBts, cg)
+}
+
+private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
+    if (top->countArgs != 1) {
+        return;
+    }
+    switch (top->emit) {
+    case emitField:
+        writeChar(aDot, cg);
+        writeConstant(top->startId, cg); return;
+    case emitInfix:
+        writeChar(aSpace, cg);
+        writeBytes(cg->sourceCode + top.startInd, top->length, cg);
+        writeChar(aSpace, cg); return;
+    case emitInfixExternal:
+        writeChar(aSpace, cg);
+        writeConstant(top->startId, cg);
+        writeChar(aSpace, cg); return;
+    case emitInfixDot:
+        writeChar(aDot, cg);
+        writeConstant(top->startId, cg);
+        writeChar(aParenLeft, cg); return;
+    }
+}
+
+/** Precondition: we are 1 past the expr node */
+private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
+    writeChar(aParenLeft, cg);
+    while (cg->i < sentinel) {
+        Node n = nodes[cg->i];
+        if (n.tp == nodCall) {
+            Entity ent = cg->cm->entities.content[n.pl1];
+            if (ent.emit == emitNop) {
+                ++cg->i;
+                continue;
+            }
+            CgCall new = ent.externalNameId > -1
+                        ? (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = ent.externalNameId }
+                        : (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = n.startBt, .length = n.lenBts };
+            pushCgCall(new, cg->calls);
+            writeChar(aParenLeft, cg);
+            switch (ent.emit) {
+            case emitPrefix:
+                writeBytesFromSource(n);
+                writeChar(aParenLeft, cg); break;
+            case emitPrefixExternal:
+                writeConstant(top->startId, cg);
+                writeChar(aParenLeft, cg); break;
+            case emitPrefixShielded:
+                writeBytesFromSource(n);
+                writeChar(aParenLeft, cg);
+                writeChar(aUnderscore, cg); break;
+            }
+        } else {
+            CgCall* top = cg->calls->content + (cg->calls->length - 1);
+            ++top->countArgs;
+            writeExprProcessFirstArg(top, cg);
+            while (top->countArgs == top->arity) {
+                popCgCall(cg->calls);
+                writeChar(aParenRight, cg);
+                if (!hasValuesPgCall(cg->calls)) {
+                    break;
+                }
+                CgCall* second = cg->calls->content + (cg->calls->length - 1);
+                ++second->countArgs;
+                writeExprProcessFirstArg(second, cg);
+                top = second;
+            }
+        }
+        ++cg->i;
+    }
+
+    writeChar(aParenRight, cg);
+}
+
+
 
 private void pushCodegenFrame(Node nd, Codegen* cg) {
     push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), &cg->backtrack);
@@ -4333,11 +4388,11 @@ Codegen* compile() {
     LanguageDefinition* langDef = buildLanguageDefinitions(a);
     String* inp = str(
               "(:f foo Int(x Int y Float) =\n"
-              "    a = x\n"
+              "    a = + x (* x 2)\n"
               "    return bar y a)\n"
               "(:f bar Int(y Float c Int) =\n"
               "    return foo c y)", a);
-    Lexer* lx = lexicallyAnalyze(inp, langDef, a);
+    Compiler* lx = lexicallyAnalyze(inp, langDef, a);
     if (lx->wasError) {
         print("lexer error");
     }

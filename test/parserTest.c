@@ -8,7 +8,7 @@
 
 typedef struct {
     String* name;
-    Lexer* input;
+    Compiler* input;
     Compiler* initParser;
     Compiler* expectedOutput;
 } ParserTest;
@@ -37,7 +37,7 @@ const char* nodeNames[] = {
 };
 
 
-private Compiler* buildParserWithError0(String* errMsg, Lexer* lx, Arena *a, int nextInd, Arr(Node) nodes) {
+private Compiler* buildParserWithError0(String* errMsg, Compiler* lx, Arena *a, int nextInd, Arr(Node) nodes) {
     Compiler* result = createCompiler(lx, a);
     (*result) = (Compiler) { .wasError = true, .errMsg = errMsg, 
         .nodes = createInListNode(64, a)};
@@ -140,7 +140,7 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Int* countImportedT
 private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int countNodes, 
                                Arr(Int) types, Int countTypes, Arr(EntityImport) imports, Int countImports,
                                Compiler* proto, Arena* a) {
-    Lexer* lx = lexicallyAnalyze(input, proto->langDef, a);
+    Compiler* lx = lexicallyAnalyze(input, proto->langDef, a);
     Compiler* initParser     = createCompiler(lx, a);
     Compiler* expectedParser = createCompiler(lx, a);
     if (expectedParser->wasError) {
@@ -1320,7 +1320,7 @@ int main() {
     printf("----------------------------\n");
     Arena *a = mkArena();
     LanguageDefinition* langDef = buildLanguageDefinitions(a);
-    Lexer* dummyLexer = createLexer(str("asdf", a), langDef, a);
+    Compiler* dummyLexer = createLexer(str("asdf", a), langDef, a);
     Compiler* proto = createCompiler(dummyLexer, a);
 
     int countPassed = 0;

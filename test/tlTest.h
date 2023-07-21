@@ -1,19 +1,19 @@
-Lexer* lexicallyAnalyze(String*, LanguageDefinition*, Arena*);
-void printLexer(Lexer* a);
+Compiler* lexicallyAnalyze(String*, LanguageDefinition*, Arena*);
+void printLexer(Compiler* a);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int64_t longOfDoubleBits(double d);
 void printIntArray(Int count, Arr(Int) arr);
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
-Lexer* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
+Compiler* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 
 #ifdef LEXER_TEST
 
 Int getStringStore(byte* text, String* strToSearch, StackInt* stringTable, StringStore* hm);
 
-void add(Token t, Lexer* lexer);
+void add(Token t, Compiler* lexer);
 
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
-void printLexer(Lexer* a);
+void printLexer(Compiler* a);
 int equalityLexer(Lexer a, Lexer b);
 
 extern const char errLengthOverflow[];
@@ -60,8 +60,8 @@ void addNode(Node n, Compiler* cm);
 void importEntities(Arr(EntityImport) impts, Int countBindings, Arr(Int) typeInds, Compiler* cm);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int equalityParser(Compiler a, Compiler b);
-Compiler* createCompiler(Lexer* lx, Arena* a);
-Compiler* parseMain(Lexer* lx, Compiler* cm, Arena* a);
+Compiler* createCompiler(Compiler* lx, Arena* a);
+Compiler* parseMain(Compiler* lx, Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Int len, Compiler* cm);
 
 extern const char errBareAtom[];

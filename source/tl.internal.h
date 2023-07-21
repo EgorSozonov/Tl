@@ -132,48 +132,6 @@ typedef struct {
     untt pl2;
 } Token;
 
-
-typedef struct LanguageDefinition LanguageDefinition;
-typedef struct Lexer Lexer;
-typedef void (*LexerFunc)(Lexer*, Arr(byte)); // LexerFunc = &(Lexer* => void)
-typedef Int (*ReservedProbe)(int, int, struct Lexer*);
-#define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
-
-struct Lexer {
-    Int i;                     // index in the input text
-    String* inp;
-    Int inpLength;
-    Int totalTokens;
-    Int lastClosingPunctInd;   // the index of the last encountered closing punctuation sign, used for statement length
-    Int lastLineInitToken;     // index of the last token that was initial in a line of text
-    
-    LanguageDefinition* langDef;
-    
-    Arr(Token) tokens;
-    Int capacity;              // current capacity of token storage
-    Int nextInd;               // the  index for the next token to be added    
-    
-    Arr(Int) newlines;
-    Int newlinesCapacity;
-    Int newlinesNextInd;
-    
-    Arr(byte) numeric;          // [aTmp]
-    Int numericCapacity;
-    Int numericNextInd;
-
-    StackBtToken* backtrack;    // [aTmp]
-    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
-    
-    Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
-    StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points into stringTable    
-    
-    bool wasError;
-    String* errMsg;
-
-    Arena* arena;
-    Arena* aTmp;
-};
-
 /**
  * Regular (leaf) Token types
  */
@@ -244,109 +202,6 @@ struct Lexer {
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
 
-/**
- * OperatorType
- * Values must exactly agree in order with the operatorSymbols array in the lexer.c file.
- * The order is defined by ASCII.
- */
-
-#define opTNotEqual          0 // !=
-#define opTBoolNegation      1 // !
-#define opTSize              2 // #
-#define opTToString          3 // $
-#define opTRemainder         4 // %
-#define opTBinaryAnd         5 // && bitwise and
-#define opTTypeAnd           6 // & interface intersection (type-level)
-#define opTIsNull            7 // '
-#define opTTimesExt          8 // *.
-#define opTTimes             9 // *
-#define opTIncrement        10 // ++
-#define opTPlusExt          11 // +.
-#define opTPlus             12 // +
-#define opTToFloat          13 // ,
-#define opTDecrement        14 // --
-#define opTMinusExt         15 // -.
-#define opTMinus            16 // -
-#define opTDivByExt         17 // /.
-#define opTDivBy            18 // /
-#define opTBitShiftLeftExt  19 // <<.
-#define opTBitShiftLeft     20 // <<
-#define opTLTEQ             21 // <=
-#define opTComparator       22 // <>
-#define opTLessThan         23 // <
-#define opTEquality         24 // ==
-#define opTIntervalBoth     25 // >=<= inclusive interval check
-#define opTIntervalLeft     26 // >=<  left-inclusive interval check
-#define opTIntervalRight    27 // ><=  right-inclusive interval check
-#define opTIntervalExcl     28 // ><   exclusive interval check
-#define opTGTEQ             29 // >=
-#define opTBitShiftRightExt 30 // >>.  unsigned right bit shift
-#define opTBitShiftRight    31 // >>   right bit shift
-#define opTGreaterThan      32 // >
-#define opTNullCoalesce     33 // ?:   null coalescing operator
-#define opTQuestionMark     34 // ?    nullable type operator
-#define opTAccessor         35 // @
-#define opTExponentExt      36 // ^.   exponentiation extended
-#define opTExponent         37 // ^    exponentiation
-#define opTBoolOr           38 // ||   bitwise or
-#define opTXor              39 // |    bitwise xor
-#define opTAnd              40
-#define opTOr               41
-#define opTNegation         42
-
-/** Span levels */
-#define slScope         1 // scopes (denoted by brackets): newlines and commas just have no effect in them
-#define slParenMulti    2 // things like "(if)": they're multiline but they cannot contain any brackets
-#define slStmt          3 // single-line statements: newlines and commas break 'em
-#define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
-    
-/**
- * There is a closed set of operators in the language.
- *
- * For added flexibility, some operators may be extended into one more planes,
- * for example '+' may be extended into '+.', while '/' may be extended into '/.'.
- * These extended operators are declared by the language, and may be defined
- * for any type by the user, with the return type being arbitrary.
- * For example, the type of 3D vectors may have two different multiplication
- * operators: *. for vector product and * for scalar product.
- *
- * Plus, many have automatic assignment counterparts.
- * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
- */
-typedef struct {
-    String* name;
-    byte bytes[4];
-    Int arity;
-    /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
-    bool overloadable;
-    bool assignable;
-    Int builtinOverloads;
-} OpDef;
-
-/** Count of lexical operators, i.e. things that are lexed as operator tokens.
- * must be equal to the count of following constants
- */ 
-#define countLexOperators   40
-#define countOperators      43 // count of things that are stored as operators, regardless of how they are lexed
-#define countOpersWithDefs  22 // count of operators that have at least one built-in definition
-/** Must be the lowest value in the PunctuationToken enum */
-#define firstPunctuationTokenType tokScope
-/** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
-#define firstCoreFormTokenType tokAlias
-
-#define countCoreForms (tokWhile - tokAlias + 1)
-#define countSyntaxForms (tokWhile + 1)
-
-//}}}
-//{{{ Parser
-
-typedef struct {
-    untt tp : 6;
-    Int startNodeInd;
-    Int sentinelToken;
-    Int typeId;            // valid only for fnDef, if, loopCond and the like
-    void* scopeStackFrame; // only for tp = scope or expr
-} ParseFrame;
 
 #define nodId           7      // pl1 = index of entity, pl2 = index of name
 #define nodCall         8      // pl1 = index of entity, pl2 = arity
@@ -398,18 +253,107 @@ typedef struct {
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)
 #define countSpanForms (nodMatch - nodScope + 1)
+
+
+/**
+ * There is a closed set of operators in the language.
+ *
+ * For added flexibility, some operators may be extended into one more planes,
+ * for example '+' may be extended into '+.', while '/' may be extended into '/.'.
+ * These extended operators are declared by the language, and may be defined
+ * for any type by the user, with the return type being arbitrary.
+ * For example, the type of 3D vectors may have two different multiplication
+ * operators: *. for vector product and * for scalar product.
+ *
+ * Plus, many have automatic assignment counterparts.
+ * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
+ */
+typedef struct {
+    String* name;
+    byte bytes[4];
+    Int arity;
+    /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
+    bool overloadable;
+    bool assignable;
+    Int builtinOverloads;
+} OpDef;
+
+
+/**
+ * OperatorType
+ * Values must exactly agree in order with the operatorSymbols array in the lexer.c file.
+ * The order is defined by ASCII.
+ */
+
+#define opTNotEqual          0 // !=
+#define opTBoolNegation      1 // !
+#define opTSize              2 // #
+#define opTToString          3 // $
+#define opTRemainder         4 // %
+#define opTBinaryAnd         5 // && bitwise and
+#define opTTypeAnd           6 // & interface intersection (type-level)
+#define opTIsNull            7 // '
+#define opTTimesExt          8 // *.
+#define opTTimes             9 // *
+#define opTIncrement        10 // ++
+#define opTPlusExt          11 // +.
+#define opTPlus             12 // +
+#define opTToFloat          13 // ,
+#define opTDecrement        14 // --
+#define opTMinusExt         15 // -.
+#define opTMinus            16 // -
+#define opTDivByExt         17 // /.
+#define opTDivBy            18 // /
+#define opTBitShiftLeftExt  19 // <<.
+#define opTBitShiftLeft     20 // <<
+#define opTLTEQ             21 // <=
+#define opTComparator       22 // <>
+#define opTLessThan         23 // <
+#define opTEquality         24 // ==
+#define opTIntervalBoth     25 // >=<= inclusive interval check
+#define opTIntervalLeft     26 // >=<  left-inclusive interval check
+#define opTIntervalRight    27 // ><=  right-inclusive interval check
+#define opTIntervalExcl     28 // ><   exclusive interval check
+#define opTGTEQ             29 // >=
+#define opTBitShiftRightExt 30 // >>.  unsigned right bit shift
+#define opTBitShiftRight    31 // >>   right bit shift
+#define opTGreaterThan      32 // >
+#define opTNullCoalesce     33 // ?:   null coalescing operator
+#define opTQuestionMark     34 // ?    nullable type operator
+#define opTAccessor         35 // @
+#define opTExponentExt      36 // ^.   exponentiation extended
+#define opTExponent         37 // ^    exponentiation
+#define opTBoolOr           38 // ||   bitwise or
+#define opTXor              39 // |    bitwise xor
+#define opTAnd              40
+#define opTOr               41
+#define opTNegation         42
+
+/** Count of lexical operators, i.e. things that are lexed as operator tokens.
+ * must be equal to the count of following constants
+ */ 
+#define countLexOperators   40
+#define countOperators      43 // count of things that are stored as operators, regardless of how they are lexed
+#define countOpersWithDefs  22 // count of operators that have at least one built-in definition
+#define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
+#define countCoreForms (tokWhile - tokAlias + 1)
+#define countSyntaxForms (tokWhile + 1)
 typedef struct Compiler Compiler;
+
+typedef void (*LexerFunc)(Compiler*, Arr(byte)); // LexerFunc = &(Lexer* => void)
+typedef Int (*ReservedProbe)(int, int, Compiler*);
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
 
-struct LanguageDefinition {
+typedef struct {
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     Int (*reservedParensOrNot)[countCoreForms];
     ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
-};
+} LanguageDefinition;
+
 
 typedef struct {
     untt tp : 6;
@@ -418,6 +362,15 @@ typedef struct {
     Int pl1;
     Int pl2;   
 } Node;
+
+typedef struct {
+    untt tp : 6;
+    Int startNodeInd;
+    Int sentinelToken;
+    Int typeId;            // valid only for fnDef, if, loopCond and the like
+    void* scopeStackFrame; // only for tp = scope or expr
+} ParseFrame;
+
 
 #define classMutableGuarantted 0
 #define classMutatedGuaranteed 1
@@ -429,8 +382,8 @@ typedef struct {
 #define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
 #define emitInfix          3  // infix operators that match between source code and target (e.g. arithmetic operators)
 #define emitInfixExternal  4  // infix operators that have a separate external name
-#define emitField          5  // emitted as field accesses, like "length"
-#define emitPostfix        6  // emitted as a "dot-call", like ".toString()"
+#define emitField          5  // emitted as field accesses, like ".length"
+#define emitInfixDot       6  // emitted as a "dot-call", like ".toString()"
 #define emitNop            7  // for unary operators that don't need to be emitted, like ","
 typedef struct {
     Int typeId;
@@ -445,53 +398,6 @@ typedef struct {
     Int externalNameId;
     Int typeInd;
 } EntityImport;
-
-//}}}
-
-
-DEFINE_STACK_HEADER(ParseFrame)
-DEFINE_STACK_HEADER(Node)
-
-DEFINE_INTERNAL_LIST_TYPE(Node)
-DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
-
-DEFINE_INTERNAL_LIST_TYPE(Entity)
-DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
-
-DEFINE_INTERNAL_LIST_TYPE(Int)
-DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
-DEFINE_INTERNAL_LIST_HEADER(types, Int)
-
-DEFINE_INTERNAL_LIST_TYPE(uint32_t)
-DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
-
-#define pop(X) _Generic((X), \
-    StackBtToken*: popBtToken, \
-    StackParseFrame*: popParseFrame, \
-    Stackint32_t*: popint32_t, \
-    StackNode*: popNode \
-    )(X)
-
-#define peek(X) _Generic((X), \
-    StackBtToken*: peekBtToken, \
-    StackParseFrame*: peekParseFrame, \
-    Stackint32_t*: peekint32_t, \
-    StackNode*: peekNode \
-    )(X)
-
-#define push(A, X) _Generic((X), \
-    StackBtToken*: pushBtToken, \
-    StackParseFrame*: pushParseFrame, \
-    Stackint32_t*: pushint32_t, \
-    StackNode*: pushNode \
-    )(A, X)
-    
-#define hasValues(X) _Generic((X), \
-    StackBtToken*: hasValuesBtToken, \
-    StackParseFrame*: hasValuesParseFrame, \
-    Stackint32_t*:  hasValuesint32_t, \
-    StackNode*: hasValuesNode \
-    )(X)
 
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
@@ -512,6 +418,22 @@ typedef struct {
     Int length;
     int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
 } ScopeStack;
+
+DEFINE_STACK_HEADER(ParseFrame)
+DEFINE_STACK_HEADER(Node)
+
+DEFINE_INTERNAL_LIST_TYPE(Node)
+DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
+
+DEFINE_INTERNAL_LIST_TYPE(Entity)
+DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
+
+DEFINE_INTERNAL_LIST_TYPE(Int)
+DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
+DEFINE_INTERNAL_LIST_HEADER(types, Int)
+
+DEFINE_INTERNAL_LIST_TYPE(uint32_t)
+DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 
 /*
  * COMPILER DATA
@@ -541,20 +463,51 @@ typedef struct {
  * Then they are resolved at the stage of the typer, after which there are only the Entities.
  */
 struct Compiler {
-    String* text;
-    Lexer* inp;
+    String* sourceCode;
     Int inpLength;
+
     LanguageDefinition* langDef;
+
+    // LEXING
+    Arr(Token) tokens;
+    Int capacity;              // current capacity of token storage
+    Int nextInd;               // the  index for the next token to be added    
+    
+    Arr(Int) newlines;
+    Int newlinesCapacity;
+    Int newlinesNextInd;
+    
+    Arr(byte) numeric;          // [aTmp]
+    Int numericCapacity;
+    Int numericNextInd;
+
+    StackBtToken* lexBtrack;    // [aTmp]
+    
+    Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
+    StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points into stringTable
+    Int countStrings;            // length of stringTable
+
+    Int lastClosingPunctInd;   // temp, the index of the last encountered closing punctuation sign, used for statement length
+
+    Int totalTokens;           // set in "finalizeLexing"
+
+    // PARSING
     StackParseFrame* backtrack;// [aTmp] 
     ScopeStack* scopeStack;    // stack of currently active scopes (for active bindings tracking)
-    Int i;                     // index of current token in the input
+
+    /*
+     *  Current entities and overloads in scope. -1 means "inactive"
+     * Var & type bindings are nameId (index into stringTable) -> bindingId
+     * Function bindings are nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
+     */
+    Arr(int) activeBindings;
+
     Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
 
     InListNode nodes;
-
     InListEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered    
     Int entImportedZero;      // the index of the first imported entity
-
+    
     /**
      * [aTmp] Initially, growing array of counts of all fn names encountered.
      * Upper 16 bits contain concrete count, lower 16 bits total count. After "createOverloads", contains overload indices
@@ -567,25 +520,71 @@ struct Compiler {
     InListInt types; // ([] (arity + 1) returnType param1Type param2Type...)
     StringStore* typesDict;
 
-    Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression
-
-    // Current bindings and overloads in scope. -1 means "not active"
-    // Var & type bindings are nameId (index into stringTable) -> bindingId
-    // Function bindings are nameId -> (-overloadId - 2). So negative values less than -1 mean "function is active"
-    Arr(int) activeBindings;
-
     Int countOperatorEntities;
     Int countNonparsedEntities; // the index of the first parsed (as opposed to being built-in or imported) entity
-
-    Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startByte of each string.       
-    StringStore* stringStore;  // A hash table for quickly deduplicating strings. Points into stringTable 
-    Int countStrings;             // length of stringTable
-
+    Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression
+    
+    // GENERAL STATE
+    Int i;                     // index in the input
     bool wasError;
     String* errMsg;
+
     Arena* a;
     Arena* aTmp;
 };
+
+
+
+
+/** Span levels */
+#define slScope         1 // scopes (denoted by brackets): newlines and commas just have no effect in them
+#define slParenMulti    2 // things like "(if)": they're multiline but they cannot contain any brackets
+#define slStmt          3 // single-line statements: newlines and commas break 'em
+#define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
+    
+
+
+/** Must be the lowest value in the PunctuationToken enum */
+#define firstPunctuationTokenType tokScope
+/** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
+#define firstCoreFormTokenType tokAlias
+
+
+
+//}}}
+
+
+
+#define pop(X) _Generic((X), \
+    StackBtToken*: popBtToken, \
+    StackParseFrame*: popParseFrame, \
+    Stackint32_t*: popint32_t, \
+    StackNode*: popNode \
+    )(X)
+
+#define peek(X) _Generic((X), \
+    StackBtToken*: peekBtToken, \
+    StackParseFrame*: peekParseFrame, \
+    Stackint32_t*: peekint32_t, \
+    StackNode*: peekNode \
+    )(X)
+
+#define push(A, X) _Generic((X), \
+    StackBtToken*: pushBtToken, \
+    StackParseFrame*: pushParseFrame, \
+    Stackint32_t*: pushint32_t, \
+    StackNode*: pushNode \
+    )(A, X)
+    
+#define hasValues(X) _Generic((X), \
+    StackBtToken*: hasValuesBtToken, \
+    StackParseFrame*: hasValuesParseFrame, \
+    Stackint32_t*:  hasValuesint32_t, \
+    StackNode*: hasValuesNode \
+    )(X)
+
+
+
 
 //}}}
 
