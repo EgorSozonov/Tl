@@ -116,6 +116,9 @@ DEFINE_INTERNAL_LIST(types, Int, a)
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(uint32_t)
 DEFINE_INTERNAL_LIST(overloadIds, uint32_t, aTmp)
 
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(EntityImport)
+DEFINE_INTERNAL_LIST(imports, EntityImport, aTmp)
+
 testable void printIntArray(Int count, Arr(Int) arr) {
     printf("[");
     for (Int k = 0; k < count; k++) {
@@ -2007,7 +2010,7 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
 void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 void popScopeFrame(Compiler* cm);
-private Int importEntity(Int nameId, Entity ent, Compiler* cm);
+private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 private Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 
@@ -2776,10 +2779,11 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int
         if (mbNameId > -1) {
             EntityImport impt = impts[j];
             Int typeInd = typeIds[impt.typeInd];
-            impts[j].nameId = mbNameId;
-            importEntity(mbNameId, (Entity){
+            impt.nameId = mbNameId;
+            addAndActivateEntity(mbNameId, (Entity){
                 .class = classImmutable, .typeId = typeInd, .emit = emitPrefixExternal, .externalNameId = impt.externalNameId },
                 cm);
+            pushInimports(impt, cm);
         }
     }
     cm->countNonparsedEntities = cm->entities.length;
@@ -3107,7 +3111,7 @@ private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
 }
 
 
-private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
+private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm) {
     Int existingBinding = cm->activeBindings[nameId];
     Int typeLength = cm->types.content[ent.typeId];
     VALIDATEP(existingBinding == -1 || typeLength > 0, errAssignmentShadowing) // either the name unique, or it's a function
@@ -3326,7 +3330,7 @@ private void buildOperators(Compiler* cm) {
 
 /* Entities and overloads for the built-in operators, types and functions. */
 private void createBuiltins(Compiler* cm) {
-    const Int countBaseTypes = sizeof(*cm->langDef->baseTypes)/sizeof(String*);
+    const Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
     for (int i = 0; i < countBaseTypes; i++) {
         pushIntypes(0, cm);
     }
@@ -3386,6 +3390,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     }
 
     Compiler* cm = lx;
+    cm->activeBindings = allocateOnArena(4*lx->stringTable->length, lx->aTmp);
     const Int countBaseTypes = sizeof(*cm->langDef->baseTypes)/sizeof(String*);
     for (int j = 0; j < countBaseTypes; j++) {
         Int typeNameId = getStringStore(cm->sourceCode->content, cm->langDef->baseTypes[j], cm->stringTable, cm->stringStore);
@@ -3402,7 +3407,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->loopCounter = 0;
 
     cm->nodes = createInListNode(initNodeCap, a);
-    cm->activeBindings = allocateOnArena(4*lx->stringTable->length, lx->aTmp);
+
 
     if (lx->stringTable->length > 0) {
         memset(cm->activeBindings, 0xFF, lx->stringTable->length*4); // activeBindings is filled with -1
@@ -3432,6 +3437,8 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     
     cm->typesDict = copyStringStore(proto->typesDict, a);
 
+    cm->imports = createInListEntityImport(8, lx->aTmp);
+
     cm->expStack = createStackint32_t(16, lx->aTmp);
 }
 
@@ -3442,30 +3449,29 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm);
 /** Now that the overloads are freshly allocated, we need to write all the existing entities (operators and imported functions)
  * to the overloads table, which consists of variable-length entries of the form: [count typeId1 typeId2 entId1 entId2]
  */
-private void populateOverloadsForOperatorsAndImports(Arr(EntityImport) imports, Int lenImports, Compiler* cm) {
+private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     Int o;
     Int countOverls;
     Int currOperId = -1;
     Int entitySentinel = 0;
 
     // overloads for built-in operators
-    for (Int i = 0; i < cm->countOperatorEntities; i++) {
-        Entity ent = cm->entities.content[i];
+    for (Int j = 0; j < cm->countOperatorEntities; j++) {
+        Entity ent = cm->entities.content[j];
 
-        if (i == entitySentinel) {
+        if (j == entitySentinel) {
             ++currOperId;
             
             o = cm->overloadIds.content[currOperId] + 1;
-
             countOverls = (cm->overloadIds.content[currOperId + 1] - cm->overloadIds.content[currOperId] - 1)/2;
             entitySentinel += (*cm->langDef->operators)[currOperId].builtinOverloads;
         }
         cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
-        
 #ifdef SAFETY
         VALIDATEI(cm->overloads.content[o + countOverls] == -1, iErrorOverloadsOverflow)
 #endif
-        cm->overloads.content[o + countOverls] = i;
+
+        cm->overloads.content[o + countOverls] = j;
         
         o++;
     }
@@ -3473,22 +3479,13 @@ private void populateOverloadsForOperatorsAndImports(Arr(EntityImport) imports, 
     // overloads for imported functions
     Int currFuncId = -1;
     Int impInd = 0;
-    print("cm->entImportedZero %d lenImports %d" , cm->entImportedZero, lenImports)
+    print("cm->entImportedZero %d lenImports %d" , cm->entImportedZero, cm->imports.length)
     for (Int j = cm->entImportedZero; j < cm->entities.length; j++) {
-        while (impInd < lenImports && imports[impInd].nameId == -1) {
-            print("imports[impInd].nameId %d %d", impInd, imports[impInd].nameId)
-            ++impInd;
-        }
-            print("impInd %d entity j %d", impInd, j)
-        if (impInd == lenImports) {
-            break;
-        }
-
         Entity ent = cm->entities.content[j];
         if (!isFunctionWithParams(ent.typeId, cm)) {
             continue;
         }
-        EntityImport imp = imports[impInd];
+        EntityImport imp = cm->imports.content[j - cm->entImportedZero];
         currFuncId = cm->activeBindings[imp.nameId];
 #ifdef SAFETY
         VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
@@ -3503,6 +3500,8 @@ private void populateOverloadsForOperatorsAndImports(Arr(EntityImport) imports, 
         cm->overloads.content[o + countOverls] = j;
         o++;
     }
+        print("after imports")
+    printIntArrayOff(0, 7, cm->overloads.content);
 }
 
 /**
@@ -3608,10 +3607,10 @@ private void validateOverloadsFull(Compiler* cm) {
         VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
             if (cm->overloads.content[j] < 0) {
-                print("counto verloads %d", countOverloads)
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
+                print("type over board j %d %d", j, cm->overloads.content[j]);
                 throwExcInternal(iErrorOverloadsIncoherent, cm);
             }
         }
@@ -3793,7 +3792,7 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
 
         // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
         createOverloads(cm);
-        populateOverloadsForOperatorsAndImports(imports, sizeof(imports)/sizeof(EntityImport), cm);
+        populateOverloadsForOperatorsAndImports(cm);
         parseToplevelConstants(cm);
         
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions

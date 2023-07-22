@@ -435,6 +435,9 @@ DEFINE_INTERNAL_LIST_HEADER(types, Int)
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
 DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 
+DEFINE_INTERNAL_LIST_TYPE(EntityImport)
+DEFINE_INTERNAL_LIST_HEADER(imports, EntityImport)
+
 /*
  * COMPILER DATA
  * 
@@ -499,7 +502,7 @@ struct Compiler {
      * Var & type bindings are nameId (index into stringTable) -> bindingId
      * Function bindings are nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
      */
-    Arr(int) activeBindings;   // [aTmp]
+    Arr(int) activeBindings;   // [aTmp] length = stringTable.length
 
     Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
 
@@ -518,6 +521,8 @@ struct Compiler {
 
     InListInt types; // ([] (arity + 1) returnType param1Type param2Type...)
     StringStore* typesDict;
+
+    InListEntityImport imports; // [aTmp] imported function overloads
 
     Int countOperatorEntities;
     Int countNonparsedEntities; // the index of the first parsed (as opposed to being built-in or imported) entity
