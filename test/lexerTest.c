@@ -10,7 +10,7 @@
 typedef struct {
     String* name;
     String* input;
-    Lexer* expectedOutput;
+    Compiler* expectedOutput;
 } LexerTest;
 
 
@@ -21,8 +21,8 @@ typedef struct {
 } LexerTestSet;
 
 
-private Lexer* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
-    Lexer* result = createLexer(&empty, NULL, a);
+private Compiler* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
+    Compiler* result = createLexer(&empty, NULL, a);
     if (result == NULL) return result;
     
     for (int i = 0; i < totalTokens; i++) {
@@ -38,8 +38,8 @@ private Lexer* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
 #define buildLexer(toks) buildLexer0(a, sizeof(toks)/sizeof(Token), toks)
 
 
-private Lexer* buildLexerWithError0(String* errMsg, Arena *a, int totalTokens, Arr(Token) tokens) {
-    Lexer* result = buildLexer0(a, totalTokens, tokens);
+private Compiler* buildLexerWithError0(String* errMsg, Arena *a, int totalTokens, Arr(Token) tokens) {
+    Compiler* result = buildLexer0(a, totalTokens, tokens);
     result->wasError = true;
     result->errMsg = errMsg;
     return result;
@@ -66,7 +66,7 @@ private LexerTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Lexe
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
 void runLexerTest(LexerTest test, int* countPassed, int* countTests, LanguageDefinition* lang, Arena *a) {
     (*countTests)++;
-    Lexer* result = lexicallyAnalyze(test.input, lang, a);
+    Compiler* result = lexicallyAnalyze(test.input, lang, a);
         
     int equalityStatus = equalityLexer(*result, *test.expectedOutput);
     if (equalityStatus == -2) {
@@ -414,20 +414,20 @@ LexerTestSet* numericTests(Arena* a) {
 LexerTestSet* stringTests(Arena* a) {
     return createTestSet(s("String literals lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("String simple literal"),
-            .input = s("\"asdfn't\""),
+            .input = s("`asdfn't`"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 9 },
                 (Token){ .tp = tokString, .startBt = 0, .lenBts = 9 }
             }))
         },     
         (LexerTest) { .name = s("String literal with non-ASCII inside"),
-            .input = s("\"hello мир\""),
+            .input = s("`hello мир`"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 14 },
                 (Token){ .tp = tokString, .startBt = 0, .lenBts = 14 }
         }))},
         (LexerTest) { .name = s("String literal unclosed"),
-            .input = s("\"asdf"),
+            .input = s("`asdf"),
             .expectedOutput = buildLexerWithError(s(errPrematureEndOfInput), ((Token[]) {
                 (Token){ .tp = tokStmt }
         }))}
@@ -448,7 +448,7 @@ LexerTestSet* commentTests(Arena* a) {
         }))},
         (LexerTest) { .name = s("Doc comment before something"),
             .input = s("{ Documentation comment { with nesting } }\n"
-                       "print \"hw\" "),
+                       "print `hw` "),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 42 },
                 (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 43, .lenBts = 10 },
@@ -457,7 +457,7 @@ LexerTestSet* commentTests(Arena* a) {
         }))},
         (LexerTest) { .name = s("Doc comment empty"),
             .input = s("{} \n" 
-                       "print \"hw\" "),
+                       "print `hw` "),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 2 },
                 (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 4, .lenBts = 10 },
@@ -468,7 +468,7 @@ LexerTestSet* commentTests(Arena* a) {
             .input = s("{ First line\n" 
                        " Second line\n" 
                        " Third line }\n" 
-                       "print \"hw\" "
+                       "print `hw` "
             ),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 39 },
@@ -777,7 +777,7 @@ LexerTestSet* operatorTests(Arena* a) {
 LexerTestSet* coreFormTests(Arena* a) {
     return createTestSet(s("Core form lexer tests"), a, ((LexerTest[]) {
          (LexerTest) { .name = s("Statement-type core form"),
-             .input = s("x = 9. assert (== x 55) \"Error!\""),
+             .input = s("x = 9. assert (== x 55) `Error!`"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokAssignment,  .pl2 = 2,             .lenBts = 5 },
                  (Token){ .tp = tokWord, .startBt = 0, .lenBts = 1 },                // x

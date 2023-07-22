@@ -16,6 +16,7 @@
 #define THIRTYFIRSTBIT 0x40000000
 #define MAXTOKENLEN 67108864 // 2^26
 #define SIXTEENPLUSONE 65537 // 2^16 + 1
+#define LEXER_INIT_SIZE 2000
 #define print(...) \
   printf(__VA_ARGS__);\
   printf("\n");
@@ -75,8 +76,6 @@ String* str(const char* content, Arena* a);
 bool endsWith(String* a, String* b);
 
 //}}}
-
-
 //{{{ Int Hashmap
 
 DEFINE_STACK_HEADER(int32_t)
@@ -210,13 +209,11 @@ typedef struct {
 #define nodAnd         11
 #define nodOr          12
 
-
 // Punctuation (inner node)
 #define nodScope       13       // (* This is resumable but trivially so, that's why it's not grouped with the others
 #define nodExpr        14
 #define nodAssignment  15
 #define nodReassign    16       // :=
-
 
 // Single-shot core syntax forms
 #define nodAlias       17
@@ -298,44 +295,45 @@ typedef struct {
 #define opTIncrement        10 // ++
 #define opTPlusExt          11 // +.
 #define opTPlus             12 // +
-#define opTToFloat          13 // ,
-#define opTDecrement        14 // --
-#define opTMinusExt         15 // -.
-#define opTMinus            16 // -
-#define opTDivByExt         17 // /.
-#define opTDivBy            18 // /
-#define opTBitShiftLeftExt  19 // <<.
-#define opTBitShiftLeft     20 // <<
-#define opTLTEQ             21 // <=
-#define opTComparator       22 // <>
-#define opTLessThan         23 // <
-#define opTEquality         24 // ==
-#define opTIntervalBoth     25 // >=<= inclusive interval check
-#define opTIntervalLeft     26 // >=<  left-inclusive interval check
-#define opTIntervalRight    27 // ><=  right-inclusive interval check
-#define opTIntervalExcl     28 // ><   exclusive interval check
-#define opTGTEQ             29 // >=
-#define opTBitShiftRightExt 30 // >>.  unsigned right bit shift
-#define opTBitShiftRight    31 // >>   right bit shift
-#define opTGreaterThan      32 // >
-#define opTNullCoalesce     33 // ?:   null coalescing operator
-#define opTQuestionMark     34 // ?    nullable type operator
-#define opTAccessor         35 // @
-#define opTExponentExt      36 // ^.   exponentiation extended
-#define opTExponent         37 // ^    exponentiation
-#define opTBoolOr           38 // ||   bitwise or
-#define opTXor              39 // |    bitwise xor
-#define opTAnd              40
-#define opTOr               41
-#define opTNegation         42
+#define opTToInt            13 // ,,
+#define opTToFloat          14 // ,
+#define opTDecrement        15 // --
+#define opTMinusExt         16 // -.
+#define opTMinus            17 // -
+#define opTDivByExt         18 // /.
+#define opTDivBy            19 // /
+#define opTBitShiftLeftExt  20 // <<.
+#define opTBitShiftLeft     21 // <<
+#define opTLTEQ             22 // <=
+#define opTComparator       23 // <>
+#define opTLessThan         24 // <
+#define opTEquality         25 // ==
+#define opTIntervalBoth     26 // >=<= inclusive interval check
+#define opTIntervalLeft     27 // >=<  left-inclusive interval check
+#define opTIntervalRight    28 // ><=  right-inclusive interval check
+#define opTIntervalExcl     29 // ><   exclusive interval check
+#define opTGTEQ             30 // >=
+#define opTBitShiftRightExt 31 // >>.  unsigned right bit shift
+#define opTBitShiftRight    32 // >>   right bit shift
+#define opTGreaterThan      33 // >
+#define opTNullCoalesce     34 // ?:   null coalescing operator
+#define opTQuestionMark     35 // ?    nullable type operator
+#define opTAccessor         36 // @
+#define opTExponentExt      37 // ^.   exponentiation extended
+#define opTExponent         38// ^    exponentiation
+#define opTBoolOr           39 // ||   bitwise or
+#define opTXor              40 // |    bitwise xor
+#define opTAnd              41
+#define opTOr               42
+#define opTNegation         43
 
 /** Count of lexical operators, i.e. things that are lexed as operator tokens.
  * must be equal to the count of following constants
  */ 
-#define countLexOperators   40
-#define countOperators      43 // count of things that are stored as operators, regardless of how they are lexed
-#define countOpersWithDefs  22 // count of operators that have at least one built-in definition
-#define countReservedLetters         25 // length of the interval of letters that may be init for reserved words (A to Y)
+#define countLexOperators   41
+#define countOperators      44 // count of things that are stored as operators, regardless of how they are lexed
+
+#define countReservedLetters   25 // length of the interval of letters that may be init for reserved words (A to Y)
 #define countCoreForms (tokWhile - tokAlias + 1)
 #define countSyntaxForms (tokWhile + 1)
 typedef struct Compiler Compiler;
@@ -352,6 +350,7 @@ typedef struct {
     Int (*reservedParensOrNot)[countCoreForms];
     ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
+    String* baseTypes[6];
 } LanguageDefinition;
 
 
@@ -372,7 +371,7 @@ typedef struct {
 } ParseFrame;
 
 
-#define classMutableGuarantted 0
+#define classMutableGuaranteed 0
 #define classMutatedGuaranteed 1
 #define classMutableNullable   2
 #define classMutatedNullable   3
@@ -395,8 +394,9 @@ typedef struct {
 
 typedef struct {
     String* name;
-    Int externalNameId;
-    Int typeInd;
+    Int nameId;  // index in the stringTable of the current compilation
+    Int externalNameId; // index in the array of constant strings
+    Int typeInd; // index in the intermediary array of types that is imported alongside
 } EntityImport;
 
 typedef struct ScopeStackFrame ScopeStackFrame;
@@ -477,7 +477,7 @@ struct Compiler {
     Int newlinesCapacity;
     Int newlinesNextInd;
     
-    Arr(byte) numeric;          // [aTmp]
+    Arr(Int) numeric;          // [aTmp]
     Int numericCapacity;
     Int numericNextInd;
 
@@ -500,7 +500,7 @@ struct Compiler {
      * Var & type bindings are nameId (index into stringTable) -> bindingId
      * Function bindings are nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
      */
-    Arr(int) activeBindings;
+    Arr(int) activeBindings;   // [aTmp]
 
     Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
 

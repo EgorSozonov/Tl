@@ -221,6 +221,7 @@ testable void deleteArena(Arena* ar) {
 //{{{ Good strings
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 #define aALower       97
 #define aFLower      102
 #define aILower      105
@@ -256,7 +257,7 @@ testable void deleteArena(Arena* ar) {
 #define aTab           9
 
 #define aApostrophe   39
-#define aQuote        34
+#define aBacktick     96
 #define aSharp        35
 #define aDollar       36
 #define aUnderscore   95
@@ -614,8 +615,7 @@ private Int addStringStore(byte* text, Int startBt, Int lenBts, Stackint32_t* st
 /** Returns the index of a string within the string table, or -1 if it's not present */
 testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, StringStore* hm) {
     Int lenBts = strToSearch->length;
-    Int hash = hashCode(strToSearch->content, lenBts) % (hm->dictSize);    
-    Int newIndString;    
+    Int hash = hashCode(strToSearch->content, lenBts) % (hm->dictSize);
     if (*(hm->dict + hash) == NULL) {
         return -1;
     } else {
@@ -741,7 +741,7 @@ const char errTypeMustBeBool[]              = "Expression must have the Bool typ
 
 //{{{ LexerConstants
 
-#define LEXER_INIT_SIZE 2000
+
 
 /**
  * The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
@@ -773,23 +773,20 @@ static const byte reservedBytesAssert[]      = { 97, 115, 115, 101, 114, 116 };
 static const byte reservedBytesAssertDbg[]   = { 97, 115, 115, 101, 114, 116, 68, 98, 103 };
 static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
 static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
-static const byte reservedBytesCase[]        = { 99, 97, 115, 101 };   // probably won't need, just use "=>"
 static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
 static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
-static const byte reservedBytesDispose[]     = { 100, 105, 115, 112, 111, 115, 101 }; // change to "defer"
+static const byte reservedBytesDefer[]       = { 100, 101, 102, 101, 114 };
 static const byte reservedBytesElse[]        = { 101, 108, 115, 101 };
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
 static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
 static const byte reservedBytesFn[]          = { 102, 110 };  // maybe also "Fn" for function types
 static const byte reservedBytesIf[]          = { 105, 102 };
-static const byte reservedBytesIfEq[]        = { 105, 102, 69, 113 };
 static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
 static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
 static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
 static const byte reservedBytesLambda[]      = { 108, 97, 109 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
-static const byte reservedBytesMut[]         = { 109, 117, 116 }; // replace with "immut" or "val" for struct fields
 static const byte reservedBytesOr[]          = { 111, 114 };
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
 static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
@@ -810,7 +807,7 @@ const int operatorStartSymbols[16] = {
 
 #define CURR_BT inp[lx->i]
 #define NEXT_BT inp[lx->i + 1]
-#define VALIDATEI(cond, errInd) if (!(cond)) { throwExcInternal(errInd, cm); }
+#define VALIDATEI(cond, errInd) if (!(cond)) { throwExcInternal0(errInd, __LINE__, cm); }
 #define VALIDATEL(cond, errMsg) if (!(cond)) { throwExcLexer(errMsg, lx); }
 
 
@@ -819,13 +816,15 @@ typedef union {
     double   d;
 } FloatingBits;
 
-_Noreturn private void throwExcInternal(Int errInd, Compiler* cm) {   
+_Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {   
     cm->wasError = true;    
-    printf("Internal error %d\n", errInd);  
+    printf("Internal error %d at %d\n", errInd, lineNumber);  
     cm->errMsg = stringOfInt(errInd, cm->a);
     printString(cm->errMsg);
     longjmp(excBuf, 1);
 }
+
+#define throwExcInternal(errInd, cm) throwExcInternal0(errInd, __LINE__, cm)
 
 
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
@@ -922,11 +921,18 @@ private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
     return 0;
 }
 
+private Int determineReservedD(Int startBt, Int lenBts, Compiler* lx) {
+    Int lenReser;
+    PROBERESERVED(reservedBytesDefer, tokDefer)
+    return 0;
+}
+
 
 private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesElse, tokElse)
     PROBERESERVED(reservedBytesEmbed, tokEmbed)
+    PROBERESERVED(reservedBytesExport, tokExport)    
     return 0;
 }
 
@@ -1055,7 +1061,6 @@ private void maybeBreakStatement(Compiler* lx) {
     if (hasValues(lx->lexBtrack)) {
         BtToken top = peek(lx->lexBtrack);
         if(top.spanLevel == slStmt) {
-            Int len = lx->lexBtrack->length;
             setStmtSpanLength(top.tokenInd, lx);
             pop(lx->lexBtrack);
         }
@@ -1088,11 +1093,11 @@ private void addNumeric(byte b, Compiler* lx) {
     if (lx->numericNextInd < lx->numericCapacity) {
         lx->numeric[lx->numericNextInd] = b;
     } else {
-        Arr(byte) newNumeric = allocateOnArena(lx->numericCapacity*2, lx->a);
-        memcpy(newNumeric, lx->numeric, lx->numericCapacity*4);
-        newNumeric[lx->numericCapacity] = b;
+        Arr(Int) new = allocateOnArena(lx->numericCapacity*8, lx->a);
+        memcpy(new, lx->numeric, lx->numericCapacity*4);
+        new[lx->numericCapacity] = b;
         
-        lx->numeric = newNumeric;
+        lx->numeric = new;
         lx->numericCapacity *= 2;       
     }
     lx->numericNextInd++;
@@ -1507,9 +1512,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
         throwExcLexer(errOperatorAssignmentPunct, lx);
     }
     Int tokenInd = currSpan.tokenInd;
-    Token* tok = (lx->tokens + tokenInd);
-    untt tp;
-    
+    Token* tok = (lx->tokens + tokenInd);   
     if (mutType == 0) {
         tok->tp = tokAssignment;
     } else if (mutType == 1) {
@@ -1689,16 +1692,6 @@ private void lexComment(Compiler* lx, Arr(byte) inp) {
     lx->i = j;  // CONSUME the comment
 }
 
-/** If we are inside a compound (=2) core form, we need to increment the clause count */ 
-private void mbIncrementClauseCount(Compiler* lx) {
-    if (hasValues(lx->lexBtrack)) {
-        BtToken top = peek(lx->lexBtrack);
-        if (top.tp >= firstCoreFormTokenType && (*lx->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
-            lx->lexBtrack->content[lx->lexBtrack->length - 1].countClauses++;
-        }
-    }
-}
-
 /** If we're inside a compound (=2) core form, we need to check if its clause count is saturated */ 
 private void mbCloseCompoundCoreForm(Compiler* lx) {
     BtToken top = peek(lx->lexBtrack);
@@ -1739,7 +1732,6 @@ private void openScope(Compiler* lx, Arr(byte) inp) {
 
 /** Handles the "(*" case (scope) as well as the common (subexpression) case */
 private void lexParenLeft(Compiler* lx, Arr(byte) inp) {
-    mbIncrementClauseCount(lx);
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     if (inp[j] == aColon) {
@@ -1792,7 +1784,7 @@ private void lexNewline(Compiler* lx, Arr(byte) inp) {
 private void lexStringLiteral(Compiler* lx, Arr(byte) inp) {
     wrapInAStatement(lx, inp);
     Int j = lx->i + 1;
-    for (; j < lx->inpLength && inp[j] != aQuote; j++);
+    for (; j < lx->inpLength && inp[j] != aBacktick; j++);
     VALIDATEL(j != lx->inpLength, errPrematureEndOfInput)
     add((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
     lx->i = j + 1; // CONSUME the string literal, including the closing quote character
@@ -1903,7 +1895,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
     p[aNewline] = &lexNewline;
-    p[aQuote] = &lexStringLiteral;
+    p[aBacktick] = &lexStringLiteral;
     p[aSemicolon] = &lexComment;
     p[aCurlyLeft] = &lexDocComment;
     return result;
@@ -1922,6 +1914,7 @@ private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
     p[0] = determineReservedA;
     p[1] = determineReservedB;
     p[2] = determineReservedC;
+    p[3] = determineReservedD;    
     p[4] = determineReservedE;
     p[5] = determineReservedF;
     p[8] = determineReservedI;
@@ -1972,271 +1965,48 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[10] = (OpDef){.name=s("++"),   .arity=1, .bytes={aPlus, aPlus, 0, 0}, .overloadable=true };
     p[11] = (OpDef){.name=s("+."),   .arity=2, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
     p[12] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[13] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0}};    
-    p[14] = (OpDef){.name=s("--"),   .arity=1, .bytes={aMinus, aMinus, 0, 0}, .overloadable=true};
-    p[15] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
-    p[16] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
-    p[17] = (OpDef){.name=s("/."),   .arity=2, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[18] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[19] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0}, .assignable = true, .overloadable = true};
-    p[20] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0}, .assignable = true, .overloadable = true };    
-    p[21] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0}};    
-    p[22] = (OpDef){.name=s("<>"),   .arity=2, .bytes={aLT, aGT, 0, 0}};    
-    p[23] = (OpDef){.name=s("<"),    .arity=2, .bytes={aLT, 0, 0, 0 } };
-    p[24] = (OpDef){.name=s("=="),   .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
-    p[25] = (OpDef){.name=s(">=<="), .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[26] = (OpDef){.name=s(">=<"),  .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
-    p[27] = (OpDef){.name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
-    p[28] = (OpDef){.name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 } };
-    p[29] = (OpDef){.name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 } };
-    p[30] = (OpDef){.name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0}, .assignable = true, .overloadable = true};
-    p[31] = (OpDef){.name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0}, .assignable = true, .overloadable = true };
-    p[32] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 }};
-    p[33] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
-    p[34] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[35] = (OpDef){.name=s("@"),    .arity=1, .bytes={aAt, 0, 0, 0 } };
-    p[36] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[37] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[38] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
-    p[39] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
-    p[40] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[41] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[42] = (OpDef){.name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 }};
+    p[13] = (OpDef){.name=s(",,"),   .arity=1, .bytes={aComma, aComma, 0, 0}};    
+    p[14] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0}};    
+    p[15] = (OpDef){.name=s("--"),   .arity=1, .bytes={aMinus, aMinus, 0, 0}, .overloadable=true};
+    p[16] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
+    p[17] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
+    p[18] = (OpDef){.name=s("/."),   .arity=2, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[19] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[20] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0}, .assignable = true, .overloadable = true};
+    p[21] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0}, .assignable = true, .overloadable = true };    
+    p[22] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0}};    
+    p[23] = (OpDef){.name=s("<>"),   .arity=2, .bytes={aLT, aGT, 0, 0}};    
+    p[24] = (OpDef){.name=s("<"),    .arity=2, .bytes={aLT, 0, 0, 0 } };
+    p[25] = (OpDef){.name=s("=="),   .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
+    p[26] = (OpDef){.name=s(">=<="), .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
+    p[27] = (OpDef){.name=s(">=<"),  .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
+    p[28] = (OpDef){.name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
+    p[29] = (OpDef){.name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 } };
+    p[30] = (OpDef){.name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 } };
+    p[31] = (OpDef){.name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0}, .assignable = true, .overloadable = true};
+    p[32] = (OpDef){.name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0}, .assignable = true, .overloadable = true };
+    p[33] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 }};
+    p[34] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
+    p[35] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 } };
+    p[36] = (OpDef){.name=s("@"),    .arity=1, .bytes={aAt, 0, 0, 0 } };
+    p[37] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[38] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[39] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
+    p[40] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
+    p[41] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
+    p[42] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
+    p[43] = (OpDef){.name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 }};
     return result;
 }
-
-
-testable Compiler* createLexer(String* sourceCode, LanguageDefinition* langDef, Arena* a) {
-    Compiler* lx = allocateOnArena(sizeof(Compiler), a);
-    Arena* aTmp = mkArena();
-    (*lx) = (Compiler){
-        .i = 0, .langDef = langDef, .sourceCode = sourceCode, .nextInd = 0, .inpLength = sourceCode->length,
-        .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
-        .newlines = allocateOnArena(500*sizeof(int), a), .newlinesCapacity = 500,
-        .numeric = allocateOnArena(50*sizeof(int), aTmp), .numericCapacity = 50,
-        .lexBtrack = createStackBtToken(16, aTmp),
-        .stringTable = createStackint32_t(16, a), .stringStore = createStringStore(100, a),
-        .wasError = false, .errMsg = &empty,
-        .a = a, .aTmp = aTmp
-    };
-    return lx;
-}
-
-/**
- * Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and an open statement, if any.
- */
-private void finalizeLexer(Compiler* lx) {
-    if (!hasValues(lx->lexBtrack)) return;
-    closeColons(lx);
-    BtToken top = pop(lx->lexBtrack);
-    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
-
-    setStmtSpanLength(top.tokenInd, lx);    
-    deleteArena(lx->aTmp);
-}
-
-
-testable Compiler* lexicallyAnalyze(String* input, LanguageDefinition* langDef, Arena* a) {
-    Compiler* lx = createLexer(input, langDef, a);
-
-    Int inpLength = input->length;
-    Arr(byte) inp = input->content;
-
-    VALIDATEL(inpLength > 0, "Empty input")
-
-    // Check for UTF-8 BOM at start of file
-    if (inpLength >= 3
-        && (unsigned char)inp[0] == 0xEF
-        && (unsigned char)inp[1] == 0xBB
-        && (unsigned char)inp[2] == 0xBF) {
-        lx->i = 3;
-    }
-    LexerFunc (*dispatch)[256] = langDef->dispatchTable;
-
-    // Main loop over the input
-    if (setjmp(excBuf) == 0) {
-        while (lx->i < inpLength) {
-            ((*dispatch)[inp[lx->i]])(lx, inp);
-        }
-        finalizeLexer(lx);
-    }
-    lx->totalTokens = lx->nextInd;
-    return lx;
-}
-//}}}
-
-//{{{ Parser
 
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser(errMsg, cm); }
-
-/**
- * This frame corresponds either to a lexical scope or a subexpression.
- * It contains string ids introduced in the current scope, used not for cleanup after the frame is popped. 
- * Otherwise, it contains the function call of the subexpression.
- */
-struct ScopeStackFrame {
-    int length;                // number of elements in scope stack
-    
-    ScopeChunk* previousChunk;
-    int previousInd;           // index of the start of previous frame within its chunk    
-    
-    ScopeChunk* thisChunk;
-    int thisInd;               // index of the start of this frame within this chunk
-    Arr(int) bindings;         // list of names of bindings introduced in this scope          
-};
-
-
-
-DEFINE_STACK(Node)
-
-private size_t ceiling4(size_t sz) {
-    size_t rem = sz % 4;
-    return sz + 4 - rem;
-}
-
-
-private size_t floor4(size_t sz) {
-    size_t rem = sz % 4;
-    return sz - rem;
-}
-
-#define CHUNK_SIZE 65536
-#define FRESH_CHUNK_LEN floor4(CHUNK_SIZE - sizeof(ScopeChunk))/4
-
-
-testable ScopeStack* createScopeStack() {
-    ScopeStack* result = malloc(sizeof(ScopeStack));
-
-    ScopeChunk* firstChunk = malloc(CHUNK_SIZE);
-
-    firstChunk->length = FRESH_CHUNK_LEN;
-    firstChunk->next = NULL;
-
-    result->firstChunk = firstChunk;
-    result->currChunk = firstChunk;
-    result->lastChunk = firstChunk;
-    result->topScope = (ScopeStackFrame*)firstChunk->content;
-    result->nextInd = ceiling4(sizeof(ScopeStackFrame))/4;
-    Arr(int) firstFrame = (int*)firstChunk->content + result->nextInd;
-        
-    (*result->topScope) = (ScopeStackFrame){.length = 0, .previousChunk = NULL, .thisChunk = firstChunk, 
-        .thisInd = result->nextInd, .bindings = firstFrame };
-        
-    result->nextInd += 64;  
-    
-    return result;
-}
-
-private void mbNewChunk(ScopeStack* scopeStack) {
-    if (scopeStack->currChunk->next != NULL) {
-        return;
-    }
-    ScopeChunk* newChunk = malloc(CHUNK_SIZE);
-    newChunk->length = FRESH_CHUNK_LEN;
-    newChunk->next = NULL;
-    scopeStack->currChunk->next = newChunk;
-    scopeStack->lastChunk = NULL;
-}
-
-/** Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within a brand new chunk 
- * Scopes have a simple size policy: 64 elements at first, then 256, then throw exception. This is because
- * only 256 local variables are allowed in one function, and transitively in one scope.
- */
-testable void pushLexScope(ScopeStack* scopeStack) {
-    // check whether the free space in currChunk is enough for the hashmap header + dict
-    // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
-    int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
-    int necessarySpace = ceiling4(sizeof(ScopeStackFrame))/4 + 64;
-    
-    ScopeChunk* oldChunk = scopeStack->topScope->thisChunk;
-    int oldInd = scopeStack->topScope->thisInd;
-    ScopeStackFrame* newScope;
-    int newInd;
-    if (remainingSpace < necessarySpace) {  
-        mbNewChunk(scopeStack);
-        scopeStack->currChunk = scopeStack->currChunk->next;
-        scopeStack->nextInd = necessarySpace;
-        newScope = (ScopeStackFrame*)scopeStack->currChunk->content;          
-        newInd = 0;
-    } else {
-        newScope = (ScopeStackFrame*)((int*)scopeStack->currChunk->content + scopeStack->nextInd);
-        newInd = scopeStack->nextInd;
-        scopeStack->nextInd += necessarySpace;        
-    }
-    (*newScope) = (ScopeStackFrame){.previousChunk = oldChunk, .previousInd = oldInd, .length = 0,
-        .thisChunk = scopeStack->currChunk, .thisInd = newInd,
-        .bindings = (int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
-        
-    scopeStack->topScope = newScope;    
-    scopeStack->length++;
-}
-
-
-private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope, ScopeStack* scopeStack) {
-    int newLength = scopeStack->topScope->length + 1;
-    if (newLength == initLength) {
-        int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
-        if (remainingSpace + initLength < 256) {            
-            mbNewChunk(scopeStack);
-            scopeStack->currChunk = scopeStack->currChunk->next;
-            Arr(int) newContent = scopeStack->currChunk->content;
-            
-            memcpy(topScope->bindings, newContent, initLength*4);
-            topScope->bindings = newContent;                        
-        }
-    } else if (newLength == 256) {
-        longjmp(excBuf, 1);
-    }
-}
-
-testable void addBinding(int nameId, int bindingId, Compiler* cm) {
-    ScopeStackFrame* topScope = cm->scopeStack->topScope;
-    resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
-    
-    topScope->bindings[topScope->length] = nameId;
-    topScope->length++;
-    
-    cm->activeBindings[nameId] = bindingId;
-}
-
-/**
- * Pops a scope frame. For a scope type of frame, also deactivates its bindings.
- * Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
- */
-testable void popScopeFrame(Compiler* cm) {
-    ScopeStackFrame* topScope = cm->scopeStack->topScope;
-    ScopeStack* scopeStack = cm->scopeStack;
-    if (topScope->bindings) {
-        for (int i = 0; i < topScope->length; i++) {
-            Int bindingOrOverload = cm->activeBindings[*(topScope->bindings + i)];
-            cm->activeBindings[*(topScope->bindings + i)] = -1;
-        }    
-    }
-
-    if (topScope->previousChunk) {
-        scopeStack->currChunk = topScope->previousChunk;
-        scopeStack->lastChunk = scopeStack->currChunk->next;
-        scopeStack->topScope = (ScopeStackFrame*)(scopeStack->currChunk->content + topScope->previousInd);
-    }
-    
-    // if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but everything after it needs to go
-    if (scopeStack->lastChunk) {
-        ScopeChunk* ch = scopeStack->lastChunk->next;
-        if (ch != NULL) {
-            scopeStack->lastChunk->next = NULL;
-            do {
-                ScopeChunk* nextToDelete = ch->next;
-                printf("ScopeStack is freeing a chunk of memory at %p next = %p\n", ch, nextToDelete);
-                free(ch);
-                
-                if (nextToDelete == NULL) break;
-                ch = nextToDelete;
-
-            } while (ch != NULL);
-        }                
-    }
-    scopeStack->length--;
-}
+private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
+void addBinding(int nameId, int bindingId, Compiler* cm);
+private void maybeCloseSpans(Compiler* cm);
+void popScopeFrame(Compiler* cm);
+private Int importEntity(Int nameId, Entity ent, Compiler* cm);
+private void createBuiltins(Compiler* cm);
+private Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 
 #define BIG 70000000
 
@@ -2249,16 +2019,13 @@ _Noreturn private void throwExcParser(const char errMsg[], Compiler* cm) {
     longjmp(excBuf, 1);
 }
 
-
-private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
-
 /** Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope */
 private Int createEntity(Int nameId, Compiler* cm) {
     Int mbBinding = cm->activeBindings[nameId];
     VALIDATEP(mbBinding < 0, errAssignmentShadowing) // if it's a binding, it should be -1, and if overload, <-1
 
     Int newEntityId = cm->entities.length;    
-    pushInentities(((Entity){.emit = emitPrefix, .class = classMutableGuarantted}), cm);
+    pushInentities(((Entity){.emit = emitPrefix, .class = classMutableGuaranteed}), cm);
     
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
@@ -2270,33 +2037,191 @@ private Int createEntity(Int nameId, Compiler* cm) {
     return newEntityId;
 }
 
-/** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
-private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
-    Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
-    VALIDATEP(activeValue < 0, errAssignmentShadowing);
-    if (activeValue == -1) { // this is the first-registered overload of this function
-        cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
-        pushInoverloadIds(SIXTEENPLUSONE, cm);
-    } else { // other overloads have already been registered, so just increment the counts
-        cm->overloadIds.content[-activeValue - 2] += SIXTEENPLUSONE;
-    }
+/** Calculates the sentinel token for a token at a specific index */
+private Int calcSentinel(Token tok, Int tokInd) {
+    return (tok.tp >= firstPunctuationTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
+}
+
+void pushLexScope(ScopeStack* scopeStack);
+private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
+
+/** Performs coordinated insertions to start a scope within the parser */
+private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
+    push(((ParseFrame){.tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
+    pushInnodes((Node){.tp = nodScope, .startBt = startBt, .lenBts = lenBts}, cm);
+    pushLexScope(cm->scopeStack);
+}
+
+private void parseSkip(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
-    Int existingBinding = cm->activeBindings[nameId];
-    Int typeLength = cm->types.content[ent.typeId];
-    VALIDATEP(existingBinding == -1 || typeLength > 0, errAssignmentShadowing) // either the name unique, or it's a function
+private void parseScope(Token tok, Arr(Token) tokens, Compiler* cm) {
+    addParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
+}
 
-    Int newEntityId = cm->entities.length;
-    pushInentities(ent, cm);
+private void parseStruct(Token tok, Arr(Token) tokens, Compiler* cm) {
+    throwExcParser(errTemp, cm);
+}
 
-    if (typeLength <= 1) { // not a function, or a 0-arity function => not overloaded
-        cm->activeBindings[nameId] = newEntityId;
+
+private void parseTry(Token tok, Arr(Token) tokens, Compiler* cm) {
+    throwExcParser(errTemp, cm);
+}
+
+
+private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
+    throwExcParser(errTemp, cm);
+}
+
+/** Precondition: we are 1 past the "stmt token*/
+private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
+    Int leftSentinel = calcSentinel(tok, cm->i - 1);
+    VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
+
+    VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
+    VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
+
+    Int typeLeft = exprUpTo(leftSentinel, tok.startBt, tok.lenBts, tokens, cm);
+    VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
+}
+
+
+private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
+    ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.length, .sentinelToken = cm->i + tok.pl2 };
+    push(newParseFrame, cm->backtrack);
+    pushInnodes((Node){.tp = nodIf, .pl1 = tok.pl1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+
+    Token stmtTok = tokens[cm->i];
+    ++cm->i; // CONSUME the stmt token
+    ifLeftSide(stmtTok, tokens, cm);
+}
+
+
+
+/** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
+private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
+    if (tok->tp == tokArrow) {
+        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
+        ++cm->i; // CONSUME the "else"
+        *tok = tokens[cm->i];
+
+        push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
+                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
+        pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
+        cm->i++; // CONSUME the token after the "else"
+    } else if (tok->tp == tokElse) {
+        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
+        ++cm->i; // CONSUME the "=>"
+        *tok = tokens[cm->i];
+
+        push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
+                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
+        pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
+        ++cm->i; // CONSUME the token after the "else"
     } else {
-        fnDefIncrementOverlCount(nameId, cm);
+        ++cm->i; // CONSUME the stmt token
+        ifLeftSide(*tok, tokens, cm);
+        *tok = tokens[cm->i];
     }
-    return newEntityId;
+}
+
+/** Parses an assignment like "x = 5". The right side must never be a scope or contain any loops, or recursion will ensue */
+private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
+    Int rLen = tok.pl2 - 1;
+    VALIDATEP(rLen >= 1, errAssignment)
+    
+    Int sentinelToken = cm->i + tok.pl2;
+
+    Token bindingTk = tokens[cm->i];
+    VALIDATEP(bindingTk.tp == tokWord, errAssignment)
+    Int newBindingId = createEntity(bindingTk.pl2, cm);
+
+    push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
+    pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+    
+    pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
+    
+    cm->i++; // CONSUME the word token before the assignment sign
+
+    Int rightTypeId = -1;
+    Int declaredTypeId = -1;
+    if (tokens[cm->i].tp == tokTypeName) {
+        declaredTypeId = cm->activeBindings[tokens[cm->i].pl1];
+        VALIDATEP(declaredTypeId > -1, errUnknownType)
+        ++cm->i; // CONSUME the type decl of the binding
+        --rLen; // for the type decl token
+    }
+    Token rTk = tokens[cm->i];
+    if (rLen == 1) {
+        rightTypeId = parseLiteralOrIdentifier(rTk, cm);
+        VALIDATEP(rightTypeId != -2, errAssignment)
+    } else if (rTk.tp == tokIf) { // TODO
+    } else {
+        rightTypeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    }
+    VALIDATEP(declaredTypeId == -1 || rightTypeId == declaredTypeId, errTypeMismatch)
+    if (rightTypeId > -1) {
+        cm->entities.content[newBindingId].typeId = rightTypeId;
+    }
+}
+
+/** While loops. Look like "(:while < x 100. x = 0. ++x)" This function handles assignments being lexically after the condition */
+private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
+    ++cm->loopCounter;
+    Int sentinel = cm->i + loopTok.pl2;
+
+    Int condInd = cm->i;
+    Token condTk = tokens[condInd]; 
+    VALIDATEP(condTk.tp == tokStmt, errLoopSyntaxError)
+    
+    Int condSent = calcSentinel(condTk, condInd);
+    Int startBtScope = tokens[condSent].startBt;
+        
+    push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.length, .sentinelToken = sentinel, .typeId = cm->loopCounter }),
+         cm->backtrack);
+    pushInnodes((Node){.tp = nodWhile,  .startBt = loopTok.startBt, .lenBts = loopTok.lenBts}, cm);
+
+    addParsedScope(sentinel, startBtScope, loopTok.lenBts - startBtScope + loopTok.startBt, cm);
+
+    // variable initializations, if any
+
+    cm->i = condSent;
+    while (cm->i < sentinel) {
+        Token tok = tokens[cm->i];
+        if (tok.tp != tokAssignment) {
+            break;
+        }
+        ++cm->i; // CONSUME the assignment span marker
+        parseAssignment(tok, tokens, cm);
+        maybeCloseSpans(cm);
+    }
+    Int indBody = cm->i;
+    VALIDATEP(indBody < sentinel, errLoopEmptyBody);
+
+    // loop condition
+    push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.length, .sentinelToken = condSent }), cm->backtrack);
+    pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = condSent - condInd,
+                       .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
+    cm->i = condInd + 1;
+    
+    Int condTypeId = exprUpTo(condSent, condTk.startBt, condTk.lenBts, tokens, cm);
+    VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
+    
+    cm->i = indBody; // CONSUME the while token, its condition and variable initializations (if any)
+}
+
+
+private void resumeIfPr(Token* tok, Arr(Token) tokens, Compiler* cm) {
+    throwExcParser(errTemp, cm);
+}
+
+private void resumeImpl(Token* tok, Arr(Token) tokens, Compiler* cm) {
+    throwExcParser(errTemp, cm);
+}
+
+private void resumeMatch(Token* tok, Arr(Token) tokens, Compiler* cm) {
+    throwExcParser(errTemp, cm);
 }
 
 /**
@@ -2316,13 +2241,6 @@ private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-/** Performs coordinated insertions to start a scope within the parser */
-private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
-    push(((ParseFrame){.tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
-    pushInnodes((Node){.tp = nodScope, .startBt = startBt, .lenBts = lenBts}, cm);
-    pushLexScope(cm->scopeStack);
-}
-
 private ParseFrame popFrame(Compiler* cm) {    
     ParseFrame frame = pop(cm->backtrack);
     if (frame.tp == nodScope) {
@@ -2330,11 +2248,6 @@ private ParseFrame popFrame(Compiler* cm) {
     }
     setSpanLengthParser(frame.startNodeInd, cm);
     return frame;
-}
-
-/** Calculates the sentinel token for a token at a specific index */
-private Int calcSentinel(Token tok, Int tokInd) {
-    return (tok.tp >= firstPunctuationTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
 
 /**
@@ -2488,7 +2401,7 @@ private Int exprOrSingleItem(Arr(Token) tokens, Compiler* cm) {
     Token tk = tokens[cm->i];
     if (tk.tp == tokStmt || tk.tp == tokParens) {
         ++cm->i; // CONSUME the "("
-        exprUpTo(cm->i + tk.pl2, tk.startBt, tk.lenBts, tokens, cm);
+        return exprUpTo(cm->i + tk.pl2, tk.startBt, tk.lenBts, tokens, cm);
     } else {
         return exprSingleItem(tokens[cm->i], cm);
     }
@@ -2564,46 +2477,6 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
     }
     cm->i++; // CONSUME the literal or ident token
     return typeId;
-}
-
-/** Parses an assignment like "x = 5". The right side must never be a scope or contain any loops, or recursion will ensue */
-private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
-    Int rLen = tok.pl2 - 1;
-    VALIDATEP(rLen >= 1, errAssignment)
-    
-    Int sentinelToken = cm->i + tok.pl2;
-
-    Token bindingTk = tokens[cm->i];
-    VALIDATEP(bindingTk.tp == tokWord, errAssignment)
-    Int newBindingId = createEntity(bindingTk.pl2, cm);
-
-    push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
-    pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    
-    pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-    
-    cm->i++; // CONSUME the word token before the assignment sign
-
-    Int rightTypeId = -1;
-    Int declaredTypeId = -1;
-    if (tokens[cm->i].tp == tokTypeName) {
-        declaredTypeId = cm->activeBindings[tokens[cm->i].pl1];
-        VALIDATEP(declaredTypeId > -1, errUnknownType)
-        ++cm->i; // CONSUME the type decl of the binding
-        --rLen; // for the type decl token
-    }
-    Token rTk = tokens[cm->i];
-    if (rLen == 1) {
-        rightTypeId = parseLiteralOrIdentifier(rTk, cm);
-        VALIDATEP(rightTypeId != -2, errAssignment)
-    } else if (rTk.tp == tokIf) { // TODO
-    } else {
-        rightTypeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-    }
-    VALIDATEP(declaredTypeId == -1 || rightTypeId == declaredTypeId, errTypeMismatch)
-    if (rightTypeId > -1) {
-        cm->entities.content[newBindingId].typeId = rightTypeId;
-    }
 }
 
 /** Changes a mutable variable to mutated, and throws an exception for an immutable one */
@@ -2888,138 +2761,19 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-private void parseSkip(Token tok, Arr(Token) tokens, Compiler* cm) {
-}
-
-
-private void parseScope(Token tok, Arr(Token) tokens, Compiler* cm) {
-    addParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
-}
-
-private void parseStruct(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-
-private void parseTry(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-
-private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-/** Precondition: we are 1 past the "stmt token*/
-private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
-    Int leftSentinel = calcSentinel(tok, cm->i - 1);
-    VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
-
-    VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
-    VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
-
-    Int typeLeft = exprUpTo(leftSentinel, tok.startBt, tok.lenBts, tokens, cm);
-    VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
-}
-
-
-private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
-    ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.length, .sentinelToken = cm->i + tok.pl2 };
-    push(newParseFrame, cm->backtrack);
-    pushInnodes((Node){.tp = nodIf, .pl1 = tok.pl1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-
-    Token stmtTok = tokens[cm->i];
-    ++cm->i; // CONSUME the stmt token
-    ifLeftSide(stmtTok, tokens, cm);
-}
-
-
-
-/** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
-private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    if (tok->tp == tokArrow) {
-        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
-        ++cm->i; // CONSUME the "else"
-        *tok = tokens[cm->i];
-
-        push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
-                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
-        pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
-        cm->i++; // CONSUME the token after the "else"
-    } else if (tok->tp == tokElse) {
-        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
-        ++cm->i; // CONSUME the "=>"
-        *tok = tokens[cm->i];
-
-        push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
-                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
-        pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
-        ++cm->i; // CONSUME the token after the "else"
-    } else {
-        ++cm->i; // CONSUME the stmt token
-        ifLeftSide(*tok, tokens, cm);
-        *tok = tokens[cm->i];
-    }
-}
-
-/** While loops. Look like "(:while < x 100. x = 0. ++x)" This function handles assignments being lexically after the condition */
-private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
-    ++cm->loopCounter;
-    Int sentinel = cm->i + loopTok.pl2;
-
-    Int condInd = cm->i;
-    Token condTk = tokens[condInd]; 
-    VALIDATEP(condTk.tp == tokStmt, errLoopSyntaxError)
-    
-    Int condSent = calcSentinel(condTk, condInd);
-    Int startBtScope = tokens[condSent].startBt;
-        
-    push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.length, .sentinelToken = sentinel, .typeId = cm->loopCounter }),
-         cm->backtrack);
-    pushInnodes((Node){.tp = nodWhile,  .startBt = loopTok.startBt, .lenBts = loopTok.lenBts}, cm);
-
-    addParsedScope(sentinel, startBtScope, loopTok.lenBts - startBtScope + loopTok.startBt, cm);
-
-    // variable initializations, if any
-
-    cm->i = condSent;
-    while (cm->i < sentinel) {
-        Token tok = tokens[cm->i];
-        if (tok.tp != tokAssignment) {
-            break;
+testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
+    for (int i = 0; i < countEntities; i++) {
+        Int mbNameId = getStringStore(cm->sourceCode->content, impts[i].name, cm->stringTable, cm->stringStore);
+        if (mbNameId > -1) {
+            EntityImport impt = impts[i];
+            Int typeInd = typeIds[impt.typeInd];
+            importEntity(mbNameId, (Entity){
+                .class = classImmutable, .typeId = typeInd, .emit = emitPrefixExternal, .externalNameId = impt.externalNameId },
+                cm);
         }
-        ++cm->i; // CONSUME the assignment span marker
-        parseAssignment(tok, tokens, cm);
-        maybeCloseSpans(cm);
     }
-    Int indBody = cm->i;
-    VALIDATEP(indBody < sentinel, errLoopEmptyBody);
-
-    // loop condition
-    push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.length, .sentinelToken = condSent }), cm->backtrack);
-    pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = condSent - condInd,
-                       .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
-    cm->i = condInd + 1;
-    
-    Int condTypeId = exprUpTo(condSent, condTk.startBt, condTk.lenBts, tokens, cm);
-    VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
-    
-    cm->i = indBody; // CONSUME the while token, its condition and variable initializations (if any)
+    cm->countNonparsedEntities = cm->entities.length;
 }
-
-
-private void resumeIfPr(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-private void resumeImpl(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-private void resumeMatch(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
 
 private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     ParserFunc (*result)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
@@ -3067,7 +2821,6 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
 private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     ResumeFunc (*result)[countResumableForms] = allocateOnArena(countResumableForms*sizeof(ResumeFunc), a);
     ResumeFunc* p = *result;
-    int i = 0;
     p[nodIf    - firstResumableForm] = &resumeIf;
     p[nodIfPr  - firstResumableForm] = &resumeIfPr;
     p[nodImpl  - firstResumableForm] = &resumeImpl;
@@ -3080,29 +2833,283 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
 */
 testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
-    result->possiblyReservedDispatch = tabulateReservedBytes(a);
-    result->dispatchTable = tabulateDispatch(a);
-    result->operators = tabulateOperators(a);
-    result->reservedParensOrNot = tabulateReserved(a);
-    result->resumableTable = tabulateResumableDispatch(a);    
-    result->nonResumableTable = tabulateNonresumableDispatch(a);
+    (*result) = (LanguageDefinition) {
+        .possiblyReservedDispatch = tabulateReservedBytes(a), .dispatchTable = tabulateDispatch(a),
+        .operators = tabulateOperators(a), .reservedParensOrNot = tabulateReserved(a),
+        .nonResumableTable = tabulateNonresumableDispatch(a)
+    };
+    result->baseTypes[tokInt] = str("Int", a);
+    result->baseTypes[tokLong] = str("Long", a);
+    result->baseTypes[tokFloat] = str("Float", a);
+    result->baseTypes[tokString] = str("String", a);
+    result->baseTypes[tokBool] = str("Bool", a);
+    result->baseTypes[tokUnderscore] = str("Void", a);
     return result;
 }
 
-
-testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
-    for (int i = 0; i < countEntities; i++) {
-        Int mbNameId = getStringStore(cm->sourceCode->content, impts[i].name, cm->stringTable, cm->stringStore);
-        if (mbNameId > -1) {
-            EntityImport impt = impts[i];
-            Int typeInd = typeIds[impt.typeInd];
-            Int newEntityId = importEntity(mbNameId, (Entity){
-                .class = classImmutable, .typeId = typeInd, .emit = emitPrefixExternal, .externalNameId = impt.externalNameId },
-                cm);
-        }
-    }
-    cm->countNonparsedEntities = cm->entities.length;
+/**
+ * Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned for every source code module.
+ * The proto-compiler contains the following data:
+ * - langDef with operators whose "builtinOverloads" is filled in
+ * - types that are sufficient for the built-in operators
+ * - entities with the built-in operator entities
+ * - overloadIds with counts
+ * - entImportedZero
+ * - countOperatorEntities
+ */
+testable Compiler* createCompilerProto(Arena* a) {
+    Compiler* proto = allocateOnArena(sizeof(Compiler), a);
+    (*proto) = (Compiler){
+        .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(64, a),
+        .overloadIds = createInListuint32_t(64, a), .types = createInListInt(64, a), .typesDict = createStringStore(100, a)
+    };
+    createBuiltins(proto);
+    return proto;
 }
+
+/**
+ * Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and an open statement, if any.
+ */
+private void finalizeLexer(Compiler* lx) {
+    if (!hasValues(lx->lexBtrack)) return;
+    closeColons(lx);
+    BtToken top = pop(lx->lexBtrack);
+    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
+
+    setStmtSpanLength(top.tokenInd, lx);    
+    deleteArena(lx->aTmp);
+}
+
+
+testable Compiler* lexicallyAnalyze(String* input, Compiler* proto, Arena* a) {
+    Compiler* lx = createLexerFromProto(input, proto, a);
+    Int inpLength = input->length;
+    Arr(byte) inp = input->content;
+
+    VALIDATEL(inpLength > 0, "Empty input")
+
+    // Check for UTF-8 BOM at start of file
+    if (inpLength >= 3
+        && (unsigned char)inp[0] == 0xEF
+        && (unsigned char)inp[1] == 0xBB
+        && (unsigned char)inp[2] == 0xBF) {
+        lx->i = 3;
+    }
+    LexerFunc (*dispatch)[256] = proto->langDef->dispatchTable;
+
+    // Main loop over the input
+    if (setjmp(excBuf) == 0) {
+        while (lx->i < inpLength) {
+            ((*dispatch)[inp[lx->i]])(lx, inp);
+        }
+        finalizeLexer(lx);
+    }
+    lx->totalTokens = lx->nextInd;
+    return lx;
+}
+//}}}
+
+//{{{ Parser
+
+
+
+/**
+ * This frame corresponds either to a lexical scope or a subexpression.
+ * It contains string ids introduced in the current scope, used not for cleanup after the frame is popped. 
+ * Otherwise, it contains the function call of the subexpression.
+ */
+struct ScopeStackFrame {
+    int length;                // number of elements in scope stack
+    
+    ScopeChunk* previousChunk;
+    int previousInd;           // index of the start of previous frame within its chunk    
+    
+    ScopeChunk* thisChunk;
+    int thisInd;               // index of the start of this frame within this chunk
+    Arr(int) bindings;         // list of names of bindings introduced in this scope          
+};
+
+
+
+DEFINE_STACK(Node)
+
+private size_t ceiling4(size_t sz) {
+    size_t rem = sz % 4;
+    return sz + 4 - rem;
+}
+
+
+private size_t floor4(size_t sz) {
+    size_t rem = sz % 4;
+    return sz - rem;
+}
+
+#define CHUNK_SIZE 65536
+#define FRESH_CHUNK_LEN floor4(CHUNK_SIZE - sizeof(ScopeChunk))/4
+
+
+testable ScopeStack* createScopeStack() {
+    ScopeStack* result = malloc(sizeof(ScopeStack));
+
+    ScopeChunk* firstChunk = malloc(CHUNK_SIZE);
+
+    firstChunk->length = FRESH_CHUNK_LEN;
+    firstChunk->next = NULL;
+
+    result->firstChunk = firstChunk;
+    result->currChunk = firstChunk;
+    result->lastChunk = firstChunk;
+    result->topScope = (ScopeStackFrame*)firstChunk->content;
+    result->nextInd = ceiling4(sizeof(ScopeStackFrame))/4;
+    Arr(int) firstFrame = (int*)firstChunk->content + result->nextInd;
+        
+    (*result->topScope) = (ScopeStackFrame){.length = 0, .previousChunk = NULL, .thisChunk = firstChunk, 
+        .thisInd = result->nextInd, .bindings = firstFrame };
+        
+    result->nextInd += 64;  
+    
+    return result;
+}
+
+private void mbNewChunk(ScopeStack* scopeStack) {
+    if (scopeStack->currChunk->next != NULL) {
+        return;
+    }
+    ScopeChunk* newChunk = malloc(CHUNK_SIZE);
+    newChunk->length = FRESH_CHUNK_LEN;
+    newChunk->next = NULL;
+    scopeStack->currChunk->next = newChunk;
+    scopeStack->lastChunk = NULL;
+}
+
+/** Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within a brand new chunk 
+ * Scopes have a simple size policy: 64 elements at first, then 256, then throw exception. This is because
+ * only 256 local variables are allowed in one function, and transitively in one scope.
+ */
+testable void pushLexScope(ScopeStack* scopeStack) {
+    // check whether the free space in currChunk is enough for the hashmap header + dict
+    // if enough, allocate, else allocate a new chunk or reuse lastChunk if it's free    
+    int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
+    int necessarySpace = ceiling4(sizeof(ScopeStackFrame))/4 + 64;
+    
+    ScopeChunk* oldChunk = scopeStack->topScope->thisChunk;
+    int oldInd = scopeStack->topScope->thisInd;
+    ScopeStackFrame* newScope;
+    int newInd;
+    if (remainingSpace < necessarySpace) {  
+        mbNewChunk(scopeStack);
+        scopeStack->currChunk = scopeStack->currChunk->next;
+        scopeStack->nextInd = necessarySpace;
+        newScope = (ScopeStackFrame*)scopeStack->currChunk->content;          
+        newInd = 0;
+    } else {
+        newScope = (ScopeStackFrame*)((int*)scopeStack->currChunk->content + scopeStack->nextInd);
+        newInd = scopeStack->nextInd;
+        scopeStack->nextInd += necessarySpace;        
+    }
+    (*newScope) = (ScopeStackFrame){.previousChunk = oldChunk, .previousInd = oldInd, .length = 0,
+        .thisChunk = scopeStack->currChunk, .thisInd = newInd,
+        .bindings = (int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
+        
+    scopeStack->topScope = newScope;    
+    scopeStack->length++;
+}
+
+
+private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope, ScopeStack* scopeStack) {
+    int newLength = scopeStack->topScope->length + 1;
+    if (newLength == initLength) {
+        int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
+        if (remainingSpace + initLength < 256) {            
+            mbNewChunk(scopeStack);
+            scopeStack->currChunk = scopeStack->currChunk->next;
+            Arr(int) newContent = scopeStack->currChunk->content;
+            
+            memcpy(topScope->bindings, newContent, initLength*4);
+            topScope->bindings = newContent;                        
+        }
+    } else if (newLength == 256) {
+        longjmp(excBuf, 1);
+    }
+}
+
+testable void addBinding(int nameId, int bindingId, Compiler* cm) {
+    ScopeStackFrame* topScope = cm->scopeStack->topScope;
+    resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
+    
+    topScope->bindings[topScope->length] = nameId;
+    topScope->length++;
+    
+    cm->activeBindings[nameId] = bindingId;
+}
+
+/**
+ * Pops a scope frame. For a scope type of frame, also deactivates its bindings.
+ * Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
+ */
+testable void popScopeFrame(Compiler* cm) {
+    ScopeStackFrame* topScope = cm->scopeStack->topScope;
+    ScopeStack* scopeStack = cm->scopeStack;
+    if (topScope->bindings) {
+        for (int i = 0; i < topScope->length; i++) {
+            cm->activeBindings[*(topScope->bindings + i)] = -1;
+        }    
+    }
+
+    if (topScope->previousChunk) {
+        scopeStack->currChunk = topScope->previousChunk;
+        scopeStack->lastChunk = scopeStack->currChunk->next;
+        scopeStack->topScope = (ScopeStackFrame*)(scopeStack->currChunk->content + topScope->previousInd);
+    }
+    
+    // if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but everything after it needs to go
+    if (scopeStack->lastChunk) {
+        ScopeChunk* ch = scopeStack->lastChunk->next;
+        if (ch != NULL) {
+            scopeStack->lastChunk->next = NULL;
+            do {
+                ScopeChunk* nextToDelete = ch->next;
+                printf("ScopeStack is freeing a chunk of memory at %p next = %p\n", ch, nextToDelete);
+                free(ch);
+                
+                if (nextToDelete == NULL) break;
+                ch = nextToDelete;
+
+            } while (ch != NULL);
+        }                
+    }
+    scopeStack->length--;
+}
+
+/** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
+private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
+    Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
+    VALIDATEP(activeValue < 0, errAssignmentShadowing);
+    if (activeValue == -1) { // this is the first-registered overload of this function
+        cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
+        pushInoverloadIds(SIXTEENPLUSONE, cm);
+    } else { // other overloads have already been registered, so just increment the counts
+        cm->overloadIds.content[-activeValue - 2] += SIXTEENPLUSONE;
+    }
+}
+
+
+private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
+    Int existingBinding = cm->activeBindings[nameId];
+    Int typeLength = cm->types.content[ent.typeId];
+    VALIDATEP(existingBinding == -1 || typeLength > 0, errAssignmentShadowing) // either the name unique, or it's a function
+
+    Int newEntityId = cm->entities.length;
+    pushInentities(ent, cm);
+
+    if (typeLength <= 1) { // not a function, or a 0-arity function => not overloaded
+        cm->activeBindings[nameId] = newEntityId;
+    } else {
+        fnDefIncrementOverlCount(nameId, cm);
+    }
+    return newEntityId;
+}
+
 
 /** Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its tail.
  *  Returns the resulting index of this type and updates the length of cm->types accordingly.
@@ -3112,17 +3119,16 @@ testable Int mergeType(Int startInd, Int len, Compiler* cm) {
     StringStore* hm = cm->typesDict;
     Int startBt = startInd*4;
     Int lenBts = len*4;
-    Int hash = hashCode(types + startBt, lenBts) % (hm->dictSize);
-    if (*(hm->dict + hash) == NULL) {
+    Int theHash = hashCode(types + startBt, lenBts);
+    Int hashInd = theHash % (hm->dictSize);
+    if (*(hm->dict + hashInd) == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (8 << 16) + 1; // left u16 = capacity, right u16 = length
         StringValue* firstElem = (StringValue*)newBucket->content;        
-
         *firstElem = (StringValue){.length = lenBts, .indString = startBt };
-        *(hm->dict + hash) = newBucket;
-        return startInd;
+        *(hm->dict + hashInd) = newBucket;
     } else {
-        Bucket* p = *(hm->dict + hash);
+        Bucket* p = *(hm->dict + hashInd);
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
@@ -3132,10 +3138,11 @@ testable Int mergeType(Int startInd, Int len, Compiler* cm) {
                 cm->types.length -= (len + 1);
                 return stringValues[i].indString/4;
             }
-        }        
-        addValueToBucket((hm->dict + hash), startBt, lenBts, hm->a);
-        return startInd;
+        }
+        addValueToBucket((hm->dict + hashInd), startBt, lenBts, hm->a);
     }
+    ++hm->length;
+    return startInd;
 }
 
 /** Function types are stored as: (length, return type, paramType1, paramType2, ...) */
@@ -3153,7 +3160,7 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
 //{{{ Built-ins
 
 const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
-                               "toStringMath.powMath.piMath.e!==lengthMath.abs&&||===";
+                               "toStringMath.powMath.piMath.e!==lengthMath.abs&&||===alert";
 const Int constantOffsets[] = {
     0,   6,  8, 12,
     20, 25, 30, 33,
@@ -3161,6 +3168,7 @@ const Int constantOffsets[] = {
     66, 69, 77, 85,
     92, 98, 101, 107,
     115, 117, 119, 122,
+    127
     
 };
 
@@ -3191,6 +3199,7 @@ const Int constantOffsets[] = {
 #define strLogicalAnd 20
 #define strLogicalOr  21
 #define strEquality   22
+#define strAlert      23
 
 private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t externalNameId, Compiler* cm) {
     pushInentities((Entity){
@@ -3227,7 +3236,7 @@ private void buildInOperators(Compiler* cm) {
     Int flOfFlFl = addFunctionType(2, (Int[]){tokFloat, tokFloat, tokFloat}, cm);
     Int flOfInt = addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
     Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
-    Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
+    //Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int voidOfInt = addFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
     
     buildOperator(opTNotEqual, boolOfIntInt, emitInfixExternal, strNotEqual, cm);
@@ -3251,6 +3260,7 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTPlus,      intOfIntInt, emitInfix, 0, cm);
     buildOperator(opTPlus,      flOfFlFl, emitInfix, 0, cm);
     buildOperator(opTPlus,      strOfStrStr, emitInfix, 0, cm);
+    buildOperator(opTToInt,     intOfFl, emitNop, 0, cm);    
     buildOperator(opTToFloat,   flOfInt, emitNop, 0, cm);
     buildOperator(opTDecrement, voidOfInt, emitPrefix, 0, cm);
     buildOperator(opTMinusExt,  intOfIntInt, 0, 0, cm); // dummy
@@ -3281,10 +3291,15 @@ private void buildInOperators(Compiler* cm) {
     buildOperator(opTGreaterThan, boolOfStrStr, emitInfix, 0, cm);
     buildOperator(opTEquality, boolOfIntInt, emitInfixExternal, strEquality, cm);
 
-    buildOperator(opTIntervalBoth, intOfIntInt, 0, 0, cm); // dummy
-    buildOperator(opTIntervalLeft, flOfFlFl, 0, 0, cm); // dummy
-    buildOperator(opTIntervalRight, intOfInt, 0, 0, cm); // dummy
-    buildOperator(opTIntervalExcl, flOfFl, 0, 0, cm); // dummy 
+    buildOperator(opTIntervalBoth, boolOfIntIntInt, 0, 0, cm); // dummy
+    buildOperator(opTIntervalBoth, boolOfFlFlFl, 0, 0, cm); // dummy
+
+    buildOperator(opTIntervalLeft, boolOfIntIntInt, 0, 0, cm); // dummy
+    buildOperator(opTIntervalLeft, boolOfFlFlFl, 0, 0, cm); // dummy
+    buildOperator(opTIntervalRight, boolOfIntIntInt, 0, 0, cm); // dummy
+    buildOperator(opTIntervalRight, boolOfFlFlFl, 0, 0, cm); // dummy
+    buildOperator(opTIntervalExcl, boolOfIntIntInt, 0, 0, cm); // dummy
+    buildOperator(opTIntervalExcl, boolOfFlFlFl, 0, 0, cm); // dummy 
     buildOperator(opTNullCoalesce, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opTQuestionMark, flOfFlFl, 0, 0, cm); // dummy
     buildOperator(opTAccessor, intOfInt, 0, 0, cm); // dummy
@@ -3303,62 +3318,118 @@ private void buildInOperators(Compiler* cm) {
 }
 
 /* Entities and overloads for the built-in operators, types and functions. */
-private void importBuiltins(LanguageDefinition* langDef, Compiler* cm) {
-    Arr(String*) baseTypes = allocateOnArena(6*sizeof(String*), cm->aTmp);
-    baseTypes[tokInt] = str("Int", cm->aTmp);
-    baseTypes[tokLong] = str("Long", cm->aTmp);
-    baseTypes[tokFloat] = str("Float", cm->aTmp);
-    baseTypes[tokString] = str("String", cm->aTmp);
-    baseTypes[tokBool] = str("Bool", cm->aTmp);
-    baseTypes[tokUnderscore] = str("Void", cm->aTmp);
-    for (int i = 0; i < 5; i++) {
+private void createBuiltins(Compiler* cm) {
+    const Int countBaseTypes = sizeof(*cm->langDef->baseTypes)/sizeof(String*);
+    for (int i = 0; i < countBaseTypes; i++) {
         pushIntypes(0, cm);
-        Int typeNameId = getStringStore(cm->sourceCode->content, baseTypes[i], cm->stringTable, cm->stringStore);
-        if (typeNameId > -1) {
-            cm->activeBindings[typeNameId] = i;
-        }
     }
     buildInOperators(cm);
-
     cm->entImportedZero = cm->overloadIds.length;
-
-    Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
-    
-    EntityImport builtins[3] =  {
-        (EntityImport) { .name = str("math-pi", cm->a), .externalNameId = strPi, .typeInd = 0 },
-        (EntityImport) { .name = str("math-e", cm->a), .externalNameId = strE, .typeInd = 0 },
-        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint, .typeInd = 1 }
-    };    
-
-    importEntities(builtins, sizeof(builtins)/sizeof(EntityImport), ((Int[]){tokFloat, voidOfStr}), cm);
 }
 //}}}
 
-testable void createCompiler(Compiler* lx) {
+private StringStore* copyStringStore(StringStore* source, Arena* a) {
+    StringStore* result = allocateOnArena(sizeof(StringStore), a);
+    const Int dictSize = source->dictSize;
+    Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*dictSize, a);
+    
+    result->a = a;
+
+    for (int i = 0; i < dictSize; i++) {
+        if (source->dict[i] == NULL) {
+            dict[i] = NULL;
+        } else {
+            Bucket* old = source->dict[i];
+            Int capacity = old->capAndLen >> 16;
+            Int len = old->capAndLen && LOWER16BITS;
+            Bucket* new = allocateOnArena(sizeof(Bucket) + capacity*sizeof(StringValue), a);
+            memcpy(new->content, old->content, len*sizeof(StringValue));
+            dict[i] = new;
+        }
+    }
+    result->dictSize = source->dictSize;
+    result->dict = dict;
+
+    return result;
+}
+
+/** A proto compiler contains just the built-in definitions and tables. This function copies it  */
+private Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
+    Compiler* lx = allocateOnArena(sizeof(Compiler), a);
+    Arena* aTmp = mkArena();
+
+    (*lx) = (Compiler){
+        .i = 0, .langDef = proto->langDef, .sourceCode = sourceCode, .nextInd = 0, .inpLength = sourceCode->length,
+        .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
+        .newlines = allocateOnArena(500*sizeof(int), a), .newlinesCapacity = 500,
+        .numeric = allocateOnArena(50*sizeof(int), aTmp), .numericCapacity = 50,
+        .lexBtrack = createStackBtToken(16, aTmp),
+        .stringTable = createStackint32_t(16, a), .stringStore = createStringStore(100, a),
+        .sourceCode = sourceCode,
+        .wasError = false, .errMsg = &empty,
+        .a = a, .aTmp = aTmp
+    };
+
+    return lx;
+}
+
+/** Initialize all the parser & typer stuff after lexing is done */
+testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     if (lx->wasError) {
         return;
     }
-    Arena* a = lx->a;
+    
+    Compiler* cm = lx;
+
+    const Int countBaseTypes = sizeof(*cm->langDef->baseTypes)/sizeof(String*);
+    for (int j = 0; j < countBaseTypes; j++) {
+        Int typeNameId = getStringStore(cm->sourceCode->content, cm->langDef->baseTypes[j], cm->stringTable, cm->stringStore);
+        if (typeNameId > -1) {
+            cm->activeBindings[typeNameId] = j;
+        }
+    }
+    
     Int initNodeCap = lx->totalTokens > 64 ? lx->totalTokens : 64;
 
-    lx->scopeStack = createScopeStack();
-    lx->backtrack = createStackParseFrame(16, lx->aTmp);
-    lx->i = 0;
-    lx->loopCounter = 0;
+    cm->scopeStack = createScopeStack();
+    cm->backtrack = createStackParseFrame(16, lx->aTmp);
+    cm->i = 0;
+    cm->loopCounter = 0;
         
-    lx->nodes = createInListNode(initNodeCap, a);
-        
-    lx->entities = createInListEntity(64, a),
-    lx->overloadIds = createInListuint32_t(64, lx->aTmp),
-    lx->activeBindings = allocateOnArena(4*lx->countStrings, a),
-
-    lx->overloads = (InListInt){.length = 0, .content = NULL};
-    lx->types = createInListInt(64, a);
-    lx->typesDict = createStringStore(100, lx->aTmp);
-    lx->expStack = createStackint32_t(16, lx->aTmp);
-    
+    cm->nodes = createInListNode(initNodeCap, a);
+    cm->activeBindings = allocateOnArena(4*lx->countStrings, lx->aTmp);
     if (lx->countStrings > 0) {
-        memset(lx->activeBindings, 0xFF, lx->countStrings*4); // activeBindings is filled with -1
+        memset(cm->activeBindings, 0xFF, lx->countStrings*4); // activeBindings is filled with -1
+    }
+    cm->overloads = (InListInt){.length = 0, .content = NULL};
+
+    cm->expStack = createStackint32_t(16, cm->aTmp);
+
+    cm->scopeStack = createScopeStack();
+    
+    cm->entities = createInListEntity(MAX(proto->entities.length, 64), a);
+    memcpy(cm->entities.content, proto->entities.content, proto->entities.length*sizeof(Entity));
+    cm->entities.length = proto->entities.length;
+    cm->entities.capacity = proto->entities.capacity;
+    
+    cm->overloadIds = createInListuint32_t(MAX(proto->overloadIds.length, 64), cm->aTmp);
+    memcpy(cm->overloadIds.content, proto->overloadIds.content, proto->overloadIds.length*4);
+    cm->overloadIds.length = proto->overloadIds.length;
+    cm->overloadIds.capacity = proto->overloadIds.capacity;
+    
+    cm->activeBindings = allocateOnArena(4*lx->countStrings, lx->aTmp);
+    cm->overloads = (InListInt){.length = 0, .content = NULL};
+    
+    cm->types.content = allocateOnArena(MAX(proto->types.length, 128)*4, a);
+    memcpy(cm->types.content, proto->types.content, proto->types.length*4);
+    cm->types.length = proto->types.length;
+    cm->types.capacity = proto->types.capacity;
+    
+    cm->typesDict = copyStringStore(proto->typesDict, a);
+
+    cm->expStack = createStackint32_t(16, lx->aTmp);
+    if (lx->countStrings > 0) {
+        memset(cm->activeBindings, 0xFF, lx->countStrings*4); // activeBindings is filled with -1
     }
 }
 
@@ -3369,57 +3440,60 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm);
 /** Now that the overloads are freshly allocated, we need to write all the existing entities (operators and imported functions)
  * to the overloads table, which consists of variable-length entries of the form: [count typeId1 typeId2 entId1 entId2]
  */
-private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
-    Int currOperId = 0;
-    Int o = -1;
-    Int countOverls = -1;
-    Int entitySentinel = (*cm->langDef->operators)[currOperId].builtinOverloads;
+private void populateOverloadsForOperatorsAndImports(Arr(EntityImport) imports, Int lenImports, Compiler* cm) {
+    Int o;
+    Int countOverls;
+    Int currOperId = -1;
+    Int entitySentinel = 0;
 
-    // operators
+    // overloads for built-in operators
     for (Int i = 0; i < cm->countOperatorEntities; i++) {
         Entity ent = cm->entities.content[i];
 
-        
         if (i == entitySentinel) {
             ++currOperId;
             o = cm->overloadIds.content[currOperId] + 1;
             countOverls = (cm->overloadIds.content[currOperId + 1] - cm->overloadIds.content[currOperId] - 1)/2;
             entitySentinel += (*cm->langDef->operators)[currOperId].builtinOverloads;
+            print("currOperId %d built-in %d new ent sent %d",
+                currOperId, cm->langDef->operators[0]->builtinOverloads, entitySentinel)
         }
         
         cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
 #ifdef SAFETY
+        print("overls %d o %d, countOverls %d i %d", cm->overloads.content[o + countOverls], o, countOverls, cm->i)
         VALIDATEI(cm->overloads.content[o + countOverls] == -1, iErrorOverloadsOverflow)
 #endif
         cm->overloads.content[o + countOverls] = i;
         
         o++;
     }
-    // imported functions
-    Int currFuncNameId = -1;
+    
+    // overloads for imported functions
     Int currFuncId = -1;
-    for (Int i = cm->countOperatorEntities; i < cm->countNonparsedEntities; i++) {
-        Entity ent = cm->entities.content[i];
+    Int impInd = 0;
+    for (Int j = cm->entImportedZero; j < cm->entities.length; j++) {
+        while (imports[impInd].nameId == -1) {
+            ++impInd;
+        }
+        Entity ent = cm->entities.content[j];
         if (!isFunctionWithParams(ent.typeId, cm)) {
             continue;
         }
-
-        if (ent.nameId != currFuncNameId) {
-            currFuncNameId = ent.nameId;
-            currFuncId = cm->activeBindings[currFuncNameId];
+        EntityImport imp = imports[impInd];
+        currFuncId = cm->activeBindings[imp.nameId];
+        
 #ifdef SAFETY
-            VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
+        VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
 #endif            
-            o = cm->overloadIds.content[-currFuncId - 2] + 1;
-            countOverls = cm->overloads.content[o - 1];
-
-        }
+        o = cm->overloadIds.content[-currFuncId - 2] + 1;
+        countOverls = cm->overloads.content[o - 1];
 
 #ifdef SAFETY
         VALIDATEI(cm->overloads.content[o + countOverls] == -1, iErrorOverloadsOverflow)
 #endif
         cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
-        cm->overloads.content[o + countOverls] = i;
+        cm->overloads.content[o + countOverls] = j;
         o++;
     }
 }
@@ -3447,21 +3521,20 @@ testable void createOverloads(Compiler* cm) {
         j += (2*maxCountOverloads + 1);
     }
     pushInoverloadIds(neededCount, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds
-    populateOverloadsForOperatorsAndImports(cm);
 }
 
 /** Parses top-level types but not functions and adds their bindings to the scope */
-private void parseToplevelTypes(Compiler* lr, Compiler* cm) {
+private void parseToplevelTypes(Compiler* cm) {
 }
 
 /** Parses top-level constants but not functions, and adds their bindings to the scope */
-private void parseToplevelConstants(Compiler* lx, Compiler* cm) {
+private void parseToplevelConstants(Compiler* cm) {
     cm->i = 0;
-    const Int len = lx->totalTokens;
+    const Int len = cm->totalTokens;
     while (cm->i < len) {
-        Token tok = lx->tokens[cm->i];
+        Token tok = cm->tokens[cm->i];
         if (tok.tp == tokAssignment) {
-            parseUpTo(cm->i + tok.pl2, lx->tokens, cm);
+            parseUpTo(cm->i + tok.pl2, cm->tokens, cm);
         } else {
             cm->i += (tok.pl2 + 1);
         }
@@ -3469,10 +3542,10 @@ private void parseToplevelConstants(Compiler* lx, Compiler* cm) {
 }
 
 /** Parses top-level function names, and adds their bindings to the scope */
-private void surveyToplevelFunctionNames(Compiler* lx, Compiler* cm) {
+private void surveyToplevelFunctionNames(Compiler* cm) {
     cm->i = 0;
-    const Int len = lx->totalTokens;
-    Token* tokens = lx->tokens;
+    const Int len = cm->totalTokens;
+    Token* tokens = cm->tokens;
     while (cm->i < len) {
         Token tok = tokens[cm->i];
         if (tok.tp == tokFnDef) {
@@ -3500,7 +3573,7 @@ private void addParsedOverload(Int overloadId, Int firstParamTypeId, Int entityI
     Int overloadInd = cm->overloadIds.content[overloadId];
     Int nextOverloadInd = cm->overloadIds.content[overloadId + 1];
     Int maxOverloadCount = (nextOverloadInd - overloadInd - 1)/2;
-    Int currConcreteOverloadCount = cm->overloads.content[overloadInd];
+    //Int currConcreteOverloadCount = cm->overloads.content[overloadInd];
     Int sentinel = overloadInd + maxOverloadCount + 1;
     Int j = overloadInd + 1;
     for (; j < sentinel && cm->overloads.content[j] > -1; j++) {}
@@ -3554,25 +3627,24 @@ private void validateOverloadsFull(Compiler* cm) {
  * Parses a top-level function signature. Emits no nodes, only an entity and an overload. Saves the info to "toplevelSignatures"
  * Pre-condition: we are 2 tokens past the fnDef.
  */
-private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* lx, Compiler* cm) {
+private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm) {
     Int fnStartTokenId = cm->i - 2;    
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
-    Int byteSentinel = fnDef.startBt + fnDef.lenBts;
     
-    Token fnName = lx->tokens[cm->i];
+    Token fnName = cm->tokens[cm->i];
     Int fnNameId = fnName.pl2;
     Int activeBinding = cm->activeBindings[fnNameId];
     Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
     Int fnEntityId = cm->entities.length;    
-    pushInentities(((Entity){.nameId = fnNameId}), cm);
+    pushInentities(((Entity){.emit = emitPrefix, .class = classImmutable}), cm);
     
     cm->i++; // CONSUME the function name token
     
     Int tentativeTypeInd = cm->types.length;
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
     // the function's return type, interpreted to be Void if absent
-    if (lx->tokens[cm->i].tp == tokTypeName) {
-        Token fnReturnType = lx->tokens[cm->i];
+    if (cm->tokens[cm->i].tp == tokTypeName) {
+        Token fnReturnType = cm->tokens[cm->i];
         Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
         VALIDATEP(returnTypeId > -1, errUnknownType)
         pushIntypes(returnTypeId, cm);
@@ -3581,21 +3653,21 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     } else {
         pushIntypes(tokUnderscore, cm); // underscore stands for the Void type
     }
-    VALIDATEP(lx->tokens[cm->i].tp == tokParens, errFnNameAndParams)
+    VALIDATEP(cm->tokens[cm->i].tp == tokParens, errFnNameAndParams)
 
     Int paramsTokenInd = cm->i;
-    Token parens = lx->tokens[paramsTokenInd];   
+    Token parens = cm->tokens[paramsTokenInd];   
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
     Int arity = 0;
     while (cm->i < paramsSentinel) {
-        Token paramName = lx->tokens[cm->i];
+        Token paramName = cm->tokens[cm->i];
         VALIDATEP(paramName.tp == tokWord, errFnNameAndParams)
         ++cm->i; // CONSUME a param name
         ++arity;
         
         VALIDATEP(cm->i < paramsSentinel, errFnNameAndParams)
-        Token paramType = lx->tokens[cm->i];
+        Token paramType = cm->tokens[cm->i];
         VALIDATEP(paramType.tp == tokTypeName, errFnNameAndParams)
         
         Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
@@ -3605,7 +3677,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
         ++cm->i; // CONSUME the param's type name
     }
 
-    VALIDATEP(cm->i < (fnSentinelToken - 1) && lx->tokens[cm->i].tp == tokEqualsSign, errFnMissingBody)
+    VALIDATEP(cm->i < (fnSentinelToken - 1) && cm->tokens[cm->i].tp == tokEqualsSign, errFnMissingBody)
     cm->types.content[tentativeTypeInd] = arity + 1;
     
     Int uniqueTypeId = mergeType(tentativeTypeInd, arity + 2, cm);
@@ -3646,7 +3718,6 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
 
-    Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = tokens[cm->i];
         Int newEntityId = createEntity(paramName.pl2, cm);
@@ -3665,29 +3736,29 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
 }
 
 /** Parses top-level function params and bodies */
-private void parseFunctionBodies(StackNode* toplevelSignatures, Compiler* lx, Compiler* cm) {
+private void parseFunctionBodies(StackNode* toplevelSignatures, Arr(Token) tokens, Compiler* cm) {
     for (int j = 0; j < toplevelSignatures->length; j++) {
         cm->loopCounter = 0;
-        parseToplevelBody(toplevelSignatures->content[j], lx->tokens, cm);
+        parseToplevelBody(toplevelSignatures->content[j], tokens, cm);
     }
 }
 
 /** Walks the top-level functions' signatures (but not bodies).
  * Result: the complete overloads & overloadIds tables, and the list of toplevel functions to parse bodies for.
  */
-private StackNode* parseToplevelSignatures(Compiler* lx, Compiler* cm) {
+private StackNode* parseToplevelSignatures(Compiler* cm) {
     StackNode* topLevelSignatures = createStackNode(16, cm->aTmp);
     cm->i = 0;
-    const Int len = lx->totalTokens;
+    const Int len = cm->totalTokens;
     while (cm->i < len) {
-        Token tok = lx->tokens[cm->i];
+        Token tok = cm->tokens[cm->i];
         if (tok.tp == tokFnDef) {
             Int lenTokens = tok.pl2;
             Int sentinelToken = cm->i + lenTokens + 1;
             VALIDATEP(lenTokens >= 2, errFnNameAndParams)
             
             cm->i += 2; // CONSUME the function def token and the stmt token
-            parseToplevelSignature(tok, topLevelSignatures, lx, cm);
+            parseToplevelSignature(tok, topLevelSignatures, cm);
             cm->i = sentinelToken;
         } else {            
             cm->i += (tok.pl2 + 1);  // CONSUME the whole non-function span
@@ -3696,39 +3767,46 @@ private StackNode* parseToplevelSignatures(Compiler* lx, Compiler* cm) {
     return topLevelSignatures;
 }
 
-testable Compiler* parseMain(Compiler* lx, Compiler* cm, Arena* a) {
-    LanguageDefinition* pDef = cm->langDef;
-    int inpLength = lx->totalTokens;
-    int i = 0;
-    importBuiltins(lx->langDef, result);
+testable Compiler* parseMain(Compiler* cm, Arena* a) {
+    Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
+    
+    EntityImport imports[4] =  {
+        (EntityImport) { .name = str("math-pi", cm->a), .externalNameId = strPi, .typeInd = 0, .nameId = -1 },
+        (EntityImport) { .name = str("math-e", cm->a), .externalNameId = strE, .typeInd = 0, .nameId = -1 },
+        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint, .typeInd = 1, .nameId = -1 },
+        (EntityImport) { .name = str("alert", cm->a), .externalNameId = strAlert, .typeInd = 1, .nameId = -1 }
+    };    
+
+    importEntities(imports, sizeof(imports)/sizeof(EntityImport), ((Int[]){tokFloat, voidOfStr}), cm);
+    
     if (setjmp(excBuf) == 0) {
-        parseToplevelTypes(lx, cm);
+        parseToplevelTypes(cm);
         
         // This gives us overload counts
-        surveyToplevelFunctionNames(lx, cm);
+        surveyToplevelFunctionNames(cm);
 
         // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
         createOverloads(cm);
-        
-        parseToplevelConstants(lx, cm);
+        populateOverloadsForOperatorsAndImports(imports, sizeof(imports)/sizeof(EntityImport), cm);
+        parseToplevelConstants(cm);
 
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
-        StackNode* topLevelSignatures = parseToplevelSignatures(lx, cm);
+        StackNode* topLevelSignatures = parseToplevelSignatures(cm);
 
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
 
         // The main parse (all top-level function bodies)
-        parseFunctionBodies(topLevelSignatures, lx, cm);
+        parseFunctionBodies(topLevelSignatures, cm->tokens, cm);
     }
     return cm;
 }
 
 /** Parses a single file in 4 passes, see docs/parser.txt */
-private Compiler* parse(Compiler* lx, Arena* a) {
-    Compiler* cm = createCompiler(lx, a);
-    return parseMain(lx, cm, a);
+testable Compiler* parse(Compiler* lx, Compiler* proto, Arena* a) {
+    initializeParser(lx, proto, a);
+    return parseMain(lx, a);
 }
 
 //}}}
@@ -3887,7 +3965,6 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
 
 /** Typechecks and resolves overloads in a single expression */
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
-    Node expr = cm->nodes.content[indExpr];
     Int currAhead = 0; // how many elements ahead we are compared to the token array (because of extra call indicators)
     StackInt* st = cm->expStack;
     
@@ -3911,9 +3988,8 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             VALIDATEP(o > -1, errTypeZeroArityOverload)
 
             Int functionTypeInd = cm->entities.content[o].typeId;
-            Int typeLength = cm->types.content[functionTypeInd];
 #ifdef SAFETY
-            VALIDATEI(typeLength == 1, iErrorOverloadsIncoherent)
+            VALIDATEI(cm->types.content[functionTypeInd] == 1, iErrorOverloadsIncoherent)
 #endif
             
             cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
@@ -4060,35 +4136,16 @@ private void writeChars0(Codegen* cg, Int count, Arr(byte) chars){
 
 private void writeStr(String* str, Codegen* cg) {
     ensureBufferLength(str->length + 2, cg);
-    cg->buffer[cg->length] = aQuote;
+    cg->buffer[cg->length] = aBacktick;
     memcpy(cg->buffer + cg->length + 1, str->content, str->length);
     cg->length += (str->length + 2);
-    cg->buffer[cg->length - 1] = aQuote;
+    cg->buffer[cg->length - 1] = aBacktick;
 }
 
-/** Precondition: we are looking directly at the first node of the expression. Consumes all nodes of the expr */
-private void writeExpr(Arr(Node) nodes, Codegen* cg) {
-    Node nd = nodes[cg->i];
-    ++cg->i; // CONSUME the first/only node of the expr
-    if (nd.tp <= topVerbatimType) {
-        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
-    } else {
-        writeExprWorker(cg->i + nd.pl2, tokens, cg);
-    }
-#if SAFETY
-    if(nd.tp != nodExpr) {
-        throwExcInternal(iErrorExpressionIsNotAnExpr, cg->cm);
-    }
-#endif
-}
-    //~ Int startInd; // or externalNameId
-    //~ Int length; // only for native names
-    //~ uint8_t emit;
-    //~ uint8_t arity;
-    //~ uint8_t countArgs;
 private void writeBytesFromSource(Node nd, Codegen* cg) {
-    writeBytes(cg->sourceCode + nd.startBt, nd->lenBts, cg)
+    writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
 }
+
 
 private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
     if (top->countArgs != 1) {
@@ -4097,18 +4154,18 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
     switch (top->emit) {
     case emitField:
         writeChar(aDot, cg);
-        writeConstant(top->startId, cg); return;
+        writeConstant(top->startInd, cg); return;
     case emitInfix:
         writeChar(aSpace, cg);
-        writeBytes(cg->sourceCode + top.startInd, top->length, cg);
+        writeBytes(cg->sourceCode->content + top->startInd, top->length, cg);
         writeChar(aSpace, cg); return;
     case emitInfixExternal:
         writeChar(aSpace, cg);
-        writeConstant(top->startId, cg);
+        writeConstant(top->startInd, cg);
         writeChar(aSpace, cg); return;
     case emitInfixDot:
         writeChar(aDot, cg);
-        writeConstant(top->startId, cg);
+        writeConstant(top->startInd, cg);
         writeChar(aParenLeft, cg); return;
     }
 }
@@ -4131,13 +4188,13 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
             writeChar(aParenLeft, cg);
             switch (ent.emit) {
             case emitPrefix:
-                writeBytesFromSource(n);
+                writeBytesFromSource(n, cg);
                 writeChar(aParenLeft, cg); break;
             case emitPrefixExternal:
-                writeConstant(top->startId, cg);
+                writeConstant(ent.externalNameId, cg);
                 writeChar(aParenLeft, cg); break;
             case emitPrefixShielded:
-                writeBytesFromSource(n);
+                writeBytesFromSource(n, cg);
                 writeChar(aParenLeft, cg);
                 writeChar(aUnderscore, cg); break;
             }
@@ -4148,7 +4205,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
             while (top->countArgs == top->arity) {
                 popCgCall(cg->calls);
                 writeChar(aParenRight, cg);
-                if (!hasValuesPgCall(cg->calls)) {
+                if (!hasValuesCgCall(cg->calls)) {
                     break;
                 }
                 CgCall* second = cg->calls->content + (cg->calls->length - 1);
@@ -4163,6 +4220,21 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
     writeChar(aParenRight, cg);
 }
 
+/** Precondition: we are looking directly at the first node of the expression. Consumes all nodes of the expr */
+private void writeExpr(Arr(Node) nodes, Codegen* cg) {
+    Node nd = nodes[cg->i];
+    ++cg->i; // CONSUME the first/only node of the expr
+    if (nd.tp <= topVerbatimType) {
+        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+    } else {
+        writeExprWorker(cg->i + nd.pl2, nodes, cg);
+    }
+#if SAFETY
+    if(nd.tp != nodExpr) {
+        throwExcInternal(iErrorExpressionIsNotAnExpr, cg->cm);
+    }
+#endif
+}
 
 
 private void pushCodegenFrame(Node nd, Codegen* cg) {
@@ -4182,6 +4254,12 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         writeIndentation(cg);
         writeConstantWithSpace(strFunction, cg);
         Entity fnEnt = cg->cm->entities.content[nd.pl1];
+
+        Node fnBinding = nodes[cg->i];
+        writeBytesFromSource(fnBinding, cg);
+        if (fnEnt.emit == emitPrefixShielded) {
+            writeChar(aUnderscore, cg);
+        }
         writeChar(aParenLeft, cg);
         Int sentinel = cg->i + nd.pl2;
         Int j = cg->i + 1; // +1 to skip the nodScope
@@ -4219,7 +4297,8 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
     writeIndentation(cg);
     
     Node binding = nodes[cg->i];
-    if (cg->cm->entities.content[binding.pl1].isMutable) {
+    Int class = cg->cm->entities.content[binding.pl1].class;
+    if (class == classMutatedGuaranteed || class == classMutatedNullable) {
         writeConstantWithSpace(strLet, cg);
     } else {
         writeConstantWithSpace(strConst, cg);
@@ -4358,7 +4437,7 @@ private Codegen* createCodegen(Compiler* cm, Arena* a) {
     (*cg) = (Codegen) {
         .i = 0, .backtrack = *createStackNode(16, a),
         .length = 0, .capacity = 64, .buffer = allocateOnArena(64, a),
-        .sourceCode = cm->text, .cm = cm, .a = a
+        .sourceCode = cm->sourceCode, .cm = cm, .a = a
     };
     tabulateCgDispatch(cg);
     return cg;
@@ -4385,18 +4464,19 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
 //{{{ Main
 Codegen* compile() {
     Arena* a = mkArena();
-    LanguageDefinition* langDef = buildLanguageDefinitions(a);
+    Compiler* proto = createCompilerProto(a);
+    
     String* inp = str(
               "(:f foo Int(x Int y Float) =\n"
               "    a = + x (* x 2)\n"
               "    return bar y a)\n"
               "(:f bar Int(y Float c Int) =\n"
               "    return foo c y)", a);
-    Compiler* lx = lexicallyAnalyze(inp, langDef, a);
+    Compiler* lx = lexicallyAnalyze(inp, proto, a);
     if (lx->wasError) {
         print("lexer error");
     }
-    Compiler* cm = parse(lx, a);
+    Compiler* cm = parse(lx, proto, a);
     if (cm->wasError) {
         print("parser error");
     }

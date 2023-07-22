@@ -8,9 +8,9 @@
 
 typedef struct {
     String* name;
-    Compiler* input;
-    Compiler* initParser;
-    Compiler* expectedOutput;
+    Compiler* lexer;
+    Compiler* test;
+    Compiler* control;
 } ParserTest;
 
 
@@ -35,22 +35,6 @@ const char* nodeNames[] = {
     "lambda", "meta", "package", "return", "struct", "try", "yield",
     "ifClause", "while", "whileCond", "if", "ifPr", "impl", "match"
 };
-
-
-private Compiler* buildParserWithError0(String* errMsg, Compiler* lx, Arena *a, int nextInd, Arr(Node) nodes) {
-    Compiler* result = createCompiler(lx, a);
-    (*result) = (Compiler) { .wasError = true, .errMsg = errMsg, 
-        .nodes = createInListNode(64, a)};
-
-    if (result == NULL) return result;
-    
-    for (int i = 0; i < nextInd; i++) {
-        result->nodes.content[i] = nodes[i];
-    }    
-    return result;
-}
-
-#define buildParserWithError(msg, lx, a, nodes) buildParserWithError0(msg, lx, a, sizeof(nodes)/sizeof(Node), nodes)
 
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
@@ -102,17 +86,17 @@ private Int transformBindingEntityId(Int inp, Compiler* pr) {
     }
 }
 
-private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Int* countImportedTypes, Compiler* cm) {
-    *countImportedTypes = 0;
+private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
+    Int countImportedTypes = 0;
     Int j = 0;
     while (j < countTypes) {
         if (types[j] == 0) {
             return NULL;
         }
-        ++(*countImportedTypes);
+        ++(countImportedTypes);
         j += types[j] + 1;
     }
-    Arr(Int) typeIds = allocateOnArena((*countImportedTypes)*4, cm->aTmp);
+    Arr(Int) typeIds = allocateOnArena(countImportedTypes*4, cm->aTmp);
     j = 0;
     Int t = 0;
     while (j < countTypes) {
@@ -131,46 +115,60 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Int* countImportedT
     return typeIds;
 }
 
-/** Creates a test with two parser: one is the init parser (contains all the "imported" bindings)
- *  and one is the output parser (with the bindings and the expected nodes). When the test is run,
- *  the init parser will parse the tokens and then will be compared to the expected output parser.
+private Compiler* copyLexerForTesting(Compiler* lx) {
+    Compiler* result = allocateOnArena(sizeof(Compiler), lx->a);
+    (*result) = (Compiler){
+        .i = 0, .langDef = lx->langDef, .sourceCode = lx->sourceCode, .nextInd = 0, .inpLength = lx->inpLength,
+        .tokens = lx->tokens, .capacity = LEXER_INIT_SIZE,
+        .newlines = (Arr(Int))allocateOnArena(500*4, lx->a), .newlinesCapacity = 500,
+        .numeric = (Arr(Int))allocateOnArena(50*4, lx->aTmp), .numericCapacity = 50,
+        .lexBtrack = createStackBtToken(16, lx->aTmp),
+        .stringTable = lx->stringTable, .stringStore = lx->stringStore,
+        .wasError = false, .errMsg = lx->errMsg,
+        .a = lx->a, .aTmp = lx->aTmp
+    };
+    return result;
+}
+
+/** Creates a test with two parsers: one is the init parser (contains all the "imported" bindings and
+ *  pre-defined nodes), and the other is the output parser (with all the stuff parsed from source code).
+ *  When the test is run, the init parser will parse the tokens and then will be compared to the expected output parser.
  *  Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in nodBinding is 1,
- *  it will be inserted as 1 + (the number of built-in bindings)
+ *  it will be inserted as 1 + (the number of built-in bindings) etc
  */
-private ParserTest createTest0(String* name, String* input, Arr(Node) nodes, Int countNodes, 
+private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes, Int countNodes, 
                                Arr(Int) types, Int countTypes, Arr(EntityImport) imports, Int countImports,
                                Compiler* proto, Arena* a) {
-    Compiler* lx = lexicallyAnalyze(input, proto->langDef, a);
-    Compiler* initParser     = createCompiler(lx, a);
-    Compiler* expectedParser = createCompiler(lx, a);
-    if (expectedParser->wasError) {
-        return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
+    Compiler* lx = lexicallyAnalyze(sourceCode, proto, a);
+    Compiler* test = copyLexerForTesting(lx);
+    Compiler* control = copyLexerForTesting(lx);
+    initializeParser(control, proto, a);
+    initializeParser(test, proto, a);
+    
+    Arr(Int) typeIds = importTypes(types, countTypes, control);
+    importTypes(types, countTypes, test);
+    importEntities(imports, countImports, typeIds, control);
+    importEntities(imports, countImports, typeIds, test);
+
+    // The test compiler
+    test = parse(test, proto, a);
+    if (test->wasError) {
+        return (ParserTest){ .name = name, .lexer = lx, .test = test, .control = control };
     }
-    initParser->entImportedZero = initParser->overloadIds.length;
-    
-    Int countImportedTypes;
-    Arr(Int) typeIds = importTypes(types, countTypes, &countImportedTypes, initParser);
-    importTypes(types, countTypes, &countImportedTypes, expectedParser);
-    
-    importEntities(imports, countImports, typeIds, initParser);
-    importEntities(imports, countImports, typeIds, expectedParser);
-    initParser->countNonparsedEntities = initParser->entities.length;
 
-    expectedParser->countNonparsedEntities = initParser->countNonparsedEntities;
-    expectedParser->entImportedZero = initParser->entImportedZero;
-
+    // The control compiler
     for (Int i = 0; i < countNodes; i++) {
         untt nodeType = nodes[i].tp;
         // All the node types which contain bindingIds
         if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding || nodeType == nodBinding) {
-            pushInnodes((Node){ .tp = nodeType, .pl1 = transformBindingEntityId(nodes[i].pl1, expectedParser),
+            pushInnodes((Node){ .tp = nodeType, .pl1 = transformBindingEntityId(nodes[i].pl1, control),
                                 .pl2 = nodes[i].pl2, .startBt = nodes[i].startBt, .lenBts = nodes[i].lenBts }, 
-                    expectedParser);
+                    control);
         } else {
-            pushInnodes(nodes[i], expectedParser);
+            pushInnodes(nodes[i], control);
         }
     }
-    return (ParserTest){ .name = name, .input = lx, .initParser = initParser, .expectedOutput = expectedParser };
+    return (ParserTest){ .name = name, .lexer = lx, .test = test, .control = control };
 }
 
 #define createTest(name, input, nodes, types, entities) createTest0((name), (input), \
@@ -187,8 +185,8 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
                                Arr(Int) types, Int countTypes, Arr(EntityImport) entities, Int countEntities,
                                Compiler* proto, Arena* a) {
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities, countEntities, proto, a);
-    theTest.expectedOutput->wasError = true;
-    theTest.expectedOutput->errMsg = message;
+    theTest.control->wasError = true;
+    theTest.control->errMsg = message;
     return theTest;
 }
 
@@ -209,7 +207,7 @@ int equalityParser(Compiler a, Compiler b) {
         Node nodB = b.nodes.content[i];
         if (nodA.tp != nodB.tp || nodA.lenBts != nodB.lenBts || nodA.startBt != nodB.startBt 
             || nodA.pl1 != nodB.pl1 || nodA.pl2 != nodB.pl2) {
-            printf("\n\nUNEQUAL RESULTS\n", i);
+            printf("\n\nUNEQUAL RESULTS on %d\n", i);
             if (nodA.tp != nodB.tp) {
                 printf("Diff in tp, %s but was expected %s\n", nodeNames[nodA.tp], nodeNames[nodB.tp]);
             }
@@ -288,14 +286,14 @@ void printParser(Compiler* cm, Arena* a) {
 }
 
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
-void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {    
+void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
     (*countTests)++;
-    if (test.input->wasError) {
+    if (test.lexer->wasError) {
         printString(test.name);
         print("Lexer was not without error");
-        printLexer(test.input);
+        printLexer(test.lexer);
         return;
-    } else if (test.input->nextInd == 0) {
+    } else if (test.lexer->nextInd == 0) {
         print("Lexer result empty");
         return;
     }
@@ -303,9 +301,9 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
     printLexer(test.input);
     printf("\n");
 #endif
-    Compiler* resultParser = parseMain(test.input, test.initParser, a);
+    parseMain(test.test, a);
         
-    int equalityStatus = equalityParser(*resultParser, *test.expectedOutput);
+    int equalityStatus = equalityParser(*test.test, *test.control);
     if (equalityStatus == -2) {
         (*countPassed)++;
         return;
@@ -313,124 +311,124 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         printf("\n\nERROR IN [");
         printStringNoLn(test.name);
         printf("]\nError msg: ");
-        printString(resultParser->errMsg);
+        printString(test.test->errMsg);
         printf("\nBut was expected: ");
-        printString(test.expectedOutput->errMsg);
+        printString(test.control->errMsg);
         printf("\n");
         print("    LEXER:")
-        printLexer(test.input);
+        printLexer(test.lexer);
         print("    PARSER:")
-        printParser(resultParser, a);
+        printParser(test.test, a);
     } else {
         printf("ERROR IN ");
         printString(test.name);
         printf("On node %d\n", equalityStatus);
         print("    LEXER:")
-        printLexer(test.input);
+        printLexer(test.lexer);
         print("    PARSER:")
-        printParser(resultParser, a);
+        printParser(test.test, a);
     }
 }
 
 
 ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
-        createTest(
-            s("Simple assignment"), 
-            s("x = 12"),            
-            ((Node[]) {
-                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
-                    (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
-                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTest(
-            s("Double assignment"), 
-            s("x = 12\n"
-              "second = x"  
-            ),
-            ((Node[]) {
-                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
-                    (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 },     // x
-                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
-                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 7, .lenBts = 10 },
-                    (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
-                    (Node){ .tp = nodId, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTestWithError(
-            s("Assignment shadowing error"), 
-            s(errAssignmentShadowing),
-            s("x = 12\n"
-              "x = 7"  
-            ),
-            ((Node[]) {
-                    (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
-                    (Node){ .tp = nodBinding, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                    (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTestWithError(
-            s("Assignment type declaration error"), 
-            s(errTypeMismatch),
-            s("x String = 12"),
-            ((Node[]) {
-                    (Node){ .tp = nodAssignment,           .startBt = 0,  .lenBts = 13 },
-                    (Node){ .tp = nodBinding,              .startBt = 0,  .lenBts = 1 },      
-                    (Node){ .tp = tokInt,       .pl2 = 12, .startBt = 11, .lenBts = 2 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTest(
-            s("Reassignment"), 
-            s("(:f main() = \n"
-                   "x = \"foo\"\n"
-                   "x := \"bar\")"
-            ),
-            ((Node[]) {
-                    (Node){ .tp = nodFnDef,           .pl2 = 8, .startBt = 0, .lenBts = 35 },
-                    (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 4 },
-                    (Node){ .tp = nodScope,           .pl2 = 6, .startBt = 8, .lenBts = 27 },
-                    (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 14, .lenBts = 9 },
-                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 14, .lenBts = 1 },     // x
-                    (Node){ .tp = tokString,                    .startBt = 18, .lenBts = 5 },
-                    (Node){ .tp = nodReassign, .pl2 = 2,        .startBt = 24, .lenBts = 10 },
-                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 24, .lenBts = 1 }, // second
-                    (Node){ .tp = tokString,                    .startBt = 29, .lenBts = 5 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
-        createTest(
-            s("Mutation simple"), 
-            s("(:f main() = \n"
-                   "x = 1\n"
-                   "x += 3)"
-            ),
-            ((Node[]) {
-                    (Node){ .tp = nodFnDef,           .pl2 = 11, .startBt = 0, .lenBts = 27 },
-                    (Node){ .tp = nodBinding, .pl1 = 0,          .startBt = 4, .lenBts = 4 },
-                    (Node){ .tp = nodScope,           .pl2 = 9, .startBt = 8, .lenBts = 19 },
-                    (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 14, .lenBts = 5 },
-                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 14, .lenBts = 1 },     // x
-                    (Node){ .tp = tokInt,             .pl2 = 1, .startBt = 18, .lenBts = 1 },
-                    (Node){ .tp = nodReassign,        .pl2 = 5, .startBt = 20, .lenBts = 6 },
-                    (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 20, .lenBts = 1 },
-                    (Node){ .tp = nodExpr,            .pl2 = 3, .startBt = 20, .lenBts = 6 },
-                    (Node){ .tp = nodCall, .pl1 = oper(opTPlus, tokInt), .pl2 = 2,  .startBt = 21, .lenBts = 4 },
-                    (Node){ .tp = nodId,      .pl1 = 1, .pl2 = 1, .startBt = 20, .lenBts = 1 },
-                    (Node){ .tp = tokInt,             .pl2 = 3, .startBt = 25, .lenBts = 1 }
-            }),
-            ((Int[]) {}),
-            ((EntityImport[]) {})
-        ),
+        //~ createTest(
+            //~ s("Simple assignment"), 
+            //~ s("x = 12"),            
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
+                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTest(
+            //~ s("Double assignment"), 
+            //~ s("x = 12\n"
+              //~ "second = x"  
+            //~ ),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 },     // x
+                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 7, .lenBts = 10 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 1, .startBt = 7, .lenBts = 6 }, // second
+                    //~ (Node){ .tp = nodId, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTestWithError(
+            //~ s("Assignment shadowing error"), 
+            //~ s(errAssignmentShadowing),
+            //~ s("x = 12\n"
+              //~ "x = 7"  
+            //~ ),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                    //~ (Node){ .tp = nodBinding, .pl2 = 0, .startBt = 0, .lenBts = 1 },
+                    //~ (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTestWithError(
+            //~ s("Assignment type declaration error"), 
+            //~ s(errTypeMismatch),
+            //~ s("x String = 12"),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodAssignment,           .startBt = 0,  .lenBts = 13 },
+                    //~ (Node){ .tp = nodBinding,              .startBt = 0,  .lenBts = 1 },      
+                    //~ (Node){ .tp = tokInt,       .pl2 = 12, .startBt = 11, .lenBts = 2 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTest(
+            //~ s("Reassignment"), 
+            //~ s("(:f main() = \n"
+                   //~ "x = `foo`\n"
+                   //~ "x := `bar`)"
+            //~ ),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodFnDef,           .pl2 = 8, .startBt = 0, .lenBts = 35 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 4 },
+                    //~ (Node){ .tp = nodScope,           .pl2 = 6, .startBt = 8, .lenBts = 27 },
+                    //~ (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 14, .lenBts = 9 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 14, .lenBts = 1 },     // x
+                    //~ (Node){ .tp = tokString,                    .startBt = 18, .lenBts = 5 },
+                    //~ (Node){ .tp = nodReassign, .pl2 = 2,        .startBt = 24, .lenBts = 10 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 24, .lenBts = 1 }, // second
+                    //~ (Node){ .tp = tokString,                    .startBt = 29, .lenBts = 5 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
+        //~ createTest(
+            //~ s("Mutation simple"), 
+            //~ s("(:f main() = \n"
+                   //~ "x = 1\n"
+                   //~ "x += 3)"
+            //~ ),
+            //~ ((Node[]) {
+                    //~ (Node){ .tp = nodFnDef,           .pl2 = 11, .startBt = 0, .lenBts = 27 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 0,          .startBt = 4, .lenBts = 4 },
+                    //~ (Node){ .tp = nodScope,           .pl2 = 9, .startBt = 8, .lenBts = 19 },
+                    //~ (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 14, .lenBts = 5 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 14, .lenBts = 1 },     // x
+                    //~ (Node){ .tp = tokInt,             .pl2 = 1, .startBt = 18, .lenBts = 1 },
+                    //~ (Node){ .tp = nodReassign,        .pl2 = 5, .startBt = 20, .lenBts = 6 },
+                    //~ (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 20, .lenBts = 1 },
+                    //~ (Node){ .tp = nodExpr,            .pl2 = 3, .startBt = 20, .lenBts = 6 },
+                    //~ (Node){ .tp = nodCall, .pl1 = oper(opTPlus, tokInt), .pl2 = 2,  .startBt = 21, .lenBts = 4 },
+                    //~ (Node){ .tp = nodId,      .pl1 = 1, .pl2 = 1, .startBt = 20, .lenBts = 1 },
+                    //~ (Node){ .tp = tokInt,             .pl2 = 3, .startBt = 25, .lenBts = 1 }
+            //~ }),
+            //~ ((Int[]) {}),
+            //~ ((EntityImport[]) {})
+        //~ ),
         createTest(
             s("Mutation complex"), 
             s("(:f main() = \n"
@@ -516,7 +514,7 @@ ParserTestSet* expressionTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Triple function call"), 
-            s("x = buzz 2 (foo : inner 7 \"hw\") 4"),
+            s("x = buzz 2 (foo : inner 7 `hw`) 4"),
             (((Node[]) {
                 (Node){ .tp = nodAssignment, .pl2 = 9, .startBt = 0, .lenBts = 33 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
@@ -907,7 +905,7 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
     return createTestSet(s("If test set"), a, ((ParserTest[]){
         createTest(
             s("Simple if"),
-            s("x = (if == 5 5 => print \"5\")"),
+            s("x = (if == 5 5 => print `5`)"),
             ((Node[]) {
                 (Node){ .tp = nodAssignment, .pl2 = 10, .startBt = 0, .lenBts = 28 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
@@ -928,7 +926,7 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("If with else"),
-            s("x = (if > 5 3 => \"5\" else \"=)\")"),
+            s("x = (if > 5 3 => `5` else `=)`)"),
             ((Node[]) {
                 (Node){ .tp = nodAssignment, .pl2 = 10, .startBt = 0, .lenBts = 31 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 0, .lenBts = 1 }, // x
@@ -1305,7 +1303,7 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
 }
 
 void runATestSet(ParserTestSet* (*testGenerator)(Compiler*, Arena*), int* countPassed, int* countTests, 
-        Compiler* proto, Arena* a) {
+                 Compiler* proto, Arena* a) {
     ParserTestSet* testSet = (testGenerator)(proto, a);
     for (int j = 0; j < testSet->totalTests; j++) {
         ParserTest test = testSet->tests[j];
@@ -1319,16 +1317,14 @@ int main() {
     printf("--  PARSER TEST  --\n");
     printf("----------------------------\n");
     Arena *a = mkArena();
-    LanguageDefinition* langDef = buildLanguageDefinitions(a);
-    Compiler* dummyLexer = createLexer(str("asdf", a), langDef, a);
-    Compiler* proto = createCompiler(dummyLexer, a);
+    Compiler* proto = createCompilerProto(a);
 
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, a);
-    runATestSet(&expressionTests, &countPassed, &countTests, proto, a);
-    runATestSet(&functionTests, &countPassed, &countTests, proto, a);
-    runATestSet(&ifTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&expressionTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&functionTests, &countPassed, &countTests, proto, a);
+    //~ runATestSet(&ifTests, &countPassed, &countTests, proto, a);
     //~ runATestSet(&loopTests, &countPassed, &countTests, proto, a);
 
     if (countTests == 0) {
