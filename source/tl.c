@@ -2860,8 +2860,10 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 testable Compiler* createCompilerProto(Arena* a) {
     Compiler* proto = allocateOnArena(sizeof(Compiler), a);
     (*proto) = (Compiler){
-        .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(64, a),
-        .overloadIds = createInListuint32_t(64, a), .types = createInListInt(64, a), .typesDict = createStringStore(100, a)
+        .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(32, a),
+        .overloadIds = createInListuint32_t(countOperators, a),
+        .types = createInListInt(64, a), .typesDict = createStringStore(100, a),
+        .a = a
     };
     createBuiltins(proto);
     return proto;
@@ -3082,7 +3084,7 @@ testable void popScopeFrame(Compiler* cm) {
 }
 
 /** Processes the name of a defined function. Creates an overload counter, or increments it if it exists. Consumes no tokens. */
-private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {    
+private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
     VALIDATEP(activeValue < 0, errAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
@@ -3101,7 +3103,7 @@ private Int importEntity(Int nameId, Entity ent, Compiler* cm) {
 
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
-
+    print("nameId %d typelen %d", nameId, typeLength)
     if (typeLength <= 1) { // not a function, or a 0-arity function => not overloaded
         cm->activeBindings[nameId] = newEntityId;
     } else {
@@ -3132,6 +3134,9 @@ testable Int mergeType(Int startInd, Int len, Compiler* cm) {
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
+            print("types + stringValues[i].indString %p", types + stringValues[i].indString)
+            print("types + startBt %p", types + startBt)
+            print("stringValues[i].indString %d", stringValues[i].indString)
             if (stringValues[i].length == lenBts
                   && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {                    
                 // key already present
@@ -3366,6 +3371,7 @@ private Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Aren
         .lexBtrack = createStackBtToken(16, aTmp),
         .stringTable = createStackint32_t(16, a), .stringStore = createStringStore(100, a),
         .sourceCode = sourceCode,
+        .countOperatorEntities = proto->countOperatorEntities, .entImportedZero = proto->overloadIds.length,
         .wasError = false, .errMsg = &empty,
         .a = a, .aTmp = aTmp
     };
@@ -3395,11 +3401,12 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->backtrack = createStackParseFrame(16, lx->aTmp);
     cm->i = 0;
     cm->loopCounter = 0;
-        
+
     cm->nodes = createInListNode(initNodeCap, a);
-    cm->activeBindings = allocateOnArena(4*lx->countStrings, lx->aTmp);
-    if (lx->countStrings > 0) {
-        memset(cm->activeBindings, 0xFF, lx->countStrings*4); // activeBindings is filled with -1
+    cm->activeBindings = allocateOnArena(4*lx->stringTable->length, lx->aTmp);
+
+    if (lx->stringTable->length > 0) {
+        memset(cm->activeBindings, 0xFF, lx->stringTable->length*4); // activeBindings is filled with -1
     }
     cm->overloads = (InListInt){.length = 0, .content = NULL};
 
@@ -3411,13 +3418,12 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     memcpy(cm->entities.content, proto->entities.content, proto->entities.length*sizeof(Entity));
     cm->entities.length = proto->entities.length;
     cm->entities.capacity = proto->entities.capacity;
-    
+
     cm->overloadIds = createInListuint32_t(MAX(proto->overloadIds.length, 64), cm->aTmp);
     memcpy(cm->overloadIds.content, proto->overloadIds.content, proto->overloadIds.length*4);
     cm->overloadIds.length = proto->overloadIds.length;
     cm->overloadIds.capacity = proto->overloadIds.capacity;
     
-    cm->activeBindings = allocateOnArena(4*lx->countStrings, lx->aTmp);
     cm->overloads = (InListInt){.length = 0, .content = NULL};
     
     cm->types.content = allocateOnArena(MAX(proto->types.length, 128)*4, a);
@@ -3428,9 +3434,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->typesDict = copyStringStore(proto->typesDict, a);
 
     cm->expStack = createStackint32_t(16, lx->aTmp);
-    if (lx->countStrings > 0) {
-        memset(cm->activeBindings, 0xFF, lx->countStrings*4); // activeBindings is filled with -1
-    }
 }
 
 
@@ -3445,7 +3448,7 @@ private void populateOverloadsForOperatorsAndImports(Arr(EntityImport) imports, 
     Int countOverls;
     Int currOperId = -1;
     Int entitySentinel = 0;
-
+    printIntArray( cm->overloadIds.length, cm->overloadIds.content);
     // overloads for built-in operators
     for (Int i = 0; i < cm->countOperatorEntities; i++) {
         Entity ent = cm->entities.content[i];
@@ -3453,15 +3456,15 @@ private void populateOverloadsForOperatorsAndImports(Arr(EntityImport) imports, 
         if (i == entitySentinel) {
             ++currOperId;
             o = cm->overloadIds.content[currOperId] + 1;
+
             countOverls = (cm->overloadIds.content[currOperId + 1] - cm->overloadIds.content[currOperId] - 1)/2;
             entitySentinel += (*cm->langDef->operators)[currOperId].builtinOverloads;
-            print("currOperId %d built-in %d new ent sent %d",
-                currOperId, cm->langDef->operators[0]->builtinOverloads, entitySentinel)
         }
         
         cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
+        
 #ifdef SAFETY
-        print("overls %d o %d, countOverls %d i %d", cm->overloads.content[o + countOverls], o, countOverls, cm->i)
+        
         VALIDATEI(cm->overloads.content[o + countOverls] == -1, iErrorOverloadsOverflow)
 #endif
         cm->overloads.content[o + countOverls] = i;
@@ -3473,8 +3476,11 @@ private void populateOverloadsForOperatorsAndImports(Arr(EntityImport) imports, 
     Int currFuncId = -1;
     Int impInd = 0;
     for (Int j = cm->entImportedZero; j < cm->entities.length; j++) {
-        while (imports[impInd].nameId == -1) {
+        while (impInd < lenImports && imports[impInd].nameId == -1) {
             ++impInd;
+        }
+        if (impInd == lenImports) {
+            break;
         }
         Entity ent = cm->entities.content[j];
         if (!isFunctionWithParams(ent.typeId, cm)) {
@@ -3482,7 +3488,7 @@ private void populateOverloadsForOperatorsAndImports(Arr(EntityImport) imports, 
         }
         EntityImport imp = imports[impInd];
         currFuncId = cm->activeBindings[imp.nameId];
-        
+        print("currFuncId %d count strings %d", currFuncId, cm->stringTable->length)
 #ifdef SAFETY
         VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
 #endif            
@@ -3508,6 +3514,7 @@ testable void createOverloads(Compiler* cm) {
         // a typeId and an entityId for each overload, plus a length field for the list
         neededCount += (2*(cm->overloadIds.content[i] >> 16) + 1);
     }
+    print("neededCount %d", neededCount)
     cm->overloads = createInListInt(neededCount, cm->a);
     cm->overloads.length = neededCount;
     memset(cm->overloads.content, 0xFF, neededCount*4);
@@ -3601,10 +3608,10 @@ private void validateOverloadsFull(Compiler* cm) {
         VALIDATEI(countConcreteOverloads <= countOverloads, iErrorOverloadsIncoherent)
         for (Int j = currInd + 1; j < currInd + countOverloads; j++) {
             if (cm->overloads.content[j] < 0) {
+                print("counto verloads %d", countOverloads)
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
-                print("p1")
                 throwExcInternal(iErrorOverloadsIncoherent, cm);
             }
         }
@@ -3615,7 +3622,6 @@ private void validateOverloadsFull(Compiler* cm) {
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenEntities) {
-                print("p2")
                 throwExcInternal(iErrorOverloadsIncoherent, cm);
             }
         }
@@ -3775,8 +3781,8 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
         (EntityImport) { .name = str("math-e", cm->a), .externalNameId = strE, .typeInd = 0, .nameId = -1 },
         (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint, .typeInd = 1, .nameId = -1 },
         (EntityImport) { .name = str("alert", cm->a), .externalNameId = strAlert, .typeInd = 1, .nameId = -1 }
-    };    
-
+    };
+    
     importEntities(imports, sizeof(imports)/sizeof(EntityImport), ((Int[]){tokFloat, voidOfStr}), cm);
     
     if (setjmp(excBuf) == 0) {

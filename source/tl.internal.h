@@ -485,7 +485,6 @@ struct Compiler {
     
     Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
     StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points into stringTable
-    Int countStrings;            // length of stringTable
 
     Int lastClosingPunctInd;   // temp, the index of the last encountered closing punctuation sign, used for statement length
 
@@ -534,22 +533,16 @@ struct Compiler {
 };
 
 
-
-
 /** Span levels */
 #define slScope         1 // scopes (denoted by brackets): newlines and commas just have no effect in them
 #define slParenMulti    2 // things like "(if)": they're multiline but they cannot contain any brackets
 #define slStmt          3 // single-line statements: newlines and commas break 'em
 #define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
-    
-
 
 /** Must be the lowest value in the PunctuationToken enum */
 #define firstPunctuationTokenType tokScope
 /** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
 #define firstCoreFormTokenType tokAlias
-
-
 
 //}}}
 

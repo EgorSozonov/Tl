@@ -124,6 +124,7 @@ private Compiler* copyLexerForTesting(Compiler* lx) {
         .numeric = (Arr(Int))allocateOnArena(50*4, lx->aTmp), .numericCapacity = 50,
         .lexBtrack = createStackBtToken(16, lx->aTmp),
         .stringTable = lx->stringTable, .stringStore = lx->stringStore,
+        .countOperatorEntities = lx->countOperatorEntities, .entImportedZero = lx->entImportedZero,
         .wasError = false, .errMsg = lx->errMsg,
         .a = lx->a, .aTmp = lx->aTmp
     };
@@ -149,7 +150,6 @@ private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes
     importTypes(types, countTypes, test);
     importEntities(imports, countImports, typeIds, control);
     importEntities(imports, countImports, typeIds, test);
-
     // The test compiler
     test = parse(test, proto, a);
     if (test->wasError) {
