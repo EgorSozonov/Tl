@@ -320,7 +320,7 @@ typedef struct {
 #define opTQuestionMark     35 // ?    nullable type operator
 #define opTAccessor         36 // @
 #define opTExponentExt      37 // ^.   exponentiation extended
-#define opTExponent         38// ^    exponentiation
+#define opTExponent         38 // ^    exponentiation
 #define opTBoolOr           39 // ||   bitwise or
 #define opTXor              40 // |    bitwise xor
 #define opTAnd              41
