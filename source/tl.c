@@ -108,9 +108,11 @@ DEFINE_INTERNAL_LIST(nodes, Node, a)
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity)
 //DEFINE_INTERNAL_LIST(entities, Entity, a)
+
+void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
 testable void pushInentities(Entity newItem, Compiler* cm) {
     if (cm->entities.length < cm->entities.capacity) {
-        memcpy((Entity*)(cm->entities.content) + (cm->entities.length), &newItem, sizeof(Entity));
+        memcpy((cm->entities.content) + (cm->entities.length), &newItem, sizeof(Entity));
     } else {                                                                              
         Entity* newContent = allocateOnArena(2*(cm->entities.capacity)*sizeof(Entity), cm->a); 
         memcpy(newContent, cm->entities.content, cm->entities.length*sizeof(Entity));
@@ -2045,12 +2047,8 @@ private Int createEntity(Int nameId, Compiler* cm) {
     VALIDATEP(mbBinding < 0, errAssignmentShadowing) // if it's a binding, it should be -1, and if overload, <-1
 
     Int newEntityId = cm->entities.length;
-    print("in mid 0 of createEntity")
-    printIntArrayOff(6, 4, cm->types.content);
     pushInentities(((Entity){.emit = emitPrefix, .class = classMutableGuaranteed}), cm);
-    print("entities %p types %p", cm->entities.content + cm->entities.length, cm->types.content + cm->types.length);
-    print("in mid of createEntity")
-    printIntArrayOff(6, 4, cm->types.content);
+
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
             addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
@@ -2149,8 +2147,6 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
 
 /** Parses an assignment like "x = 5". The right side must never be a scope or contain any loops, or recursion will ensue */
 private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
-            print("in start of ass")
-        printIntArrayOff(6, 4, cm->types.content);
     Int rLen = tok.pl2 - 1;
     VALIDATEP(rLen >= 1, errAssignment)
     
@@ -2158,11 +2154,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 
     Token bindingTk = tokens[cm->i];
     VALIDATEP(bindingTk.tp == tokWord, errAssignment)
-    print("in middle of ass")
-    printIntArrayOff(6, 4, cm->types.content);
     Int newBindingId = createEntity(bindingTk.pl2, cm);
-    print("in middle 2 of ass")
-    printIntArrayOff(6, 4, cm->types.content);
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     
@@ -2184,11 +2176,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
         VALIDATEP(rightTypeId != -2, errAssignment)
     } else if (rTk.tp == tokIf) { // TODO
     } else {
-        print("in ass before right side")
-        printIntArrayOff(6, 4, cm->types.content);
         rightTypeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-        print("in ass after right side")
-        printIntArrayOff(6, 4, cm->types.content);
     }
     VALIDATEP(declaredTypeId == -1 || rightTypeId == declaredTypeId, errTypeMismatch)
     if (rightTypeId > -1) {
@@ -2198,8 +2186,6 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 /** While loops. Look like "(:while < x 100. x = 0. ++x)" This function handles assignments being lexically after the condition */
 private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
-    print("in while")
-    printIntArrayOff(6, 4, cm->types.content);
     ++cm->loopCounter;
     Int sentinel = cm->i + loopTok.pl2;
 
@@ -2225,14 +2211,8 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
             break;
         }
         ++cm->i; // CONSUME the assignment span marker
-        print("in while before ass")
-        printIntArrayOff(6, 4, cm->types.content);
         parseAssignment(tok, tokens, cm);
-        print("in while after ass")
-        printIntArrayOff(6, 4, cm->types.content);
         maybeCloseSpans(cm);
-        print("after close spans")
-        printIntArrayOff(6, 4, cm->types.content);
     }
     Int indBody = cm->i;
     VALIDATEP(indBody < sentinel, errLoopEmptyBody);
@@ -2671,6 +2651,7 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
     if (tok.pl2 == 1) {
         Token nextTok = tokens[cm->i];
         VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errBreakContinueInvalidDepth)
+
         unwindLevel = nextTok.pl2;
         ++(*sentinel); // CONSUME the Int after the "break"
     }
@@ -2693,6 +2674,7 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
         --j;
     }
     throwExcParser(errBreakContinueInvalidDepth, cm);
+    
 }
 
 
@@ -3469,12 +3451,12 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 
     cm->scopeStack = createScopeStack();
     
-    cm->entities = createInListEntity(MAX(proto->entities.length, 64), a);
+    cm->entities = createInListEntity(proto->entities.capacity, a);
     memcpy(cm->entities.content, proto->entities.content, proto->entities.length*sizeof(Entity));
     cm->entities.length = proto->entities.length;
     cm->entities.capacity = proto->entities.capacity;
 
-    cm->overloadIds = createInListuint32_t(MAX(proto->overloadIds.length, 64), cm->aTmp);
+    cm->overloadIds = createInListuint32_t(proto->overloadIds.capacity, cm->aTmp);
     memcpy(cm->overloadIds.content, proto->overloadIds.content, proto->overloadIds.length*4);
     cm->overloadIds.length = proto->overloadIds.length;
     cm->overloadIds.capacity = proto->overloadIds.capacity;
@@ -4057,8 +4039,6 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
-            print("found overload with arity %d at type ind %d indExpr %d", cm->types.content[typeOfFunc] - 1, typeOfFunc,
-                indExpr)
             VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) // first parm matches, but not arity
             
             // We know the type of the function, now to validate arg types against param types

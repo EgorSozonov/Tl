@@ -4,7 +4,6 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int64_t longOfDoubleBits(double d);
 void printIntArray(Int count, Arr(Int) arr);
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
-Compiler* createLexer(String* inp, LanguageDefinition* langDef, Arena* ar);
 void initializeParser(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* createCompilerProto(Arena* a);

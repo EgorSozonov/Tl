@@ -4,5 +4,5 @@ gcc -g3 -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors -Werror=implicit
 -Werror=implicit-int \
 -Isource  \
 test/parserTest.c source/tl.c \
--DPARSER_TEST -DTEST -DSAFETY -DTRACE \
+-DPARSER_TEST -DTEST -DSAFETY \
 -lm

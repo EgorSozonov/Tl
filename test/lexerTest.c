@@ -22,7 +22,7 @@ typedef struct {
 
 
 private Compiler* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
-    Compiler* result = createLexer(&empty, NULL, a);
+    Compiler* result = createCompilerProto(a);
     if (result == NULL) return result;
     
     for (int i = 0; i < totalTokens; i++) {
@@ -64,9 +64,9 @@ private LexerTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Lexe
 
 
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
-void runLexerTest(LexerTest test, int* countPassed, int* countTests, LanguageDefinition* lang, Arena *a) {
+void runLexerTest(LexerTest test, int* countPassed, int* countTests, Compiler* proto, Arena *a) {
     (*countTests)++;
-    Compiler* result = lexicallyAnalyze(test.input, lang, a);
+    Compiler* result = lexicallyAnalyze(test.input, proto, a);
         
     int equalityStatus = equalityLexer(*result, *test.expectedOutput);
     if (equalityStatus == -2) {
@@ -948,11 +948,11 @@ LexerTestSet* coreFormTests(Arena* a) {
 }
 
 
-void runATestSet(LexerTestSet* (*testGenerator)(Arena*), int* countPassed, int* countTests, LanguageDefinition* lang, Arena* a) {
+void runATestSet(LexerTestSet* (*testGenerator)(Arena*), int* countPassed, int* countTests, Compiler* proto, Arena* a) {
     LexerTestSet* testSet = (testGenerator)(a);
     for (int j = 0; j < testSet->totalTests; j++) {
         LexerTest test = testSet->tests[j];
-        runLexerTest(test, countPassed, countTests, lang, a);
+        runLexerTest(test, countPassed, countTests, proto, a);
     }
 }
 
@@ -962,17 +962,17 @@ int main() {
     printf("--  LEXER TEST  --\n");
     printf("----------------------------\n");
     Arena *a = mkArena();
-    LanguageDefinition* lang = buildLanguageDefinitions(a);
+    Compiler* proto = createCompilerProto(a);
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&wordTests, &countPassed, &countTests, lang, a);
-    runATestSet(&stringTests, &countPassed, &countTests, lang, a);
-    runATestSet(&commentTests, &countPassed, &countTests, lang, a);
-    runATestSet(&operatorTests, &countPassed, &countTests, lang, a);
-    runATestSet(&punctuationTests, &countPassed, &countTests, lang, a);
-    runATestSet(&numericTests, &countPassed, &countTests, lang, a);
-    runATestSet(&coreFormTests, &countPassed, &countTests, lang, a);
+    runATestSet(&wordTests, &countPassed, &countTests, proto, a);
+    runATestSet(&stringTests, &countPassed, &countTests, proto, a);
+    runATestSet(&commentTests, &countPassed, &countTests, proto, a);
+    runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
+    runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
+    runATestSet(&numericTests, &countPassed, &countTests, proto, a);
+    runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
 
     if (countTests == 0) {
         print("\nThere were no tests to run!");
