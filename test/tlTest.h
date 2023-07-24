@@ -65,6 +65,7 @@ int equalityParser(Compiler a, Compiler b);
 void createCompiler(Compiler* lx, Arena* a);
 void parseMain(Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Int len, Compiler* cm);
+void printParser(Compiler* cm, Arena* a);
 
 extern const char errBareAtom[];
 extern const char errImportsNonUnique[];

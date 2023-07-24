@@ -3802,6 +3802,72 @@ private StackNode* parseToplevelSignatures(Compiler* cm) {
     return topLevelSignatures;
 }
 
+/** Must agree in order with node types in tl.internal.h */
+const char* nodeNames[] = {
+    "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
+    "id", "call", "binding", "type", "and", "or", 
+    "(:", "expr", "assign", ":=", 
+    "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
+    "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
+    "lambda", "meta", "package", "return", "struct", "try", "yield",
+    "ifClause", "while", "whileCond", "if", "ifPr", "impl", "match"
+};
+
+private void printType(Int typeInd, Compiler* cm) {
+    if (typeInd < 5) {
+        printf("%s\n", nodeNames[typeInd]);
+        return;
+    }
+    Int arity = cm->types.content[typeInd] - 1;
+    Int retType = cm->types.content[typeInd + 1];
+    if (retType < 5) {
+        printf("%s(", nodeNames[retType]);
+    } else {
+        printf("Void(");
+    }
+    for (Int j = typeInd + 2; j < typeInd + arity + 2; j++) {
+        Int tp = cm->types.content[j];
+        if (tp < 5) {
+            printf("%s ", nodeNames[tp]);
+        }
+    }
+    print(")");
+}
+
+
+testable void printParser(Compiler* cm, Arena* a) {
+    if (cm->wasError) {
+        printf("Error: ");
+        printString(cm->errMsg);
+    }
+    Int indent = 0;
+    Stackint32_t* sentinels = createStackint32_t(16, a);
+    for (int i = 0; i < cm->nodes.length; i++) {
+        Node nod = cm->nodes.content[i];
+        for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
+            popint32_t(sentinels);
+            indent--;
+        }
+        if (i < 10) printf(" ");
+        printf("%d: ", i);
+        for (int j = 0; j < indent; j++) {
+            printf("  ");
+        }
+        if (nod.tp == nodCall) {
+            printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
+            printType(cm->entities.content[nod.pl1].typeId, cm);
+        } else if (nod.pl1 != 0 || nod.pl2 != 0) {
+            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
+        } else {
+            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt, nod.lenBts);
+        }
+        if (nod.tp >= nodScope && nod.pl2 > 0) {   
+            pushint32_t(i + nod.pl2 + 1, sentinels);
+            indent++;
+        }
+    }
+}
+
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(cm);
@@ -4288,12 +4354,14 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         }
         writeChar(aParenLeft, cg);
         Int sentinel = cg->i + nd.pl2;
-        Int j = cg->i + 1; // +1 to skip the nodScope
+        Int j = cg->i + 2; // +2 to skip the function binding node and nodScope
         if (nodes[j].tp == nodBinding) {
             Node binding = nodes[j];
             writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
             ++j;
         }
+
+        // function params
         while (j < sentinel && nodes[j].tp == nodBinding) {
             writeChar(aComma, cg);
             writeChar(aSpace, cg);
@@ -4331,10 +4399,13 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
     }
     writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
     writeChars(cg, ((byte[]){aSpace, aEqual, aSpace}));
-    
-    Node rightSide = nodes[cg->i + 1];
+
+    ++cg->i; // CONSUME the binding node
+    Node rightSide = nodes[cg->i];
     if (rightSide.tp == nodId) {
         writeBytes(cg->sourceCode->content + rightSide.startBt, rightSide.lenBts, cg);
+    } else {
+        writeExpr(nodes, cg);
     }
 
     writeChar(aSemicolon, cg);
@@ -4461,7 +4532,7 @@ private void tabulateCgDispatch(Codegen* cg) {
 private Codegen* createCodegen(Compiler* cm, Arena* a) {
     Codegen* cg = allocateOnArena(sizeof(Codegen), a);
     (*cg) = (Codegen) {
-        .i = 0, .backtrack = *createStackNode(16, a),
+        .i = 0, .backtrack = *createStackNode(16, a), .calls = createStackCgCall(16, a),
         .length = 0, .capacity = 64, .buffer = allocateOnArena(64, a),
         .sourceCode = cm->sourceCode, .cm = cm, .a = a
     };
@@ -4470,6 +4541,7 @@ private Codegen* createCodegen(Compiler* cm, Arena* a) {
 }
 
 private Codegen* generateCode(Compiler* cm, Arena* a) {
+    printParser(cm, a);
     if (cm->wasError) {
         return NULL;
     }
@@ -4478,7 +4550,6 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
     while (cg->i < len) {
         Node nd = cm->nodes.content[cg->i];
         ++cg->i; // CONSUME the span node
-
         (cg->cgTable[nd.tp - nodScope])(nd, true, cg->cm->nodes.content, cg);
         maybeCloseCgFrames(cg);
     }
@@ -4510,7 +4581,7 @@ Codegen* compile() {
     return cg;
 }
 
-#ifndef TEST
+
 Int main(int argc, char* argv) {
     Codegen* cg = compile();
     if (cg != NULL) {
@@ -4519,5 +4590,4 @@ Int main(int argc, char* argv) {
     }
     return 0;
 }
-#endif
 //}}}

@@ -24,17 +24,6 @@ typedef struct {
 #define S2 210000000 // A constant larger than the largest allowed file size. Separates parsed entities from others
 #define O  280000000 // The base index for operators
 
-/** Must agree in order with node types in ParserConstants.h */
-const char* nodeNames[] = {
-    "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
-    "id", "call", "binding", "type", "and", "or", 
-    "(:", "expr", "assign", ":=", 
-    "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
-    "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
-    "lambda", "meta", "package", "return", "struct", "try", "yield",
-    "ifClause", "while", "whileCond", "if", "ifPr", "impl", "match"
-};
-
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
     ParserTestSet* result = allocateOnArena(sizeof(ParserTestSet), a);
@@ -202,62 +191,6 @@ int equalityParser(Compiler a, Compiler b) {
         }
     }
     return (a.nodes.length == b.nodes.length) ? -2 : i;        
-}
-
-
-void printType(Int typeInd, Compiler* cm) {
-    if (typeInd < 5) {
-        printf("%s\n", nodeNames[typeInd]);
-        return;
-    }
-    Int arity = cm->types.content[typeInd] - 1;
-    Int retType = cm->types.content[typeInd + 1];
-    if (retType < 5) {
-        printf("%s(", nodeNames[retType]);
-    } else {
-        printf("Void(");
-    }
-    for (Int j = typeInd + 2; j < typeInd + arity + 2; j++) {
-        Int tp = cm->types.content[j];
-        if (tp < 5) {
-            printf("%s ", nodeNames[tp]);
-        }
-    }
-    print(")");
-}
-
-
-void printParser(Compiler* cm, Arena* a) {
-    if (cm->wasError) {
-        printf("Error: ");
-        printString(cm->errMsg);
-    }
-    Int indent = 0;
-    Stackint32_t* sentinels = createStackint32_t(16, a);
-    for (int i = 0; i < cm->nodes.length; i++) {
-        Node nod = cm->nodes.content[i];
-        for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
-            popint32_t(sentinels);
-            indent--;
-        }
-        if (i < 10) printf(" ");
-        printf("%d: ", i);
-        for (int j = 0; j < indent; j++) {
-            printf("  ");
-        }
-        if (nod.tp == nodCall) {
-            printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
-            printType(cm->entities.content[nod.pl1].typeId, cm);
-        } else if (nod.pl1 != 0 || nod.pl2 != 0) {
-            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
-        } else {
-            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt, nod.lenBts);
-        }
-        if (nod.tp >= nodScope && nod.pl2 > 0) {   
-            pushint32_t(i + nod.pl2 + 1, sentinels);
-            indent++;
-        }
-    }
 }
 
 /** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
