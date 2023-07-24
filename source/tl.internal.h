@@ -502,7 +502,7 @@ struct Compiler {
      * Var & type bindings are nameId (index into stringTable) -> bindingId
      * Function bindings are nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
      */
-    Arr(int) activeBindings;   // [aTmp] length = stringTable.length
+    Arr(Int) activeBindings;   // [aTmp] length = stringTable.length
 
     Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
 

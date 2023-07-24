@@ -107,7 +107,19 @@ DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node)
 DEFINE_INTERNAL_LIST(nodes, Node, a)
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity)
-DEFINE_INTERNAL_LIST(entities, Entity, a)
+//DEFINE_INTERNAL_LIST(entities, Entity, a)
+testable void pushInentities(Entity newItem, Compiler* cm) {
+    if (cm->entities.length < cm->entities.capacity) {
+        memcpy((Entity*)(cm->entities.content) + (cm->entities.length), &newItem, sizeof(Entity));
+    } else {                                                                              
+        Entity* newContent = allocateOnArena(2*(cm->entities.capacity)*sizeof(Entity), cm->a); 
+        memcpy(newContent, cm->entities.content, cm->entities.length*sizeof(Entity));
+        memcpy((Entity*)(newContent) + (cm->entities.length), &newItem, sizeof(Entity));           
+        cm->entities.capacity *= 2;                                                      
+        cm->entities.content = newContent;                                               
+    }                                                                                     
+    cm->entities.length++;                                                               
+}
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int)
 DEFINE_INTERNAL_LIST(overloads, Int, a)
@@ -2032,16 +2044,19 @@ private Int createEntity(Int nameId, Compiler* cm) {
     Int mbBinding = cm->activeBindings[nameId];
     VALIDATEP(mbBinding < 0, errAssignmentShadowing) // if it's a binding, it should be -1, and if overload, <-1
 
-    Int newEntityId = cm->entities.length;    
+    Int newEntityId = cm->entities.length;
+    print("in mid 0 of createEntity")
+    printIntArrayOff(6, 4, cm->types.content);
     pushInentities(((Entity){.emit = emitPrefix, .class = classMutableGuaranteed}), cm);
-    
+    print("entities %p types %p", cm->entities.content + cm->entities.length, cm->types.content + cm->types.length);
+    print("in mid of createEntity")
+    printIntArrayOff(6, 4, cm->types.content);
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
             addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
         }
         cm->activeBindings[nameId] = newEntityId; // makes it active
     }
-    
     return newEntityId;
 }
 
@@ -2105,8 +2120,6 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
     ifLeftSide(stmtTok, tokens, cm);
 }
 
-
-
 /** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
     if (tok->tp == tokArrow) {
@@ -2136,6 +2149,8 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
 
 /** Parses an assignment like "x = 5". The right side must never be a scope or contain any loops, or recursion will ensue */
 private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
+            print("in start of ass")
+        printIntArrayOff(6, 4, cm->types.content);
     Int rLen = tok.pl2 - 1;
     VALIDATEP(rLen >= 1, errAssignment)
     
@@ -2143,13 +2158,15 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 
     Token bindingTk = tokens[cm->i];
     VALIDATEP(bindingTk.tp == tokWord, errAssignment)
+    print("in middle of ass")
+    printIntArrayOff(6, 4, cm->types.content);
     Int newBindingId = createEntity(bindingTk.pl2, cm);
-
+    print("in middle 2 of ass")
+    printIntArrayOff(6, 4, cm->types.content);
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     
     pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-    
     cm->i++; // CONSUME the word token before the assignment sign
 
     Int rightTypeId = -1;
@@ -2160,13 +2177,18 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
         ++cm->i; // CONSUME the type decl of the binding
         --rLen; // for the type decl token
     }
+
     Token rTk = tokens[cm->i];
     if (rLen == 1) {
         rightTypeId = parseLiteralOrIdentifier(rTk, cm);
         VALIDATEP(rightTypeId != -2, errAssignment)
     } else if (rTk.tp == tokIf) { // TODO
     } else {
+        print("in ass before right side")
+        printIntArrayOff(6, 4, cm->types.content);
         rightTypeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+        print("in ass after right side")
+        printIntArrayOff(6, 4, cm->types.content);
     }
     VALIDATEP(declaredTypeId == -1 || rightTypeId == declaredTypeId, errTypeMismatch)
     if (rightTypeId > -1) {
@@ -2176,6 +2198,8 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 /** While loops. Look like "(:while < x 100. x = 0. ++x)" This function handles assignments being lexically after the condition */
 private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
+    print("in while")
+    printIntArrayOff(6, 4, cm->types.content);
     ++cm->loopCounter;
     Int sentinel = cm->i + loopTok.pl2;
 
@@ -2201,8 +2225,14 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
             break;
         }
         ++cm->i; // CONSUME the assignment span marker
+        print("in while before ass")
+        printIntArrayOff(6, 4, cm->types.content);
         parseAssignment(tok, tokens, cm);
+        print("in while after ass")
+        printIntArrayOff(6, 4, cm->types.content);
         maybeCloseSpans(cm);
+        print("after close spans")
+        printIntArrayOff(6, 4, cm->types.content);
     }
     Int indBody = cm->i;
     VALIDATEP(indBody < sentinel, errLoopEmptyBody);
@@ -2850,7 +2880,8 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
     (*result) = (LanguageDefinition) {
         .possiblyReservedDispatch = tabulateReservedBytes(a), .dispatchTable = tabulateDispatch(a),
         .operators = tabulateOperators(a), .reservedParensOrNot = tabulateReserved(a),
-        .nonResumableTable = tabulateNonresumableDispatch(a)
+        .nonResumableTable = tabulateNonresumableDispatch(a),
+        .resumableTable = tabulateResumableDispatch(a)
     };
     result->baseTypes[tokInt] = str("Int", a);
     result->baseTypes[tokLong] = str("Long", a);
@@ -2887,13 +2918,14 @@ testable Compiler* createCompilerProto(Arena* a) {
  * Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and an open statement, if any.
  */
 private void finalizeLexer(Compiler* lx) {
-    if (!hasValues(lx->lexBtrack)) return;
+    if (!hasValues(lx->lexBtrack)) {
+        return;
+    }
     closeColons(lx);
     BtToken top = pop(lx->lexBtrack);
     VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
 
-    setStmtSpanLength(top.tokenInd, lx);    
-    //deleteArena(lx->aTmp);
+    setStmtSpanLength(top.tokenInd, lx);
 }
 
 
@@ -2920,7 +2952,6 @@ testable Compiler* lexicallyAnalyze(String* input, Compiler* proto, Arena* a) {
         }
         finalizeLexer(lx);
     }
-    
     lx->totalTokens = lx->nextInd;
     return lx;
 }
@@ -3363,6 +3394,26 @@ private StringStore* copyStringStore(StringStore* source, Arena* a) {
     return result;
 }
 
+/** Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase */
+private void importPrelude(Compiler* cm) {
+    Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
+    
+    EntityImport imports[4] =  {
+        (EntityImport) { .name = str("math-pi", cm->a), .externalNameId = strPi, .typeInd = 0, .nameId = -1 },
+        (EntityImport) { .name = str("math-e", cm->a), .externalNameId = strE, .typeInd = 0, .nameId = -1 },
+        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint, .typeInd = 1, .nameId = -1 },
+        (EntityImport) { .name = str("alert", cm->a), .externalNameId = strAlert, .typeInd = 1, .nameId = -1 }
+    };
+    Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
+    for (Int j = 0; j < countBaseTypes; j++) {
+        Int mbNameId = getStringStore(cm->sourceCode->content, cm->langDef->baseTypes[j], cm->stringTable, cm->stringStore);
+        if (mbNameId > -1) {
+            cm->activeBindings[mbNameId] = j;
+        }
+    }
+    importEntities(imports, sizeof(imports)/sizeof(EntityImport), ((Int[]){tokFloat, voidOfStr}), cm);
+}
+
 /** A proto compiler contains just the built-in definitions and tables. This function copies it  */
 private Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
@@ -3430,16 +3481,17 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     
     cm->overloads = (InListInt){.length = 0, .content = NULL};
     
-    cm->types.content = allocateOnArena(MAX(proto->types.length, 128)*4, a);
+    cm->types.content = allocateOnArena(proto->types.capacity*8, a);
     memcpy(cm->types.content, proto->types.content, proto->types.length*4);
     cm->types.length = proto->types.length;
-    cm->types.capacity = proto->types.capacity;
+    cm->types.capacity = proto->types.capacity*2;
     
     cm->typesDict = copyStringStore(proto->typesDict, a);
 
     cm->imports = createInListEntityImport(8, lx->aTmp);
 
     cm->expStack = createStackint32_t(16, lx->aTmp);
+    importPrelude(cm);
 }
 
 
@@ -3478,8 +3530,6 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     
     // overloads for imported functions
     Int currFuncId = -1;
-    Int impInd = 0;
-    print("cm->entImportedZero %d lenImports %d" , cm->entImportedZero, cm->imports.length)
     for (Int j = cm->entImportedZero; j < cm->entities.length; j++) {
         Entity ent = cm->entities.content[j];
         if (!isFunctionWithParams(ent.typeId, cm)) {
@@ -3500,8 +3550,6 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
         cm->overloads.content[o + countOverls] = j;
         o++;
     }
-        print("after imports")
-    printIntArrayOff(0, 7, cm->overloads.content);
 }
 
 /**
@@ -3773,17 +3821,6 @@ private StackNode* parseToplevelSignatures(Compiler* cm) {
 }
 
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
-    Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
-    
-    EntityImport imports[4] =  {
-        (EntityImport) { .name = str("math-pi", cm->a), .externalNameId = strPi, .typeInd = 0, .nameId = -1 },
-        (EntityImport) { .name = str("math-e", cm->a), .externalNameId = strE, .typeInd = 0, .nameId = -1 },
-        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint, .typeInd = 1, .nameId = -1 },
-        (EntityImport) { .name = str("alert", cm->a), .externalNameId = strAlert, .typeInd = 1, .nameId = -1 }
-    };
-    
-    importEntities(imports, sizeof(imports)/sizeof(EntityImport), ((Int[]){tokFloat, voidOfStr}), cm);
-
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(cm);
         
@@ -3801,7 +3838,6 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
-
         // The main parse (all top-level function bodies)
         parseFunctionBodies(topLevelSignatures, cm->tokens, cm);
     }
@@ -3809,9 +3845,9 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
 }
 
 /** Parses a single file in 4 passes, see docs/parser.txt */
-testable Compiler* parse(Compiler* lx, Compiler* proto, Arena* a) {
-    initializeParser(lx, proto, a);
-    return parseMain(lx, a);
+testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
+    initializeParser(cm, proto, a);
+    return parseMain(cm, a);
 }
 
 //}}}
@@ -4021,6 +4057,8 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
             
             Int typeOfFunc = cm->entities.content[entityId].typeId;
+            print("found overload with arity %d at type ind %d indExpr %d", cm->types.content[typeOfFunc] - 1, typeOfFunc,
+                indExpr)
             VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) // first parm matches, but not arity
             
             // We know the type of the function, now to validate arg types against param types
