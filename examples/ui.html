@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <script src="code.js"></script>
+        <script>
+            function print(s) {
+                const outp = document.getElementById("output")
+                const newDiv = document.createElement("div")
+                newDiv.innerText = s
+                outp.appendChild(newDiv)
+            }
+            
+            function clearOutput() {
+                const outp = document.getElementById("output")
+                while (outp.firstChild != null) {
+                    outp.removeChild(outp.lastChild);
+                }
+            }
+        </script>
+        <style>
+            body {
+                background-color: hsl(0, 0%, 15%);
+                color: white;
+            }
+            .container {
+                display: flex;
+                align-items: center;
+                flex-direction: column;
+                gap: 20px;
+            }
+            .header {
+            }
+            .theRunButton button {
+                background-color: green;
+                border: 2px gold solid;
+                cursor: pointer;
+                border-radius: 0.5rem;
+            }
+            
+        </style>
+    </head>
+<body>
+    <div class="header">
+        A basic UI for Tl programs
+    </div>
+    <div class="container">
+<!--
+        <div class="theInput">
+            <div>Input</div>
+            <textarea id="programInput"></textarea>
+        </div>
+-->
+        <div class="theRunButton">
+            <button onclick="main();">Run</button>
+            <button onclick="clearOutput();">Clear</button>
+        </div>
+        <div class="theOutput">
+            <div>Output:</div>
+            <div id="output"></div>
+        </div>
+    </div>
+</body>
+
+</html>
