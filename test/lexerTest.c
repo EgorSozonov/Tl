@@ -22,7 +22,8 @@ typedef struct {
 
 
 private Compiler* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
-    Compiler* result = createCompilerProto(a);
+    Compiler* proto = createCompilerProto(a);
+    Compiler* result = createLexerFromProto(&empty, proto, a);
     if (result == NULL) return result;
     
     for (int i = 0; i < totalTokens; i++) {

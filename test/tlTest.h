@@ -1,3 +1,16 @@
+Arena* mkArena();
+void* allocateOnArena(size_t allocSize, Arena* ar);
+void deleteArena(Arena* ar);
+
+DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
+DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
+DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
+DEFINE_INTERNAL_LIST_HEADER(types, Int)
+DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
+DEFINE_INTERNAL_LIST_HEADER(imports, EntityImport)
+
+
+
 Compiler* lexicallyAnalyze(String* input, Compiler*, Arena*);
 void printLexer(Compiler* a);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
@@ -13,7 +26,7 @@ Compiler* createCompilerProto(Arena* a);
 Int getStringStore(byte* text, String* strToSearch, StackInt* stringTable, StringStore* hm);
 
 void add(Token t, Compiler* lexer);
-
+Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 void printLexer(Compiler* a);
 int equalityLexer(Compiler a, Compiler b);

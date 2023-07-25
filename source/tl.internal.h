@@ -7,7 +7,11 @@
 #define byte unsigned char
 #define Arr(T) T*
 #define untt uint32_t
-
+#ifdef TEST
+    #define testable
+#else
+    #define testable static
+#endif
 
 #define LOWER24BITS 0x00FFFFFF
 #define LOWER26BITS 0x03FFFFFF
@@ -35,23 +39,19 @@ typedef struct {
     int currInd;
 } Arena;
 
-Arena* mkArena();
-void* allocateOnArena(size_t allocSize, Arena* ar);
-void deleteArena(Arena* ar);
-
 #define DEFINE_STACK_HEADER(T)                                  \
-    typedef struct {                                            \
+    typedef struct {                                   \
         Int capacity;                                           \
         Int length;                                             \
         Arena* arena;                                           \
         T* content;                                             \
     } Stack##T;                                                 \
-    Stack ## T * createStack ## T (Int initCapacity, Arena* a); \
-    bool hasValues ## T (Stack ## T * st);                      \
-    T pop ## T (Stack ## T * st);                               \
-    T peek ## T(Stack ## T * st);                               \
-    void push ## T (T newItem, Stack ## T * st);                \
-    void clear ## T (Stack ## T * st);
+    testable Stack ## T * createStack ## T (Int initCapacity, Arena* a); \
+    testable bool hasValues ## T (Stack ## T * st);                      \
+    testable T pop ## T (Stack ## T * st);                               \
+    testable T peek ## T(Stack ## T * st);                               \
+    testable void push ## T (T newItem, Stack ## T * st);                \
+    testable void clear ## T (Stack ## T * st);
 
 #define DEFINE_INTERNAL_LIST_TYPE(T) \
 typedef struct {    \
@@ -68,12 +68,13 @@ typedef struct {
     int length;
     byte content[];
 } String;
-void printStringNoLn(String* s);
-void printString(String* s);
+testable void printStringNoLn(String* s);
+testable void printString(String* s);
 extern String empty;
-String* str(const char* content, Arena* a);
+testable String* str(const char* content, Arena* a);
+testable bool endsWith(String* a, String* b);
+
 #define s(lit) str(lit, a)
-bool endsWith(String* a, String* b);
 
 //}}}
 //{{{ Int Hashmap
@@ -423,20 +424,16 @@ DEFINE_STACK_HEADER(ParseFrame)
 DEFINE_STACK_HEADER(Node)
 
 DEFINE_INTERNAL_LIST_TYPE(Node)
-DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
 
 DEFINE_INTERNAL_LIST_TYPE(Entity)
-DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
+
 
 DEFINE_INTERNAL_LIST_TYPE(Int)
-DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
-DEFINE_INTERNAL_LIST_HEADER(types, Int)
 
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
-DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 
 DEFINE_INTERNAL_LIST_TYPE(EntityImport)
-DEFINE_INTERNAL_LIST_HEADER(imports, EntityImport)
+
 
 /*
  * COMPILER DATA

@@ -12,12 +12,6 @@
 
 //{{{ Utils
 
-#ifdef TEST
-    #define testable
-#else
-    #define testable static
-#endif
-
 #ifdef DEBUG
 #define DBG(fmt, ...) \
         do { if (DEBUG) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
@@ -27,129 +21,6 @@
 #endif      
 
 jmp_buf excBuf;
-
-#define DEFINE_STACK(T)                                                             \
-    testable Stack##T * createStack##T (int initCapacity, Arena* a) {               \
-        int capacity = initCapacity < 4 ? 4 : initCapacity;                         \
-        Stack##T * result = allocateOnArena(sizeof(Stack##T), a);                   \
-        result->capacity = capacity;                                                \
-        result->length = 0;                                                         \
-        result->arena = a;                                                          \
-        T* arr = allocateOnArena(capacity*sizeof(T), a);                            \
-        result->content = arr;                                                      \
-        return result;                                                              \
-    }                                                                               \
-    testable bool hasValues ## T (Stack ## T * st) {                                \
-        return st->length > 0;                                                      \
-    }                                                                               \
-    testable T pop##T (Stack ## T * st) {                                           \
-        st->length--;                                                               \
-        return st->content[st->length];                                             \
-    }                                                                               \
-    testable T peek##T(Stack##T * st) {                                             \
-        return st->content[st->length - 1];                                         \
-    }                                                                               \
-    testable void push##T (T newItem, Stack ## T * st) {                            \
-        if (st->length < st->capacity) {                                            \
-            memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));          \
-        } else {                                                                    \
-            T* newContent = allocateOnArena(2*(st->capacity)*sizeof(T), st->arena); \
-            memcpy(newContent, st->content, st->length*sizeof(T));                  \
-            memcpy((T*)(newContent) + (st->length), &newItem, sizeof(T));           \
-            st->capacity *= 2;                                                      \
-            st->content = newContent;                                               \
-        }                                                                           \
-        st->length++;                                                               \
-    }                                                                               \
-    testable void clear##T (Stack##T * st) {                                        \
-        st->length = 0;                                                             \
-    }
-
-
-
-#define DEFINE_INTERNAL_LIST_CONSTRUCTOR(T)                  \
-testable InList##T createInList##T(Int initCap, Arena* a) { \
-    return (InList##T){                                      \
-        .content = allocateOnArena(initCap*sizeof(T), a),     \
-        .length = 0, .capacity = initCap };                   \
-}
-
-#define DEFINE_INTERNAL_LIST(fieldName, T, aName)              \
-    testable bool hasValuesIn##fieldName(Compiler* cm) {        \
-        return cm->fieldName.length > 0;                        \
-    }                                                           \
-    testable T popIn##fieldName(Compiler* cm) {                 \
-        cm->fieldName.length--;                                 \
-        return cm->fieldName.content[cm->fieldName.length];     \
-    }                                                           \
-    testable T peekIn##fieldName(Compiler* cm) {                \
-        return cm->fieldName.content[cm->fieldName.length - 1]; \
-    }                                                           \
-    testable void pushIn##fieldName(T newItem, Compiler* cm) {  \
-        if (cm->fieldName.length < cm->fieldName.capacity) {    \
-            memcpy((T*)(cm->fieldName.content) + (cm->fieldName.length), &newItem, sizeof(T)); \
-        } else {                                                                               \
-            T* newContent = allocateOnArena(2*(cm->fieldName.capacity)*sizeof(T), cm->aName);  \
-            memcpy(newContent, cm->fieldName.content, cm->fieldName.length*sizeof(T));         \
-            memcpy((T*)(newContent) + (cm->fieldName.length), &newItem, sizeof(T));            \
-            cm->fieldName.capacity *= 2;                                                       \
-            cm->fieldName.content = newContent;                                                \
-        }                                                                                      \
-        cm->fieldName.length++;                                                                \
-    }
-
-      
-DEFINE_STACK(int32_t)
-DEFINE_STACK(BtToken)
-DEFINE_STACK(ParseFrame)
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node)
-DEFINE_INTERNAL_LIST(nodes, Node, a)
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity)
-//DEFINE_INTERNAL_LIST(entities, Entity, a)
-
-void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
-testable void pushInentities(Entity newItem, Compiler* cm) {
-    if (cm->entities.length < cm->entities.capacity) {
-        memcpy((cm->entities.content) + (cm->entities.length), &newItem, sizeof(Entity));
-    } else {                                                                              
-        Entity* newContent = allocateOnArena(2*(cm->entities.capacity)*sizeof(Entity), cm->a); 
-        memcpy(newContent, cm->entities.content, cm->entities.length*sizeof(Entity));
-        memcpy((Entity*)(newContent) + (cm->entities.length), &newItem, sizeof(Entity));           
-        cm->entities.capacity *= 2;                                                      
-        cm->entities.content = newContent;                                               
-    }                                                                                     
-    cm->entities.length++;                                                               
-}
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int)
-DEFINE_INTERNAL_LIST(overloads, Int, a)
-DEFINE_INTERNAL_LIST(types, Int, a)
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(uint32_t)
-DEFINE_INTERNAL_LIST(overloadIds, uint32_t, aTmp)
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(EntityImport)
-DEFINE_INTERNAL_LIST(imports, EntityImport, aTmp)
-
-testable void printIntArray(Int count, Arr(Int) arr) {
-    printf("[");
-    for (Int k = 0; k < count; k++) {
-        printf("%d ", arr[k]);
-    }
-    printf("]\n");
-}
-
-testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
-    printf("[...");
-    for (Int k = 0; k < count; k++) {
-        printf("%d ", arr[startInd + k]);
-    }
-    printf("...]\n");
-}
-
-//}}}
 
 //{{{ Arena
 
@@ -234,6 +105,117 @@ testable void deleteArena(Arena* ar) {
 }
 
 //}}}
+
+#define DEFINE_STACK(T)                                                             \
+    testable Stack##T * createStack##T (int initCapacity, Arena* a) {               \
+        int capacity = initCapacity < 4 ? 4 : initCapacity;                         \
+        Stack##T * result = allocateOnArena(sizeof(Stack##T), a);                   \
+        result->capacity = capacity;                                                \
+        result->length = 0;                                                         \
+        result->arena = a;                                                          \
+        T* arr = allocateOnArena(capacity*sizeof(T), a);                            \
+        result->content = arr;                                                      \
+        return result;                                                              \
+    }                                                                               \
+    testable bool hasValues ## T (Stack ## T * st) {                                \
+        return st->length > 0;                                                      \
+    }                                                                               \
+    testable T pop##T (Stack ## T * st) {                                           \
+        st->length--;                                                               \
+        return st->content[st->length];                                             \
+    }                                                                               \
+    testable T peek##T(Stack##T * st) {                                             \
+        return st->content[st->length - 1];                                         \
+    }                                                                               \
+    testable void push##T (T newItem, Stack ## T * st) {                            \
+        if (st->length < st->capacity) {                                            \
+            memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));          \
+        } else {                                                                    \
+            T* newContent = allocateOnArena(2*(st->capacity)*sizeof(T), st->arena); \
+            memcpy(newContent, st->content, st->length*sizeof(T));                  \
+            memcpy((T*)(newContent) + (st->length), &newItem, sizeof(T));           \
+            st->capacity *= 2;                                                      \
+            st->content = newContent;                                               \
+        }                                                                           \
+        st->length++;                                                               \
+    }                                                                               \
+    testable void clear##T (Stack##T * st) {                                        \
+        st->length = 0;                                                             \
+    }
+
+
+
+#define DEFINE_INTERNAL_LIST_CONSTRUCTOR(T)                 \
+testable InList##T createInList##T(Int initCap, Arena* a) { \
+    return (InList##T){                                     \
+        .content = allocateOnArena(initCap*sizeof(T), a),   \
+        .length = 0, .capacity = initCap };                 \
+}
+
+#define DEFINE_INTERNAL_LIST(fieldName, T, aName)               \
+    testable bool hasValuesIn##fieldName(Compiler* cm) {        \
+        return cm->fieldName.length > 0;                        \
+    }                                                           \
+    testable T popIn##fieldName(Compiler* cm) {                 \
+        cm->fieldName.length--;                                 \
+        return cm->fieldName.content[cm->fieldName.length];     \
+    }                                                           \
+    testable T peekIn##fieldName(Compiler* cm) {                \
+        return cm->fieldName.content[cm->fieldName.length - 1]; \
+    }                                                           \
+    testable void pushIn##fieldName(T newItem, Compiler* cm) {  \
+        if (cm->fieldName.length < cm->fieldName.capacity) {    \
+            memcpy((T*)(cm->fieldName.content) + (cm->fieldName.length), &newItem, sizeof(T)); \
+        } else {                                                                               \
+            T* newContent = allocateOnArena(2*(cm->fieldName.capacity)*sizeof(T), cm->aName);  \
+            memcpy(newContent, cm->fieldName.content, cm->fieldName.length*sizeof(T));         \
+            memcpy((T*)(newContent) + (cm->fieldName.length), &newItem, sizeof(T));            \
+            cm->fieldName.capacity *= 2;                                                       \
+            cm->fieldName.content = newContent;                                                \
+        }                                                                                      \
+        cm->fieldName.length++;                                                                \
+    }
+
+      
+DEFINE_STACK(int32_t)
+DEFINE_STACK(BtToken)
+DEFINE_STACK(ParseFrame)
+
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node)
+DEFINE_INTERNAL_LIST(nodes, Node, a)
+
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity)
+DEFINE_INTERNAL_LIST(entities, Entity, a)
+
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int)
+DEFINE_INTERNAL_LIST(overloads, Int, a)
+DEFINE_INTERNAL_LIST(types, Int, a)
+
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(uint32_t)
+DEFINE_INTERNAL_LIST(overloadIds, uint32_t, aTmp)
+
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(EntityImport)
+DEFINE_INTERNAL_LIST(imports, EntityImport, aTmp)
+
+testable void printIntArray(Int count, Arr(Int) arr) {
+    printf("[");
+    for (Int k = 0; k < count; k++) {
+        printf("%d ", arr[k]);
+    }
+    printf("]\n");
+}
+
+testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
+    printf("[...");
+    for (Int k = 0; k < count; k++) {
+        printf("%d ", arr[startInd + k]);
+    }
+    printf("...]\n");
+}
+
+//}}}
+
+
 
 //{{{ Good strings
 
@@ -2021,12 +2003,12 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
 
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
-void addBinding(int nameId, int bindingId, Compiler* cm);
+private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
-void popScopeFrame(Compiler* cm);
+private void popScopeFrame(Compiler* cm);
 private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
-private Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
+testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 
 #define BIG 70000000
 
@@ -2063,7 +2045,7 @@ private Int calcSentinel(Token tok, Int tokInd) {
     return (tok.tp >= firstPunctuationTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
 
-void pushLexScope(ScopeStack* scopeStack);
+testable void pushLexScope(ScopeStack* scopeStack);
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 
 /** Performs coordinated insertions to start a scope within the parser */
@@ -2362,7 +2344,7 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
     }
 }
 
-Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
+testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
 /** General "big" expression parser. Parses an expression whether there is a token or not.
  *  Starts from cm->i and goes up to the sentinel token. Returns the expression's type
@@ -2536,7 +2518,7 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     setClassToMutated(bindingId, cm);
 }
 
-bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm);
+testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm);
 
 /** Reassignments like "x += 5". Performs some AST twiddling:
  *  1. [0    0]
@@ -3063,7 +3045,7 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
     }
 }
 
-testable void addBinding(int nameId, int bindingId, Compiler* cm) {
+private void addBinding(int nameId, int bindingId, Compiler* cm) {
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
     
@@ -3077,7 +3059,7 @@ testable void addBinding(int nameId, int bindingId, Compiler* cm) {
  * Pops a scope frame. For a scope type of frame, also deactivates its bindings.
  * Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
  */
-testable void popScopeFrame(Compiler* cm) {
+private void popScopeFrame(Compiler* cm) {
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     ScopeStack* scopeStack = cm->scopeStack;
     if (topScope->bindings) {
@@ -3397,7 +3379,7 @@ private void importPrelude(Compiler* cm) {
 }
 
 /** A proto compiler contains just the built-in definitions and tables. This function copies it  */
-private Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
+testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = mkArena();
 
@@ -4172,7 +4154,6 @@ private void ensureBufferLength(Int additionalLength, Codegen* cg) {
     if (cg->length + additionalLength + 10 < cg->capacity) {
         return;
     }
-    print("enlarging")
     Int neededLength = cg->length + additionalLength + 10;
     Int newCap = 2*cg->capacity;
     while (newCap <= neededLength) {
@@ -4262,9 +4243,28 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
     }
 }
 
+private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
+    if (n.tp == nodId) {
+        Entity ent = cg->cm->entities.content[n.pl1];
+        writeBytesFromSource(n, cg);
+        if (ent.emit == emitPrefixShielded) {
+            writeChar(aUnderscore, cg);
+        }
+    } else if (n.tp == tokInt) {
+        uint64_t upper = n.pl1;
+        uint64_t lower = n.pl2;
+        uint64_t total = (upper << 32) + lower;
+        int64_t signedTotal = (int64_t)total;
+        ensureBufferLength(45, cg);
+        Int lenWritten = sprintf(cg->buffer + cg->length, "%d", signedTotal);
+        cg->length += lenWritten;
+    } else if (n.tp == tokString) {
+        writeBytesFromSource(n, cg);
+    }
+}
+
 /** Precondition: we are 1 past the expr node */
 private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
-    writeChar(aParenLeft, cg);
     while (cg->i < sentinel) {
         Node n = nodes[cg->i];
         if (n.tp == nodCall) {
@@ -4273,11 +4273,11 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
                 ++cg->i;
                 continue;
             }
-            CgCall new = ent.externalNameId > -1
-                        ? (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = ent.externalNameId }
-                        : (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = n.startBt, .length = n.lenBts };
+            CgCall new = (ent.emit == emitPrefix || ent.emit == emitInfix)
+                        ? (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = n.startBt, .length = n.lenBts }
+                        : (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = ent.externalNameId };
             pushCgCall(new, cg->calls);
-            writeChar(aParenLeft, cg);
+            
             switch (ent.emit) {
             case emitPrefix:
                 writeBytesFromSource(n, cg);
@@ -4289,9 +4289,15 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
                 writeBytesFromSource(n, cg);
                 writeChar(aParenLeft, cg);
                 writeChar(aUnderscore, cg); break;
+            default:
+                writeChar(aParenLeft, cg);
             }
-        } else {
+        } else {           
             CgCall* top = cg->calls->content + (cg->calls->length - 1);
+            if (top->emit != emitInfix && top->emit != emitInfixExternal && top->countArgs > 0) {
+                writeChars(cg, ((byte[]){aComma, aSpace}));
+            }
+            writeExprOperand(n, top->countArgs, cg);
             ++top->countArgs;
             writeExprProcessFirstArg(top, cg);
             while (top->countArgs == top->arity) {
@@ -4308,14 +4314,11 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
         }
         ++cg->i;
     }
-
-    writeChar(aParenRight, cg);
+    cg->i = sentinel;
 }
 
-/** Precondition: we are looking directly at the first node of the expression. Consumes all nodes of the expr */
-private void writeExpr(Arr(Node) nodes, Codegen* cg) {
-    Node nd = nodes[cg->i];
-    ++cg->i; // CONSUME the first/only node of the expr
+/** Precondition: we are looking 1 past the nodExpr. Consumes all nodes of the expr */
+private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
     if (nd.tp <= topVerbatimType) {
         writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
     } else {
@@ -4329,16 +4332,24 @@ private void writeExpr(Arr(Node) nodes, Codegen* cg) {
 }
 
 
-private void pushCodegenFrame(Node nd, Codegen* cg) {
-    push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), &cg->backtrack);
-}
-
-
 private void writeIndentation(Codegen* cg) {
     ensureBufferLength(cg->indentation, cg);
     memset(cg->buffer + cg->length, aSpace, cg->indentation);
     cg->length += cg->indentation;
 }
+
+
+private void writeExpr(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    writeIndentation(cg);
+    writeExprInternal(fr, nodes, cg);
+    writeChars(cg, ((byte[]){ aSemicolon, aNewline}));
+}
+
+
+private void pushCodegenFrame(Node nd, Codegen* cg) {
+    push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), &cg->backtrack);
+}
+
 
 private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
@@ -4388,6 +4399,7 @@ private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
  * 
  */
 private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    Int sentinel = cg->i + fr.pl2;
     writeIndentation(cg);
     
     Node binding = nodes[cg->i];
@@ -4405,20 +4417,31 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
     if (rightSide.tp == nodId) {
         writeBytes(cg->sourceCode->content + rightSide.startBt, rightSide.lenBts, cg);
     } else {
-        writeExpr(nodes, cg);
+        ++cg->i; // CONSUME the expr node
+        writeExprInternal(rightSide, nodes, cg);
     }
 
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
-    cg->i += fr.pl2;
+    cg->i = sentinel; // CONSUME the whole assignment
 }
 
 private void writeReturn(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    Int sentinel = cg->i + fr.pl2;
     writeIndentation(cg);
     writeConstantWithSpace(strReturn, cg);
+
+    Node rightSide = nodes[cg->i];
+    if (rightSide.tp == nodId) {
+        writeBytes(cg->sourceCode->content + rightSide.startBt, rightSide.lenBts, cg);
+    } else {
+        ++cg->i; // CONSUME the expr node
+        writeExprInternal(rightSide, nodes, cg);
+    }
+    
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
-    cg->i += fr.pl2; // CONSUME the "return" node
+    cg->i = sentinel; // CONSUME the whole "return" statement
 }
 
 
@@ -4441,7 +4464,11 @@ private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     }
     writeConstantWithSpace(strIf, cg);
     writeChar(aParenLeft, cg);
-    writeExpr(nodes, cg);
+
+    Node expression = nodes[cg->i];
+    ++cg->i; // CONSUME the expression node for the first condition
+    writeExprInternal(expression, nodes, cg);
+    
     writeChar(aParenRight, cg);
     writeChar(32, cg);
     
@@ -4473,7 +4500,9 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
             writeChar(32, cg);
             writeChar(aParenLeft, cg);
             cg->i = sentinel;
-            writeExpr(nodes, cg);
+            Node expression = nodes[cg->i];
+            ++cg->i; // CONSUME the expr node for the "else if" clause
+            writeExprInternal(expression, nodes, cg);
             writeChar(aParenRight, cg);
             writeChar(32, cg);
         }
@@ -4521,6 +4550,7 @@ private void tabulateCgDispatch(Codegen* cg) {
     }
     cg->cgTable[0] = writeScope;
     cg->cgTable[nodAssignment - nodScope] = &writeAssignment;
+    cg->cgTable[nodExpr       - nodScope] = &writeExpr;
     cg->cgTable[nodScope      - nodScope] = &writeScope;
     cg->cgTable[nodWhile      - nodScope] = &writeWhile;
     cg->cgTable[nodIf         - nodScope] = &writeIf;
@@ -4541,7 +4571,9 @@ private Codegen* createCodegen(Compiler* cm, Arena* a) {
 }
 
 private Codegen* generateCode(Compiler* cm, Arena* a) {
+#ifdef TRACE
     printParser(cm, a);
+#endif
     if (cm->wasError) {
         return NULL;
     }
@@ -4549,7 +4581,9 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
     const Int len = cm->nodes.length;
     while (cg->i < len) {
         Node nd = cm->nodes.content[cg->i];
+        print("dispatching to ind %d at i %d", nd.tp - nodScope, cg->i)
         ++cg->i; // CONSUME the span node
+
         (cg->cgTable[nd.tp - nodScope])(nd, true, cg->cm->nodes.content, cg);
         maybeCloseCgFrames(cg);
     }
@@ -4566,9 +4600,12 @@ Codegen* compile() {
     String* inp = str(
               "(:f foo Int(x Int y Float) =\n"
               "    a = + x (* x 2)\n"
-              "    return bar y a)\n"
-              "(:f bar Int(y Float c Int) =\n"
-              "    return foo c y)", a);
+              "    return * ,,y a)\n"
+              "(:f main() =\n"
+              "    print `Hello world!!!`\n"
+              "    print `The answer is `\n"
+              "    print $(foo 4 0.2))"
+              , a);
     Compiler* lx = lexicallyAnalyze(inp, proto, a);
     if (lx->wasError) {
         print("lexer error");
@@ -4581,7 +4618,7 @@ Codegen* compile() {
     return cg;
 }
 
-
+#ifndef TEST
 Int main(int argc, char* argv) {
     Codegen* cg = compile();
     if (cg != NULL) {
@@ -4590,4 +4627,5 @@ Int main(int argc, char* argv) {
     }
     return 0;
 }
+#endif
 //}}}
