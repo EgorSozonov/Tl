@@ -205,48 +205,42 @@ typedef struct {
 
 #define nodId           7      // pl1 = index of entity, pl2 = index of name
 #define nodCall         8      // pl1 = index of entity, pl2 = arity
-#define nodBinding      9      // pl1 = index of entity
-#define nodTypeId      10      // pl1 = index of entity
-#define nodAnd         11
-#define nodOr          12
+#define nodBinding      9      // pl1 = index of entity, pl2 = 1 if it's a type binding
 
 // Punctuation (inner node)
-#define nodScope       13       // (* This is resumable but trivially so, that's why it's not grouped with the others
-#define nodExpr        14
-#define nodAssignment  15
-#define nodReassign    16       // :=
+#define nodScope       10       // (* This is resumable but trivially so, that's why it's not grouped with the others
+#define nodExpr        11
+#define nodAssignment  12
+#define nodReassign    13       // :=
 
 // Single-shot core syntax forms
-#define nodAlias       17
-#define nodAssert      18
-#define nodAssertDbg   19
-#define nodAwait       20
-#define nodBreak       21       // pl1 = number of label to break to, or -1 if none needed
-#define nodCatch       22       // "(catch e => print e)"
-#define nodContinue    23       // pl1 = number of label to continue to, or -1 if none needed
-#define nodDefer       24       
-#define nodEach        25       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
-#define nodEmbed       26       // noParen. Embed a text file as a string literal, or a binary resource file
-#define nodExport      27       
-#define nodExposePriv  28       
-#define nodFnDef       29       // pl1 = entityId
-#define nodIface       30
-#define nodLambda      31
-#define nodMeta        32       
-#define nodPackage     33       // for single-file packages
-#define nodReturn      34
-#define nodStruct      35
-#define nodTry         36
-#define nodYield       37
-#define nodIfClause    38       
-#define nodWhile       39       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
-#define nodWhileCond   40
+#define nodAlias       14
+#define nodAssert      15
+#define nodAssertDbg   16
+#define nodAwait       17
+#define nodBreak       18       // pl1 = number of label to break to, or -1 if none needed
+#define nodCatch       19       // "(catch e => print e)"
+#define nodContinue    20       // pl1 = number of label to continue to, or -1 if none needed
+#define nodDefer       21
+#define nodEmbed       22       // noParen. Embed a text file as a string literal, or a binary resource file
+#define nodExport      23       
+#define nodExposePriv  24       // TODO replace with "import". This is for test files
+#define nodFnDef       25       // pl1 = entityId
+#define nodIface       26
+#define nodLambda      27
+#define nodMeta        28       
+#define nodPackage     29       // for single-file packages
+#define nodReturn      30
+#define nodTry         31       // the Rust kind of "try" (early return from current function)
+#define nodYield       32
+#define nodIfClause    33       
+#define nodWhile       34       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
+#define nodWhileCond   35
 
 // Resumable core forms
-#define nodIf          41       // paren
-#define nodIfPr        42       // like if, but every branch is a value compared using custom predicate
-#define nodImpl        43
-#define nodMatch       44       // pattern matching on sum type tag
+#define nodIf          36
+#define nodImpl        37
+#define nodMatch       38       // pattern matching on sum type tag
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)

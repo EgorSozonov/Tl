@@ -2614,25 +2614,6 @@ private void parseAwait(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-private Int breakContinueUnwind(Int unwindLevel, Compiler* cm) {
-    Int level = unwindLevel;
-    Int j = cm->backtrack->length;
-    while (j > -1) {
-        Int pfType = cm->backtrack->content[j].tp;
-        if (pfType == nodWhile || pfType == nodEach) {
-            --level;
-            if (level == 0) {
-                ParseFrame loopFrame = cm->backtrack->content[j];
-                Int loopId = loopFrame.typeId;
-                cm->nodes.content[loopFrame.startNodeInd].pl1 = loopId;
-                return unwindLevel == 1 ? -1 : loopId;
-            }
-        }
-        --j;
-    }
-    throwExcParser(errBreakContinueInvalidDepth, cm);
-}
-
 private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
     Int unwindLevel = 1;
@@ -2651,7 +2632,7 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
     Int j = cm->backtrack->length;
     while (j > -1) {
         Int pfType = cm->backtrack->content[j].tp;
-        if (pfType == nodWhile || pfType == nodEach) {
+        if (pfType == nodWhile) {
             --unwindLevel;
             if (unwindLevel == 0) {
                 ParseFrame loopFrame = cm->backtrack->content[j];
@@ -2837,7 +2818,6 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     ResumeFunc (*result)[countResumableForms] = allocateOnArena(countResumableForms*sizeof(ResumeFunc), a);
     ResumeFunc* p = *result;
     p[nodIf    - firstResumableForm] = &resumeIf;
-    p[nodIfPr  - firstResumableForm] = &resumeIfPr;
     p[nodImpl  - firstResumableForm] = &resumeImpl;
     p[nodMatch - firstResumableForm] = &resumeMatch;    
     return result;
@@ -3422,24 +3402,16 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     }
     
     Int initNodeCap = lx->totalTokens > 64 ? lx->totalTokens : 64;
-
     cm->scopeStack = createScopeStack();
     cm->backtrack = createStackParseFrame(16, lx->aTmp);
     cm->i = 0;
     cm->loopCounter = 0;
-
     cm->nodes = createInListNode(initNodeCap, a);
-
 
     if (lx->stringTable->length > 0) {
         memset(cm->activeBindings, 0xFF, lx->stringTable->length*4); // activeBindings is filled with -1
     }
-    cm->overloads = (InListInt){.length = 0, .content = NULL};
 
-    cm->expStack = createStackint32_t(16, cm->aTmp);
-
-    cm->scopeStack = createScopeStack();
-    
     cm->entities = createInListEntity(proto->entities.capacity, a);
     memcpy(cm->entities.content, proto->entities.content, proto->entities.length*sizeof(Entity));
     cm->entities.length = proto->entities.length;
@@ -3449,8 +3421,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     memcpy(cm->overloadIds.content, proto->overloadIds.content, proto->overloadIds.length*4);
     cm->overloadIds.length = proto->overloadIds.length;
     cm->overloadIds.capacity = proto->overloadIds.capacity;
-    
-    cm->overloads = (InListInt){.length = 0, .content = NULL};
+    cm->overloads = (InListInt){.length = 0, .content = NULL};    
     
     cm->types.content = allocateOnArena(proto->types.capacity*8, a);
     memcpy(cm->types.content, proto->types.content, proto->types.length*4);
@@ -3461,7 +3432,9 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 
     cm->imports = createInListEntityImport(8, lx->aTmp);
 
-    cm->expStack = createStackint32_t(16, lx->aTmp);
+    cm->expStack = createStackint32_t(16, cm->aTmp);
+    cm->scopeStack = createScopeStack();
+    
     importPrelude(cm);
 }
 
@@ -3797,13 +3770,53 @@ private StackNode* parseToplevelSignatures(Compiler* cm) {
 /** Must agree in order with node types in tl.internal.h */
 const char* nodeNames[] = {
     "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
-    "id", "call", "binding", "type", "and", "or", 
+    "id", "call", "binding",
     "(:", "expr", "assign", ":=", 
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
-    "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
-    "lambda", "meta", "package", "return", "struct", "try", "yield",
-    "ifClause", "while", "whileCond", "if", "ifPr", "impl", "match"
+    "defer", "embed", "export", "import", "fnDef", "interface",
+    "lambda", "meta", "package", "return", "try", "yield",
+    "ifClause", "while", "whileCond", "if", "impl", "match"
 };
+
+
+#define nodId           7      // pl1 = index of entity, pl2 = index of name
+#define nodCall         8      // pl1 = index of entity, pl2 = arity
+#define nodBinding      9      // pl1 = index of entity
+
+// Punctuation (inner node)
+#define nodScope       10       // (* This is resumable but trivially so, that's why it's not grouped with the others
+#define nodExpr        11
+#define nodAssignment  12
+#define nodReassign    13       // :=
+
+// Single-shot core syntax forms
+#define nodAlias       14
+#define nodAssert      15
+#define nodAssertDbg   16
+#define nodAwait       17
+#define nodBreak       18       // pl1 = number of label to break to, or -1 if none needed
+#define nodCatch       19       // "(catch e => print e)"
+#define nodContinue    20       // pl1 = number of label to continue to, or -1 if none needed
+#define nodDefer       21
+#define nodEmbed       22       // noParen. Embed a text file as a string literal, or a binary resource file
+#define nodExport      23       
+#define nodExposePriv  24       // TODO replace with "import". This is for test files
+#define nodFnDef       25       // pl1 = entityId
+#define nodIface       26
+#define nodLambda      27
+#define nodMeta        28       
+#define nodPackage     29       // for single-file packages
+#define nodReturn      30
+#define nodTry         31
+#define nodYield       32
+#define nodIfClause    33       
+#define nodWhile       34       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
+#define nodWhileCond   35
+
+// Resumable core forms
+#define nodIf          36
+#define nodImpl        37
+#define nodMatch       38       // pattern matching on sum type tag
 
 private void printType(Int typeInd, Compiler* cm) {
     if (typeInd < 5) {
@@ -4296,7 +4309,6 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
             CgCall new = (ent.emit == emitPrefix || ent.emit == emitInfix)
                         ? (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = n.startBt, .length = n.lenBts }
                         : (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = ent.externalNameId };
-
             
             switch (ent.emit) {
             case emitPrefix:
@@ -4350,6 +4362,7 @@ private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
     if (nd.tp <= topVerbatimType) {
         writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
     } else {
+        print("expr sentinel %d", cg->i + nd.pl2)
         writeExprWorker(cg->i + nd.pl2, nodes, cg);
     }
 #if SAFETY
@@ -4374,14 +4387,15 @@ private void writeExpr(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 }
 
 
-private void pushCodegenFrame(Node nd, Codegen* cg) {
+private void pushCgFrame(Node nd, Codegen* cg) {
+    print("pushing cg frame i %d sentinel %d", cg->i, cg->i + nd.pl2)
     push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), &cg->backtrack);
 }
 
 
 private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
-        pushCodegenFrame(nd, cg);
+        pushCgFrame(nd, cg);
         writeIndentation(cg);
         writeConstantWithSpace(strFunction, cg);
         Entity fnEnt = cg->cm->entities.content[nd.pl1];
@@ -4423,13 +4437,7 @@ private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     
 }
 
-/**
- * 
- */
-private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
-    Int sentinel = cg->i + fr.pl2;
-    writeIndentation(cg);
-    
+private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
     Node binding = nodes[cg->i];
     Int class = cg->cm->entities.content[binding.pl1].class;
     if (class == classMutatedGuaranteed || class == classMutatedNullable) {
@@ -4448,7 +4456,17 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
         ++cg->i; // CONSUME the expr node
         writeExprInternal(rightSide, nodes, cg);
     }
+}
 
+/**
+ * 
+ */
+private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    Int sentinel = cg->i + fr.pl2;
+    writeIndentation(cg);
+    
+    writeAssignmentWorker(nodes, cg);
+    
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
     cg->i = sentinel; // CONSUME the whole assignment
@@ -4478,7 +4496,7 @@ private void writeScope(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         writeIndentation(cg);
         writeChar(aCurlyLeft, cg);
         cg->indentation += 4;
-        pushCodegenFrame(fr, cg);
+        pushCgFrame(fr, cg);
     } else {
         cg->indentation -= 4;
         writeChar(aCurlyRight, cg);
@@ -4490,6 +4508,7 @@ private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (!isEntry) {
         return;
     }
+    pushCgFrame(fr, cg);
     writeIndentation(cg);
     writeConstantWithSpace(strIf, cg);
     writeChar(aParenLeft, cg);
@@ -4497,50 +4516,70 @@ private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     Node expression = nodes[cg->i];
     ++cg->i; // CONSUME the expression node for the first condition
     writeExprInternal(expression, nodes, cg);
-    writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
-    
-    cg->indentation += 4;
-    pushCodegenFrame(fr, cg);
+    writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft}));
 }
 
 private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
-    Int sentinel = cg->i + nd.pl2;
+    print("if clause i %d sentinel %d", cg->i, cg->i + nd.pl2); 
     if (isEntry) {
-        pushCodegenFrame(nd, cg);
+        Int sentinel = cg->i + nd.pl2;
+        pushCgFrame(nd, cg);
+        writeChar(aNewline, cg);
         cg->indentation += 4;
     } else {
+        print("if clause exit %d", cg->i)
+        Int sentinel = nd.startBt;
         cg->indentation -= 4;
         writeIndentation(cg);
         writeChar(aCurlyRight, cg);
         Node top = peek(&cg->backtrack);
-        Int ifSentinel = top.startBt + top.pl2;
+        Int ifSentinel = top.startBt;
+        print("sentinel %d ifSentinel %d", sentinel, ifSentinel)
         if (ifSentinel == sentinel) {
+            print("p1 i %d", cg->i)
+            writeChar(aNewline, cg);
             return;
         } else if (nodes[sentinel].tp == nodIfClause) {
             // there is only the "else" clause after this clause
+            print("p2 i %d", cg->i)
             writeChar(aSpace, cg);
             writeConstantWithSpace(strElse, cg);
         } else {
             // there is another condition after this clause, so we write it out as an "else if"
+            print("p3 i %d", cg->i)
+            writeChar(aSpace, cg);
             writeConstantWithSpace(strElse, cg);
             writeConstantWithSpace(strIf, cg);
             writeChar(aParenLeft, cg);
             cg->i = sentinel;
+            print("p32 i %d", cg->i)
             Node expression = nodes[cg->i];
             ++cg->i; // CONSUME the expr node for the "else if" clause
             writeExprInternal(expression, nodes, cg);
             writeChar(aParenRight, cg);
             writeChar(aSpace, cg);
+            
         }
-
+        print("at end if clause %d ", cg->i)
     }
 }
 
 private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
+        pushCgFrame(fr, cg);
+        Int sentinel = cg->i + fr.pl2;
+        cg->i += 2; // CONSUME the loop node and the scope node
+        Int indLoopCond = cg->i;
+
+        cg->i += nodes[indLoopCond].pl2 + 1; // CONSUME the whole loop cond
+        
         writeIndentation(cg);
         writeConstantWithSpace(strFor, cg);
         writeChar(aParenLeft, cg);
+
+        while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
+            writeAssignmentWorker(nodes[cg->i], nodes, cg);
+        }
         writeChar(aSemicolon, cg);
         writeChar(aSemicolon, cg);
         writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
@@ -4552,12 +4591,7 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     }
 }
 
-/**
- * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
- * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
- * in which case this function handles all the corresponding stack poppin'.
- * It also always handles updating all inner frames with consumed tokens.
- */
+
 private void maybeCloseCgFrames(Codegen* cg) {
     for (Int j = cg->backtrack.length - 1; j > -1; j--) {
         if (cg->backtrack.content[j].startBt != cg->i) {
@@ -4567,6 +4601,7 @@ private void maybeCloseCgFrames(Codegen* cg) {
         (*cg->cgTable[fr.tp - nodScope])(fr, false, cg->cm->nodes.content, cg);
     }
 }
+
 
 private void tabulateCgDispatch(Codegen* cg) {
     for (Int j = 0; j < countSpanForms; j++) {
@@ -4578,6 +4613,7 @@ private void tabulateCgDispatch(Codegen* cg) {
     cg->cgTable[nodScope      - nodScope] = &writeScope;
     cg->cgTable[nodWhile      - nodScope] = &writeWhile;
     cg->cgTable[nodIf         - nodScope] = &writeIf;
+    cg->cgTable[nodIfClause   - nodScope] = &writeIfClause;    
     cg->cgTable[nodFnDef      - nodScope] = &writeFn;
     cg->cgTable[nodReturn     - nodScope] = &writeReturn;
 }
@@ -4594,6 +4630,7 @@ private Codegen* createCodegen(Compiler* cm, Arena* a) {
     return cg;
 }
 
+
 private Codegen* generateCode(Compiler* cm, Arena* a) {
 #ifdef TRACE
     printParser(cm, a);
@@ -4605,9 +4642,9 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
     const Int len = cm->nodes.length;
     while (cg->i < len) {
         Node nd = cm->nodes.content[cg->i];
-        //print("dispatching to ind %d at i %d", nd.tp - nodScope, cg->i)
+        
         ++cg->i; // CONSUME the span node
-
+        print("dispatching to ind %d at i %d payload2 %d", nd.tp - nodScope, cg->i, nd.pl2)
         (cg->cgTable[nd.tp - nodScope])(nd, true, cg->cm->nodes.content, cg);
         maybeCloseCgFrames(cg);
     }
@@ -4623,8 +4660,7 @@ Codegen* compile() {
     
     String* inp = str(
               "(:f fizzBuzz () =\n"
-              "    i = 1\n"
-              "    (:while (< i 101)\n"
+              "    (:while (< i 101). i = 1\n"
               "        (:if (and (== (% i 3) 0)\n"
               "                  (== (% i 5) 0)) => print `FizzBuzz`\n"
               "            (== (% i 3) 0)        => print `Fizz`\n"
