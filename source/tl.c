@@ -632,6 +632,46 @@ testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* strin
     }
 }
 
+//{{{ Source code files
+
+private String* readSourceFile(const Arr(char) fName, Arena* a) {
+    String* result = NULL;
+    FILE *file = fopen(fName, "r");
+    if (file == NULL) {
+        goto cleanup;
+    }
+    /* Go to the end of the file. */
+    if (fseek(file, 0L, SEEK_END) != 0) {
+        goto cleanup;
+    }
+    long fileSize = ftell(file);
+    if (fileSize == -1) {
+        goto cleanup;
+    }
+
+    /* Allocate our buffer to that size. */
+    result = allocateOnArena(fileSize + 1 + sizeof(String), a);
+    
+    /* Go back to the start of the file. */
+    if (fseek(file, 0L, SEEK_SET) != 0) {
+        goto cleanup;
+    }
+
+    /* Read the entire file into memory. */
+    size_t newLen = fread(result->content, 1, fileSize, file);
+    if (ferror(file) != 0 ) {
+        fputs("Error reading file", stderr);
+    } else {
+        result->content[newLen] = '\0'; /* Just to be safe. */
+    }
+    result->length = newLen;
+    cleanup:
+    fclose(file);
+    return result;
+}
+
+//}}}
+
 //}}}
 
 //{{{ Errors
@@ -644,6 +684,7 @@ testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* strin
 #define iErrorOverloadsNotFull           5 // There were fewer overloads for a function than what was allocated
 #define iErrorOverloadsIncoherent        6 // The overloads table is incoherent
 #define iErrorExpressionIsNotAnExpr      7 // What is supposed to be an expression in the AST is not a nodExpr
+#define iErrorZeroArityFuncWrongEmit     8 // A 0-arity function has a wrong "emit" (should be one of the prefix ones)
 
 //}}}
 //{{{ Syntax errors
@@ -4309,7 +4350,25 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
             CgCall new = (ent.emit == emitPrefix || ent.emit == emitInfix)
                         ? (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = n.startBt, .length = n.lenBts }
                         : (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = ent.externalNameId };
-            
+
+            if (n.pl2 == 0) { // 0 arity
+                switch (ent.emit) {
+                case emitPrefix:
+                    writeBytesFromSource(n, cg); break;
+                case emitPrefixExternal:
+                    writeConstant(ent.externalNameId, cg); break;
+                case emitPrefixShielded:
+                    writeBytesFromSource(n, cg);
+                    writeChar(aUnderscore, cg); break;
+#ifdef SAFETY
+                default:
+                    throwExcInternal(iErrorZeroArityFuncWrongEmit, cg->cm);
+#endif
+                }
+                writeChars(cg, ((byte[]){aParenLeft, aParenRight}));
+                ++cg->i;
+                continue;
+            }
             switch (ent.emit) {
             case emitPrefix:
                 writeBytesFromSource(n, cg);
@@ -4357,7 +4416,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
     cg->i = sentinel;
 }
 
-/** Precondition: we are looking 1 past the nodExpr. Consumes all nodes of the expr */
+/** Precondition: we are looking 1 past the nodExpr/singular node. Consumes all nodes of the expr */
 private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
     if (nd.tp <= topVerbatimType) {
         writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
@@ -4427,7 +4486,6 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         cg->indentation += 4;
     } else {
         cg->indentation -= 4;
-        writeIndentation(cg);
         writeChars(cg, ((byte[]){aCurlyRight, aNewline, aNewline}));
     }
 
@@ -4437,14 +4495,10 @@ private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     
 }
 
+/** Pre-condition: we are looking at the binding node, 1 past the assignment node */
 private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
     Node binding = nodes[cg->i];
-    Int class = cg->cm->entities.content[binding.pl1].class;
-    if (class == classMutatedGuaranteed || class == classMutatedNullable) {
-        writeConstantWithSpace(strLet, cg);
-    } else {
-        writeConstantWithSpace(strConst, cg);
-    }
+
     writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
     writeChars(cg, ((byte[]){aSpace, aEqual, aSpace}));
 
@@ -4452,8 +4506,9 @@ private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
     Node rightSide = nodes[cg->i];
     if (rightSide.tp == nodId) {
         writeBytes(cg->sourceCode->content + rightSide.startBt, rightSide.lenBts, cg);
+        ++cg->i; // CONSUME the id node on the right side of the assignment
     } else {
-        ++cg->i; // CONSUME the expr node
+        ++cg->i; // CONSUME the expr/verbatim node
         writeExprInternal(rightSide, nodes, cg);
     }
 }
@@ -4464,7 +4519,12 @@ private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
 private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     Int sentinel = cg->i + fr.pl2;
     writeIndentation(cg);
-    
+    Int class = cg->cm->entities.content[fr.pl1].class;
+    if (class == classMutatedGuaranteed || class == classMutatedNullable) {
+        writeConstantWithSpace(strLet, cg);
+    } else {
+        writeConstantWithSpace(strConst, cg);
+    }
     writeAssignmentWorker(nodes, cg);
     
     writeChar(aSemicolon, cg);
@@ -4534,16 +4594,14 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
         writeChar(aCurlyRight, cg);
         Node top = peek(&cg->backtrack);
         Int ifSentinel = top.startBt;
-        print("sentinel %d ifSentinel %d", sentinel, ifSentinel)
         if (ifSentinel == sentinel) {
-            print("p1 i %d", cg->i)
             writeChar(aNewline, cg);
             return;
         } else if (nodes[sentinel].tp == nodIfClause) {
             // there is only the "else" clause after this clause
-            print("p2 i %d", cg->i)
             writeChar(aSpace, cg);
             writeConstantWithSpace(strElse, cg);
+            writeChar(aCurlyLeft, cg);
         } else {
             // there is another condition after this clause, so we write it out as an "else if"
             print("p3 i %d", cg->i)
@@ -4552,12 +4610,10 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
             writeConstantWithSpace(strIf, cg);
             writeChar(aParenLeft, cg);
             cg->i = sentinel;
-            print("p32 i %d", cg->i)
             Node expression = nodes[cg->i];
             ++cg->i; // CONSUME the expr node for the "else if" clause
             writeExprInternal(expression, nodes, cg);
-            writeChar(aParenRight, cg);
-            writeChar(aSpace, cg);
+            writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft}));
             
         }
         print("at end if clause %d ", cg->i)
@@ -4568,19 +4624,34 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
         pushCgFrame(fr, cg);
         Int sentinel = cg->i + fr.pl2;
-        cg->i += 2; // CONSUME the loop node and the scope node
-        Int indLoopCond = cg->i;
-
-        cg->i += nodes[indLoopCond].pl2 + 1; // CONSUME the whole loop cond
+        cg->i += 1; // CONSUME the scope node immediately inside loop
         
         writeIndentation(cg);
         writeConstantWithSpace(strFor, cg);
         writeChar(aParenLeft, cg);
 
+        bool onceOnly = true;
         while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
-            writeAssignmentWorker(nodes[cg->i], nodes, cg);
+            ++cg->i; // CONSUME the assignment node
+            if (onceOnly) {
+                onceOnly = false;
+            } else {
+                writeChars(cg, ((byte[]){aComma, aSpace}));
+            }
+            writeAssignmentWorker(nodes, cg);
         }
+
         writeChar(aSemicolon, cg);
+        writeChar(aSpace, cg);
+        Int condInd = cg->i;
+        print("indloop cond %d", cg->i)
+        ++cg->i; // CONSUME the loopCond node
+        Node cond = nodes[cg->i];
+        ++cg->i; // CONSUME the expr/verbatim node
+        writeExprInternal(cond, nodes, cg);
+
+        Int condSent = condInd + nodes[condInd].pl2 + 1;
+        
         writeChar(aSemicolon, cg);
         writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
         cg->indentation += 4;
@@ -4654,22 +4725,10 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
 //}}}
 
 //{{{ Main
-Codegen* compile() {
+Codegen* compile(String* inp) {
     Arena* a = mkArena();
     Compiler* proto = createCompilerProto(a);
     
-    String* inp = str(
-              "(:f fizzBuzz () =\n"
-              "    (:while (< i 101). i = 1\n"
-              "        (:if (and (== (% i 3) 0)\n"
-              "                  (== (% i 5) 0)) => print `FizzBuzz`\n"
-              "            (== (% i 3) 0)        => print `Fizz`\n"
-              "            (== (% i 5) 0)        => print `Buzz`\n"
-              "                                else print $i)\n"
-              "       ++i))\n"
-              "(:f main() =\n"
-              "    (fizzBuzz))"
-              , a);
     Compiler* lx = lexicallyAnalyze(inp, proto, a);
     if (lx->wasError) {
         print("lexer error");
@@ -4684,11 +4743,20 @@ Codegen* compile() {
 
 #ifndef TEST
 Int main(int argc, char* argv) {
-    Codegen* cg = compile();
+    Arena* a = mkArena();
+    String* sourceCode = readSourceFile("_bin/code.tl", a);
+    if (sourceCode == NULL) {
+        goto cleanup;
+    }
+    
+    printString(sourceCode);
+    Codegen* cg = compile(sourceCode);
     if (cg != NULL) {
         print(";---------- len %d\n", cg->length)
         fwrite(cg->buffer, 1, cg->length, stdout);
     }
+    cleanup:
+    deleteArena(a);
     return 0;
 }
 #endif

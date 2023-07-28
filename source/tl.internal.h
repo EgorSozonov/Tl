@@ -542,8 +542,6 @@ struct Compiler {
 
 //}}}
 
-
-
 #define pop(X) _Generic((X), \
     StackBtToken*: popBtToken, \
     StackParseFrame*: popParseFrame, \
@@ -571,9 +569,6 @@ struct Compiler {
     Stackint32_t*:  hasValuesint32_t, \
     StackNode*: hasValuesNode \
     )(X)
-
-
-
 
 //}}}
 
