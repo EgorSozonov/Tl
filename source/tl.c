@@ -2041,7 +2041,7 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[38] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
     p[39] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
     p[40] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[41] = (OpDef){.name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 }};
+    p[41] = (OpDef){.name=s("neg"),  .arity=1, .bytes={0, 0, 0, 0 }};
     for (Int k = 0; k < countOperators; k++) {
         p[k].builtinOverloads = 0;
         Int m = 0;
@@ -2446,6 +2446,7 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
 
 /**
  * Precondition: we are looking at the first token of expr, not 1 past it (unlike "exprUpTo"). Consumes 1 or more tokens.
+ * Returns the type of parsed expression.
  */
 private Int exprOrSingleItem(Arr(Token) tokens, Compiler* cm) {
     Token tk = tokens[cm->i];
@@ -2571,8 +2572,8 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm);
 
 /** Reassignments like "x += 5". Performs some AST twiddling:
- *  1. [0    0]
- *  2. [0    0      Expr     ...]
+ *  1. [.    .]
+ *  2. [.    .      Expr     ...]
  *  3. [Expr OpCall LeftSide ...]
  *
  *  The end result is an expression that is the right side but wrapped in another binary call, with .pl2 increased by + 2
@@ -2616,7 +2617,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes(((Node){}), cm);
 
     Token rTk = tokens[cm->i];
-    Int rightType = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    Int rightType = exprOrSingleItem(tokens, cm);
     VALIDATEP(rightType == cm->types.content[opTypeInd + 3], errTypeNoMatchingOverload)
 
     Node rNd = cm->nodes.content[resInd + 2];
@@ -2624,8 +2625,10 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
         Node exprNd = cm->nodes.content[resInd + 2];
         cm->nodes.content[resInd] = (Node){.tp = nodExpr, .pl2 = exprNd.pl2 + 2, .startBt = tok.startBt, .lenBts = tok.lenBts};
     } else {
-        // right side is single-node, so there's no nodExpr, hence we need to push another node 
+        // right side is single-node, so current AST is [ . . singleNode]
         pushInnodes((cm->nodes.content[cm->nodes.length - 1]), cm);
+        // now it's [ . . singleNode singleNode]
+        
         cm->nodes.content[resInd] = (Node){.tp = nodExpr, .pl2 = 3, .startBt = tok.startBt, .lenBts = tok.lenBts};
     }
     cm->nodes.content[resInd + 1] = (Node){.tp = nodCall, .pl1 = operatorOv, .pl2 = 2,
@@ -3197,7 +3200,7 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
 //{{{ Built-ins
 
 const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
-                               "toStringMath.powMath.piMath.e!==lengthMath.abs&&||===alertprintlo";
+                               "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertprintlo";
 const Int constantOffsets[] = {
     0,   6,  8, 12,
     20, 25, 30, 33,
@@ -4306,13 +4309,23 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
     }
 }
 
+
+private void writeId(Node nd, Codegen* cg) {
+    Entity ent = cg->cm->entities.content[nd.pl1];
+    if (ent.emit == emitPrefix) {
+        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+    } else if (ent.emit == emitPrefixExternal) {
+        writeConstant(ent.externalNameId, cg);
+    } else if (ent.emit == emitPrefixShielded) {
+        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+        writeChar(aUnderscore, cg);
+    }
+}
+
+
 private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
     if (n.tp == nodId) {
-        Entity ent = cg->cm->entities.content[n.pl1];
-        writeBytesFromSource(n, cg);
-        if (ent.emit == emitPrefixShielded) {
-            writeChar(aUnderscore, cg);
-        }
+        writeId(n, cg);
     } else if (n.tp == tokInt) {
         uint64_t upper = n.pl1;
         uint64_t lower = n.pl2;
@@ -4497,14 +4510,14 @@ private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 /** Pre-condition: we are looking at the binding node, 1 past the assignment node */
 private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
     Node binding = nodes[cg->i];
-
+    
     writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
     writeChars(cg, ((byte[]){aSpace, aEqual, aSpace}));
 
     ++cg->i; // CONSUME the binding node
     Node rightSide = nodes[cg->i];
     if (rightSide.tp == nodId) {
-        writeBytes(cg->sourceCode->content + rightSide.startBt, rightSide.lenBts, cg);
+        writeId(rightSide, cg);
         ++cg->i; // CONSUME the id node on the right side of the assignment
     } else {
         ++cg->i; // CONSUME the expr/verbatim node
@@ -4664,7 +4677,6 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         writeConstantWithSpace(strWhile, cg);
         writeChar(aParenLeft, cg);
         Int condInd = cg->i;
-        print("indloop cond %d", cg->i)
         ++cg->i; // CONSUME the loopCond node
         Node cond = nodes[cg->i];
         ++cg->i; // CONSUME the expr/verbatim node
@@ -4787,6 +4799,7 @@ Codegen* compile(String* inp) {
     if (lx->wasError) {
         print("lexer error");
     }
+    printLexer(lx);
     Compiler* cm = parse(lx, proto, a);
     if (cm->wasError) {
         print("parser error");

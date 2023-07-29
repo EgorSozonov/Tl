@@ -1,12 +1,13 @@
 (:f fibonacci Int(n Int) =
-    (:if <= n 1 => return 0
-         == n 2 => return 1)
+    (:if <= n 0 => return 0
+         == n 1 => return 1)
     beforeLast = 0
     accum = 1
+    swap = 0
     (:while (> k 0). k = - n 1
-        temp = beforeLast
-        beforeLast = accum
-        accum += temp
+        swap := beforeLast
+        beforeLast := accum
+        accum += swap
         k -= 1)
     return accum)
 
