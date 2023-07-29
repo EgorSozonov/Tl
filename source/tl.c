@@ -1565,7 +1565,6 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
     } else if (mutType == 1) {
         tok->tp = tokReassign;
     } else {
-        print("lexing mutation at %d", lx->i)
         tok->tp = tokMutation;
         tok->pl1 = (Int)((untt)((opType << 26) + lx->i));
     } 
@@ -1700,27 +1699,6 @@ private void lexDocComment(Compiler* lx, Arr(byte) inp) {
     lx->i = j; // CONSUME the doc comment
 }
 
-/** Handles the binary operator as well as the unary negation operator and the in-line comments */
-private void lexMinus(Compiler* lx, Arr(byte) inp) {
-    if (lx->i == lx->inpLength - 1) {        
-        lexOperator(lx, inp);
-    } else {
-        byte nextBt = NEXT_BT;
-        if (isDigit(nextBt)) {
-            wrapInAStatement(lx, inp);
-            decNumber(true, lx, inp);
-            lx->numericNextInd = 0;
-        } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
-            add((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
-            lx->i++; // CONSUME the minus symbol
-        } else if (nextBt == aMinus) {
-            lexComment(lx, inp);
-        } else {
-            lexOperator(lx, inp);
-        }    
-    }
-}
-
 /** An ordinary until-line-end comment. It doesn't get included in the AST, just discarded by the lexer.
  * Just like a newline, this needs to test if we're in a breakable statement because a comment goes until the line end.
  */
@@ -1740,6 +1718,27 @@ private void lexComment(Compiler* lx, Arr(byte) inp) {
         }
     }
     lx->i = j;  // CONSUME the comment
+}
+
+/** Handles the binary operator as well as the unary negation operator and the in-line comments */
+private void lexMinus(Compiler* lx, Arr(byte) inp) {
+    if (lx->i == lx->inpLength - 1) {        
+        lexOperator(lx, inp);
+    } else {
+        byte nextBt = NEXT_BT;
+        if (isDigit(nextBt)) {
+            wrapInAStatement(lx, inp);
+            decNumber(true, lx, inp);
+            lx->numericNextInd = 0;
+        } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
+            add((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
+            lx->i++; // CONSUME the minus symbol
+        } else if (nextBt == aMinus) {
+            lexComment(lx, inp);
+        } else {
+            lexOperator(lx, inp);
+        }    
+    }
 }
 
 /** If we're inside a compound (=2) core form, we need to check if its clause count is saturated */ 
@@ -3141,7 +3140,7 @@ private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm) {
 
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
-    if (typeLength <= 1) { // not a function, or a 0-arity function => not overloaded
+    if (typeLength <= 1) { // not a function, or is a 0-arity function => not overloaded
         cm->activeBindings[nameId] = newEntityId;
     } else {
         fnDefIncrementOverlCount(nameId, cm);
@@ -3198,7 +3197,7 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
 //{{{ Built-ins
 
 const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
-                               "toStringMath.powMath.piMath.e!==lengthMath.abs&&||===alertprint";
+                               "toStringMath.powMath.piMath.e!==lengthMath.abs&&||===alertprintlo";
 const Int constantOffsets[] = {
     0,   6,  8, 12,
     20, 25, 30, 33,
@@ -3206,7 +3205,7 @@ const Int constantOffsets[] = {
     66, 69, 77, 85,
     92, 98, 101, 107,
     115, 117, 119, 122,
-    127, 132
+    127, 132, 134
     
 };
 
@@ -3239,6 +3238,8 @@ const Int constantOffsets[] = {
 #define strEquality   22
 #define strAlert      23
 #define strPrint2     24
+
+#define strLo         25
 
 private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t externalNameId, Compiler* cm) {
     pushInentities((Entity){
@@ -3294,14 +3295,12 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opTTimesExt,  flOfFlFl, 0, 0, cm); // dummy
     buildOperator(opTTimes,     intOfIntInt, emitInfix, 0, cm);
     buildOperator(opTTimes,     flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTIncrement, voidOfInt, emitPrefix, 0, cm);
     buildOperator(opTPlusExt,   strOfStrStr, 0, 0, cm); // dummy
     buildOperator(opTPlus,      intOfIntInt, emitInfix, 0, cm);
     buildOperator(opTPlus,      flOfFlFl, emitInfix, 0, cm);
     buildOperator(opTPlus,      strOfStrStr, emitInfix, 0, cm);
     buildOperator(opTToInt,     intOfFl, emitNop, 0, cm);    
     buildOperator(opTToFloat,   flOfInt, emitNop, 0, cm);
-    buildOperator(opTDecrement, voidOfInt, emitPrefix, 0, cm);
     buildOperator(opTMinusExt,  intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opTMinus,     intOfIntInt, emitInfix, 0, cm);
     buildOperator(opTMinus,     flOfFlFl, emitInfix, 0, cm);
@@ -3612,7 +3611,6 @@ private void addParsedOverload(Int overloadId, Int firstParamTypeId, Int entityI
     Int overloadInd = cm->overloadIds.content[overloadId];
     Int nextOverloadInd = cm->overloadIds.content[overloadId + 1];
     Int maxOverloadCount = (nextOverloadInd - overloadInd - 1)/2;
-    //Int currConcreteOverloadCount = cm->overloads.content[overloadInd];
     Int sentinel = overloadInd + maxOverloadCount + 1;
     Int j = overloadInd + 1;
     for (; j < sentinel && cm->overloads.content[j] > -1; j++) {}
@@ -4448,6 +4446,10 @@ private void pushCgFrame(Node nd, Codegen* cg) {
     push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), &cg->backtrack);
 }
 
+private void pushCgFrameWithSentinel(Node nd, Int sentinel, Codegen* cg) {
+    push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = sentinel}), &cg->backtrack);
+}
+
 
 private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
@@ -4494,7 +4496,6 @@ private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 
 /** Pre-condition: we are looking at the binding node, 1 past the assignment node */
 private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
-    print("ass worker i %d", cg->i)
     Node binding = nodes[cg->i];
 
     writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
@@ -4509,6 +4510,8 @@ private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
         ++cg->i; // CONSUME the expr/verbatim node
         writeExprInternal(rightSide, nodes, cg);
     }
+    writeChar(aSemicolon, cg);
+    writeChar(aNewline, cg);
 }
 
 /**
@@ -4527,8 +4530,6 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
     }
     writeAssignmentWorker(nodes, cg);
     
-    writeChar(aSemicolon, cg);
-    writeChar(aNewline, cg);
     cg->i = sentinel; // CONSUME the whole assignment
 }
 
@@ -4537,9 +4538,7 @@ private void writeReassignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* 
     writeIndentation(cg);
 
     writeAssignmentWorker(nodes, cg);
-    
-    writeChar(aSemicolon, cg);
-    writeChar(aNewline, cg);
+
     cg->i = sentinel; // CONSUME the whole reassignment
 }
 
@@ -4617,39 +4616,53 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
             writeConstantWithSpace(strElse, cg);
             writeConstantWithSpace(strIf, cg);
             writeChar(aParenLeft, cg);
-            cg->i = sentinel;
+            cg->i = sentinel; // CONSUME ???
             Node expression = nodes[cg->i];
             ++cg->i; // CONSUME the expr node for the "else if" clause
             writeExprInternal(expression, nodes, cg);
             writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft}));
-            
         }
     }
 }
 
+
+private void writeLoopLabel(Int labelId, Codegen* cg) {
+    writeConstant(strLo, cg);
+    ensureBufferLength(14, cg);
+    Int lenWritten = sprintf(cg->buffer + cg->length, "%d", labelId);
+    cg->length += lenWritten;
+}
+
+
 private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
-        pushCgFrame(fr, cg);
+        if (fr.pl1 > 0) { // this loop requires a label
+            writeIndentation(cg);
+            writeLoopLabel(fr.pl1, cg);
+            writeChars(cg, ((byte[]){ aColon, aNewline }));
+        }
         Int sentinel = cg->i + fr.pl2;
-        cg->i += 1; // CONSUME the scope node immediately inside loop
-        
-        writeIndentation(cg);
-        writeConstantWithSpace(strFor, cg);
-        writeChar(aParenLeft, cg);
-
-        bool onceOnly = true;
-        while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
-            ++cg->i; // CONSUME the assignment node
-            if (onceOnly) {
-                onceOnly = false;
-            } else {
-                writeChars(cg, ((byte[]){aComma, aSpace}));
+        ++cg->i; // CONSUME the scope node immediately inside loop
+        if (nodes[cg->i].tp == nodAssignment) { // there is at least one assignment, so an extra nested scope
+            // noting in .pl1 that we have a two scopes        
+            push(((Node){.tp = fr.tp, .pl1 = 1, .pl2 = fr.pl2, .startBt = sentinel}), &cg->backtrack);
+            writeIndentation(cg);
+            writeChar(aCurlyLeft, cg);
+            writeChar(aNewline, cg);
+            
+            while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
+                ++cg->i; // CONSUME the assignment node
+                writeIndentation(cg);
+                writeConstantWithSpace(strLet, cg);
+                writeAssignmentWorker(nodes, cg);
             }
-            writeAssignmentWorker(nodes, cg);
+        } else {
+            pushCgFrameWithSentinel(fr, sentinel, cg);
         }
 
-        writeChar(aSemicolon, cg);
-        writeChar(aSpace, cg);
+        writeIndentation(cg);
+        writeConstantWithSpace(strWhile, cg);
+        writeChar(aParenLeft, cg);
         Int condInd = cg->i;
         print("indloop cond %d", cg->i)
         ++cg->i; // CONSUME the loopCond node
@@ -4659,14 +4672,40 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 
         Int condSent = condInd + nodes[condInd].pl2 + 1;
         
-        writeChar(aSemicolon, cg);
         writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
         cg->indentation += 4;
     } else {
         cg->indentation -= 4;
         writeIndentation(cg);
-        writeChar(aCurlyRight, cg);
+        if (fr.pl1 > 0) {
+            writeChars(cg, ((byte[]){aCurlyRight, aCurlyRight, aNewline}));
+        } else {
+            writeChars(cg, ((byte[]){aCurlyRight, aNewline}));
+        }
     }
+}
+
+
+private void writeBreakContinue(Node fr, Int indKeyword, Codegen* cg) {
+    writeIndentation(cg);
+    if (fr.pl1 == -1) {
+        writeConstant(indKeyword, cg);
+    } else {
+        writeConstantWithSpace(indKeyword, cg);
+        writeLoopLabel(fr.pl1, cg);
+    }
+    writeChar(aSemicolon, cg);
+    writeChar(aNewline, cg);
+}
+
+
+private void writeBreak(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    writeBreakContinue(fr, strBreak, cg);
+}
+
+
+private void writeContinue(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    writeBreakContinue(fr, strContinue, cg);
 }
 
 
@@ -4695,6 +4734,8 @@ private void tabulateCgDispatch(Codegen* cg) {
     cg->cgTable[nodIfClause   - nodScope] = &writeIfClause;    
     cg->cgTable[nodFnDef      - nodScope] = &writeFn;
     cg->cgTable[nodReturn     - nodScope] = &writeReturn;
+    cg->cgTable[nodBreak      - nodScope] = &writeBreak;
+    cg->cgTable[nodContinue   - nodScope] = &writeContinue;
 }
 
 

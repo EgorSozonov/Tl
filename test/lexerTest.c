@@ -554,27 +554,27 @@ LexerTestSet* punctuationTests(Arena* a) {
                       ),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .pl2 = 5, .lenBts = 20 },
-                (Token){ .tp = tokWord, .pl2 = 0, .lenBts = 3 },                 // foo
-                (Token){ .tp = tokWord, .pl2 = 1, .startBt = 4, .lenBts = 3 }, // bar
+                (Token){ .tp = tokWord, .pl2 = 0, .lenBts = 3 },                // foo
+                (Token){ .tp = tokWord, .pl2 = 1, .startBt = 4, .lenBts = 3 },  // bar
                 (Token){ .tp = tokParens, .pl2 = 2, .startBt = 8, .lenBts = 12 },                
                 (Token){ .tp = tokWord, .pl2 = 2, .startBt = 10, .lenBts = 4 }, // asdf                          
                 (Token){ .tp = tokWord, .pl2 = 3, .startBt = 15, .lenBts = 3 }  // bcj      
         }))}, 
-		(LexerTest) { .name = s("Multiple statements"),
+        (LexerTest) { .name = s("Multiple statements"),
             .input = s("foo bar\n"
                        "asdf.\n"
                        "bcj"
                       ),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .pl2 = 2, .lenBts = 7 },
-                (Token){ .tp = tokWord, .pl2 = 0, .lenBts = 3 },                 // foo
+                (Token){ .tp = tokWord, .pl2 = 0, .lenBts = 3 },               // foo
                 (Token){ .tp = tokWord, .pl2 = 1, .startBt = 4, .lenBts = 3 }, // bar
                       
-			    (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 8, .lenBts = 4 },
+                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 8, .lenBts = 4 },
                 (Token){ .tp = tokWord, .pl2 = 2, .startBt = 8, .lenBts = 4 }, // asdf
                 
                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 14, .lenBts = 3 },
-                (Token){ .tp = tokWord, .pl2 = 3, .startBt = 14, .lenBts = 3 }  // bcj      
+                (Token){ .tp = tokWord, .pl2 = 3, .startBt = 14, .lenBts = 3 } // bcj      
         }))}, 
         (LexerTest) { .name = s("Punctuation all types"),
             .input = s("(:\n"
@@ -619,9 +619,9 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokParens, .pl2 = 5, .startBt = 3, .lenBts = 16 },                
                 (Token){ .tp = tokWord,   .pl2 = 1, .startBt = 4, .lenBts = 3 }, // arr
                 (Token){ .tp = tokParens, .pl2 = 3, .startBt = 7, .lenBts = 11 },
-                (Token){ .tp = tokWord,   .pl2 = 2, .startBt = 8, .lenBts = 3 },     // foo
+                (Token){ .tp = tokWord,   .pl2 = 2, .startBt = 8, .lenBts = 3 },  // foo
                 (Token){ .tp = tokParens, .pl2 = 1, .startBt = 12, .lenBts = 5 },
-                (Token){ .tp = tokWord,   .pl2 = 3, .startBt = 14, .lenBts = 3 }   // bar
+                (Token){ .tp = tokWord,   .pl2 = 3, .startBt = 14, .lenBts = 3 }  // bar
         }))},
         (LexerTest) { .name = s("Stmt separator"),
             .input = s("foo. bar baz"),

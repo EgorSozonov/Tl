@@ -12,7 +12,7 @@ Goal: a practical web development language that doesn't suck
 ### Language features
 * Practical: no Big Idea, just a language that works
 * Full static nominal typing, with a single Dynamic type
-* Simple, well thought-out syntax (not C-like)
+* Simple, well thought-out syntax (that is, not C-like)
 * Null safety
 * Sum types, generics, modular implicits
 * Language-level support for dependency injection, metadata and unit testing
@@ -31,14 +31,9 @@ Short and sweet.
 
 ### Future releases roadmap
 
-#### version 0.2.0
-* type checker, type-based overloading
-* if-expression, including inline if
-* JVM bytecode generation
-* start working on documentation
 
 #### version 0.3.0
-* looping
-* exception handling
-* structs, sum types
-* more documentation
+* developed static type system (structs, sum types, nullable types)
+* generic types and overloading for them
+* pattern matching
+* documentation
