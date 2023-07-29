@@ -141,32 +141,32 @@ typedef struct {
 #define tokInt          0
 #define tokLong         1
 #define tokFloat        2
-#define tokBool         3      // pl2 = value (1 or 0)
+#define tokBool         3    // pl2 = value (1 or 0)
 #define tokString       4
-#define tokUnderscore   5      // in the world of types, signifies the Void type
+#define tokUnderscore   5    // in the world of types, signifies the Void type
 #define tokDocComment   6
 
 // This group requires analysis in the parser
-#define tokWord         7      // pl2 = index in the string table
+#define tokWord         7    // pl2 = index in the string table
 #define tokTypeName     8
-#define tokDotWord      9      // ".fieldName", pl's the same as tokWord
-#define tokOperator    10      // pl1 = OperatorToken, one of the "opT" constants below
+#define tokDotWord      9    // ".fieldName", pl's the same as tokWord
+#define tokOperator    10    // pl1 = OperatorToken, one of the "opT" constants below
 #define tokEqualsSign  11
 
 // This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
 #define tokColon       12 
 
 // Punctuation (inner node) Token types
-#define tokScope       13       // denoted by (*)
+#define tokScope       13     // denoted by (*)
 #define tokStmt        14
 #define tokParens      15
 #define tokTypeParens  16
-#define tokData        17       // data initializer, like (: 1 2 3)
-#define tokAssignment  18       // pl1 = 1 if mutable assignment, 0 if immutable 
-#define tokReassign    19       // :=
-#define tokMutation    20       // pl1 = like in topOperator. This is the "+=", operatorful type of mutations
-#define tokArrow       21       // not a real scope, but placed here so the parser can dispatch on it
-#define tokElse        22       // not a real scope, but placed here so the parser can dispatch on it
+#define tokData        17     // data initializer, like (: 1 2 3)
+#define tokAssignment  18
+#define tokReassign    19     // :=
+#define tokMutation    20     // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
+#define tokArrow       21     // not a real scope, but placed here so the parser can dispatch on it
+#define tokElse        22     // not a real scope, but placed here so the parser can dispatch on it
  
 // Single-shot core syntax forms. pl1 = spanLevel
 #define tokAlias       23
@@ -174,21 +174,21 @@ typedef struct {
 #define tokAssertDbg   25
 #define tokAwait       26
 #define tokBreak       27
-#define tokCatch       28       // paren "(catch e. e .print)"
+#define tokCatch       28    // paren "(catch e. e .print)"
 #define tokContinue    29
 #define tokDefer       30
 #define tokEach        31
-#define tokEmbed       32       // Embed a text file as a string literal, or a binary resource file // 200
+#define tokEmbed       32    // Embed a text file as a string literal, or a binary resource file // 200
 #define tokExport      33
 #define tokExposePriv  34
 #define tokFnDef       35
 #define tokIface       36
 #define tokLambda      37
 #define tokMeta        38
-#define tokPackage     39       // for single-file packages
+#define tokPackage     39    // for single-file packages
 #define tokReturn      40
 #define tokStruct      41
-#define tokTry         42       // early exit
+#define tokTry         42    // early exit
 #define tokTypeDef     43
 #define tokYield       44
 
@@ -203,44 +203,44 @@ typedef struct {
 #define topVerbatimType tokString
 
 
-#define nodId           7      // pl1 = index of entity, pl2 = index of name
-#define nodCall         8      // pl1 = index of entity, pl2 = arity
-#define nodBinding      9      // pl1 = index of entity, pl2 = 1 if it's a type binding
+#define nodId           7    // pl1 = index of entity, pl2 = index of name
+#define nodCall         8    // pl1 = index of entity, pl2 = arity
+#define nodBinding      9    // pl1 = index of entity, pl2 = 1 if it's a type binding
 
 // Punctuation (inner node)
-#define nodScope       10       // (* This is resumable but trivially so, that's why it's not grouped with the others
+#define nodScope       10     // (* This is resumable but trivially so, that's why it's not grouped with the others
 #define nodExpr        11
 #define nodAssignment  12
-#define nodReassign    13       // :=
+#define nodReassign    13     // :=
 
 // Single-shot core syntax forms
 #define nodAlias       14
 #define nodAssert      15
 #define nodAssertDbg   16
 #define nodAwait       17
-#define nodBreak       18       // pl1 = number of label to break to, or -1 if none needed
-#define nodCatch       19       // "(catch e => print e)"
-#define nodContinue    20       // pl1 = number of label to continue to, or -1 if none needed
+#define nodBreak       18     // pl1 = number of label to break to, or -1 if none needed
+#define nodCatch       19     // "(catch e => print e)"
+#define nodContinue    20     // pl1 = number of label to continue to, or -1 if none needed
 #define nodDefer       21
-#define nodEmbed       22       // noParen. Embed a text file as a string literal, or a binary resource file
+#define nodEmbed       22     // noParen. Embed a text file as a string literal, or a binary resource file
 #define nodExport      23       
-#define nodExposePriv  24       // TODO replace with "import". This is for test files
-#define nodFnDef       25       // pl1 = entityId
+#define nodExposePriv  24     // TODO replace with "import". This is for test files
+#define nodFnDef       25     // pl1 = entityId
 #define nodIface       26
 #define nodLambda      27
 #define nodMeta        28       
-#define nodPackage     29       // for single-file packages
+#define nodPackage     29     // for single-file packages
 #define nodReturn      30
-#define nodTry         31       // the Rust kind of "try" (early return from current function)
+#define nodTry         31     // the Rust kind of "try" (early return from current function)
 #define nodYield       32
 #define nodIfClause    33       
-#define nodWhile       34       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
+#define nodWhile       34     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
 #define nodWhileCond   35
 
 // Resumable core forms
 #define nodIf          36
 #define nodImpl        37
-#define nodMatch       38       // pattern matching on sum type tag
+#define nodMatch       38     // pattern matching on sum type tag
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)
@@ -268,6 +268,7 @@ typedef struct {
     bool overloadable;
     bool assignable;
     Int builtinOverloads;
+    int8_t lenBts;
 } OpDef;
 
 

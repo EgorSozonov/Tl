@@ -1565,8 +1565,9 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
     } else if (mutType == 1) {
         tok->tp = tokReassign;
     } else {
+        print("lexing mutation at %d", lx->i)
         tok->tp = tokMutation;
-        tok->pl1 = opType;
+        tok->pl1 = (Int)((untt)((opType << 26) + lx->i));
     } 
     lx->lexBtrack->content[lx->lexBtrack->length - 1] = (BtToken){ .tp = tok->tp, .spanLevel = slStmt, .tokenInd = tokenInd }; 
 }
@@ -2045,6 +2046,9 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[43] = (OpDef){.name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 }};
     for (Int k = 0; k < countOperators; k++) {
         p[k].builtinOverloads = 0;
+        Int m = 0;
+        for (; m < 4 && p[k].bytes[m] > 0; m++) {}
+        p[k].lenBts = m;
     }
     return result;
 }
@@ -2576,7 +2580,10 @@ testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, C
  *  The end result is an expression that is the right side but wrapped in another binary call, with .pl2 increased by + 2
  */
 private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
-    Int opType = tok.pl1;
+    untt encodedInfo = (untt)(tok.pl1);
+    Int opType = (Int)(encodedInfo >> 26);
+    Int operStartBt = (Int)(encodedInfo & LOWER26BITS);
+    Int operLenBts = (*cm->langDef->operators)[opType].lenBts;
     Int sentinelToken = cm->i + tok.pl2;
     Token bindingTk = tokens[cm->i];
     
@@ -2591,10 +2598,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     bool foundOv = findOverload(leftType, cm->overloadIds.content[opType], cm->overloadIds.content[opType + 1], &operatorOv, cm);
 
     Int opTypeInd = cm->entities.content[operatorOv].typeId;
-    if (!(foundOv && cm->types.content[opTypeInd] == 3)) {
-        print("leftType %d cm->overloadIds.content[opType] %d cm->overloadIds.content[opType + 1] %d" , leftType,
-         cm->overloadIds.content[opType], cm->overloadIds.content[opType + 1])
-    }
+
     VALIDATEP(foundOv && cm->types.content[opTypeInd] == 3, errTypeNoMatchingOverload); // operator must be binary
     
 #ifdef SAFETY
@@ -2606,11 +2610,8 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     pushInnodes((Node){.tp = nodBinding, .pl1 = leftEntityId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
 
-    Int operStartBt = bindingTk.startBt + bindingTk.lenBts;
     ++cm->i; // CONSUME the binding word
-    Int operLenBts = tokens[cm->i].startBt - operStartBt;
-
-
+    
     Int resInd = cm->nodes.length;
     // space for the operator and left side
     pushInnodes(((Node){}), cm);
@@ -3736,7 +3737,6 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
  * The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... )
  */
 private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compiler* cm) {
-    print("in scope %d %d", cm->activeBindings[0], cm->activeBindings[3])
     Int fnStartInd = toplevelSignature.startBt;
     Int fnSentinel = toplevelSignature.lenBts;
 
@@ -3820,44 +3820,44 @@ const char* nodeNames[] = {
 };
 
 
-#define nodId           7      // pl1 = index of entity, pl2 = index of name
-#define nodCall         8      // pl1 = index of entity, pl2 = arity
-#define nodBinding      9      // pl1 = index of entity
+#define nodId           7    // pl1 = index of entity, pl2 = index of name
+#define nodCall         8    // pl1 = index of entity, pl2 = arity
+#define nodBinding      9    // pl1 = index of entity
 
 // Punctuation (inner node)
-#define nodScope       10       // (* This is resumable but trivially so, that's why it's not grouped with the others
+#define nodScope       10    // (* This is resumable but trivially so, that's why it's not grouped with the others
 #define nodExpr        11
 #define nodAssignment  12
-#define nodReassign    13       // :=
+#define nodReassign    13    // :=
 
 // Single-shot core syntax forms
 #define nodAlias       14
 #define nodAssert      15
 #define nodAssertDbg   16
 #define nodAwait       17
-#define nodBreak       18       // pl1 = number of label to break to, or -1 if none needed
-#define nodCatch       19       // "(catch e => print e)"
-#define nodContinue    20       // pl1 = number of label to continue to, or -1 if none needed
+#define nodBreak       18     // pl1 = number of label to break to, or -1 if none needed
+#define nodCatch       19     // "(catch e => print e)"
+#define nodContinue    20     // pl1 = number of label to continue to, or -1 if none needed
 #define nodDefer       21
-#define nodEmbed       22       // noParen. Embed a text file as a string literal, or a binary resource file
+#define nodEmbed       22     // noParen. Embed a text file as a string literal, or a binary resource file
 #define nodExport      23       
-#define nodExposePriv  24       // TODO replace with "import". This is for test files
-#define nodFnDef       25       // pl1 = entityId
+#define nodExposePriv  24     // TODO replace with "import". This is for test files only
+#define nodFnDef       25     // pl1 = entityId
 #define nodIface       26
 #define nodLambda      27
 #define nodMeta        28       
-#define nodPackage     29       // for single-file packages
+#define nodPackage     29     // for single-file packages
 #define nodReturn      30
 #define nodTry         31
 #define nodYield       32
 #define nodIfClause    33       
-#define nodWhile       34       // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
+#define nodWhile       34     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
 #define nodWhileCond   35
 
 // Resumable core forms
 #define nodIf          36
 #define nodImpl        37
-#define nodMatch       38       // pattern matching on sum type tag
+#define nodMatch       38     // pattern matching on sum type tag
 
 private void printType(Int typeInd, Compiler* cm) {
     if (typeInd < 5) {
@@ -4421,7 +4421,6 @@ private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
     if (nd.tp <= topVerbatimType) {
         writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
     } else {
-        print("expr sentinel %d", cg->i + nd.pl2)
         writeExprWorker(cg->i + nd.pl2, nodes, cg);
     }
 #if SAFETY
@@ -4447,7 +4446,6 @@ private void writeExpr(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 
 
 private void pushCgFrame(Node nd, Codegen* cg) {
-    print("pushing cg frame i %d sentinel %d", cg->i, cg->i + nd.pl2)
     push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), &cg->backtrack);
 }
 
@@ -4497,6 +4495,7 @@ private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 
 /** Pre-condition: we are looking at the binding node, 1 past the assignment node */
 private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
+    print("ass worker i %d", cg->i)
     Node binding = nodes[cg->i];
 
     writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
@@ -4519,7 +4518,9 @@ private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
 private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     Int sentinel = cg->i + fr.pl2;
     writeIndentation(cg);
-    Int class = cg->cm->entities.content[fr.pl1].class;
+    Node binding = nodes[cg->i];
+    Int class = cg->cm->entities.content[binding.pl1].class;
+    print("class of entity %d is %d", binding.pl1, class)
     if (class == classMutatedGuaranteed || class == classMutatedNullable) {
         writeConstantWithSpace(strLet, cg);
     } else {
@@ -4530,6 +4531,17 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
     cg->i = sentinel; // CONSUME the whole assignment
+}
+
+private void writeReassignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+    Int sentinel = cg->i + fr.pl2;
+    writeIndentation(cg);
+
+    writeAssignmentWorker(nodes, cg);
+    
+    writeChar(aSemicolon, cg);
+    writeChar(aNewline, cg);
+    cg->i = sentinel; // CONSUME the whole reassignment
 }
 
 private void writeReturn(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
@@ -4580,14 +4592,12 @@ private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 }
 
 private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
-    print("if clause i %d sentinel %d", cg->i, cg->i + nd.pl2); 
     if (isEntry) {
         Int sentinel = cg->i + nd.pl2;
         pushCgFrame(nd, cg);
         writeChar(aNewline, cg);
         cg->indentation += 4;
     } else {
-        print("if clause exit %d", cg->i)
         Int sentinel = nd.startBt;
         cg->indentation -= 4;
         writeIndentation(cg);
@@ -4604,7 +4614,6 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
             writeChar(aCurlyLeft, cg);
         } else {
             // there is another condition after this clause, so we write it out as an "else if"
-            print("p3 i %d", cg->i)
             writeChar(aSpace, cg);
             writeConstantWithSpace(strElse, cg);
             writeConstantWithSpace(strIf, cg);
@@ -4616,7 +4625,6 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
             writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft}));
             
         }
-        print("at end if clause %d ", cg->i)
     }
 }
 
@@ -4680,6 +4688,7 @@ private void tabulateCgDispatch(Codegen* cg) {
     }
     cg->cgTable[0] = writeScope;
     cg->cgTable[nodAssignment - nodScope] = &writeAssignment;
+    cg->cgTable[nodReassign   - nodScope] = &writeReassignment;    
     cg->cgTable[nodExpr       - nodScope] = &writeExpr;
     cg->cgTable[nodScope      - nodScope] = &writeScope;
     cg->cgTable[nodWhile      - nodScope] = &writeWhile;
@@ -4715,7 +4724,12 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
         Node nd = cm->nodes.content[cg->i];
         
         ++cg->i; // CONSUME the span node
-        print("dispatching to ind %d at i %d payload2 %d", nd.tp - nodScope, cg->i, nd.pl2)
+        if (nd.tp >= nodScope) {
+            print("dispatching to %s at i %d payload2 %d", nodeNames[nd.tp], cg->i, nd.pl2)
+        } else {
+            print("dispatching to segfault with tp = %d at i %d payload2 %d", nd.tp, cg->i, nd.pl2)
+        }
+        
         (cg->cgTable[nd.tp - nodScope])(nd, true, cg->cm->nodes.content, cg);
         maybeCloseCgFrames(cg);
     }
