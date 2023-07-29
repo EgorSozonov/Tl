@@ -952,8 +952,8 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
             s("(:f f Int() =\n"
               "    (:while < y 101. x = 17. y = / x 5\n"
               "        print $x\n"
-              "        --x\n"
-              "        ++y))"),
+              "        x -= 1\n"
+              "        y += 1))"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 28,        .lenBts = 95 },
                 (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 1 },

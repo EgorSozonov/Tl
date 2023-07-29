@@ -665,9 +665,9 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokOperator, .pl1 = opTExponentExt,  .startBt = 19, .lenBts = 2 }
         }))},
         (LexerTest) { .name = s("Operators list"),
-            .input = s("+ - / * ^ && || ' ? ++ >=< >< $ , - @"),
+            .input = s("+ - / * ^ && || ' ? >=< >< $ , - @"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 16, .startBt = 0, .lenBts = 37 },
+                (Token){ .tp = tokStmt, .pl2 = 16, .startBt = 0, .lenBts = 34 },
                 (Token){ .tp = tokOperator, .pl1 = opTPlus, .startBt = 0, .lenBts = 1 },
                 (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 2, .lenBts = 1 },                
                 (Token){ .tp = tokOperator, .pl1 = opTDivBy, .startBt = 4, .lenBts = 1 },
@@ -677,13 +677,12 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokOperator, .pl1 = opTBoolOr, .startBt = 13, .lenBts = 2 }, 
                 (Token){ .tp = tokOperator, .pl1 = opTIsNull, .startBt = 16, .lenBts = 1 },
                 (Token){ .tp = tokOperator, .pl1 = opTQuestionMark, .startBt = 18, .lenBts = 1 },
-                (Token){ .tp = tokOperator, .pl1 = opTIncrement, .startBt = 20, .lenBts = 2 },
-                (Token){ .tp = tokOperator, .pl1 = opTIntervalLeft, .startBt = 23, .lenBts = 3 },
-                (Token){ .tp = tokOperator, .pl1 = opTIntervalExcl, .startBt = 27, .lenBts = 2 },
-                (Token){ .tp = tokOperator, .pl1 = opTToString, .startBt = 30, .lenBts = 1 },
-                (Token){ .tp = tokOperator, .pl1 = opTToFloat, .startBt = 32, .lenBts = 1 },
-                (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 34, .lenBts = 1 },
-                (Token){ .tp = tokOperator, .pl1 = opTAccessor, .startBt = 36, .lenBts = 1 }
+                (Token){ .tp = tokOperator, .pl1 = opTIntervalLeft, .startBt = 20, .lenBts = 3 },
+                (Token){ .tp = tokOperator, .pl1 = opTIntervalExcl, .startBt = 24, .lenBts = 2 },
+                (Token){ .tp = tokOperator, .pl1 = opTToString, .startBt = 27, .lenBts = 1 },
+                (Token){ .tp = tokOperator, .pl1 = opTToFloat, .startBt = 29, .lenBts = 1 },
+                (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 31, .lenBts = 1 },
+                (Token){ .tp = tokOperator, .pl1 = opTAccessor, .startBt = 33, .lenBts = 1 }
         }))},
         (LexerTest) { .name = s("Operator expression"),
             .input = s("a - b"),

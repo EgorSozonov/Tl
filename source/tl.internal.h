@@ -288,46 +288,44 @@ typedef struct {
 #define opTIsNull            7 // '
 #define opTTimesExt          8 // *.
 #define opTTimes             9 // *
-#define opTIncrement        10 // ++
-#define opTPlusExt          11 // +.
-#define opTPlus             12 // +
-#define opTToInt            13 // ,,
-#define opTToFloat          14 // ,
-#define opTDecrement        15 // --
-#define opTMinusExt         16 // -.
-#define opTMinus            17 // -
-#define opTDivByExt         18 // /.
-#define opTDivBy            19 // /
-#define opTBitShiftLeftExt  20 // <<.
-#define opTBitShiftLeft     21 // <<
-#define opTLTEQ             22 // <=
-#define opTComparator       23 // <>
-#define opTLessThan         24 // <
-#define opTEquality         25 // ==
-#define opTIntervalBoth     26 // >=<= inclusive interval check
-#define opTIntervalLeft     27 // >=<  left-inclusive interval check
-#define opTIntervalRight    28 // ><=  right-inclusive interval check
-#define opTIntervalExcl     29 // ><   exclusive interval check
-#define opTGTEQ             30 // >=
-#define opTBitShiftRightExt 31 // >>.  unsigned right bit shift
-#define opTBitShiftRight    32 // >>   right bit shift
-#define opTGreaterThan      33 // >
-#define opTNullCoalesce     34 // ?:   null coalescing operator
-#define opTQuestionMark     35 // ?    nullable type operator
-#define opTAccessor         36 // @
-#define opTExponentExt      37 // ^.   exponentiation extended
-#define opTExponent         38 // ^    exponentiation
-#define opTBoolOr           39 // ||   bitwise or
-#define opTXor              40 // |    bitwise xor
-#define opTAnd              41
-#define opTOr               42
-#define opTNegation         43
+#define opTPlusExt          10 // +.
+#define opTPlus             11 // +
+#define opTToInt            12 // ,,
+#define opTToFloat          13 // ,
+#define opTMinusExt         14 // -.
+#define opTMinus            15 // -
+#define opTDivByExt         16 // /.
+#define opTDivBy            17 // /
+#define opTBitShiftLeftExt  18 // <<.
+#define opTBitShiftLeft     19 // <<
+#define opTLTEQ             20 // <=
+#define opTComparator       21 // <>
+#define opTLessThan         22 // <
+#define opTEquality         23 // ==
+#define opTIntervalBoth     24 // >=<= inclusive interval check
+#define opTIntervalLeft     25 // >=<  left-inclusive interval check
+#define opTIntervalRight    26 // ><=  right-inclusive interval check
+#define opTIntervalExcl     27 // ><   exclusive interval check
+#define opTGTEQ             28 // >=
+#define opTBitShiftRightExt 29 // >>.  unsigned right bit shift
+#define opTBitShiftRight    30 // >>   right bit shift
+#define opTGreaterThan      31 // >
+#define opTNullCoalesce     32 // ?:   null coalescing operator
+#define opTQuestionMark     33 // ?    nullable type operator
+#define opTAccessor         34 // @
+#define opTExponentExt      35 // ^.   exponentiation extended
+#define opTExponent         36 // ^    exponentiation
+#define opTBoolOr           37 // ||   bitwise or
+#define opTXor              38 // |    bitwise xor
+#define opTAnd              39
+#define opTOr               40
+#define opTNegation         41
 
 /** Count of lexical operators, i.e. things that are lexed as operator tokens.
  * must be equal to the count of following constants
  */ 
-#define countLexOperators   41
-#define countOperators      44 // count of things that are stored as operators, regardless of how they are lexed
+#define countLexOperators   39
+#define countOperators      42 // count of things that are stored as operators, regardless of how they are lexed
 
 #define countReservedLetters   25 // length of the interval of letters that may be init for reserved words (A to Y)
 #define countCoreForms (tokWhile - tokAlias + 1)

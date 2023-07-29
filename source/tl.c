@@ -1700,7 +1700,7 @@ private void lexDocComment(Compiler* lx, Arr(byte) inp) {
     lx->i = j; // CONSUME the doc comment
 }
 
-/** Handles the binary operator as well as the unary negation operator */
+/** Handles the binary operator as well as the unary negation operator and the in-line comments */
 private void lexMinus(Compiler* lx, Arr(byte) inp) {
     if (lx->i == lx->inpLength - 1) {        
         lexOperator(lx, inp);
@@ -1713,6 +1713,8 @@ private void lexMinus(Compiler* lx, Arr(byte) inp) {
         } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
             add((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
             lx->i++; // CONSUME the minus symbol
+        } else if (nextBt == aMinus) {
+            lexComment(lx, inp);
         } else {
             lexOperator(lx, inp);
         }    
@@ -1944,7 +1946,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aCarrReturn] = &lexSpace;
     p[aNewline] = &lexNewline;
     p[aBacktick] = &lexStringLiteral;
-    p[aSemicolon] = &lexComment;
     p[aCurlyLeft] = &lexDocComment;
     return result;
 }
@@ -2010,40 +2011,38 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[ 7] = (OpDef){.name=s("'"),    .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
     p[ 8] = (OpDef){.name=s("*."),   .arity=2, .bytes={aTimes, aDot, 0, 0}, .assignable = true, .overloadable = true};
     p[ 9] = (OpDef){.name=s("*"),    .arity=2, .bytes={aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[10] = (OpDef){.name=s("++"),   .arity=1, .bytes={aPlus, aPlus, 0, 0}, .overloadable=true };
-    p[11] = (OpDef){.name=s("+."),   .arity=2, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[12] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[13] = (OpDef){.name=s(",,"),   .arity=1, .bytes={aComma, aComma, 0, 0}};    
-    p[14] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0}};    
-    p[15] = (OpDef){.name=s("--"),   .arity=1, .bytes={aMinus, aMinus, 0, 0}, .overloadable=true};
-    p[16] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
-    p[17] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
-    p[18] = (OpDef){.name=s("/."),   .arity=2, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[19] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[20] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0}, .assignable = true, .overloadable = true};
-    p[21] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0}, .assignable = true, .overloadable = true };    
-    p[22] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0}};    
-    p[23] = (OpDef){.name=s("<>"),   .arity=2, .bytes={aLT, aGT, 0, 0}};    
-    p[24] = (OpDef){.name=s("<"),    .arity=2, .bytes={aLT, 0, 0, 0 } };
-    p[25] = (OpDef){.name=s("=="),   .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
-    p[26] = (OpDef){.name=s(">=<="), .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[27] = (OpDef){.name=s(">=<"),  .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
-    p[28] = (OpDef){.name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
-    p[29] = (OpDef){.name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 } };
-    p[30] = (OpDef){.name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 } };
-    p[31] = (OpDef){.name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0}, .assignable = true, .overloadable = true};
-    p[32] = (OpDef){.name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0}, .assignable = true, .overloadable = true };
-    p[33] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 }};
-    p[34] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
-    p[35] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[36] = (OpDef){.name=s("@"),    .arity=1, .bytes={aAt, 0, 0, 0 } };
-    p[37] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[38] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[39] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
-    p[40] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
-    p[41] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[42] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[43] = (OpDef){.name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 }};
+    p[10] = (OpDef){.name=s("+."),   .arity=2, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[11] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
+    p[12] = (OpDef){.name=s(",,"),   .arity=1, .bytes={aComma, aComma, 0, 0}};    
+    p[13] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0}};
+    p[14] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
+    p[15] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
+    p[16] = (OpDef){.name=s("/."),   .arity=2, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[17] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[18] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0}, .assignable = true, .overloadable = true};
+    p[19] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0}, .assignable = true, .overloadable = true };    
+    p[20] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0}};    
+    p[21] = (OpDef){.name=s("<>"),   .arity=2, .bytes={aLT, aGT, 0, 0}};    
+    p[22] = (OpDef){.name=s("<"),    .arity=2, .bytes={aLT, 0, 0, 0 } };
+    p[23] = (OpDef){.name=s("=="),   .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
+    p[24] = (OpDef){.name=s(">=<="), .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
+    p[25] = (OpDef){.name=s(">=<"),  .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
+    p[26] = (OpDef){.name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
+    p[27] = (OpDef){.name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 } };
+    p[28] = (OpDef){.name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 } };
+    p[29] = (OpDef){.name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0}, .assignable = true, .overloadable = true};
+    p[30] = (OpDef){.name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0}, .assignable = true, .overloadable = true };
+    p[31] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 }};
+    p[32] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
+    p[33] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 } };
+    p[34] = (OpDef){.name=s("@"),    .arity=1, .bytes={aAt, 0, 0, 0 } };
+    p[35] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[36] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[37] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
+    p[38] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
+    p[39] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
+    p[40] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
+    p[41] = (OpDef){.name=s("neg"),  .arity=2, .bytes={0, 0, 0, 0 }};
     for (Int k = 0; k < countOperators; k++) {
         p[k].builtinOverloads = 0;
         Int m = 0;
