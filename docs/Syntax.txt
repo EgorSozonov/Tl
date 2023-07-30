@@ -1,0 +1,170 @@
+﻿Lexer
+_________
+
+List of token types:
+1. Word (a sequence of dot-separated chunks, each chunk may start with an underscore or a letter, and chunks whose first letter is uppercase must precede chunks whose first letter is lowercase)
+2. DotWord (same as a word but starts with a dot)
+3. @Word (same as a word but starts with an '@' sign)
+4. CoreOperator (a small fixed set of operators, each no more than 3 symbols in length)
+5. Operator (a fixed but large set of operators built from a finite set of symbols, excluding any combination that is a CoreOperator)
+6. StringLiteral ('asdf')
+7. UTF8StringLiteral (u'asdf')
+8. MultilineStringLiteral ("""asdf""")
+9. Comment (# comment till end of line, or # comment with .# an end)
+10. IntLiteral (A sequence of digits that fits into a signed 64-bit integer, "-" is NOT allowed)
+11. HexLiteral (0xdeadbeef or 0xDEAD_BEEF, mixing cases within one literal is not allowed, underscores may be anywhere after "0x" except in last position)
+12. BinLiteral  (0b0011_0100, underscores may be anywhere after "0b" except in last position)
+13. FloatingLiteral (0.349_845_98234, underscores may be anywhere after first symbol which must be a decimal digit, i.e. leading zero is required)
+14. LexerPunctuation: {} denote syntactic scope, () denote subexpressions within a line, [] denote a subexpression within a line that is a data initializer,
+                     .[] denote a subexpression within a line that is a data accessor
+
+Precedence for correct unambiguous lexing:
+(3) > (1)
+(2) > (1)
+
+(4) > (5)
+
+(7) > (6)
+
+(11) > (10)
+(12) > (10)
+(13) > (10)
+
+(14) requires 1-symbol lookahead from (1), (2), (3)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Operators
+_____________________
+
+
+structural (11):
+
+=   local immutable definition
+:=  mutable assignment
+:   type declaration
+->  syntax arrow
+=>  # unused but probably will
+<-  # unused but probably will
+:>  arrow for the 'else' case
+|   sum type definition + pattern match union
+..  range operator
+..< half-open range operator
+&   function composition
+\   lambda definition
+
+equalable & extensible (11 * 6):
+
++
+-
+*
+/
+%   remainder of division
+**  exponentiation
+&&  boolean and
+||  boolean or
+^   boolean XOR
+<<  bitwise shift left
+>>  bitwise shift right
+    (including >>. unsigned bitwise right shift)
+
+
+# '* 6' means each has 5 variants: +, +., +:, +=, +=., +=:
+
+
+equality & comparison (10):
+
+==  boolean equality
+!=  boolean non-equality
+>   GT
+<   LT
+>=  GTEQ
+<=  LTEQ
+<. interval comparison operators
+>. # example: 5 >. x >. 1 is equivalent to 5 > x && x > 1
+<=.
+>=.
+
+
+
+unary (4):
+
+!  boolean & bitwise negation
+++ increment
+-- decrement
+-  numeric negation
+
+
+
+
+
+Functional operator precedence
+_____________________
+
+
+funcall                        26
+! -(unary) ++ --               25
+**                             23
+* / %                          20
++ -                            17
+<< >>                          14
+< > <= >= <. >. <=. >=.        12
+== !=                          11
+&&                             9
+^                              6
+||                             3  (2, 3, 4)
+.. ..<                         1
+&                              0
+
+
+
+Keywords
+_____________________
+init keywords (these are always at the start of a statement)
+
+catch
+if
+ifEq
+ifPred
+for
+forRaw
+match
+return
+try
+while
+
+
+non-init keywords
+
+as
+mb ? (wrapping a failable operation with an early return)
+
+
+
+Nesting validations in the lexer
+_____________________
+1) Assignment: right side may be an expression, a core form or a scope.
+Validated in the parser.
+
+2) Type decl: contents may only be an expression containing no scopes or core forms ("simple expression").
+Validated upon creation of scopes and core forms by walking up the backtrack of extents and making sure no type decls.
+
+3) Assignments and type decls may only exist on scope level.
+Validated by construction (parent extent forcefully changed to "scope" upon seeing an assignment or typedecl).
+
+4) Scope: all immediate children must be parenthesized, except maybe the last one.
+Validated in the parser.
+
+
+
