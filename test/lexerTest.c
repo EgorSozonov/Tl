@@ -439,7 +439,7 @@ LexerTestSet* stringTests(Arena* a) {
 LexerTestSet* commentTests(Arena* a) {
     return createTestSet(s("Comments lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Comment simple"),
-            .input = s("; this is a comment"),
+            .input = s("-- this is a comment"),
             .expectedOutput = buildLexer((Token[]){}
         )},
         (LexerTest) { .name = s("Doc comment"),
@@ -667,7 +667,7 @@ LexerTestSet* operatorTests(Arena* a) {
         (LexerTest) { .name = s("Operators list"),
             .input = s("+ - / * ^ && || ' ? >=< >< $ , - @"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 16, .startBt = 0, .lenBts = 34 },
+                (Token){ .tp = tokStmt, .pl2 = 15, .startBt = 0, .lenBts = 34 },
                 (Token){ .tp = tokOperator, .pl1 = opTPlus, .startBt = 0, .lenBts = 1 },
                 (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 2, .lenBts = 1 },                
                 (Token){ .tp = tokOperator, .pl1 = opTDivBy, .startBt = 4, .lenBts = 1 },
@@ -703,28 +703,28 @@ LexerTestSet* operatorTests(Arena* a) {
         (LexerTest) { .name = s("Operator assignment 1"),
             .input = s("a += b"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokMutation, .pl1 = opTPlus, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                (Token){ .tp = tokMutation, .pl1 = (opTPlus << 26) + 2, .pl2 = 2, .startBt = 0, .lenBts = 6 }, // 2 = startBt
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
                 (Token){ .tp = tokWord, .pl2 = 1, .startBt = 5, .lenBts = 1 }
         }))},
         (LexerTest) { .name = s("Operator assignment 2"),
             .input = s("a ||= b"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokMutation, .pl1 = opTBoolOr, .pl2 = 2, .startBt = 0, .lenBts = 7 },
+                (Token){ .tp = tokMutation, .pl1 = (opTBoolOr << 26) + 2, .pl2 = 2, .startBt = 0, .lenBts = 7 },
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
                 (Token){ .tp = tokWord, .pl2 = 1, .startBt = 6, .lenBts = 1 }
         }))},
         (LexerTest) { .name = s("Operator assignment 3"),
-            .input = s("a *.= b"),
+            .input = s("a*.= b"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokMutation, .pl1 = opTTimesExt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
+                (Token){ .tp = tokMutation, .pl1 = (opTTimesExt << 26) + 1, .pl2 = 2, .startBt = 0, .lenBts = 6 },
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                (Token){ .tp = tokWord, .pl2 = 1, .startBt = 6, .lenBts = 1 }               
+                (Token){ .tp = tokWord, .pl2 = 1, .startBt = 5, .lenBts = 1 }               
         }))},
         (LexerTest) { .name = s("Operator assignment 4"),
             .input = s("a ^= b"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokMutation, .pl1 = opTExponent, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                (Token){ .tp = tokMutation, .pl1 = (opTExponent << 26) + 2, .pl2 = 2, .startBt = 0, .lenBts = 6 },
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
                 (Token){ .tp = tokWord, .pl2 = 1, .startBt = 5, .lenBts = 1 }
         }))},
@@ -738,7 +738,7 @@ LexerTestSet* operatorTests(Arena* a) {
         (LexerTest) { .name = s("Operator assignment with parens"),
             .input = s("x +.= (y + 5)"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokMutation, .pl1 = opTPlusExt, .pl2 = 5, .startBt = 0, .lenBts = 13 },
+                (Token){ .tp = tokMutation, .pl1 = (opTPlusExt << 26) + 2, .pl2 = 5, .startBt = 0, .lenBts = 13 },
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
                 (Token){ .tp = tokParens, .pl2 = 3, .startBt = 6, .lenBts = 7 },
                 (Token){ .tp = tokWord, .pl2 = 1, .startBt = 7, .lenBts = 1 },

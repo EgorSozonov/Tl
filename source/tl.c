@@ -388,7 +388,6 @@ private bool testForWord(String* inp, int startBt, const byte letters[], int len
     if (j > inp->length) return false;
     
     if (j < inp->length && isAlphanumeric(inp->content[j])) {
-        print("j %d", j)
         return false;        
     }
 
@@ -2137,7 +2136,6 @@ private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
 
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
     VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
-    
     Int typeLeft = exprAfterHead(tok, tokens, cm);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
@@ -2156,14 +2154,14 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
 /** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
     if (tok->tp == tokArrow || tok->tp == tokElse) {
+        ++cm->i; // CONSUME the "=>" or "else"
+        *tok = tokens[cm->i];
         Int sentinel = calcSentinel(*tok, cm->i);
         VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
         if (tok->tp == tokElse) {
             VALIDATEP(sentinel = peek(cm->backtrack).sentinelToken, errIfElseMustBeLast);
         }
-        ++cm->i; // CONSUME the "=>" or "else"
-        *tok = tokens[cm->i];
-
+        
         push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
                             .sentinelToken = sentinel}), cm->backtrack);
         pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
@@ -2280,7 +2278,6 @@ private void parseVerbatim(Token tok, Compiler* cm) {
 }
 
 private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* cm) {
-    print("bare atom at %d", cm->i)
     throwExcParser(errTemp, cm);
 }
 
@@ -2471,11 +2468,7 @@ private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm) {
  * Parses an expression from an actual token. Precondition: we are 1 past that token. Handles statements only, not single items.
  */
 private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
-    if (tok.pl2 > 1) {
-        exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, tokens, cm);
-    } else {
-        exprSingleItem(tok, cm);
-    }
+    exprAfterHead(tok, tokens, cm);
 }
 
 /**
@@ -2853,7 +2846,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokYield]      = &parseAlias;
 
     p[tokIf]         = &parseIf;
-    p[tokElse]       = &parseSkip;
+    //p[tokElse]       = &parseSkip;
     p[tokWhile]      = &parseWhile;
     return result;
 }
@@ -3281,8 +3274,6 @@ private void buildOperators(Compiler* cm) {
     Int flOfFlFl = addFunctionType(2, (Int[]){tokFloat, tokFloat, tokFloat}, cm);
     Int flOfInt = addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
     Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
-
-    Int voidOfInt = addFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
 
     buildOperator(opTNotEqual, boolOfIntInt, emitInfixExternal, strNotEqual, cm);
     buildOperator(opTNotEqual, boolOfFlFl, emitInfixExternal, strNotEqual, cm);
@@ -4605,7 +4596,6 @@ private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 
 private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
-        Int sentinel = cg->i + nd.pl2;
         pushCgFrame(nd, cg);
         writeChar(aNewline, cg);
         cg->indentation += 4;
@@ -4677,13 +4667,9 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         writeIndentation(cg);
         writeConstantWithSpace(strWhile, cg);
         writeChar(aParenLeft, cg);
-        Int condInd = cg->i;
-        ++cg->i; // CONSUME the loopCond node
-        Node cond = nodes[cg->i];
-        ++cg->i; // CONSUME the expr/verbatim node
+        Node cond = nodes[cg->i + 1];
+        cg->i += 2; // CONSUME the loopCond node and expr/verbatim node
         writeExprInternal(cond, nodes, cg);
-
-        Int condSent = condInd + nodes[condInd].pl2 + 1;
         
         writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
         cg->indentation += 4;
