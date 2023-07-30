@@ -95,6 +95,7 @@ extern const char errIfLeft[];
 extern const char errIfRight[];
 extern const char errIfEmpty[];
 extern const char errIfMalformed[];
+extern const char errIfElseMustBeLast[];
 extern const char errFnNameAndParams[];
 extern const char errFnMissingBody[];
 extern const char errLoopSyntaxError[];

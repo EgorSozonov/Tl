@@ -12,5 +12,5 @@
     return accum)
 
 (:f main() =
-    fib = fibonacci 5
+    fib = fibonacci 6
     print $fib)

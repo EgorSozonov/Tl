@@ -19,6 +19,6 @@ function fibonacci(n) {
 }
 
 function main() {
-    const fib = fibonacci(5);
+    const fib = fibonacci(6);
     print((fib).toString());
 }

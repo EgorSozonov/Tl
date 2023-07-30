@@ -13,7 +13,7 @@ function nestedLoops() {
                 x = x + 1;
                 y = y + 1;
                 z = z + 1;
-                print((((`z = ` + (z).toString()) + (` y = ` + (y).toString())) + (`x = ` + (x).toString())));
+                print((((`z = ` + (z).toString()) + (`; y = ` + (y).toString())) + (`; x = ` + (x).toString())));
                 if (x > 0) {
                     break lo1;
                 }

@@ -734,6 +734,7 @@ const char errIfLeft[]                     = "A left-hand clause in an if can on
 const char errIfRight[]                    = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
 const char errIfEmpty[]                    = "Empty `if` expression";
 const char errIfMalformed[]                = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
+const char errIfElseMustBeLast[]           = "An `else` subexpression must be the last thing in an `if`";
 const char errFnNameAndParams[]            = "Function signature must look like this: `(:f fnName ReturnType(x Type1 y Type2). body...)`";
 const char errFnMissingBody[]              = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
 const char errLoopSyntaxError[]            = "A loop should look like `(:loop (< x 101) x = 0. loopBody)`";
@@ -845,8 +846,8 @@ const int operatorStartSymbols[16] = {
 //}}}
 
 
-#define CURR_BT inp[lx->i]
-#define NEXT_BT inp[lx->i + 1]
+#define CURR_BT source[lx->i]
+#define NEXT_BT source[lx->i + 1]
 #define VALIDATEI(cond, errInd) if (!(cond)) { throwExcInternal0(errInd, __LINE__, cm); }
 #define VALIDATEL(cond, errMsg) if (!(cond)) { throwExcLexer(errMsg, lx); }
 
@@ -1074,7 +1075,7 @@ private void addStatement(untt stmtType, Int startBt, Compiler* lx) {
 }
 
 
-private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) inp) {    
+private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) source) {    
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {            
             push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
@@ -1086,7 +1087,7 @@ private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) inp) 
 }
 
 
-private void wrapInAStatement(Compiler* lx, Arr(byte) inp) {
+private void wrapInAStatement(Compiler* lx, Arr(byte) source) {
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {
             push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
@@ -1200,19 +1201,19 @@ private int64_t calcHexNumber(Compiler* lx) {
  * Checks that the input fits into a signed 64-bit fixnum.
  * TODO add floating-pointt literals like 0x12FA.
  */
-private void hexNumber(Compiler* lx, Arr(byte) inp) {
+private void hexNumber(Compiler* lx, Arr(byte) source) {
     checkPrematureEnd(2, lx);
     lx->numericNextInd = 0;
     Int j = lx->i + 2;
     while (j < lx->inpLength) {
-        byte cByte = inp[j];
+        byte cByte = source[j];
         if (isDigit(cByte)) {
             addNumeric(cByte - aDigit0, lx);
         } else if ((cByte >= aALower && cByte <= aFLower)) {
             addNumeric(cByte - aALower + 10, lx);
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
             addNumeric(cByte - aAUpper + 10, lx);
-        } else if (cByte == aUnderscore && (j == lx->inpLength - 1 || isHexDigit(inp[j + 1]))) {            
+        } else if (cByte == aUnderscore && (j == lx->inpLength - 1 || isHexDigit(source[j + 1]))) {            
             throwExcLexer(errNumericEndUnderscore, lx);            
         } else {
             break;
@@ -1239,7 +1240,7 @@ private void hexNumber(Compiler* lx, Arr(byte) inp) {
  * Example, for input text '1.23' this function would get the args: ([1 2 3] 1)
  * Output: a 64-bit floating-pointt number, encoded as a long (same bits)
  */
-private Int calcFloating(double* result, Int powerOfTen, Compiler* lx, Arr(byte) inp){
+private Int calcFloating(double* result, Int powerOfTen, Compiler* lx, Arr(byte) source){
     Int indTrailingZeroes = lx->numericNextInd - 1;
     Int ind = lx->numericNextInd;
     while (indTrailingZeroes > -1 && lx->numeric[indTrailingZeroes] == 0) { 
@@ -1296,14 +1297,14 @@ private double doubleOfLongBits(int64_t i) {
  * Lexes a decimal numeric literal (integer or floating-point).
  * TODO: add support for the '1.23E4' format
  */
-private void decNumber(bool isNegative, Compiler* lx, Arr(byte) inp) {
+private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
     Int j = (isNegative) ? (lx->i + 1) : lx->i;
     Int digitsAfterDot = 0; // this is relative to first digit, so it includes the leading zeroes
     bool metDot = false;
     bool metNonzero = false;
     Int maximumInd = (lx->i + 40 > lx->inpLength) ? (lx->i + 40) : lx->inpLength;
     while (j < maximumInd) {
-        byte cByte = inp[j];
+        byte cByte = source[j];
 
         if (isDigit(cByte)) {
             if (metNonzero) {
@@ -1314,9 +1315,9 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) inp) {
             }
             if (metDot) digitsAfterDot++;
         } else if (cByte == aUnderscore) {
-            VALIDATEL(j != (lx->inpLength - 1) && isDigit(inp[j + 1]), errNumericEndUnderscore)
+            VALIDATEL(j != (lx->inpLength - 1) && isDigit(source[j + 1]), errNumericEndUnderscore)
         } else if (cByte == aDot) {
-            if (j + 1 < maximumInd && !isDigit(inp[j + 1])) { // this dot is not decimal - it's a statement closer
+            if (j + 1 < maximumInd && !isDigit(source[j + 1])) { // this dot is not decimal - it's a statement closer
                 break;
             }
             
@@ -1328,11 +1329,11 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) inp) {
         j++;
     }
 
-    VALIDATEL(j >= lx->inpLength || !isDigit(inp[j]), errNumericWidthExceeded)
+    VALIDATEL(j >= lx->inpLength || !isDigit(source[j]), errNumericWidthExceeded)
 
     if (metDot) {
         double resultValue = 0;
-        Int errorCode = calcFloating(&resultValue, -digitsAfterDot, lx, inp);
+        Int errorCode = calcFloating(&resultValue, -digitsAfterDot, lx, source);
         VALIDATEL(errorCode == 0, errNumericFloatWidthExceeded)
 
         int64_t bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
@@ -1350,8 +1351,8 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) inp) {
     lx->i = j; // CONSUME the decimal number
 }
 
-private void lexNumber(Compiler* lx, Arr(byte) inp) {
-    wrapInAStatement(lx, inp);
+private void lexNumber(Compiler* lx, Arr(byte) source) {
+    wrapInAStatement(lx, source);
     byte cByte = CURR_BT;
     if (lx->i == lx->inpLength - 1 && isDigit(cByte)) {
         add((Token){ .tp = tokInt, .pl2 = cByte - aDigit0, .startBt = lx->i, .lenBts = 1 }, lx);
@@ -1361,9 +1362,9 @@ private void lexNumber(Compiler* lx, Arr(byte) inp) {
     
     byte nByte = NEXT_BT;
     if (nByte == aXLower) {
-        hexNumber(lx, inp);
+        hexNumber(lx, source);
     } else {
-        decNumber(false, lx, inp);
+        decNumber(false, lx, source);
     }
     lx->numericNextInd = 0;
 }
@@ -1384,7 +1385,7 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
  * Lexer action for a paren-type reserved word. It turns parentheses into an slParenMulti core form.
  * If necessary (parens inside statement) it also deletes last token and removes the top frame
  */
-private void lexReservedWord(untt reservedWordType, Int startBt, Compiler* lx, Arr(byte) inp) {    
+private void lexReservedWord(untt reservedWordType, Int startBt, Compiler* lx, Arr(byte) source) {    
     StackBtToken* bt = lx->lexBtrack;
     
     Int expectations = (*lx->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
@@ -1419,7 +1420,7 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Compiler* lx, A
  * (or the whole word if there are no dots).
  * Returns True if the lexed chunk was capitalized
  */
-private bool wordChunk(Compiler* lx, Arr(byte) inp) {
+private bool wordChunk(Compiler* lx, Arr(byte) source) {
     bool result = false;
     if (CURR_BT == aUnderscore) {
         checkPrematureEnd(2, lx);
@@ -1456,10 +1457,10 @@ private void closeStatement(Compiler* lx) {
  * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45
  * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
  */
-private void wordInternal(untt wordType, Compiler* lx, Arr(byte) inp) {
+private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     Int startBt = lx->i;
 
-    bool wasCapitalized = wordChunk(lx, inp);
+    bool wasCapitalized = wordChunk(lx, source);
 
     while (lx->i < (lx->inpLength - 1)) {
         byte currBt = CURR_BT;
@@ -1467,7 +1468,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) inp) {
             byte nextBt = NEXT_BT;
             if (isLetter(nextBt) || nextBt == aUnderscore) {
                 lx->i++; // CONSUME the letter or underscore
-                bool isCurrCapitalized = wordChunk(lx, inp);
+                bool isCurrCapitalized = wordChunk(lx, source);
                 VALIDATEL(!wasCapitalized, errWordCapitalizationOrder)
                 wasCapitalized = isCurrCapitalized;
             } else {
@@ -1486,15 +1487,15 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) inp) {
     Int lenString = lx->i - startBt;
         
     if (firstByte < aALower || firstByte > aYLower) {
-        wrapInAStatementStarting(startBt, lx, inp);
-        Int uniqueStringInd = addStringStore(inp, startBt, lenBts, lx->stringTable, lx->stringStore);
+        wrapInAStatementStarting(startBt, lx, source);
+        Int uniqueStringInd = addStringStore(source, startBt, lenBts, lx->stringTable, lx->stringStore);
         add((Token){ .tp = finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
         return;
     }
     Int mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
     if (mbReservedWord <= 0) {
-        wrapInAStatementStarting(startBt, lx, inp);
-        Int uniqueStringInd = addStringStore(inp, startBt, lenString, lx->stringTable, lx->stringStore);
+        wrapInAStatementStarting(startBt, lx, source);
+        Int uniqueStringInd = addStringStore(source, startBt, lenString, lx->stringTable, lx->stringStore);
         add((Token){ .tp=finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
         return;
     }
@@ -1506,35 +1507,35 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) inp) {
         add((Token){.tp = tokElse, .startBt = realStartByte, .lenBts = 4}, lx);
     } else if (mbReservedWord < firstCoreFormTokenType) {
         if (mbReservedWord == reservedAnd) {
-            wrapInAStatementStarting(startBt, lx, inp);
+            wrapInAStatementStarting(startBt, lx, source);
             add((Token){.tp=tokOperator, .pl1 = opTAnd, .startBt=realStartByte, .lenBts=3}, lx);
         } else if (mbReservedWord == reservedOr) {
-            wrapInAStatementStarting(startBt, lx, inp);
+            wrapInAStatementStarting(startBt, lx, source);
             add((Token){.tp=tokOperator, .pl1 = opTOr, .startBt=realStartByte, .lenBts=2}, lx);
         } else if (mbReservedWord == reservedTrue) {
-            wrapInAStatementStarting(startBt, lx, inp);
+            wrapInAStatementStarting(startBt, lx, source);
             add((Token){.tp=tokBool, .pl2=1, .startBt=realStartByte, .lenBts=4}, lx);
         } else if (mbReservedWord == reservedFalse) {
-            wrapInAStatementStarting(startBt, lx, inp);
+            wrapInAStatementStarting(startBt, lx, source);
             add((Token){.tp=tokBool, .pl2=0, .startBt=realStartByte, .lenBts=5}, lx);
         }
     } else {
-        lexReservedWord(mbReservedWord, realStartByte, lx, inp);
+        lexReservedWord(mbReservedWord, realStartByte, lx, source);
     }
 }
 
 
-private void lexWord(Compiler* lx, Arr(byte) inp) {
-    wordInternal(tokWord, lx, inp);
+private void lexWord(Compiler* lx, Arr(byte) source) {
+    wordInternal(tokWord, lx, source);
 }
 
 /** 
  * The dot is a statement separator
  */
-private void lexDot(Compiler* lx, Arr(byte) inp) {
+private void lexDot(Compiler* lx, Arr(byte) source) {
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {        
         lx->i++; // CONSUME the dot
-        wordInternal(tokDotWord, lx, inp);
+        wordInternal(tokDotWord, lx, source);
         return;        
     }
     if (!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope) {
@@ -1574,7 +1575,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
 /**
  * A single colon means "parentheses until the next closing paren or end of statement"
  */
-private void lexColon(Compiler* lx, Arr(byte) inp) {           
+private void lexColon(Compiler* lx, Arr(byte) source) {           
     if (lx->i < lx->inpLength && NEXT_BT == aEqual) { // mutation assignment, :=
         lx->i += 2; // CONSUME the ":="
         processAssignment(1, 0, lx);
@@ -1587,13 +1588,13 @@ private void lexColon(Compiler* lx, Arr(byte) inp) {
 }
 
 
-private void lexOperator(Compiler* lx, Arr(byte) inp) {
-    wrapInAStatement(lx, inp);    
+private void lexOperator(Compiler* lx, Arr(byte) source) {
+    wrapInAStatement(lx, source);    
     
     byte firstSymbol = CURR_BT;
-    byte secondSymbol = (lx->inpLength > lx->i + 1) ? inp[lx->i + 1] : 0;
-    byte thirdSymbol = (lx->inpLength > lx->i + 2) ? inp[lx->i + 2] : 0;
-    byte fourthSymbol = (lx->inpLength > lx->i + 3) ? inp[lx->i + 3] : 0;
+    byte secondSymbol = (lx->inpLength > lx->i + 1) ? source[lx->i + 1] : 0;
+    byte thirdSymbol = (lx->inpLength > lx->i + 2) ? source[lx->i + 2] : 0;
+    byte fourthSymbol = (lx->inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
     Int k = 0;
     Int opType = -1; // corresponds to the opT... operator types
     OpDef (*operators)[countOperators] = lx->langDef->operators;
@@ -1627,7 +1628,7 @@ private void lexOperator(Compiler* lx, Arr(byte) inp) {
     
     Int lengthOfBaseOper = (opDef.bytes[1] == 0) ? 1 : (opDef.bytes[2] == 0 ? 2 : (opDef.bytes[3] == 0 ? 3 : 4));
     Int j = lx->i + lengthOfBaseOper;
-    if (opDef.assignable && j < lx->inpLength && inp[j] == aEqual) {
+    if (opDef.assignable && j < lx->inpLength && source[j] == aEqual) {
         isAssignment = true;
         j++;
     }
@@ -1640,11 +1641,11 @@ private void lexOperator(Compiler* lx, Arr(byte) inp) {
 }
 
 /** The humble "=" can be the definition statement, a marker that separates signature from definition, or an arrow "=>" */
-private void lexEqual(Compiler* lx, Arr(byte) inp) {
+private void lexEqual(Compiler* lx, Arr(byte) source) {
     checkPrematureEnd(2, lx);
     byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
-        lexOperator(lx, inp); // ==        
+        lexOperator(lx, source); // ==        
     } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes        
         // arrows are only allowed inside "if"s and the like
         VALIDATEL(lx->lexBtrack->length >= 2, errCoreMisplacedArrow)
@@ -1672,13 +1673,13 @@ private void lexEqual(Compiler* lx, Arr(byte) inp) {
 }
 
 /** Doc comments, syntax is "{ Doc comment }" */
-private void lexDocComment(Compiler* lx, Arr(byte) inp) {
+private void lexDocComment(Compiler* lx, Arr(byte) source) {
     Int startBt = lx->i;
     
     Int curlyLevel = 0;
     Int j = lx->i;
     for (; j < lx->inpLength; j++) {
-        byte cByte = inp[j];
+        byte cByte = source[j];
         // Doc comments may contain arbitrary UTF-8 symbols, but we care only about newlines and parentheses
         if (cByte == aNewline) {
             addNewLine(j, lx);
@@ -1702,14 +1703,14 @@ private void lexDocComment(Compiler* lx, Arr(byte) inp) {
 /** An ordinary until-line-end comment. It doesn't get included in the AST, just discarded by the lexer.
  * Just like a newline, this needs to test if we're in a breakable statement because a comment goes until the line end.
  */
-private void lexComment(Compiler* lx, Arr(byte) inp) {    
+private void lexComment(Compiler* lx, Arr(byte) source) {    
     if (lx->i >= lx->inpLength) return;
     
     maybeBreakStatement(lx);
         
     Int j = lx->i;
     while (j < lx->inpLength) {
-        byte cByte = inp[j];
+        byte cByte = source[j];
         if (cByte == aNewline) {
             lx->i = j + 1; // CONSUME the comment
             return;
@@ -1721,22 +1722,22 @@ private void lexComment(Compiler* lx, Arr(byte) inp) {
 }
 
 /** Handles the binary operator as well as the unary negation operator and the in-line comments */
-private void lexMinus(Compiler* lx, Arr(byte) inp) {
+private void lexMinus(Compiler* lx, Arr(byte) source) {
     if (lx->i == lx->inpLength - 1) {        
-        lexOperator(lx, inp);
+        lexOperator(lx, source);
     } else {
         byte nextBt = NEXT_BT;
         if (isDigit(nextBt)) {
-            wrapInAStatement(lx, inp);
-            decNumber(true, lx, inp);
+            wrapInAStatement(lx, source);
+            decNumber(true, lx, source);
             lx->numericNextInd = 0;
         } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
             add((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
             lx->i++; // CONSUME the minus symbol
         } else if (nextBt == aMinus) {
-            lexComment(lx, inp);
+            lexComment(lx, source);
         } else {
-            lexOperator(lx, inp);
+            lexOperator(lx, source);
         }    
     }
 }
@@ -1755,7 +1756,7 @@ private void mbCloseCompoundCoreForm(Compiler* lx) {
 /** An opener for a scope or a scopeful core form. Precondition: we are past the "(:" token.
  * Consumes zero or 1 byte
  */
-private void openScope(Compiler* lx, Arr(byte) inp) {
+private void openScope(Compiler* lx, Arr(byte) source) {
     Int startBt = lx->i;
     lx->i += 2; // CONSUME the "(*"
     VALIDATEL(!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope, errPunctuationScope)
@@ -1765,7 +1766,7 @@ private void openScope(Compiler* lx, Arr(byte) inp) {
         openPunctuation(tokWhile, slScope, startBt, lx);
         lx->i += 5; // CONSUME the "while"
         return; 
-    } else if (lx->i < lx->inpLength - 2 && isSpace(inp[lx->i + 1])) {        
+    } else if (lx->i < lx->inpLength - 2 && isSpace(source[lx->i + 1])) {        
         if (currBt == aFLower) {
             openPunctuation(tokFnDef, slScope, startBt, lx);
             lx->i += 2; // CONSUME the "f "
@@ -1780,20 +1781,20 @@ private void openScope(Compiler* lx, Arr(byte) inp) {
 }
 
 /** Handles the "(*" case (scope) as well as the common (subexpression) case */
-private void lexParenLeft(Compiler* lx, Arr(byte) inp) {
+private void lexParenLeft(Compiler* lx, Arr(byte) source) {
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
-    if (inp[j] == aColon) {
-        openScope(lx, inp);
+    if (source[j] == aColon) {
+        openScope(lx, source);
     } else {
-        wrapInAStatement(lx, inp);
+        wrapInAStatement(lx, source);
         openPunctuation(tokParens, slSubexpr, lx->i, lx);
         lx->i++; // CONSUME the left parenthesis
     }
 }
 
 
-private void lexParenRight(Compiler* lx, Arr(byte) inp) {
+private void lexParenRight(Compiler* lx, Arr(byte) source) {
     // TODO handle syntax like "(foo 5).field" and "(: id 5 name "asdf").id"
     Int startInd = lx->i;
     closeRegularPunctuation(tokParens, lx);
@@ -1805,7 +1806,7 @@ private void lexParenRight(Compiler* lx, Arr(byte) inp) {
 }
 
 
-private void lexSpace(Compiler* lx, Arr(byte) inp) {
+private void lexSpace(Compiler* lx, Arr(byte) source) {
     lx->i++; // CONSUME the space
     while (lx->i < lx->inpLength && CURR_BT == aSpace) {
         lx->i++; // CONSUME a space
@@ -1816,7 +1817,7 @@ private void lexSpace(Compiler* lx, Arr(byte) inp) {
  * Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes the current
  * statement unless it's inside an inline span (i.e. parens or accessor parens)
  */
-private void lexNewline(Compiler* lx, Arr(byte) inp) {
+private void lexNewline(Compiler* lx, Arr(byte) source) {
     addNewLine(lx->i, lx);    
     maybeBreakStatement(lx);
     
@@ -1830,21 +1831,21 @@ private void lexNewline(Compiler* lx, Arr(byte) inp) {
 }
 
 
-private void lexStringLiteral(Compiler* lx, Arr(byte) inp) {
-    wrapInAStatement(lx, inp);
+private void lexStringLiteral(Compiler* lx, Arr(byte) source) {
+    wrapInAStatement(lx, source);
     Int j = lx->i + 1;
-    for (; j < lx->inpLength && inp[j] != aBacktick; j++);
+    for (; j < lx->inpLength && source[j] != aBacktick; j++);
     VALIDATEL(j != lx->inpLength, errPrematureEndOfInput)
     add((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
     lx->i = j + 1; // CONSUME the string literal, including the closing quote character
 }
 
 
-private void lexUnexpectedSymbol(Compiler* lx, Arr(byte) inp) {
+private void lexUnexpectedSymbol(Compiler* lx, Arr(byte) source) {
     throwExcLexer(errUnrecognizedByte, lx);
 }
 
-private void lexNonAsciiError(Compiler* lx, Arr(byte) inp) {
+private void lexNonAsciiError(Compiler* lx, Arr(byte) source) {
     throwExcLexer(errNonAscii, lx);
 }
 
@@ -2059,6 +2060,8 @@ private void popScopeFrame(Compiler* cm);
 private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
+private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
+private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm);
 
 #define BIG 70000000
 
@@ -2127,15 +2130,15 @@ private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
 }
 
-/** Precondition: we are 1 past the "stmt token*/
+/** Precondition: we are 1 past the "stmt" token, which is the first parameter */
 private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
     VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
-
-    Int typeLeft = exprUpTo(leftSentinel, tok.startBt, tok.lenBts, tokens, cm);
+    
+    Int typeLeft = exprAfterHead(tok, tokens, cm);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
 
@@ -2152,24 +2155,19 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 /** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    if (tok->tp == tokArrow) {
+    if (tok->tp == tokArrow || tok->tp == tokElse) {
+        Int sentinel = calcSentinel(*tok, cm->i);
         VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
-        ++cm->i; // CONSUME the "else"
+        if (tok->tp == tokElse) {
+            VALIDATEP(sentinel = peek(cm->backtrack).sentinelToken, errIfElseMustBeLast);
+        }
+        ++cm->i; // CONSUME the "=>" or "else"
         *tok = tokens[cm->i];
 
         push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
-                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
+                            .sentinelToken = sentinel}), cm->backtrack);
         pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
-        cm->i++; // CONSUME the token after the "else"
-    } else if (tok->tp == tokElse) {
-        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
-        ++cm->i; // CONSUME the "=>"
-        *tok = tokens[cm->i];
-
-        push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.length,
-                            .sentinelToken = calcSentinel(*tok, cm->i)}), cm->backtrack);
-        pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
-        ++cm->i; // CONSUME the token after the "else"
+        ++cm->i; // CONSUME the first token of what follows
     } else {
         ++cm->i; // CONSUME the stmt token
         ifLeftSide(*tok, tokens, cm);
@@ -2193,7 +2191,6 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
     cm->i++; // CONSUME the word token before the assignment sign
 
-    Int rightTypeId = -1;
     Int declaredTypeId = -1;
     if (tokens[cm->i].tp == tokTypeName) {
         declaredTypeId = cm->activeBindings[tokens[cm->i].pl1];
@@ -2203,14 +2200,10 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     }
 
     Token rTk = tokens[cm->i];
-    if (rLen == 1) {
-        rightTypeId = parseLiteralOrIdentifier(rTk, cm);
-        VALIDATEP(rightTypeId != -2, errAssignment)
-    } else if (rTk.tp == tokIf) { // TODO
-    } else {
-        rightTypeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-    }
+    Int rightTypeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    VALIDATEP(rightTypeId != -2, errAssignment)
     VALIDATEP(declaredTypeId == -1 || rightTypeId == declaredTypeId, errTypeMismatch)
+    
     if (rightTypeId > -1) {
         cm->entities.content[newBindingId].typeId = rightTypeId;
     }
@@ -2253,9 +2246,9 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.length, .sentinelToken = condSent }), cm->backtrack);
     pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = condSent - condInd,
                        .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
-    cm->i = condInd + 1;
-    
-    Int condTypeId = exprUpTo(condSent, condTk.startBt, condTk.lenBts, tokens, cm);
+    cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/single token
+
+    Int condTypeId = exprAfterHead(tokens[condInd], tokens, cm);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
     
     cm->i = indBody; // CONSUME the while token, its condition and variable initializations (if any)
@@ -2287,6 +2280,7 @@ private void parseVerbatim(Token tok, Compiler* cm) {
 }
 
 private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* cm) {
+    print("bare atom at %d", cm->i)
     throwExcParser(errTemp, cm);
 }
 
@@ -2301,13 +2295,14 @@ private ParseFrame popFrame(Compiler* cm) {
 }
 
 /**
- * A single-item expression, like "foo". Consumes 1 token. Returns the type of the subexpression.
+ * A single-item expression, like "foo". Consumes no tokens.
+ * Pre-condition: we are 1 token past the token we're parsing.
+ * Returns the type of the single item.
  */
 private Int exprSingleItem(Token tk, Compiler* cm) {
     Int typeId = -1;
     if (tk.tp == tokWord) {
         Int entityId = cm->activeBindings[tk.pl2];
-
         VALIDATEP(entityId > -1, errUnknownBinding) 
         typeId = cm->entities.content[entityId].typeId;
         pushInnodes((Node){.tp = nodId, .pl1 = entityId, .pl2 = tk.pl2, .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
@@ -2324,15 +2319,15 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
     else {
         throwExcParser(errUnexpectedToken, cm);
     }
-    ++cm->i; // CONSUME the single item
     return typeId;
 }
 
-/** Counts the arity of the call, including skipping unary operators. Consumes no tokens. */
+/** Counts the arity of the call, including skipping unary operators. Consumes no tokens.
+ *  Precondition: 
+ */
 private void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
     Int j = cm->i;
     Token firstTok = tokens[j];
-
     j = calcSentinel(firstTok, j);
     while (j < sentinelToken) {
         Token tok = tokens[j];
@@ -2398,14 +2393,13 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
 /** General "big" expression parser. Parses an expression whether there is a token or not.
  *  Starts from cm->i and goes up to the sentinel token. Returns the expression's type
- * Precondition: we are looking 1 past the tokExpr, unlike "exprOrSingleItem".
+ * Precondition: we are looking 1 past the tokExpr.
  */
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
     Int arity = 0;
     Int startNodeInd = cm->nodes.length;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = sentinelToken }), cm->backtrack);        
     pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
-
     exprSubexpr(sentinelToken, &arity, tokens, cm);
     while (cm->i < sentinelToken) {
         subexprClose(tokens, cm);
@@ -2433,28 +2427,43 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
     }
 
     subexprClose(tokens, cm);
-    //ParseFrame exprFrame = pop(cm->backtrack); // the same frame we've pushed earlier in this function
-#if SAFETY
-    //print("at i %d frame tp %d", cm->i, exprFrame.tp)
-    //VALIDATEI(exprFrame.tp == nodExpr, iErrorInconsistentSpans)
-#endif
-    //setSpanLengthParser(exprFrame.startNodeInd, cm);
     
     Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.length, cm);
     return exprType;
 }
 
 /**
- * Precondition: we are looking at the first token of expr, not 1 past it (unlike "exprUpTo"). Consumes 1 or more tokens.
+ * Precondition: we are looking at the first token of expr which does not have a tokStmt/tokParens header.
+ * Consumes 1 or more tokens.
  * Returns the type of parsed expression.
  */
-private Int exprOrSingleItem(Arr(Token) tokens, Compiler* cm) {
-    Token tk = tokens[cm->i];
+private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
+    if (cm->i + 1 == sentinel) { // the [stmt 1, tokInt] case
+        Token singleToken = tokens[cm->i];
+        if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) { 
+            cm->i += 1; // CONSUME the single literal
+            return exprSingleItem(singleToken, cm);
+        }
+    }
+    return exprUpTo(sentinel, startBt, lenBts, tokens, cm);
+}
+
+/**
+ * Precondition: we are looking 1 past the first token of expr, which is the first parameter. Consumes 1 or more tokens.
+ * Returns the type of parsed expression.
+ */
+private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm) {
     if (tk.tp == tokStmt || tk.tp == tokParens) {
-        ++cm->i; // CONSUME the "("
+        if (tk.pl2 == 1) {
+            Token singleToken = tokens[cm->i];
+            if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) { // the [stmt 1, tokInt] case
+                ++cm->i; // CONSUME the single literal token
+                return exprSingleItem(singleToken, cm);
+            }
+        }
         return exprUpTo(cm->i + tk.pl2, tk.startBt, tk.lenBts, tokens, cm);
     } else {
-        return exprSingleItem(tokens[cm->i], cm);
+        return exprSingleItem(tk, cm);
     }
 }
 
@@ -2465,7 +2474,7 @@ private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
     if (tok.pl2 > 1) {
         exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, tokens, cm);
     } else {
-        exprSingleItem(tokens[cm->i], cm);
+        exprSingleItem(tok, cm);
     }
 }
 
@@ -2530,7 +2539,7 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
     return typeId;
 }
 
-/** Changes a mutable variable to mutated, and throws an exception for an immutable one */
+/** Changes a mutable variable to mutated. Throws an exception for an immutable one */
 private void setClassToMutated(Int bindingId, Compiler* cm) {
     Int class = cm->entities.content[bindingId].class;
     VALIDATEP(class < classImmutable, errCannotMutateImmutable);
@@ -2547,37 +2556,48 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int sentinelToken = cm->i + tok.pl2;
 
     Token bindingTk = tokens[cm->i];
-    Int bindingId = cm->activeBindings[bindingTk.pl2];
-    VALIDATEP(bindingId > -1, errUnknownBinding)
+    Int entityId = cm->activeBindings[bindingTk.pl2];
+    Entity ent = cm->entities.content[entityId];
+    VALIDATEP(entityId > -1, errUnknownBinding)
+    VALIDATEP(ent.class < classImmutable, errCannotMutateImmutable)
 
     push(((ParseFrame){ .tp = nodReassign, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    pushInnodes((Node){.tp = nodBinding, .pl1 = bindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
+    pushInnodes((Node){.tp = nodBinding, .pl1 = entityId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
     
     cm->i++; // CONSUME the word token before the assignment sign
 
-    Int typeId = cm->entities.content[bindingId].typeId;
-    Int rightSideTypeId = -1;
+    Int typeId = cm->entities.content[entityId].typeId;
     Token rTk = tokens[cm->i];
-    if (rTk.tp == tokIf) { // TODO
-    } else if (sentinelToken > cm->i + 1) {
-        rightSideTypeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-    } else {
-        rightSideTypeId = exprSingleItem(rTk, cm);
-    }
-    VALIDATEP(rightSideTypeId == typeId, errTypeMismatch)
-    setClassToMutated(bindingId, cm);
+    Int rightTypeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    
+    VALIDATEP(rightTypeId == typeId, errTypeMismatch)
+    setClassToMutated(entityId, cm);
 }
 
 testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm);
 
-/** Reassignments like "x += 5". Performs some AST twiddling:
+/** Performs some AST twiddling to turn a mutation into a reassignment:
  *  1. [.    .]
  *  2. [.    .      Expr     ...]
  *  3. [Expr OpCall LeftSide ...]
  *
  *  The end result is an expression that is the right side but wrapped in another binary call, with .pl2 increased by + 2
  */
+private void mutationTwiddle(Int ind, Token mutTk, Compiler* cm) {
+    Node rNd = cm->nodes.content[ind + 2];
+    if (rNd.tp == nodExpr) {
+        cm->nodes.content[ind] = (Node){.tp = nodExpr, .pl2 = rNd.pl2 + 2, .startBt = mutTk.startBt, .lenBts = mutTk.lenBts};
+    } else {
+        // right side is single-node, so current AST is [ . . singleNode]
+        pushInnodes((cm->nodes.content[cm->nodes.length - 1]), cm);
+        // now it's [ . . singleNode singleNode]
+        
+        cm->nodes.content[ind] = (Node){.tp = nodExpr, .pl2 = 3, .startBt = mutTk.startBt, .lenBts = mutTk.lenBts};
+    }
+}
+
+
 private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     untt encodedInfo = (untt)(tok.pl1);
     Int opType = (Int)(encodedInfo >> 26);
@@ -2590,14 +2610,14 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(bindingTk.tp == tokWord, errMutation);
 #endif
     Int leftEntityId = cm->activeBindings[bindingTk.pl2];
-    VALIDATEP(leftEntityId > -1 && cm->entities.content[leftEntityId].typeId > -1, errUnknownBinding);
+    Entity leftEntity = cm->entities.content[leftEntityId];
+    VALIDATEP(leftEntityId > -1 && leftEntity.typeId > -1, errUnknownBinding);
+    VALIDATEP(leftEntity.class < classImmutable, errCannotMutateImmutable);
     Int leftType = cm->entities.content[leftEntityId].typeId;
 
     Int operatorOv;
     bool foundOv = findOverload(leftType, cm->overloadIds.content[opType], cm->overloadIds.content[opType + 1], &operatorOv, cm);
-
     Int opTypeInd = cm->entities.content[operatorOv].typeId;
-
     VALIDATEP(foundOv && cm->types.content[opTypeInd] == 3, errTypeNoMatchingOverload); // operator must be binary
     
 #ifdef SAFETY
@@ -2608,32 +2628,20 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     push(((ParseFrame){.tp = nodReassign, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     pushInnodes((Node){.tp = nodBinding, .pl1 = leftEntityId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-
     ++cm->i; // CONSUME the binding word
     
-    Int resInd = cm->nodes.length;
+    Int ind = cm->nodes.length;
     // space for the operator and left side
     pushInnodes(((Node){}), cm);
     pushInnodes(((Node){}), cm);
 
     Token rTk = tokens[cm->i];
-    Int rightType = exprOrSingleItem(tokens, cm);
+    Int rightType = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
     VALIDATEP(rightType == cm->types.content[opTypeInd + 3], errTypeNoMatchingOverload)
 
-    Node rNd = cm->nodes.content[resInd + 2];
-    if (rNd.tp == nodExpr) {
-        Node exprNd = cm->nodes.content[resInd + 2];
-        cm->nodes.content[resInd] = (Node){.tp = nodExpr, .pl2 = exprNd.pl2 + 2, .startBt = tok.startBt, .lenBts = tok.lenBts};
-    } else {
-        // right side is single-node, so current AST is [ . . singleNode]
-        pushInnodes((cm->nodes.content[cm->nodes.length - 1]), cm);
-        // now it's [ . . singleNode singleNode]
-        
-        cm->nodes.content[resInd] = (Node){.tp = nodExpr, .pl2 = 3, .startBt = tok.startBt, .lenBts = tok.lenBts};
-    }
-    cm->nodes.content[resInd + 1] = (Node){.tp = nodCall, .pl1 = operatorOv, .pl2 = 2,
-                                           .startBt = operStartBt, .lenBts = operLenBts};
-    cm->nodes.content[resInd + 2] = (Node){.tp = nodId, .pl1 = leftEntityId, .pl2 = bindingTk.pl2,
+    mutationTwiddle(ind, tok, cm);
+    cm->nodes.content[ind + 1] = (Node){.tp = nodCall, .pl1 = operatorOv, .pl2 = 2, .startBt = operStartBt, .lenBts = operLenBts};
+    cm->nodes.content[ind + 2] = (Node){.tp = nodId, .pl1 = leftEntityId, .pl2 = bindingTk.pl2,
                                        .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts};
     setClassToMutated(leftEntityId, cm);
 }
@@ -2784,13 +2792,7 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodReturn, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     
     Token rTk = tokens[cm->i];
-    Int typeId;
-    if (sentinelToken > cm->i + 1) {
-        typeId = exprUpTo(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-    } else {
-        typeId = exprSingleItem(rTk, cm);
-    }
-    
+    Int typeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
     VALIDATEP(typeId > -1, errReturn)
     if (typeId > -1) {
         typecheckFnReturn(typeId, cm);
@@ -4344,6 +4346,8 @@ private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
         ensureBufferLength(45, cg);
         Int lenWritten = sprintf(cg->buffer + cg->length, "%f", floating);
         cg->length += lenWritten;
+    } else if (n.tp == tokBool) {
+        writeBytesFromSource(n, cg);
     }
 }
 
@@ -4430,6 +4434,8 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
 private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
     if (nd.tp <= topVerbatimType) {
         writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+    } else if (nd.tp == nodId) {
+        writeId(nd, cg);
     } else {
         writeExprWorker(cg->i + nd.pl2, nodes, cg);
     }
@@ -4535,7 +4541,6 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
     writeIndentation(cg);
     Node binding = nodes[cg->i];
     Int class = cg->cm->entities.content[binding.pl1].class;
-    print("class of entity %d is %d", binding.pl1, class)
     if (class == classMutatedGuaranteed || class == classMutatedNullable) {
         writeConstantWithSpace(strLet, cg);
     } else {
@@ -4561,12 +4566,8 @@ private void writeReturn(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     writeConstantWithSpace(strReturn, cg);
 
     Node rightSide = nodes[cg->i];
-    if (rightSide.tp == nodId) {
-        writeBytes(cg->sourceCode->content + rightSide.startBt, rightSide.lenBts, cg);
-    } else {
-        ++cg->i; // CONSUME the expr node
-        writeExprInternal(rightSide, nodes, cg);
-    }
+    ++cg->i; // CONSUME the expr node
+    writeExprInternal(rightSide, nodes, cg);
     
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
@@ -4774,13 +4775,7 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
     const Int len = cm->nodes.length;
     while (cg->i < len) {
         Node nd = cm->nodes.content[cg->i];
-        
         ++cg->i; // CONSUME the span node
-        if (nd.tp >= nodScope) {
-            print("dispatching to %s at i %d payload2 %d", nodeNames[nd.tp], cg->i, nd.pl2)
-        } else {
-            print("dispatching to segfault with tp = %d at i %d payload2 %d", nd.tp, cg->i, nd.pl2)
-        }
         
         (cg->cgTable[nd.tp - nodScope])(nd, true, cg->cm->nodes.content, cg);
         maybeCloseCgFrames(cg);
@@ -4791,15 +4786,18 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
 //}}}
 
 //{{{ Main
-Codegen* compile(String* inp) {
+Codegen* compile(String* source) {
     Arena* a = mkArena();
     Compiler* proto = createCompilerProto(a);
     
-    Compiler* lx = lexicallyAnalyze(inp, proto, a);
+    Compiler* lx = lexicallyAnalyze(source, proto, a);
     if (lx->wasError) {
         print("lexer error");
     }
+#ifdef TRACE
     printLexer(lx);
+#endif
+
     Compiler* cm = parse(lx, proto, a);
     if (cm->wasError) {
         print("parser error");
@@ -4816,10 +4814,8 @@ Int main(int argc, char* argv) {
         goto cleanup;
     }
     
-    printString(sourceCode);
     Codegen* cg = compile(sourceCode);
     if (cg != NULL) {
-        print(";---------- len %d\n", cg->length)
         fwrite(cg->buffer, 1, cg->length, stdout);
     }
     cleanup:
