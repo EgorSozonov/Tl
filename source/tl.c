@@ -215,8 +215,6 @@ testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
 
 //}}}
 
-
-
 //{{{ Good strings
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
@@ -2183,6 +2181,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Token bindingTk = tokens[cm->i];
     VALIDATEP(bindingTk.tp == tokWord, errAssignment)
     Int newBindingId = createEntity(bindingTk.pl2, cm);
+
     push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     
@@ -3667,8 +3666,6 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     Int fnNameId = fnName.pl2;
     Int activeBinding = cm->activeBindings[fnNameId];
     Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
-    Int fnEntityId = cm->entities.length;    
-    pushInentities(((Entity){.emit = emitPrefix, .class = classImmutable}), cm);
     
     cm->i++; // CONSUME the function name token
     
@@ -3713,13 +3710,17 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
     cm->types.content[tentativeTypeInd] = arity + 1;
     
     Int uniqueTypeId = mergeType(tentativeTypeInd, arity + 2, cm);
-    cm->entities.content[fnEntityId].typeId = uniqueTypeId;
 
-    if (arity > 0) {
+    bool isOverload = arity > 0;
+    Int fnEntityId = cm->entities.length;    
+    pushInentities(((Entity){.emit = isOverload ? emitOverloaded : emitPrefix, .class = classImmutable,
+                            .typeId = uniqueTypeId}), cm);
+    if (isOverload) {
         addParsedOverload(overloadId, cm->types.content[uniqueTypeId + 2], fnEntityId, cm);
     } else {
         cm->activeBindings[fnNameId] = fnEntityId;
     }
+
     // not a real node, just a record to later find this signature
     pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = paramsTokenInd,
                      .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
@@ -3751,7 +3752,6 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
         
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
-
     while (cm->i < paramsSentinel) {
         Token paramName = tokens[cm->i];
         Int newEntityId = createEntity(paramName.pl2, cm);
@@ -4303,6 +4303,13 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
 }
 
 
+private void writeIndex(Int ind, Codegen* cg) {
+    ensureBufferLength(40, cg);
+    Int lenWritten = sprintf(cg->buffer + cg->length, "%d", ind);
+    cg->length += lenWritten;
+}
+
+
 private void writeId(Node nd, Codegen* cg) {
     Entity ent = cg->cm->entities.content[nd.pl1];
     if (ent.emit == emitPrefix) {
@@ -4377,6 +4384,11 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
             switch (ent.emit) {
             case emitPrefix:
                 writeBytesFromSource(n, cg);
+                new.needClosingParen = true; break;
+            case emitOverloaded:
+                writeBytesFromSource(n, cg);
+                writeChar(aUnderscore, cg);
+                writeIndex(n.pl1, cg);
                 new.needClosingParen = true; break;
             case emitPrefixExternal:
                 writeConstant(ent.externalNameId, cg);
@@ -4461,16 +4473,20 @@ private void pushCgFrameWithSentinel(Node nd, Int sentinel, Codegen* cg) {
 }
 
 
+/** Writes a function definition */
 private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
         pushCgFrame(nd, cg);
         writeIndentation(cg);
         writeConstantWithSpace(strFunction, cg);
-        Entity fnEnt = cg->cm->entities.content[nd.pl1];
 
         Node fnBinding = nodes[cg->i];
+        Entity fnEnt = cg->cm->entities.content[fnBinding.pl1];
         writeBytesFromSource(fnBinding, cg);
-        if (fnEnt.emit == emitPrefixShielded) {
+        if (fnEnt.emit == emitOverloaded) { // TODO replace with getting arity from type
+            writeChar(aUnderscore, cg);
+            writeIndex(fnBinding.pl1, cg);
+        } else if (fnEnt.emit == emitPrefixShielded) {
             writeChar(aUnderscore, cg);
         }
         writeChar(aParenLeft, cg);

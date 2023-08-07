@@ -1,30 +1,16 @@
-.vs/*
-.vscode/*
 .git/*
 .idea/*
 target/*
-build/*
+_bin/*
 .packages
 
-doc/api/*
-src/.DS_Store
-.DS_Store
-Src/.DS_Store?
 *.zip
+*.tar.xz
 
 *.cache
 *.props
 *.targets
-*.dgspec.json
 *assets.json
-obj/*
+tags
 
-
-# Ignore Gradle build output directory
-build/*
-.gradle/*
-_bin/*
-_temp/*
-*.bat
-gradlew
-gradle/*
+docs/todo.txt

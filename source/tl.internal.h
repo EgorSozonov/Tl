@@ -370,14 +370,15 @@ typedef struct {
 #define classMutableNullable   2
 #define classMutatedNullable   3
 #define classImmutable         4
-#define emitPrefix         0  // normal native names
-#define emitPrefixShielded 1  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
-#define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
-#define emitInfix          3  // infix operators that match between source code and target (e.g. arithmetic operators)
-#define emitInfixExternal  4  // infix operators that have a separate external name
-#define emitField          5  // emitted as field accesses, like ".length"
-#define emitInfixDot       6  // emitted as a "dot-call", like ".toString()"
-#define emitNop            7  // for unary operators that don't need to be emitted, like ","
+#define emitPrefix         0  // normal singular native names
+#define emitOverloaded     1  // normal overloaded native function names
+#define emitPrefixShielded 2  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
+#define emitPrefixExternal 3  // prefix names that are emitted differently than in source code
+#define emitInfix          4  // infix operators that match between source code and target (e.g. arithmetic operators)
+#define emitInfixExternal  5  // infix operators that have a separate external name
+#define emitField          6  // emitted as field accesses, like ".length"
+#define emitInfixDot       7  // emitted as a "dot-call", like ".toString()"
+#define emitNop            8  // for unary operators that don't need to be emitted, like ","
 typedef struct {
     Int typeId;
     uint16_t externalNameId;
