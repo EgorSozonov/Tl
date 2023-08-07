@@ -896,7 +896,7 @@ testable void add(Token t, Compiler* lx) {
 
 /** For all the dollars at the top of the backtrack, turns them into parentheses, sets their lengths and closes them */
 private void closeColons(Compiler* lx) {
-    while (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).wasOrigColon) {
+    while (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).wasOrigDollar) {
         BtToken top = pop(lx->lexBtrack);
         Int j = top.tokenInd;        
         lx->tokens[j].lenBts = lx->i - lx->tokens[j].startBt;
@@ -1570,18 +1570,13 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
 }
 
 /**
- * A single colon means "parentheses until the next closing paren or end of statement"
+ * A single $ means "parentheses until the next closing paren or end of statement"
  */
-private void lexColon(Compiler* lx, Arr(byte) source) {           
-    if (lx->i < lx->inpLength && NEXT_BT == aEqual) { // mutation assignment, :=
-        lx->i += 2; // CONSUME the ":="
-        processAssignment(1, 0, lx);
-    } else {
-        push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .spanLevel = slSubexpr, .wasOrigColon = true}),
-             lx->lexBtrack);
-        add((Token) {.tp = tokParens, .startBt = lx->i }, lx);
-        lx->i++; // CONSUME the ":"
-    }    
+private void lexDollar(Compiler* lx, Arr(byte) source) {           
+    push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .spanLevel = slSubexpr, .wasOrigDollar = true}),
+         lx->lexBtrack);
+    add((Token) {.tp = tokParens, .startBt = lx->i }, lx);
+    lx->i++; // CONSUME the "$"
 }
 
 
@@ -1929,7 +1924,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     }
     p[aUnderscore] = lexWord;
     p[aDot] = &lexDot;
-    p[aColon] = &lexColon;
+    p[aDollar] = &lexDollar;
     p[aEqual] = &lexEqual;
 
     for (Int i = sizeof(operatorStartSymbols)/4 - 1; i > -1; i--) {
@@ -2388,7 +2383,7 @@ private void exprOperator(Token tok, ScopeStackFrame* topSubexpr, Arr(Token) tok
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
 /** General "big" expression parser. Parses an expression whether there is a token or not.
- *  Starts from cm->i and goes up to the sentinel token. Returns the expression's type
+ * Starts from cm->i and goes up to the sentinel token. Returns the expression's type
  * Precondition: we are looking 1 past the tokExpr.
  */
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
@@ -2396,6 +2391,7 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
     Int startNodeInd = cm->nodes.length;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = sentinelToken }), cm->backtrack);        
     pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
+
     exprSubexpr(sentinelToken, &arity, tokens, cm);
     while (cm->i < sentinelToken) {
         subexprClose(tokens, cm);

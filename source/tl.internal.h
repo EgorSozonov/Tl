@@ -119,7 +119,7 @@ typedef struct {
     Int tokenInd;
     Int countClauses;
     untt spanLevel : 3;
-    bool wasOrigColon;
+    bool wasOrigDollar;
 } BtToken;
 
 DEFINE_STACK_HEADER(BtToken)
@@ -153,51 +153,48 @@ typedef struct {
 #define tokOperator    10    // pl1 = OperatorToken, one of the "opT" constants below
 #define tokEqualsSign  11
 
-// This is a temporary Token type for use during lexing only. In the final token stream it's replaced with tokParens
-#define tokColon       12 
-
 // Punctuation (inner node) Token types
-#define tokScope       13     // denoted by (*)
-#define tokStmt        14
-#define tokParens      15
-#define tokTypeParens  16
-#define tokData        17     // data initializer, like (: 1 2 3)
-#define tokAssignment  18
-#define tokReassign    19     // :=
-#define tokMutation    20     // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
-#define tokArrow       21     // not a real scope, but placed here so the parser can dispatch on it
-#define tokElse        22     // not a real scope, but placed here so the parser can dispatch on it
+#define tokScope       12     // denoted by (*)
+#define tokStmt        13
+#define tokParens      14
+#define tokCall        15
+#define tokData        16     // data initializer, like (: 1 2 3)
+#define tokAssignment  17
+#define tokReassign    18     // :=
+#define tokMutation    19     // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
+#define tokArrow       20     // not a real scope, but placed here so the parser can dispatch on it
+#define tokElse        21     // not a real scope, but placed here so the parser can dispatch on it
  
 // Single-shot core syntax forms. pl1 = spanLevel
-#define tokAlias       23
-#define tokAssert      24
-#define tokAssertDbg   25
-#define tokAwait       26
-#define tokBreak       27
-#define tokCatch       28    // paren "(catch e. e .print)"
-#define tokContinue    29
-#define tokDefer       30
-#define tokEach        31
-#define tokEmbed       32    // Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      33
-#define tokExposePriv  34
-#define tokFnDef       35
-#define tokIface       36
-#define tokLambda      37
-#define tokMeta        38
-#define tokPackage     39    // for single-file packages
-#define tokReturn      40
-#define tokStruct      41
-#define tokTry         42    // early exit
-#define tokTypeDef     43
-#define tokYield       44
+#define tokAlias       22
+#define tokAssert      23
+#define tokAssertDbg   24
+#define tokAwait       25
+#define tokBreak       26
+#define tokCatch       27    // paren "(catch e. e .print)"
+#define tokContinue    28
+#define tokDefer       29
+#define tokEach        30
+#define tokEmbed       31    // Embed a text file as a string literal, or a binary resource file // 200
+#define tokExport      32
+#define tokExposePriv  33
+#define tokFnDef       34
+#define tokIface       35
+#define tokLambda      36
+#define tokMeta        37
+#define tokPackage     38    // for single-file packages
+#define tokReturn      39
+#define tokStruct      40
+#define tokTry         41    // early exit
+#define tokTypeDef     42
+#define tokYield       43
 
 // Resumable core forms
-#define tokIf          45    // "(if " or "(*i". pl1 = 1 if it's the "(*i" variant
-#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       47    // "(*m " or "(match " pattern matching on sum type tag 
-#define tokImpl        48    // "(*impl " 
-#define tokWhile       49    // "(*while "
+#define tokIf          44    // "(if " or "(*i". pl1 = 1 if it's the "(*i" variant
+#define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       46    // "(*m " or "(match " pattern matching on sum type tag 
+#define tokImpl        47    // "(*impl " 
+#define tokWhile       48    // "(*while "
 // "(*iface"
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
@@ -371,14 +368,13 @@ typedef struct {
 #define classMutatedNullable   3
 #define classImmutable         4
 #define emitPrefix         0  // normal singular native names
-#define emitOverloaded     1  // normal overloaded native function names
-#define emitPrefixShielded 2  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
-#define emitPrefixExternal 3  // prefix names that are emitted differently than in source code
-#define emitInfix          4  // infix operators that match between source code and target (e.g. arithmetic operators)
-#define emitInfixExternal  5  // infix operators that have a separate external name
-#define emitField          6  // emitted as field accesses, like ".length"
-#define emitInfixDot       7  // emitted as a "dot-call", like ".toString()"
-#define emitNop            8  // for unary operators that don't need to be emitted, like ","
+#define emitPrefixShielded 1  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
+#define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
+#define emitInfix          3  // infix operators that match between source code and target (e.g. arithmetic operators)
+#define emitInfixExternal  4  // infix operators that have a separate external name
+#define emitField          5  // emitted as field accesses, like ".length"
+#define emitInfixDot       6  // emitted as a "dot-call", like ".toString()"
+#define emitNop            7  // for unary operators that don't need to be emitted, like ","
 typedef struct {
     Int typeId;
     uint16_t externalNameId;
