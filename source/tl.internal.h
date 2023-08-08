@@ -149,19 +149,19 @@ typedef struct {
 // This group requires analysis in the parser
 #define tokWord         7    // pl2 = index in the string table
 #define tokTypeName     8
-#define tokDotWord      9    // ".fieldName", pl's the same as tokWord
-#define tokOperator    10    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokEqualsSign  11
+#define tokOperator     9    // pl1 = OperatorToken, one of the "opT" constants below
+#define tokEqualsSign  10
 
 // Punctuation (inner node) Token types
-#define tokScope       12     // denoted by (*)
-#define tokStmt        13
-#define tokParens      14
-#define tokCall        15
-#define tokData        16     // data initializer, like (: 1 2 3)
-#define tokAssignment  17
-#define tokReassign    18     // :=
-#define tokMutation    19     // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
+#define tokScope       11     // denoted by (*)
+#define tokStmt        12
+#define tokParens      13
+#define tokCall        14
+#define tokData        15     // data initializer, like (: 1 2 3)
+#define tokAssignment  16
+#define tokReassign    17     // :=
+#define tokMutation    18     // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
+#define tokAccessor    19     // pl1 = subclass of the data accessor (field, array ind etc), pl2 = see "acc" consts
 #define tokArrow       20     // not a real scope, but placed here so the parser can dispatch on it
 #define tokElse        21     // not a real scope, but placed here so the parser can dispatch on it
  
@@ -171,7 +171,7 @@ typedef struct {
 #define tokAssertDbg   24
 #define tokAwait       25
 #define tokBreak       26
-#define tokCatch       27    // paren "(catch e. e .print)"
+#define tokCatch       27    // paren "catch(e => print(e))"
 #define tokContinue    28
 #define tokDefer       29
 #define tokEach        30
@@ -190,11 +190,11 @@ typedef struct {
 #define tokYield       43
 
 // Resumable core forms
-#define tokIf          44    // "(if " or "(*i". pl1 = 1 if it's the "(*i" variant
+#define tokIf          44    // "if( " 
 #define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
 #define tokMatch       46    // "(*m " or "(match " pattern matching on sum type tag 
-#define tokImpl        47    // "(*impl " 
-#define tokWhile       48    // "(*while "
+#define tokImpl        47  
+#define tokWhile       48   
 // "(*iface"
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
@@ -328,6 +328,14 @@ typedef struct {
 #define countCoreForms (tokWhile - tokAlias + 1)
 #define countSyntaxForms (tokWhile + 1)
 typedef struct Compiler Compiler;
+
+
+// Subclasses of the data accessor tokens/nodes
+#define accField     1    // field accessor in a struct, like "foo.field". pl2 = nameId of the string
+#define accArrayInd  2    // single-integer array access, like "arr:5". pl2 = int value of the ind
+#define accArrayWord 3    // single-variable array access, like "arr:i". pl2 = nameId of the string
+#define accExpr      4    // an expression for an array access, like "arr:+(i 1)". pl2 = number of tokens/nodes
+
 
 typedef void (*LexerFunc)(Compiler*, Arr(byte)); // LexerFunc = &(Lexer* => void)
 typedef Int (*ReservedProbe)(int, int, Compiler*);

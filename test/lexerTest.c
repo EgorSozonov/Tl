@@ -151,22 +151,40 @@ LexerTestSet* wordTests(Arena* a) {
             }))
         },
         (LexerTest) {
-            .name = s("Word starts with 2 underscores"),
+            .name = s("Word may not start with 2 underscores"),
             .input = s("__abc"),
             .expectedOutput = buildLexerWithError(s(errWordChunkStart), ((Token[]){}))
         },
         (LexerTest) {
-            .name = s("Word starts with underscore and digit error"),
+            .name = s("Word may not start with underscore and digit"),
             .input = s("_1abc"),
             .expectedOutput = buildLexerWithError(s(errWordChunkStart), ((Token[]){}))
         },
         (LexerTest) {
             .name = s("Dot word"),
-            .input = s("a .func"),
+            .input = s("a.field"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                (Token){ .tp = tokDotWord, .pl2 = 1, .startBt = 2, .lenBts = 5 }
+                (Token){ .tp = tokAccessor, .pl1 = accField, .pl2 = 1, .startBt = 2, .lenBts = 5 }
+            }))
+        },
+        (LexerTest) {
+            .name = s("Array numeric index"),
+            .input = s("a@5"),
+            .expectedOutput = buildLexer(((Token[]){
+                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
+                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
+                (Token){ .tp = tokAccessor, .pl1 = accArrayInd, .pl2 = 5, .startBt = 2, .lenBts = 2 }
+            }))
+        },
+        (LexerTest) {
+            .name = s("Array variable index"),
+            .input = s("a@i"),
+            .expectedOutput = buildLexer(((Token[]){
+                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
+                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
+                (Token){ .tp = tokAccessor, .pl1 = accField, .pl2 = 1, .startBt = 2, .lenBts = 4 }
             }))
         },
         (LexerTest) {

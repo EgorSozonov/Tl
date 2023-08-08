@@ -1095,6 +1095,7 @@ private void wrapInAStatement(Compiler* lx, Arr(byte) source) {
     }
 }
 
+
 private void maybeBreakStatement(Compiler* lx) {
     if (hasValues(lx->lexBtrack)) {
         BtToken top = peek(lx->lexBtrack);
@@ -1106,7 +1107,7 @@ private void maybeBreakStatement(Compiler* lx) {
 }
 
 /**
- * Processes a token which serves as the closer of a punctuation scope, i.e. either a ) or a ] .
+ * Processes a right paren which serves as the closer of all punctuation scopes.
  * This doesn't actually add any tokens to the array, just performs validation and sets the token length
  * for the opener token.
  */
@@ -1123,7 +1124,7 @@ private void closeRegularPunctuation(Int closingType, Compiler* lx) {
         top = pop(bt);
     }
     setSpanLengthLexer(top.tokenInd, lx);
-    lx->i++; // CONSUME the closing ")" or "]"
+    lx->i++; // CONSUME the closing ")"
 }
 
 
@@ -1290,15 +1291,13 @@ private double doubleOfLongBits(int64_t i) {
     return un.d;
 }
 
-/**
- * Lexes a decimal numeric literal (integer or floating-point).
- * TODO: add support for the '1.23E4' format
+/** 
+ * Internal worker function for lexing decimal numbers. Saves the digits to "numeric", sets the flags.
+ * Emits no tokens, consumes all the chars of the number.
  */
-private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
-    Int j = (isNegative) ? (lx->i + 1) : lx->i;
-    Int digitsAfterDot = 0; // this is relative to first digit, so it includes the leading zeroes
-    bool metDot = false;
-    bool metNonzero = false;
+private void readInNumber(Int startPos, bool* metDot, bool* metNonZero, Int* digitsAfterDot, 
+                         Compiler* lx, Arr(byte) source) {
+    Int j = startPos;
     Int maximumInd = (lx->i + 40 > lx->inpLength) ? (lx->i + 40) : lx->inpLength;
     while (j < maximumInd) {
         byte cByte = source[j];
@@ -1310,7 +1309,9 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
                 metNonzero = true;
                 addNumeric(cByte - aDigit0, lx);
             }
-            if (metDot) digitsAfterDot++;
+            if (metDot) {
+                ++(*digitsAfterDot);
+            }
         } else if (cByte == aUnderscore) {
             VALIDATEL(j != (lx->inpLength - 1) && isDigit(source[j + 1]), errNumericEndUnderscore)
         } else if (cByte == aDot) {
@@ -1327,6 +1328,33 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
     }
 
     VALIDATEL(j >= lx->inpLength || !isDigit(source[j]), errNumericWidthExceeded)
+    lx->i = j; // CONSUME the decimal number
+}
+
+
+private Int readInNonnegativeInt(Compiler* lx, Arr(byte) source) {
+    bool metDot = false;
+    bool metNonzero = false;
+    Int ignored;
+    Int j = lx->i;
+
+    readInNumber(j, &metDot, &metNonzero, &ignored, lx, source);
+    int64_t resultValue = 0;
+    Int errorCode = calcInteger(&resultValue, lx);
+    VALIDATEL(errorCode == 0, errNumericIntWidthExceeded)
+    return (Int)resultValue;
+}
+
+/**
+ * Lexes a decimal numeric literal (integer or floating-point). Adds a token.
+ * TODO: add support for the '1.23E4' format
+ */
+private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
+    Int j = (isNegative) ? (lx->i + 1) : lx->i;
+    Int digitsAfterDot = 0; // this is relative to first digit, so it includes the leading zeroes
+    bool metDot = false;
+    bool metNonzero = false;
+    readInNumber(j, &metDot, &metNonzero, &digitsAfterDot, lx, source);
 
     if (metDot) {
         double resultValue = 0;
@@ -1345,8 +1373,8 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
         add((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
                 .startBt = lx->i, .lenBts = j - lx->i }, lx);
     }
-    lx->i = j; // CONSUME the decimal number
 }
+
 
 private void lexNumber(Compiler* lx, Arr(byte) source) {
     wrapInAStatement(lx, source);
@@ -1451,8 +1479,8 @@ private void closeStatement(Compiler* lx) {
 /**
  * Lexes a word (both reserved and identifier) according to Tl's rules.
  * Precondition: we are pointing at the first letter character of the word (i.e. past the possible "@" or ":")
- * Examples of acceptable expressions: A.B.c.d, asdf123, ab._cd45
- * Examples of unacceptable expressions: A.b.C.d, 1asdf23, ab.cd_45
+ * Examples of acceptable expressions: A-B-c-d, asdf123, ab-_cd45
+ * Examples of unacceptable expressions: 1asdf23, ab-cd_45
  */
 private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     Int startBt = lx->i;
@@ -1476,25 +1504,31 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
         }
     }
 
-    Int realStartByte = (wordType == tokWord) ? startBt : (startBt - 1); // accounting for the . or @ at the start
-    untt finalTokType = wasCapitalized ? tokTypeName : wordType;
-
+    Int realStartByte = (wordType == tokWord) ? startBt : (startBt - 1); // accounting for the initial . or :
     byte firstByte = lx->sourceCode->content[startBt];
     Int lenBts = lx->i - realStartByte;
     Int lenString = lx->i - startBt;
         
-    if (firstByte < aALower || firstByte > aYLower) {
-        wrapInAStatementStarting(startBt, lx, source);
-        Int uniqueStringInd = addStringStore(source, startBt, lenBts, lx->stringTable, lx->stringStore);
-        add((Token){ .tp = finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
-        return;
+    Int mbReservedWord = -1; 
+    if (firstByte >= aALower && firstByte <= aYLower) {
+        mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
     }
-    Int mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
     if (mbReservedWord <= 0) {
-        wrapInAStatementStarting(startBt, lx, source);
         Int uniqueStringInd = addStringStore(source, startBt, lenString, lx->stringTable, lx->stringStore);
-        add((Token){ .tp=finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
-        return;
+        if (wordType == tokAccessor) {
+            add((Token){ .tp=tokAccessor, .pl1 = accField, .pl2 = uniqueStringInd, 
+                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+            return;
+        } else {
+            wrapInAStatementStarting(startBt, lx, source);
+            untt finalTokType = wasCapitalized ? tokTypeName : wordType;
+            if (finalTokType == tokWord && lx->i < lx->inpLength && CURR_BT == aParenLeft) {
+               finalTokType = tokCall; 
+            }
+
+            add((Token){ .tp=finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
+            return;
+        }
     }
 
     VALIDATEL(wordType != tokDotWord, errWordReservedWithDot)
@@ -1527,19 +1561,15 @@ private void lexWord(Compiler* lx, Arr(byte) source) {
 }
 
 /** 
- * The dot is a statement separator
+ * The dot is a statement separator or the start of a field accessor
  */
 private void lexDot(Compiler* lx, Arr(byte) source) {
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {        
-        lx->i++; // CONSUME the dot
-        wordInternal(tokDotWord, lx, source);
-        return;        
-    }
-    if (!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope) {
-        // if we're at top level or directly inside a scope, do nothing since there're no stmts to close
-    } else {
+        ++lx->i; // CONSUME the dot
+        wordInternal(tokAccessor, lx, source);
+    } else if (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).spanLevel != slScope) {
         closeStatement(lx);
-        lx->i++;  // CONSUME the dot
+        ++lx->i;  // CONSUME the dot
     }
 }
 
@@ -1798,6 +1828,25 @@ private void lexParenRight(Compiler* lx, Arr(byte) source) {
 }
 
 
+private void lexArrayAccessor(Compiler* lx, Arr(byte) source) {
+    VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
+    Int startBt = lx->i - 1;
+    Int byteAfter = CURR_BT;
+    if (isDigit(byteAfter)) {
+        Int arrayInd = readInNonnegativeInt(lx, source);
+        add((Token){ .tp = tokAccessor, .pl1 = accArrayInd, .pl2 = arrayInd,
+                     .startBt = startBt, .lenBts = lx->i - startBt }, lx);
+    } else if (isLowercaseLetter(byteAfter) || byteAfter == aUnderscore) {
+        lexWordInternal(lx, source);
+        add((Token){ .tp = tokAccessor, .pl1 = accArrayWord, .startBt = lx->i - 1, .lenBts = ??  }, lx);
+    } else if (byteAfter == aParenLeft) {
+        add((Token){ .tp = tokAccessor, .pl1 = accExpr, .startBt = lx->i - 1, .lenBts = ??  }, lx);
+        push((BtToken){.tp = tokAccessor, }, lx->lexBtrac);
+    } else {
+        throwExcLexer(errUnrecognizedByte, lx);
+    }
+}
+
 private void lexSpace(Compiler* lx, Arr(byte) source) {
     lx->i++; // CONSUME the space
     while (lx->i < lx->inpLength && CURR_BT == aSpace) {
@@ -1933,6 +1982,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aMinus] = &lexMinus;
     p[aParenLeft] = &lexParenLeft;
     p[aParenRight] = &lexParenRight;
+    p[aAt] = &lexArrayAccessor;
     
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
