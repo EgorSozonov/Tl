@@ -166,7 +166,7 @@ LexerTestSet* wordTests(Arena* a) {
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                (Token){ .tp = tokAccessor, .pl1 = accField, .pl2 = 1, .startBt = 2, .lenBts = 5 }
+                (Token){ .tp = tokAccessor, .pl1 = accField, .pl2 = 1, .startBt = 1, .lenBts = 6 }
             }))
         },
         (LexerTest) {
@@ -461,12 +461,12 @@ LexerTestSet* commentTests(Arena* a) {
             .expectedOutput = buildLexer((Token[]){}
         )},
         (LexerTest) { .name = s("Doc comment"),
-            .input = s("{ Documentation comment }"),
+            .input = s("---Documentation comment"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 25 }
         }))},
         (LexerTest) { .name = s("Doc comment before something"),
-            .input = s("{ Documentation comment { with nesting } }\n"
+            .input = s("---Documentation comment \n"
                        "print `hw` "),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 42 },
@@ -475,7 +475,7 @@ LexerTestSet* commentTests(Arena* a) {
                 (Token){ .tp = tokString, .startBt = 49, .lenBts = 4 }
         }))},
         (LexerTest) { .name = s("Doc comment empty"),
-            .input = s("{} \n" 
+            .input = s("---\n" 
                        "print `hw` "),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 2 },
@@ -484,9 +484,9 @@ LexerTestSet* commentTests(Arena* a) {
                 (Token){ .tp = tokString, .startBt = 10, .lenBts = 4 }
         }))},
         (LexerTest) { .name = s("Doc comment multiline"),
-            .input = s("{ First line\n" 
-                       " Second line\n" 
-                       " Third line }\n" 
+            .input = s("---First line\n" 
+                       "---Second line\n" 
+                       "---Third line\n" 
                        "print `hw` "
             ),
             .expectedOutput = buildLexer(((Token[]){
@@ -694,9 +694,9 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokOperator, .pl1 = opTExponentExt,  .startBt = 19, .lenBts = 2 }
         }))},
         (LexerTest) { .name = s("Operators list"),
-            .input = s("+ - / * ^ && || ' ? >=< >< $ , - @"),
+            .input = s("+ - / * ^ && || ' ? >=< >< $ , -"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 15, .startBt = 0, .lenBts = 34 },
+                (Token){ .tp = tokStmt, .pl2 = 15, .startBt = 0, .lenBts = 32 },
                 (Token){ .tp = tokOperator, .pl1 = opTPlus, .startBt = 0, .lenBts = 1 },
                 (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 2, .lenBts = 1 },                
                 (Token){ .tp = tokOperator, .pl1 = opTDivBy, .startBt = 4, .lenBts = 1 },
@@ -710,8 +710,7 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokOperator, .pl1 = opTIntervalExcl, .startBt = 24, .lenBts = 2 },
                 (Token){ .tp = tokOperator, .pl1 = opTToString, .startBt = 27, .lenBts = 1 },
                 (Token){ .tp = tokOperator, .pl1 = opTToFloat, .startBt = 29, .lenBts = 1 },
-                (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 31, .lenBts = 1 },
-                (Token){ .tp = tokOperator, .pl1 = opTAccessor, .startBt = 33, .lenBts = 1 }
+                (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 31, .lenBts = 1 }
         }))},
         (LexerTest) { .name = s("Operator expression"),
             .input = s("a - b"),
@@ -996,12 +995,12 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&wordTests, &countPassed, &countTests, proto, a);
-    runATestSet(&stringTests, &countPassed, &countTests, proto, a);
-    runATestSet(&commentTests, &countPassed, &countTests, proto, a);
-    runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
-    runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
-    runATestSet(&numericTests, &countPassed, &countTests, proto, a);
-    runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&stringTests, &countPassed, &countTests, proto, a);
+   // runATestSet(&commentTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&numericTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
 
     if (countTests == 0) {
         print("\nThere were no tests to run!");

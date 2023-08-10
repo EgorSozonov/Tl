@@ -9,7 +9,6 @@
 #include <setjmp.h>
 #include "tl.internal.h"
 
-
 //{{{ Utils
 
 #ifdef DEBUG
@@ -214,7 +213,6 @@ testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
 }
 
 //}}}
-
 //{{{ Good strings
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
@@ -397,13 +395,11 @@ private bool testForWord(String* inp, int startBt, const byte letters[], int len
 
 String empty = { .length = 0 };
 //}}}
-
 //{{{ Stack
 
 private void setSpanLengthParser(Int, Compiler* cm);
 
 //}}}
-
 //{{{ Int Hashmap
 
 testable IntMap* createIntMap(int initSize, Arena* a) {
@@ -518,7 +514,6 @@ private bool hasKeyValueIntMap(int key, int value, IntMap* hm) {
 }
 
 //}}}
-
 //{{{ String Hashmap
 
 #define initBucketSize 8
@@ -670,7 +665,6 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
 //}}}
 
 //}}}
-
 //{{{ Errors
 //{{{ Internal errors
 
@@ -774,7 +768,6 @@ const char errTypeMustBeBool[]              = "Expression must have the Bool typ
 
 //}}}
 //}}}
-
 //{{{ Lexer
 
 //{{{ LexerConstants
@@ -835,9 +828,9 @@ static const byte reservedBytesWhile[]       = { 119, 104, 105, 108, 101 };
 
 /** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" is handled by lexEqual
  */
-const int operatorStartSymbols[16] = {
+const int operatorStartSymbols[15] = {
     aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus, aComma, aDivBy, 
-    aLT, aGT, aQuestion, aAt, aCaret, aPipe
+    aLT, aGT, aQuestion, aCaret, aPipe
 };
 
 //}}}
@@ -1295,7 +1288,7 @@ private double doubleOfLongBits(int64_t i) {
  * Internal worker function for lexing decimal numbers. Saves the digits to "numeric", sets the flags.
  * Emits no tokens, consumes all the chars of the number.
  */
-private void readInNumber(Int startPos, bool* metDot, bool* metNonZero, Int* digitsAfterDot, 
+private void readInNumber(Int startPos, bool* metDot, bool* metNonzero, Int* digitsAfterDot, 
                          Compiler* lx, Arr(byte) source) {
     Int j = startPos;
     Int maximumInd = (lx->i + 40 > lx->inpLength) ? (lx->i + 40) : lx->inpLength;
@@ -1303,13 +1296,13 @@ private void readInNumber(Int startPos, bool* metDot, bool* metNonZero, Int* dig
         byte cByte = source[j];
 
         if (isDigit(cByte)) {
-            if (metNonzero) {
+            if (*metNonzero) {
                 addNumeric(cByte - aDigit0, lx);
             } else if (cByte != aDigit0) {
-                metNonzero = true;
+                *metNonzero = true;
                 addNumeric(cByte - aDigit0, lx);
             }
-            if (metDot) {
+            if (*metDot) {
                 ++(*digitsAfterDot);
             }
         } else if (cByte == aUnderscore) {
@@ -1319,8 +1312,8 @@ private void readInNumber(Int startPos, bool* metDot, bool* metNonZero, Int* dig
                 break;
             }
             
-            VALIDATEL(!metDot, errNumericMultipleDots)
-            metDot = true;
+            VALIDATEL(!*metDot, errNumericMultipleDots)
+            *metDot = true;
         } else {
             break;
         }
@@ -1329,20 +1322,6 @@ private void readInNumber(Int startPos, bool* metDot, bool* metNonZero, Int* dig
 
     VALIDATEL(j >= lx->inpLength || !isDigit(source[j]), errNumericWidthExceeded)
     lx->i = j; // CONSUME the decimal number
-}
-
-
-private Int readInNonnegativeInt(Compiler* lx, Arr(byte) source) {
-    bool metDot = false;
-    bool metNonzero = false;
-    Int ignored;
-    Int j = lx->i;
-
-    readInNumber(j, &metDot, &metNonzero, &ignored, lx, source);
-    int64_t resultValue = 0;
-    Int errorCode = calcInteger(&resultValue, lx);
-    VALIDATEL(errorCode == 0, errNumericIntWidthExceeded)
-    return (Int)resultValue;
 }
 
 /**
@@ -1516,7 +1495,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     if (mbReservedWord <= 0) {
         Int uniqueStringInd = addStringStore(source, startBt, lenString, lx->stringTable, lx->stringStore);
         if (wordType == tokAccessor) {
-            add((Token){ .tp=tokAccessor, .pl1 = accField, .pl2 = uniqueStringInd, 
+            add((Token){ .tp=tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
             return;
         } else {
@@ -1531,7 +1510,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
         }
     }
 
-    VALIDATEL(wordType != tokDotWord, errWordReservedWithDot)
+    VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
 
     if (mbReservedWord == tokElse){
         closeStatement(lx);
@@ -1679,7 +1658,6 @@ private void lexEqual(Compiler* lx, Arr(byte) source) {
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
         if (lx->lexBtrack->length > 1) {
-
             BtToken grandparent = lx->lexBtrack->content[lx->lexBtrack->length - 2];
             BtToken parent = lx->lexBtrack->content[lx->lexBtrack->length - 1];
             if (grandparent.tp == tokFnDef && parent.tokenInd == (grandparent.tokenInd + 1)) { // we are in the 1st stmt of fn def
@@ -1694,7 +1672,7 @@ private void lexEqual(Compiler* lx, Arr(byte) source) {
     }
 }
 
-/** Doc comments, syntax is "{ Doc comment }" */
+/** Doc comments, syntax is "---Doc comment" */
 private void lexDocComment(Compiler* lx, Arr(byte) source) {
     Int startBt = lx->i;
     
@@ -1827,24 +1805,10 @@ private void lexParenRight(Compiler* lx, Arr(byte) source) {
     lx->lastClosingPunctInd = startInd;    
 }
 
-
-private void lexArrayAccessor(Compiler* lx, Arr(byte) source) {
+/** The "@" sign that is used for accessing arrays, lists, dictionaries */
+private void lexAccessor(Compiler* lx, Arr(byte) source) {
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
-    Int startBt = lx->i - 1;
-    Int byteAfter = CURR_BT;
-    if (isDigit(byteAfter)) {
-        Int arrayInd = readInNonnegativeInt(lx, source);
-        add((Token){ .tp = tokAccessor, .pl1 = accArrayInd, .pl2 = arrayInd,
-                     .startBt = startBt, .lenBts = lx->i - startBt }, lx);
-    } else if (isLowercaseLetter(byteAfter) || byteAfter == aUnderscore) {
-        lexWordInternal(lx, source);
-        add((Token){ .tp = tokAccessor, .pl1 = accArrayWord, .startBt = lx->i - 1, .lenBts = ??  }, lx);
-    } else if (byteAfter == aParenLeft) {
-        add((Token){ .tp = tokAccessor, .pl1 = accExpr, .startBt = lx->i - 1, .lenBts = ??  }, lx);
-        push((BtToken){.tp = tokAccessor, }, lx->lexBtrac);
-    } else {
-        throwExcLexer(errUnrecognizedByte, lx);
-    }
+    add((Token){ .tp = tokAccessor, .pl1 = tkAccAt, .startBt = lx->i, .lenBts = 1 }, lx);
 }
 
 private void lexSpace(Compiler* lx, Arr(byte) source) {
@@ -1893,14 +1857,13 @@ private void lexNonAsciiError(Compiler* lx, Arr(byte) source) {
 /** Must agree in order with token types in LexerConstants.h */
 const char* tokNames[] = {
     "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
-    "word", "Type", ".word", "operator", "equals sign", 
-    ":", "(.", "stmt", "(", "type(", "(:", "=", ":=", "mutation", "=>", "else",
+    "word", "Type", "operator", "equals sign", 
+    "do(", "stmt", "(", "call(", "data", "=", ":=", "mutation", "acc", "=>", "else",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
     "defer", "each", "embed", "export", "exposePriv", "fn", "interface", 
     "lambda", "meta", "package", "return", "struct", "try", "typeDef", "yield",
     "if", "ifPr", "match", "impl", "while"
 };
-
 
 testable void printLexer(Compiler* a) {
     if (a->wasError) {
@@ -1982,7 +1945,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aMinus] = &lexMinus;
     p[aParenLeft] = &lexParenLeft;
     p[aParenRight] = &lexParenRight;
-    p[aAt] = &lexArrayAccessor;
+    p[aAt] = &lexAccessor;
     
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
@@ -2077,14 +2040,13 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[31] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 }};
     p[32] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
     p[33] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[34] = (OpDef){.name=s("@"),    .arity=1, .bytes={aAt, 0, 0, 0 } };
-    p[35] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[36] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[37] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
-    p[38] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
-    p[39] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[40] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[41] = (OpDef){.name=s("neg"),  .arity=1, .bytes={0, 0, 0, 0 }};
+    p[34] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[35] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[36] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
+    p[37] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
+    p[38] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
+    p[39] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
+    p[40] = (OpDef){.name=s("neg"),  .arity=1, .bytes={0, 0, 0, 0 }};
     for (Int k = 0; k < countOperators; k++) {
         p[k].builtinOverloads = 0;
         Int m = 0;
@@ -2990,7 +2952,6 @@ testable Compiler* lexicallyAnalyze(String* input, Compiler* proto, Arena* a) {
     return lx;
 }
 //}}}
-
 //{{{ Parser
 
 
@@ -3378,7 +3339,6 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opTGreaterThan, boolOfStrStr, emitInfix, 0, cm);
     buildOperator(opTNullCoalesce, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opTQuestionMark, flOfFlFl, 0, 0, cm); // dummy
-    buildOperator(opTAccessor, intOfInt, 0, 0, cm); // dummy
     buildOperator(opTExponentExt, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opTExponent, intOfIntInt, emitPrefixExternal, strExpon, cm);
     buildOperator(opTExponent, flOfFlFl, emitPrefixExternal, strExpon, cm);
@@ -3984,7 +3944,6 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 }
 
 //}}}
-
 //{{{ Typer
 
 /** Gets the type of the last param of a function. */
@@ -4220,7 +4179,6 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 }
 
 //}}}
-
 //{{{ Codegen
 
 typedef struct Codegen Codegen;
@@ -4832,7 +4790,6 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
 }
 
 //}}}
-
 //{{{ Main
 Codegen* compile(String* source) {
     Arena* a = mkArena();

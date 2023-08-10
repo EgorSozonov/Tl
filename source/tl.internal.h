@@ -161,7 +161,7 @@ typedef struct {
 #define tokAssignment  16
 #define tokReassign    17     // :=
 #define tokMutation    18     // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
-#define tokAccessor    19     // pl1 = subclass of the data accessor (field, array ind etc), pl2 = see "acc" consts
+#define tokAccessor    19     // pl1 = subclass (field, array ind etc), pl2 = see "acc" consts
 #define tokArrow       20     // not a real scope, but placed here so the parser can dispatch on it
 #define tokElse        21     // not a real scope, but placed here so the parser can dispatch on it
  
@@ -209,35 +209,36 @@ typedef struct {
 #define nodExpr        11
 #define nodAssignment  12
 #define nodReassign    13     // :=
+#define nodAccessor    14     // pl1 = "acc" constants
 
 // Single-shot core syntax forms
-#define nodAlias       14
-#define nodAssert      15
-#define nodAssertDbg   16
-#define nodAwait       17
-#define nodBreak       18     // pl1 = number of label to break to, or -1 if none needed
-#define nodCatch       19     // "(catch e => print e)"
-#define nodContinue    20     // pl1 = number of label to continue to, or -1 if none needed
-#define nodDefer       21
-#define nodEmbed       22     // noParen. Embed a text file as a string literal, or a binary resource file
-#define nodExport      23       
-#define nodExposePriv  24     // TODO replace with "import". This is for test files
-#define nodFnDef       25     // pl1 = entityId
-#define nodIface       26
-#define nodLambda      27
-#define nodMeta        28       
-#define nodPackage     29     // for single-file packages
-#define nodReturn      30
-#define nodTry         31     // the Rust kind of "try" (early return from current function)
-#define nodYield       32
-#define nodIfClause    33       
+#define nodAlias       15
+#define nodAssert      16
+#define nodAssertDbg   17
+#define nodAwait       18
+#define nodBreak       19     // pl1 = number of label to break to, or -1 if none needed
+#define nodCatch       20     // "(catch e => print e)"
+#define nodContinue    21     // pl1 = number of label to continue to, or -1 if none needed
+#define nodDefer       22
+#define nodEmbed       23     // noParen. Embed a text file as a string literal, or a binary resource file
+#define nodExport      24       
+#define nodExposePriv  25     // TODO replace with "import". This is for test files
+#define nodFnDef       26     // pl1 = entityId
+#define nodIface       27
+#define nodLambda      28
+#define nodMeta        29       
+#define nodPackage     30     // for single-file packages
+#define nodReturn      31
+#define nodTry         32     // the Rust kind of "try" (early return from current function)
+#define nodYield       33
+#define nodIfClause    34       
 #define nodWhile       34     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
-#define nodWhileCond   35
+#define nodWhileCond   36
 
 // Resumable core forms
-#define nodIf          36
-#define nodImpl        37
-#define nodMatch       38     // pattern matching on sum type tag
+#define nodIf          37
+#define nodImpl        38
+#define nodMatch       39     // pattern matching on sum type tag
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)
@@ -309,20 +310,19 @@ typedef struct {
 #define opTGreaterThan      31 // >
 #define opTNullCoalesce     32 // ?:   null coalescing operator
 #define opTQuestionMark     33 // ?    nullable type operator
-#define opTAccessor         34 // @
-#define opTExponentExt      35 // ^.   exponentiation extended
-#define opTExponent         36 // ^    exponentiation
-#define opTBoolOr           37 // ||   bitwise or
-#define opTXor              38 // |    bitwise xor
-#define opTAnd              39
-#define opTOr               40
-#define opTNegation         41
+#define opTExponentExt      34 // ^.   exponentiation extended
+#define opTExponent         35 // ^    exponentiation
+#define opTBoolOr           36 // ||   bitwise or
+#define opTXor              37 // |    bitwise xor
+#define opTAnd              38
+#define opTOr               39
+#define opTNegation         40
 
 /** Count of lexical operators, i.e. things that are lexed as operator tokens.
  * must be equal to the count of following constants
  */ 
-#define countLexOperators   39
-#define countOperators      42 // count of things that are stored as operators, regardless of how they are lexed
+#define countLexOperators   38
+#define countOperators      41 // count of things that are stored as operators, regardless of how they are lexed
 
 #define countReservedLetters   25 // length of the interval of letters that may be init for reserved words (A to Y)
 #define countCoreForms (tokWhile - tokAlias + 1)
@@ -331,10 +331,14 @@ typedef struct Compiler Compiler;
 
 
 // Subclasses of the data accessor tokens/nodes
+#define tkAccDot     1
+#define tkAccAt      2
 #define accField     1    // field accessor in a struct, like "foo.field". pl2 = nameId of the string
-#define accArrayInd  2    // single-integer array access, like "arr:5". pl2 = int value of the ind
-#define accArrayWord 3    // single-variable array access, like "arr:i". pl2 = nameId of the string
-#define accExpr      4    // an expression for an array access, like "arr:+(i 1)". pl2 = number of tokens/nodes
+#define accArrayInd  2    // single-integer array access, like "arr@5". pl2 = int value of the ind
+#define accArrayWord 3    // single-variable array access, like "arr@i". pl2 = nameId of the string
+#define accString    4    // string-based access inside hashmap, like "map@`foo`". pl2 = 0
+#define accExpr      5    // an expression for an array access, like "arr:+(i 1)". pl2 = number of tokens/nodes
+#define accUndef     6    // undefined after lexing (to be determined by the parser)
 
 
 typedef void (*LexerFunc)(Compiler*, Arr(byte)); // LexerFunc = &(Lexer* => void)
@@ -375,14 +379,16 @@ typedef struct {
 #define classMutableNullable   2
 #define classMutatedNullable   3
 #define classImmutable         4
-#define emitPrefix         0  // normal singular native names
-#define emitPrefixShielded 1  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
-#define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
-#define emitInfix          3  // infix operators that match between source code and target (e.g. arithmetic operators)
-#define emitInfixExternal  4  // infix operators that have a separate external name
-#define emitField          5  // emitted as field accesses, like ".length"
-#define emitInfixDot       6  // emitted as a "dot-call", like ".toString()"
-#define emitNop            7  // for unary operators that don't need to be emitted, like ","
+#define emitPrefix         1  // normal singular native names
+#define emitOverloaded     2  // normal singular native names
+#define emitPrefixShielded 3  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
+#define emitPrefixExternal 4  // prefix names that are emitted differently than in source code
+#define emitInfix          5  // infix operators that match between source code and target (e.g. arithmetic operators)
+#define emitInfixExternal  6  // infix operators that have a separate external name
+#define emitField          7  // emitted as field accesses, like ".length"
+#define emitInfixDot       8  // emitted as a "dot-call", like ".toString()"
+#define emitNop            9  // for unary operators that don't need to be emitted, like ","
+
 typedef struct {
     Int typeId;
     uint16_t externalNameId;
@@ -545,7 +551,7 @@ struct Compiler {
 #define firstCoreFormTokenType tokAlias
 
 //}}}
-
+//{{{ Generics
 #define pop(X) _Generic((X), \
     StackBtToken*: popBtToken, \
     StackParseFrame*: popParseFrame, \
