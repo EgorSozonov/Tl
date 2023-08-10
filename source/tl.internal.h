@@ -146,60 +146,59 @@ typedef struct {
 #define tokUnderscore   5    // in the world of types, signifies the Void type
 #define tokDocComment   6
 
-// This group requires analysis in the parser
 #define tokWord         7    // pl2 = index in the string table
 #define tokTypeName     8
 #define tokOperator     9    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokEqualsSign  10
+#define tokAccessor    10     // pl1 = see "tkAcc" consts
+#define tokColon       11
 
-// Punctuation (inner node) Token types
-#define tokScope       11     // denoted by (*)
-#define tokStmt        12
+// Single-line Token types
+#define tokStmt        12    // firstSpanTokenType 
 #define tokParens      13
 #define tokCall        14
-#define tokData        15     // data initializer, like (: 1 2 3)
-#define tokAssignment  16
-#define tokReassign    17     // :=
-#define tokMutation    18     // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
-#define tokAccessor    19     // pl1 = subclass (field, array ind etc), pl2 = see "acc" consts
-#define tokArrow       20     // not a real scope, but placed here so the parser can dispatch on it
-#define tokElse        21     // not a real scope, but placed here so the parser can dispatch on it
- 
-// Single-shot core syntax forms. pl1 = spanLevel
-#define tokAlias       22
-#define tokAssert      23
-#define tokAssertDbg   24
-#define tokAwait       25
-#define tokBreak       26
-#define tokCatch       27    // paren "catch(e => print(e))"
-#define tokContinue    28
-#define tokDefer       29
-#define tokEach        30
-#define tokEmbed       31    // Embed a text file as a string literal, or a binary resource file // 200
-#define tokExport      32
-#define tokExposePriv  33
-#define tokFnDef       34
-#define tokIface       35
-#define tokLambda      36
-#define tokMeta        37
-#define tokPackage     38    // for single-file packages
-#define tokReturn      39
-#define tokStruct      40
-#define tokTry         41    // early exit
-#define tokTypeDef     42
-#define tokYield       43
+#define tokAssignment  15
+#define tokReassign    16    // :=
+#define tokMutation    17    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
+#define tokData        18    // data initializer, like (1 2 3)
+#define tokAlias       19
+#define tokAssert      20
+#define tokAssertDbg   21
+#define tokAwait       22
+#define tokBreak       23
+#define tokContinue    24
+#define tokDefer       25
+#define tokEmbed       26    // Embed a text file as a string literal, or a binary resource file // 200
+#define tokImport      27
+#define tokReturn      28
+#define tokTry         29    // early exit
+#define tokYield       30
+#define tokArrow       31    // not a real span, but placed here so the parser can dispatch on it
+#define tokElse        32    // not a real span, but placed here so the parser can dispatch on it
+
+// Parenthesized (multi-line) Token types. pl1 = spanLevel, see "sl" constants
+#define tokScope       33    // denoted by do(). firstParenSpanTokenType 
+#define tokCatch       34    // paren "catch(e => print(e))"
+#define tokEach        35
+#define tokFnDef       36
+#define tokLambda      37
+#define tokMeta        38
+#define tokPackage     39    // for single-file packages
 
 // Resumable core forms
-#define tokIf          44    // "if( " 
-#define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       46    // "(*m " or "(match " pattern matching on sum type tag 
-#define tokImpl        47  
-#define tokWhile       48   
-// "(*iface"
+#define tokIf          40    // "if( " 
+#define tokIfPr        41    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       42    // "(*m " or "(match " pattern matching on sum type tag 
+#define tokImpl        43  
+#define tokWhile       44   
+
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
+#define firstSpanTokenType tokStmt
+#define firstParenSpanTokenType tokScope
+#define firstResumableSpanTokenType tokIf
 
 
+/** Nodes */
 #define nodId           7    // pl1 = index of entity, pl2 = index of name
 #define nodCall         8    // pl1 = index of entity, pl2 = arity
 #define nodBinding      9    // pl1 = index of entity, pl2 = 1 if it's a type binding
@@ -545,10 +544,6 @@ struct Compiler {
 #define slStmt          3 // single-line statements: newlines and commas break 'em
 #define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
 
-/** Must be the lowest value in the PunctuationToken enum */
-#define firstPunctuationTokenType tokScope
-/** Must be the lowest value of the punctuation token that corresponds to a core syntax form */
-#define firstCoreFormTokenType tokAlias
 
 //}}}
 //{{{ Generics

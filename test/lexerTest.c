@@ -646,16 +646,16 @@ LexerTestSet* punctuationTests(Arena* a) {
                 (Token){ .tp = tokInt, .pl2 = 4, .startBt = 10, .lenBts = 1 }
         }))},           
         (LexerTest) { .name = s("Dollar punctuation 2"),
-            .input = s("ab (arr(foo $ bar))"),
+            .input = s("ab (arr (foo $ bar))"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 7,   .startBt = 0, .lenBts = 19 },
+                (Token){ .tp = tokStmt, .pl2 = 7,   .startBt = 0, .lenBts = 20 },
                 (Token){ .tp = tokWord,  .pl2 = 0,  .startBt = 0, .lenBts = 2 }, // ab
-                (Token){ .tp = tokParens, .pl2 = 5, .startBt = 3, .lenBts = 16 },                
+                (Token){ .tp = tokParens, .pl2 = 5, .startBt = 3, .lenBts = 17 },                
                 (Token){ .tp = tokWord,   .pl2 = 1, .startBt = 4, .lenBts = 3 }, // arr
-                (Token){ .tp = tokParens, .pl2 = 3, .startBt = 7, .lenBts = 11 },
-                (Token){ .tp = tokWord,   .pl2 = 2, .startBt = 8, .lenBts = 3 },  // foo
-                (Token){ .tp = tokParens, .pl2 = 1, .startBt = 12, .lenBts = 5 },
-                (Token){ .tp = tokWord,   .pl2 = 3, .startBt = 14, .lenBts = 3 }  // bar
+                (Token){ .tp = tokParens, .pl2 = 3, .startBt = 8, .lenBts = 11 },
+                (Token){ .tp = tokWord,   .pl2 = 2, .startBt = 9, .lenBts = 3 },  // foo
+                (Token){ .tp = tokParens, .pl2 = 1, .startBt = 13, .lenBts = 5 },
+                (Token){ .tp = tokWord,   .pl2 = 3, .startBt = 15, .lenBts = 3 }  // bar
         }))},
         (LexerTest) { .name = s("Stmt separator"),
             .input = s("foo. bar baz"),
@@ -944,7 +944,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .pl2 = 3, .startBt = 18, .lenBts = 1 }, // y
                  (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 20, .lenBts = 3 }, // Int
                  
-                 (Token){ .tp = tokEqualsSign, .startBt = 25, .lenBts = 1 },
+                 (Token){ .tp = tokColon, .startBt = 25, .lenBts = 1 },
                  
                  (Token){ .tp = tokStmt, .pl2 = 3, .startBt = 27, .lenBts = 5 },
                  (Token){ .tp = tokWord, .pl2 = 2, .startBt = 27, .lenBts = 1 }, // x       
@@ -1002,8 +1002,8 @@ int main() {
     runATestSet(&wordTests, &countPassed, &countTests, proto, a);
     //runATestSet(&stringTests, &countPassed, &countTests, proto, a);
     //runATestSet(&commentTests, &countPassed, &countTests, proto, a);
-    runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
-    //runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
+    runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
     //runATestSet(&numericTests, &countPassed, &countTests, proto, a);
     //runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
 

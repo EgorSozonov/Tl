@@ -809,12 +809,12 @@ static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 11
 static const byte reservedBytesDefer[]       = { 100, 101, 102, 101, 114 };
 static const byte reservedBytesElse[]        = { 101, 108, 115, 101 };
 static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
-static const byte reservedBytesExport[]      = { 101, 120, 112, 111, 114, 116 };
 static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
 static const byte reservedBytesFn[]          = { 102, 110 };  // maybe also "Fn" for function types
 static const byte reservedBytesIf[]          = { 105, 102 };
 static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
 static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
+static const byte reservedBytesImport[]      = { 105, 109, 112, 111, 114, 116 };
 static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
 static const byte reservedBytesLambda[]      = { 108, 97, 109 };
 static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
@@ -963,7 +963,6 @@ private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesElse, tokElse)
     PROBERESERVED(reservedBytesEmbed, tokEmbed)
-    PROBERESERVED(reservedBytesExport, tokExport)    
     return 0;
 }
 
@@ -981,7 +980,6 @@ private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
     PROBERESERVED(reservedBytesIf, tokIf)
     PROBERESERVED(reservedBytesIfPr, tokIfPr)
     PROBERESERVED(reservedBytesImpl, tokImpl)
-    PROBERESERVED(reservedBytesInterface, tokIface)
     return 0;
 }
 
@@ -1016,8 +1014,6 @@ private Int determineReservedR(Int startBt, Int lenBts, Compiler* lx) {
 
 
 private Int determineReservedS(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesStruct, tokStruct)
     return 0;
 }
 
@@ -1372,7 +1368,7 @@ private void lexNumber(Compiler* lx, Arr(byte) source) {
  */
 private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* lx) {
     push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->lexBtrack);
-    add((Token) {.tp = tType, .pl1 = (tType < firstCoreFormTokenType) ? 0 : spanLevel, .startBt = startBt }, lx);
+    add((Token) {.tp = tType, .pl1 = (tType < firstParenSpanTokenType) ? 0 : spanLevel, .startBt = startBt }, lx);
 }
 
 /**
@@ -1381,12 +1377,10 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
  */
 private void lexReservedWord(untt reservedWordType, Int startBt, Compiler* lx, Arr(byte) source) {    
     StackBtToken* bt = lx->lexBtrack;
-    
-    Int expectations = (*lx->langDef->reservedParensOrNot)[reservedWordType - firstCoreFormTokenType];
     if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
         addStatement(reservedWordType, startBt, lx);
-    } else if (expectations == 1) { // the "(core" case
+    } else if (expectations == 1) { // the "core(" case
         VALIDATEL(hasValues(bt), errCoreMissingParen)
         
         BtToken top = peek(bt);
@@ -1579,6 +1573,17 @@ private void lexDollar(Compiler* lx, Arr(byte) source) {
 }
 
 
+private void lexColon(Compiler* lx, Arr(byte) source) {
+    if (lx->i < lx->inpLength - 1 && NEXT_BT == aEqual) {
+        processAssignment(1, 0, lx);
+        lx->i += 2; // CONSUME the ":="  
+    } else {
+        add((Token) {.tp = tokArrow, .startBt = lx->i, .lenBts = 1 }, lx);
+        ++lx->i; // CONSUME the ":"
+    }
+}
+
+
 private void lexOperator(Compiler* lx, Arr(byte) source) {
     wrapInAStatement(lx, source);    
     
@@ -1647,16 +1652,6 @@ private void lexEqual(Compiler* lx, Arr(byte) source) {
         add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
-        if (lx->lexBtrack->length > 1) {
-            BtToken grandparent = lx->lexBtrack->content[lx->lexBtrack->length - 2];
-            BtToken parent = lx->lexBtrack->content[lx->lexBtrack->length - 1];
-            if (grandparent.tp == tokFnDef && parent.tokenInd == (grandparent.tokenInd + 1)) { // we are in the 1st stmt of fn def
-                closeStatement(lx);
-                add((Token){ .tp = tokEqualsSign, .startBt = lx->i, .lenBts = 1 }, lx);
-                lx->i++; // CONSUME the =
-                return;
-            }
-        }
         processAssignment(0, 0, lx);
         lx->i++; // CONSUME the =
     }
@@ -1964,7 +1959,6 @@ private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
     p[12] = determineReservedM;
     p[14] = determineReservedO;
     p[17] = determineReservedR;
-    p[18] = determineReservedS;
     p[19] = determineReservedT;
     p[24] = determineReservedY;
     return result;
