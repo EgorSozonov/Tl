@@ -279,21 +279,21 @@ typedef struct {
 #define opTNotEqual          0 // !=
 #define opTBoolNegation      1 // !
 #define opTSize              2 // #
-#define opTToString          3 // $
 #define opTRemainder         4 // %
-#define opTBinaryAnd         5 // && bitwise and
-#define opTTypeAnd           6 // & interface intersection (type-level)
-#define opTIsNull            7 // '
-#define opTTimesExt          8 // *.
-#define opTTimes             9 // *
-#define opTPlusExt          10 // +.
-#define opTPlus             11 // +
-#define opTToInt            12 // ,,
-#define opTToFloat          13 // ,
-#define opTMinusExt         14 // -.
-#define opTMinus            15 // -
-#define opTDivByExt         16 // /.
-#define opTDivBy            17 // /
+#define opTBinaryAnd         4 // && bitwise and
+#define opTTypeAnd           5 // & interface intersection (type-level)
+#define opTIsNull            6 // '
+#define opTTimesExt          7 // *.
+#define opTTimes             8 // *
+#define opTPlusExt           9 // +.
+#define opTPlus             10 // +
+#define opTToInt            11 // ,,
+#define opTToFloat          12 // ,
+#define opTMinusExt         13 // -.
+#define opTMinus            14 // -
+#define opTDivByExt         15 // /.
+#define opTDivBy            16 // /
+#define opTToString         17 // ; 
 #define opTBitShiftLeftExt  18 // <<.
 #define opTBitShiftLeft     19 // <<
 #define opTLTEQ             20 // <=
@@ -552,6 +552,7 @@ struct Compiler {
 
 //}}}
 //{{{ Generics
+
 #define pop(X) _Generic((X), \
     StackBtToken*: popBtToken, \
     StackParseFrame*: popParseFrame, \

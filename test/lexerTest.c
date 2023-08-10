@@ -169,24 +169,29 @@ LexerTestSet* wordTests(Arena* a) {
                 (Token){ .tp = tokAccessor, .pl1 = accField, .pl2 = 1, .startBt = 1, .lenBts = 6 }
             }))
         },
+
         (LexerTest) {
             .name = s("Array numeric index"),
             .input = s("a@5"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
+                (Token){ .tp = tokStmt, .pl2 = 3, .startBt = 0, .lenBts = 3 },
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                (Token){ .tp = tokAccessor, .pl1 = accArrayInd, .pl2 = 5, .startBt = 2, .lenBts = 2 }
+                (Token){ .tp = tokAccessor, .pl1 = accArrayInd, .startBt = 1, .lenBts = 1 },
+                (Token){ .tp = tokInt, .pl2 = 5, .startBt = 2, .lenBts = 1 }
             }))
         },
+
         (LexerTest) {
             .name = s("Array variable index"),
-            .input = s("a@i"),
+            .input = s("a@ind"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
-                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                (Token){ .tp = tokAccessor, .pl1 = accField, .pl2 = 1, .startBt = 2, .lenBts = 4 }
+                (Token){ .tp = tokStmt,         .pl2 = 3, .startBt = 0, .lenBts = 5 },
+                (Token){ .tp = tokWord,         .pl2 = 0, .startBt = 0, .lenBts = 1 },
+                (Token){ .tp = tokAccessor, .pl1 = tkAccAt, .startBt = 1, .lenBts = 1 },
+                (Token){ .tp = tokWord,         .pl2 = 1, .startBt = 2, .lenBts = 3 }
             }))
         },
+
         (LexerTest) {
             .name = s("Word starts with reserved word"),
             .input = s("ifter"),
@@ -463,22 +468,22 @@ LexerTestSet* commentTests(Arena* a) {
         (LexerTest) { .name = s("Doc comment"),
             .input = s("---Documentation comment"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 25 }
+                (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 24 }
         }))},
         (LexerTest) { .name = s("Doc comment before something"),
             .input = s("---Documentation comment \n"
                        "print `hw` "),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 42 },
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 43, .lenBts = 10 },
-                (Token){ .tp = tokWord, .startBt = 43, .lenBts = 5 },
-                (Token){ .tp = tokString, .startBt = 49, .lenBts = 4 }
+                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 26 },
+                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 26, .lenBts = 10 },
+                (Token){ .tp = tokWord, .startBt = 26, .lenBts = 5 },
+                (Token){ .tp = tokString, .startBt = 32, .lenBts = 4 }
         }))},
         (LexerTest) { .name = s("Doc comment empty"),
             .input = s("---\n" 
                        "print `hw` "),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 2 },
+                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 4 },
                 (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 4, .lenBts = 10 },
                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 4, .lenBts = 5 },
                 (Token){ .tp = tokString, .startBt = 10, .lenBts = 4 }
@@ -490,10 +495,10 @@ LexerTestSet* commentTests(Arena* a) {
                        "print `hw` "
             ),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 39 },
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 40, .lenBts = 10 },
-                (Token){ .tp = tokWord, .startBt = 40, .lenBts = 5 },
-                (Token){ .tp = tokString, .startBt = 46, .lenBts = 4 }
+                (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 43 },
+                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 43, .lenBts = 10 },
+                (Token){ .tp = tokWord, .startBt = 43, .lenBts = 5 },
+                (Token){ .tp = tokString, .startBt = 49, .lenBts = 4 }
         }))}
     }));
 }
@@ -694,9 +699,9 @@ LexerTestSet* operatorTests(Arena* a) {
                 (Token){ .tp = tokOperator, .pl1 = opTExponentExt,  .startBt = 19, .lenBts = 2 }
         }))},
         (LexerTest) { .name = s("Operators list"),
-            .input = s("+ - / * ^ && || ' ? >=< >< $ , -"),
+            .input = s("+ - / * ^ && || ' ? >=< >< ; , -"),
             .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 15, .startBt = 0, .lenBts = 32 },
+                (Token){ .tp = tokStmt, .pl2 = 14, .startBt = 0, .lenBts = 32 },
                 (Token){ .tp = tokOperator, .pl1 = opTPlus, .startBt = 0, .lenBts = 1 },
                 (Token){ .tp = tokOperator, .pl1 = opTMinus, .startBt = 2, .lenBts = 1 },                
                 (Token){ .tp = tokOperator, .pl1 = opTDivBy, .startBt = 4, .lenBts = 1 },
@@ -996,8 +1001,8 @@ int main() {
     int countTests = 0;
     runATestSet(&wordTests, &countPassed, &countTests, proto, a);
     //runATestSet(&stringTests, &countPassed, &countTests, proto, a);
-   // runATestSet(&commentTests, &countPassed, &countTests, proto, a);
-    //runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&commentTests, &countPassed, &countTests, proto, a);
+    runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
     //runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
     //runATestSet(&numericTests, &countPassed, &countTests, proto, a);
     //runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);

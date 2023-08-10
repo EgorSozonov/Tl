@@ -3,4 +3,4 @@ gcc -g3 -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors -Werror=implicit
 -o _bin/lexerTest \
 -iquote source -iquote test test/lexerTest.c source/tl.c \
 -DLEXER_TEST -DTEST \
--lm
+-lm && _bin/lexerTest

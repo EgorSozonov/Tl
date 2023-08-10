@@ -829,8 +829,8 @@ static const byte reservedBytesWhile[]       = { 119, 104, 105, 108, 101 };
 /** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" is handled by lexEqual
  */
 const int operatorStartSymbols[15] = {
-    aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus, aComma, aDivBy, 
-    aLT, aGT, aQuestion, aCaret, aPipe
+    aExclamation, aSharp, aPercent, aAmp, aApostrophe, aTimes, aPlus, aComma, aDivBy, 
+    aSemicolon, aLT, aGT, aQuestion, aCaret, aPipe
 };
 
 //}}}
@@ -1284,46 +1284,6 @@ private double doubleOfLongBits(int64_t i) {
     return un.d;
 }
 
-/** 
- * Internal worker function for lexing decimal numbers. Saves the digits to "numeric", sets the flags.
- * Emits no tokens, consumes all the chars of the number.
- */
-private void readInNumber(Int startPos, bool* metDot, bool* metNonzero, Int* digitsAfterDot, 
-                         Compiler* lx, Arr(byte) source) {
-    Int j = startPos;
-    Int maximumInd = (lx->i + 40 > lx->inpLength) ? (lx->i + 40) : lx->inpLength;
-    while (j < maximumInd) {
-        byte cByte = source[j];
-
-        if (isDigit(cByte)) {
-            if (*metNonzero) {
-                addNumeric(cByte - aDigit0, lx);
-            } else if (cByte != aDigit0) {
-                *metNonzero = true;
-                addNumeric(cByte - aDigit0, lx);
-            }
-            if (*metDot) {
-                ++(*digitsAfterDot);
-            }
-        } else if (cByte == aUnderscore) {
-            VALIDATEL(j != (lx->inpLength - 1) && isDigit(source[j + 1]), errNumericEndUnderscore)
-        } else if (cByte == aDot) {
-            if (j + 1 < maximumInd && !isDigit(source[j + 1])) { // this dot is not decimal - it's a statement closer
-                break;
-            }
-            
-            VALIDATEL(!*metDot, errNumericMultipleDots)
-            *metDot = true;
-        } else {
-            break;
-        }
-        j++;
-    }
-
-    VALIDATEL(j >= lx->inpLength || !isDigit(source[j]), errNumericWidthExceeded)
-    lx->i = j; // CONSUME the decimal number
-}
-
 /**
  * Lexes a decimal numeric literal (integer or floating-point). Adds a token.
  * TODO: add support for the '1.23E4' format
@@ -1333,7 +1293,36 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
     Int digitsAfterDot = 0; // this is relative to first digit, so it includes the leading zeroes
     bool metDot = false;
     bool metNonzero = false;
-    readInNumber(j, &metDot, &metNonzero, &digitsAfterDot, lx, source);
+    Int maximumInd = (lx->i + 40 > lx->inpLength) ? (lx->i + 40) : lx->inpLength;
+    while (j < maximumInd) {
+        byte cByte = source[j];
+
+        if (isDigit(cByte)) {
+            if (metNonzero) {
+                addNumeric(cByte - aDigit0, lx);
+            } else if (cByte != aDigit0) {
+                metNonzero = true;
+                addNumeric(cByte - aDigit0, lx);
+            }
+            if (metDot) {
+                ++digitsAfterDot;
+            }
+        } else if (cByte == aUnderscore) {
+            VALIDATEL(j != (lx->inpLength - 1) && isDigit(source[j + 1]), errNumericEndUnderscore)
+        } else if (cByte == aDot) {
+            if (j + 1 < maximumInd && !isDigit(source[j + 1])) { // this dot is not decimal - it's a statement closer
+                break;
+            }
+            
+            VALIDATEL(!metDot, errNumericMultipleDots)
+            metDot = true;
+        } else {
+            break;
+        }
+        j++;
+    }
+
+    VALIDATEL(j >= lx->inpLength || !isDigit(source[j]), errNumericWidthExceeded)
 
     if (metDot) {
         double resultValue = 0;
@@ -1352,6 +1341,7 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
         add((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
                 .startBt = lx->i, .lenBts = j - lx->i }, lx);
     }
+    lx->i = j; // CONSUME the decimal number
 }
 
 
@@ -1672,53 +1662,67 @@ private void lexEqual(Compiler* lx, Arr(byte) source) {
     }
 }
 
-/** Doc comments, syntax is "---Doc comment" */
-private void lexDocComment(Compiler* lx, Arr(byte) source) {
-    Int startBt = lx->i;
+/** 
+ * Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes the current
+ * statement unless it's inside an inline span (i.e. parens or accessor parens)
+ */
+private void lexNewline(Compiler* lx, Arr(byte) source) {
+    addNewLine(lx->i, lx);    
+    maybeBreakStatement(lx);
     
-    Int curlyLevel = 0;
-    Int j = lx->i;
-    for (; j < lx->inpLength; j++) {
-        byte cByte = source[j];
-        // Doc comments may contain arbitrary UTF-8 symbols, but we care only about newlines and parentheses
-        if (cByte == aNewline) {
-            addNewLine(j, lx);
-        } else if (cByte == aCurlyLeft) {
-            curlyLevel++;
-        } else if (cByte == aCurlyRight) {
-            curlyLevel--;
-            if (curlyLevel == 0) {
-                j++; // CONSUME the right curly brace
-                break;
-            }
+    lx->i++;     // CONSUME the LF
+    while (lx->i < lx->inpLength) {
+        if (CURR_BT != aSpace && CURR_BT != aTab && CURR_BT != aCarrReturn) {
+            break;
         }
+        lx->i++; // CONSUME a space or tab
     }
-    VALIDATEL(curlyLevel == 0, errPunctuationExtraOpening)
-    if (j > lx->i) {
-        add((Token){.tp = tokDocComment, .startBt = startBt, .lenBts = j - startBt}, lx);
-    }
-    lx->i = j; // CONSUME the doc comment
 }
 
-/** An ordinary until-line-end comment. It doesn't get included in the AST, just discarded by the lexer.
+/** Doc comments, syntax is "---Doc comment". Pre-condition: we are pointing at the third minus */
+private void lexDocComment(Compiler* lx, Arr(byte) source) {
+    Int startBt = lx->i - 2; // -2 for the two minuses that have already been consumed
+    
+    for (; lx->i < lx->inpLength; ++lx->i) {
+        if (CURR_BT == aNewline) {
+            lexNewline(lx, source);
+            break;
+        }
+    }
+    Int lenTokens = lx->nextInd;
+    if (lenTokens > 0 && lx->tokens[lenTokens - 1].tp == tokDocComment) {
+        lx->tokens[lenTokens - 1].lenBts = lx->i - lx->tokens[lenTokens - 1].startBt;
+    } else {
+        add((Token){.tp = tokDocComment, .startBt = startBt, .lenBts = lx->i - startBt}, lx);
+    }
+}
+
+/** Either an ordinary until-line-end comment (which doesn't get included in the AST, just discarded 
+ * by the lexer) or a doc-comment.
  * Just like a newline, this needs to test if we're in a breakable statement because a comment goes until the line end.
  */
 private void lexComment(Compiler* lx, Arr(byte) source) {    
-    if (lx->i >= lx->inpLength) return;
-    
-    maybeBreakStatement(lx);
-        
-    Int j = lx->i;
-    while (j < lx->inpLength) {
-        byte cByte = source[j];
-        if (cByte == aNewline) {
-            lx->i = j + 1; // CONSUME the comment
-            return;
-        } else {
-            j++;
-        }
+    lx->i += 2; // CONSUME the "--"
+    if (lx->i >= lx->inpLength) {
+        return;
     }
-    lx->i = j;  // CONSUME the comment
+    if (CURR_BT == aMinus) {
+        lexDocComment(lx, source);
+    } else {
+        maybeBreakStatement(lx);
+            
+        Int j = lx->i;
+        while (j < lx->inpLength) {
+            byte cByte = source[j];
+            if (cByte == aNewline) {
+                lx->i = j + 1; // CONSUME the comment
+                return;
+            } else {
+                j++;
+            }
+        }
+        lx->i = j;  // CONSUME the comment
+    }
 }
 
 /** Handles the binary operator as well as the unary negation operator and the in-line comments */
@@ -1809,29 +1813,13 @@ private void lexParenRight(Compiler* lx, Arr(byte) source) {
 private void lexAccessor(Compiler* lx, Arr(byte) source) {
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
     add((Token){ .tp = tokAccessor, .pl1 = tkAccAt, .startBt = lx->i, .lenBts = 1 }, lx);
+    ++lx->i; // CONSUME the "@" sign
 }
 
 private void lexSpace(Compiler* lx, Arr(byte) source) {
     lx->i++; // CONSUME the space
     while (lx->i < lx->inpLength && CURR_BT == aSpace) {
         lx->i++; // CONSUME a space
-    }
-}
-
-/** 
- * Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes the current
- * statement unless it's inside an inline span (i.e. parens or accessor parens)
- */
-private void lexNewline(Compiler* lx, Arr(byte) source) {
-    addNewLine(lx->i, lx);    
-    maybeBreakStatement(lx);
-    
-    lx->i++;     // CONSUME the LF
-    while (lx->i < lx->inpLength) {
-        if (CURR_BT != aSpace && CURR_BT != aTab && CURR_BT != aCarrReturn) {
-            break;
-        }
-        lx->i++; // CONSUME a space or tab
     }
 }
 
@@ -1946,12 +1934,12 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aParenLeft] = &lexParenLeft;
     p[aParenRight] = &lexParenRight;
     p[aAt] = &lexAccessor;
+    p[aColon] = &lexColon;
     
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
     p[aNewline] = &lexNewline;
     p[aBacktick] = &lexStringLiteral;
-    p[aCurlyLeft] = &lexDocComment;
     return result;
 }
 
@@ -2009,21 +1997,21 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[ 0] = (OpDef){.name=s("!="),   .arity=2, .bytes={aExclamation, aEqual, 0, 0 } };
     p[ 1] = (OpDef){.name=s("!"),    .arity=1, .bytes={aExclamation, 0, 0, 0 } };
     p[ 2] = (OpDef){.name=s("#"),    .arity=1, .bytes={aSharp, 0, 0, 0 }, .overloadable=true};    
-    p[ 3] = (OpDef){.name=s("$"),    .arity=1, .bytes={aDollar, 0, 0, 0 }, .overloadable=true};
-    p[ 4] = (OpDef){.name=s("%"),    .arity=2, .bytes={aPercent, 0, 0, 0 } };
-    p[ 5] = (OpDef){.name=s("&&"),   .arity=2, .bytes={aAmp, aAmp, 0, 0 }, .assignable=true};
-    p[ 6] = (OpDef){.name=s("&"),    .arity=1, .bytes={aAmp, 0, 0, 0 } };
-    p[ 7] = (OpDef){.name=s("'"),    .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
-    p[ 8] = (OpDef){.name=s("*."),   .arity=2, .bytes={aTimes, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[ 9] = (OpDef){.name=s("*"),    .arity=2, .bytes={aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[10] = (OpDef){.name=s("+."),   .arity=2, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[11] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[12] = (OpDef){.name=s(",,"),   .arity=1, .bytes={aComma, aComma, 0, 0}};    
-    p[13] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0}};
-    p[14] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
-    p[15] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
-    p[16] = (OpDef){.name=s("/."),   .arity=2, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[17] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[ 3] = (OpDef){.name=s("%"),    .arity=2, .bytes={aPercent, 0, 0, 0 } };
+    p[ 4] = (OpDef){.name=s("&&"),   .arity=2, .bytes={aAmp, aAmp, 0, 0 }, .assignable=true};
+    p[ 5] = (OpDef){.name=s("&"),    .arity=1, .bytes={aAmp, 0, 0, 0 } };
+    p[ 6] = (OpDef){.name=s("'"),    .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
+    p[ 7] = (OpDef){.name=s("*."),   .arity=2, .bytes={aTimes, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[ 8] = (OpDef){.name=s("*"),    .arity=2, .bytes={aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true};
+    p[ 9] = (OpDef){.name=s("+."),   .arity=2, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[10] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
+    p[11] = (OpDef){.name=s(",,"),   .arity=1, .bytes={aComma, aComma, 0, 0}};    
+    p[12] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0}};
+    p[13] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};    
+    p[14] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
+    p[15] = (OpDef){.name=s("/."),   .arity=2, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
+    p[16] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
+    p[17] = (OpDef){.name=s(";"),    .arity=1, .bytes={aSemicolon, 0, 0, 0 }, .overloadable=true};
     p[18] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0}, .assignable = true, .overloadable = true};
     p[19] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0}, .assignable = true, .overloadable = true };    
     p[20] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0}};    
@@ -3818,45 +3806,6 @@ const char* nodeNames[] = {
     "ifClause", "while", "whileCond", "if", "impl", "match"
 };
 
-
-#define nodId           7    // pl1 = index of entity, pl2 = index of name
-#define nodCall         8    // pl1 = index of entity, pl2 = arity
-#define nodBinding      9    // pl1 = index of entity
-
-// Punctuation (inner node)
-#define nodScope       10    // (* This is resumable but trivially so, that's why it's not grouped with the others
-#define nodExpr        11
-#define nodAssignment  12
-#define nodReassign    13    // :=
-
-// Single-shot core syntax forms
-#define nodAlias       14
-#define nodAssert      15
-#define nodAssertDbg   16
-#define nodAwait       17
-#define nodBreak       18     // pl1 = number of label to break to, or -1 if none needed
-#define nodCatch       19     // "(catch e => print e)"
-#define nodContinue    20     // pl1 = number of label to continue to, or -1 if none needed
-#define nodDefer       21
-#define nodEmbed       22     // noParen. Embed a text file as a string literal, or a binary resource file
-#define nodExport      23       
-#define nodExposePriv  24     // TODO replace with "import". This is for test files only
-#define nodFnDef       25     // pl1 = entityId
-#define nodIface       26
-#define nodLambda      27
-#define nodMeta        28       
-#define nodPackage     29     // for single-file packages
-#define nodReturn      30
-#define nodTry         31
-#define nodYield       32
-#define nodIfClause    33       
-#define nodWhile       34     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
-#define nodWhileCond   35
-
-// Resumable core forms
-#define nodIf          36
-#define nodImpl        37
-#define nodMatch       38     // pattern matching on sum type tag
 
 private void printType(Int typeInd, Compiler* cm) {
     if (typeInd < 5) {
