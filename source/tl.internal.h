@@ -149,50 +149,52 @@ typedef struct {
 #define tokWord         7    // pl2 = index in the string table
 #define tokTypeName     8    // pl2 = same as tokWord
 #define tokKwArg        9    // pl2 = same as tokWord, the ":argName"
-#define tokStructField 10    // pl2 = same as tokWord, the ":argName"
+#define tokStructField 10    // pl2 = same as tokWord, the ".structField"
 #define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    12     // pl1 = see "tkAcc" consts
+#define tokAccessor    12    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
+#define tokArrow       13    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
 
 // Single-line Token types
-#define tokStmt        13    // firstSpanTokenType 
-#define tokParens      13
-#define tokCall        14    // pl1 = 1 if it's a type call
-#define tokAssignment  15
-#define tokReassign    16    // :=
-#define tokMutation    17    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
-#define tokData        18    // data initializer, like (1 2 3)
-#define tokAlias       19
-#define tokAssert      20
-#define tokAssertDbg   21
-#define tokAwait       22
-#define tokBreak       23
-#define tokContinue    24
-#define tokDefer       25
-#define tokEmbed       26    // Embed a text file as a string literal, or a binary resource file // 200
-#define tokIface       27
-#define tokImport      28
-#define tokReturn      29
-#define tokTry         30    // early exit
-#define tokYield       31
-#define tokColon       32    // not a real span, but placed here so the parser can dispatch on it
-#define tokElse        33    // not a real span, but placed here so the parser can dispatch on it
+#define tokStmt        14    // firstSpanTokenType 
+#define tokParens      15
+#define tokCall        16    // pl1 = 1 if it's a type call
+#define tokTypeCall    17    // pl1 = 1 if it's a type call
+#define tokOperCall    18    // pl1 = 1 if it's a type call
+#define tokAssignment  19
+#define tokReassign    20    // :=
+#define tokMutation    21    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
+#define tokAlias       22
+#define tokAssert      23
+#define tokAssertDbg   24
+#define tokAwait       25
+#define tokBreak       26
+#define tokContinue    27
+#define tokDefer       28
+#define tokEmbed       29    // Embed a text file as a string literal, or a binary resource file // 200
+#define tokIface       30
+#define tokImport      31
+#define tokReturn      32
+#define tokTry         33    // early exit
+#define tokYield       34
+#define tokColon       35    // not a real span, but placed here so the parser can dispatch on it
+#define tokElse        36    // not a real span, but placed here so the parser can dispatch on it
 
 // Parenthesized (multi-line) Token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       34    // denoted by do(). firstParenSpanTokenType 
-#define tokCatch       35    // paren "catch(e => print(e))"
-#define tokDef         36
-#define tokPublicDef   37
-#define tokFor         38
-#define tokLambda      39
-#define tokMeta        40
-#define tokPackage     41    // for single-file packages
+#define tokScope       37    // denoted by do(). firstParenSpanTokenType 
+#define tokCatch       38    // paren "catch(e => print(e))"
+#define tokDef         39
+#define tokPublicDef   40
+#define tokFor         41
+#define tokLambda      42
+#define tokMeta        43
+#define tokPackage     44    // for single-file packages
 
 // Resumable core forms
-#define tokIf          42    // "if( " 
-#define tokIfPr        43    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       44    // "(*m " or "(match " pattern matching on sum type tag 
-#define tokImpl        45  
-#define tokWhile       46   
+#define tokIf          45    // "if( " 
+#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       47    // "(*m " or "(match " pattern matching on sum type tag 
+#define tokImpl        48  
+#define tokWhile       49   
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString

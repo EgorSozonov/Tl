@@ -698,7 +698,7 @@ const char errPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errPunctuationExtraClosing[]    = "Extra closing punctuation";
 const char errPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like (: )";
 const char errPunctuationUnmatched[]       = "Unmatched closing punctuation";
-const char errPunctuationWrongOpen[]       = "Wrong opening punctuation";
+const char errPunctuationWrongCall[]       = "Wrong call syntax: this opening paren doesn't belong here";
 const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errOperatorUnknown[]            = "Unknown operator";
 const char errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name!";
@@ -706,7 +706,7 @@ const char errOperatorTypeDeclPunct[]      = "Incorrect type declaration operato
 const char errOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
 const char errOperatorMutableDef[]         = "Definition of a mutable var should look like this: `mut x = 10`";
 const char errCoreNotInsideStmt[]          = "Core form must be directly inside statement";
-const char errCoreMisplacedArrow[]         = "The arrow separator (=>) must be inside an if, ifEq, ifPr or match form";
+const char errCoreMisplacedColon[]         = "The colon separator (:) must be inside an if, ifEq, ifPr or match form";
 const char errCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
 const char errCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace immediately after keyword!"; 
 const char errDocComment[]                 = "Doc comments must have the syntax: (*comment)";
@@ -937,20 +937,20 @@ private Int determineReservedA(Int startBt, Int lenBts, Compiler* lx) {
     PROBERESERVED(reservedBytesAwait, tokAwait)
     PROBERESERVED(reservedBytesAssert, tokAssert)
     PROBERESERVED(reservedBytesAssertDbg, tokAssertDbg)
-    return 0;
+    return -1;
 }
 
 private Int determineReservedB(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesBreak, tokBreak)
-    return 0;
+    return -1;
 }
 
 private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesCatch, tokCatch)
     PROBERESERVED(reservedBytesContinue, tokContinue)
-    return 0;
+    return -1;
 }
 
 private Int determineReservedD(Int startBt, Int lenBts, Compiler* lx) {
@@ -959,7 +959,7 @@ private Int determineReservedD(Int startBt, Int lenBts, Compiler* lx) {
     PROBERESERVED(reservedBytesDef, tokDef)
     PROBERESERVED(reservedBytesPublicDef, tokPublicDef)
     PROBERESERVED(reservedBytesDo, tokScope)
-    return 0;
+    return -1;
 }
 
 
@@ -967,7 +967,7 @@ private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesElse, tokElse)
     PROBERESERVED(reservedBytesEmbed, tokEmbed)
-    return 0;
+    return -1;
 }
 
 
@@ -975,7 +975,7 @@ private Int determineReservedF(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesFalse, reservedFalse)
     PROBERESERVED(reservedBytesFor, tokFor)
-    return 0;
+    return -1;
 }
 
 
@@ -986,7 +986,7 @@ private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
     PROBERESERVED(reservedBytesImpl, tokImpl)
     PROBERESERVED(reservedBytesImport, tokImport)
     PROBERESERVED(reservedBytesInterface, tokIface)
-    return 0;
+    return -1;
 }
 
 
@@ -994,33 +994,28 @@ private Int determineReservedL(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
     PROBERESERVED(reservedBytesWhile, tokWhile)
-    return 0;
+    return -1;
 }
 
 
 private Int determineReservedM(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesMatch, tokMatch)
-    return 0;
+    return -1;
 }
 
 
 private Int determineReservedO(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesOr, reservedOr)
-    return 0;
+    return -1;
 }
 
 
 private Int determineReservedR(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesReturn, tokReturn)
-    return 0;
-}
-
-
-private Int determineReservedS(Int startBt, Int lenBts, Compiler* lx) {
-    return 0;
+    return -1;
 }
 
 
@@ -1028,14 +1023,14 @@ private Int determineReservedT(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesTrue, reservedTrue)
     PROBERESERVED(reservedBytesTry, tokTry)
-    return 0;
+    return -1;
 }
 
 
 private Int determineReservedY(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesYield, tokYield)
-    return 0;
+    return -1;
 }
 
 private Int determineUnreserved(Int startBt, Int lenBts, Compiler* lx) {
@@ -1054,7 +1049,8 @@ private void addNewLine(Int j, Compiler* lx) {
     }
 }
 
-private void addStatement(untt stmtType, Int startBt, Compiler* lx) {
+
+private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
     Int lenBts = 0;
     // Some types of statements may legitimately consist of 0 tokens; for them, we need to write their lenBts in the init token
     if (stmtType == tokBreak) {
@@ -1074,7 +1070,7 @@ private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) sourc
             add((Token){ .tp = tokStmt, .startBt = startBt},  lx);
         }
     } else {
-        addStatement(tokStmt, startBt, lx);
+        addStatementSpan(tokStmt, startBt, lx);
     }
 }
 
@@ -1086,11 +1082,11 @@ private void wrapInAStatement(Compiler* lx, Arr(byte) source) {
             add((Token){ .tp = tokStmt, .startBt = lx->i},  lx);
         }
     } else {
-        addStatement(tokStmt, lx->i, lx);
+        addStatementSpan(tokStmt, lx->i, lx);
     }
 }
 
-
+/** If the lexer is in a statement, we need to close it */
 private void maybeBreakStatement(Compiler* lx) {
     if (hasValues(lx->lexBtrack)) {
         BtToken top = peek(lx->lexBtrack);
@@ -1111,7 +1107,8 @@ private void closeRegularPunctuation(Int closingType, Compiler* lx) {
     closeColons(lx);
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
-    // since a closing bracket might be closing something with statements inside it, like a lex scope
+
+    // since a closing paren might be closing something with statements inside it, like a lex scope
     // or a core syntax form, we need to close the last statement before closing its parent
     if (bt->length > 0 && top.spanLevel != slScope 
           && (bt->content[bt->length - 1].spanLevel <= slParenMulti)) {
@@ -1378,24 +1375,23 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 }
 
 /**
- * Lexer action for a paren-type reserved word. It turns parentheses into an slParenMulti core form.
- * If necessary (parens inside statement) it also deletes last token and removes the top frame
+ * Lexer action for a paren-type or statement-type reserved word. It turns parentheses into an slParenMulti 
+ * core form.
  * Precondition: we are looking at the character immediately after the keyword
  */
-private void lexReservedWord(untt reservedWordType, Int startBt, Compiler* lx, Arr(byte) source) {    
+private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts, Compiler* lx, Arr(byte) source) {    
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= firstParenSpanTokenType) { // the "core(" case
         VALIDATEL(lx->i < lx->inpLength && CURR_BT == aParenLeft, errCoreMissingParen)
-        
-        BtToken top = peek(bt);
-        // update the token type and the corresponding frame type
-        lx->tokens[top.tokenInd].tp = reservedWordType;
-        lx->tokens[top.tokenInd].pl1 = slParenMulti;
-        bt->content[bt->length - 1].tp = reservedWordType;
-        bt->content[bt->length - 1].spanLevel = top.tp == tokScope ? slScope : slParenMulti;
+        VALIDATEL(!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope, errPunctuationScope)
+        print("spanlevel %d tp %d" peek(lx->lexBtrack).spanLevel, peek(lx->lexBtrack).spanLevel)
+        Int scopeLevel = reservedWordType == tokScope ? slScope : slParenMulti;
+        push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->nextInd, .spanLevel = scopeLevel }), lx->lexBtrack);
+        add((Token){ .tp = reservedWordType, .pl1 = scopeLevel, .startBt = startBt, .lenBts = lenBts}, lx);
+        ++lx->i; // CONSUME the opening "(" of the core form
     } else if (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
-        addStatement(reservedWordType, startBt, lx);
+        addStatementSpan(reservedWordType, startBt, lx);
     }
 }
 
@@ -1472,21 +1468,36 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     if (firstByte >= aALower && firstByte <= aYLower) {
         mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
     }
-    if (mbReservedWord <= 0) { // a normal, unreserved word
+    if (mbReservedWord == -1) { // a normal, unreserved word
         Int uniqueStringInd = addStringStore(source, startBt, lenString, lx->stringTable, lx->stringStore);
-        if (wordType == tokAccessor) {
-            add((Token){ .tp=tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd, 
-                         .startBt = realStartByte, .lenBts = lenBts }, lx);
-        } else {
+        if (lx->i < lx->inpLength && CURR_BT == aParenLeft) {
+            VALIDATEL(wordType == tokWord, errPunctuationWrongCall)
             wrapInAStatementStarting(startBt, lx, source);
-            untt finalTokType = wasCapitalized ? tokTypeName : wordType;
-            if (finalTokType == tokWord && lx->i < lx->inpLength && CURR_BT == aParenLeft) {
-                add((Token){ .tp=tokCall, .pl1 = (wasCapitalized ? 1 : 0), .pl2 = uniqueStringInd, 
-                             .startBt = realStartByte, .lenBts = lenBts }, lx);
-            } else { 
-                add((Token){ .tp=finalTokType, .pl2 = uniqueStringInd, 
-                             .startBt = realStartByte, .lenBts = lenBts }, lx);
+            untt finalTokType = wasCapitalized ? tokTypeCall : tokCall;
+            push(((BtToken){ .tp = finalTokType, .tokenInd = lx->nextInd, .spanLevel = slSubexpr }),
+                 lx->lexBtrack);
+            add((Token){ .tp = finalTokType, .pl1 = uniqueStringInd, 
+                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+            ++lx->i; // CONSUME the opening "(" of the call
+        } else if (wordType == tokWord) {
+            wrapInAStatementStarting(startBt, lx, source);
+            add((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd, 
+                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+        } else if (wordType == tokAccessor) {
+            // What looks like an accessor ("a.x") may actually be a struct field ("(.id 5 .name `foo`")
+            if (lx->nextInd > 0) {
+                Token prevToken = lx->tokens[lx->nextInd - 1];
+                if (prevToken.startBt + prevToken.lenBts < realStartByte) {
+                    add((Token){ .tp = tokStructField, .pl2 = uniqueStringInd, 
+                                 .startBt = realStartByte, .lenBts = lenBts }, lx);
+                    return;
+                }
             }
+            add((Token){ .tp = tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd, 
+                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+        } else if (wordType == tokKwArg) {
+            add((Token){ .tp = tokKwArg, .pl2 = uniqueStringInd, 
+                         .startBt = realStartByte, .lenBts = lenBts }, lx);
         }
         return;
     }
@@ -1511,7 +1522,8 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
             add((Token){.tp=tokBool, .pl2=0, .startBt=realStartByte, .lenBts=5}, lx);
         }
     } else {
-        lexReservedWord(mbReservedWord, realStartByte, lx, source);
+        maybeBreakStatement(lx);
+        lexReservedWord(mbReservedWord, realStartByte, lenBts, lx, source);
     }
 }
 
@@ -1583,7 +1595,9 @@ private void lexColon(Compiler* lx, Arr(byte) source) {
             return;
         }
     }
-    add((Token) {.tp = tokColon, .startBt = lx->i, .lenBts = 1 }, lx);
+    VALIDATEL(lx->lexBtrack->length >= 2, errCoreMisplacedColon)
+    maybeBreakStatement(lx);
+    add((Token){.tp = tokColon, .startBt = lx->i, .lenBts = 1 }, lx);
     ++lx->i; // CONSUME the ":"
 }
 
@@ -1635,7 +1649,14 @@ private void lexOperator(Compiler* lx, Arr(byte) source) {
     if (isAssignment) { // mutation operators like "*=" or "*.="
         processAssignment(2, opType, lx);
     } else {
-        add((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i, .lenBts = j - lx->i}, lx);
+        if (j < lx->inpLength && source[j] == aParenLeft) {
+            push(((BtToken){ .tp = tokOperCall, .tokenInd = lx->nextInd, .spanLevel = slSubexpr }),
+                 lx->lexBtrack);
+            add((Token){ .tp = tokOperCall, .pl1 = opType, .startBt = lx->i }, lx);
+            ++j; // CONSUME the opening "(" of the operator call
+        } else {
+            add((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i, .lenBts = j - lx->i}, lx);
+        }
     }
     lx->i = j; // CONSUME the operator
 }
@@ -1646,14 +1667,8 @@ private void lexEqual(Compiler* lx, Arr(byte) source) {
     byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
         lexOperator(lx, source); // ==        
-    } else if (nextBt == aGT) { // => is a statement terminator inside if-like scopes        
-        // arrows are only allowed inside "if"s and the like
-        VALIDATEL(lx->lexBtrack->length >= 2, errCoreMisplacedArrow)
-        
-        BtToken grandparent = lx->lexBtrack->content[lx->lexBtrack->length - 2];
-        VALIDATEL(grandparent.tp == tokIf, errCoreMisplacedArrow)
-        closeStatement(lx);
-        add((Token){ .tp = tokColon, .startBt = lx->i, .lenBts = 2 }, lx);
+    } else if (nextBt == aGT) {
+        add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
         processAssignment(0, 0, lx);
@@ -1776,18 +1791,13 @@ private void openScope(Compiler* lx, Arr(byte) source) {
 private void lexParenLeft(Compiler* lx, Arr(byte) source) {
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
-    if (source[j] == aColon) {
-        openScope(lx, source);
-    } else {
-        wrapInAStatement(lx, source);
-        openPunctuation(tokParens, slSubexpr, lx->i, lx);
-        lx->i++; // CONSUME the left parenthesis
-    }
+    wrapInAStatement(lx, source);
+    openPunctuation(tokParens, slSubexpr, lx->i, lx);
+    lx->i++; // CONSUME the left parenthesis
 }
 
 
 private void lexParenRight(Compiler* lx, Arr(byte) source) {
-    // TODO handle syntax like "(foo 5).field" and "(: id 5 name "asdf").id"
     Int startInd = lx->i;
     closeRegularPunctuation(tokParens, lx);
     
@@ -1832,12 +1842,12 @@ private void lexNonAsciiError(Compiler* lx, Arr(byte) source) {
 /** Must agree in order with token types in tl.internal.h */
 const char* tokNames[] = {
     "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
-    "word", "Type", ":kwarg", ".strFlkd", "operator", "@cc", 
-    "stmt", "(", "call(", "=", ":=", "*=", "data", "alias", "assert", "assertDbg",
-    "await", "break", "continue", "defer", "embed", "iface", "import", "return", 
-    "try", "yield", "colon", "else", "do(", "catch(", "def(", "Def(",
-    "for(", "lambda(", "meta(", "package(", "if(", "ifPr(", "match(",
-    "impl(", "while("
+    "word", "Type", ":kwarg", ".strFld", "operator", "@cc", "=>",
+    "stmt", "(", "call(", "Type(", "oper(", "=", ":=", "*=", "alias",
+    "assert", "assertDbg", "await", "break", "continue", "defer", 
+    "embed", "iface", "import", "return", "try", "yield", "colon", 
+    "else", "do(", "catch(", "def(", "deF(", "for(", "lambda(", 
+    "meta(", "package(", "if(", "ifPr(", "match(", "impl(", "while("
 };
 
 
@@ -2439,7 +2449,7 @@ private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 /**
  * When we are at the end of a function parsing a parse frame, we might be at the end of said frame
- * (if we are not => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
+ * (otherwise => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
  * in which case this function handles all the corresponding stack poppin'.
  * It also always handles updating all inner frames with consumed tokens.
  */
