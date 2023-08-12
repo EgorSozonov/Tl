@@ -708,8 +708,7 @@ const char errOperatorMutableDef[]         = "Definition of a mutable var should
 const char errCoreNotInsideStmt[]          = "Core form must be directly inside statement";
 const char errCoreMisplacedArrow[]         = "The arrow separator (=>) must be inside an if, ifEq, ifPr or match form";
 const char errCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
-const char errCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace before keyword!"; 
-const char errCoreNotAtSpanStart[]         = "Reserved word must be at the start of a parenthesized span";
+const char errCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace immediately after keyword!"; 
 const char errDocComment[]                 = "Doc comments must have the syntax: (*comment)";
 const char errBareAtom[]                   = "Malformed token stream (atoms and parentheses must not be bare)";
 const char errImportsNonUnique[]           = "Import names must be unique!";
@@ -798,29 +797,31 @@ const byte maximumPreciselyRepresentedFloatingInt[16] = (byte []){ 9, 0, 0, 7, 1
 
 #define countReservedWords           30 // count of different reserved words below
 
-static const byte reservedBytesAlias[]       = { 97, 108, 105, 97, 115 };
-static const byte reservedBytesAnd[]         = { 97, 110, 100 };
-static const byte reservedBytesAssert[]      = { 97, 115, 115, 101, 114, 116 };
-static const byte reservedBytesAssertDbg[]   = { 97, 115, 115, 101, 114, 116, 68, 98, 103 };
-static const byte reservedBytesAwait[]       = { 97, 119, 97, 105, 116 };
-static const byte reservedBytesBreak[]       = { 98, 114, 101, 97, 107 };
-static const byte reservedBytesCatch[]       = { 99, 97, 116, 99, 104 };
-static const byte reservedBytesContinue[]    = { 99, 111, 110, 116, 105, 110, 117, 101 };
+static const byte reservedBytesAlias[]       = {  97, 108, 105, 97, 115 };
+static const byte reservedBytesAnd[]         = {  97, 110, 100 };
+static const byte reservedBytesAssert[]      = {  97, 115, 115, 101, 114, 116 };
+static const byte reservedBytesAssertDbg[]   = {  97, 115, 115, 101, 114, 116, 68, 98, 103 };
+static const byte reservedBytesAwait[]       = {  97, 119,  97, 105, 116 };
+static const byte reservedBytesBreak[]       = {  98, 114, 101,  97, 107 };
+static const byte reservedBytesCatch[]       = {  99,  97, 116,  99, 104 };
+static const byte reservedBytesContinue[]    = {  99, 111, 110, 116, 105, 110, 117, 101 };
 static const byte reservedBytesDefer[]       = { 100, 101, 102, 101, 114 };
+static const byte reservedBytesDef[]         = { 100, 101, 102, };
+static const byte reservedBytesPublicDef[]   = { 100, 101,  70, };
+static const byte reservedBytesDo[]          = { 100, 111 };
 static const byte reservedBytesElse[]        = { 101, 108, 115, 101 };
-static const byte reservedBytesEmbed[]       = { 101, 109, 98, 101, 100 };
-static const byte reservedBytesFalse[]       = { 102, 97, 108, 115, 101 };
-static const byte reservedBytesFn[]          = { 102, 110 };  // maybe also "Fn" for function types
+static const byte reservedBytesEmbed[]       = { 101, 109,  98, 101, 100 };
+static const byte reservedBytesFalse[]       = { 102,  97, 108, 115, 101 };
+static const byte reservedBytesFor[]         = { 102, 111, 114 };
 static const byte reservedBytesIf[]          = { 105, 102 };
-static const byte reservedBytesIfPr[]        = { 105, 102, 80, 114 };
+static const byte reservedBytesIfPr[]        = { 105, 102,  80, 114 };
 static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
 static const byte reservedBytesImport[]      = { 105, 109, 112, 111, 114, 116 };
 static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
-static const byte reservedBytesLambda[]      = { 108, 97, 109 };
-static const byte reservedBytesMatch[]       = { 109, 97, 116, 99, 104 };
+static const byte reservedBytesLambda[]      = { 108,  97, 109 };
+static const byte reservedBytesMatch[]       = { 109,  97, 116,  99, 104 };
 static const byte reservedBytesOr[]          = { 111, 114 };
 static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
-static const byte reservedBytesStruct[]      = { 115, 116, 114, 117, 99, 116 };
 static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
 static const byte reservedBytesTry[]         = { 116, 114, 121 };
 static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
@@ -955,6 +956,9 @@ private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
 private Int determineReservedD(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesDefer, tokDefer)
+    PROBERESERVED(reservedBytesDef, tokDef)
+    PROBERESERVED(reservedBytesPublicDef, tokPublicDef)
+    PROBERESERVED(reservedBytesDo, tokScope)
     return 0;
 }
 
@@ -970,7 +974,7 @@ private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
 private Int determineReservedF(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesFalse, reservedFalse)
-    PROBERESERVED(reservedBytesFn, tokFnDef)
+    PROBERESERVED(reservedBytesFor, tokFor)
     return 0;
 }
 
@@ -980,6 +984,8 @@ private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
     PROBERESERVED(reservedBytesIf, tokIf)
     PROBERESERVED(reservedBytesIfPr, tokIfPr)
     PROBERESERVED(reservedBytesImpl, tokImpl)
+    PROBERESERVED(reservedBytesImport, tokImport)
+    PROBERESERVED(reservedBytesInterface, tokIface)
     return 0;
 }
 
@@ -1374,32 +1380,22 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 /**
  * Lexer action for a paren-type reserved word. It turns parentheses into an slParenMulti core form.
  * If necessary (parens inside statement) it also deletes last token and removes the top frame
+ * Precondition: we are looking at the character immediately after the keyword
  */
 private void lexReservedWord(untt reservedWordType, Int startBt, Compiler* lx, Arr(byte) source) {    
     StackBtToken* bt = lx->lexBtrack;
-    if (expectations == 0 || expectations == 2) { // the reserved words that live at the start of a statement
-        VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
-        addStatement(reservedWordType, startBt, lx);
-    } else if (expectations == 1) { // the "core(" case
-        VALIDATEL(hasValues(bt), errCoreMissingParen)
+    if (reservedWordType >= firstParenSpanTokenType) { // the "core(" case
+        VALIDATEL(lx->i < lx->inpLength && CURR_BT == aParenLeft, errCoreMissingParen)
         
         BtToken top = peek(bt);
-        VALIDATEL(top.tokenInd == lx->nextInd - 1, errCoreNotAtSpanStart) // if this isn't the first token inside the parens
-        
-        if (bt->length > 1 && bt->content[bt->length - 2].tp == tokStmt) {
-            // Parens are wrapped in statements because we didn't know that the following token is a reserved word.
-            // So when meeting a reserved word at start of parens, we need to delete the paren token & lex frame.
-            // The new reserved token type will be written over the tokStmt that precedes the tokParen.
-            pop(bt);
-            lx->nextInd--;
-            top = peek(bt);
-        }
-        
         // update the token type and the corresponding frame type
         lx->tokens[top.tokenInd].tp = reservedWordType;
         lx->tokens[top.tokenInd].pl1 = slParenMulti;
         bt->content[bt->length - 1].tp = reservedWordType;
         bt->content[bt->length - 1].spanLevel = top.tp == tokScope ? slScope : slParenMulti;
+    } else if (reservedWordType >= firstSpanTokenType) {
+        VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
+        addStatement(reservedWordType, startBt, lx);
     }
 }
 
@@ -1476,22 +1472,23 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     if (firstByte >= aALower && firstByte <= aYLower) {
         mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
     }
-    if (mbReservedWord <= 0) {
+    if (mbReservedWord <= 0) { // a normal, unreserved word
         Int uniqueStringInd = addStringStore(source, startBt, lenString, lx->stringTable, lx->stringStore);
         if (wordType == tokAccessor) {
             add((Token){ .tp=tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
-            return;
         } else {
             wrapInAStatementStarting(startBt, lx, source);
             untt finalTokType = wasCapitalized ? tokTypeName : wordType;
             if (finalTokType == tokWord && lx->i < lx->inpLength && CURR_BT == aParenLeft) {
-               finalTokType = tokCall; 
+                add((Token){ .tp=tokCall, .pl1 = (wasCapitalized ? 1 : 0), .pl2 = uniqueStringInd, 
+                             .startBt = realStartByte, .lenBts = lenBts }, lx);
+            } else { 
+                add((Token){ .tp=finalTokType, .pl2 = uniqueStringInd, 
+                             .startBt = realStartByte, .lenBts = lenBts }, lx);
             }
-
-            add((Token){ .tp=finalTokType, .pl2 = uniqueStringInd, .startBt = realStartByte, .lenBts = lenBts }, lx);
-            return;
         }
+        return;
     }
 
     VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
@@ -1499,7 +1496,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     if (mbReservedWord == tokElse){
         closeStatement(lx);
         add((Token){.tp = tokElse, .startBt = realStartByte, .lenBts = 4}, lx);
-    } else if (mbReservedWord < firstCoreFormTokenType) {
+    } else if (mbReservedWord < firstSpanTokenType) {
         if (mbReservedWord == reservedAnd) {
             wrapInAStatementStarting(startBt, lx, source);
             add((Token){.tp=tokOperator, .pl1 = opTAnd, .startBt=realStartByte, .lenBts=3}, lx);
@@ -1574,13 +1571,20 @@ private void lexDollar(Compiler* lx, Arr(byte) source) {
 
 
 private void lexColon(Compiler* lx, Arr(byte) source) {
-    if (lx->i < lx->inpLength - 1 && NEXT_BT == aEqual) {
-        processAssignment(1, 0, lx);
-        lx->i += 2; // CONSUME the ":="  
-    } else {
-        add((Token) {.tp = tokArrow, .startBt = lx->i, .lenBts = 1 }, lx);
-        ++lx->i; // CONSUME the ":"
+    if (lx->i < lx->inpLength - 1) {
+        byte nextBt = NEXT_BT;
+        if (nextBt == aEqual) {
+            processAssignment(1, 0, lx);
+            lx->i += 2; // CONSUME the ":="  
+            return;
+        } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
+            ++lx->i; // CONSUME the ":"
+            wordInternal(tokKwArg, lx, source);
+            return;
+        }
     }
+    add((Token) {.tp = tokColon, .startBt = lx->i, .lenBts = 1 }, lx);
+    ++lx->i; // CONSUME the ":"
 }
 
 
@@ -1649,7 +1653,7 @@ private void lexEqual(Compiler* lx, Arr(byte) source) {
         BtToken grandparent = lx->lexBtrack->content[lx->lexBtrack->length - 2];
         VALIDATEL(grandparent.tp == tokIf, errCoreMisplacedArrow)
         closeStatement(lx);
-        add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
+        add((Token){ .tp = tokColon, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
         processAssignment(0, 0, lx);
@@ -1741,17 +1745,6 @@ private void lexMinus(Compiler* lx, Arr(byte) source) {
     }
 }
 
-/** If we're inside a compound (=2) core form, we need to check if its clause count is saturated */ 
-private void mbCloseCompoundCoreForm(Compiler* lx) {
-    BtToken top = peek(lx->lexBtrack);
-    if (top.tp >= firstCoreFormTokenType && (*lx->langDef->reservedParensOrNot)[top.tp - firstCoreFormTokenType] == 2) {
-        if (top.countClauses == 2) {
-            setSpanLengthLexer(top.tokenInd, lx);
-            pop(lx->lexBtrack);
-        }
-    }
-}
-
 /** An opener for a scope or a scopeful core form. Precondition: we are past the "(:" token.
  * Consumes zero or 1 byte
  */
@@ -1767,7 +1760,7 @@ private void openScope(Compiler* lx, Arr(byte) source) {
         return; 
     } else if (lx->i < lx->inpLength - 2 && isSpace(source[lx->i + 1])) {        
         if (currBt == aFLower) {
-            openPunctuation(tokFnDef, slScope, startBt, lx);
+            openPunctuation(tokDef, slScope, startBt, lx);
             lx->i += 2; // CONSUME the "f "
             return;
         } else if (currBt == aILower) {
@@ -1799,7 +1792,6 @@ private void lexParenRight(Compiler* lx, Arr(byte) source) {
     closeRegularPunctuation(tokParens, lx);
     
     if (!hasValues(lx->lexBtrack)) return;    
-    mbCloseCompoundCoreForm(lx);
     
     lx->lastClosingPunctInd = startInd;    
 }
@@ -1837,16 +1829,17 @@ private void lexNonAsciiError(Compiler* lx, Arr(byte) source) {
     throwExcLexer(errNonAscii, lx);
 }
 
-/** Must agree in order with token types in LexerConstants.h */
+/** Must agree in order with token types in tl.internal.h */
 const char* tokNames[] = {
     "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
-    "word", "Type", "operator", "equals sign", 
-    "do(", "stmt", "(", "call(", "data", "=", ":=", "mutation", "acc", "=>", "else",
-    "alias", "assert", "assertDbg", "await", "break", "catch", "continue", 
-    "defer", "each", "embed", "export", "exposePriv", "fn", "interface", 
-    "lambda", "meta", "package", "return", "struct", "try", "typeDef", "yield",
-    "if", "ifPr", "match", "impl", "while"
+    "word", "Type", ":kwarg", ".strFlkd", "operator", "@cc", 
+    "stmt", "(", "call(", "=", ":=", "*=", "data", "alias", "assert", "assertDbg",
+    "await", "break", "continue", "defer", "embed", "iface", "import", "return", 
+    "try", "yield", "colon", "else", "do(", "catch(", "def(", "Def(",
+    "for(", "lambda(", "meta(", "package(", "if(", "ifPr(", "match(",
+    "impl(", "while("
 };
+
 
 testable void printLexer(Compiler* a) {
     if (a->wasError) {
@@ -1964,20 +1957,6 @@ private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
     return result;
 }
 
-/**
- * Table for properties of core syntax forms, organized by reserved word.
- * It's indexed on the diff between token id and firstCoreFormTokenType.
- * It contains 1 for all parenthesized core forms and 2 for more complex
- * forms like "fn"
- */
-private Int (*tabulateReserved(Arena* a))[countCoreForms] {
-    Int (*result)[countCoreForms] = allocateOnArena(countCoreForms*sizeof(int), a);
-    int* p = *result;        
-    p[tokIf - firstCoreFormTokenType] = 1;
-    p[tokFnDef - firstCoreFormTokenType] = 1;
-    return result;
-}
-
 /** The set of base operators in the language */
 private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     OpDef (*result)[countOperators] = allocateOnArena(countOperators*sizeof(OpDef), a);
@@ -2081,7 +2060,7 @@ private Int createEntity(Int nameId, Compiler* cm) {
 
 /** Calculates the sentinel token for a token at a specific index */
 private Int calcSentinel(Token tok, Int tokInd) {
-    return (tok.tp >= firstPunctuationTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
+    return (tok.tp >= firstSpanTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
 
 testable void pushLexScope(ScopeStack* scopeStack);
@@ -2122,7 +2101,7 @@ private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
-    VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
+    VALIDATEP(tokens[leftSentinel].tp == tokColon, errIfMalformed)
     Int typeLeft = exprAfterHead(tok, tokens, cm);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
@@ -2140,7 +2119,7 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 /** Returns to parsing within an if (either the beginning of a clause or an "else" block) */
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    if (tok->tp == tokArrow || tok->tp == tokElse) {
+    if (tok->tp == tokColon || tok->tp == tokElse) {
         ++cm->i; // CONSUME the "=>" or "else"
         *tok = tokens[cm->i];
         Int sentinel = calcSentinel(*tok, cm->i);
@@ -2300,8 +2279,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
     } else if (tk.tp <= topVerbatimType) {
         pushInnodes((Node){.tp = tk.tp, .pl1 = tk.pl1, .pl2 = tk.pl2, .startBt = tk.startBt, .lenBts = tk.lenBts }, cm);
         typeId = tk.tp;
-    } else VALIDATEP(tk.tp < firstCoreFormTokenType, errCoreFormInappropriate)
-    else {
+    } else {
         throwExcParser(errUnexpectedToken, cm);
     }
     return typeId;
@@ -2311,12 +2289,11 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
  *  Precondition: 
  */
 private void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
-    Int j = cm->i;
-    Token firstTok = tokens[j];
-    j = calcSentinel(firstTok, j);
+    Token firstTok = tokens[cm->i];
+    Int j = calcSentinel(firstTok, cm->i);
     while (j < sentinelToken) {
         Token tok = tokens[j];
-        j += (tok.tp < firstPunctuationTokenType) ? 1 : (tok.pl2 + 1);
+        j += (tok.tp < firstSpanTokenType) ? 1 : (tok.pl2 + 1);
         if (tok.tp != tokOperator || (*cm->langDef->operators)[tok.pl1].arity > 1) {            
             (*arity)++;
         }
@@ -2396,7 +2373,7 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
         if (tokType == tokParens) {
             cm->i++; // CONSUME the parens token
             exprSubexpr(cm->i + cTk.pl2, &arity, tokens, cm);
-        } else VALIDATEP(tokType < firstPunctuationTokenType, errExpressionCannotContain)
+        } else VALIDATEP(tokType < firstSpanTokenType, errExpressionCannotContain)
         else if (tokType <= topVerbatimTokenVariant) {
             pushInnodes((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2, .startBt = cTk.startBt, .lenBts = cTk.lenBts }, cm);
             cm->i++; // CONSUME the verbatim token
@@ -2802,7 +2779,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     ParserFunc (*result)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
     ParserFunc* p = *result;
     int i = 0;
-    while (i <= firstPunctuationTokenType) {
+    while (i <= firstSpanTokenType) {
         p[i] = &parseErrorBareAtom;
         i++;
     }
@@ -2812,7 +2789,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokAssignment] = &parseAssignment;
     p[tokReassign]   = &parseReassignment;
     p[tokMutation]   = &parseMutation;
-    p[tokArrow]      = &parseSkip;
+    p[tokColon]      = &parseSkip;
     
     p[tokAlias]      = &parseAlias;
     p[tokAssert]     = &parseAssert;
@@ -2823,14 +2800,12 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokContinue]   = &parseContinue;
     p[tokDefer]      = &parseAlias;
     p[tokEmbed]      = &parseAlias;
-    p[tokExport]     = &parseAlias;
-    p[tokExposePriv] = &parseAlias;
-    p[tokFnDef]      = &parseAlias;
+    p[tokDef]      = &parseAlias;
     p[tokIface]      = &parseAlias;
+    p[tokImport]     = &parseAlias;
     p[tokLambda]     = &parseAlias;
     p[tokPackage]    = &parseAlias;
     p[tokReturn]     = &parseReturn;
-    p[tokStruct]     = &parseAlias;
     p[tokTry]        = &parseAlias;
     p[tokYield]      = &parseAlias;
 
@@ -2857,7 +2832,7 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
     (*result) = (LanguageDefinition) {
         .possiblyReservedDispatch = tabulateReservedBytes(a), .dispatchTable = tabulateDispatch(a),
-        .operators = tabulateOperators(a), .reservedParensOrNot = tabulateReserved(a),
+        .operators = tabulateOperators(a),
         .nonResumableTable = tabulateNonresumableDispatch(a),
         .resumableTable = tabulateResumableDispatch(a)
     };
@@ -3569,7 +3544,7 @@ private void surveyToplevelFunctionNames(Compiler* cm) {
     Token* tokens = cm->tokens;
     while (cm->i < len) {
         Token tok = tokens[cm->i];
-        if (tok.tp == tokFnDef) {
+        if (tok.tp == tokDef) {
             Int lenTokens = tok.pl2;
             VALIDATEP(lenTokens >= 3, errFnNameAndParams)
             
@@ -3694,7 +3669,7 @@ private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, 
         ++cm->i; // CONSUME the param's type name
     }
 
-    VALIDATEP(cm->i < (fnSentinelToken - 1) && cm->tokens[cm->i].tp == tokEqualsSign, errFnMissingBody)
+    VALIDATEP(cm->i < (fnSentinelToken - 1) && cm->tokens[cm->i].tp == tokColon, errFnMissingBody)
     cm->types.content[tentativeTypeInd] = arity + 1;
     
     Int uniqueTypeId = mergeType(tentativeTypeInd, arity + 2, cm);
@@ -3774,7 +3749,7 @@ private StackNode* parseToplevelSignatures(Compiler* cm) {
     const Int len = cm->totalTokens;
     while (cm->i < len) {
         Token tok = cm->tokens[cm->i];
-        if (tok.tp == tokFnDef) {
+        if (tok.tp == tokDef) {
             Int lenTokens = tok.pl2;
             Int sentinelToken = cm->i + lenTokens + 1;
             VALIDATEP(lenTokens >= 2, errFnNameAndParams)

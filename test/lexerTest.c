@@ -832,7 +832,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokParens, .startBt = 2 }
          }))},
          (LexerTest) { .name = s("Paren-type core form"),
-             .input = s("if(>((<> x 7) 0) => true)"),
+             .input = s("if(>((<> x 7) 0) : true)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 10, .startBt = 0, .lenBts = 25 },
                  
@@ -843,13 +843,13 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .startBt = 10, .lenBts = 1 },                // x
                  (Token){ .tp = tokInt, .pl2 = 7, .startBt = 12, .lenBts = 1 },                 
                  (Token){ .tp = tokInt, .startBt = 15, .lenBts = 1 },
-                 (Token){ .tp = tokArrow, .startBt = 17, .lenBts = 2 },
+                 (Token){ .tp = tokColon, .startBt = 17, .lenBts = 2 },
                  
                  (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 20, .lenBts = 4 },
                  (Token){ .tp = tokBool, .pl2 = 1, .startBt = 20, .lenBts = 4 },
          }))},
         (LexerTest) { .name = s("Scope-type core form"),
-             .input = s("if(>((<> x 7) 0) => true)"),
+             .input = s("if(>((<> x 7) 0) : true)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokIf, .pl1 = 1, .pl2 = 10, .startBt = 0, .lenBts = 25 },
                  (Token){ .tp = tokStmt, .pl2 = 6, .startBt = 4, .lenBts = 12 },
@@ -859,13 +859,13 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .startBt = 10, .lenBts = 1 },                // x
                  (Token){ .tp = tokInt, .pl2 = 7, .startBt = 12, .lenBts = 1 },                 
                  (Token){ .tp = tokInt, .startBt = 15, .lenBts = 1 },
-                 (Token){ .tp = tokArrow, .startBt = 17, .lenBts = 2 },
+                 (Token){ .tp = tokColon, .startBt = 17, .lenBts = 2 },
                  
                  (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 20, .lenBts = 4 },
                  (Token){ .tp = tokBool, .pl2 = 1, .startBt = 20, .lenBts = 4 },   
          }))},         
          (LexerTest) { .name = s("If with else"),
-             .input = s("if(>(<>(x 7) 0) => true else false)"),
+             .input = s("if(>(<>(x 7) 0) : true else false)"),
              .expectedOutput = buildLexer(((Token[]){
                  (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 13, .startBt = 0, .lenBts = 36 },
 
@@ -876,7 +876,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .startBt = 10, .lenBts = 1 },                // x
                  (Token){ .tp = tokInt, .pl2 = 7, .startBt = 12, .lenBts = 1 },                 
                  (Token){ .tp = tokInt, .startBt = 15, .lenBts = 1 },
-                 (Token){ .tp = tokArrow, .startBt = 17, .lenBts = 2 },
+                 (Token){ .tp = tokColon, .startBt = 17, .lenBts = 2 },
 
                  (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 20, .lenBts = 4 },
                  (Token){ .tp = tokBool, .pl2 = 1, .startBt = 20, .lenBts = 4 },
@@ -886,8 +886,8 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokBool,                .startBt = 30, .lenBts = 5 }
          }))},
         (LexerTest) { .name = s("If with elseif and else"),
-            .input = s("if( >(<>(x 7) 0) => 5\n"
-                       "    <(<>(x 7) 0) => 11\n"
+            .input = s("if( >(<>(x 7) 0) : 5\n"
+                       "    <(<>(x 7) 0) : 11\n"
                        "    else true)"),
             .expectedOutput = buildLexer(((Token[]){
                 (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 23, .startBt = 0, .lenBts = 59 },
@@ -899,7 +899,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                 (Token){ .tp = tokWord, .startBt = 10, .lenBts = 1 },                // x                
                 (Token){ .tp = tokInt, .pl2 = 7, .startBt = 12, .lenBts = 1 },                
                 (Token){ .tp = tokInt, .startBt = 15, .lenBts = 1 },
-                (Token){ .tp = tokArrow, .startBt = 17, .lenBts = 2 },
+                (Token){ .tp = tokColon, .startBt = 17, .lenBts = 2 },
                 
                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 20, .lenBts = 1 },
                 (Token){ .tp = tokInt, .pl2 = 5, .startBt = 20, .lenBts = 1 },
@@ -911,7 +911,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                 (Token){ .tp = tokWord, .startBt = 32, .lenBts = 1 },                // x                
                 (Token){ .tp = tokInt, .pl2 = 7, .startBt = 34, .lenBts = 1 },
                 (Token){ .tp = tokInt,                .startBt = 37, .lenBts = 1 },
-                (Token){ .tp = tokArrow, .startBt = 39, .lenBts = 2 },
+                (Token){ .tp = tokColon, .startBt = 39, .lenBts = 2 },
 
                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 42, .lenBts = 2 },
                 (Token){ .tp = tokInt,  .pl2 = 11,.startBt = 42, .lenBts = 2 },
@@ -921,7 +921,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                 (Token){ .tp = tokBool, .pl2 = 1, .startBt = 54, .lenBts = 4 }
          }))},
          (LexerTest) { .name = s("Paren-type form error 1"),
-             .input = s("if > (<> x 7) 0"),
+             .input = s("if >(<> x 7) 0"),
              .expectedOutput = buildLexerWithError(s(errCoreMissingParen), ((Token[]) {})
          )},
          (LexerTest) { .name = s("Paren-type form error 2"),
@@ -932,9 +932,9 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokWord, .startBt = 1, .lenBts = 3 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
-             .input = s("def(foo (Int x y Int => Int) = x - y)"),
+             .input = s("def(foo (x Int y Int : Int) = x - y)"),
              .expectedOutput = buildLexer(((Token[]){
-                 (Token){ .tp = tokFnDef,  .pl1 = 1, .pl2 = 13, .startBt = 0, .lenBts = 33 },
+                 (Token){ .tp = tokDef,  .pl1 = 1, .pl2 = 13, .startBt = 0, .lenBts = 33 },
                  (Token){ .tp = tokStmt, .pl2 = 7, .startBt = 4, .lenBts = 20 },
                  (Token){ .tp = tokWord, .pl2 = 0, .startBt = 4, .lenBts = 3 }, // foo
                  (Token){ .tp = tokTypeName, .pl2 = 1, .startBt = 8, .lenBts = 3 }, // Int                 
@@ -959,7 +959,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                  (Token){ .tp = tokOperator, .pl1 = opTPlus, .startBt = 2, .lenBts = 1 }
          }))},
          (LexerTest) { .name = s("Loop simple"),
-             .input = s("while(<(x 101) x = 1 print(x))"),
+             .input = s("while(<(x 101). x = 1. print(x))"),
              .expectedOutput = buildLexer(((Token[]) {
                  (Token){ .tp = tokWhile, .pl1 = slScope, .pl2 = 11, .lenBts = 34 },
                  

@@ -147,15 +147,16 @@ typedef struct {
 #define tokDocComment   6
 
 #define tokWord         7    // pl2 = index in the string table
-#define tokTypeName     8
-#define tokOperator     9    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    10     // pl1 = see "tkAcc" consts
-#define tokColon       11
+#define tokTypeName     8    // pl2 = same as tokWord
+#define tokKwArg        9    // pl2 = same as tokWord, the ":argName"
+#define tokStructField 10    // pl2 = same as tokWord, the ":argName"
+#define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
+#define tokAccessor    12     // pl1 = see "tkAcc" consts
 
 // Single-line Token types
-#define tokStmt        12    // firstSpanTokenType 
+#define tokStmt        13    // firstSpanTokenType 
 #define tokParens      13
-#define tokCall        14
+#define tokCall        14    // pl1 = 1 if it's a type call
 #define tokAssignment  15
 #define tokReassign    16    // :=
 #define tokMutation    17    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) These are the "+=" things
@@ -168,28 +169,30 @@ typedef struct {
 #define tokContinue    24
 #define tokDefer       25
 #define tokEmbed       26    // Embed a text file as a string literal, or a binary resource file // 200
-#define tokImport      27
-#define tokReturn      28
-#define tokTry         29    // early exit
-#define tokYield       30
-#define tokArrow       31    // not a real span, but placed here so the parser can dispatch on it
-#define tokElse        32    // not a real span, but placed here so the parser can dispatch on it
+#define tokIface       27
+#define tokImport      28
+#define tokReturn      29
+#define tokTry         30    // early exit
+#define tokYield       31
+#define tokColon       32    // not a real span, but placed here so the parser can dispatch on it
+#define tokElse        33    // not a real span, but placed here so the parser can dispatch on it
 
 // Parenthesized (multi-line) Token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       33    // denoted by do(). firstParenSpanTokenType 
-#define tokCatch       34    // paren "catch(e => print(e))"
-#define tokEach        35
-#define tokFnDef       36
-#define tokLambda      37
-#define tokMeta        38
-#define tokPackage     39    // for single-file packages
+#define tokScope       34    // denoted by do(). firstParenSpanTokenType 
+#define tokCatch       35    // paren "catch(e => print(e))"
+#define tokDef         36
+#define tokPublicDef   37
+#define tokFor         38
+#define tokLambda      39
+#define tokMeta        40
+#define tokPackage     41    // for single-file packages
 
 // Resumable core forms
-#define tokIf          40    // "if( " 
-#define tokIfPr        41    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       42    // "(*m " or "(match " pattern matching on sum type tag 
-#define tokImpl        43  
-#define tokWhile       44   
+#define tokIf          42    // "if( " 
+#define tokIfPr        43    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       44    // "(*m " or "(match " pattern matching on sum type tag 
+#define tokImpl        45  
+#define tokWhile       46   
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString

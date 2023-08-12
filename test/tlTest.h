@@ -62,7 +62,6 @@ extern const char errCoreNotInsideStmt[];
 extern const char errCoreMisplacedArrow[];
 extern const char errCoreMisplacedElse[];
 extern const char errCoreMissingParen[];
-extern const char errCoreNotAtSpanStart[];
 extern const char errIndentation[];
 extern const char errDocComment[];
 
