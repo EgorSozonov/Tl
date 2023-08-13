@@ -696,7 +696,7 @@ const char errNumericMultipleDots[]        = "Multiple dots in numeric literals 
 const char errNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
 const char errPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errPunctuationExtraClosing[]    = "Extra closing punctuation";
-const char errPunctuationOnlyInMultiline[] = "The dot separator is only allowed in multi-line syntax forms like (: )";
+const char errPunctuationOnlyInMultiline[] = "The dot separator is not allowed inside expressions!";
 const char errPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errPunctuationWrongCall[]       = "Wrong call syntax: this opening paren doesn't belong here";
 const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
@@ -993,7 +993,6 @@ private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
 private Int determineReservedL(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesLambda, tokLambda)
-    PROBERESERVED(reservedBytesWhile, tokWhile)
     return -1;
 }
 
@@ -1023,6 +1022,13 @@ private Int determineReservedT(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
     PROBERESERVED(reservedBytesTrue, reservedTrue)
     PROBERESERVED(reservedBytesTry, tokTry)
+    return -1;
+}
+
+
+private Int determineReservedW(Int startBt, Int lenBts, Compiler* lx) {
+    Int lenReser;
+    PROBERESERVED(reservedBytesWhile, tokWhile)
     return -1;
 }
 
@@ -1219,7 +1225,7 @@ private void hexNumber(Compiler* lx, Arr(byte) source) {
 }
 
 /**
- * Parses the floating-pointt numbers using just the "fast path" of David Gay's "strtod" function,
+ * Parses the floating-point numbers using just the "fast path" of David Gay's "strtod" function,
  * extended to 16 digits.
  * I.e. it handles only numbers with 15 digits or 16 digits with the first digit not 9,
  * and decimal powers within [-22; 22].
@@ -1383,8 +1389,8 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts, Com
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= firstParenSpanTokenType) { // the "core(" case
         VALIDATEL(lx->i < lx->inpLength && CURR_BT == aParenLeft, errCoreMissingParen)
+        print("len %d spanlevel %d, tp %d", lx->lexBtrack->length, peek(lx->lexBtrack).spanLevel,peek(lx->lexBtrack).tp ) 
         VALIDATEL(!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope, errPunctuationScope)
-        print("spanlevel %d tp %d" peek(lx->lexBtrack).spanLevel, peek(lx->lexBtrack).spanLevel)
         Int scopeLevel = reservedWordType == tokScope ? slScope : slParenMulti;
         push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->nextInd, .spanLevel = scopeLevel }), lx->lexBtrack);
         add((Token){ .tp = reservedWordType, .pl1 = scopeLevel, .startBt = startBt, .lenBts = lenBts}, lx);
@@ -1522,7 +1528,6 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
             add((Token){.tp=tokBool, .pl2=0, .startBt=realStartByte, .lenBts=5}, lx);
         }
     } else {
-        maybeBreakStatement(lx);
         lexReservedWord(mbReservedWord, realStartByte, lenBts, lx, source);
     }
 }
@@ -1963,6 +1968,7 @@ private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
     p[14] = determineReservedO;
     p[17] = determineReservedR;
     p[19] = determineReservedT;
+    p[22] = determineReservedW;
     p[24] = determineReservedY;
     return result;
 }

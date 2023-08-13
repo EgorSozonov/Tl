@@ -1,12 +1,17 @@
-(:f nestedLoops() =
-    (:while (< x 2). x = 0
-        (:while (< y 2). y = 0
-            (:while (< z 2). z = 0. a = + x y
+nestedLoops = def(:
+    while(x = 0. <(x 2):
+        while(y = 0. <(y 2):
+            while(z = 0. a = +(x y). <(z 2): 
                 x += 1
                 y += 1
                 z += 1
-                print (+ (+ (+ `z = ` $z) (+ `; y = ` $y)) (+ `; x = ` $x))
-                (:if (> x 0) => break 3)))))
+                print(+(+(+(`z = ` ;z) +(`; y = ` ;y)) +(`; x = ` ;x)))
+                if(>(x 0) : break 3)
+            )
+        )
+    )
+)
 
-(:f main() =
-    (nestedLoops))
+main = def(:
+    nestedLoops()
+)
