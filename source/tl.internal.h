@@ -147,19 +147,19 @@ typedef struct {
 #define tokDocComment   6
 
 #define tokWord         7    // pl2 = index in the string table
-#define tokTypeName     8    // pl2 = same as tokWord
-#define tokKwArg        9    // pl2 = same as tokWord, the ":argName"
-#define tokStructField 10    // pl2 = same as tokWord, the ".structField"
+#define tokTypeName     8    // pl1 = 1 if it's a type param ("?A"), pl2 = same as tokWord
+#define tokKwArg        9    // pl2 = same as tokWord. The ":argName"
+#define tokStructField 10    // pl2 = same as tokWord. The ".structField"
 #define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
 #define tokAccessor    12    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
-#define tokArrow       13    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
+#define tokArrow       13
 
 // Single-line Token types
 #define tokStmt        14    // firstSpanTokenType 
-#define tokParens      15
-#define tokCall        16    // pl1 = 1 if it's a type call
-#define tokTypeCall    17    // pl1 = 1 if it's a type call
-#define tokOperCall    18    // pl1 = 1 if it's a type call
+#define tokParens      15    // this is for data instantiation
+#define tokCall        16    // pl1 = nameId, index in the string table
+#define tokTypeCall    17    // pl1 = nameId, (-x - 1) if it's a type param
+#define tokOperCall    18    // pl1 = same as tokOperator
 #define tokAssignment  19
 #define tokReassign    20    // :=
 #define tokMutation    21    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
@@ -358,6 +358,8 @@ typedef struct {
     ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
     String* baseTypes[6];
+    Int typeArray;
+    Int typeList;
 } LanguageDefinition;
 
 
@@ -548,6 +550,17 @@ struct Compiler {
 #define slParenMulti    2 // things like "(if)": they're multiline but they cannot contain any brackets
 #define slStmt          3 // single-line statements: newlines and commas break 'em
 #define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
+
+
+//}}}
+//{{{ Types
+// see the Type layout chapter in the docs
+
+#define sorStruct         1
+#define sorSum            2
+#define sorFunction       3
+#define sorConcretization 4
+
 
 
 //}}}

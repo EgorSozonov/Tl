@@ -828,10 +828,11 @@ static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
 static const byte reservedBytesWhile[]       = { 119, 104, 105, 108, 101 };
 
 /** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" is handled by lexEqual
+ * "?" is handled by lexQuestion
  */
-const int operatorStartSymbols[15] = {
+const int operatorStartSymbols[14] = {
     aExclamation, aSharp, aPercent, aAmp, aApostrophe, aTimes, aPlus, aComma, aDivBy, 
-    aSemicolon, aLT, aGT, aQuestion, aCaret, aPipe
+    aSemicolon, aLT, aGT, aCaret, aPipe
 };
 
 //}}}
@@ -1389,7 +1390,6 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts, Com
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= firstParenSpanTokenType) { // the "core(" case
         VALIDATEL(lx->i < lx->inpLength && CURR_BT == aParenLeft, errCoreMissingParen)
-        print("len %d spanlevel %d, tp %d", lx->lexBtrack->length, peek(lx->lexBtrack).spanLevel,peek(lx->lexBtrack).tp ) 
         VALIDATEL(!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope, errPunctuationScope)
         Int scopeLevel = reservedWordType == tokScope ? slScope : slParenMulti;
         push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->nextInd, .spanLevel = scopeLevel }), lx->lexBtrack);
@@ -1480,9 +1480,10 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
             VALIDATEL(wordType == tokWord, errPunctuationWrongCall)
             wrapInAStatementStarting(startBt, lx, source);
             untt finalTokType = wasCapitalized ? tokTypeCall : tokCall;
+            Int finalPayload1 = (wordType != tokInt) ? uniqueStringInd : -uniqueStringInd - 1;
             push(((BtToken){ .tp = finalTokType, .tokenInd = lx->nextInd, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
-            add((Token){ .tp = finalTokType, .pl1 = uniqueStringInd, 
+            add((Token){ .tp = finalTokType, .pl1 = finalPayload1, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
             ++lx->i; // CONSUME the opening "(" of the call
         } else if (wordType == tokWord) {
@@ -1503,6 +1504,9 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
         } else if (wordType == tokKwArg) {
             add((Token){ .tp = tokKwArg, .pl2 = uniqueStringInd, 
+                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+        } else if (wordType == tokInt) { // marker for type parameters like "?U"
+            add((Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
         }
         return;
@@ -1664,6 +1668,16 @@ private void lexOperator(Compiler* lx, Arr(byte) source) {
         }
     }
     lx->i = j; // CONSUME the operator
+}
+
+/** A question mark may be a type param "?T" or an operator */
+private void lexQuestion(Compiler* lx, Arr(byte) source) {
+    if (lx->i < lx->inpLength - 1 && isCapitalLetter(NEXT_BT)) {
+        ++lx->i; // CONSUME the questionMark
+        wordInternal(tokInt, lx, source); // tokInt is a marker "this is a type parameter"
+    } else {
+        lexOperator(lx, source);
+    }
 }
 
 /** The humble "=" can be the definition statement, a marker that separates signature from definition, or an arrow "=>" */
@@ -1927,6 +1941,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     }
     p[aUnderscore] = lexWord;
     p[aDot] = &lexDot;
+    p[aQuestion] = &lexQuestion;
     p[aDollar] = &lexDollar;
     p[aEqual] = &lexEqual;
 
@@ -3217,6 +3232,28 @@ const Int constantOffsets[] = {
 #define strPrint2     24
 
 #define strLo         25
+private Int createTypeTag(untt sort, Int arity, Int depth);
+
+/** Creates the built-in types in the proto compiler */
+private void buildTypes(Compiler* cm) {
+    const Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
+    for (int i = 0; i < countBaseTypes; i++) {
+        pushIntypes(0, cm);
+    }
+    // Array
+    pushIntypes(5, cm);
+    pushIntypes(createTypeTag(sorStruct, 1, 1), cm); //
+    pushIntypes(5, cm); // .length
+    pushIntypes(5, cm);
+    pushIntypes(5, cm);
+    // List
+    pushIntypes(5, cm);
+    pushIntypes(createTypeTag(sorStruct, 1, 2), cm); //
+    pushIntypes(5, cm); // .length
+    pushIntypes(5, cm); // .capacity
+    pushIntypes(5, cm);
+}
+
 
 private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t externalNameId, Compiler* cm) {
     pushInentities((Entity){
@@ -3326,10 +3363,8 @@ private void buildOperators(Compiler* cm) {
 
 /* Entities and overloads for the built-in operators, types and functions. */
 private void createBuiltins(Compiler* cm) {
-    const Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
-    for (int i = 0; i < countBaseTypes; i++) {
-        pushIntypes(0, cm);
-    }
+    buildTypes(cm);
+    
     buildOperators(cm);
     cm->entImportedZero = cm->overloadIds.length;
 }
@@ -3362,11 +3397,15 @@ private StringStore* copyStringStore(StringStore* source, Arena* a) {
 /** Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase */
 private void importPrelude(Compiler* cm) {
     Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
+    Int voidOfInt = addFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
+    Int voidOfFloat = addFunctionType(1, (Int[]){tokUnderscore, tokFloat}, cm);
     
-    EntityImport imports[4] =  {
+    EntityImport imports[6] =  {
         (EntityImport) { .name = str("math-pi", cm->a), .externalNameId = strPi, .typeInd = 0, .nameId = -1 },
         (EntityImport) { .name = str("math-e", cm->a), .externalNameId = strE, .typeInd = 0, .nameId = -1 },
         (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint2, .typeInd = 1, .nameId = -1 },
+        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint2, .typeInd = 2, .nameId = -1 },
+        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint2, .typeInd = 3, .nameId = -1 },
         (EntityImport) { .name = str("alert", cm->a), .externalNameId = strAlert, .typeInd = 1, .nameId = -1 }
     };
     Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
@@ -3376,7 +3415,8 @@ private void importPrelude(Compiler* cm) {
             cm->activeBindings[mbNameId] = j;
         }
     }
-    importEntities(imports, sizeof(imports)/sizeof(EntityImport), ((Int[]){tokFloat, voidOfStr}), cm);
+    importEntities(imports, sizeof(imports)/sizeof(EntityImport), 
+                            ((Int[]){tokFloat, voidOfStr, voidOfInt, voidOfFloat}), cm);
 }
 
 /** A proto compiler contains just the built-in definitions and tables. This function copies it  */
@@ -3878,7 +3918,12 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 }
 
 //}}}
-//{{{ Typer
+//{{{ Types
+
+/** Parses an expression that is a type name into the types table */
+private void parseTypeName(Token tok, Arr(Token) tokens, Compiler* cm) {
+    
+}
 
 /** Gets the type of the last param of a function. */
 private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
@@ -4112,6 +4157,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     }
 }
 
+private Int createTypeTag(untt sort, Int arity, Int depth) {
+    return (arity << 16) + (depth << 8) + sort;
+}
 //}}}
 //{{{ Codegen
 
