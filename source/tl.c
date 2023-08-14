@@ -766,7 +766,68 @@ const int operatorStartSymbols[14] = {
     aSemicolon, aLT, aGT, aCaret, aPipe
 };
 
-//}}}
+/// The standard text prepended to all source code inputs and the hash table to provide a built-in string set.
+/// The Tl reserved words must be at the start and be sorted alphabetically on the first letter.
+const char standardText[] = "aliasandassertawaitbreakcatchcontinuedeferdefdoelseembedfalsefor"
+                            "ififPrimplimportinterfacelammatchorreturntruetryyieldwhile" // reserved words end here
+                            "LAlencapprintalertmath-pimath-e";
+
+const Int standardStrings[] = {
+    0,   5,  8, 14, 19, 
+    24, 29, 37, 42, 45, // def
+    47, 51, 56, 61, 64, // for
+    66, 70, 74, 79, 88,
+    91, 96, 98, 104, 108, // true
+    111, 116, 121, // while
+    122, 123, 126, 129, 134, // print
+    139, 146, 152 // math-e
+};
+const Int standardToks[] = {
+    tokAlias, reservedAnd, tokAssert, tokAwait,
+    tokBreak, tokCatch, tokContinue, tokDefer, tokDef,
+    tokScope, tokElse, tokEmbed, reservedFalse, tokFor, 
+    tokIf, tokIfPr, tokImpl, tokImport, tokIface,
+    tokLambda, tokMatch, reservedOr, tokReturn, reservedTrue,
+    tokTry, tokYield, tokWhile
+};
+
+#define strAlias      0
+#define strAnd        1
+#define strAssert     2
+#define strAwait      3
+#define strBreak      4
+#define strCatch      5
+#define strContinue   6
+#define strDefer      7
+#define strDef        8 
+#define strDo         9
+#define strElse      10
+#define strEmbed     11
+#define strFalse     12
+#define strFor       13
+#define strIf        14
+#define strIfPr      15
+#define strImpl      16 
+#define strImport    17
+#define strInterface 18
+#define strLam       19
+#define strMatch     20
+#define strOr        21
+#define strReturn    22
+#define strTrue      23
+#define strTry       24
+#define strWhile     26
+#define strYield     25
+#define strL         27
+#define strFirstNonReserved strL
+#define strA         28
+#define strLen       29
+#define strCap       30
+#define strPrint     31
+#define strAlert     32
+#define strMathPi    33
+#define strMathE     34
+
 
 
 #define CURR_BT source[lx->i]
@@ -779,6 +840,69 @@ typedef union {
     uint64_t i;
     double   d;
 } FloatingBits;
+
+//{{{ Source code files
+
+#ifdef TEST
+/**
+ * Allocates a test input into an arena after prepending it with the standardText.
+ */
+testable String* prepareInput(const char* content, Arena* a) {
+    if (content == NULL) return NULL;
+    const char* ind = content;
+    Int lenStandard = sizeof(standardText);
+    Int len = 0;
+    for (; *ind != '\0'; ind++) {
+        len++;
+    }
+
+    String* result = allocateOnArena(len + 1 + sizeof(String), a);
+    result->length = lenStandard + len;
+    memcpy(result->content, standardText, lenStandard);
+    memcpy(result->content + lenStandard, content, len + 1);
+    printString(result);
+    return result;
+}
+#endif
+
+private String* readSourceFile(const Arr(char) fName, Arena* a) {
+    String* result = NULL;
+    FILE *file = fopen(fName, "r");
+    if (file == NULL) {
+        goto cleanup;
+    }
+    /* Go to the end of the file. */
+    if (fseek(file, 0L, SEEK_END) != 0) {
+        goto cleanup;
+    }
+    long fileSize = ftell(file);
+    if (fileSize == -1) {
+        goto cleanup;
+    }
+
+    /* Allocate our buffer to that size, with space for the standard text in front of it. */
+    result = allocateOnArena(sizeof(standardText) + fileSize + 1 + sizeof(String), a);
+    
+    /* Go back to the start of the file. */
+    if (fseek(file, 0L, SEEK_SET) != 0) {
+        goto cleanup;
+    }
+
+    memcpy(result->content, standardText, sizeof(standardText));
+    /* Read the entire file into memory. */
+    size_t newLen = fread(result->content + sizeof(standardText), 1, fileSize, file);
+    if (ferror(file) != 0 ) {
+        fputs("Error reading file", stderr);
+    } else {
+        result->content[newLen] = '\0'; /* Just to be safe. */
+    }
+    result->length = newLen;
+    cleanup:
+    fclose(file);
+    return result;
+}
+
+//}}}
 
 _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {   
     cm->wasError = true;    
@@ -1669,22 +1793,6 @@ private void openScope(Compiler* lx, Arr(byte) source) {
     lx->i += 2; // CONSUME the "(*"
     VALIDATEL(!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).spanLevel == slScope, errPunctuationScope)
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
-    byte currBt = CURR_BT;
-    if (currBt == aWLower && testForWord(lx->sourceCode, lx->i, reservedBytesWhile, 5)) {
-        openPunctuation(tokWhile, slScope, startBt, lx);
-        lx->i += 5; // CONSUME the "while"
-        return; 
-    } else if (lx->i < lx->inpLength - 2 && isSpace(source[lx->i + 1])) {        
-        if (currBt == aFLower) {
-            openPunctuation(tokDef, slScope, startBt, lx);
-            lx->i += 2; // CONSUME the "f "
-            return;
-        } else if (currBt == aILower) {
-            openPunctuation(tokIf, slScope, startBt, lx);
-            lx->i += 2; // CONSUME the "i "
-            return;
-        }  
-    }        
     openPunctuation(tokScope, slScope, startBt, lx);    
 }
 
@@ -2674,16 +2782,12 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
     for (int j = 0; j < countEntities; j++) {
-        Int mbNameId = getStringStore(cm->sourceCode->content, impts[j].name, cm->stringTable, cm->stringStore);
-        if (mbNameId > -1) {
-            EntityImport impt = impts[j];
-            Int typeInd = typeIds[impt.typeInd];
-            impt.nameId = mbNameId;
-            addAndActivateEntity(mbNameId, (Entity){
-                .class = classImmutable, .typeId = typeInd, .emit = emitPrefixExternal, .externalNameId = impt.externalNameId },
-                cm);
-            pushInimports(impt, cm);
-        }
+        EntityImport impt = impts[j];
+        Int typeInd = typeIds[impt.typeInd];
+        addAndActivateEntity(impt.nameId, (Entity){
+            .class = classImmutable, .typeId = typeInd, .emit = emitPrefixExternal, .externalNameId = impt.externalNameId },
+            cm);
+        pushInimports(impt, cm);
     }
     cm->countNonparsedEntities = cm->entities.length;
 }
@@ -2758,6 +2862,35 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
     return result;
 }
 
+
+private Stackint32_t* copyStringTable(Stackint32_t* table, Arena* a) {
+}
+
+
+private StringStore* copyStringStore(StringStore* from, Arena* a) {
+    StringStore* result = allocateOnArena(sizeof(StringStore), a);
+    const Int dictSize = from->dictSize;
+    Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*dictSize, a);
+    
+    result->a = a;
+    for (int i = 0; i < dictSize; i++) {
+        if (from->dict[i] == NULL) {
+            dict[i] = NULL;
+        } else {
+            Bucket* old = from->dict[i];
+            Int capacity = old->capAndLen >> 16;
+            Int len = old->capAndLen && LOWER16BITS;
+            Bucket* new = allocateOnArena(sizeof(Bucket) + capacity*sizeof(StringValue), a);
+            memcpy(new->content, old->content, len*sizeof(StringValue));
+            dict[i] = new;
+        }
+    }
+    result->dictSize = from->dictSize;
+    result->dict = dict;
+
+    return result;
+}
+
 /**
  * Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned for every source code module.
  * The proto-compiler contains the following data:
@@ -2772,6 +2905,8 @@ testable Compiler* createProtoCompiler(Arena* a) {
     Compiler* proto = allocateOnArena(sizeof(Compiler), a);
     (*proto) = (Compiler){
         .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(32, a),
+        .sourceCode = str(standardText, a),
+        .stringTable = createStackint32_t(16, a), .stringStore = copyStringStore(proto->stringStore, a),
         .overloadIds = createInListuint32_t(countOperators, a),
         .types = createInListInt(64, a), .typesDict = createStringStore(100, a),
         .a = a
@@ -3070,123 +3205,58 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
 
 //{{{ Built-ins
 
-/// The standard text prepended to all source code inputs and the hash table to provide a built-in string set.
-/// The Tl reserved words must be at the start and be sorted alphabetically on the first letter.
-const char standardText[] = "aliasandassertawaitbreakcatchcontinuedeferdefdoelseembedfalsefor"
-                            "ififPrimplimportinterfacelammatchorreturntruetryyieldwhile" // reserved words end here
-                            "LAlencapprintalertmath-pimath-e";
-
-const Int standardStrings[] = {
-    0,   5,  8, 14, 19, 
-    24, 29, 37, 42, 45, // def
-    47, 51, 56, 61, 64, // for
-    66, 70, 74, 79, 88,
-    91, 96, 98, 104, 108, // true
-    111, 116, 121, // while
-    122, 123, 126, 129, 134 // print
-    139, 146, 152 // math-e
-};
-const Int standardToks[] = {
-    tokAlias, tokAnd, tokAssert, tokAwait,
-    tokBreak, tokCatch, tokContinue, tokDefer, tokDef,
-    tokDo, tokElse, tokEmbed, reservedFalse, tokFor, 
-    tokIf, tokIfPr, tokImpl, tokImport, tokIface,
-    tokLambda, tokMatch, tokOr, tokReturn, reservedTrue,
-    tokTry, tokYield, tokWhile
+const char codegenText[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
+                           "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertlo";
+const Int codegenStrings[] = {
+    0,     6,   8,  12,  20, //function 
+    25,   30,  33,  38,  46, //continue
+    50,   55,  66,  69,  77, //toString
+    85,   92,  98, 101, 107, //length
+    115, 117, 119, 122, 127, //alert
+    129
 };
 
-#define strAlias      0
-#define strAnd        1
-#define strAssert     2
-#define strAwait      3
-#define strBreak      4
-#define strCatch      5
-#define strContinue   6
-#define strDefer      7
-#define strDef        8 
-#define strDo         9
-#define strElse      10
-#define strEmbed     11
-#define strFalse     12
-#define strFor       13
-#define strIf        14
-#define strIfPr      15
-#define strImpl      16 
-#define strImport    17
-#define strInterface 18
-#define strLam       19
-#define strMatch     20
-#define strOr        21
-#define strReturn    22
-#define strTrue      23
-#define strTry       24
-#define strWhile     26
-#define strYield     25
-#define strL         27
-#define strFirstNonReserved strL
-#define strA         28
-#define strLen       29
-#define strCap       30
-#define strPrint     31
-#define strAlert     32
-#define strMathPi    33
-#define strMathE     34
+#define cgStrReturn      0 
+#define cgStrIf          1
+#define cgStrElse        2
+#define cgStrFunction    3
+#define cgStrWhile       4
 
-//{{{ Source code files
+#define cgStrConst       5
+#define cgStrLet         6
+#define cgStrBreak       7
+#define cgStrContinue    8
+#define cgStrTrue        9
 
-private String* readSourceFile(const Arr(char) fName, Arena* a) {
-    String* result = NULL;
-    FILE *file = fopen(fName, "r");
-    if (file == NULL) {
-        goto cleanup;
-    }
-    /* Go to the end of the file. */
-    if (fseek(file, 0L, SEEK_END) != 0) {
-        goto cleanup;
-    }
-    long fileSize = ftell(file);
-    if (fileSize == -1) {
-        goto cleanup;
-    }
+#define cgStrFalse      10
+#define cgStrConsoleLog 11
+#define cgStrFor        12
+#define cgStrToStr      13
+#define cgStrExpon      14
 
-    /* Allocate our buffer to that size, with space for the standard text in front of it. */
-    result = allocateOnArena(sizeof(standardText) + fileSize + 1 + sizeof(String), a);
-    
-    /* Go back to the start of the file. */
-    if (fseek(file, 0L, SEEK_SET) != 0) {
-        goto cleanup;
-    }
+#define cgStrPi         15
+#define cgStrE          16
+#define cgStrNotEqual   17
+#define cgStrLength     18
+#define cgStrAbsolute   19
 
-    memcpy(result->content, standardText, sizeof(standardText));
-    /* Read the entire file into memory. */
-    size_t newLen = fread(result->content + sizeof(standardText), 1, fileSize, file);
-    if (ferror(file) != 0 ) {
-        fputs("Error reading file", stderr);
-    } else {
-        result->content[newLen] = '\0'; /* Just to be safe. */
-    }
-    result->length = newLen;
-    cleanup:
-    fclose(file);
-    return result;
-}
+#define cgStrLogicalAnd 20
+#define cgStrLogicalOr  21
+#define cgStrEquality   22
+#define cgStrAlert      23
+#define cgStrLo         24
 
 //}}}
 
 private Int createTypeTag(untt sort, Int arity, Int depth);
 
 //** Inserts the necessary strings from the standardText into the string table and the hash table */
-private void buildStandardStrings(Compiler* cm) {
-    // this order must match the order of "str" constants 
-    push(standardStrings[strL], cm->stringTable);
-    push(standardStrings[strA], cm->stringTable);
-    push(standardStrings[strLen], cm->stringTable);
-    push(standardStrings[strCap], cm->stringTable);
-    push(standardStrings[strPrint], cm->stringTable);
-    push(standardStrings[strAlert], cm->stringTable);
-    push(standardStrings[strMathPi], cm->stringTable);
-    push(standardStrings[strMathE], cm->stringTable);
-    // TODO push them into the hash table
+private void buildStandardStrings(Compiler* lx) {
+    for (Int i = strL; i <= strMathE; i++) {
+        Int startBt = standardStrings[i];
+        addStringStore(lx->sourceCode->content, startBt, standardStrings[i + 1] - startBt, 
+                                             lx->stringTable, lx->stringStore);
+    }
 }
 
 /** Creates the built-in types in the proto compiler */
@@ -3246,15 +3316,15 @@ private void buildOperators(Compiler* cm) {
     Int flOfInt = addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
     Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
 
-    buildOperator(opTNotEqual, boolOfIntInt, emitInfixExternal, strNotEqual, cm);
-    buildOperator(opTNotEqual, boolOfFlFl, emitInfixExternal, strNotEqual, cm);
-    buildOperator(opTNotEqual, boolOfStrStr, emitInfixExternal, strNotEqual, cm);
+    buildOperator(opTNotEqual, boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
+    buildOperator(opTNotEqual, boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
+    buildOperator(opTNotEqual, boolOfStrStr, emitInfixExternal, cgStrNotEqual, cm);
     buildOperator(opTBoolNegation, boolOfBool, emitPrefix, 0, cm);
-    buildOperator(opTSize,     intOfStr, emitField, strLength, cm);
-    buildOperator(opTSize,     intOfInt, emitPrefixExternal, strAbsolute, cm);
-    buildOperator(opTToString, strOfInt, emitInfixDot, strToStr, cm);
-    buildOperator(opTToString, strOfFloat, emitInfixDot, strToStr, cm);
-    buildOperator(opTToString, strOfBool, emitInfixDot, strToStr, cm);
+    buildOperator(opTSize,     intOfStr, emitField, cgStrLength, cm);
+    buildOperator(opTSize,     intOfInt, emitPrefixExternal, cgStrAbsolute, cm);
+    buildOperator(opTToString, strOfInt, emitInfixDot, cgStrToStr, cm);
+    buildOperator(opTToString, strOfFloat, emitInfixDot, cgStrToStr, cm);
+    buildOperator(opTToString, strOfBool, emitInfixDot, cgStrToStr, cm);
     buildOperator(opTRemainder, intOfIntInt, emitInfix, 0, cm);
     buildOperator(opTBinaryAnd, boolOfBoolBool, 0, 0, cm); // dummy
     buildOperator(opTTypeAnd,   boolOfBoolBool, 0, 0, cm); // dummy
@@ -3285,7 +3355,7 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opTLessThan, boolOfIntInt, emitInfix, 0, cm);
     buildOperator(opTLessThan, boolOfFlFl, emitInfix, 0, cm);
     buildOperator(opTLessThan, boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opTEquality,    boolOfIntInt, emitInfixExternal, strEquality, cm);
+    buildOperator(opTEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm);
     buildOperator(opTIntervalBoth, boolOfIntIntInt, 0, 0, cm); // dummy
     buildOperator(opTIntervalBoth, boolOfFlFlFl, 0, 0, cm); // dummy
     buildOperator(opTIntervalLeft, boolOfIntIntInt, 0, 0, cm); // dummy
@@ -3305,12 +3375,12 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opTNullCoalesce, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opTQuestionMark, flOfFlFl, 0, 0, cm); // dummy
     buildOperator(opTExponentExt, intOfIntInt, 0, 0, cm); // dummy
-    buildOperator(opTExponent, intOfIntInt, emitPrefixExternal, strExpon, cm);
-    buildOperator(opTExponent, flOfFlFl, emitPrefixExternal, strExpon, cm);
+    buildOperator(opTExponent, intOfIntInt, emitPrefixExternal, cgStrExpon, cm);
+    buildOperator(opTExponent, flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
     buildOperator(opTBoolOr, flOfFl, 0, 0, cm); // dummy
     buildOperator(opTXor,    flOfFlFl, 0, 0, cm); // dummy
-    buildOperator(opTAnd,    boolOfBoolBool, emitInfixExternal, strLogicalAnd, cm);
-    buildOperator(opTOr,     boolOfBoolBool, emitInfixExternal, strLogicalOr, cm);
+    buildOperator(opTAnd,    boolOfBoolBool, emitInfixExternal, cgStrLogicalAnd, cm);
+    buildOperator(opTOr,     boolOfBoolBool, emitInfixExternal, cgStrLogicalOr, cm);
     buildOperator(opTNegation, intOfInt, emitPrefix, 0, cm);
     buildOperator(opTNegation, flOfFl, emitPrefix, 0, cm);
     cm->countOperatorEntities = cm->entities.length;
@@ -3320,35 +3390,10 @@ private void buildOperators(Compiler* cm) {
 private void createBuiltins(Compiler* cm) {
     buildStandardStrings(cm);
     buildTypes(cm);
-    
     buildOperators(cm);
     cm->entImportedZero = cm->overloadIds.length;
 }
 //}}}
-
-private StringStore* copyStringStore(StringStore* source, Arena* a) {
-    StringStore* result = allocateOnArena(sizeof(StringStore), a);
-    const Int dictSize = source->dictSize;
-    Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*dictSize, a);
-    
-    result->a = a;
-    for (int i = 0; i < dictSize; i++) {
-        if (source->dict[i] == NULL) {
-            dict[i] = NULL;
-        } else {
-            Bucket* old = source->dict[i];
-            Int capacity = old->capAndLen >> 16;
-            Int len = old->capAndLen && LOWER16BITS;
-            Bucket* new = allocateOnArena(sizeof(Bucket) + capacity*sizeof(StringValue), a);
-            memcpy(new->content, old->content, len*sizeof(StringValue));
-            dict[i] = new;
-        }
-    }
-    result->dictSize = source->dictSize;
-    result->dict = dict;
-
-    return result;
-}
 
 /** Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase */
 private void importPrelude(Compiler* cm) {
@@ -3357,11 +3402,11 @@ private void importPrelude(Compiler* cm) {
     Int voidOfFloat = addFunctionType(1, (Int[]){tokUnderscore, tokFloat}, cm);
     
     EntityImport imports[6] =  {
-        (EntityImport) { .nameId = strMathPi - strFirstNonReserved, .externalNameId = cgStrMathPi, .typeInd = 0},
-        (EntityImport) { .nameId = strMathE - strFirstNonReserved), .externalNameId = cgStrMathE, .typeInd = 0},
-        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrPrint2, .typeInd = 1},
-        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrPrint2, .typeInd = 2},
-        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrPrint2, .typeInd = 3},
+        (EntityImport) { .nameId = strMathPi - strFirstNonReserved, .externalNameId = cgStrPi, .typeInd = 0},
+        (EntityImport) { .nameId = strMathE - strFirstNonReserved, .externalNameId = cgStrE, .typeInd = 0},
+        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrConsoleLog, .typeInd = 1},
+        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrConsoleLog, .typeInd = 2},
+        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrConsoleLog, .typeInd = 3},
         (EntityImport) { .nameId = strAlert - strFirstNonReserved, .externalNameId = cgStrAlert, .typeInd = 1}
     };
     Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
@@ -3387,7 +3432,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
         .newlines = allocateOnArena(500*sizeof(int), a), .newlinesCapacity = 500,
         .numeric = allocateOnArena(50*sizeof(int), aTmp), .numericCapacity = 50,
         .lexBtrack = createStackBtToken(16, aTmp),
-        .stringTable = createStackint32_t(16, a), .stringStore = copyStringStore(proto->typesDict, a),
+        .stringTable = copyStringTable(proto->stringTable, a), .stringStore = copyStringStore(proto->stringStore, a),
         .sourceCode = sourceCode,
         .countOperatorEntities = proto->countOperatorEntities, .entImportedZero = proto->entities.length,
         .wasError = false, .errMsg = &empty,
@@ -4120,44 +4165,6 @@ private Int createTypeTag(untt sort, Int arity, Int depth) {
 //}}}
 //{{{ Codegen
 
-const char codegenText[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
-                           "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alert";
-const Int codegenStrings[] = {
-    0,   6,  8, 12, 20, 
-    25, 30, 33, 38, 46,
-    50, 55, 66, 69, 77,
-    85, 92, 98, 101, 107,
-    115, 117, 119, 122, 127,
-    132, 134, 137, 140, 141,
-    142
-};
-
-#define cgStrReturn   0 
-#define cgStrIf       5
-#define cgStrLet         6
-#define cgStrBreak       7
-#define cgStrContinue    8
-
-#define strTrue        9
-#define strFalse   10
-#define strPrint   11
-#define strFor     12
-#define strToStr   13
-#define strExpon   14
-
-#define strPi       15
-#define strE        16
-#define strNotEqual 17
-#define strLength   18
-#define strAbsolute 19
-
-#define strLogicalAnd 20
-#define strLogicalOr  21
-#define strEquality   22
-#define strAlert      23
-#define strPrint2     24
-
-#define strLo         25
 
 typedef struct Codegen Codegen;
 typedef void CgFunc(Node, bool, Arr(Node), Codegen*);
