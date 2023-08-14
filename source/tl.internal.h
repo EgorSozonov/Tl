@@ -404,9 +404,8 @@ typedef struct {
 
 
 typedef struct {
-    String* name;
     Int nameId;  // index in the stringTable of the current compilation
-    Int externalNameId; // index in the array of constant strings
+    Int externalNameId; // index in the "codegenText"
     Int typeInd; // index in the intermediary array of types that is imported alongside
 } EntityImport;
 

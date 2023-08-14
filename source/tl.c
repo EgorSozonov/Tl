@@ -624,46 +624,6 @@ testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* strin
     }
 }
 
-//{{{ Source code files
-
-private String* readSourceFile(const Arr(char) fName, Arena* a) {
-    String* result = NULL;
-    FILE *file = fopen(fName, "r");
-    if (file == NULL) {
-        goto cleanup;
-    }
-    /* Go to the end of the file. */
-    if (fseek(file, 0L, SEEK_END) != 0) {
-        goto cleanup;
-    }
-    long fileSize = ftell(file);
-    if (fileSize == -1) {
-        goto cleanup;
-    }
-
-    /* Allocate our buffer to that size. */
-    result = allocateOnArena(fileSize + 1 + sizeof(String), a);
-    
-    /* Go back to the start of the file. */
-    if (fseek(file, 0L, SEEK_SET) != 0) {
-        goto cleanup;
-    }
-
-    /* Read the entire file into memory. */
-    size_t newLen = fread(result->content, 1, fileSize, file);
-    if (ferror(file) != 0 ) {
-        fputs("Error reading file", stderr);
-    } else {
-        result->content[newLen] = '\0'; /* Just to be safe. */
-    }
-    result->length = newLen;
-    cleanup:
-    fclose(file);
-    return result;
-}
-
-//}}}
-
 //}}}
 //{{{ Errors
 //{{{ Internal errors
@@ -797,35 +757,6 @@ const byte maximumPreciselyRepresentedFloatingInt[16] = (byte []){ 9, 0, 0, 7, 1
 
 #define countReservedWords           30 // count of different reserved words below
 
-static const byte reservedBytesAlias[]       = {  97, 108, 105, 97, 115 };
-static const byte reservedBytesAnd[]         = {  97, 110, 100 };
-static const byte reservedBytesAssert[]      = {  97, 115, 115, 101, 114, 116 };
-static const byte reservedBytesAssertDbg[]   = {  97, 115, 115, 101, 114, 116, 68, 98, 103 };
-static const byte reservedBytesAwait[]       = {  97, 119,  97, 105, 116 };
-static const byte reservedBytesBreak[]       = {  98, 114, 101,  97, 107 };
-static const byte reservedBytesCatch[]       = {  99,  97, 116,  99, 104 };
-static const byte reservedBytesContinue[]    = {  99, 111, 110, 116, 105, 110, 117, 101 };
-static const byte reservedBytesDefer[]       = { 100, 101, 102, 101, 114 };
-static const byte reservedBytesDef[]         = { 100, 101, 102, };
-static const byte reservedBytesPublicDef[]   = { 100, 101,  70, };
-static const byte reservedBytesDo[]          = { 100, 111 };
-static const byte reservedBytesElse[]        = { 101, 108, 115, 101 };
-static const byte reservedBytesEmbed[]       = { 101, 109,  98, 101, 100 };
-static const byte reservedBytesFalse[]       = { 102,  97, 108, 115, 101 };
-static const byte reservedBytesFor[]         = { 102, 111, 114 };
-static const byte reservedBytesIf[]          = { 105, 102 };
-static const byte reservedBytesIfPr[]        = { 105, 102,  80, 114 };
-static const byte reservedBytesImpl[]        = { 105, 109, 112, 108 };
-static const byte reservedBytesImport[]      = { 105, 109, 112, 111, 114, 116 };
-static const byte reservedBytesInterface[]   = { 105, 110, 116, 101, 114, 102, 97, 99, 101 };
-static const byte reservedBytesLambda[]      = { 108,  97, 109 };
-static const byte reservedBytesMatch[]       = { 109,  97, 116,  99, 104 };
-static const byte reservedBytesOr[]          = { 111, 114 };
-static const byte reservedBytesReturn[]      = { 114, 101, 116, 117, 114, 110 };
-static const byte reservedBytesTrue[]        = { 116, 114, 117, 101 };
-static const byte reservedBytesTry[]         = { 116, 114, 121 };
-static const byte reservedBytesYield[]       = { 121, 105, 101, 108, 100 };
-static const byte reservedBytesWhile[]       = { 119, 104, 105, 108, 101 };
 
 /** All the symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" is handled by lexEqual
  * "?" is handled by lexQuestion
@@ -925,60 +856,39 @@ private void setStmtSpanLength(Int topTokenInd, Compiler* lx) {
 }
 
 
-#define PROBERESERVED(reservedBytesName, returnVarName)    \
-    lenReser = sizeof(reservedBytesName); \
-    if (lenBts == lenReser && testForWord(lx->sourceCode, startBt, reservedBytesName, lenReser)) \
-        return returnVarName;
-
+private Int probeReservedWords(Int indStart, Int indEnd, Compiler* lx) {
+    for (Int i = indStart; i < indEnd; i++) {
+        Int len = standardStrings[i + 1] - standardStrings[i]; 
+        if (memcmp(lx->sourceCode + standardStrings[i], lx->sourceCode + lx->i, len) == 0) {
+            return standardToks[i]; 
+        }
+    }
+    return -1;
+}
 
 private Int determineReservedA(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesAlias, tokAlias)
-    PROBERESERVED(reservedBytesAnd, reservedAnd)
-    PROBERESERVED(reservedBytesAwait, tokAwait)
-    PROBERESERVED(reservedBytesAssert, tokAssert)
-    PROBERESERVED(reservedBytesAssertDbg, tokAssertDbg)
-    return -1;
+    return probeReservedWords(strAlias, strBreak);
 }
 
 private Int determineReservedB(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesBreak, tokBreak)
-    return -1;
+    return probeReservedWords(strBreak, strCatch);
 }
 
 private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesCatch, tokCatch)
-    PROBERESERVED(reservedBytesContinue, tokContinue)
-    return -1;
+    return probeReservedWords(strCatch, strDefer);
 }
 
 private Int determineReservedD(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesDefer, tokDefer)
-    PROBERESERVED(reservedBytesDef, tokDef)
-    PROBERESERVED(reservedBytesPublicDef, tokPublicDef)
-    PROBERESERVED(reservedBytesDo, tokScope)
-    return -1;
+    return probeReservedWords(strDefer, strElse);
 }
-
 
 private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesElse, tokElse)
-    PROBERESERVED(reservedBytesEmbed, tokEmbed)
-    return -1;
+    return probeReservedWords(strElse, strFalse);
 }
-
 
 private Int determineReservedF(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesFalse, reservedFalse)
-    PROBERESERVED(reservedBytesFor, tokFor)
-    return -1;
+    return probeReservedWords(strFalse, strIf);
 }
-
 
 private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
     Int lenReser;
@@ -2886,7 +2796,7 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
  * - entImportedZero
  * - countOperatorEntities
  */
-testable Compiler* createCompilerProto(Arena* a) {
+testable Compiler* createProtoCompiler(Arena* a) {
     Compiler* proto = allocateOnArena(sizeof(Compiler), a);
     (*proto) = (Compiler){
         .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(32, a),
@@ -2912,7 +2822,7 @@ private void finalizeLexer(Compiler* lx) {
     setStmtSpanLength(top.tokenInd, lx);
 }
 
-
+/** Main lexer function. Precondition: the input byte array has been prepended with StandardText */
 testable Compiler* lexicallyAnalyze(String* input, Compiler* proto, Arena* a) {
     Compiler* lx = createLexerFromProto(input, proto, a);
     Int inpLength = input->length;
@@ -2921,11 +2831,11 @@ testable Compiler* lexicallyAnalyze(String* input, Compiler* proto, Arena* a) {
     VALIDATEL(inpLength > 0, "Empty input")
 
     // Check for UTF-8 BOM at start of file
-    if (inpLength >= 3
-        && (unsigned char)inp[0] == 0xEF
-        && (unsigned char)inp[1] == 0xBB
-        && (unsigned char)inp[2] == 0xBF) {
-        lx->i = 3;
+    if (lx->i + 3 < lx->inpLength
+        && (unsigned char)inp[lx->i] == 0xEF
+        && (unsigned char)inp[lx->i + 1] == 0xBB
+        && (unsigned char)inp[lx->i + 2] == 0xBF) {
+        lx->i += 3;
     }
     LexerFunc (*dispatch)[256] = proto->langDef->dispatchTable;
 
@@ -3188,51 +3098,117 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
 
 //{{{ Built-ins
 
-const char constantStrings[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
-                               "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertprintlo";
-const Int constantOffsets[] = {
-    0,   6,  8, 12,
-    20, 25, 30, 33,
-    38, 46, 50, 55,
-    66, 69, 77, 85,
-    92, 98, 101, 107,
-    115, 117, 119, 122,
-    127, 132, 134
-    
+/// The standard text prepended to all source code inputs and the hash table to provide a built-in string set.
+/// The Tl reserved words must be at the start and be sorted alphabetically on the first letter.
+const char standardText[] = "aliasandassertawaitbreakcatchcontinuedeferdefdoelseembedfalsefor"
+                            "ififPrimplimportinterfacelammatchorreturntruetryyieldwhile" // reserved words end here
+                            "LAlencapprintalertmath-pimath-e";
+
+const Int standardStrings[] = {
+    0,   5,  8, 14, 19, 
+    24, 29, 37, 42, 45, // def
+    47, 51, 56, 61, 64, // for
+    66, 70, 74, 79, 88,
+    91, 96, 98, 104, 108, // true
+    111, 116, 121, // while
+    122, 123, 126, 129, 134 // print
+    139, 146, 152 // math-e
+};
+const Int standardToks[] = {
+    tokAlias, tokAnd, tokAssert, tokAwait,
+    tokBreak, tokCatch, tokContinue, tokDefer, tokDef,
+    tokDo, tokElse, tokEmbed, reservedFalse, tokFor, 
+    tokIf, tokIfPr, tokImpl, tokImport, tokIface,
+    tokLambda, tokMatch, tokOr, tokReturn, reservedTrue,
+    tokTry, tokYield, tokWhile
 };
 
-#define strReturn   0
-#define strIf       1
-#define strElse     2
-#define strFunction 3
-#define strWhile    4
+#define strAlias      0
+#define strAnd        1
+#define strAssert     2
+#define strAwait      3
+#define strBreak      4
+#define strCatch      5
+#define strContinue   6
+#define strDefer      7
+#define strDef        8 
+#define strDo         9
+#define strElse      10
+#define strEmbed     11
+#define strFalse     12
+#define strFor       13
+#define strIf        14
+#define strIfPr      15
+#define strImpl      16 
+#define strImport    17
+#define strInterface 18
+#define strLam       19
+#define strMatch     20
+#define strOr        21
+#define strReturn    22
+#define strTrue      23
+#define strTry       24
+#define strYield     25
+#define strWhile     26
+#define strL         27
+#define strA         28
+#define strlen       29
+#define strcap       30
+#define strPrint     31
+#define strAlert     32
+#define strMathPi    33
+#define strMathE     34
 
-#define strConst    5
-#define strLet      6
-#define strBreak    7
-#define strContinue 8
-#define strTrue     9
+//{{{ Source code files
 
-#define strFalse   10
-#define strPrint   11
-#define strFor     12
-#define strToStr   13
-#define strExpon   14
+private String* readSourceFile(const Arr(char) fName, Arena* a) {
+    String* result = NULL;
+    FILE *file = fopen(fName, "r");
+    if (file == NULL) {
+        goto cleanup;
+    }
+    /* Go to the end of the file. */
+    if (fseek(file, 0L, SEEK_END) != 0) {
+        goto cleanup;
+    }
+    long fileSize = ftell(file);
+    if (fileSize == -1) {
+        goto cleanup;
+    }
 
-#define strPi       15
-#define strE        16
-#define strNotEqual 17
-#define strLength   18
-#define strAbsolute 19
+    /* Allocate our buffer to that size, with space for the standard text in front of it. */
+    result = allocateOnArena(sizeof(standardText) + fileSize + 1 + sizeof(String), a);
+    
+    /* Go back to the start of the file. */
+    if (fseek(file, 0L, SEEK_SET) != 0) {
+        goto cleanup;
+    }
 
-#define strLogicalAnd 20
-#define strLogicalOr  21
-#define strEquality   22
-#define strAlert      23
-#define strPrint2     24
+    memcpy(result->content, standardText, sizeof(standardText));
+    /* Read the entire file into memory. */
+    size_t newLen = fread(result->content + sizeof(standardText), 1, fileSize, file);
+    if (ferror(file) != 0 ) {
+        fputs("Error reading file", stderr);
+    } else {
+        result->content[newLen] = '\0'; /* Just to be safe. */
+    }
+    result->length = newLen;
+    cleanup:
+    fclose(file);
+    return result;
+}
 
-#define strLo         25
+//}}}
+
 private Int createTypeTag(untt sort, Int arity, Int depth);
+
+//** Inserts the necessary strings from the standardText into the string table and the hash table */
+private void buildStandardStrings(Compiler* cm) {
+   // strLen
+   // strCap
+   // strL
+   // strA
+}
 
 /** Creates the built-in types in the proto compiler */
 private void buildTypes(Compiler* cm) {
@@ -3243,14 +3219,14 @@ private void buildTypes(Compiler* cm) {
     // Array
     pushIntypes(5, cm);
     pushIntypes(createTypeTag(sorStruct, 1, 1), cm); //
-    pushIntypes(5, cm); // .length
+    pushIntypes(strLen, cm); // .len
     pushIntypes(5, cm);
     pushIntypes(5, cm);
     // List
     pushIntypes(5, cm);
     pushIntypes(createTypeTag(sorStruct, 1, 2), cm); //
-    pushIntypes(5, cm); // .length
-    pushIntypes(5, cm); // .capacity
+    pushIntypes(strLen, cm); // .length
+    pushIntypes(strCap, cm); // .capacity
     pushIntypes(5, cm);
 }
 
@@ -3363,6 +3339,7 @@ private void buildOperators(Compiler* cm) {
 
 /* Entities and overloads for the built-in operators, types and functions. */
 private void createBuiltins(Compiler* cm) {
+    buildStandardStrings(cm);
     buildTypes(cm);
     
     buildOperators(cm);
@@ -3401,12 +3378,12 @@ private void importPrelude(Compiler* cm) {
     Int voidOfFloat = addFunctionType(1, (Int[]){tokUnderscore, tokFloat}, cm);
     
     EntityImport imports[6] =  {
-        (EntityImport) { .name = str("math-pi", cm->a), .externalNameId = strPi, .typeInd = 0, .nameId = -1 },
-        (EntityImport) { .name = str("math-e", cm->a), .externalNameId = strE, .typeInd = 0, .nameId = -1 },
-        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint2, .typeInd = 1, .nameId = -1 },
-        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint2, .typeInd = 2, .nameId = -1 },
-        (EntityImport) { .name = str("print", cm->a), .externalNameId = strPrint2, .typeInd = 3, .nameId = -1 },
-        (EntityImport) { .name = str("alert", cm->a), .externalNameId = strAlert, .typeInd = 1, .nameId = -1 }
+        (EntityImport) { .nameId = strMathPi, .externalNameId = cgStrMathPi, .typeInd = 0},
+        (EntityImport) { .nameId = strMathE), .externalNameId = cgStrMathE, .typeInd = 0},
+        (EntityImport) { .nameId = strPrint, .externalNameId = cgStrPrint2, .typeInd = 1},
+        (EntityImport) { .nameId = strPrint, .externalNameId = cgStrPrint2, .typeInd = 2},
+        (EntityImport) { .nameId = strPrint, .externalNameId = cgStrPrint2, .typeInd = 3},
+        (EntityImport) { .nameId = strAlert, .externalNameId = cgStrAlert, .typeInd = 1}
     };
     Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
     for (Int j = 0; j < countBaseTypes; j++) {
@@ -3425,12 +3402,13 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
     Arena* aTmp = mkArena();
 
     (*lx) = (Compiler){
-        .i = 0, .langDef = proto->langDef, .sourceCode = sourceCode, .nextInd = 0, .inpLength = sourceCode->length,
+        .i = sizeof(standardText), .langDef = proto->langDef, .sourceCode = sourceCode, .nextInd = 0, 
+        .inpLength = sourceCode->length,
         .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
         .newlines = allocateOnArena(500*sizeof(int), a), .newlinesCapacity = 500,
         .numeric = allocateOnArena(50*sizeof(int), aTmp), .numericCapacity = 50,
         .lexBtrack = createStackBtToken(16, aTmp),
-        .stringTable = createStackint32_t(16, a), .stringStore = createStringStore(100, a),
+        .stringTable = createStackint32_t(16, a), .stringStore = copyStringStore(proto->typesDict, a),
         .sourceCode = sourceCode,
         .countOperatorEntities = proto->countOperatorEntities, .entImportedZero = proto->entities.length,
         .wasError = false, .errMsg = &empty,
@@ -4163,6 +4141,45 @@ private Int createTypeTag(untt sort, Int arity, Int depth) {
 //}}}
 //{{{ Codegen
 
+const char codegenText[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
+                           "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alert";
+const Int codegenStrings[] = {
+    0,   6,  8, 12, 20, 
+    25, 30, 33, 38, 46,
+    50, 55, 66, 69, 77,
+    85, 92, 98, 101, 107,
+    115, 117, 119, 122, 127,
+    132, 134, 137, 140, 141,
+    142
+};
+
+#define cgStrReturn   0 
+#define cgStrIf       5
+#define cgStrLet         6
+#define cgStrBreak       7
+#define cgStrContinue    8
+
+#define strTrue        9
+#define strFalse   10
+#define strPrint   11
+#define strFor     12
+#define strToStr   13
+#define strExpon   14
+
+#define strPi       15
+#define strE        16
+#define strNotEqual 17
+#define strLength   18
+#define strAbsolute 19
+
+#define strLogicalAnd 20
+#define strLogicalOr  21
+#define strEquality   22
+#define strAlert      23
+#define strPrint2     24
+
+#define strLo         25
+
 typedef struct Codegen Codegen;
 typedef void CgFunc(Node, bool, Arr(Node), Codegen*);
 typedef struct {
@@ -4218,17 +4235,17 @@ private void writeBytes(byte* ptr, Int countBytes, Codegen* cg) {
 
 /** Write a constant to codegen */
 private void writeConstant(Int indConst, Codegen* cg) {
-    Int len = constantOffsets[indConst + 1] - constantOffsets[indConst];
+    Int len = codegenStrings[indConst + 1] - codegenStrings[indConst];
     ensureBufferLength(len, cg);
-    memcpy(cg->buffer + cg->length, constantStrings + constantOffsets[indConst], len);
+    memcpy(cg->buffer + cg->length, standardText + codegenStrings[indConst], len);
     cg->length += len;
 }
 
 /** Write a constant to codegen and add a space after it */
 private void writeConstantWithSpace(Int indConst, Codegen* cg) {
-    Int len = constantOffsets[indConst + 1] - constantOffsets[indConst];
+    Int len = codegenStrings[indConst + 1] - codegenStrings[indConst];
     ensureBufferLength(len, cg); // no need for a "+ 1", for the function automatically ensures 10 extra bytes
-    memcpy(cg->buffer + cg->length, constantStrings + constantOffsets[indConst], len);
+    memcpy(cg->buffer + cg->length, codegenText + codegenStrings[indConst], len);
     cg->length += (len + 1);
     cg->buffer[cg->length - 1] = 32;
 }
@@ -4464,7 +4481,7 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     if (isEntry) {
         pushCgFrame(nd, cg);
         writeIndentation(cg);
-        writeConstantWithSpace(strFunction, cg);
+        writeConstantWithSpace(cgStrFunction, cg);
 
         Node fnBinding = nodes[cg->i];
         Entity fnEnt = cg->cm->entities.content[fnBinding.pl1];
@@ -4535,9 +4552,9 @@ private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg
     Node binding = nodes[cg->i];
     Int class = cg->cm->entities.content[binding.pl1].class;
     if (class == classMutatedGuaranteed || class == classMutatedNullable) {
-        writeConstantWithSpace(strLet, cg);
+        writeConstantWithSpace(cgStrLet, cg);
     } else {
-        writeConstantWithSpace(strConst, cg);
+        writeConstantWithSpace(cgStrConst, cg);
     }
     writeAssignmentWorker(nodes, cg);
     
@@ -4556,7 +4573,7 @@ private void writeReassignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* 
 private void writeReturn(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     Int sentinel = cg->i + fr.pl2;
     writeIndentation(cg);
-    writeConstantWithSpace(strReturn, cg);
+    writeConstantWithSpace(cgStrReturn, cg);
 
     Node rightSide = nodes[cg->i];
     ++cg->i; // CONSUME the expr node
@@ -4587,7 +4604,7 @@ private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     }
     pushCgFrame(fr, cg);
     writeIndentation(cg);
-    writeConstantWithSpace(strIf, cg);
+    writeConstantWithSpace(cgStrIf, cg);
     writeChar(aParenLeft, cg);
 
     Node expression = nodes[cg->i];
@@ -4614,13 +4631,13 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
         } else if (nodes[sentinel].tp == nodIfClause) {
             // there is only the "else" clause after this clause
             writeChar(aSpace, cg);
-            writeConstantWithSpace(strElse, cg);
+            writeConstantWithSpace(cgStrElse, cg);
             writeChar(aCurlyLeft, cg);
         } else {
             // there is another condition after this clause, so we write it out as an "else if"
             writeChar(aSpace, cg);
-            writeConstantWithSpace(strElse, cg);
-            writeConstantWithSpace(strIf, cg);
+            writeConstantWithSpace(cgStrElse, cg);
+            writeConstantWithSpace(cgStrIf, cg);
             writeChar(aParenLeft, cg);
             cg->i = sentinel; // CONSUME ???
             Node expression = nodes[cg->i];
@@ -4633,7 +4650,7 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
 
 
 private void writeLoopLabel(Int labelId, Codegen* cg) {
-    writeConstant(strLo, cg);
+    writeConstant(cgStrLo, cg);
     ensureBufferLength(14, cg);
     Int lenWritten = sprintf(cg->buffer + cg->length, "%d", labelId);
     cg->length += lenWritten;
@@ -4659,7 +4676,7 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
             while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
                 ++cg->i; // CONSUME the assignment node
                 writeIndentation(cg);
-                writeConstantWithSpace(strLet, cg);
+                writeConstantWithSpace(cgStrLet, cg);
                 writeAssignmentWorker(nodes, cg);
             }
         } else {
@@ -4667,7 +4684,7 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         }
 
         writeIndentation(cg);
-        writeConstantWithSpace(strWhile, cg);
+        writeConstantWithSpace(cgStrWhile, cg);
         writeChar(aParenLeft, cg);
         Node cond = nodes[cg->i + 1];
         cg->i += 2; // CONSUME the loopCond node and expr/verbatim node
@@ -4775,7 +4792,7 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
 //{{{ Main
 Codegen* compile(String* source) {
     Arena* a = mkArena();
-    Compiler* proto = createCompilerProto(a);
+    Compiler* proto = createProtoCompiler(a);
     
     Compiler* lx = lexicallyAnalyze(source, proto, a);
     if (lx->wasError) {
@@ -4800,6 +4817,7 @@ Int main(int argc, char* argv) {
     if (sourceCode == NULL) {
         goto cleanup;
     }
+    printString(sourceCode);
     
     Codegen* cg = compile(sourceCode);
     if (cg != NULL) {

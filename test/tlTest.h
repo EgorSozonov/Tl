@@ -19,7 +19,7 @@ void printIntArray(Int count, Arr(Int) arr);
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
 void initializeParser(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
-Compiler* createCompilerProto(Arena* a);
+Compiler* createProtoCompiler(Arena* a);
 
 #ifdef LEXER_TEST
 
