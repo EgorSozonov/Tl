@@ -114,7 +114,7 @@ typedef struct {
 //{{{ Lexer
 
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
-typedef struct {
+typedef struct { //:BtToken
     untt tp : 6;
     Int tokenInd;
     Int countClauses;
@@ -124,7 +124,7 @@ typedef struct {
 
 DEFINE_STACK_HEADER(BtToken)
  
-typedef struct {
+typedef struct { //:Token
     untt tp : 6;
     untt lenBts: 26;
     untt startBt;
@@ -262,7 +262,7 @@ typedef struct {
  * Plus, many have automatic assignment counterparts.
  * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
  */
-typedef struct {
+typedef struct { //:OpDef
     String* name;
     byte bytes[4];
     Int arity;
@@ -395,7 +395,7 @@ typedef struct {
 #define emitInfixDot       8  // emitted as a "dot-call", like ".toString()"
 #define emitNop            9  // for unary operators that don't need to be emitted, like ","
 
-typedef struct {
+typedef struct { //:Entity
     Int typeId;
     uint16_t externalNameId;
     uint8_t class;
@@ -420,7 +420,7 @@ struct ScopeChunk {
 /** 
  * Either currChunk->next == NULL or currChunk->next->next == NULL
  */
-typedef struct {
+typedef struct { //:ScopeStack
     ScopeChunk* firstChunk;
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
@@ -435,7 +435,6 @@ DEFINE_STACK_HEADER(Node)
 DEFINE_INTERNAL_LIST_TYPE(Node)
 
 DEFINE_INTERNAL_LIST_TYPE(Entity)
-
 
 DEFINE_INTERNAL_LIST_TYPE(Int)
 
@@ -471,7 +470,7 @@ DEFINE_INTERNAL_LIST_TYPE(EntityImport)
  * Those overloads are used for counting how many functions for each name there are.
  * Then they are resolved at the stage of the typer, after which there are only the Entities.
  */
-struct Compiler {
+struct Compiler { //:Compiler
     String* sourceCode;
     Int inpLength;
 
@@ -559,7 +558,6 @@ struct Compiler {
 #define sorSum            2
 #define sorFunction       3
 #define sorConcretization 4
-
 
 
 //}}}

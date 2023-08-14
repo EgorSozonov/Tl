@@ -867,87 +867,59 @@ private Int probeReservedWords(Int indStart, Int indEnd, Compiler* lx) {
 }
 
 private Int determineReservedA(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strAlias, strBreak);
+    return probeReservedWords(strAlias, strBreak, lx);
 }
 
 private Int determineReservedB(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strBreak, strCatch);
+    return probeReservedWords(strBreak, strCatch, lx);
 }
 
 private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strCatch, strDefer);
+    return probeReservedWords(strCatch, strDefer, lx);
 }
 
 private Int determineReservedD(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strDefer, strElse);
+    return probeReservedWords(strDefer, strElse, lx);
 }
 
 private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strElse, strFalse);
+    return probeReservedWords(strElse, strFalse, lx);
 }
 
 private Int determineReservedF(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strFalse, strIf);
+    return probeReservedWords(strFalse, strIf, lx);
 }
 
 private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesIf, tokIf)
-    PROBERESERVED(reservedBytesIfPr, tokIfPr)
-    PROBERESERVED(reservedBytesImpl, tokImpl)
-    PROBERESERVED(reservedBytesImport, tokImport)
-    PROBERESERVED(reservedBytesInterface, tokIface)
-    return -1;
+    return probeReservedWords(strIf, strLam, lx);
 }
-
 
 private Int determineReservedL(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesLambda, tokLambda)
-    return -1;
+    return probeReservedWords(strLam, strMatch, lx);
 }
-
 
 private Int determineReservedM(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesMatch, tokMatch)
-    return -1;
+    return probeReservedWords(strMatch, strOr, lx);
 }
-
 
 private Int determineReservedO(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesOr, reservedOr)
-    return -1;
+    return probeReservedWords(strOr, strReturn, lx);
 }
-
 
 private Int determineReservedR(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesReturn, tokReturn)
-    return -1;
+    return probeReservedWords(strReturn, strTrue, lx);
 }
-
 
 private Int determineReservedT(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesTrue, reservedTrue)
-    PROBERESERVED(reservedBytesTry, tokTry)
-    return -1;
+    return probeReservedWords(strTrue, strWhile, lx);
 }
-
 
 private Int determineReservedW(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesWhile, tokWhile)
-    return -1;
+    return probeReservedWords(strWhile, strYield, lx);
 }
 
-
 private Int determineReservedY(Int startBt, Int lenBts, Compiler* lx) {
-    Int lenReser;
-    PROBERESERVED(reservedBytesYield, tokYield)
-    return -1;
+    return probeReservedWords(strYield, strFirstNonReserved, lx);
 }
 
 private Int determineUnreserved(Int startBt, Int lenBts, Compiler* lx) {
@@ -3148,12 +3120,13 @@ const Int standardToks[] = {
 #define strReturn    22
 #define strTrue      23
 #define strTry       24
-#define strYield     25
 #define strWhile     26
+#define strYield     25
 #define strL         27
+#define strFirstNonReserved strL
 #define strA         28
-#define strlen       29
-#define strcap       30
+#define strLen       29
+#define strCap       30
 #define strPrint     31
 #define strAlert     32
 #define strMathPi    33
@@ -3204,10 +3177,16 @@ private Int createTypeTag(untt sort, Int arity, Int depth);
 
 //** Inserts the necessary strings from the standardText into the string table and the hash table */
 private void buildStandardStrings(Compiler* cm) {
-   // strLen
-   // strCap
-   // strL
-   // strA
+    // this order must match the order of "str" constants 
+    push(standardStrings[strL], cm->stringTable);
+    push(standardStrings[strA], cm->stringTable);
+    push(standardStrings[strLen], cm->stringTable);
+    push(standardStrings[strCap], cm->stringTable);
+    push(standardStrings[strPrint], cm->stringTable);
+    push(standardStrings[strAlert], cm->stringTable);
+    push(standardStrings[strMathPi], cm->stringTable);
+    push(standardStrings[strMathE], cm->stringTable);
+    // TODO push them into the hash table
 }
 
 /** Creates the built-in types in the proto compiler */
@@ -3378,12 +3357,12 @@ private void importPrelude(Compiler* cm) {
     Int voidOfFloat = addFunctionType(1, (Int[]){tokUnderscore, tokFloat}, cm);
     
     EntityImport imports[6] =  {
-        (EntityImport) { .nameId = strMathPi, .externalNameId = cgStrMathPi, .typeInd = 0},
-        (EntityImport) { .nameId = strMathE), .externalNameId = cgStrMathE, .typeInd = 0},
-        (EntityImport) { .nameId = strPrint, .externalNameId = cgStrPrint2, .typeInd = 1},
-        (EntityImport) { .nameId = strPrint, .externalNameId = cgStrPrint2, .typeInd = 2},
-        (EntityImport) { .nameId = strPrint, .externalNameId = cgStrPrint2, .typeInd = 3},
-        (EntityImport) { .nameId = strAlert, .externalNameId = cgStrAlert, .typeInd = 1}
+        (EntityImport) { .nameId = strMathPi - strFirstNonReserved, .externalNameId = cgStrMathPi, .typeInd = 0},
+        (EntityImport) { .nameId = strMathE - strFirstNonReserved), .externalNameId = cgStrMathE, .typeInd = 0},
+        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrPrint2, .typeInd = 1},
+        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrPrint2, .typeInd = 2},
+        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrPrint2, .typeInd = 3},
+        (EntityImport) { .nameId = strAlert - strFirstNonReserved, .externalNameId = cgStrAlert, .typeInd = 1}
     };
     Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
     for (Int j = 0; j < countBaseTypes; j++) {
