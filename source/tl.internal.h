@@ -75,7 +75,10 @@ testable String* str(const char* content, Arena* a);
 testable bool endsWith(String* a, String* b);
 
 #define s(lit) str(lit, a)
-
+typedef struct {
+    Int fst;
+    Int snd;
+} IntPair;
 //}}}
 //{{{ Int Hashmap
 
@@ -147,7 +150,7 @@ typedef struct { //:Token
 #define tokDocComment   6
 
 #define tokWord         7    // pl2 = index in the string table
-#define tokTypeName     8    // pl1 = 1 if it's a type param ("?A"), pl2 = same as tokWord
+#define tokTypeName     8    // pl2 = same as tokWord
 #define tokKwArg        9    // pl2 = same as tokWord. The ":argName"
 #define tokStructField 10    // pl2 = same as tokWord. The ".structField"
 #define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below

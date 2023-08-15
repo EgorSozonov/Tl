@@ -782,6 +782,7 @@ const Int standardStrings[] = {
     122, 123, 126, 129, 134, // print
     139, 146, 152 // math-e
 };
+
 const Int standardToks[] = {
     tokAlias, reservedAnd, tokAssert, tokAwait,
     tokBreak, tokCatch, tokContinue, tokDefer, tokDef,
@@ -790,6 +791,7 @@ const Int standardToks[] = {
     tokLambda, tokMatch, reservedOr, tokReturn, reservedTrue,
     tokTry, tokYield, tokWhile
 };
+
 
 #define strAlias      0
 #define strAnd        1
@@ -829,6 +831,11 @@ const Int standardToks[] = {
 #define strMathE     34
 
 
+#ifdef TEST 
+IntPair getStandardTextLength() {
+    return (IntPair){.fst = sizeof(standardText), .snd = (sizeof(standardStrings)/4 - 1 - strFirstNonReserved)};
+}
+#endif
 
 #define CURR_BT source[lx->i]
 #define NEXT_BT source[lx->i + 1]
@@ -850,7 +857,7 @@ typedef union {
 testable String* prepareInput(const char* content, Arena* a) {
     if (content == NULL) return NULL;
     const char* ind = content;
-    Int lenStandard = sizeof(standardText) - 1; // -1 because it has the \0 at the end
+    Int lenStandard = sizeof(standardText);
     Int len = 0;
     for (; *ind != '\0'; ind++) {
         len++;
@@ -878,7 +885,7 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
     if (fileSize == -1) {
         goto cleanup;
     }
-    Int lenStandard = sizeof(standardText) - 1; // -1 because it has the \0 at the end
+    Int lenStandard = sizeof(standardText);
     /* Allocate our buffer to that size, with space for the standard text in front of it. */
     result = allocateOnArena(lenStandard + fileSize + 1 + sizeof(String), a);
     
@@ -1841,6 +1848,8 @@ private void lexStringLiteral(Compiler* lx, Arr(byte) source) {
 
 
 private void lexUnexpectedSymbol(Compiler* lx, Arr(byte) source) {
+    print("i %d byte %d", lx->i, source[lx->i]);
+    printString(lx->sourceCode);
     throwExcLexer(errUnrecognizedByte, lx);
 }
 
@@ -3429,7 +3438,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
         // this assumes that the source code is prefixed with the "standardText"
-        .i = sizeof(standardText) - 1, .langDef = proto->langDef, .sourceCode = sourceCode, .nextInd = 0, 
+        .i = sizeof(standardText), .langDef = proto->langDef, .sourceCode = sourceCode, .nextInd = 0, 
         .inpLength = sourceCode->length,
         .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
         .newlines = allocateOnArena(500*sizeof(int), a), .newlinesCapacity = 500,

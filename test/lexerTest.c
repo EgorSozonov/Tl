@@ -22,13 +22,18 @@ typedef struct {
 
 #define in(x) prepareInput(x, a)
 
-private Compiler* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
-    Compiler* proto = createProtoCompiler(a);
+private Compiler* buildLexer0(Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
     Compiler* result = createLexerFromProto(&empty, proto, a);
     if (result == NULL) return result;
+    IntPair builtIns = getStandardTextLength();
     
     for (int i = 0; i < totalTokens; i++) {
         Token tok = tokens[i];
+        tok.startBt += builtIns.fst;
+        if (tok.tp == tokWord || tok.tp == tokKwArg || tok.tp == tokTypeName || tok.tp == tokStructField
+            || (tok.tp == tokAccessor && tok.pl1 == tkAccDot) || tok.tp == tokTypeCall) {
+            tok.pl2 += builtIns.snd;
+        }
         add(tok, result);
     }
     result->totalTokens = totalTokens;
@@ -36,18 +41,18 @@ private Compiler* buildLexer0(Arena *a, int totalTokens, Arr(Token) tokens) {
     return result;
 }
 
-// Macro wrapper to get array length
-#define buildLexer(toks) buildLexer0(a, sizeof(toks)/sizeof(Token), toks)
+#define buildLexer(toks) buildLexer0(proto, a, sizeof(toks)/sizeof(Token), toks)
 
 
-private Compiler* buildLexerWithError0(String* errMsg, Arena *a, int totalTokens, Arr(Token) tokens) {
-    Compiler* result = buildLexer0(a, totalTokens, tokens);
+private Compiler* buildLexerWithError0(String* errMsg, Compiler* proto, Arena *a, 
+                                       Int totalTokens, Arr(Token) tokens) {
+    Compiler* result = buildLexer0(proto, a, totalTokens, tokens);
     result->wasError = true;
     result->errMsg = errMsg;
     return result;
 }
 
-#define buildLexerWithError(msg, toks) buildLexerWithError0(msg, a, sizeof(toks)/sizeof(Token), toks)
+#define buildLexerWithError(msg, toks) buildLexerWithError0(msg, proto, a, sizeof(toks)/sizeof(Token), toks)
 
 
 private LexerTestSet* createTestSet0(String* name, Arena *a, int count, Arr(LexerTest) tests) {
@@ -95,7 +100,7 @@ void runLexerTest(LexerTest test, int* countPassed, int* countTests, Compiler* p
 }
 
 
-LexerTestSet* wordTests(Arena* a) {
+LexerTestSet* wordTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Word lexer test"), a, ((LexerTest[]) {
         (LexerTest) { 
             .name = s("Simple word lexing"),
@@ -204,7 +209,7 @@ LexerTestSet* wordTests(Arena* a) {
     }));
 }
 
-LexerTestSet* numericTests(Arena* a) {
+LexerTestSet* numericTests(Arena* a, Compiler* proto) {
     return createTestSet(s("Numeric lexer test"), a, ((LexerTest[]) {
         (LexerTest) { 
             .name = s("Hex numeric 1"),
@@ -436,7 +441,7 @@ LexerTestSet* numericTests(Arena* a) {
 }
 
 
-LexerTestSet* stringTests(Arena* a) {
+LexerTestSet* stringTests(Arena* a, Compiler* proto) {
     return createTestSet(s("String literals lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("String simple literal"),
             .input = in("`asdfn't`"),
@@ -460,7 +465,7 @@ LexerTestSet* stringTests(Arena* a) {
 }
 
 
-LexerTestSet* commentTests(Arena* a) {
+LexerTestSet* commentTests(Arena* a, Compiler* proto) {
     return createTestSet(s("Comments lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Comment simple"),
             .input = in("-- this is a comment"),
@@ -504,7 +509,7 @@ LexerTestSet* commentTests(Arena* a) {
     }));
 }
 
-LexerTestSet* punctuationTests(Arena* a) {
+LexerTestSet* punctuationTests(Arena* a, Compiler* proto) {
     return createTestSet(s("Punctuation lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Parens simple"),
             .input = in("(car cdr)"),
@@ -676,7 +681,7 @@ LexerTestSet* punctuationTests(Arena* a) {
 }
 
 
-LexerTestSet* operatorTests(Arena* a) {
+LexerTestSet* operatorTests(Arena* a, Compiler* proto) {
     return createTestSet(s("Operator lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Operator simple 1"),
             .input = in("+"),
@@ -805,7 +810,7 @@ LexerTestSet* operatorTests(Arena* a) {
 }
 
 
-LexerTestSet* coreFormTests(Arena* a) {
+LexerTestSet* coreFormTests(Arena* a, Compiler* proto) {
     return createTestSet(s("Core form lexer tests"), a, ((LexerTest[]) {
          (LexerTest) { .name = s("Statement-type core form"),
              .input = in("x = 9. assert (== x 55) `Error!`"),
@@ -952,8 +957,9 @@ LexerTestSet* coreFormTests(Arena* a) {
 }
 
 
-void runATestSet(LexerTestSet* (*testGenerator)(Arena*), int* countPassed, int* countTests, Compiler* proto, Arena* a) {
-    LexerTestSet* testSet = (testGenerator)(a);
+void runATestSet(LexerTestSet* (*testGenerator)(Compiler*, Arena*), int* countPassed, int* countTests, 
+                 Compiler* proto, Arena* a) {
+    LexerTestSet* testSet = (testGenerator)(proto, a);
     for (int j = 0; j < testSet->totalTests; j++) {
         LexerTest test = testSet->tests[j];
         runLexerTest(test, countPassed, countTests, proto, a);

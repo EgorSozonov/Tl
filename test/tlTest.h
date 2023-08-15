@@ -20,6 +20,7 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
 void initializeParser(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* createProtoCompiler(Arena* a);
+IntPair getStandardTextLength();
 
 #ifdef LEXER_TEST
 
