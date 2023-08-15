@@ -2,5 +2,5 @@ clear
 gcc -g3 -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors -Werror=implicit-function-declaration --std=c17 \
 -o _bin/lexerTest \
 -iquote source -iquote test test/lexerTest.c source/tl.c \
--DLEXER_TEST -DTEST \
+-DLEXER_TEST -DTEST -DTRACE \
 -lm && _bin/lexerTest

@@ -23,7 +23,7 @@ Compiler* createProtoCompiler(Arena* a);
 
 #ifdef LEXER_TEST
 
-Int getStringStore(byte* text, String* strToSearch, StackInt* stringTable, StringStore* hm);
+Int getStringDict(byte* text, String* strToSearch, StackInt* stringTable, StringDict* hm);
 
 void add(Token t, Compiler* lexer);
 Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);

@@ -33,9 +33,7 @@ testable Arena* mkArena() {
     Arena* result = malloc(sizeof(Arena));
 
     size_t firstChunkSize = minChunkSize();
-
     ArenaChunk* firstChunk = malloc(firstChunkSize);
-
     firstChunk->size = firstChunkSize - sizeof(ArenaChunk);
     firstChunk->next = NULL;
 
@@ -518,8 +516,8 @@ private bool hasKeyValueIntMap(int key, int value, IntMap* hm) {
 
 #define initBucketSize 8
 
-private StringStore* createStringStore(int initSize, Arena* a) {
-    StringStore* result = allocateOnArena(sizeof(StringStore), a);
+private StringDict* createStringDict(int initSize, Arena* a) {
+    StringDict* result = allocateOnArena(sizeof(StringDict), a);
     int realInitSize = (initSize >= initBucketSize && initSize < 2048)
         ? initSize
         : (initSize >= initBucketSize ? 2048 : initBucketSize);
@@ -551,30 +549,32 @@ private untt hashCode(byte* start, Int len) {
 }
 
 
-private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, Int lenBts, Arena* a) {
+private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, untt hash, Arena* a) {
     Bucket* p = *ptrToBucket;                                        
     Int capacity = (p->capAndLen) >> 16;
     Int lenBucket = (p->capAndLen & 0xFFFF);
     if (lenBucket + 1 < capacity) {
-        (*ptrToBucket)->content[lenBucket] = (StringValue){.length = lenBts, .indString = newIndString};
+        (*ptrToBucket)->content[lenBucket] = (StringValue){.hash = hash, .indString = newIndString};
         p->capAndLen = (capacity << 16) + lenBucket + 1;
     } else {
-        // TODO handle the case where we've overflowing the 16 bits of capacity
+        // TODO handle the case when we're overflowing the 16 bits of capacity
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + 2*capacity*sizeof(StringValue), a);
         memcpy(newBucket->content, p->content, capacity*sizeof(StringValue));
         
         Arr(StringValue) newValues = (StringValue*)newBucket->content;                 
-        newValues[capacity] = (StringValue){.indString = newIndString, .length = lenBts};
+        newValues[capacity] = (StringValue){.indString = newIndString, .hash = hash};
         *ptrToBucket = newBucket;
         newBucket->capAndLen = ((2*capacity) << 16) + capacity + 1;      
     }
 }
 
 /** Unique'ing of symbols within source code */
-private Int addStringStore(byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringStore* hm) {
-    Int hash = hashCode(text + startBt, lenBts) % (hm->dictSize);
+private Int addStringDict(byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringDict* hm) {
+    untt hash = hashCode(text + startBt, lenBts);
+    Int hashOffset = hash % (hm->dictSize);
     Int newIndString;
-    if (*(hm->dict + hash) == NULL) {
+    Bucket* bu = *(hm->dict + hashOffset);
+    if (bu == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
         StringValue* firstElem = (StringValue*)newBucket->content;
@@ -582,39 +582,39 @@ private Int addStringStore(byte* text, Int startBt, Int lenBts, Stackint32_t* st
         newIndString = stringTable->length;
         push(startBt, stringTable);
 
-        *firstElem = (StringValue){.length = lenBts, .indString = newIndString };
-        *(hm->dict + hash) = newBucket;
+        *firstElem = (StringValue){.hash = hash, .indString = newIndString };
+        *(hm->dict + hashOffset) = newBucket;
     } else {
-        Bucket* p = *(hm->dict + hash);
-        int lenBucket = (p->capAndLen & 0xFFFF);
-        Arr(StringValue) stringValues = (StringValue*)p->content;
+        int lenBucket = (bu->capAndLen & 0xFFFF);
         for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == lenBts
-                && memcmp(text + stringTable->content[stringValues[i].indString], text + startBt, lenBts) == 0) {
+            StringValue strVal = bu->content[i];
+            if (strVal.hash == hash
+                && memcmp(text + stringTable->content[strVal.indString], text + startBt, lenBts) == 0) {
                 // key already present                
-                return stringValues[i].indString;
+                return strVal.indString;
             }
         }
         
         newIndString = stringTable->length;
         push(startBt, stringTable);        
-        addValueToBucket((hm->dict + hash), newIndString, lenBts, hm->a);
+        addValueToBucket(hm->dict + hashOffset, newIndString, hash, hm->a);
     }
     return newIndString;
 }
 
 /** Returns the index of a string within the string table, or -1 if it's not present */
-testable Int getStringStore(byte* text, String* strToSearch, Stackint32_t* stringTable, StringStore* hm) {
+testable Int getStringDict(byte* text, String* strToSearch, Stackint32_t* stringTable, StringDict* hm) {
     Int lenBts = strToSearch->length;
-    Int hash = hashCode(strToSearch->content, lenBts) % (hm->dictSize);
-    if (*(hm->dict + hash) == NULL) {
+    untt hash = hashCode(strToSearch->content, lenBts);
+    Int hashOffset = hash % (hm->dictSize);
+    if (*(hm->dict + hashOffset) == NULL) {
         return -1;
     } else {
-        Bucket* p = *(hm->dict + hash);
+        Bucket* p = *(hm->dict + hashOffset);
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == lenBts
+            if (stringValues[i].hash == hash
                 && memcmp(strToSearch->content, text + stringTable->content[stringValues[i].indString], lenBts) == 0) {
                 return stringValues[i].indString;
             }
@@ -833,7 +833,7 @@ const Int standardToks[] = {
 #define CURR_BT source[lx->i]
 #define NEXT_BT source[lx->i + 1]
 #define VALIDATEI(cond, errInd) if (!(cond)) { throwExcInternal0(errInd, __LINE__, cm); }
-#define VALIDATEL(cond, errMsg) if (!(cond)) { throwExcLexer(errMsg, lx); }
+#define VALIDATEL(cond, errMsg) if (!(cond)) { throwExcLexer0(errMsg, __LINE__, lx); }
 
 
 typedef union {
@@ -850,17 +850,16 @@ typedef union {
 testable String* prepareInput(const char* content, Arena* a) {
     if (content == NULL) return NULL;
     const char* ind = content;
-    Int lenStandard = sizeof(standardText);
+    Int lenStandard = sizeof(standardText) - 1; // -1 because it has the \0 at the end
     Int len = 0;
     for (; *ind != '\0'; ind++) {
         len++;
     }
 
-    String* result = allocateOnArena(len + 1 + sizeof(String), a);
+    String* result = allocateOnArena(lenStandard + len + 1 + sizeof(String), a); // + 1 for the \0
     result->length = lenStandard + len;
     memcpy(result->content, standardText, lenStandard);
-    memcpy(result->content + lenStandard, content, len + 1);
-    printString(result);
+    memcpy(result->content + lenStandard, content, len + 1); // + 1 for the \0
     return result;
 }
 #endif
@@ -879,18 +878,18 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
     if (fileSize == -1) {
         goto cleanup;
     }
-
+    Int lenStandard = sizeof(standardText) - 1; // -1 because it has the \0 at the end
     /* Allocate our buffer to that size, with space for the standard text in front of it. */
-    result = allocateOnArena(sizeof(standardText) + fileSize + 1 + sizeof(String), a);
+    result = allocateOnArena(lenStandard + fileSize + 1 + sizeof(String), a);
     
     /* Go back to the start of the file. */
     if (fseek(file, 0L, SEEK_SET) != 0) {
         goto cleanup;
     }
 
-    memcpy(result->content, standardText, sizeof(standardText));
+    memcpy(result->content, standardText, lenStandard);
     /* Read the entire file into memory. */
-    size_t newLen = fread(result->content + sizeof(standardText), 1, fileSize, file);
+    size_t newLen = fread(result->content + lenStandard, 1, fileSize, file);
     if (ferror(file) != 0 ) {
         fputs("Error reading file", stderr);
     } else {
@@ -916,14 +915,15 @@ _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* c
 
 
 /** Sets i to beyond input's length to communicate to callers that lexing is over */
-_Noreturn private void throwExcLexer(const char errMsg[], Compiler* lx) {   
+_Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compiler* lx) {   
     lx->wasError = true;
 #ifdef TRACE    
-    printf("Error on i = %d: %s\n", lx->i, errMsg);
+    printf("Error on code line %d, i = %d: %s\n", lineNumber, lx->i, errMsg);
 #endif    
     lx->errMsg = str(errMsg, lx->a);
     longjmp(excBuf, 1);
 }
+#define throwExcLexer(msg, lx) throwExcLexer0(msg, __LINE__, lx)
 
 /**
  * Checks that there are at least 'requiredSymbols' symbols left in the input.
@@ -1481,7 +1481,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
         mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
     }
     if (mbReservedWord == -1) { // a normal, unreserved word
-        Int uniqueStringInd = addStringStore(source, startBt, lenString, lx->stringTable, lx->stringStore);
+        Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
         if (lx->i < lx->inpLength && CURR_BT == aParenLeft) {
             VALIDATEL(wordType == tokWord, errPunctuationWrongCall)
             wrapInAStatementStarting(startBt, lx, source);
@@ -2864,11 +2864,16 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 
 private Stackint32_t* copyStringTable(Stackint32_t* table, Arena* a) {
+    Stackint32_t* result = createStackint32_t(table->capacity, a);
+    result->length = table->length;
+    result->capacity = table->capacity;
+    memcpy(result->content, table->content, table->length*4);
+    return result;
 }
 
 
-private StringStore* copyStringStore(StringStore* from, Arena* a) {
-    StringStore* result = allocateOnArena(sizeof(StringStore), a);
+private StringDict* copyStringDict(StringDict* from, Arena* a) {
+    StringDict* result = allocateOnArena(sizeof(StringDict), a);
     const Int dictSize = from->dictSize;
     Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*dictSize, a);
     
@@ -2881,13 +2886,13 @@ private StringStore* copyStringStore(StringStore* from, Arena* a) {
             Int capacity = old->capAndLen >> 16;
             Int len = old->capAndLen && LOWER16BITS;
             Bucket* new = allocateOnArena(sizeof(Bucket) + capacity*sizeof(StringValue), a);
+            new->capAndLen = old->capAndLen;
             memcpy(new->content, old->content, len*sizeof(StringValue));
             dict[i] = new;
         }
     }
     result->dictSize = from->dictSize;
     result->dict = dict;
-
     return result;
 }
 
@@ -2906,9 +2911,9 @@ testable Compiler* createProtoCompiler(Arena* a) {
     (*proto) = (Compiler){
         .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(32, a),
         .sourceCode = str(standardText, a),
-        .stringTable = createStackint32_t(16, a), .stringStore = copyStringStore(proto->stringStore, a),
+        .stringTable = createStackint32_t(16, a), .stringDict = createStringDict(128, a),
         .overloadIds = createInListuint32_t(countOperators, a),
-        .types = createInListInt(64, a), .typesDict = createStringStore(100, a),
+        .types = createInListInt(64, a), .typesDict = createStringDict(128, a),
         .a = a
     };
     createBuiltins(proto);
@@ -2930,22 +2935,20 @@ private void finalizeLexer(Compiler* lx) {
 }
 
 /** Main lexer function. Precondition: the input byte array has been prepended with StandardText */
-testable Compiler* lexicallyAnalyze(String* input, Compiler* proto, Arena* a) {
-    Compiler* lx = createLexerFromProto(input, proto, a);
-    Int inpLength = input->length;
-    Arr(byte) inp = input->content;
-
+testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* a) {
+    Compiler* lx = createLexerFromProto(sourceCode, proto, a);
+    Int inpLength = lx->inpLength;
+    Arr(byte) inp = lx->sourceCode->content;
     VALIDATEL(inpLength > 0, "Empty input")
 
     // Check for UTF-8 BOM at start of file
-    if (lx->i + 3 < lx->inpLength
+    if ((lx->i + 3) < lx->inpLength
         && (unsigned char)inp[lx->i] == 0xEF
         && (unsigned char)inp[lx->i + 1] == 0xBB
         && (unsigned char)inp[lx->i + 2] == 0xBF) {
         lx->i += 3;
     }
     LexerFunc (*dispatch)[256] = proto->langDef->dispatchTable;
-
     // Main loop over the input
     if (setjmp(excBuf) == 0) {
         while (lx->i < inpLength) {
@@ -3159,34 +3162,34 @@ private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm) {
 
 
 /** Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its tail.
- *  Returns the resulting index of this type and updates the length of cm->types accordingly.
+ *  Returns the resulting index of this type and updates the length of cm->types if appropriate.
  */
 testable Int mergeType(Int startInd, Int len, Compiler* cm) {
     byte* types = (byte*)cm->types.content;
-    StringStore* hm = cm->typesDict;
+    StringDict* hm = cm->typesDict;
     Int startBt = startInd*4;
     Int lenBts = len*4;
     untt theHash = hashCode(types + startBt, lenBts);
-    Int hashInd = theHash % (hm->dictSize);
-    if (*(hm->dict + hashInd) == NULL) {
+    Int hashOffset = theHash % (hm->dictSize);
+    if (*(hm->dict + hashOffset) == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
         StringValue* firstElem = (StringValue*)newBucket->content;        
-        *firstElem = (StringValue){.length = lenBts, .indString = startBt };
-        *(hm->dict + hashInd) = newBucket;
+        *firstElem = (StringValue){.hash = theHash, .indString = startBt };
+        *(hm->dict + hashOffset) = newBucket;
     } else {
-        Bucket* p = *(hm->dict + hashInd);
+        Bucket* p = *(hm->dict + hashOffset);
         int lenBucket = (p->capAndLen & 0xFFFF);
         Arr(StringValue) stringValues = (StringValue*)p->content;
         for (int i = 0; i < lenBucket; i++) {
-            if (stringValues[i].length == lenBts
+            if (stringValues[i].hash == theHash
                   && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {                    
                 // key already present
                 cm->types.length -= (len + 1);
                 return stringValues[i].indString/4;
             }
         }
-        addValueToBucket((hm->dict + hashInd), startBt, lenBts, hm->a);
+        addValueToBucket((hm->dict + hashOffset), startBt, lenBts, hm->a);
     }
     ++hm->length;
     return startInd;
@@ -3254,8 +3257,8 @@ private Int createTypeTag(untt sort, Int arity, Int depth);
 private void buildStandardStrings(Compiler* lx) {
     for (Int i = strL; i <= strMathE; i++) {
         Int startBt = standardStrings[i];
-        addStringStore(lx->sourceCode->content, startBt, standardStrings[i + 1] - startBt, 
-                                             lx->stringTable, lx->stringStore);
+        addStringDict(lx->sourceCode->content, startBt, standardStrings[i + 1] - startBt, 
+                                             lx->stringTable, lx->stringDict);
     }
 }
 
@@ -3411,7 +3414,7 @@ private void importPrelude(Compiler* cm) {
     };
     Int countBaseTypes = sizeof(cm->langDef->baseTypes)/sizeof(String*);
     for (Int j = 0; j < countBaseTypes; j++) {
-        Int mbNameId = getStringStore(cm->sourceCode->content, cm->langDef->baseTypes[j], cm->stringTable, cm->stringStore);
+        Int mbNameId = getStringDict(cm->sourceCode->content, cm->langDef->baseTypes[j], cm->stringTable, cm->stringDict);
         if (mbNameId > -1) {
             cm->activeBindings[mbNameId] = j;
         }
@@ -3420,19 +3423,20 @@ private void importPrelude(Compiler* cm) {
                             ((Int[]){tokFloat, voidOfStr, voidOfInt, voidOfFloat}), cm);
 }
 
-/** A proto compiler contains just the built-in definitions and tables. This function copies it  */
+/** A proto compiler contains just the built-in definitions and tables. This fn copies it and performs init */
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = mkArena();
-
     (*lx) = (Compiler){
-        .i = sizeof(standardText), .langDef = proto->langDef, .sourceCode = sourceCode, .nextInd = 0, 
+        // this assumes that the source code is prefixed with the "standardText"
+        .i = sizeof(standardText) - 1, .langDef = proto->langDef, .sourceCode = sourceCode, .nextInd = 0, 
         .inpLength = sourceCode->length,
         .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
         .newlines = allocateOnArena(500*sizeof(int), a), .newlinesCapacity = 500,
         .numeric = allocateOnArena(50*sizeof(int), aTmp), .numericCapacity = 50,
         .lexBtrack = createStackBtToken(16, aTmp),
-        .stringTable = copyStringTable(proto->stringTable, a), .stringStore = copyStringStore(proto->stringStore, a),
+        .stringTable = copyStringTable(proto->stringTable, a), 
+        .stringDict = copyStringDict(proto->stringDict, a),
         .sourceCode = sourceCode,
         .countOperatorEntities = proto->countOperatorEntities, .entImportedZero = proto->entities.length,
         .wasError = false, .errMsg = &empty,
@@ -3451,7 +3455,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->activeBindings = allocateOnArena(4*lx->stringTable->length, lx->aTmp);
     const Int countBaseTypes = sizeof(*cm->langDef->baseTypes)/sizeof(String*);
     for (int j = 0; j < countBaseTypes; j++) {
-        Int typeNameId = getStringStore(cm->sourceCode->content, cm->langDef->baseTypes[j], cm->stringTable, cm->stringStore);
+        Int typeNameId = getStringDict(cm->sourceCode->content, cm->langDef->baseTypes[j], cm->stringTable, cm->stringDict);
         if (typeNameId > -1) {
             cm->activeBindings[typeNameId] = j;
         }
@@ -3484,7 +3488,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->types.length = proto->types.length;
     cm->types.capacity = proto->types.capacity*2;
     
-    cm->typesDict = copyStringStore(proto->typesDict, a);
+    cm->typesDict = copyStringDict(proto->typesDict, a);
 
     cm->imports = createInListEntityImport(8, lx->aTmp);
 

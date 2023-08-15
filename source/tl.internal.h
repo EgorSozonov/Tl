@@ -92,7 +92,7 @@ typedef struct {
 
 /** Reference to first occurrence of a string identifier within input text */
 typedef struct {
-    Int length;
+    untt hash;
     Int indString;
 } StringValue;
 
@@ -108,7 +108,7 @@ typedef struct {
     int dictSize;
     int length;    
     Arena* a;
-} StringStore;
+} StringDict;
 
 //}}}
 //{{{ Lexer
@@ -492,7 +492,7 @@ struct Compiler { //:Compiler
     StackBtToken* lexBtrack;    // [aTmp]
     
     Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
-    StringStore* stringStore;    // A hash table for quickly deduplicating strings. Points into stringTable
+    StringDict* stringDict;    // A hash table for quickly deduplicating strings. Points into stringTable
 
     Int lastClosingPunctInd;   // temp, the index of the last encountered closing punctuation sign, used for statement length
 
@@ -525,7 +525,7 @@ struct Compiler { //:Compiler
     InListInt overloads;
 
     InListInt types; // ([] (arity + 1) returnType param1Type param2Type...)
-    StringStore* typesDict;
+    StringDict* typesDict;
 
     InListEntityImport imports; // [aTmp] imported function overloads
 

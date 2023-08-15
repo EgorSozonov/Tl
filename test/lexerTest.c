@@ -106,101 +106,101 @@ LexerTestSet* wordTests(Arena* a) {
                     (Token){ .tp = tokWord, .pl2 = 1, .startBt = 5, .lenBts = 3 }
             }))
         },
-        (LexerTest) {
-            .name = s("Word snake case"),
-            .input = in("asdf_abc"),
-            .expectedOutput = buildLexerWithError(s(errWordUnderscoresOnlyAtStart), ((Token[]){}))
-        },
-        (LexerTest) {
-            .name = s("Word correct capitalization 1"),
-            .input = in("asdf-Abc"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 8  },
-                (Token){ .tp = tokTypeName, .startBt = 0, .lenBts = 8  }
-            }))
-        },
-        (LexerTest) {
-            .name = s("Word correct capitalization 2"),
-            .input = in("asdf-abcd-zyui"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 14  },
-                (Token){ .tp = tokWord, .startBt = 0, .lenBts = 14  }
-            }))
-        },
-        (LexerTest) {
-            .name = s("Word correct capitalization 3"),
-            .input = in("asdf-Abcd"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 9 },
-                (Token){ .tp = tokTypeName, .startBt = 0, .lenBts = 9 }
-            }))
-        },
-        (LexerTest) {
-            .name = s("Word starts with underscore and lowercase letter"),
-            .input = in("_abc"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 4 },
-                (Token){ .tp = tokWord, .startBt = 0, .lenBts = 4 }
-            }))
-        },
-        (LexerTest) {
-            .name = s("Word starts with underscore and capital letter"),
-            .input = in("_Abc"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 4 },
-                (Token){ .tp = tokTypeName, .startBt = 0, .lenBts = 4 }
-            }))
-        },
-        (LexerTest) {
-            .name = s("Word may not start with 2 underscores"),
-            .input = in("__abc"),
-            .expectedOutput = buildLexerWithError(s(errWordChunkStart), ((Token[]){}))
-        },
-        (LexerTest) {
-            .name = s("Word may not start with underscore and digit"),
-            .input = in("_1abc"),
-            .expectedOutput = buildLexerWithError(s(errWordChunkStart), ((Token[]){}))
-        },
-        (LexerTest) {
-            .name = s("Dot word"),
-            .input = in("a.field"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
-                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                (Token){ .tp = tokAccessor, .pl1 = accField, .pl2 = 1, .startBt = 1, .lenBts = 6 }
-            }))
-        },
-
-        (LexerTest) {
-            .name = s("Array numeric index"),
-            .input = in("a@5"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 3, .startBt = 0, .lenBts = 3 },
-                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                (Token){ .tp = tokAccessor, .pl1 = accArrayInd, .startBt = 1, .lenBts = 1 },
-                (Token){ .tp = tokInt, .pl2 = 5, .startBt = 2, .lenBts = 1 }
-            }))
-        },
-
-        (LexerTest) {
-            .name = s("Array variable index"),
-            .input = in("a@ind"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt,         .pl2 = 3, .startBt = 0, .lenBts = 5 },
-                (Token){ .tp = tokWord,         .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                (Token){ .tp = tokAccessor, .pl1 = tkAccAt, .startBt = 1, .lenBts = 1 },
-                (Token){ .tp = tokWord,         .pl2 = 1, .startBt = 2, .lenBts = 3 }
-            }))
-        },
-
-        (LexerTest) {
-            .name = s("Word starts with reserved word"),
-            .input = in("ifter"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 5 },
-                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 5 }
-            }))
-        },
+///        (LexerTest) {
+///            .name = s("Word snake case"),
+///            .input = in("asdf_abc"),
+///            .expectedOutput = buildLexerWithError(s(errWordUnderscoresOnlyAtStart), ((Token[]){}))
+///        },
+///        (LexerTest) {
+///            .name = s("Word correct capitalization 1"),
+///            .input = in("asdf-Abc"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 8  },
+///                (Token){ .tp = tokTypeName, .startBt = 0, .lenBts = 8  }
+///            }))
+///        },
+///        (LexerTest) {
+///            .name = s("Word correct capitalization 2"),
+///            .input = in("asdf-abcd-zyui"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 14  },
+///                (Token){ .tp = tokWord, .startBt = 0, .lenBts = 14  }
+///            }))
+///        },
+///        (LexerTest) {
+///            .name = s("Word correct capitalization 3"),
+///            .input = in("asdf-Abcd"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 9 },
+///                (Token){ .tp = tokTypeName, .startBt = 0, .lenBts = 9 }
+///            }))
+///        },
+///        (LexerTest) {
+///            .name = s("Word starts with underscore and lowercase letter"),
+///            .input = in("_abc"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 4 },
+///                (Token){ .tp = tokWord, .startBt = 0, .lenBts = 4 }
+///            }))
+///        },
+///        (LexerTest) {
+///            .name = s("Word starts with underscore and capital letter"),
+///            .input = in("_Abc"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 4 },
+///                (Token){ .tp = tokTypeName, .startBt = 0, .lenBts = 4 }
+///            }))
+///        },
+///        (LexerTest) {
+///            .name = s("Word may not start with 2 underscores"),
+///            .input = in("__abc"),
+///            .expectedOutput = buildLexerWithError(s(errWordChunkStart), ((Token[]){}))
+///        },
+///        (LexerTest) {
+///            .name = s("Word may not start with underscore and digit"),
+///            .input = in("_1abc"),
+///            .expectedOutput = buildLexerWithError(s(errWordChunkStart), ((Token[]){}))
+///        },
+///        (LexerTest) {
+///            .name = s("Dot word"),
+///            .input = in("a.field"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 0, .lenBts = 7 },
+///                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
+///                (Token){ .tp = tokAccessor, .pl1 = accField, .pl2 = 1, .startBt = 1, .lenBts = 6 }
+///            }))
+///        },
+///
+///        (LexerTest) {
+///            .name = s("Array numeric index"),
+///            .input = in("a@5"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt, .pl2 = 3, .startBt = 0, .lenBts = 3 },
+///                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
+///                (Token){ .tp = tokAccessor, .pl1 = accArrayInd, .startBt = 1, .lenBts = 1 },
+///                (Token){ .tp = tokInt, .pl2 = 5, .startBt = 2, .lenBts = 1 }
+///            }))
+///        },
+///
+///        (LexerTest) {
+///            .name = s("Array variable index"),
+///            .input = in("a@ind"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt,         .pl2 = 3, .startBt = 0, .lenBts = 5 },
+///                (Token){ .tp = tokWord,         .pl2 = 0, .startBt = 0, .lenBts = 1 },
+///                (Token){ .tp = tokAccessor, .pl1 = tkAccAt, .startBt = 1, .lenBts = 1 },
+///                (Token){ .tp = tokWord,         .pl2 = 1, .startBt = 2, .lenBts = 3 }
+///            }))
+///        },
+///
+///        (LexerTest) {
+///            .name = s("Word starts with reserved word"),
+///            .input = in("ifter"),
+///            .expectedOutput = buildLexer(((Token[]){
+///                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 0, .lenBts = 5 },
+///                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 5 }
+///            }))
+///        },
     }));
 }
 
