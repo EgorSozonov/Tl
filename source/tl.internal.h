@@ -353,14 +353,13 @@ typedef Int (*ReservedProbe)(int, int, Compiler*);
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
 
-typedef struct {
+typedef struct { //:LanguageDefinition
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     Int (*reservedParensOrNot)[countCoreForms];
     ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
-    String* baseTypes[6];
     Int typeArray;
     Int typeList;
 } LanguageDefinition;

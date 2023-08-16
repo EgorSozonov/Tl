@@ -29,10 +29,13 @@ private Compiler* buildLexer0(Compiler* proto, Arena *a, int totalTokens, Arr(To
     
     for (int i = 0; i < totalTokens; i++) {
         Token tok = tokens[i];
+        // offset nameIds and startBts for the standardText and standard nameIds correspondingly 
         tok.startBt += builtIns.fst;
-        if (tok.tp == tokWord || tok.tp == tokKwArg || tok.tp == tokTypeName || tok.tp == tokStructField
-            || (tok.tp == tokAccessor && tok.pl1 == tkAccDot) || tok.tp == tokTypeCall) {
+        if (tok.tp == tokWord || tok.tp == tokKwArg || tok.tp == tokStructField
+            || (tok.tp == tokAccessor && tok.pl1 == tkAccDot)) {
             tok.pl2 += builtIns.snd;
+        } else if (tok.tp == tokCall || tok.tp == tokTypeCall) {
+            tok.pl1 += builtIns.snd;
         }
         add(tok, result);
     }
