@@ -100,13 +100,13 @@ Max type arity = 254 (not 255!)
 Examples:
 
 Map(?T ?U) inside Foo(...?T ?U) will have the layout
-[][concretization arity = 0](2/Map -1/0/0/0 -1/0/0/1)
+[5][Map typeId][concretization arity = 0](2/Map -1/0/0/0 -1/0/0/1)
 
 Map(String ?U) inside Foo(...?T ?U) will have the layout
-[][concretization arity = 0](2/Map 0/String -1/0/0/1)
+[5][Map typeId][concretization arity = 0](2/Map 0/String -1/0/0/1)
 
 ?M(String ?T) inside Foo(... ?T ?M) will have the layout
-[][concretization arity = 0](-1/0/2/1 0/String -1/0/0/0)
+[5]["M" nameId][concretization arity = 0](-1/0/2/1 0/String -1/0/0/0)
 
 
 

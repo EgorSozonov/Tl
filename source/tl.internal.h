@@ -17,6 +17,7 @@
 #define LOWER26BITS 0x03FFFFFF
 #define LOWER16BITS 0x0000FFFF
 #define LOWER32BITS 0x00000000FFFFFFFF
+#define PENULTIMATE8BITS 0xFF00
 #define THIRTYFIRSTBIT 0x40000000
 #define MAXTOKENLEN 67108864 // 2^26
 #define SIXTEENPLUSONE 65537 // 2^16 + 1
@@ -75,10 +76,13 @@ testable String* str(const char* content, Arena* a);
 testable bool endsWith(String* a, String* b);
 
 #define s(lit) str(lit, a)
+
 typedef struct {
-    Int fst;
-    Int snd;
-} IntPair;
+    Int lenStandardText;
+    Int numNames;
+    Int firstNonreserved;
+} StandardText;
+
 //}}}
 //{{{ Int Hashmap
 
@@ -115,7 +119,52 @@ typedef struct {
 
 //}}}
 //{{{ Lexer
+//{{{ Standard strings
 
+#define strAlias      0
+#define strAnd        1
+#define strAssert     2
+#define strAwait      3
+#define strBreak      4
+#define strCatch      5
+#define strContinue   6
+#define strDefer      7
+#define strDo         8
+#define strElse       9
+#define strEmbed     10
+#define strFalse     11
+#define strFn        12
+#define strFor       13
+#define strIf        14
+#define strIfPr      15
+#define strImpl      16
+#define strImport    17
+#define strInterface 18
+#define strMatch     19
+#define strOr        20
+#define strReturn    21
+#define strTrue      22
+#define strTry       23
+#define strWhile     24
+#define strYield     25
+
+#define strInt       26
+#define strFirstNonReserved strInt
+#define strLong      27
+#define strDouble    28
+#define strBool      29
+#define strString    30
+#define strVoid      31
+#define strL         32
+#define strA         33
+#define strLen       34
+#define strCap       35
+#define strPrint     36
+#define strAlert     37
+#define strMathPi    38
+#define strMathE     39
+
+//}}}
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
 typedef struct { //:BtToken
     untt tp : 6;
@@ -150,45 +199,45 @@ typedef struct { //:Token
 #define tokDocComment   6
 
 #define tokWord         7    // pl2 = index in the string table
-#define tokTypeName     8    // pl1 = 1 iff it's a type param. pl2 = same as tokWord
+#define tokTypeName     8    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg        9    // pl2 = same as tokWord. The ":argName"
 #define tokStructField 10    // pl2 = same as tokWord. The ".structField"
 #define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
 #define tokAccessor    12    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
 #define tokArrow       13
 
-// Single-line Token types
+// Single-statement token types
 #define tokStmt        14    // firstSpanTokenType 
-#define tokParens      15    // this is for data instantiation
+#define tokParens      15    // this is mostly for data instantiation
 #define tokCall        16    // pl1 = nameId, index in the string table
-#define tokTypeCall    17    // pl1 = nameId, (-nameId - 1) if it's a type param
+#define tokTypeCall    17    // pl1 = nameId
 #define tokOperCall    18    // pl1 = same as tokOperator
-#define tokAssignment  19
-#define tokReassign    20    // :=
-#define tokMutation    21    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
-#define tokAlias       22
-#define tokAssert      23
-#define tokAssertDbg   24
-#define tokAwait       25
-#define tokBreak       26
-#define tokContinue    27
-#define tokDefer       28
-#define tokEmbed       29    // Embed a text file as a string literal, or a binary resource file // 200
-#define tokIface       30
-#define tokImport      31
-#define tokReturn      32
-#define tokTry         33    // early exit
-#define tokYield       34
-#define tokColon       35    // not a real span, but placed here so the parser can dispatch on it
-#define tokElse        36    // not a real span, but placed here so the parser can dispatch on it
+#define tokBrackets    19
+#define tokAssignment  20
+#define tokReassign    21    // :=
+#define tokMutation    22    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
+#define tokAlias       23
+#define tokAssert      24
+#define tokAssertDbg   25
+#define tokAwait       26
+#define tokBreak       27
+#define tokContinue    28
+#define tokDefer       29
+#define tokEmbed       30    // Embed a text file as a string literal, or a binary resource file // 200
+#define tokIface       31
+#define tokImport      32
+#define tokReturn      33
+#define tokTry         34    // early exit
+#define tokYield       35
+#define tokColon       36    // not a real span, but placed here so the parser can dispatch on it
+#define tokElse        37    // not a real span, but placed here so the parser can dispatch on it
 
-// Parenthesized (multi-line) Token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       37    // denoted by do(). firstParenSpanTokenType 
-#define tokCatch       38    // paren "catch(e => print(e))"
-#define tokDef         39
-#define tokPublicDef   40
-#define tokFor         41
-#define tokLambda      42
+// Parenthesized (multi-statement) token types. pl1 = spanLevel, see "sl" constants
+#define tokScope       38    // denoted by do(). firstParenSpanTokenType 
+#define tokCatch       39    // paren "catch(e => print(e))"
+#define tokFn          40
+#define tokPublicDef   41
+#define tokFor         42
 #define tokMeta        43
 #define tokPackage     44    // for single-file packages
 
@@ -287,11 +336,11 @@ typedef struct { //:OpDef
 #define opTBoolNegation      1 // !
 #define opTSize              2 // #
 #define opTRemainder         4 // %
-#define opTBinaryAnd         4 // && bitwise and
-#define opTTypeAnd           5 // & interface intersection (type-level)
+#define opTBinaryAnd         4 // && bitwise and // TODO bitwise negation as "!!" ?
+#define opTTypeAnd           5 // & logical non-short-circ AND
 #define opTIsNull            6 // '
 #define opTTimesExt          7 // *.
-#define opTTimes             8 // *
+#define opTTimes             8 // * and interface intersection
 #define opTPlusExt           9 // +.
 #define opTPlus             10 // +
 #define opTToInt            11 // ,,
@@ -320,7 +369,7 @@ typedef struct { //:OpDef
 #define opTExponentExt      34 // ^.   exponentiation extended
 #define opTExponent         35 // ^    exponentiation
 #define opTBoolOr           36 // ||   bitwise or
-#define opTXor              37 // |    bitwise xor
+#define opTXor              37 // |    bitwise xor // TODO make it "|||"?
 #define opTAnd              38
 #define opTOr               39
 #define opTNegation         40
