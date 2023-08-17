@@ -150,7 +150,7 @@ typedef struct { //:Token
 #define tokDocComment   6
 
 #define tokWord         7    // pl2 = index in the string table
-#define tokTypeName     8    // pl2 = same as tokWord
+#define tokTypeName     8    // pl1 = 1 iff it's a type param. pl2 = same as tokWord
 #define tokKwArg        9    // pl2 = same as tokWord. The ":argName"
 #define tokStructField 10    // pl2 = same as tokWord. The ".structField"
 #define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
@@ -161,7 +161,7 @@ typedef struct { //:Token
 #define tokStmt        14    // firstSpanTokenType 
 #define tokParens      15    // this is for data instantiation
 #define tokCall        16    // pl1 = nameId, index in the string table
-#define tokTypeCall    17    // pl1 = nameId, (-x - 1) if it's a type param
+#define tokTypeCall    17    // pl1 = nameId, (-nameId - 1) if it's a type param
 #define tokOperCall    18    // pl1 = same as tokOperator
 #define tokAssignment  19
 #define tokReassign    20    // :=
@@ -389,9 +389,9 @@ typedef struct {
 #define classImmutable         4
 #define emitPrefix         1  // normal singular native names
 #define emitOverloaded     2  // normal singular native names
-#define emitPrefixShielded 3  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
+#define emitPrefixShielded 3  // a native name in need of shielding from target reserved word (by appending a "_")
 #define emitPrefixExternal 4  // prefix names that are emitted differently than in source code
-#define emitInfix          5  // infix operators that match between source code and target (e.g. arithmetic operators)
+#define emitInfix          5  // infix operators that match between source code and target (e.g. +)
 #define emitInfixExternal  6  // infix operators that have a separate external name
 #define emitField          7  // emitted as field accesses, like ".length"
 #define emitInfixDot       8  // emitted as a "dot-call", like ".toString()"
@@ -534,6 +534,7 @@ struct Compiler { //:Compiler
     Int countOperatorEntities;
     Int countNonparsedEntities; // the index of the first parsed (as opposed to being built-in or imported) entity
     Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression
+    Stackint32_t* typeStack;   // [aTmp] temporary scratch space for type params. Entries: [nameId arity]
     
     // GENERAL STATE
     Int i;                     // index in the input

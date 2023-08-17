@@ -48,9 +48,9 @@ A bad example:
 
 
 
-Type layout for normal types (sums, structs, functions) is quadripartite:
+Type layout for normal types (sums, structs, functions) is pentapartite:
 
-[total size][tag](member names)(member types)
+[total size][nameId][tag](member names)(member types)
 
 1. total size = 1 Int holding the number of ints of all the following data
 2. tag = 8 bits of 0, 8 bits of type-arity, 8 bits of depth, 8 bits of sort
@@ -83,12 +83,14 @@ where Ref1 is the typeInd of the type
 [][sort = concretization, depth = 2, arity = 0](Dict/2 String P/2 0 1)
 
 
+-----------------------------------------------------
 Type layout for types of the sort "concretization":
 
 Max type arity = 254 (not 255!)
 
-[total size][tag](Full type expression in prefix form, with arities)
+[total size][typeId/paramId][tag](Full type expression in prefix form, with arities)
 
+- typeId = id of the original type if it's known, and paramId if a param
 - The tag has sort = "concretization", depth = 0
 - The type expression is made of single or double-int parts with the following structure: 
     - if it's 8 bits of 0, then next 24 bits are the typeInd of a concrete type
