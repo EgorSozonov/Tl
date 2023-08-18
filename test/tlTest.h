@@ -149,7 +149,7 @@ extern const char errTypeNoMatchingOverload[];
 extern const char errTypeWrongArgumentType[];
 Int findOverload(Int typeId, Int start, Int end, Entity* ent, Compiler* cm);
 Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm);
-
+void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm);
 #endif
 
 

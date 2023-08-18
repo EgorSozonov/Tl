@@ -24,8 +24,9 @@ extern jmp_buf excBuf;
 //~    "ifClause", "else", "loop", "loopCond", "if", "ifPr", "impl", "match"
 //~};
 
-private Compiler* buildLexer0(Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
+private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
     Compiler* result = createLexerFromProto(&empty, proto, a);
+    result->sourceCode = sourceCode;
     if (result == NULL) return result;
     StandardText stText = getStandardTextLength();
     
@@ -57,11 +58,11 @@ private Compiler* buildLexer0(Compiler* proto, Arena *a, int totalTokens, Arr(To
     return result;
 }
 
-#define buildLexer(toks) buildLexer0(proto, a, sizeof(toks)/sizeof(Token), toks)
+#define buildLexer(inp, toks) buildLexer0(inp, proto, a, sizeof(toks)/sizeof(Token), toks)
 
 
 void typerTest1(Compiler* proto, Arena* a) {
-    Compiler* cm = buildLexer(((Token[]){ // "fn([U/2 V] lst U(Int V))"
+    Compiler* cm = buildLexer(prepareInput("fn([U/2 V] lst U(Int V))", a), ((Token[]){
         (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
         (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
         (Token){ .tp = tokBrackets,           .pl2 = 3, .startBt = 3, .lenBts = 7 },
@@ -93,7 +94,7 @@ void typerTest1(Compiler* proto, Arena* a) {
 }
 
 void typerTest2(Compiler* proto, Arena* a) {
-    Compiler* cm = buildLexer(((Token[]){ // "fn(lst A(L(A(Double))))"
+    Compiler* cm = buildLexer(prepareInput("fn(lst A(L(A(Double))))", a), ((Token[]){ // ""
         (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
         (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
         (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },

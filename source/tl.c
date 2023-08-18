@@ -3168,6 +3168,8 @@ const Int codegenStrings[] = {
 //}}}
 
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
+private void typeAddName(Int nameId, Int len, Compiler* cm);
+    
 /// Inserts the necessary strings from the standardText into the string table and the hash table
 private void buildStandardStrings(Compiler* lx) {
     for (Int i = strFirstNonReserved; i <= strMathE; i++) {
@@ -3186,7 +3188,7 @@ private void buildPreludeTypes(Compiler* cm) {
     Int typeIndL = cm->types.length; 
     pushIntypes(6, cm);
     pushIntypes(typeEncodeTag(sorStruct, 2, 1, cm), cm);
-    pushIntypes(strL, cm);
+    typeAddName(strL - strFirstNonReserved, 1, cm); 
     pushIntypes(strLen, cm); // .length
     pushIntypes(strCap, cm); // .capacity
     pushIntypes(strInt - strFirstNonReserved, cm);
@@ -3196,7 +3198,7 @@ private void buildPreludeTypes(Compiler* cm) {
     Int typeIndA = cm->types.length; 
     pushIntypes(4, cm);
     pushIntypes(typeEncodeTag(sorStruct, 1, 1, cm), cm);
-    pushIntypes(strA, cm);
+    typeAddName(strA - strFirstNonReserved, 1, cm); 
     pushIntypes(strLen, cm); // .len
     pushIntypes(strInt - strFirstNonReserved, cm);
     cm->activeBindings[strA - strFirstNonReserved] = typeIndA;
@@ -3591,7 +3593,7 @@ private void validateOverloadsFull(Compiler* cm) {
 
 /// Parses a top-level function signature. Emits no nodes, only an entity and an overload. 
 /// Saves the info to "toplevelSignatures". Pre-condition: we are 2 tokens past the fnDef.
-private void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm) {
+testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm) {
     Int fnStartTokenId = cm->i - 2;    
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
     
@@ -3834,6 +3836,11 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((untt)(sort << 16) + (depth << 8) + arity);
 }
+    
+private void typeAddName(Int nameId, Int len, Compiler* cm) {
+    untt encoded = ((untt)len << 24) + (untt)nameId;
+    pushIntypes((Int)encoded, cm);    
+} 
 
 /// Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call.
 private void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
@@ -3924,15 +3931,17 @@ private Int typeUpTo(Token callToken, Int sentinelToken, Arr(Token) tokens, Comp
     Int tentativeTypeInd = cm->types.length;
 
     Int typeLength = sentinelToken - cm->i + 2; // +2 for the name/paramId and the tag 
+    // TYPE LENGTH 
     pushIntypes(typeLength, cm);
+    // TAG 
     pushIntypes(0, cm); // we don't know the arity yet, so will overwrite this at end of func
 
+    // Name 
     Int mainParamInd = typeParamBinarySearch(callToken.pl1, cm);
-    print("typeLen %d mainParamId %d", typeLength, mainParamInd)
     if (mainParamInd == -1) {
         Int mainTypeId = cm->activeBindings[callToken.pl1];
         VALIDATEP(mainTypeId > -1, errUnknownTypeConstructor)
-        pushIntypes(mainTypeId, cm); // typeId of the original type we're concretizing
+        pushIntypes(cm->types.content[mainTypeId + 2], cm); // name of the original type we're concretizing
     } else {
         pushIntypes(-mainParamInd/2 - 1, cm); // ParamId of the param being called
     }
@@ -3940,7 +3949,6 @@ private Int typeUpTo(Token callToken, Int sentinelToken, Arr(Token) tokens, Comp
     while (cm->i < sentinelToken) {
         Token cTk = tokens[cm->i];
         untt tokType = cTk.tp;
-        print("i %d", cm->i)
 
         if (tokType == tokTypeCall) {
             Int nameId = cTk.pl1;
@@ -3955,21 +3963,16 @@ private Int typeUpTo(Token callToken, Int sentinelToken, Arr(Token) tokens, Comp
                 Int typeId = cm->activeBindings[nameId]; 
                 VALIDATEP(typeId > -1, errUnknownTypeConstructor)
                 Int typesArity = typeGetArity(typeId, cm);
-   print("p25 %d %d", arity, typesArity)
                 VALIDATEP(arity == typesArity, errTypeConstructorWrongArity)
-   print("p3")
                 typeAddTypeCall(typeId, arity, cm);
             }
         } else if (tokType == tokTypeName) {
             Int paramInd = typeParamBinarySearch(cTk.pl2, cm);
-            print("i %d typename nameId %d => paramInd %d", cm->i, cTk.pl2, paramInd) 
             if (paramInd == -1) {
                 Int typeId = cm->activeBindings[cTk.pl2];
                 VALIDATEP(typeId > -1, errUnknownType)
-                print("adding concrete type id %d", typeId)
                 pushIntypes(typeId, cm);
             } else {
-                print("adding param type id %d", paramInd/2)
                 typeAddTypeParam(paramInd/2, 0, cm);
             }
         } else {
@@ -4119,7 +4122,6 @@ private void printExpSt(StackInt* st) {
 void typePrint(Int typeId, Compiler* cm) {
     printf("[%d]", cm->types.content[typeId]);
     Int sentinel = typeId + cm->types.content[typeId] + 1;
-    print("ind start %d sentinel %d", typeId, sentinel)
 
     Int tag = cm->types.content[typeId + 1];
     Int sort = tag >> 16;
@@ -4133,11 +4135,16 @@ void typePrint(Int typeId, Compiler* cm) {
         printf("[Concret]");
     }
 
-    Int nameTypeId = cm->types.content[typeId + 2];
-    if (nameTypeId < 0) {
-        printf("[Type param %d]", -nameTypeId - 1);
+    untt nameParamId = cm->types.content[typeId + 2];
+    Int mainNameTag = (nameParamId >> 24) & 0xFF; 
+    Int mainName = nameParamId & LOWER24BITS; 
+    if (mainNameTag == 0) {
+        printf("[Type param %d]", -mainName - 1);
     } else {
-        printf("[%d]", nameTypeId); 
+        printf("{"); 
+        Int startBt = cm->stringTable->content[mainName];
+        fwrite(cm->sourceCode->content + startBt, 1, mainNameTag, stdout);
+        printf("}"); 
     }
 
     if (sort == sorConcretization) {
