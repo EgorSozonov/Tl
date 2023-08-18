@@ -112,6 +112,10 @@ void typerTest2(Compiler* proto, Arena* a) {
     Int typeId = parseTypeName(tk, cm->tokens, cm);
     typePrint(typeId, cm);
 }
+   
+void typeTest3(Compiler* proto, Arena* a) {
+    parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm);
+} 
     
 int main() {
     printf("----------------------------\n");

@@ -65,6 +65,17 @@ typedef struct {    \
     InList##T createInList ## T (Int initCapacity, Arena* a); \
     void pushIn ## fieldName (T newItem, Compiler* cm);
 
+    
+/// A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse 
+/// old allocations via an intrusive free list.
+typedef struct {
+    Int cap;
+    Int len;
+    Int freeList;
+    Arr(Int) content; 
+} MultiList;
+    
+    
 typedef struct {
     int length;
     byte content[];
@@ -564,6 +575,7 @@ struct Compiler { //:Compiler
     Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
 
     InListNode nodes;
+    InListNode fnMonos;        // Function monomorphizations. Created for generic functions 
     InListEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered    
     Int entImportedZero;      // the index of the first imported entity
     
@@ -574,7 +586,7 @@ struct Compiler { //:Compiler
      */
     InListUns overloadIds;
 
-    InListInt overloads;
+    InListInt overloads; // Contains 2 types of pairs: (concreteType entityId) and (genericType fnMonoListId)
 
     InListInt types; // ([] (arity + 1) returnType param1Type param2Type...)
     StringDict* typesDict;

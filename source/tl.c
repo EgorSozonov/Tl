@@ -11,16 +11,7 @@
 
 //{{{ Utils
 
-#ifdef DEBUG
-#define DBG(fmt, ...) \
-        do { if (DEBUG) fprintf(stderr, "%s:%d:%s(): " fmt, __FILE__, \
-                                __LINE__, __func__, __VA_ARGS__); } while (0)
-#else
-#define DBG(fmt, ...) // empty
-#endif      
-
 jmp_buf excBuf;
-
 //{{{ Arena
 
 #define CHUNK_QUANT 32768
@@ -98,7 +89,7 @@ testable void deleteArena(Arena* ar) {
 }
 
 //}}}
-
+//{{{Stack
 #define DEFINE_STACK(T)                                                             \
     testable Stack##T * createStack##T (int initCapacity, Arena* a) {               \
         int capacity = initCapacity < 4 ? 4 : initCapacity;                         \
@@ -135,8 +126,8 @@ testable void deleteArena(Arena* ar) {
     testable void clear##T (Stack##T * st) {                                        \
         st->length = 0;                                                             \
     }
-
-
+//}}}
+//{{{ Internal list
 
 #define DEFINE_INTERNAL_LIST_CONSTRUCTOR(T)                 \
 testable InList##T createInList##T(Int initCap, Arena* a) { \
@@ -168,8 +159,29 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
         }                                                                                      \
         cm->fieldName.length++;                                                                \
     }
+//}}}
+//{{{ MultiList
 
-      
+/// Add a new key-value pair to a particular list within the MultiList.
+/// Throws an exception if key already exists 
+testable void addMultiList(Int newKey, Int newVal, Int listInd, MultiList ml) {
+    // 1. check if the list has enough cap
+    // 2. if not, check the free list.
+    // 3. if not, check if the multilist itself has enough cap for a larger version of this list
+    // 4. if yes, reuse the list off the freelist 
+    // 5. if no, reallocate the multilist itself to a 2x capacity
+}
+    
+/// Add a new list to the MultiList 
+testable void listAddMultiList(Int newKey, Int newVal, Int ind, MultiList ml) {
+}
+    
+/// Search for a key in a particular list within the MultiList. Returns -1 if key not found
+testable Int searchMultiList(Int newKey, Int ind, MultiList ml) {
+}
+    
+//}}}
+//{{{ Data structures 
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
@@ -189,7 +201,9 @@ DEFINE_INTERNAL_LIST(overloadIds, uint32_t, aTmp)
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(EntityImport)
 DEFINE_INTERNAL_LIST(imports, EntityImport, aTmp)
-
+//}}}
+//{{{ Misc
+#ifdef TEST    
 testable void printIntArray(Int count, Arr(Int) arr) {
     printf("[");
     for (Int k = 0; k < count; k++) {
@@ -205,7 +219,9 @@ testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
     }
     printf("...]\n");
 }
-
+#endif
+//}}} 
+    
 //}}}
 //{{{ Good strings
 
@@ -635,9 +651,9 @@ const char errPunctuationWrongCall[]       = "Wrong call syntax: this opening pa
 const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errOperatorUnknown[]            = "Unknown operator";
 const char errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name!";
+const char errToplevelAssignment[]         = "Toplevel assignments must have only single word on the left!";
 const char errOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
 const char errOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
-const char errOperatorMutableDef[]         = "Definition of a mutable var should look like this: `mut x = 10`";
 const char errCoreNotInsideStmt[]          = "Core form must be directly inside statement";
 const char errCoreMisplacedColon[]         = "The colon separator (:) must be inside an if, ifEq, ifPr or match form";
 const char errCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
@@ -3380,6 +3396,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->i = 0;
     cm->loopCounter = 0;
     cm->nodes = createInListNode(initNodeCap, a);
+    cm->fnMonos = createInListNode(initNodeCap, a);
 
     if (lx->stringTable->length > 0) {
         memset(cm->activeBindings, 0xFF, lx->stringTable->length*4); // activeBindings is filled with -1
@@ -3504,36 +3521,36 @@ private void parseToplevelConstants(Compiler* cm) {
     while (cm->i < len) {
         Token tok = cm->tokens[cm->i];
         if (tok.tp == tokAssignment) {
-            parseUpTo(cm->i + tok.pl2, cm->tokens, cm);
+            VALIDATEP(tokens[cm->i + 1].tp == tokWord, errToplevelAssignment)
+            if (tokens[cm->i + 2].tp != tokFn) { 
+                parseUpTo(cm->i + tok.pl2, cm->tokens, cm);
+            } 
         } else {
             cm->i += (tok.pl2 + 1);
         }
     }    
 }
 
-/// Parses top-level function names, and adds their bindings to the scope
+/// Parses top-level function names, and determines if they have at least 1 parameter 
+/// to increment overload counts
 private void surveyToplevelFunctionNames(Compiler* cm) {
     cm->i = 0;
     const Int len = cm->totalTokens;
     Token* tokens = cm->tokens;
     while (cm->i < len) {
         Token tok = tokens[cm->i];
-        if (tok.tp == tokFn) {
-            Int lenTokens = tok.pl2;
-            VALIDATEP(lenTokens >= 3, errFnNameAndParams)
-            
-            Token fnName = tokens[(cm->i) + 2]; // + 2 because we skip over the "fn" and "stmt" span tokens
-            VALIDATEP(fnName.tp == tokWord, errFnNameAndParams)
-            Int j = cm->i + 3;
-            if (tokens[j].tp == tokTypeName) {
-                ++j;
-            }
-            VALIDATEP(tokens[j].tp == tokParens, errFnNameAndParams)
-            Int nameId = fnName.pl2;
+        if (tok.tp == tokAssignment && tokens[cm->i + 2].tp == tokFn) {
+            Int j = cm->i + 2; // tokFn 
             if (tokens[j].pl2 > 0) {
-                fnDefIncrementOverlCount(nameId, cm);
+                j += 2; 
+                if (tokens[j].tp == tokBrackets) { // + 2 to skip the tokStmt inside the "fn()"
+                    j += 2 + tokens[j + 2].pl2; 
+                }
+                if (tokens[j].tp == tokWord) {
+                    fnDefIncrementOverlCount(nameId, cm);
+                }
             }
-        }
+        } 
         cm->i += (tok.pl2 + 1);        
     } 
 }
@@ -3592,7 +3609,7 @@ private void validateOverloadsFull(Compiler* cm) {
 #endif
 
 /// Parses a top-level function signature. Emits no nodes, only an entity and an overload. 
-/// Saves the info to "toplevelSignatures". Pre-condition: we are 2 tokens past the fnDef.
+/// Saves the info to "toplevelSignatures". Pre-condition: we are 2 tokens past the tokFn.
 testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm) {
     Int fnStartTokenId = cm->i - 2;    
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
