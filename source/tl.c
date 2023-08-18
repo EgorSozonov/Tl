@@ -3964,7 +3964,7 @@ private Int typeUpTo(Token callToken, Int sentinelToken, Arr(Token) tokens, Comp
 }
 
 /// Parses an expression that is a type name into the types table
-private Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm) {
+testable Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm) {
     if (tk.tp == tokTypeCall) {
         ++cm->i; // CONSUME the TypeCall token
         return typeUpTo(tk, cm->i + tk.pl2, tokens, cm);
@@ -4094,6 +4094,44 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
 #ifdef TRACE
 private void printExpSt(StackInt* st) {
     printIntArray(st->length, st->content);
+}
+#endif
+#ifdef TEST
+void typePrint(Int typeId, Compiler* cm) {
+    printf("[%d]", cm->types.content[typeId]);
+    Int sentinel = typeId + cm->types.content[typeId] + 1;
+
+    Int tag = cm->types.content[typeId + 1];
+    Int sort = tag >> 16;
+    if (sort == sorStruct) {
+        printf("[Struct]");
+    } else if (sort == sorSum) {
+        printf("[Sum]");
+    } else if (sort == sorFunction) {
+        printf("[Fn]");
+    } else if (sort == sorConcretization) {
+        printf("[Concret]");
+    }
+
+    Int nameTypeId = cm->types.content[typeId + 2];
+    printf("[%d]\n", nameTypeId);
+
+    if (sort == sorConcretization) {
+        printf("(");
+        for (Int j = typeId + 3; j < sentinel; j++) {
+            Int v = cm->types.content[j];
+            Int upper = v >> 24;
+            Int lower = v & LOWER24BITS;
+            if (upper == 0) {
+                printf("Type %d ", lower);
+            } else if (upper == 255) {
+                printf("Param %d arity %d ", lower & PENULTIMATE8BITS, lower & 0xFF);
+            } else {
+                printf("Type %d arity ", lower, upper);
+            }
+        }
+        printf(")");
+    }
 }
 #endif
 

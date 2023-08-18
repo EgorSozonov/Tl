@@ -145,10 +145,11 @@ private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes
  *  Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in nodBinding is 1,
  *  it will be inserted as 1 + (the number of built-in bindings)
  */
-private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes, Int countNodes, 
-                               Arr(Int) types, Int countTypes, Arr(EntityImport) entities, Int countEntities,
-                               Compiler* proto, Arena* a) {
-    ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities, countEntities, proto, a);
+private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes, 
+                            Int countNodes, Arr(Int) types, Int countTypes, Arr(EntityImport) entities,
+                            Int countEntities, Compiler* proto, Arena* a) {
+    ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
+                                     countEntities, proto, a);
     theTest.control->wasError = true;
     theTest.control->errMsg = message;
     return theTest;
@@ -291,7 +292,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Reassignment"), 
-            s("def(main() = \n"
+            s("main = fn(:\n"
                    "x = `foo`\n"
                    "x := `bar`)"
             ),
@@ -311,9 +312,10 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Mutation simple"), 
-            s("def(main() = \n"
-                   "x = 1\n"
-                   "x += 3)"
+            s("main = fn(:\n"
+              "    x = 1\n"
+              "    x += 3\n"
+              ")"
             ),
             ((Node[]) {
                     (Node){ .tp = nodFnDef,           .pl2 = 11, .startBt = 0, .lenBts = 27 },
@@ -334,9 +336,9 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Mutation complex"), 
-            s("def(main() = \n"
+            s("main = fn(: \n"
                    "x = 2\n"
-                   "x ^= (- 15 8))"
+                   "x ^= -(15 8))"
             ),
             ((Node[]) {
                     (Node){ .tp = nodFnDef,           .pl2 = 13, .startBt = 0, .lenBts = 34 },
@@ -590,7 +592,7 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function definition 1"),
-            s("def(newFn(Int x y Int => Float) = a = x)"),
+            s("newFn = fn(x Int y Int: a = x)"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,             .pl2 = 7, .startBt = 0, .lenBts = 37 },
                 (Node){ .tp = nodBinding, .pl1 = 0,           .startBt = 4, .lenBts = 5 },
@@ -606,7 +608,7 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Simple function definition 2"),
-            s("def(newFn(String x y Float => String) =\n"
+            s("newFn = fn(x String y Float => String:\n"
               "    a = x\n"
               "    return a\n"
               ")"
@@ -629,7 +631,7 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
         createTestWithError(
             s("Function definition wrong return type"),
             s(errTypeWrongReturnType),
-            s("def(newFn (Float x y Float => String) =\n"
+            s("newFn = fn(x Float y Float => String:\n"
               "    a = x\n"
               "    return a\n"
               ")"
@@ -651,7 +653,7 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Function definition with complex return"),
-            s("def(newFn (Int x y Float => String) =\n"
+            s("newFn = fn(x Int y Float => String:\n"
               "    return ;-(,x y))"
             ),
             ((Node[]) {
@@ -673,11 +675,13 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Mutually recursive function definitions"),
-            s("def(foo (Int x y Float => Int) =\n"
+            s("foo = fn(x Int y Float => Int:\n"
               "    a = x\n"
-              "    return bar(y a))\n"
-              "def(bar (Float x y Int => Int) =\n"
-              "    return foo(y x))"
+              "    return bar(y a)\n"
+              ")\n"
+              "bar = fn(x Float y Int => Int:\n"
+              "    return foo(y x)\n"
+              ")"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,            .pl2 = 12, .startBt = 0,   .lenBts = 58 }, // foo
@@ -710,12 +714,13 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Function definition with nested scope"),
-            s("def(main (Int x y Float) =\n"
+            s("main = fn(x Int y Float:\n"
               "    do(\n"
               "        a = 5\n"
               "    )\n"
               "    a = -(,x y)\n"
-              "    print(;a))"
+              "    print(a)\n"
+              ")"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 19, .startBt = 0,  .lenBts = 83 },
@@ -809,8 +814,10 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
     return createTestSet(s("If test set"), a, ((ParserTest[]){
         createTest(
             s("Simple if"),
-            s("def(f ()=\n"
-              "    if( ==(5 5) => print(`5`)))"),
+            s("f = fn(:\n"
+              "    if( ==(5 5): print(`5`))\n"
+              ")"
+              ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .pl2 = 11, .startBt = 0, .lenBts = 38 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 4, .lenBts = 1 }, // f
@@ -832,8 +839,10 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("If with else"),
-            s("def(f (=> String)=\n"
-              "    if( >(5 3) => `5` else `=)`)"),
+            s("f = fn(=> String:\n"
+              "    if( >(5 3): `5` else `=)`\n"
+              ")"
+              ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .pl2 = 11, .startBt = 0, .lenBts = 48 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 4, .lenBts = 1 }, // f
@@ -856,9 +865,11 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("If with elseif"),
-            s("def(f ()=\n"
-              "    if( >(5 3)  => 11\n"
-              "       ==(5 3)  => 4))"),
+            s("f = fn(:\n"
+              "    if( >(5 3): 11\n"
+              "       ==(5 3): 4)\n"
+              ")"
+              ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,     .pl2 = 15, .startBt = 0, .lenBts = 51 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .startBt = 4, .lenBts = 1 }, // f
@@ -885,10 +896,12 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("If with elseif and else"),
-            s("def(f ()=\n"
-              "    if( >(5 3)  => 11\n"
-              "        ==(5 3) =>  4\n"
-              "        else     100))"),
+            s("f = fn(:\n"
+              "    if(>(5 3) : 11\n"
+              "       ==(5 3):  4\n"
+              "       else    100\n"
+              "))"
+              ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,     .pl2 = 17, .startBt = 0, .lenBts = 73 },
                 (Node){ .tp = nodBinding, .pl1 = 0,    .startBt = 4, .lenBts = 1 }, // f
@@ -924,7 +937,7 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
         createTest(
             s("Simple loop 1"),
-            s("def(f (=> Int) = while(<(x 101) x = 1 print(;x)))"),
+            s("f = fn(=> Int: while(x = 1. <(x 101): print(x)))"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 16, .startBt = 0, .lenBts = 50 },
                 (Node){ .tp = nodBinding, .pl1 = 0,          .startBt = 4, .lenBts = 1 },
@@ -954,11 +967,13 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("While with two complex initializers"),
-            s("def(f (=> Int) =\n"
-              "    while( <(y 101) x = 17 y = /(x 5)\n"
-              "        print(;x)\n"
+            s("f = fn(:\n"
+              "    while(x = 17. y = /(x 5). <(y 101):\n"
+              "        print(x)\n"
               "        x -= 1\n"
-              "        y += 1))"),
+              "        y += 1)\n"
+              ")"
+              ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 34,        .lenBts = 101 },
                 (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 1 },
@@ -1008,10 +1023,10 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("While without initializers"),
-            s("if(f (=> Int) =\n"
+            s("f = fn(=> Int:\n"
               "    x = 4\n"
-              "    while(<(x 101) \n"
-              "        print(;x)))"),
+              "    while(<(x 101): \n"
+              "        print(x)))"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,         .pl2 = 16,          .lenBts = 65 },
                 (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 1 },
@@ -1040,10 +1055,12 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("While with break and continue"),
-            s("def(f (=> Int) =\n"
-              "    while(<(x 101) x = 0\n"
+            s("f = fn(=> Int:\n"
+              "    while(x = 0. <(x 101):\n"
               "        break\n"
-              "        continue))"),
+              "        continue)\n"
+              ")"
+              ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,             .pl2 = 14, .lenBts = 73 },
                 (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 1 },
@@ -1072,9 +1089,11 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
         createTestWithError(
             s("While with break error"),
             s(errBreakContinueInvalidDepth),
-            s("def(f (=> Int) =\n"
-              "    while(<(x 101) x = 0\n"
-              "        break(2)))"),
+            s("f = fn(=> Int:\n"
+              "    while(x = 0. <(x 101):\n"
+              "        break(2))\n"
+              ")"
+              ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,                            .lenBts = 58 },
                 (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 1 },
@@ -1099,15 +1118,20 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
         ),
         createTest(
             s("Nested while with deep break and continue"),
-            s("def(f Int() =\n"
-              "    while(<(a 101) a = 0\n"
-              "        while(<(b 101) b = 0\n"
-              "            while(<(c 101) c = 0\n"
-              "                break(3)))\n"
-              "        while(<(d 51) d = 0\n"
-              "            while(<(e 101) e = 0\n"
-              "                continue(2)))\n"
-              "        print(;a)))"),
+            s("f = fn(:\n"
+              "    while(a = 0. <(a 101):\n"
+              "        while(b = 0. <(b 101):\n"
+              "            while(c = 0. <(c 101):\n"
+              "                break(3))\n"
+              "        )\n"
+              "        while(d = 0. <(d 51):\n"
+              "            while(e = 0. <(e 101):\n"
+              "                continue(2))\n"
+              "        )\n"
+              "        print(a)\n"
+              "    )\n"
+              ")"
+              ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 58, .lenBts = 245 },
                 (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 1 },                
@@ -1193,7 +1217,7 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
         createTestWithError(
             s("While with type error"),
             s(errTypeMustBeBool),
-            s("def(f (=> Int) = while(/(x 101) x = 1 print(;x)))"),
+            s("f = fn(=> Int: while(x = 1. /(x 101): print(x)))"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,                             .lenBts = 48 },
                 (Node){ .tp = nodBinding, .pl1 = 0,   .startBt = 4, .lenBts = 1 },

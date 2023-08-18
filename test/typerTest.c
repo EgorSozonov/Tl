@@ -10,6 +10,12 @@
 
 extern jmp_buf excBuf;
 
+#define in(x) prepareInput(x, a)
+#define S   70000000 // A constant larger than the largest allowed file size. Separates parsed names from others
+#define I  140000000 // The base index for imported entities/overloads
+#define S2 210000000 // A constant larger than the largest allowed file size. Separates parsed entities from others
+#define O  280000000 // The base index for operators
+
 /** Must agree in order with node types in ParserConstants.h */
 const char* nodeNames[] = {
     "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
@@ -21,143 +27,61 @@ const char* nodeNames[] = {
     "ifClause", "else", "loop", "loopCond", "if", "ifPr", "impl", "match"
 };
 
-
-void printParser(Compiler* cm, Arena* a) {
-    if (cm->wasError) {
-        printf("Error: ");
-        printString(cm->errMsg);
+private Int transformBindingEntityId(Int inp, Compiler* pr) {
+    if (inp < S) { // parsed stuff
+        return inp + pr->countNonparsedEntities;
+    } else if (inp < S2) {
+        return inp - I + pr->countOperatorEntities;
+    } else {
+        return inp - O;
     }
-    Int indent = 0;
-    Stackint32_t* sentinels = createStackint32_t(16, a);
-    
-    for (int i = 0; i < cm->nodes.length; i++) {
-        Node nod = cm->nodes.content[i];
-        for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
-            popint32_t(sentinels);
-            indent--;
-        }
-        if (i < 10) printf(" ");
-        printf("%d: ", i);
-        for (int j = 0; j < indent; j++) {
-            printf("  ");
-        }
-        if (nod.pl1 != 0 || nod.pl2 != 0) {            
-            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
+}
+
+private void buildParser0(Compiler* cm, int countNodes, Arr(Node) nodes) {
+    for (Int i = 0; i < countNodes; i++) {
+        untt nodeType = nodes[i].tp;
+        // All the node types which contain bindingIds
+        if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding || nodeType == nodBinding) {
+            pushInnodes((Node){ .tp = nodeType, .pl1 = transformBindingEntityId(nodes[i].pl1, cm),
+                                .pl2 = nodes[i].pl2, 
+                                .startBt = nodes[i].startBt, .lenBts = nodes[i].lenBts }, cm);
         } else {
-            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt, nod.lenBts);
-        }
-        if (nod.tp >= nodScope && nod.pl2 > 0) {   
-            pushint32_t(i + nod.pl2 + 1, sentinels);
-            indent++;
+            pushInnodes(nodes[i], cm);
         }
     }
 }
 
-Int typerTest1() {
-    Arena *a = mkArena();
-    LanguageDefinition* langDef = buildLanguageDefinitions(a);
-    Compiler* cm = NULL;
-    
-    if (setjmp(excBuf) == 0) {    
-        Lexer* lx = lexicallyAnalyze(s("x = foo 5 1.2"), langDef, a);    
-        if (lx->wasError) {
-            print("lexer error")
-            printString(lx->errMsg);
-            return 0;
-        }
-        printLexer(lx);
+#define buildParser(cm, nodes) buildParser0(cm, sizeof(nodes)/sizeof(Node), nodes)
 
-        cm = createCompiler(lx, a);
-        cm->entBindingZero = cm->entities.length;
-        cm->entOverloadZero = cm->overloadIds.length;
-        Int firstTypeId = cm->types.length;
-        
-        // Float(Int Float)
-        addFunctionType(2, (Int[]){tokString, tokInt, tokFloat}, cm);
-        
-        Int secondTypeId = cm->types.length;
-        // String(Int Float) - String is the return type
-        addFunctionType(2, (Int[]){tokFloat, tokFloat, tokInt}, cm);
+void typerTest1(Compiler* proto, Arena* a) {
+    Compiler* cm = lexicallyAnalyze(str("fn([U/2 V] lst U(Int V))", a), proto, a);
+    initializeParser(cm, proto, a);
+    buildParser(cm, ((Node[]){ // 
+        (Node){ .tp = nodFnDef, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
+        (Node){ .tp = nodStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
+        (Node){ .tp = nodBrackets,           .pl2 = 3, .startBt = 3, .lenBts = 7 },
+        (Node){ .tp = nodTypeName, .pl1 = 1, .pl2 = 0, .startBt = 4,     .lenBts = 1 },
+        (Node){ .tp = nodInt,                .pl2 = 2, .startBt = 6,     .lenBts = 1 },
+        (Node){ .tp = TypeName,           .pl2 = 1, .startBt = 8,     .lenBts = 1 },
 
-        String* foo = s("foo");
-        importEntities(((EntityImport[]) {
-            (EntityImport){ .name = foo, .entity = (Entity){.typeId = secondTypeId }},
-            (EntityImport){ .name = foo, .entity = (Entity){.typeId = firstTypeId }}
-            
-            }), 2, cm);
+        (Node){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
 
-        parseWithCompiler(lx, cm, a);
-        printParser(cm, a);
-        if (cm->wasError) {
-            print("Compiler error")
-            printString(cm->errMsg);
-            return 0;
-        }
-        createOverloads(cm);
-        Int typerResult = typeCheckResolveExpr(2, cm);
-        print("the result from the typer is %d", typerResult);
-    } else {
-        print("Exception")
-        if (cm != NULL) {
-            printString(cm->errMsg);
-        }
-    }
-    
-    return 0;
-}
-
-Int typerTest2() {
-    Arena *a = mkArena();
-    LanguageDefinition* langDef = buildLanguageDefinitions(a);
-    Compiler* cm = NULL;
-    
-    if (setjmp(excBuf) == 0) {    
-        Lexer* lx = lexicallyAnalyze(s("x = - 1.2 ,(+ 5 7)"), langDef, a);    
-        if (lx->wasError) {
-            print("lexer error")
-            printString(lx->errMsg);
-            return 0;
-        }
-        printLexer(lx);
-
-        cm = createCompiler(lx, a);
-        cm->entBindingZero = cm->entities.length;
-        cm->entOverloadZero = cm->overloadIds.length;
-        Int firstTypeId = cm->types.length;
-        
-        // Float(Int Float)
-        addFunctionType(2, (Int[]){tokString, tokInt, tokFloat}, cm);
-        
-        Int secondTypeId = cm->types.length;
-        // String(Int Float) - String is the return type
-        addFunctionType(2, (Int[]){tokFloat, tokFloat, tokInt}, cm);
-
-
-        parseWithCompiler(lx, cm, a);
-        printParser(cm, a);
-        if (cm->wasError) {
-            print("Compiler error")
-            printString(cm->errMsg);
-            return 0;
-        }
-        createOverloads(cm);
-        Int typerResult = typeCheckResolveExpr(2, cm);
-        if (cm->wasError) {
-            printString(cm->errMsg);
-        } else {
-            print("the result from the typer is %d", typerResult);
-        }
-    } else {
-        print("Exception")
-        if (cm != NULL) {
-            printString(cm->errMsg);
-        }
-    }
-    
-    return 0;
+        (Node){ .tp = tokTypeCall, .pl1 = 0, .pl2 = 2, .startBt = 15, .lenBts = 8 },
+        (Node){ .tp = tokTypeName,           .pl2 = strInt + S, .startBt = 17, .lenBts = 3 },
+        (Node){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
+    }));
+    lx->i = 0;
+    Int typeName = parseTypeName(lx->tokens->content[0], lx->tokens, lx);
+    print("typeName %d", typeTest1(proto))
 }
 
 int main() {
-    typerTest1();
-    return typerTest2();
+    printf("----------------------------\n");
+    printf("--  TYPER TEST  --\n");
+    printf("----------------------------\n");
+    Arena *a = mkArena();
+    Compiler* proto = createProtoCompiler(a);
+
+    typerTest1(proto, a);
+    deleteArena(a);
 }

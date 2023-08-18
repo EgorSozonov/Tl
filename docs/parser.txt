@@ -25,7 +25,7 @@ An OK example:
         bar()    -- bar is a top-level function, so it's in scope despite being defined lower below
     )
 
-    (.f bar ()
+    bar = fn(:
         ; something
         x = 10
         fn nested(n Int)(:
@@ -36,7 +36,7 @@ An OK example:
 
 A bad example:
 
-    fn bar()(:
+    bar = fn(:
         x = 10
         x:nested    -- nested function's definition is lexically after this point, so it's not in scope yet
         fn nested(n Int)(:
@@ -50,10 +50,10 @@ A bad example:
 
 Type layout for normal types (sums, structs, functions) is pentapartite:
 
-[total size][nameId][tag](member names)(member types)
+[total size][tag][nameId](member names)(member types)
 
 1. total size = 1 Int holding the number of ints of all the following data
-2. tag = 8 bits of 0, 8 bits of type-arity, 8 bits of depth, 8 bits of sort
+2. tag = 8 bits of 0, 8 bits of sort, 8 bits of depth, 8 bits of type-arity
 
 - sort = "the type of the type" = is it a function or a struct or a sum type?
 - type-arity = the number of type parameters this type takes (0 if it's a concrete type)
@@ -84,18 +84,19 @@ where Ref1 is the typeInd of the type
 
 
 -----------------------------------------------------
+
 Type layout for types of the sort "concretization":
 
 Max type arity = 254 (not 255!)
 
-[total size][typeId/paramId][tag](Full type expression in prefix form, with arities)
+[total size][tag][typeId/paramId](Full type expression in prefix form, with arities)
 
 - typeId = id of the original type if it's known, and paramId if a param
 - The tag has sort = "concretization", depth = 0
 - The type expression is made of single or double-int parts with the following structure: 
     - if it's 8 bits of 0, then next 24 bits are the typeInd of a concrete type
-    - if it's 8 bits of != -1, then those 8 bits are the arity then next 24 bits are the typeInd of a concrete type
-    - if it's 8 bits of -1, then it's a type param, and next 24 bits are: 8 bits 0, 8 bits arity, 8 bits of type param index
+    - if it's 255, then it's a type param, and next 24 bits are: 8 bits 0, 8 bits of type param index, 8 bits of arity
+    - else those 8 bits are the arity and the next 24 bits are the typeInd of a concrete type
 
 Examples:
 
