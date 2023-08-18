@@ -21,6 +21,7 @@ void initializeParser(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* createProtoCompiler(Arena* a);
 StandardText getStandardTextLength();
+void typePrint(Int, Compiler*);
 
 #ifdef LEXER_TEST
 

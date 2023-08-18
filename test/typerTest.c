@@ -12,69 +12,106 @@ extern jmp_buf excBuf;
 
 #define in(x) prepareInput(x, a)
 #define S   70000000 // A constant larger than the largest allowed file size. Separates parsed names from others
-#define I  140000000 // The base index for imported entities/overloads
-#define S2 210000000 // A constant larger than the largest allowed file size. Separates parsed entities from others
-#define O  280000000 // The base index for operators
 
-/** Must agree in order with node types in ParserConstants.h */
-const char* nodeNames[] = {
-    "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
-    "id", "call", "binding", "type", "and", "or", 
-    "(-", "expr", "assign", "reAssign", "mutate",
-    "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
-    "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface",
-    "lambda", "meta", "package", "return", "struct", "try", "yield",
-    "ifClause", "else", "loop", "loopCond", "if", "ifPr", "impl", "match"
-};
+/** Must agree in order with toke types in ParserConstants.h */
+//~const char* tokNames[] = {
+//~    "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
+//~    "id", "call", "binding", "type", "and", "or", 
+//~    "(-", "expr", "assign", "reAssign", "mutate",
+//~    "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
+//~    "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface"
+//~    "lambda", "meta", "package", "return", "struct", "try", "yield",
+//~    "ifClause", "else", "loop", "loopCond", "if", "ifPr", "impl", "match"
+//~};
 
-private Int transformBindingEntityId(Int inp, Compiler* pr) {
-    if (inp < S) { // parsed stuff
-        return inp + pr->countNonparsedEntities;
-    } else if (inp < S2) {
-        return inp - I + pr->countOperatorEntities;
-    } else {
-        return inp - O;
-    }
-}
-
-private void buildParser0(Compiler* cm, int countNodes, Arr(Node) nodes) {
-    for (Int i = 0; i < countNodes; i++) {
-        untt nodeType = nodes[i].tp;
-        // All the node types which contain bindingIds
-        if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding || nodeType == nodBinding) {
-            pushInnodes((Node){ .tp = nodeType, .pl1 = transformBindingEntityId(nodes[i].pl1, cm),
-                                .pl2 = nodes[i].pl2, 
-                                .startBt = nodes[i].startBt, .lenBts = nodes[i].lenBts }, cm);
-        } else {
-            pushInnodes(nodes[i], cm);
+private Compiler* buildLexer0(Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
+    Compiler* result = createLexerFromProto(&empty, proto, a);
+    if (result == NULL) return result;
+    StandardText stText = getStandardTextLength();
+    
+    for (int i = 0; i < totalTokens; i++) {
+        Token tok = tokens[i];
+        // offset nameIds and startBts for the standardText and standard nameIds correspondingly 
+        tok.startBt += stText.lenStandardText;
+        if (tok.tp == tokMutation) {
+            tok.pl1 += stText.lenStandardText;
         }
+        if (tok.tp == tokWord || tok.tp == tokKwArg || tok.tp == tokTypeName || tok.tp == tokStructField
+            || (tok.tp == tokAccessor && tok.pl1 == tkAccDot)) {
+            if (tok.pl2 < S) {
+                tok.pl2 += stText.numNames;
+            } else {
+                tok.pl2 -= (S + stText.firstNonreserved);
+            }
+        } else if (tok.tp == tokCall || tok.tp == tokTypeCall) {
+            if (tok.pl1 < S) {
+                tok.pl1 += stText.numNames;
+            } else {
+                tok.pl1 -= (S + stText.firstNonreserved);
+            }
+        }
+        add(tok, result);
     }
+    result->totalTokens = totalTokens;
+    
+    return result;
 }
 
-#define buildParser(cm, nodes) buildParser0(cm, sizeof(nodes)/sizeof(Node), nodes)
+#define buildLexer(toks) buildLexer0(proto, a, sizeof(toks)/sizeof(Token), toks)
+
 
 void typerTest1(Compiler* proto, Arena* a) {
-    Compiler* cm = lexicallyAnalyze(str("fn([U/2 V] lst U(Int V))", a), proto, a);
-    initializeParser(cm, proto, a);
-    buildParser(cm, ((Node[]){ // 
-        (Node){ .tp = nodFnDef, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
-        (Node){ .tp = nodStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
-        (Node){ .tp = nodBrackets,           .pl2 = 3, .startBt = 3, .lenBts = 7 },
-        (Node){ .tp = nodTypeName, .pl1 = 1, .pl2 = 0, .startBt = 4,     .lenBts = 1 },
-        (Node){ .tp = nodInt,                .pl2 = 2, .startBt = 6,     .lenBts = 1 },
-        (Node){ .tp = TypeName,           .pl2 = 1, .startBt = 8,     .lenBts = 1 },
+    Compiler* cm = buildLexer(((Token[]){ // "fn([U/2 V] lst U(Int V))"
+        (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
+        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
+        (Token){ .tp = tokBrackets,           .pl2 = 3, .startBt = 3, .lenBts = 7 },
+        (Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = 0, .startBt = 4,     .lenBts = 1 },
+        (Token){ .tp = tokInt,                .pl2 = 2, .startBt = 6,     .lenBts = 1 },
+        (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 8,     .lenBts = 1 },
 
-        (Node){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
+        (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
 
-        (Node){ .tp = tokTypeCall, .pl1 = 0, .pl2 = 2, .startBt = 15, .lenBts = 8 },
-        (Node){ .tp = tokTypeName,           .pl2 = strInt + S, .startBt = 17, .lenBts = 3 },
-        (Node){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
+        (Token){ .tp = tokTypeCall, .pl1 = 0, .pl2 = 2, .startBt = 15, .lenBts = 8 },
+        (Token){ .tp = tokTypeName,           .pl2 = strInt + S, .startBt = 17, .lenBts = 3 },
+        (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
     }));
-    lx->i = 0;
-    Int typeName = parseTypeName(lx->tokens->content[0], lx->tokens, lx);
-    print("typeName %d", typeTest1(proto))
+    initializeParser(cm, proto, a);
+    printLexer(cm);
+    
+    StandardText sta = getStandardTextLength();
+    
+    // type params
+    push(sta.numNames, cm->typeStack);
+    push(2, cm->typeStack);
+    push(sta.numNames + 1, cm->typeStack);
+    push(0, cm->typeStack);
+    
+    Token tk = cm->tokens[7];
+    cm->i = 8;
+    Int typeId = parseTypeName(tk, cm->tokens, cm);
+    typePrint(typeId, cm);
 }
 
+void typerTest2(Compiler* proto, Arena* a) {
+    Compiler* cm = buildLexer(((Token[]){ // "fn(lst A(L(A(Double))))"
+        (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
+        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
+        (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
+
+        (Token){ .tp = tokTypeCall, .pl1 = (strA + S), .pl2 = 3, .startBt = 15, .lenBts = 8 },
+        (Token){ .tp = tokTypeCall, .pl1 = (strL + S), .pl2 = 2, .startBt = 15, .lenBts = 8 },
+        (Token){ .tp = tokTypeCall, .pl1 = (strA + S), .pl2 = 1, .startBt = 15, .lenBts = 8 },
+        (Token){ .tp = tokTypeName,           .pl2 = strDouble + S, .startBt = 17, .lenBts = 3 },
+    }));
+    initializeParser(cm, proto, a);
+    printLexer(cm);
+    
+    Token tk = cm->tokens[3];
+    cm->i = 4;
+    Int typeId = parseTypeName(tk, cm->tokens, cm);
+    typePrint(typeId, cm);
+}
+    
 int main() {
     printf("----------------------------\n");
     printf("--  TYPER TEST  --\n");
@@ -82,6 +119,9 @@ int main() {
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
 
-    typerTest1(proto, a);
+    if (setjmp(excBuf) == 0) {
+//~    typerTest1(proto, a);
+        typerTest2(proto, a);
+    } 
     deleteArena(a);
 }

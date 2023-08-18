@@ -155,8 +155,8 @@ typedef struct {
 #define strBool      29
 #define strString    30
 #define strVoid      31
-#define strL         32
-#define strA         33
+#define strL         32 // List
+#define strA         33 // Array
 #define strLen       34
 #define strCap       35
 #define strPrint     36
@@ -541,6 +541,7 @@ struct Compiler { //:Compiler
     Int numericNextInd;
 
     StackBtToken* lexBtrack;    // [aTmp]
+
     
     Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
     StringDict* stringDict;    // A hash table for quickly deduplicating strings. Points into stringTable
@@ -604,13 +605,12 @@ struct Compiler { //:Compiler
 
 //}}}
 //{{{ Types
-// see the Type layout chapter in the docs
 
+// see the Type layout chapter in the docs
 #define sorStruct         1
 #define sorSum            2
 #define sorFunction       3
 #define sorConcretization 4
-
 
 //}}}
 //{{{ Generics
