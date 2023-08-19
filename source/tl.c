@@ -162,18 +162,68 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
 //}}}
 //{{{ MultiList
 
-/// Add a new key-value pair to a particular list within the MultiList.
+private Int multiListFindFree(Int neededCap, MultiList* ml) {
+    Int freeInd = ml->freeList; 
+    Int freeStep = 0;
+    bool foundFree = false; 
+    while (freeInd > -1 && freeStep < 10) {
+        Int freeCap = ml->content[freeInd + 1];
+        if (freeCap == neededCap) {
+            return freeInd;
+        }
+        freeInd = ml->content[freeInd]; 
+        ++freeStep; 
+    }
+    return -1; 
+}
+    
+    
+private multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, MultiList* ml) {
+    ml->content[ml.len] = listLen; 
+    ml->content[ml.len + 1] = neededCap; 
+    memcpy(ml->content + ml.len + 2, ml->content + listInd + 2, listLen);
+    ml->len += neededCap + 2;
+}
+    
+/// Add a new key-value pair to a particular list within the MultiList. Returns the new index for this
+/// list in case it had to be reallocated, -1 if not.
 /// Throws an exception if key already exists 
-testable void addMultiList(Int newKey, Int newVal, Int listInd, MultiList ml) {
-    // 1. check if the list has enough cap
-    // 2. if not, check the free list.
-    // 3. if not, check if the multilist itself has enough cap for a larger version of this list
-    // 4. if yes, reuse the list off the freelist 
-    // 5. if no, reallocate the multilist itself to a 2x capacity
+testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
+    Int listLen = ml->content[listInd]; 
+    Int listCap = ml->content[listInd + 1];
+    ml->content[listInd + listLen] = newKey; 
+    ml->content[listInd + listLen + 1] = newVal; 
+    listLen += 2; 
+    if (listLen == listCap) { // look in the freelist, but not more than 10 steps to save time
+        Int neededCap = listCap*2; 
+        Int freeInd = multiListFindFree(neededCap, ml); 
+        if (freeInd > -1) {
+            ml->content[freeInd] = listLen;
+            memcpy(ml->content + freeInd + 2, ml->content->listInd + 2, listLen);
+            return freeInd;  
+        } else if (ml->len + neededCap + 2 < ml.cap) {
+            multiListReallocToEnd(listInd, listLen, neededCap, ml); 
+        } else {
+            Int newMultiCap = ml->cap*2;
+            Arr(Int) newAlloc = allocateOnArena(newMultiCap*4, ml->a);
+            memcpy(newAlloc, ml->content, ml->len);
+            ml->content = newAlloc;
+            multiListReallocToEnd(listInd, listLen, neededCap, ml); 
+        }
+        
+        // add this freed sector to the freelist
+        ml->content[listInd] = ml.freeList; 
+        ml->freeList = listInd; 
+    } else {
+        ml->content[listInd] = listLen; 
+    }
 }
     
 /// Add a new list to the MultiList 
-testable void listAddMultiList(Int newKey, Int newVal, Int ind, MultiList ml) {
+testable void listAddMultiList(Int newKey, Int newVal, Int listInd, MultiList ml) {
+   if (ml->len + 6 >= ml->cap) {
+    
+   }
 }
     
 /// Search for a key in a particular list within the MultiList. Returns -1 if key not found
@@ -181,7 +231,7 @@ testable Int searchMultiList(Int newKey, Int ind, MultiList ml) {
 }
     
 //}}}
-//{{{ Data structures 
+//{{{ Data structure definitions
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
@@ -202,28 +252,7 @@ DEFINE_INTERNAL_LIST(overloadIds, uint32_t, aTmp)
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(EntityImport)
 DEFINE_INTERNAL_LIST(imports, EntityImport, aTmp)
 //}}}
-//{{{ Misc
-#ifdef TEST    
-testable void printIntArray(Int count, Arr(Int) arr) {
-    printf("[");
-    for (Int k = 0; k < count; k++) {
-        printf("%d ", arr[k]);
-    }
-    printf("]\n");
-}
-
-testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
-    printf("[...");
-    for (Int k = 0; k < count; k++) {
-        printf("%d ", arr[startInd + k]);
-    }
-    printf("...]\n");
-}
-#endif
-//}}} 
-    
-//}}}
-//{{{ Good strings
+//{{{ Strings
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
@@ -381,11 +410,6 @@ private bool isSpace(byte a) {
 
 String empty = { .length = 0 };
 //}}}
-//{{{ Stack
-
-private void setSpanLengthParser(Int, Compiler* cm);
-
-//}}}
 //{{{ Int Hashmap
 
 testable IntMap* createIntMap(int initSize, Arena* a) {
@@ -499,6 +523,8 @@ private bool hasKeyValueIntMap(int key, int value, IntMap* hm) {
     return false;
 }
 
+//
+    
 //}}}
 //{{{ String Hashmap
 
@@ -613,6 +639,116 @@ testable Int getStringDict(byte* text, String* strToSearch, Stackint32_t* string
     }
 }
 
+//   
+    
+//}}}
+//{{{ Algorithms
+    
+/// Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the same swap on values
+/// is also performed.
+/// Example of such a swap: [type1 type2 type3 entity1 entity2 entity3] ->
+///                         [type3 type1 type2 entity3 entity1 entity2]
+/// Sorts only the concrete group of overloads, doesn't touch the generic part.
+/// Params: startInd = inclusive
+///         endInd = exclusive
+testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
+    Int countPairs = (endInd - startInd)/2;
+    if (countPairs == 1) return;
+    
+    for (i = startInd + 1; i < endInd; i++) {
+        Int minValue = arr[i];
+        Int minInd = i;
+        for (Int j = i; j < endInd; j++) {
+            if (arr[j] < minValue) {
+                minValue = arr[j];
+                minInd = j;
+            }
+        }
+        if (minInd == i) {
+            continue;
+        }
+        
+        // swap the keys
+        Int tmp = arr[i];
+        arr[i] = arr[minInd];
+        arr[minInd] = tmp;
+        // swap the corresponding values
+        tmp = arr[i + countPairs];
+        arr[i + countPairs] = arr[minInd + countPairs];
+        arr[minInd + countPairs] = tmp;
+    }
+}
+
+/// Performs an ASC sort for compact pairs (array-of-structs) by key: 
+/// Params: startInd = the first index of the overload (the one with the count of concrete overloads)
+///         endInd = the last index belonging to the overload (the one with the last entityId)
+testable void sortPairs(Int startInd, Int endInd, Arr(Int) overloads) {
+    Int countPairs = (endInd - startInd)/2;
+    if (countPairs == 1) return;
+    
+    for (i = startInd; i < endInd; i++) {
+        Int minValue = arr[i];
+        Int minInd = i;
+        for (Int j = i + 1; j < endInd; j++) {
+            if (arr[j] < minValue) {
+                minValue = arr[j];
+                minInd = j;
+            }
+        }
+        if (minInd == i) {
+            continue;
+        }
+        
+        // swap the keys
+        Int tmp = arr[i];
+        arr[i] = arr[minInd];
+        arr[minInd] = tmp;
+        // swap the values
+        tmp = arr[i + 1];
+        arr[i + 1] = arr[minInd + 1];
+        arr[minInd + 1] = tmp;
+    }
+}
+
+/// After the overloads have been sorted, we need to make sure they're all unique.
+/// Params: startInd = inclusive
+///         endInd = exclusive
+/// Returns: true if they're all unique
+testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
+    Int currTypeId = arr[startInd + 1];
+    Int i = startInd + 2;
+    while (i < endInd) {
+        if (arr[i] == currTypeId) {
+            return false;
+        }
+        currTypeId = arr[i];
+        ++i;
+    }
+    return true;
+}
+
+    
+//}}}
+//{{{ Misc
+#ifdef TEST    
+testable void printIntArray(Int count, Arr(Int) arr) {
+    printf("[");
+    for (Int k = 0; k < count; k++) {
+        printf("%d ", arr[k]);
+    }
+    printf("]\n");
+}
+
+testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
+    printf("[...");
+    for (Int k = 0; k < count; k++) {
+        printf("%d ", arr[startInd + k]);
+    }
+    printf("...]\n");
+}
+#endif
+//}}} 
+    
 //}}}
 //{{{ Errors
 //{{{ Internal errors
@@ -701,7 +837,6 @@ const char errLoopBreakOutside[]            = "The break keyword can only be use
 const char errTemp[]                        = "Temporary, delete it when finished";
 
 //}}}
-
 //{{{ Type errors
 
 const char errUnknownType[]                 = "Unknown type";
@@ -771,8 +906,8 @@ const Int standardToks[] = {
     reservedOr, tokReturn,  reservedTrue, tokTry, 
     tokWhile, tokYield 
 };
-
-
+//}}}
+//{{{ LexerUtils
 #ifdef TEST 
 StandardText getStandardTextLength() {
     return (StandardText){
@@ -792,8 +927,6 @@ typedef union {
     uint64_t i;
     double   d;
 } FloatingBits;
-
-//{{{ Source code files
 
 #ifdef TEST
 /// Allocates a test input into an arena after prepending it with the standardText.
@@ -852,7 +985,7 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
 }
 
 //}}}
-
+//{{{ Lexer proper
 _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {   
     cm->wasError = true;    
     printf("Internal error %d at %d\n", errInd, lineNumber);  
@@ -2897,7 +3030,8 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
     lx->totalTokens = lx->nextInd;
     return lx;
 }
-//}}}
+//}}}    
+//}}} 
 //{{{ Parser
 
 /// This frame corresponds either to a lexical scope or a subexpression.
@@ -3138,7 +3272,7 @@ testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) 
     return mergeType(newInd, arity + 2, cm);
 }
 
-//{{{ Built-ins
+//{{{ Browser codegen constants
 
 const char codegenText[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
                            "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertlo";
@@ -3333,7 +3467,6 @@ private void createBuiltins(Compiler* cm) {
     buildOperators(cm);
     cm->entImportedZero = cm->overloadIds.length;
 }
-//}}}
 
 /// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
 private void importPrelude(Compiler* cm) {
@@ -3510,7 +3643,7 @@ testable void createOverloads(Compiler* cm) {
     pushInoverloadIds(neededCount, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds
 }
 
-/// Parses top-level types but not functions and adds their bindings to the scope
+/// Parses top-level types but not functions. Writes them to the types table and adds their bindings to the scope
 private void parseToplevelTypes(Compiler* cm) {
 }
 
@@ -3521,8 +3654,8 @@ private void parseToplevelConstants(Compiler* cm) {
     while (cm->i < len) {
         Token tok = cm->tokens[cm->i];
         if (tok.tp == tokAssignment) {
-            VALIDATEP(tokens[cm->i + 1].tp == tokWord, errToplevelAssignment)
-            if (tokens[cm->i + 2].tp != tokFn) { 
+            VALIDATEP(cm->tokens[cm->i + 1].tp == tokWord, errToplevelAssignment)
+            if (cm->tokens[cm->i + 2].tp != tokFn) { 
                 parseUpTo(cm->i + tok.pl2, cm->tokens, cm);
             } 
         } else {
@@ -3542,13 +3675,7 @@ private void surveyToplevelFunctionNames(Compiler* cm) {
         if (tok.tp == tokAssignment && tokens[cm->i + 2].tp == tokFn) {
             Int j = cm->i + 2; // tokFn 
             if (tokens[j].pl2 > 0) {
-                j += 2; 
-                if (tokens[j].tp == tokBrackets) { // + 2 to skip the tokStmt inside the "fn()"
-                    j += 2 + tokens[j + 2].pl2; 
-                }
-                if (tokens[j].tp == tokWord) {
-                    fnDefIncrementOverlCount(nameId, cm);
-                }
+                fnDefIncrementOverlCount(nameId, cm);
             }
         } 
         cm->i += (tok.pl2 + 1);        
@@ -4021,60 +4148,6 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
     return cm->types.content[typeId] > 1;
 }
 
-/// Performs a "twin" sort: for every swap of param types, the same swap on entityIds is also performed.
-/// Example of such a swap: [countConcrete type1 type2 type3 entity1 entity2 entity3] ->
-///                         [countConcrete type3 type1 type2 entity3 entity1 entity2]
-/// Sorts only the concrete group of overloads, doesn't touch the generic part. Sorts ASCENDING.
-/// Params: startInd = the first index of the overload (the one with the count of concrete overloads)
-///         endInd = the last index belonging to the overload (the one with the last entityId)
-testable void sortOverloads(Int startInd, Int endInd, Arr(Int) overloads) {
-    Int countAllOverloads = (endInd - startInd)/2;
-    if (countAllOverloads == 1) return;
-    
-    Int concreteEndInd = startInd + overloads[startInd]; // inclusive
-    Int i = startInd + 1; // skipping the cell with the count of concrete overloads
-    for (i = startInd + 1; i < concreteEndInd; i++) {
-        Int minValue = overloads[i];
-        Int minInd = i;
-        for (Int j = i + 1; j <= concreteEndInd; j++) {
-            if (overloads[j] < minValue) {
-                minValue = overloads[j];
-                minInd = j;
-            }
-        }
-        if (minInd == i) {
-            continue;
-        }
-        
-        // swap the typeIds
-        Int tmp = overloads[i];
-        overloads[i] = overloads[minInd];
-        overloads[minInd] = tmp;
-        // swap the corresponding entities
-        tmp = overloads[i + countAllOverloads];
-        overloads[i + countAllOverloads] = overloads[minInd + countAllOverloads];
-        overloads[minInd + countAllOverloads] = tmp;
-    }
-}
-
-/// After the overloads have been sorted, we need to make sure they're all unique.
-/// Params: startInd = the first index of the overload (the one with the count of concrete overloads)
-///         endInd = the last index belonging to the overload (the one with the last entityId)
-/// Returns: true if they're all unique
-testable bool makeSureOverloadsUnique(Int startInd, Int endInd, Arr(Int) overloads) {
-    Int concreteEndInd = startInd + overloads[startInd]; // inclusive
-    Int currTypeId = overloads[startInd + 1];
-    Int i = startInd + 2;
-    while (i <= concreteEndInd) {
-        if (overloads[i] == currTypeId) {
-            return false;
-        }
-        currTypeId = overloads[i];
-        ++i;
-    }
-    return true;
-}
-
 /// Performs a binary search among the concrete overloads. Returns false if nothing is found
 testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int sentinelInd, Int* entityId, Arr(Int) overloads) {
     Int countAllOverloads = (sentinelInd - startInd - 1)/2;
@@ -4290,7 +4363,6 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 
 //}}}
 //{{{ Codegen
-
 
 typedef struct Codegen Codegen;
 typedef void CgFunc(Node, bool, Arr(Node), Codegen*);

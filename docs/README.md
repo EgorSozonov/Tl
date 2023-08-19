@@ -38,12 +38,38 @@ Is a little rough for now...
 
 - open the UI and run
 
+### Source code
+
+Source code is just 3 files (tl.c, tl.h, tl.internal.h). Navigate them using code folds. For example, in Neovim,
+use "za" to toggle a fold, and "zm" to close them en masse.
+
 
 ### Future releases roadmap
 
 #### version 0.3.0
-* developed static type system (structs, sum types, nullable types)
+* more developed static type system (structs, arrays)
 * generic types and overloading for them
-* pattern matching
-* lambdas
+* exceptions
+* new and final syntax 
 
+#### version 0.4.0
+* nullability tracking (a.k.a. flow typing)
+* "foreach" loops
+* better error reporting
+    
+#### version 0.5.0
+* sum types
+* pattern matching
+* "ifPr" syntax form
+    
+#### version 0.6.0
+* async/await
+* generators
+* aliases
+* defer, destructors
+    
+#### version 0.7.0
+* source maps for the browser 
+* loose ends
+* maybe something else
+    
