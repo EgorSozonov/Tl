@@ -164,7 +164,14 @@ void pushScope(ScopeStack* scopeStack);
 void addBinding(int nameId, int bindingId, Compiler* cm);
 void popScopeFrame(Compiler* cm);
 
-void sortOverloads(Int startInd, Int endInd, Arr(Int) overloads);
+MultiList* createMultiList(Arena* a);
+Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml);
+Int listAddMultiList(Int newKey, Int newVal, MultiList* ml);
+Int searchMultiList(Int searchKey, Int listInd, MultiList* ml);
+    
+void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr);
+void sortPairs(Int startInd, Int endInd, Arr(Int) arr);
+bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr);
 bool makeSureOverloadsUnique(Int startInd, Int endInd, Arr(Int) overloads);
 Int overloadBinarySearch(Int typeIdToFind, Int startInd, Int endInd, Int* entityId, Arr(Int) overloads);
 

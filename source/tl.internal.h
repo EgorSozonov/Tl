@@ -171,12 +171,15 @@ typedef struct {
 #define strVoid      31
 #define strL         32 // List
 #define strA         33 // Array
-#define strLen       34
-#define strCap       35
-#define strPrint     36
-#define strAlert     37
-#define strMathPi    38
-#define strMathE     39
+#define strTu        34 // Tu(ple)
+#define strLen       35
+#define strCap       36
+#define strF1        37
+#define strF2        38
+#define strPrint     39
+#define strAlert     40
+#define strMathPi    41
+#define strMathE     42
 
 //}}}
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
@@ -621,12 +624,21 @@ struct Compiler { //:Compiler
 //}}}
 //{{{ Types
 
-// see the Type layout chapter in the docs
-#define sorStruct         1
-#define sorSum            2
-#define sorFunction       3
-#define sorConcretization 4
+/// see the Type layout chapter in the docs
+#define sorStruct       1
+#define sorSum          2
+#define sorFunction     3
+#define sorPartial      4 // Partially applied type
+#define sorConcrete     5 // Fully applied type (no type params)
 
+typedef struct {
+    byte sort;
+    byte arity;
+    byte depth;
+    Int nameTypeId; // for sorPartial and sorConcrete, it's typeId; otherwise, nameId
+    byte nameLen; 
+} TypeHeader;
+    
 //}}}
 //{{{ Generics
 

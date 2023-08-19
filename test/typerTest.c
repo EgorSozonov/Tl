@@ -114,7 +114,18 @@ void typerTest2(Compiler* proto, Arena* a) {
 }
    
 void typeTest3(Compiler* proto, Arena* a) {
-    parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm);
+    Compiler* cm = buildLexer(prepareInput("fn(lst A(L(A(Double))))", a), ((Token[]){ // ""
+        (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
+        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
+        (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
+
+        (Token){ .tp = tokTypeCall, .pl1 = (strA + S), .pl2 = 3, .startBt = 15, .lenBts = 8 },
+        (Token){ .tp = tokTypeCall, .pl1 = (strL + S), .pl2 = 2, .startBt = 15, .lenBts = 8 },
+        (Token){ .tp = tokTypeCall, .pl1 = (strA + S), .pl2 = 1, .startBt = 15, .lenBts = 8 },
+        (Token){ .tp = tokTypeName,           .pl2 = strDouble + S, .startBt = 17, .lenBts = 3 }
+    }));
+    initializeParser(cm, proto, a);
+    //parseToplevelSignature(cm->tokens[0], toplevelSignatures, cm);
 } 
     
 int main() {

@@ -8,7 +8,7 @@
 #include "tlTest.h"
 
 extern jmp_buf excBuf;
-
+//{{{ Utils
 #define add(K, V, X) _Generic((X), \
     IntMap*: addIntMap \
     )(K, V, X)
@@ -25,8 +25,9 @@ extern jmp_buf excBuf;
     IntMap*: getUnsafeIntMap \
     )(A, X) 
 
-
-private void printStack(StackInt* st) {
+#define validate(cond) if(!(cond)) {++(*countFailed); return;}
+    
+void printStack(StackInt* st) {
     if (st->length == 0) {
         print("[]");
         return;
@@ -38,43 +39,28 @@ private void printStack(StackInt* st) {
     print(" ]");    
 }    
     
-
-private void testIntMap(Arena* a) {
+void printMultiList(Int listInd, MultiList* ml) {
+    
+}
+    
+//}}}
+    
+void testIntMap(Arena* a) {
     IntMap* hm = createIntMap(150, a);
     add(1, 1000, hm);
     add(2, 2000, hm);
     printf("Find key 1? %d Find key 3? %d\n", hasKey(1, hm), hasKey(3, hm));
 }
 
-private void testScopeStack(Arena* a) {
-    Compiler* cm = allocateOnArena(sizeof(Compiler), a);
-    cm->scopeStack = createScopeStack();
-    cm->activeBindings = allocateOnArena(1000*sizeof(int), a);
-    pushScope(cm->scopeStack);
-    addBinding(999, 1, cm);
-    printf("Lookup of nameId = %d is bindingId = %d\n", 999, cm->activeBindings[999]);
-    ScopeStack* st = cm->scopeStack;
-
-    for (int i = 0; i < 500; i++) {
-        pushScope(st);
-        addBinding(i, i + 1, cm);
-    }    
-    printf("500 scopes in, lookup of nameId = %d is bindingId = %d, expected = 1\n", 999, cm->activeBindings[999]);
-
+//{{{ Sortings
     
-    for (int i = 0; i < 500; i++) {
-        popScopeFrame(cm);
-    } 
-    
-    printf("p1\n");
-    popScopeFrame(cm);
-    printf("p2\n");
-    
-    printf("Finally, lookup of nameId = %d is bindingId = %d, should be = 0\n", 999, cm->activeBindings[999]);
-    
+void validateList(StackInt* test, StackInt* control, Int* countFailed) {
+    validate(test->length == control->length) 
+    for (Int j = 0; j < test->length; j++) {
+        validate(test->content[j] == control->content[j]) 
+    }
 }
-
-private void testOverloadSorting(Arena* a) {
+void testSortPairsDisjoint(Int* countFailed, Arena* a) {
     StackInt* st = createStackint32_t(64, a);
     push(3, st);
     push(1, st);
@@ -83,41 +69,71 @@ private void testOverloadSorting(Arena* a) {
     push(1, st);
     push(2, st);
     push(3, st);
-    printStack(st);
-    sortOverloads(0, 6, st->content);
-    print("After sorting: ");
-    printStack(st);
+    sortPairsDisjoint(1, 7, st->content);
+    
+    StackInt* control1 = createStackint32_t(64, a);
+    push(3, control1);
+    push(1, control1);
+    push(5, control1);
+    push(10, control1);
+    push(1, control1);
+    push(3, control1);
+    push(2, control1);
+    validateList(st, control1, countFailed); 
 
     st = createStackint32_t(64, a);
     push(1, st);
     push(100, st);
     push(1, st);
-    printStack(st);
-    sortOverloads(0, 2, st->content);
-    print("After sorting: ");
-    printStack(st);
+    sortPairsDisjoint(1, 3, st->content);
+    StackInt* control2 = createStackint32_t(64, a);
+    push(1, control2);
+    push(100, control2);
+    push(1, control2);
+    validateList(st, control2, countFailed); 
+}
 
-    st = createStackint32_t(64, a);
+void testSortPairs(Int* countFailed, Arena* a) {
+    StackInt* st = createStackint32_t(64, a);
     push(3, st);
-    push(300, st);
-    push(200, st);
-    push(100, st);
+    push(1, st);
+    push(10, st);
+    push(5, st);
     push(1, st);
     push(2, st);
     push(3, st);
-    printStack(st);
-    sortOverloads(0, 6, st->content);
-    print("After sorting: ");
-    printStack(st);    
-}
+    sortPairs(1, 7, st->content);
+    
+    StackInt* control1 = createStackint32_t(64, a);
+    push(3, control1);
+    push(1, control1);
+    push(10, control1);
+    push(2, control1);
+    push(3, control1);
+    push(5, control1);
+    push(1, control1);
+    validateList(st, control1, countFailed); 
 
-
+    st = createStackint32_t(64, a);
+    push(1, st);
+    push(100, st);
+    push(1, st);
+    sortPairs(1, 3, st->content);
+    StackInt* control2 = createStackint32_t(64, a);
+    push(1, control2);
+    push(100, control2);
+    push(1, control2);
+    validateList(st, control2, countFailed); 
+} 
+    
+//}}} 
+    
 private void testOverloadUniqueness(Arena* a) {
     StackInt* st = createStackint32_t(64, a);
     push(1, st);
     push(1, st);
     push(3, st);
-    bool areUnique = makeSureOverloadsUnique(0, 2, st->content);
+    bool areUnique = verifyUniquenessPairsDisjoint(0, 2, st->content);
     if (!areUnique) {
         print("Overload uniqueness error");
     }
@@ -130,11 +146,10 @@ private void testOverloadUniqueness(Arena* a) {
     push(10, st);
     push(10, st);
     push(10, st);
-    areUnique = makeSureOverloadsUnique(0, 6, st->content);
+    areUnique = verifyUniquenessPairsDisjoint(0, 6, st->content);
     if (!areUnique) {
         print("Overload uniqueness error");
     }
-
 
     st = createStackint32_t(64, a);
     push(3, st);
@@ -144,91 +159,57 @@ private void testOverloadUniqueness(Arena* a) {
     push(10, st);
     push(10, st);
     push(10, st);
-    areUnique = makeSureOverloadsUnique(0, 6, st->content);
+    areUnique = verifyUniquenessPairsDisjoint(0, 6, st->content);
     if (areUnique) {
         print("Overload uniqueness error");
     }
 }
 
-private void testOverloadSearch(Arena* a) {
-    Int entityId = 0;
-    StackInt* st = createStackint32_t(64, a);
-    push(3, st);
-    push(1, st);
-    push(2, st);
-    push(3, st);
-    push(10, st);
-    push(20, st);
-    push(30, st);
-    bool typeFound = overloadBinarySearch(2, 0, 6, &entityId, st->content);
-    if (!typeFound || entityId != 20) {       
-        print("Overload search error");
-    }
 
-    st = createStackint32_t(64, a);
-    push(4, st);
-    push(1, st);
-    push(2, st);
-    push(3, st);
-    push(5, st);
-    push(10, st);
-    push(20, st);
-    push(30, st);
-    push(50, st);
-    typeFound = overloadBinarySearch(5, 0, 8, &entityId, st->content);
-    if (!typeFound || entityId != 50) {
-        print("Overload search error");
-    }
-
-    st = createStackint32_t(64, a);
-    push(2, st);
-    push(1, st);
-    push(3, st);
-    push(10, st);
-    push(30, st);
-    typeFound = overloadBinarySearch(3, 0, 4, &entityId, st->content);
-    if (!typeFound || entityId != 30) {
-        print("Overload search error");
-    }
-
-    st = createStackint32_t(64, a);
-    push(1, st);
-    push(7, st);
-    push(10, st);
-    typeFound = overloadBinarySearch(7, 0, 2, &entityId, st->content);
-    if (!typeFound || entityId != 10) {
-        print("Overload search error");
-    }
+void multiListTest(Int* countFailed, Arena* a) {
+    MultiList* ml = createMultiList(a); 
+    Int listInd = listAddMultiList(1, 10, ml); 
     
-    st = createStackint32_t(64, a);
-    push(2, st);
-    push(1, st);
-    push(3, st);
-    push(10, st);
-    push(30, st);
-    typeFound = overloadBinarySearch(2, 0, 4, &entityId, st->content);
-    if (typeFound) {
-        print("Overload search error");
-    }
+    Int newInd = addMultiList(2, 20, listInd, ml); 
+    validate(newInd == -1); 
+    
+    addMultiList(3, 30, listInd, ml); 
+    
+    newInd = addMultiList(4, 40, listInd, ml);
+    validate(newInd == 10); 
+    
+    printIntArrayOff(listInd, ml->content[listInd + 1] + 2, ml->content); 
+    printIntArrayOff(newInd, ml->content[newInd + 1] + 2, ml->content); 
+    
+    Int secondList = listAddMultiList(10, 5, ml); 
+    validate(secondList == 0);  // allocated the new list from the free list!
+    newInd = addMultiList(20, 10, listInd, ml);
+    printIntArrayOff(secondList, ml->content[secondList + 1] + 2, ml->content); 
+    print("freeL %d", ml->freeList) 
 }
-
 
 int main() {
     printf("----------------------------\n");
     printf("Utils test\n");
     printf("----------------------------\n");
     Arena *a = mkArena();
-    
+    Int countFailed = 0; 
     if (setjmp(excBuf) == 0) {
         //testStringMap(a);
         
         //testScopeStack(a);
         
-        //~ testOverloadSorting(a);
-        //~ testOverloadUniqueness(a);
-        testOverloadSearch(a);
+        testSortPairsDisjoint(&countFailed, a);
+        testSortPairs(&countFailed, a);
+//~        multiListTest(&countFailed, a);
+
     } else {
-        printf("there was a test failure!\n");
+        printf("An exception was thrown in the tests!\n");
+    }
+    if (countFailed > 0) {
+        print("") 
+        print("-------------------------") 
+        print("Count of failed tests %d", countFailed);
     }
     
     deleteArena(a);
