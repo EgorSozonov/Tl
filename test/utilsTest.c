@@ -126,9 +126,8 @@ void testSortPairs(Int* countFailed, Arena* a) {
     validateList(st, control2, countFailed); 
 } 
     
-//}}} 
     
-private void testOverloadUniqueness(Arena* a) {
+private void testUniquePairs(Arena* a) {
     StackInt* st = createStackint32_t(64, a);
     push(1, st);
     push(1, st);
@@ -164,7 +163,9 @@ private void testOverloadUniqueness(Arena* a) {
         print("Overload uniqueness error");
     }
 }
-
+    
+//}}} 
+    
 
 void multiListTest(Int* countFailed, Arena* a) {
     MultiList* ml = createMultiList(a); 
@@ -201,6 +202,7 @@ int main() {
         
         testSortPairsDisjoint(&countFailed, a);
         testSortPairs(&countFailed, a);
+        testUniqueKeys(&countFailed, a);
 //~        multiListTest(&countFailed, a);
 
     } else {

@@ -3388,7 +3388,7 @@ const Int codegenStrings[] = {
 
 private void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
-Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
+private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
     
 /// Inserts the necessary strings from the standardText into the string table and the hash table
 private void buildStandardStrings(Compiler* lx) {
@@ -3438,7 +3438,7 @@ private void buildPreludeTypes(Compiler* cm) {
     pushIntypes(stToNameId(strF2), cm);
     typeAddTypeParam(0, 0, cm);
     typeAddTypeParam(1, 0, cm);
-    cm->activeBindings[stToNameId(strA)] = typeIndTu;
+    cm->activeBindings[stToNameId(strTu)] = typeIndTu;
 }
 
 
@@ -4069,6 +4069,7 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((untt)(sort << 16) + (depth << 8) + arity);
 }
+    
 /// Writes the bytes for the type header to the tail of the cm->types table. 
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
     pushIntypes((Int)((untt)(hdr.sort << 16) + (hdr.depth << 8) + hdr.arity), cm);
@@ -4200,7 +4201,6 @@ private Int typeUpTo(Token callToken, Int sentinelToken, Arr(Token) tokens, Comp
                 Int typeId = cm->activeBindings[nameId]; 
                 VALIDATEP(typeId > -1, errUnknownTypeConstructor)
                 Int typesArity = typeGetArity(typeId, cm);
-                print("arity %d typesArity %d of typeId %d", arity, typesArity, typeId) 
                 VALIDATEP(arity == typesArity, errTypeConstructorWrongArity)
                 typeAddTypeCall(typeId, arity, cm);
             }
