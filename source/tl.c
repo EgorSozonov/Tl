@@ -1079,30 +1079,30 @@ private void closeColons(Compiler* lx) {
     while (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).wasOrigDollar) {
         BtToken top = pop(lx->lexBtrack);
         Int j = top.tokenInd;        
-        lx->tokens[j].lenBts = lx->i - lx->tokens[j].startBt;
-        lx->tokens[j].pl2 = lx->nextInd - j - 1;
+        lx->tokens.content[j].lenBts = lx->i - lx->tokens.content[j].startBt;
+        lx->tokens.content[j].pl2 = lx->tokens.length - j - 1;
     }
 }
 
 /// Finds the top-level punctuation opener by its index, and sets its lengths.
 /// Called when the matching closer is lexed.
 private void setSpanLengthLexer(Int tokenInd, Compiler* lx) {
-    lx->tokens[tokenInd].lenBts = lx->i - lx->tokens[tokenInd].startBt + 1;
-    lx->tokens[tokenInd].pl2 = lx->nextInd - tokenInd - 1;
+    lx->tokens.content[tokenInd].lenBts = lx->i - lx->tokens.content[tokenInd].startBt + 1;
+    lx->tokens.content[tokenInd].pl2 = lx->tokens.length - tokenInd - 1;
 }
 
 /// Correctly calculates the lenBts for a single-line, statement-type span.
 private void setStmtSpanLength(Int topTokenInd, Compiler* lx) {
-    Token lastToken = lx->tokens[lx->nextInd - 1];
+    Token lastToken = lx->tokens.content[lx->tokens.length - 1];
     Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
 
     // This is for correctly calculating lengths of statements when they are ended by parens in case of a gap before ")"
     Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
     Int lenBts = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken) 
-                    - lx->tokens[topTokenInd].startBt;
+                    - lx->tokens.content[topTokenInd].startBt;
 
-    lx->tokens[topTokenInd].lenBts = lenBts;
-    lx->tokens[topTokenInd].pl2 = lx->nextInd - topTokenInd - 1;
+    lx->tokens.content[topTokenInd].lenBts = lenBts;
+    lx->tokens.content[topTokenInd].pl2 = lx->tokens.length - topTokenInd - 1;
 }
 
 
@@ -1183,7 +1183,7 @@ private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
     } else if (stmtType == tokContinue) {
         lenBts = 8;
     }
-    push(((BtToken){ .tp = stmtType, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
+    push(((BtToken){ .tp = stmtType, .tokenInd = lx->tokens.length, .spanLevel = slStmt }), lx->lexBtrack);
     pushIntokens((Token){ .tp = stmtType, .startBt = startBt, .lenBts = lenBts}, lx);
 }
 
@@ -1191,7 +1191,7 @@ private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
 private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) source) {    
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {            
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
+            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->tokens.length, .spanLevel = slStmt }), lx->lexBtrack);
             pushIntokens((Token){ .tp = tokStmt, .startBt = startBt},  lx);
         }
     } else {
@@ -1203,7 +1203,7 @@ private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) sourc
 private void wrapInAStatement(Compiler* lx, Arr(byte) source) {
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
+            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->tokens.length, .spanLevel = slStmt }), lx->lexBtrack);
             pushIntokens((Token){ .tp = tokStmt, .startBt = lx->i},  lx);
         }
     } else {
@@ -1246,11 +1246,11 @@ private void closeRegularPunctuation(Int closingType, Compiler* lx) {
 private int64_t calcIntegerWithinLimits(Compiler* lx) {
     int64_t powerOfTen = (int64_t)1;
     int64_t result = 0;
-    Int j = lx->numericNextInd - 1;
+    Int j = lx->numeric.length - 1;
 
     Int loopLimit = -1;
     while (j > loopLimit) {
-        result += powerOfTen*lx->numeric[j];
+        result += powerOfTen*lx->numeric.content[j];
         powerOfTen *= 10;
         j--;
     }
@@ -1259,17 +1259,17 @@ private int64_t calcIntegerWithinLimits(Compiler* lx) {
 
 /// Checks if the current numeric <= b if they are regarded as arrays of decimal digits (0 to 9).
 private bool integerWithinDigits(const byte* b, Int bLength, Compiler* lx){
-    if (lx->numericNextInd != bLength) return (lx->numericNextInd < bLength);
-    for (Int j = 0; j < lx->numericNextInd; j++) {
-        if (lx->numeric[j] < b[j]) return true;
-        if (lx->numeric[j] > b[j]) return false;
+    if (lx->numeric.length != bLength) return (lx->numeric.length < bLength);
+    for (Int j = 0; j < lx->numeric.length; j++) {
+        if (lx->numeric.content[j] < b[j]) return true;
+        if (lx->numeric.content[j] > b[j]) return false;
     }
     return true;
 }
 
 
 private Int calcInteger(int64_t* result, Compiler* lx) {
-    if (lx->numericNextInd > 19 || !integerWithinDigits(maxInt, sizeof(maxInt), lx)) return -1;
+    if (lx->numeric.length > 19 || !integerWithinDigits(maxInt, sizeof(maxInt), lx)) return -1;
     *result = calcIntegerWithinLimits(lx);
     return 0;
 }
@@ -1278,12 +1278,12 @@ private Int calcInteger(int64_t* result, Compiler* lx) {
 private int64_t calcHexNumber(Compiler* lx) {
     int64_t result = 0;
     int64_t powerOfSixteen = 1;
-    Int j = lx->numericNextInd - 1;
+    Int j = lx->numeric.length - 1;
 
     // If the literal is full 16 bits long, then its upper sign contains the sign bit
     Int loopLimit = -1; //if (byteBuf.ind == 16) { 0 } else { -1 }
     while (j > loopLimit) {
-        result += powerOfSixteen*lx->numeric[j];
+        result += powerOfSixteen*lx->numeric.content[j];
         powerOfSixteen = powerOfSixteen << 4;
         j--;
     }
@@ -1297,7 +1297,7 @@ private int64_t calcHexNumber(Compiler* lx) {
 /// TODO add floating-pointt literals like 0x12FA.
 private void hexNumber(Compiler* lx, Arr(byte) source) {
     checkPrematureEnd(2, lx);
-    lx->numericNextInd = 0;
+    lx->numeric.length = 0;
     Int j = lx->i + 2;
     while (j < lx->inpLength) {
         byte cByte = source[j];
@@ -1312,13 +1312,13 @@ private void hexNumber(Compiler* lx, Arr(byte) source) {
         } else {
             break;
         }
-        VALIDATEL(lx->numericNextInd <= 16, errNumericBinWidthExceeded)
+        VALIDATEL(lx->numeric.length <= 16, errNumericBinWidthExceeded)
         j++;
     }
     int64_t resultValue = calcHexNumber(lx);
     pushIntokens((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
                 .startBt = lx->i, .lenBts = j - lx->i }, lx);
-    lx->numericNextInd = 0;
+    lx->numeric.content = 0;
     lx->i = j; // CONSUME the hex number
 }
 
@@ -1333,9 +1333,9 @@ private void hexNumber(Compiler* lx, Arr(byte) source) {
 /// Example, for input text '1.23' this function would get the args: ([1 2 3] 1)
 /// Output: a 64-bit floating-pointt number, encoded as a long (same bits)
 private Int calcFloating(double* result, Int powerOfTen, Compiler* lx, Arr(byte) source){
-    Int indTrailingZeroes = lx->numericNextInd - 1;
-    Int ind = lx->numericNextInd;
-    while (indTrailingZeroes > -1 && lx->numeric[indTrailingZeroes] == 0) { 
+    Int indTrailingZeroes = lx->numeric.length - 1;
+    Int ind = lx->numeric.length;
+    while (indTrailingZeroes > -1 && lx->numeric.content[indTrailingZeroes] == 0) { 
         indTrailingZeroes--;
     }
 
@@ -1358,7 +1358,7 @@ private Int calcFloating(double* result, Int powerOfTen, Compiler* lx, Arr(byte)
              (ind - significandNeeds == 16 && significandNeeds < significantCan && significandNeeds + 1 <= exponentCanAccept) ? 
                 (significandNeeds + 1) : significandNeeds
         ) : exponentNeeds;
-    lx->numericNextInd -= transfer;
+    lx->numeric.length -= transfer;
     Int finalPowerTen = powerOfTen + transfer;
 
     if (!integerWithinDigits(maximumPreciselyRepresentedFloatingInt, sizeof(maximumPreciselyRepresentedFloatingInt), lx)) {
@@ -1459,7 +1459,7 @@ private void lexNumber(Compiler* lx, Arr(byte) source) {
     } else {
         decNumber(false, lx, source);
     }
-    lx->numericNextInd = 0;
+    lx->numeric.length = 0;
 }
 
 /// Adds a token which serves punctuation purposes, i.e. either a ( or  a [
@@ -1468,7 +1468,7 @@ private void lexNumber(Compiler* lx, Arr(byte) source) {
 /// once it is known.
 /// Consumes no bytes.
 private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* lx) {
-    push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->lexBtrack);
+    push( ((BtToken){ .tp = tType, .tokenInd = lx->tokens.length, .spanLevel = spanLevel}), lx->lexBtrack);
     pushIntokens((Token) {.tp = tType, .pl1 = (tType < firstParenSpanTokenType) ? 0 : spanLevel, .startBt = startBt },
         lx);
 }
@@ -1486,7 +1486,7 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
             VALIDATEL(top.spanLevel <= slStmt && top.tp != tokStmt, errPunctuationScope)
         }
         Int scopeLevel = reservedWordType == tokScope ? slScope : slParenMulti;
-        push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->nextInd, .spanLevel = scopeLevel }), 
+        push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.length, .spanLevel = scopeLevel }), 
              lx->lexBtrack);
         pushIntokens((Token){ .tp = reservedWordType, .pl1 = scopeLevel, .startBt = startBt, .lenBts = lenBts}, lx);
         ++lx->i; // CONSUME the opening "(" of the core form
@@ -1572,7 +1572,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
             VALIDATEL(wordType == tokWord, errPunctuationWrongCall)
             wrapInAStatementStarting(startBt, lx, source);
             untt finalTokType = wasCapitalized ? tokTypeCall : tokCall;
-            push(((BtToken){ .tp = finalTokType, .tokenInd = lx->nextInd, .spanLevel = slSubexpr }),
+            push(((BtToken){ .tp = finalTokType, .tokenInd = lx->tokens.length, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
             pushIntokens((Token){ .tp = finalTokType, .pl1 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
@@ -1588,8 +1588,8 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
         } else if (wordType == tokAccessor) {
             // What looks like an accessor ("a.x") may actually be a struct field ("(.id 5 .name `foo`")
-            if (lx->nextInd > 0) {
-                Token prevToken = lx->tokens[lx->nextInd - 1];
+            if (lx->tokens.length > 0) {
+                Token prevToken = lx->tokens.content[lx->tokens.length - 1];
                 if (prevToken.startBt + prevToken.lenBts < realStartByte) {
                     pushIntokens((Token){ .tp = tokStructField, .pl2 = uniqueStringInd, 
                                  .startBt = realStartByte, .lenBts = lenBts }, lx);
@@ -1657,7 +1657,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
         throwExcLexer(errOperatorAssignmentPunct, lx);
     }
     Int tokenInd = currSpan.tokenInd;
-    Token* tok = (lx->tokens + tokenInd);   
+    Token* tok = (lx->tokens.content + tokenInd);   
     if (mutType == 0) {
         tok->tp = tokAssignment;
     } else if (mutType == 1) {
@@ -1671,7 +1671,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
 
 /// A single $ means "parentheses until the next closing paren or end of statement"
 private void lexDollar(Compiler* lx, Arr(byte) source) {           
-    push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .spanLevel = slSubexpr, .wasOrigDollar = true}),
+    push(((BtToken){ .tp = tokParens, .tokenInd = lx->tokens.length, .spanLevel = slSubexpr, .wasOrigDollar = true}),
          lx->lexBtrack);
     pushIntokens((Token) {.tp = tokParens, .startBt = lx->i }, lx);
     lx->i++; // CONSUME the "$"
@@ -1746,7 +1746,7 @@ private void lexOperator(Compiler* lx, Arr(byte) source) {
         processAssignment(2, opType, lx);
     } else {
         if (j < lx->inpLength && source[j] == aParenLeft) {
-            push(((BtToken){ .tp = tokOperCall, .tokenInd = lx->nextInd, .spanLevel = slSubexpr }),
+            push(((BtToken){ .tp = tokOperCall, .tokenInd = lx->tokens.length, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
             pushIntokens((Token){ .tp = tokOperCall, .pl1 = opType, .startBt = lx->i }, lx);
             ++j; // CONSUME the opening "(" of the operator call
@@ -1792,24 +1792,6 @@ private void lexNewline(Compiler* lx, Arr(byte) source) {
     }
 }
 
-/// Doc comments, syntax is "---Doc comment". Pre-condition: we are pointing at the third minus
-private void lexDocComment(Compiler* lx, Arr(byte) source) {
-    Int startBt = lx->i - 2; // -2 for the two minuses that have already been consumed
-    
-    for (; lx->i < lx->inpLength; ++lx->i) {
-        if (CURR_BT == aNewline) {
-            lexNewline(lx, source);
-            break;
-        }
-    }
-    Int lenTokens = lx->nextInd;
-    if (lenTokens > 0 && lx->tokens[lenTokens - 1].tp == tokDocComment) {
-        lx->tokens[lenTokens - 1].lenBts = lx->i - lx->tokens[lenTokens - 1].startBt;
-    } else {
-        pushIntokens((Token){.tp = tokDocComment, .startBt = startBt, .lenBts = lx->i - startBt}, lx);
-    }
-}
-
 /// Either an ordinary until-line-end comment (which doesn't get included in the AST, just discarded 
 /// by the lexer) or a doc-comment. Just like a newline, this needs to test if we're in a breakable
 /// statement because a comment goes until the line end.
@@ -1818,23 +1800,19 @@ private void lexComment(Compiler* lx, Arr(byte) source) {
     if (lx->i >= lx->inpLength) {
         return;
     }
-    if (CURR_BT == aMinus) {
-        lexDocComment(lx, source);
-    } else {
-        maybeBreakStatement(lx);
-            
-        Int j = lx->i;
-        while (j < lx->inpLength) {
-            byte cByte = source[j];
-            if (cByte == aNewline) {
-                lx->i = j + 1; // CONSUME the comment
-                return;
-            } else {
-                j++;
-            }
+    maybeBreakStatement(lx);
+        
+    Int j = lx->i;
+    while (j < lx->inpLength) {
+        byte cByte = source[j];
+        if (cByte == aNewline) {
+            lx->i = j + 1; // CONSUME the comment
+            return;
+        } else {
+            j++;
         }
-        lx->i = j;  // CONSUME the comment
     }
+    lx->i = j;  // CONSUME the comment
 }
 
 /// Handles the binary operator as well as the unary negation operator and the in-line comments
@@ -1846,7 +1824,7 @@ private void lexMinus(Compiler* lx, Arr(byte) source) {
         if (isDigit(nextBt)) {
             wrapInAStatement(lx, source);
             decNumber(true, lx, source);
-            lx->numeric->length = 0;
+            lx->numeric.length = 0;
         } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
             pushIntokens((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
             lx->i++; // CONSUME the minus symbol
@@ -1974,7 +1952,7 @@ testable void printLexer(Compiler* lx) {
     Arena* a = lx->a;
     Stackint32_t* sentinels = createStackint32_t(16, a);
     for (int i = 0; i < lx->totalTokens; i++) {
-        Token tok = lx->tokens[i];
+        Token tok = lx->tokens.content[i];
         for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
             popint32_t(sentinels);
             indent--;
@@ -2008,8 +1986,8 @@ int equalityLexer(Compiler a, Compiler b) {
     int commonLength = a.totalTokens < b.totalTokens ? a.totalTokens : b.totalTokens;
     int i = 0;
     for (; i < commonLength; i++) {
-        Token tokA = a.tokens[i];
-        Token tokB = b.tokens[i];
+        Token tokA = a.tokens.content[i];
+        Token tokB = b.tokens.content[i];
         if (tokA.tp != tokB.tp || tokA.lenBts != tokB.lenBts || tokA.startBt != tokB.startBt 
             || tokA.pl1 != tokB.pl1 || tokA.pl2 != tokB.pl2) {
             printf("\n\nUNEQUAL RESULTS on token %d\n", i);
@@ -2337,8 +2315,8 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     Int condSent = calcSentinel(condTk, condInd);
     Int startBtScope = tokens[condSent].startBt;
         
-    push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.length, .sentinelToken = sentinel, .typeId = cm->loopCounter }),
-         cm->backtrack);
+    push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.length, .sentinelToken = sentinel, 
+                        .typeId = cm->loopCounter }), cm->backtrack);
     pushInnodes((Node){.tp = nodWhile,  .startBt = loopTok.startBt, .lenBts = loopTok.lenBts}, cm);
 
     addParsedScope(sentinel, startBtScope, loopTok.lenBts - startBtScope + loopTok.startBt, cm);
@@ -2359,7 +2337,8 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(indBody < sentinel, errLoopEmptyBody);
 
     // loop condition
-    push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.length, .sentinelToken = condSent }), cm->backtrack);
+    push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.length, .sentinelToken = condSent }), 
+         cm->backtrack);
     pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = condSent - condInd,
                        .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
     cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/single token
@@ -3066,7 +3045,7 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
         }
         finalizeLexer(lx);
     }
-    lx->totalTokens = lx->nextInd;
+    lx->totalTokens = lx->tokens.length;
     return lx;
 }
 
@@ -3353,7 +3332,7 @@ const Int codegenStrings[] = {
 
 //}}}
 
-private void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
+testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
     
@@ -3367,7 +3346,7 @@ private void buildStandardStrings(Compiler* lx) {
 }
     
 /// Converts a standard string to its nameId. Doesn't work for reserved words, obviously    
-private Int stToNameId(Int a) {
+testable Int stToNameId(Int a) {
     return a - strFirstNonReserved;
 }
 
@@ -3552,11 +3531,11 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
         // this assumes that the source code is prefixed with the "standardText"
-        .i = sizeof(standardText) - 1, .langDef = proto->langDef, .sourceCode = sourceCode, .nextInd = 0, 
+        .i = sizeof(standardText) - 1, .langDef = proto->langDef, .sourceCode = sourceCode,
         .inpLength = sourceCode->length,
-        .tokens = allocateOnArena(LEXER_INIT_SIZE*sizeof(Token), a), .capacity = LEXER_INIT_SIZE,
-        .newlines = allocateOnArena(500*sizeof(int), a), .newlinesCapacity = 500,
-        .numeric = allocateOnArena(50*sizeof(int), aTmp), .numericCapacity = 50,
+        .tokens = createInListToken(LEXER_INIT_SIZE, a),
+        .newlines = createInListInt(500, a),
+        .numeric = createInListInt(50, aTmp),
         .lexBtrack = createStackBtToken(16, aTmp),
         .stringTable = copyStringTable(proto->stringTable, a), 
         .stringDict = copyStringDict(proto->stringDict, a),
@@ -3706,11 +3685,11 @@ private void parseToplevelConstants(Compiler* cm) {
     cm->i = 0;
     const Int len = cm->totalTokens;
     while (cm->i < len) {
-        Token tok = cm->tokens[cm->i];
+        Token tok = cm->tokens.content[cm->i];
         if (tok.tp == tokAssignment) {
-            VALIDATEP(cm->tokens[cm->i + 1].tp == tokWord, errToplevelAssignment)
-            if (cm->tokens[cm->i + 2].tp != tokFn) { 
-                parseUpTo(cm->i + tok.pl2, cm->tokens, cm);
+            VALIDATEP(cm->tokens.content[cm->i + 1].tp == tokWord, errToplevelAssignment)
+            if (cm->tokens.content[cm->i + 2].tp != tokFn) { 
+                parseUpTo(cm->i + tok.pl2, cm->tokens.content, cm);
             } 
         } else {
             cm->i += (tok.pl2 + 1);
@@ -3723,7 +3702,7 @@ private void parseToplevelConstants(Compiler* cm) {
 private void surveyToplevelFunctionNames(Compiler* cm) {
     cm->i = 0;
     const Int len = cm->totalTokens;
-    Token* tokens = cm->tokens;
+    Token* tokens = cm->tokens.content;
     while (cm->i < len) {
         Token tok = tokens[cm->i];
         if (tok.tp == tokAssignment && tokens[cm->i + 2].tp == tokFn) {
@@ -3796,7 +3775,7 @@ testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures,
     Int fnStartTokenId = cm->i - 2;    
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
     
-    Token fnName = cm->tokens[cm->i];
+    Token fnName = cm->tokens.content[cm->i];
     Int fnNameId = fnName.pl2;
     Int activeBinding = cm->activeBindings[fnNameId];
     Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
@@ -3806,8 +3785,8 @@ testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures,
     Int tentativeTypeInd = cm->types.length;
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
     // the function's return type, interpreted to be Void if absent
-    if (cm->tokens[cm->i].tp == tokTypeName) {
-        Token fnReturnType = cm->tokens[cm->i];
+    if (cm->tokens.content[cm->i].tp == tokTypeName) {
+        Token fnReturnType = cm->tokens.content[cm->i];
         Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
         VALIDATEP(returnTypeId > -1, errUnknownType)
         pushIntypes(returnTypeId, cm);
@@ -3816,21 +3795,21 @@ testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures,
     } else {
         pushIntypes(tokUnderscore, cm); // underscore stands for the Void type
     }
-    VALIDATEP(cm->tokens[cm->i].tp == tokParens, errFnNameAndParams)
+    VALIDATEP(cm->tokens.content[cm->i].tp == tokParens, errFnNameAndParams)
 
     Int paramsTokenInd = cm->i;
-    Token parens = cm->tokens[paramsTokenInd];   
+    Token parens = cm->tokens.content[paramsTokenInd];   
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
     Int arity = 0;
     while (cm->i < paramsSentinel) {
-        Token paramName = cm->tokens[cm->i];
+        Token paramName = cm->tokens.content[cm->i];
         VALIDATEP(paramName.tp == tokWord, errFnNameAndParams)
         ++cm->i; // CONSUME a param name
         ++arity;
         
         VALIDATEP(cm->i < paramsSentinel, errFnNameAndParams)
-        Token paramType = cm->tokens[cm->i];
+        Token paramType = cm->tokens.content[cm->i];
         VALIDATEP(paramType.tp == tokTypeName, errFnNameAndParams)
         
         Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
@@ -3840,7 +3819,7 @@ testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures,
         ++cm->i; // CONSUME the param's type name
     }
 
-    VALIDATEP(cm->i < (fnSentinelToken - 1) && cm->tokens[cm->i].tp == tokColon, errFnMissingBody)
+    VALIDATEP(cm->i < (fnSentinelToken - 1) && cm->tokens.content[cm->i].tp == tokColon, errFnMissingBody)
     cm->types.content[tentativeTypeInd] = arity + 1;
     
     Int uniqueTypeId = mergeType(tentativeTypeInd, arity + 2, cm);
@@ -3916,7 +3895,7 @@ private StackNode* parseToplevelSignatures(Compiler* cm) {
     cm->i = 0;
     const Int len = cm->totalTokens;
     while (cm->i < len) {
-        Token tok = cm->tokens[cm->i];
+        Token tok = cm->tokens.content[cm->i];
         if (tok.tp == tokFn) {
             Int lenTokens = tok.pl2;
             Int sentinelToken = cm->i + lenTokens + 1;
@@ -4018,7 +3997,7 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
         validateOverloadsFull(cm);
 #endif
         // The main parse (all top-level function bodies)
-        parseFunctionBodies(topLevelSignatures, cm->tokens, cm);
+        parseFunctionBodies(topLevelSignatures, cm->tokens.content, cm);
     }
     return cm;
 }
@@ -4048,19 +4027,19 @@ testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
 }
 
 /// Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call.
-private void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
+testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
     pushIntypes((0xFF << 24) + (paramInd << 8) + arity, cm);
 }
 
 /// Known type fn call
-private void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm) {
+testable void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm) {
     pushIntypes((arity << 24) + typeInd, cm);
 }
 
 /// A single-item type, like "Int". Consumes no tokens.
 /// Pre-condition: we are 1 token past the token we're parsing.
 /// Returns the type of the single item, or in case it's a type param, (-nameId - 1)
-private Int typeSingleItem(Token tk, Compiler* cm) {
+testable Int typeSingleItem(Token tk, Compiler* cm) {
     Int typeId = -1;
     if (tk.tp == tokTypeName) {
         bool isAParam = tk.pl1 > 0;
@@ -4426,6 +4405,22 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     
 //}}}
 //{{{ Generic types
+    
+/// Completely skips the current node in a type, whether the node is concrete or param, a call or not
+testable void typeSkipNode(Int* ind, Compiler* cm) {
+    Int toSkip = 1;
+    while (toSkip > 0) {
+        Int cType = cm->types.content[*ind]; 
+        Int hdr = (cType >> 24) & 0xFF;    
+        if (hdr == 255) {
+            toSkip += cType & 0xFF; 
+        } else {
+            toSkip += hdr; 
+        }
+        ++(*ind);
+        --toSkip;
+    } 
+}
     
 testable bool typeGenericsIntersect(Int id1, Int id2, Compiler* cm) {
     return false; 

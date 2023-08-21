@@ -12,17 +12,7 @@ extern jmp_buf excBuf;
 
 #define in(x) prepareInput(x, a)
 #define S   70000000 // A constant larger than the largest allowed file size. Separates parsed names from others
-
-/** Must agree in order with toke types in ParserConstants.h */
-//~const char* tokNames[] = {
-//~    "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
-//~    "id", "call", "binding", "type", "and", "or", 
-//~    "(-", "expr", "assign", "reAssign", "mutate",
-//~    "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
-//~    "defer", "each", "embed", "export", "exposePriv", "fnDef", "interface"
-//~    "lambda", "meta", "package", "return", "struct", "try", "yield",
-//~    "ifClause", "else", "loop", "loopCond", "if", "ifPr", "impl", "match"
-//~};
+#define validate(cond) if(!(cond)) {++(*countFailed); return;}
 
 private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
     Compiler* result = createLexerFromProto(&empty, proto, a);
@@ -51,7 +41,7 @@ private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int
                 tok.pl1 -= (S + stText.firstNonreserved);
             }
         }
-        add(tok, result);
+        pushIntokens(tok, result);
     }
     result->totalTokens = totalTokens;
     
@@ -87,9 +77,9 @@ void typerTest1(Compiler* proto, Arena* a) {
     push(sta.numNames + 1, cm->typeStack);
     push(0, cm->typeStack);
     
-    Token tk = cm->tokens[7];
+    Token tk = cm->tokens.content[7];
     cm->i = 8;
-    Int typeId = parseTypeName(tk, cm->tokens, cm);
+    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
     typePrint(typeId, cm);
 }
 
@@ -107,9 +97,9 @@ void typerTest2(Compiler* proto, Arena* a) {
     initializeParser(cm, proto, a);
     printLexer(cm);
     
-    Token tk = cm->tokens[3];
+    Token tk = cm->tokens.content[3];
     cm->i = 4;
-    Int typeId = parseTypeName(tk, cm->tokens, cm);
+    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
     typePrint(typeId, cm);
 }
    
@@ -127,6 +117,32 @@ void typeTest3(Compiler* proto, Arena* a) {
     initializeParser(cm, proto, a);
     //parseToplevelSignature(cm->tokens[0], toplevelSignatures, cm);
 } 
+   
+/// Checking that we know how to skip a whole type call    
+void skipTest(Int* countFailed, Compiler* proto, Arena* a) {
+    Compiler* cm = createLexerFromProto(&empty, proto, a);
+    initializeParser(cm, proto, a); 
+    Int startInd = cm->types.length; 
+    Int resultInd = startInd;
+    Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
+    Int typeList = cm->activeBindings[stToNameId(strL)]; 
+    Int typeString = cm->activeBindings[stToNameId(strString)]; 
+    // Tu(Str Tu(L(L(Int)) Tu(?1_1(Int) L(?2))))
+    // Should skip 11 type nodes 
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeParam(0, 0, cm); 
+    typeSkipNode(&resultInd, cm); 
+    validate(resultInd == (startInd + 11)); 
+}
     
 int main() {
     printf("----------------------------\n");
@@ -134,10 +150,18 @@ int main() {
     printf("----------------------------\n");
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
-
+    Int countFailed = 0;
     if (setjmp(excBuf) == 0) {
 //~    typerTest1(proto, a);
         typerTest2(proto, a);
-    } 
+        skipTest(&countFailed, proto, a); 
+    } else {
+        print("An exception was thrown in the tests") 
+    }
+    if (countFailed > 0) {
+        print("") 
+        print("-------------------------") 
+        print("Count of failed tests %d", countFailed);
+    }
     deleteArena(a);
 }

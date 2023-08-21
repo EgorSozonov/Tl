@@ -22,12 +22,13 @@ Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* createProtoCompiler(Arena* a);
 StandardText getStandardTextLength();
 void typePrint(Int, Compiler*);
+void pushIntokens(Token, Compiler*); 
+Int stToNameId(Int a);
 
 #ifdef LEXER_TEST
 
 Int getStringDict(byte* text, String* strToSearch, StackInt* stringTable, StringDict* hm);
 
-void add(Token t, Compiler* lexer);
 Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 void printLexer(Compiler* a);
@@ -150,6 +151,11 @@ extern const char errTypeWrongArgumentType[];
 Int findOverload(Int typeId, Int start, Int end, Entity* ent, Compiler* cm);
 Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm);
 void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm);
+void typeSkipNode(Int* ind, Compiler* cm);
+    
+void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
+void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm);
+Int typeSingleItem(Token tk, Compiler* cm);
     
 #endif
 

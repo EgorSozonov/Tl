@@ -498,6 +498,7 @@ typedef struct { //:ScopeStack
 DEFINE_STACK_HEADER(ParseFrame)
 DEFINE_STACK_HEADER(Node)
 
+DEFINE_INTERNAL_LIST_TYPE(Token)
 DEFINE_INTERNAL_LIST_TYPE(Node)
 
 DEFINE_INTERNAL_LIST_TYPE(Entity)
@@ -543,7 +544,7 @@ struct Compiler { //:Compiler
     LanguageDefinition* langDef;
 
     // LEXING
-    InListNode tokens; 
+    InListToken tokens; 
     InListInt newlines;
     InListInt numeric;         // [aTmp]
     StackBtToken* lexBtrack;   // [aTmp]
