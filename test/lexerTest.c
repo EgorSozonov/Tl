@@ -486,41 +486,6 @@ LexerTestSet* commentTests(Compiler* proto, Arena* a) {
             .input = in("-- this is a comment"),
             .expectedOutput = buildLexer((Token[]){}
         )},
-        (LexerTest) { .name = s("Doc comment"),
-            .input = in("---Documentation comment"),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 24 }
-        }))},
-        (LexerTest) { .name = s("Doc comment before something"),
-            .input = in("---Documentation comment \n"
-                       "print `hw` "),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 26 },
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 26, .lenBts = 10 },
-                (Token){ .tp = tokWord, .pl2 = strPrint + S, .startBt = 26, .lenBts = 5 },
-                (Token){ .tp = tokString, .startBt = 32, .lenBts = 4 }
-        }))},
-        (LexerTest) { .name = s("Doc comment empty"),
-            .input = in("---\n" 
-                       "print `hw` "),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .startBt = 0, .lenBts = 4 },
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 4, .lenBts = 10 },
-                (Token){ .tp = tokWord, .pl2 = strPrint + S, .startBt = 4, .lenBts = 5 },
-                (Token){ .tp = tokString, .startBt = 10, .lenBts = 4 }
-        }))},
-        (LexerTest) { .name = s("Doc comment multiline"),
-            .input = in("---First line\n" 
-                       "---Second line\n" 
-                       "---Third line\n" 
-                       "print `hw` "
-            ),
-            .expectedOutput = buildLexer(((Token[]){
-                (Token){ .tp = tokDocComment, .pl2 = 0, .startBt = 0, .lenBts = 43 },
-                (Token){ .tp = tokStmt, .pl2 = 2, .startBt = 43, .lenBts = 10 },
-                (Token){ .tp = tokWord, .pl2 = strPrint + S, .startBt = 43, .lenBts = 5 },
-                (Token){ .tp = tokString, .startBt = 49, .lenBts = 4 }
-        }))}
     }));
 }
 

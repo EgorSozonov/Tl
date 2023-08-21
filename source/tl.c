@@ -282,11 +282,14 @@ testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
 }
     
 //}}}
-//{{{ Data structure definitions
+//{{{ Datatypes a la carte
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
 
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Token)
+DEFINE_INTERNAL_LIST(tokens, Token, a)
+    
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node)
 DEFINE_INTERNAL_LIST(nodes, Node, a)
 
@@ -294,6 +297,8 @@ DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity)
 DEFINE_INTERNAL_LIST(entities, Entity, a)
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int)
+DEFINE_INTERNAL_LIST(newlines, Int, a)
+DEFINE_INTERNAL_LIST(numeric, Int, a)
 DEFINE_INTERNAL_LIST(overloads, Int, a)
 DEFINE_INTERNAL_LIST(types, Int, a)
 
@@ -1069,18 +1074,6 @@ private void checkPrematureEnd(Int requiredSymbols, Compiler* lx) {
     VALIDATEL(lx->i + requiredSymbols <= lx->inpLength, errPrematureEndOfInput)
 }
 
-
-testable void add(Token t, Compiler* lx) {
-    lx->tokens[lx->nextInd] = t;
-    ++lx->nextInd;
-    if (lx->nextInd == lx->capacity) {
-        Token* newStorage = allocateOnArena(lx->capacity*2*sizeof(Token), lx->a);
-        memcpy(newStorage, lx->tokens, (lx->capacity)*(sizeof(Token)));
-        lx->tokens = newStorage;
-        lx->capacity *= 2;
-    }
-}
-
 /// For all the dollars at the top of the backtrack, turns them into parentheses, sets their lengths and closes them
 private void closeColons(Compiler* lx) {
     while (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).wasOrigDollar) {
@@ -1182,18 +1175,6 @@ private Int determineUnreserved(Int startBt, Int lenBts, Compiler* lx) {
 }
 
 
-private void addNewLine(Int j, Compiler* lx) {
-    lx->newlines[lx->newlinesNextInd] = j;
-    lx->newlinesNextInd++;
-    if (lx->newlinesNextInd == lx->newlinesCapacity) {
-        Arr(Int) newNewlines = allocateOnArena(lx->newlinesCapacity*2*4, lx->a);
-        memcpy(newNewlines, lx->newlines, lx->newlinesCapacity*4);
-        lx->newlines = newNewlines;
-        lx->newlinesCapacity *= 2;
-    }
-}
-
-
 private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
     Int lenBts = 0;
     // Some types of statements may legitimately consist of 0 tokens; for them, we need to write their lenBts in the init token
@@ -1203,7 +1184,7 @@ private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
         lenBts = 8;
     }
     push(((BtToken){ .tp = stmtType, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
-    add((Token){ .tp = stmtType, .startBt = startBt, .lenBts = lenBts}, lx);
+    pushIntokens((Token){ .tp = stmtType, .startBt = startBt, .lenBts = lenBts}, lx);
 }
 
 
@@ -1211,7 +1192,7 @@ private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) sourc
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {            
             push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
-            add((Token){ .tp = tokStmt, .startBt = startBt},  lx);
+            pushIntokens((Token){ .tp = tokStmt, .startBt = startBt},  lx);
         }
     } else {
         addStatementSpan(tokStmt, startBt, lx);
@@ -1223,7 +1204,7 @@ private void wrapInAStatement(Compiler* lx, Arr(byte) source) {
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {
             push(((BtToken){ .tp = tokStmt, .tokenInd = lx->nextInd, .spanLevel = slStmt }), lx->lexBtrack);
-            add((Token){ .tp = tokStmt, .startBt = lx->i},  lx);
+            pushIntokens((Token){ .tp = tokStmt, .startBt = lx->i},  lx);
         }
     } else {
         addStatementSpan(tokStmt, lx->i, lx);
@@ -1259,21 +1240,6 @@ private void closeRegularPunctuation(Int closingType, Compiler* lx) {
     }
     setSpanLengthLexer(top.tokenInd, lx);
     lx->i++; // CONSUME the closing ")"
-}
-
-
-private void addNumeric(byte b, Compiler* lx) {
-    if (lx->numericNextInd < lx->numericCapacity) {
-        lx->numeric[lx->numericNextInd] = b;
-    } else {
-        Arr(Int) new = allocateOnArena(lx->numericCapacity*8, lx->a);
-        memcpy(new, lx->numeric, lx->numericCapacity*4);
-        new[lx->numericCapacity] = b;
-        
-        lx->numeric = new;
-        lx->numericCapacity *= 2;       
-    }
-    lx->numericNextInd++;
 }
 
 
@@ -1336,11 +1302,11 @@ private void hexNumber(Compiler* lx, Arr(byte) source) {
     while (j < lx->inpLength) {
         byte cByte = source[j];
         if (isDigit(cByte)) {
-            addNumeric(cByte - aDigit0, lx);
+            pushInnumeric(cByte - aDigit0, lx);
         } else if ((cByte >= aALower && cByte <= aFLower)) {
-            addNumeric(cByte - aALower + 10, lx);
+            pushInnumeric(cByte - aALower + 10, lx);
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
-            addNumeric(cByte - aAUpper + 10, lx);
+            pushInnumeric(cByte - aAUpper + 10, lx);
         } else if (cByte == aUnderscore && (j == lx->inpLength - 1 || isHexDigit(source[j + 1]))) {            
             throwExcLexer(errNumericEndUnderscore, lx);            
         } else {
@@ -1350,7 +1316,7 @@ private void hexNumber(Compiler* lx, Arr(byte) source) {
         j++;
     }
     int64_t resultValue = calcHexNumber(lx);
-    add((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
+    pushIntokens((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
                 .startBt = lx->i, .lenBts = j - lx->i }, lx);
     lx->numericNextInd = 0;
     lx->i = j; // CONSUME the hex number
@@ -1432,10 +1398,10 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
 
         if (isDigit(cByte)) {
             if (metNonzero) {
-                addNumeric(cByte - aDigit0, lx);
+                pushInnumeric(cByte - aDigit0, lx);
             } else if (cByte != aDigit0) {
                 metNonzero = true;
-                addNumeric(cByte - aDigit0, lx);
+                pushInnumeric(cByte - aDigit0, lx);
             }
             if (metDot) {
                 ++digitsAfterDot;
@@ -1463,7 +1429,7 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
         VALIDATEL(errorCode == 0, errNumericFloatWidthExceeded)
 
         int64_t bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
-        add((Token){ .tp = tokFloat, .pl1 = (bitsOfFloat >> 32), .pl2 = (bitsOfFloat & LOWER32BITS),
+        pushIntokens((Token){ .tp = tokFloat, .pl1 = (bitsOfFloat >> 32), .pl2 = (bitsOfFloat & LOWER32BITS),
                     .startBt = lx->i, .lenBts = j - lx->i}, lx);
     } else {
         int64_t resultValue = 0;
@@ -1471,7 +1437,7 @@ private void decNumber(bool isNegative, Compiler* lx, Arr(byte) source) {
         VALIDATEL(errorCode == 0, errNumericIntWidthExceeded)
 
         if (isNegative) resultValue = -resultValue;
-        add((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
+        pushIntokens((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS, 
                 .startBt = lx->i, .lenBts = j - lx->i }, lx);
     }
     lx->i = j; // CONSUME the decimal number
@@ -1482,7 +1448,7 @@ private void lexNumber(Compiler* lx, Arr(byte) source) {
     wrapInAStatement(lx, source);
     byte cByte = CURR_BT;
     if (lx->i == lx->inpLength - 1 && isDigit(cByte)) {
-        add((Token){ .tp = tokInt, .pl2 = cByte - aDigit0, .startBt = lx->i, .lenBts = 1 }, lx);
+        pushIntokens((Token){ .tp = tokInt, .pl2 = cByte - aDigit0, .startBt = lx->i, .lenBts = 1 }, lx);
         lx->i++; // CONSUME the single-digit number
         return;
     }
@@ -1503,7 +1469,7 @@ private void lexNumber(Compiler* lx, Arr(byte) source) {
 /// Consumes no bytes.
 private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* lx) {
     push( ((BtToken){ .tp = tType, .tokenInd = lx->nextInd, .spanLevel = spanLevel}), lx->lexBtrack);
-    add((Token) {.tp = tType, .pl1 = (tType < firstParenSpanTokenType) ? 0 : spanLevel, .startBt = startBt },
+    pushIntokens((Token) {.tp = tType, .pl1 = (tType < firstParenSpanTokenType) ? 0 : spanLevel, .startBt = startBt },
         lx);
 }
 
@@ -1522,7 +1488,7 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
         Int scopeLevel = reservedWordType == tokScope ? slScope : slParenMulti;
         push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->nextInd, .spanLevel = scopeLevel }), 
              lx->lexBtrack);
-        add((Token){ .tp = reservedWordType, .pl1 = scopeLevel, .startBt = startBt, .lenBts = lenBts}, lx);
+        pushIntokens((Token){ .tp = reservedWordType, .pl1 = scopeLevel, .startBt = startBt, .lenBts = lenBts}, lx);
         ++lx->i; // CONSUME the opening "(" of the core form
     } else if (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
@@ -1608,32 +1574,32 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
             untt finalTokType = wasCapitalized ? tokTypeCall : tokCall;
             push(((BtToken){ .tp = finalTokType, .tokenInd = lx->nextInd, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
-            add((Token){ .tp = finalTokType, .pl1 = uniqueStringInd, 
+            pushIntokens((Token){ .tp = finalTokType, .pl1 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
             ++lx->i; // CONSUME the opening "(" of the call
         } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
             VALIDATEL(wasCapitalized, errTypeOnlyTypesArity)
-            add((Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = uniqueStringInd, 
+            pushIntokens((Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
             ++lx->i; // CONSUME the "/" in the type func arity spec
         } else if (wordType == tokWord) {
             wrapInAStatementStarting(startBt, lx, source);
-            add((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd, 
+            pushIntokens((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
         } else if (wordType == tokAccessor) {
             // What looks like an accessor ("a.x") may actually be a struct field ("(.id 5 .name `foo`")
             if (lx->nextInd > 0) {
                 Token prevToken = lx->tokens[lx->nextInd - 1];
                 if (prevToken.startBt + prevToken.lenBts < realStartByte) {
-                    add((Token){ .tp = tokStructField, .pl2 = uniqueStringInd, 
+                    pushIntokens((Token){ .tp = tokStructField, .pl2 = uniqueStringInd, 
                                  .startBt = realStartByte, .lenBts = lenBts }, lx);
                     return;
                 }
             }
-            add((Token){ .tp = tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd, 
+            pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
         } else if (wordType == tokKwArg) {
-            add((Token){ .tp = tokKwArg, .pl2 = uniqueStringInd, 
+            pushIntokens((Token){ .tp = tokKwArg, .pl2 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
         }
         return;
@@ -1643,20 +1609,20 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
 
     if (mbReservedWord == tokElse){
         closeStatement(lx);
-        add((Token){.tp = tokElse, .startBt = realStartByte, .lenBts = 4}, lx);
+        pushIntokens((Token){.tp = tokElse, .startBt = realStartByte, .lenBts = 4}, lx);
     } else if (mbReservedWord < firstSpanTokenType) {
         if (mbReservedWord == reservedAnd) {
             wrapInAStatementStarting(startBt, lx, source);
-            add((Token){.tp=tokOperator, .pl1 = opTAnd, .startBt=realStartByte, .lenBts=3}, lx);
+            pushIntokens((Token){.tp=tokOperator, .pl1 = opTAnd, .startBt=realStartByte, .lenBts=3}, lx);
         } else if (mbReservedWord == reservedOr) {
             wrapInAStatementStarting(startBt, lx, source);
-            add((Token){.tp=tokOperator, .pl1 = opTOr, .startBt=realStartByte, .lenBts=2}, lx);
+            pushIntokens((Token){.tp=tokOperator, .pl1 = opTOr, .startBt=realStartByte, .lenBts=2}, lx);
         } else if (mbReservedWord == reservedTrue) {
             wrapInAStatementStarting(startBt, lx, source);
-            add((Token){.tp=tokBool, .pl2=1, .startBt=realStartByte, .lenBts=4}, lx);
+            pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartByte, .lenBts=4}, lx);
         } else if (mbReservedWord == reservedFalse) {
             wrapInAStatementStarting(startBt, lx, source);
-            add((Token){.tp=tokBool, .pl2=0, .startBt=realStartByte, .lenBts=5}, lx);
+            pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartByte, .lenBts=5}, lx);
         }
     } else {
         lexReservedWord(mbReservedWord, realStartByte, lenBts, lx, source);
@@ -1707,7 +1673,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
 private void lexDollar(Compiler* lx, Arr(byte) source) {           
     push(((BtToken){ .tp = tokParens, .tokenInd = lx->nextInd, .spanLevel = slSubexpr, .wasOrigDollar = true}),
          lx->lexBtrack);
-    add((Token) {.tp = tokParens, .startBt = lx->i }, lx);
+    pushIntokens((Token) {.tp = tokParens, .startBt = lx->i }, lx);
     lx->i++; // CONSUME the "$"
 }
 
@@ -1727,7 +1693,7 @@ private void lexColon(Compiler* lx, Arr(byte) source) {
     }
     VALIDATEL(lx->lexBtrack->length >= 2, errCoreMisplacedColon)
     maybeBreakStatement(lx);
-    add((Token){.tp = tokColon, .startBt = lx->i, .lenBts = 1 }, lx);
+    pushIntokens((Token){.tp = tokColon, .startBt = lx->i, .lenBts = 1 }, lx);
     ++lx->i; // CONSUME the ":"
 }
 
@@ -1782,10 +1748,10 @@ private void lexOperator(Compiler* lx, Arr(byte) source) {
         if (j < lx->inpLength && source[j] == aParenLeft) {
             push(((BtToken){ .tp = tokOperCall, .tokenInd = lx->nextInd, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
-            add((Token){ .tp = tokOperCall, .pl1 = opType, .startBt = lx->i }, lx);
+            pushIntokens((Token){ .tp = tokOperCall, .pl1 = opType, .startBt = lx->i }, lx);
             ++j; // CONSUME the opening "(" of the operator call
         } else {
-            add((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i, .lenBts = j - lx->i}, lx);
+            pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i, .lenBts = j - lx->i}, lx);
         }
     }
     lx->i = j; // CONSUME the operator
@@ -1803,7 +1769,7 @@ private void lexEqual(Compiler* lx, Arr(byte) source) {
     if (nextBt == aEqual) {
         lexOperator(lx, source); // ==        
     } else if (nextBt == aGT) {
-        add((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
+        pushIntokens((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  // CONSUME the arrow "=>"
     } else {
         processAssignment(0, 0, lx);
@@ -1814,7 +1780,7 @@ private void lexEqual(Compiler* lx, Arr(byte) source) {
 /// Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes the
 /// current statement unless it's inside an inline span (i.e. parens or accessor parens)
 private void lexNewline(Compiler* lx, Arr(byte) source) {
-    addNewLine(lx->i, lx);    
+    pushInnewlines(lx->i, lx);
     maybeBreakStatement(lx);
     
     lx->i++;     // CONSUME the LF
@@ -1840,7 +1806,7 @@ private void lexDocComment(Compiler* lx, Arr(byte) source) {
     if (lenTokens > 0 && lx->tokens[lenTokens - 1].tp == tokDocComment) {
         lx->tokens[lenTokens - 1].lenBts = lx->i - lx->tokens[lenTokens - 1].startBt;
     } else {
-        add((Token){.tp = tokDocComment, .startBt = startBt, .lenBts = lx->i - startBt}, lx);
+        pushIntokens((Token){.tp = tokDocComment, .startBt = startBt, .lenBts = lx->i - startBt}, lx);
     }
 }
 
@@ -1880,9 +1846,9 @@ private void lexMinus(Compiler* lx, Arr(byte) source) {
         if (isDigit(nextBt)) {
             wrapInAStatement(lx, source);
             decNumber(true, lx, source);
-            lx->numericNextInd = 0;
+            lx->numeric->length = 0;
         } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
-            add((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
+            pushIntokens((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
             lx->i++; // CONSUME the minus symbol
         } else if (nextBt == aMinus) {
             lexComment(lx, source);
@@ -1955,10 +1921,11 @@ private void lexBracketRight(Compiler* lx, Arr(byte) source) {
 /// The "@" sign that is used for accessing arrays, lists, dictionaries
 private void lexAccessor(Compiler* lx, Arr(byte) source) {
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
-    add((Token){ .tp = tokAccessor, .pl1 = tkAccAt, .startBt = lx->i, .lenBts = 1 }, lx);
+    pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccAt, .startBt = lx->i, .lenBts = 1 }, lx);
     ++lx->i; // CONSUME the "@" sign
 }
 
+    
 private void lexSpace(Compiler* lx, Arr(byte) source) {
     lx->i++; // CONSUME the space
     while (lx->i < lx->inpLength && CURR_BT == aSpace) {
@@ -1972,7 +1939,7 @@ private void lexStringLiteral(Compiler* lx, Arr(byte) source) {
     Int j = lx->i + 1;
     for (; j < lx->inpLength && source[j] != aBacktick; j++);
     VALIDATEL(j != lx->inpLength, errPrematureEndOfInput)
-    add((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
+    pushIntokens((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
     lx->i = j + 1; // CONSUME the string literal, including the closing quote character
 }
 

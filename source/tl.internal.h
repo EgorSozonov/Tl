@@ -133,6 +133,7 @@ typedef struct {
 
 //}}}
 //{{{ Lexer
+    
 //{{{ Standard strings
 
 #define strAlias      0
@@ -182,6 +183,7 @@ typedef struct {
 #define strMathE     42
 
 //}}}
+    
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
 typedef struct { //:BtToken
     untt tp : 6;
@@ -213,57 +215,56 @@ typedef struct { //:Token
 #define tokBool         3    // pl2 = value (1 or 0)
 #define tokString       4
 #define tokUnderscore   5    // in the world of types, signifies the Void type
-#define tokDocComment   6
 
-#define tokWord         7    // pl2 = index in the string table
-#define tokTypeName     8    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
-#define tokKwArg        9    // pl2 = same as tokWord. The ":argName"
-#define tokStructField 10    // pl2 = same as tokWord. The ".structField"
-#define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    12    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
-#define tokArrow       13
+#define tokWord         6    // pl2 = index in the string table
+#define tokTypeName     7    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
+#define tokKwArg        8    // pl2 = same as tokWord. The ":argName"
+#define tokStructField  9    // pl2 = same as tokWord. The ".structField"
+#define tokOperator    10    // pl1 = OperatorToken, one of the "opT" constants below
+#define tokAccessor    11    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
+#define tokArrow       12
 
 // Single-statement token types
-#define tokStmt        14    // firstSpanTokenType 
-#define tokParens      15    // this is mostly for data instantiation
-#define tokCall        16    // pl1 = nameId, index in the string table
-#define tokTypeCall    17    // pl1 = nameId
-#define tokOperCall    18    // pl1 = same as tokOperator
-#define tokBrackets    19
-#define tokAssignment  20
-#define tokReassign    21    // :=
-#define tokMutation    22    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
-#define tokAlias       23
-#define tokAssert      24
-#define tokAssertDbg   25
-#define tokAwait       26
-#define tokBreak       27
-#define tokContinue    28
-#define tokDefer       29
-#define tokEmbed       30    // Embed a text file as a string literal, or a binary resource file // 200
-#define tokIface       31
-#define tokImport      32
-#define tokReturn      33
-#define tokTry         34    // early exit
-#define tokYield       35
-#define tokColon       36    // not a real span, but placed here so the parser can dispatch on it
-#define tokElse        37    // not a real span, but placed here so the parser can dispatch on it
+#define tokStmt        13    // firstSpanTokenType 
+#define tokParens      14    // this is mostly for data instantiation
+#define tokCall        15    // pl1 = nameId, index in the string table
+#define tokTypeCall    16    // pl1 = nameId
+#define tokOperCall    17    // pl1 = same as tokOperator
+#define tokBrackets    18
+#define tokAssignment  19
+#define tokReassign    20    // :=
+#define tokMutation    21    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
+#define tokAlias       22
+#define tokAssert      23
+#define tokAssertDbg   24
+#define tokAwait       25
+#define tokBreak       26
+#define tokContinue    27
+#define tokDefer       28
+#define tokEmbed       29    // Embed a text file as a string literal, or a binary resource file // 200
+#define tokIface       30
+#define tokImport      31
+#define tokReturn      32
+#define tokTry         33    // early exit
+#define tokYield       34
+#define tokColon       35    // not a real span, but placed here so the parser can dispatch on it
+#define tokElse        36    // not a real span, but placed here so the parser can dispatch on it
 
 // Parenthesized (multi-statement) token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       38    // denoted by do(). firstParenSpanTokenType 
-#define tokCatch       39    // paren "catch(e => print(e))"
-#define tokFn          40
-#define tokPublicDef   41
-#define tokFor         42
-#define tokMeta        43
-#define tokPackage     44    // for single-file packages
+#define tokScope       37    // denoted by do(). firstParenSpanTokenType 
+#define tokCatch       38    // paren "catch(e => print(e))"
+#define tokFn          39
+#define tokPublicDef   40
+#define tokFor         41
+#define tokMeta        42
+#define tokPackage     43    // for single-file packages
 
 // Resumable core forms
-#define tokIf          45    // "if( " 
-#define tokIfPr        46    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       47    // "(*m " or "(match " pattern matching on sum type tag 
-#define tokImpl        48  
-#define tokWhile       49   
+#define tokIf          44    // "if( " 
+#define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       46    // "(*m " or "(match " pattern matching on sum type tag 
+#define tokImpl        47  
+#define tokWhile       48   
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
@@ -423,11 +424,8 @@ typedef struct { //:LanguageDefinition
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
-    Int (*reservedParensOrNot)[countCoreForms];
     ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
-    Int typeArray;
-    Int typeList;
 } LanguageDefinition;
 
 
@@ -545,26 +543,15 @@ struct Compiler { //:Compiler
     LanguageDefinition* langDef;
 
     // LEXING
-    Arr(Token) tokens;
-    Int capacity;              // current capacity of token storage
-    Int nextInd;               // the  index for the next token to be added    
+    InListNode tokens; 
+    InListInt newlines;
+    InListInt numeric;         // [aTmp]
+    StackBtToken* lexBtrack;   // [aTmp]
     
-    Arr(Int) newlines;
-    Int newlinesCapacity;
-    Int newlinesNextInd;
-    
-    Arr(Int) numeric;          // [aTmp]
-    Int numericCapacity;
-    Int numericNextInd;
-
-    StackBtToken* lexBtrack;    // [aTmp]
-
-    
-    Stackint32_t* stringTable;   // The table of unique strings from code. Contains only the startByte of each string.
+    Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startByte of each string.
     StringDict* stringDict;    // A hash table for quickly deduplicating strings. Points into stringTable
 
     Int lastClosingPunctInd;   // temp, the index of the last encountered closing punctuation sign, used for statement length
-
     Int totalTokens;           // set in "finalizeLexing"
 
     // PARSING
