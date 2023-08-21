@@ -819,6 +819,7 @@ testable void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
 #define iErrorOverloadsIncoherent        6 // The overloads table is incoherent
 #define iErrorExpressionIsNotAnExpr      7 // What is supposed to be an expression in the AST is not a nodExpr
 #define iErrorZeroArityFuncWrongEmit     8 // A 0-arity function has a wrong "emit" (should be one of the prefix ones)
+#define iErrorGenericTypesInconsistent   9 // Two generic types have inconsistent layout (premature end of type)
 
 //}}}
 //{{{ Syntax errors
@@ -3336,8 +3337,8 @@ testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
     
-/// Inserts the necessary strings from the standardText into the string table and the hash table
 private void buildStandardStrings(Compiler* lx) {
+    /// Inserts the necessary strings from the standardText into the string table and the hash table
     for (Int i = strFirstNonReserved; i <= strMathE; i++) {
         Int startBt = standardStrings[i];
         addStringDict(lx->sourceCode->content, startBt, standardStrings[i + 1] - startBt, 
@@ -3345,13 +3346,13 @@ private void buildStandardStrings(Compiler* lx) {
     }
 }
     
-/// Converts a standard string to its nameId. Doesn't work for reserved words, obviously    
 testable Int stToNameId(Int a) {
+    /// Converts a standard string to its nameId. Doesn't work for reserved words, obviously    
     return a - strFirstNonReserved;
 }
 
-/// Creates the built-in types in the proto compiler
 private void buildPreludeTypes(Compiler* cm) {
+    /// Creates the built-in types in the proto compiler
     for (int i = strInt; i <= strVoid; i++) {
         pushIntypes(0, cm);
     }
@@ -3394,11 +3395,11 @@ private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t exte
     cm->overloadIds.content[operId] += SIXTEENPLUSONE;
     ++((*cm->langDef->operators)[operId].builtinOverloads);
 }
-
-///  Operators are the first-ever functions to be defined. This function builds their types, entities 
-///  and overload counts. The order must agree with the order of operator definitions, 
-///  and every operator must have at least one entity.
+    
 private void buildOperators(Compiler* cm) {
+    /// Operators are the first-ever functions to be defined. This function builds their types, entities 
+    /// and overload counts. The order must agree with the order of operator definitions, 
+    /// and every operator must have at least one entity.
     for (Int j = 0; j < countOperators; j++) {
         pushInoverloadIds(0, cm);
     }
@@ -3494,15 +3495,15 @@ private void buildOperators(Compiler* cm) {
     cm->countOperatorEntities = cm->entities.length;
 }
 
-/// Entities and overloads for the built-in operators, types and functions.
 private void createBuiltins(Compiler* cm) {
+    /// Entities and overloads for the built-in operators, types and functions.
     buildStandardStrings(cm);
     buildOperators(cm);
     cm->entImportedZero = cm->overloadIds.length;
 }
 
-/// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
 private void importPrelude(Compiler* cm) {
+    /// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
     Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int voidOfInt = addFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
@@ -3525,8 +3526,8 @@ private void importPrelude(Compiler* cm) {
                    ((Int[]){strDouble - strFirstNonReserved, voidOfStr, voidOfInt, voidOfFloat}), cm);
 }
 
-/// A proto compiler contains just the built-in definitions and tables. This fn copies it and performs init
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
+    /// A proto compiler contains just the built-in definitions and tables. This fn copies it and performs init
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
@@ -4010,14 +4011,14 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 
 //}}}
 //{{{ Types
-    
 //{{{ Creation of types
+    
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((untt)(sort << 16) + (depth << 8) + arity);
 }
     
-/// Writes the bytes for the type header to the tail of the cm->types table. 
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
+    /// Writes the bytes for the type header to the tail of the cm->types table. 
     pushIntypes((Int)((untt)(hdr.sort << 16) + (hdr.depth << 8) + hdr.arity), cm);
     if (hdr.sort == sorPartial || hdr.sort == sorConcrete) {
         pushIntypes(hdr.nameTypeId, cm);
@@ -4026,8 +4027,22 @@ testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
     }
 }
 
-/// Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call.
+testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
+    /// Reads a type header from the type array
+    Int tag = cm->types.content[typeId + 1];
+    Int nameTypeId = cm->types.content[typeId + 2];
+    TypeHeader result = (TypeHeader){.sort = (tag >> 16) & LOWER24BITS,
+            .depth = (tag >> 8) & 0xFF, arity = tag & 0xFF };
+    if (result.sort == sorPartial || hdr.sort == sorConcrete) {
+        pushIntypes(hdr.nameTypeId, cm);
+    } else { 
+        pushIntypes(((untt)hdr.nameLen << 24) + (untt)hdr.nameTypeId, cm);
+    }
+    return result; 
+}
+    
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
+    /// Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call.
     pushIntypes((0xFF << 24) + (paramInd << 8) + arity, cm);
 }
 
@@ -4423,10 +4438,30 @@ testable void typeSkipNode(Int* ind, Compiler* cm) {
 }
     
 testable bool typeGenericsIntersect(Int id1, Int id2, Compiler* cm) {
-    return false; 
+    /// Returns true iff two generic types intersect (i.e. a concrete type may satisfy both of them)
+    Int i1 = id1;
+    Int i2 = id2;
+    Int sentinel1 = id1 + cm->types.content[id1] + 1; 
+    Int sentinel2 = id2 + cm->types.content[id2] + 1; 
+    while (i1 < sentinel1 && i2 < sentinel2) {
+        untt nod1 = cm->types.content[i1];
+        untt nod2 = cm->types.content[i2];
+        if (((nod1 >> 24) & 0xFF) < 255 && ((nod2 >> 24) & 0xFF) < 255) {
+            if (nod1 != nod2) {
+                return false;
+            }
+        }
+        typeSkipNode(&i1, cm); 
+        typeSkipNode(&i2, cm); 
+    }
+#ifdef SAFETY
+    VALIDATEI(i1 == sentinel1 && i2 == sentinel2, iErrorGenericTypesInconsistent) 
+#endif
+    return true; 
 }
     
 testable bool typeMatchesGeneric(Int typeId, Int genericId, Compiler* cm) {
+    Int genericArity = cm->types.content[genericId].
 #ifdef SAFETY
     
 #endif
