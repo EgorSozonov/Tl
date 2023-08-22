@@ -3240,13 +3240,6 @@ private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm) {
     }
     return newEntityId;
 }
-
-testable Int mergeType(Int startInd, Compiler* cm) {
-    /// Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its tail.
-    /// Returns the resulting index of this type and updates the length of cm->types if appropriate.
-    Int lenBts = (cm->types.content[startInd] + 1); // +1 for the typeLength itself
-    return mergeTypeWorker(startInd, lenBts, cm);
-}
    
     
 private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
@@ -3270,7 +3263,7 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
             if (stringValues[i].hash == theHash
                   && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {                    
                 // key already present
-                cm->types.length -= (len + 1);
+                cm->types.length -= (lenInts + 1); // +1 for the typelength
                 return stringValues[i].indString/4;
             }
         }
@@ -3280,8 +3273,15 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
     return startInd;
 }
 
-///  Function types are stored as: (length, return type, paramType1, paramType2, ...)
+testable Int mergeType(Int startInd, Compiler* cm) {
+    /// Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its tail.
+    /// Returns the resulting index of this type and updates the length of cm->types if appropriate.
+    Int lenInts = cm->types.content[startInd];
+    return mergeTypeWorker(startInd + 1, lenInts, cm); // +1 to skip the type length
+}
+    
 testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
+    ///  Function types are stored as: (length, return type, paramType1, paramType2, ...)
     Int newInd = cm->types.length;
     pushIntypes(arity + 1, cm);
     pushIntypes(paramsAndReturn[0], cm);
@@ -4446,12 +4446,11 @@ testable void typeSkipNode(Int* ind, Compiler* cm) {
 testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
     /// Returns true iff two generic types intersect (i.e. a concrete type may satisfy both of them)
     /// Warning: this function assumes that both types have sort = Partial 
-    Int i1 = type1 + 3; // +3 to skip the type length, type tag and name
-    Int i2 = type2 + 3;
-    
-    Int b1 = i1;
-    Int b2 = i2;
-
+    TypeHeader hdr1 = typeReadHeader(type1, cm);
+    TypeHeader hdr2 = typeReadHeader(type2, cm);
+    Int i1 = type1 + 3 + hdr1.arity; // +3 to skip the type length, type tag and name
+    Int i2 = type2 + 3 + hdr2.arity;
+     
     Int sentinel1 = type1 + cm->types.content[type1] + 1; 
     Int sentinel2 = type2 + cm->types.content[type2] + 1; 
     untt top1 = cm->types.content[i1];
@@ -4474,6 +4473,7 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
             ++i1;
             ++i2;
         } else {
+            // TODO check the arities 
             typeSkipNode(&i1, cm); 
             typeSkipNode(&i2, cm); 
         }
@@ -4483,26 +4483,29 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
 #endif
     return true; 
 }
+   
+private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
+    /// Takes a single call from within a concrete type, and merges it into the type dictionary
+    /// as a whole, separate type. Returns the unique typeId 
+    return -1; 
+}
     
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm) {
     /// Checks whether a concrete type satisfies a generic type. Returns a pointer to
     /// cm->typeStack with the values of parameters if satisfies, NULL otherwise.
     /// Example: for typeId = L(L(Int)) and genericId = [T/1]L(T(Int)) returns Generic[L]
     /// Warning: assumes that typeId points to a concrete type, and genericId to a partial one 
-    StackInt tStack = cm->typeStack; 
+    StackInt* tStack = cm->typeStack; 
     tStack->length = 0; 
     TypeHeader genericHeader = typeReadHeader(genericId, cm);
     // yet-unknown values of the type parameters 
     for (Int j = 0; j < genericHeader.arity; j++) {
         push(-1, cm->typeStack); 
+        push(0, cm->typeStack); 
     }
-    Int newTypeInd = cm->types->length;
     
-    Int i1 = type1 + 3; // +3 to skip the type length, type tag and name
-    Int i2 = type2 + 3;
-    
-    Int b1 = i1;
-    Int b2 = i2;
+    Int i1 = typeId + 3; // +3 to skip the type length, type tag and name
+    Int i2 = genericId + 3;
 
     Int sentinel1 = typeId + cm->types.content[typeId] + 1; 
     Int sentinel2 = genericId + cm->types.content[genericId] + 1; 
@@ -4517,26 +4520,51 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
             ++i2;
         } else {
             Int paramArity = nod2 & 0xFF;
+            Int paramId = (nod2 >> 8) & 0xFF;
+#ifdef SAFETY
+            VALIDATEI(paramId <= genericHeader.arity, iErrorGenericTypesParamOutOfBou) 
+#endif
             Int concreteArity = typeGenArity(nod1);
             Int concreteType = nod1 & LOWER24BITS;
             if (paramArity > 0) {
+                // A param that is being called must correspond to a concrete type being called
+                // E.g. for type = L(Int), gen = [U/1 V]U(V), param U = L, not L(Int) 
                 if (paramArity != concreteArity) {
                     return NULL;
                 }
-                Int paramId = (nod2 >> 8) & 0xFF;
-#ifdef SAFETY
-                VALIDATEI(paramId <= genericHeader.arity, iErrorGenericTypesParamOutOfBou) 
-#endif
                 if (tStack->content[paramId] == -1) {
                     tStack->content[paramId] = concreteType;
-                } else if (tStack[paramId] != concreteType) {
+                } else if (tStack->content[paramId] != concreteType) {
                     return NULL;
                 }
             } else {
-                if  
+                // A param not being called may correspond to a, simple type, a type call or 
+                // a callable type.
+                // E.g. for a generic type G = [U/1] U(Int), concrete type G(L), generic type [T/1] G(T):
+                // we will have T = L, even though the type param T is not being called in generic type
+                Int declaredArity = cm->types.content[genericId] + 3 + paramId; 
+                Int typeFromConcrete = -1; 
+                if (concreteArity > 0) {
+                    typeFromConcrete = typeMergeTypeCall(i1, concreteArity, cm);
+                    typeSkipNode(&i1, cm); 
+                } else {
+                    TypeHeader elementHeader = typeReadHeader(concreteType, cm); 
+                    if (elementHeader.arity != declaredArity) {
+                        return NULL;
+                    }
+                    typeFromConcrete = concreteType;
+                    ++i1; 
+                }
+                 
+                if (tStack->content[paramId] == -1) {
+                    tStack->content[paramId] = typeFromConcrete; 
+                } else {
+                    if (tStack->content[paramId] != typeFromConcrete) {
+                        return NULL;
+                    }
+                }
+                ++i2; 
             }
-            typeSkipNode(&i1, cm); 
-            typeSkipNode(&i2, cm); 
         }
     }
 #ifdef SAFETY

@@ -87,29 +87,33 @@ where Ref1 is the typeInd of the type
 
 -----------------------------------------------------
 
-Type layout for types of the sort "concretization":
+Type layout for types of the sort "partial":
 
 Max type arity = 254 (not 255!)
 
-[total size][tag][typeId/paramId](Full type expression in prefix form, with arities)
+[total size][tag][typeId/paramId]
+(Arities of type params, count = arity)(Full type expression in prefix form, with arities)
 
 - The tag has sort = "concretization", depth = 0
 - typeId = id of the original type if it's known, and paramId if a param
 - The type expression is made of single or double-int parts with the following structure: 
-    - if it's 8 bits of 0, then next 24 bits are the typeInd of a concrete type
+    - if it's less than 255, then it's the arity, and 
+    next 24 bits are the typeInd of a concrete type
     - if it's 255, then it's a type param, and next 24 bits are: 8 bits 0, 8 bits of type param index, 8 bits of arity
-    - else those 8 bits are the arity and the next 24 bits are the typeInd of a concrete type
 
 Examples:
 
-Map(?T ?U) inside Foo(...?T ?U) will have the layout
-[5][Map typeId][concretization arity = 0](2/Map -1/0/0/0 -1/0/0/1)
+[T U]Map(T U) inside Foo(...T U) will have the layout
+[5][Map typeId][concretization arity = 0]
+(0 0)(2/Map -1/0/0/0 -1/0/0/1)
 
-Map(String ?U) inside Foo(...?T ?U) will have the layout
-[5][Map typeId][concretization arity = 0](2/Map 0/String -1/0/0/1)
+[U]Map(String U) inside Foo(...T U) will have the layout
+[5][Map typeId][concretization arity = 0]
+(0)(2/Map 0/String -1/0/0/1)
 
-?M(String ?T) inside Foo(... ?T ?M) will have the layout
-[5]["M" nameId][concretization arity = 0](-1/0/2/1 0/String -1/0/0/0)
+[M/1 T] M(String T) inside Foo(... T M) will have the layout
+[5]["M" nameId][concretization arity = 0]
+(1 0)(-1/0/2/1 0/String -1/0/0/0)
 
 
 

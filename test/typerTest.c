@@ -1,3 +1,5 @@
+//{{{ Includes
+    
 #include <stdio.h>
 #include <stdbool.h>
 #include <string.h>
@@ -6,10 +8,11 @@
 #include <setjmp.h>
 #include "../source/tl.internal.h"
 #include "tlTest.h"
-
-
+    
+//}}}
+//{{{ Utils
+    
 extern jmp_buf excBuf;
-
 #define in(x) prepareInput(x, a)
 #define S   70000000 // A constant larger than the largest allowed file size. Separates parsed names from others
 #define validate(cond) if(!(cond)) {++(*countFailed); return;}
@@ -50,7 +53,9 @@ private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int
 
 #define buildLexer(inp, toks) buildLexer0(inp, proto, a, sizeof(toks)/sizeof(Token), toks)
 
-
+//}}}
+//{{{ Parsing functions
+    
 void typerTest1(Compiler* proto, Arena* a) {
     Compiler* cm = buildLexer(prepareInput("fn([U/2 V] lst U(Int V))", a), ((Token[]){
         (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
@@ -117,7 +122,10 @@ void typeTest3(Compiler* proto, Arena* a) {
     initializeParser(cm, proto, a);
     //parseToplevelSignature(cm->tokens[0], toplevelSignatures, cm);
 } 
-   
+
+//}}}
+//{{{ Generics 
+    
 void skipTest(Int* countFailed, Compiler* proto, Arena* a) {
     /// Checking that we know how to skip a whole type call    
     Compiler* cm = createLexerFromProto(&empty, proto, a);
@@ -143,9 +151,11 @@ void skipTest(Int* countFailed, Compiler* proto, Arena* a) {
     typeSkipNode(&resultInd, cm); 
     validate(resultInd == (startInd + 11)); 
 }
-    
-//{{{ Generics 
+
+//{{{ Intersections
+
 void testGenericsIntersect1(Int* countFailed, Compiler* proto, Arena* a) {
+    /// These should not intersect because ?1_1(Int) cannot be unified with String
     Compiler* cm = createLexerFromProto(&empty, proto, a);
     initializeParser(cm, proto, a); 
     Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
@@ -153,8 +163,14 @@ void testGenericsIntersect1(Int* countFailed, Compiler* proto, Arena* a) {
     Int typeString = cm->activeBindings[stToNameId(strString)]; 
     
     // Tu(Str Tu(L(L(Int)) Tu(?1_1(Int) L(?2))))
+    // vs 
+    // Tu(Str Tu(?1_1(L(Int)) Tu(String L(Int))))
     Int type1 = cm->types.length; 
-    pushIntypes(11, cm);
+    pushIntypes(15, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 2}, cm);
+    pushIntypes(0, cm); // name, unused here
+    pushIntypes(1, cm); // arity of first param
+    pushIntypes(0, cm); // arity of second param
     typeAddTypeCall(typeTuple, 2, cm);
     pushIntypes(typeString, cm);
     typeAddTypeCall(typeTuple, 2, cm);
@@ -167,8 +183,11 @@ void testGenericsIntersect1(Int* countFailed, Compiler* proto, Arena* a) {
     typeAddTypeCall(typeList, 1, cm);
     typeAddTypeParam(0, 0, cm); 
     
-    // Tu(Str Tu(?1_1(L(Int)) Tu(String L(Int))))
     Int type2 = cm->types.length; 
+    pushIntypes(14, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 1}, cm);
+    pushIntypes(0, cm); // name, unused here
+    pushIntypes(1, cm); // arity of first param
     pushIntypes(10, cm);
     typeAddTypeCall(typeTuple, 2, cm);
     pushIntypes(typeString, cm);
@@ -182,11 +201,11 @@ void testGenericsIntersect1(Int* countFailed, Compiler* proto, Arena* a) {
     pushIntypes(stToNameId(strInt), cm);
 
     bool intersect = typeGenericsIntersect(type1, type2, cm);
-    print("1 intersect %d", intersect)
-    validate(intersect) 
+    validate(!intersect) 
 } 
     
 void testGenericsIntersect2(Int* countFailed, Compiler* proto, Arena* a) {
+    /// These should not match because L is different from A near the end 
     Compiler* cm = createLexerFromProto(&empty, proto, a);
     initializeParser(cm, proto, a); 
     Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
@@ -196,10 +215,12 @@ void testGenericsIntersect2(Int* countFailed, Compiler* proto, Arena* a) {
     
     // Tu(Str Tu(L(L(Int)) Tu(?1_1(Int) L(?2))))
     // vs 
-    // Tu(Str Tu(?1_1(L(Int)) Tu(String A(Int))))
+    // Tu(Str Tu(?1_1(L(Int)) Tu(L(Int) A(Int))))
     Int type1 = cm->types.length; 
-    pushIntypes(13, cm);
-    pushIntypes(0, cm); // these next 2 lines stand for the tag and name, unimportant for this test
+    pushIntypes(15, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 2}, cm);
+    pushIntypes(0, cm); // name, unused here
+    pushIntypes(1, cm); // arities of the type params
     pushIntypes(0, cm);
     typeAddTypeCall(typeTuple, 2, cm);
     pushIntypes(typeString, cm);
@@ -214,9 +235,10 @@ void testGenericsIntersect2(Int* countFailed, Compiler* proto, Arena* a) {
     typeAddTypeParam(0, 0, cm); 
     
     Int type2 = cm->types.length; 
-    pushIntypes(12, cm);
-    pushIntypes(0, cm);
-    pushIntypes(0, cm);
+    pushIntypes(14, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 1}, cm);
+    pushIntypes(0, cm); // name, unused here
+    pushIntypes(1, cm); // arities of the type params
     typeAddTypeCall(typeTuple, 2, cm);
     pushIntypes(typeString, cm);
     typeAddTypeCall(typeTuple, 2, cm);
@@ -224,15 +246,68 @@ void testGenericsIntersect2(Int* countFailed, Compiler* proto, Arena* a) {
     typeAddTypeCall(typeList, 1, cm);
     pushIntypes(stToNameId(strInt), cm);
     typeAddTypeCall(typeTuple, 2, cm);
-    pushIntypes(stToNameId(strString), cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
     typeAddTypeCall(typeArray, 1, cm);
     pushIntypes(stToNameId(strInt), cm);
 
     bool intersect = typeGenericsIntersect(type1, type2, cm);
-    print("2 intersect %d", intersect)
     validate(!intersect) 
 } 
-   
+
+void testGenericsIntersect3(Int* countFailed, Compiler* proto, Arena* a) {
+    /// These should not match because L is different from A near the end 
+    Compiler* cm = createLexerFromProto(&empty, proto, a);
+    initializeParser(cm, proto, a); 
+    Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
+    Int typeList = cm->activeBindings[stToNameId(strL)]; 
+    Int typeArray = cm->activeBindings[stToNameId(strA)]; 
+    Int typeString = cm->activeBindings[stToNameId(strString)]; 
+    
+    // Tu(Str Tu(L(L(Int)) Tu(?2_1(Int) L(?1))))
+    // vs 
+    // Tu(Str Tu(?1_1(L(Int)) Tu(L(Int) A(Int))))
+    Int type1 = cm->types.length; 
+    pushIntypes(15, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 2}, cm);
+    pushIntypes(0, cm); // name, unused here
+    pushIntypes(0, cm); // arities of the type params
+    pushIntypes(1, cm); // arities of the type params
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeParam(0, 0, cm); 
+    
+    Int type2 = cm->types.length; 
+    pushIntypes(14, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 1}, cm);
+    pushIntypes(0, cm); // name, unused here
+    pushIntypes(1, cm); // arities of the type params
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeArray, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+
+    bool intersect = typeGenericsIntersect(type1, type2, cm);
+    validate(!intersect) 
+} 
+    
+//}}}
+    
 void testGenericsSatisfies1(Int* countFailed, Compiler* proto, Arena* a) {
     Compiler* cm = createLexerFromProto(&empty, proto, a);
     initializeParser(cm, proto, a); 
@@ -243,11 +318,13 @@ void testGenericsSatisfies1(Int* countFailed, Compiler* proto, Arena* a) {
     
     // Tu(Str Tu(L(?1_1(Int)) Tu(?1_1(Int) L(?2))))
     // vs 
-    // Tu(Str Tu(?1_1(L(Int)) Tu(String A(Int))))
+    // Tu(Str Tu(L(A(Int)) Tu(String A(Int))))
     Int type1 = cm->types.length; 
-    pushIntypes(13, cm);
-    pushIntypes(0, cm); // these next 2 lines stand for the tag and name, unimportant for this test
-    pushIntypes(0, cm);
+    pushIntypes(15, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 2}, cm);
+    pushIntypes(0, cm); // name, unused here
+    pushIntypes(1, cm); // arities of the type params
+    pushIntypes(0, cm); // arities of the type params
     typeAddTypeCall(typeTuple, 2, cm);
     pushIntypes(typeString, cm);
     typeAddTypeCall(typeTuple, 2, cm);
@@ -261,9 +338,10 @@ void testGenericsSatisfies1(Int* countFailed, Compiler* proto, Arena* a) {
     typeAddTypeParam(0, 0, cm); 
     
     Int type2 = cm->types.length; 
-    pushIntypes(12, cm);
-    pushIntypes(0, cm);
-    pushIntypes(0, cm);
+    pushIntypes(14, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 1}, cm);
+    pushIntypes(0, cm); // name, unused here
+    pushIntypes(1, cm); // arities of the type params
     typeAddTypeCall(typeTuple, 2, cm);
     pushIntypes(typeString, cm);
     typeAddTypeCall(typeTuple, 2, cm);
@@ -275,11 +353,59 @@ void testGenericsSatisfies1(Int* countFailed, Compiler* proto, Arena* a) {
     typeAddTypeCall(typeArray, 1, cm);
     pushIntypes(stToNameId(strInt), cm);
 
-        
+    StackInt* result = typeSatisfiesGeneric(type1, type2, cm);    
+    if (result == NULL) {
+        print("doesn't satisfy")
+    } else {
+        print("satisfies and we got %d params", result->length);
+    }
+    validate(result != NULL && result->length == 2); 
 } 
 
 //}}} 
+//{{{ Parsing structs
     
+void structTest1(Compiler* proto, Arena* a) {
+    Compiler* cm = buildLexer(prepareInput("Foo = (.id Int .name String)", a), ((Token[]){
+        (Token){ .tp = tokAssignment, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
+        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
+        (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
+    }));
+    initializeParser(cm, proto, a);
+    printLexer(cm);
+    
+    StandardText sta = getStandardTextLength();
+    
+    // type params
+    push(sta.numNames, cm->typeStack);
+    
+    Token tk = cm->tokens.content[7];
+    cm->i = 8;
+    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
+    typePrint(typeId, cm);
+}
+    
+void structTest2(Compiler* proto, Arena* a) {
+    Compiler* cm = buildLexer(prepareInput("Foo = ([C/1 E] .lst C(E) .elt E)", a), ((Token[]){
+        (Token){ .tp = tokAssignment, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
+        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
+        (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
+    }));
+    initializeParser(cm, proto, a);
+    printLexer(cm);
+    
+    StandardText sta = getStandardTextLength();
+    
+    // type params
+    push(sta.numNames, cm->typeStack);
+    
+    Token tk = cm->tokens.content[7];
+    cm->i = 8;
+    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
+    typePrint(typeId, cm);
+}
+//}}}
+//{{{ Main 
 int main() {
     printf("----------------------------\n");
     printf("--  TYPER TEST  --\n");
@@ -292,7 +418,8 @@ int main() {
 //~        typerTest2(proto, a);
 //~        skipTest(&countFailed, proto, a); 
 //~        testGenericsIntersect1(&countFailed, proto, a); 
-        testGenericsIntersect2(&countFailed, proto, a); 
+//~        testGenericsIntersect2(&countFailed, proto, a); 
+        testGenericsSatisfies1(&countFailed, proto, a); 
     } else {
         print("An exception was thrown in the tests") 
     }
@@ -303,3 +430,4 @@ int main() {
     }
     deleteArena(a);
 }
+//}}} 
