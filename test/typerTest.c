@@ -118,8 +118,8 @@ void typeTest3(Compiler* proto, Arena* a) {
     //parseToplevelSignature(cm->tokens[0], toplevelSignatures, cm);
 } 
    
-/// Checking that we know how to skip a whole type call    
 void skipTest(Int* countFailed, Compiler* proto, Arena* a) {
+    /// Checking that we know how to skip a whole type call    
     Compiler* cm = createLexerFromProto(&empty, proto, a);
     initializeParser(cm, proto, a); 
     Int startInd = cm->types.length; 
@@ -144,6 +144,142 @@ void skipTest(Int* countFailed, Compiler* proto, Arena* a) {
     validate(resultInd == (startInd + 11)); 
 }
     
+//{{{ Generics 
+void testGenericsIntersect1(Int* countFailed, Compiler* proto, Arena* a) {
+    Compiler* cm = createLexerFromProto(&empty, proto, a);
+    initializeParser(cm, proto, a); 
+    Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
+    Int typeList = cm->activeBindings[stToNameId(strL)]; 
+    Int typeString = cm->activeBindings[stToNameId(strString)]; 
+    
+    // Tu(Str Tu(L(L(Int)) Tu(?1_1(Int) L(?2))))
+    Int type1 = cm->types.length; 
+    pushIntypes(11, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeParam(0, 0, cm); 
+    
+    // Tu(Str Tu(?1_1(L(Int)) Tu(String L(Int))))
+    Int type2 = cm->types.length; 
+    pushIntypes(10, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(stToNameId(strString), cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+
+    bool intersect = typeGenericsIntersect(type1, type2, cm);
+    print("1 intersect %d", intersect)
+    validate(intersect) 
+} 
+    
+void testGenericsIntersect2(Int* countFailed, Compiler* proto, Arena* a) {
+    Compiler* cm = createLexerFromProto(&empty, proto, a);
+    initializeParser(cm, proto, a); 
+    Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
+    Int typeList = cm->activeBindings[stToNameId(strL)]; 
+    Int typeArray = cm->activeBindings[stToNameId(strA)]; 
+    Int typeString = cm->activeBindings[stToNameId(strString)]; 
+    
+    // Tu(Str Tu(L(L(Int)) Tu(?1_1(Int) L(?2))))
+    // vs 
+    // Tu(Str Tu(?1_1(L(Int)) Tu(String A(Int))))
+    Int type1 = cm->types.length; 
+    pushIntypes(13, cm);
+    pushIntypes(0, cm); // these next 2 lines stand for the tag and name, unimportant for this test
+    pushIntypes(0, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeParam(0, 0, cm); 
+    
+    Int type2 = cm->types.length; 
+    pushIntypes(12, cm);
+    pushIntypes(0, cm);
+    pushIntypes(0, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(stToNameId(strString), cm);
+    typeAddTypeCall(typeArray, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+
+    bool intersect = typeGenericsIntersect(type1, type2, cm);
+    print("2 intersect %d", intersect)
+    validate(!intersect) 
+} 
+   
+void testGenericsSatisfies1(Int* countFailed, Compiler* proto, Arena* a) {
+    Compiler* cm = createLexerFromProto(&empty, proto, a);
+    initializeParser(cm, proto, a); 
+    Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
+    Int typeList = cm->activeBindings[stToNameId(strL)]; 
+    Int typeArray = cm->activeBindings[stToNameId(strA)]; 
+    Int typeString = cm->activeBindings[stToNameId(strString)]; 
+    
+    // Tu(Str Tu(L(?1_1(Int)) Tu(?1_1(Int) L(?2))))
+    // vs 
+    // Tu(Str Tu(?1_1(L(Int)) Tu(String A(Int))))
+    Int type1 = cm->types.length; 
+    pushIntypes(13, cm);
+    pushIntypes(0, cm); // these next 2 lines stand for the tag and name, unimportant for this test
+    pushIntypes(0, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeParam(0, 0, cm); 
+    
+    Int type2 = cm->types.length; 
+    pushIntypes(12, cm);
+    pushIntypes(0, cm);
+    pushIntypes(0, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeParam(0, 1, cm); 
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(stToNameId(strString), cm);
+    typeAddTypeCall(typeArray, 1, cm);
+    pushIntypes(stToNameId(strInt), cm);
+
+        
+} 
+
+//}}} 
+    
 int main() {
     printf("----------------------------\n");
     printf("--  TYPER TEST  --\n");
@@ -153,8 +289,10 @@ int main() {
     Int countFailed = 0;
     if (setjmp(excBuf) == 0) {
 //~    typerTest1(proto, a);
-        typerTest2(proto, a);
-        skipTest(&countFailed, proto, a); 
+//~        typerTest2(proto, a);
+//~        skipTest(&countFailed, proto, a); 
+//~        testGenericsIntersect1(&countFailed, proto, a); 
+        testGenericsIntersect2(&countFailed, proto, a); 
     } else {
         print("An exception was thrown in the tests") 
     }

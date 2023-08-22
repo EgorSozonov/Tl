@@ -156,6 +156,7 @@ void typeSkipNode(Int* ind, Compiler* cm);
 void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm);
 Int typeSingleItem(Token tk, Compiler* cm);
+bool typeGenericsIntersect(Int id1, Int id2, Compiler* cm);
     
 #endif
 
