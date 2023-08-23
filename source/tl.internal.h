@@ -589,8 +589,9 @@ struct Compiler { //:Compiler
 
     Int countOperatorEntities;
     Int countNonparsedEntities; // the index of the first parsed (as opposed to being built-in or imported) entity
-    Stackint32_t* expStack;    // [aTmp] temporary scratch space for type checking/resolving an expression
-    Stackint32_t* typeStack;   // [aTmp] temporary scratch space for type params. Entries: [nameId arity]
+    StackInt* expStack;     // [aTmp] temporary scratch space for type checking/resolving an expression
+    StackInt* typeStack;    // [aTmp] temporary scratch space for type params. Entries: [nameId arity]
+    StackInt* newTypeStack; // [aTmp] temporary for writing out new types during type definition parses
     
     // GENERAL STATE
     Int i;                     // index in the input

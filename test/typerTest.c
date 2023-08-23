@@ -253,51 +253,30 @@ void testGenericsIntersect2(Int* countFailed, Compiler* proto, Arena* a) {
 } 
 
 void testGenericsIntersect3(Int* countFailed, Compiler* proto, Arena* a) {
-    /// These should not match because L is different from A near the end 
+    /// These should not intersect because of different parameter arities
     Compiler* cm = createLexerFromProto(&empty, proto, a);
     initializeParser(cm, proto, a); 
-    Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
     Int typeList = cm->activeBindings[stToNameId(strL)]; 
-    Int typeArray = cm->activeBindings[stToNameId(strA)]; 
-    Int typeString = cm->activeBindings[stToNameId(strString)]; 
     
-    // Tu(Str Tu(L(L(Int)) Tu(?2_1(Int) L(?1))))
+    // L(?1_2(Int Int))
     // vs 
-    // Tu(Str Tu(?1_1(L(Int)) Tu(L(Int) A(Int))))
+    // L(?1_1(Int))
     Int type1 = cm->types.length; 
-    pushIntypes(15, cm);
-    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 2}, cm);
-    pushIntypes(0, cm); // arities of the type params
-    pushIntypes(1, cm); // arities of the type params
-    typeAddTypeCall(typeTuple, 2, cm);
-    pushIntypes(typeString, cm);
-    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(7, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 1}, cm);
+    pushIntypes(2, cm); // arities of the type params
     typeAddTypeCall(typeList, 1, cm);
-    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeParam(0, 2, cm); 
     pushIntypes(stToNameId(strInt), cm);
-    typeAddTypeCall(typeTuple, 2, cm);
-    typeAddTypeParam(0, 1, cm); 
     pushIntypes(stToNameId(strInt), cm);
-    typeAddTypeCall(typeList, 1, cm);
-    typeAddTypeParam(0, 0, cm); 
     
     Int type2 = cm->types.length; 
-    pushIntypes(14, cm);
+    pushIntypes(6, cm);
     typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 1}, cm);
-    pushIntypes(0, cm); // name, unused here
     pushIntypes(1, cm); // arities of the type params
-    typeAddTypeCall(typeTuple, 2, cm);
-    pushIntypes(typeString, cm);
-    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeCall(typeList, 1, cm);
     typeAddTypeParam(0, 1, cm); 
-    typeAddTypeCall(typeList, 1, cm);
     pushIntypes(stToNameId(strInt), cm);
-    typeAddTypeCall(typeTuple, 2, cm);
-    typeAddTypeCall(typeList, 1, cm);
-    pushIntypes(stToNameId(strInt), cm);
-    typeAddTypeCall(typeArray, 1, cm);
-    pushIntypes(stToNameId(strInt), cm);
-
     bool intersect = typeGenericsIntersect(type1, type2, cm);
     validate(!intersect) 
 } 
@@ -349,11 +328,6 @@ void testGenericsSatisfies1(Int* countFailed, Compiler* proto, Arena* a) {
     pushIntypes(stToNameId(strInt), cm);
 
     StackInt* result = typeSatisfiesGeneric(type2, type1, cm);    
-    if (result == NULL) {
-        print("doesn't satisfy")
-    } else {
-        print("satisfies and we got %d params", result->length);
-    }
     validate(result == NULL); 
 } 
     
@@ -401,29 +375,64 @@ void testGenericsSatisfies2(Int* countFailed, Compiler* proto, Arena* a) {
     typeAddTypeCall(typeList, 1, cm);
     typeAddTypeParam(1, 0, cm); 
     
-    print("decl ar %d in generic %d", cm->types.content[generic + 4], generic); 
     StackInt* result = typeSatisfiesGeneric(type2, generic, cm);
-    if (result == NULL) {
-        print("doesn't satisfy")
-    } else {
-        print("satisfies and we got %d params", result->length);
-        printIntArray(2, result->content); 
-    }
+    
     validate(result != NULL && result->length == 2); 
+    validate(result->content[0] == typeArray && result->content[1] == (strInt - strFirstNonReserved))
 }
     
+void testGenericsSatisfies3(Int* countFailed, Compiler* proto, Arena* a) {
+    /// This type satisfies 3 type params of different arities
+    Compiler* cm = createLexerFromProto(&empty, proto, a);
+    initializeParser(cm, proto, a); 
+    Int typeTuple = cm->activeBindings[stToNameId(strTu)]; 
+    Int typeList = cm->activeBindings[stToNameId(strL)]; 
+    Int typeString = cm->activeBindings[stToNameId(strString)]; 
+    
+    // Tu(Str ?3_2(L(?1_1(?2)) Double))
+    // vs 
+    // Tu(Str Tu(L(L(String)) Double))
+    Int type2 = cm->types.length; 
+    pushIntypes(9, cm);
+    typeAddHeader((TypeHeader){.sort = sorConcrete, .arity = 0}, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeCall(typeList, 1, cm);
+    pushIntypes(stToNameId(strString), cm);
+    pushIntypes(stToNameId(strDouble), cm);
+    
+    Int generic = cm->types.length; 
+    pushIntypes(12, cm);
+    typeAddHeader((TypeHeader){.sort = sorPartial, .arity = 3}, cm);
+    pushIntypes(1, cm); // arities of the type params
+    pushIntypes(0, cm);
+    pushIntypes(2, cm);
+    typeAddTypeCall(typeTuple, 2, cm);
+    pushIntypes(typeString, cm);
+    typeAddTypeParam(2, 2, cm); 
+    typeAddTypeCall(typeList, 1, cm);
+    typeAddTypeParam(0, 1, cm); 
+    typeAddTypeParam(1, 0, cm); 
+    pushIntypes(stToNameId(strDouble), cm);
+    
+    StackInt* result = typeSatisfiesGeneric(type2, generic, cm);
+    
+    validate(result != NULL && result->length == 3); 
+    validate(result->content[0] == typeList 
+            && result->content[1] == (strString - strFirstNonReserved)
+            && result->content[2] == typeTuple)
+}
 //}}} 
 //{{{ Parsing structs
     
-void structTest1(Compiler* proto, Arena* a) {
-    Compiler* cm = buildLexer(prepareInput("Foo = (.id Int .name String)", a), ((Token[]){
-        (Token){ .tp = tokAssignment, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
-        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
-        (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
-    }));
-    initializeParser(cm, proto, a);
+void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
+    Compiler* cm = lexicallyAnalyze(prepareInput("Foo = (.id Int .name String)", a), proto, a);
     printLexer(cm);
-    
+    Int newType = typeDef(3, cm);
+
+    return;
     StandardText sta = getStandardTextLength();
     
     // type params
@@ -464,13 +473,17 @@ int main() {
     Compiler* proto = createProtoCompiler(a);
     Int countFailed = 0;
     if (setjmp(excBuf) == 0) {
-//~    typerTest1(proto, a);
+//~        typerTest1(proto, a);
 //~        typerTest2(proto, a);
+    
 //~        skipTest(&countFailed, proto, a); 
 //~        testGenericsIntersect1(&countFailed, proto, a); 
 //~        testGenericsIntersect2(&countFailed, proto, a); 
+//~        testGenericsIntersect3(&countFailed, proto, a); 
 //~        testGenericsSatisfies1(&countFailed, proto, a); 
-        testGenericsSatisfies2(&countFailed, proto, a); 
+//~        testGenericsSatisfies2(&countFailed, proto, a); 
+//~        testGenericsSatisfies3(&countFailed, proto, a); 
+        structTest1(&countFailed, proto, a); 
     } else {
         print("An exception was thrown in the tests") 
     }

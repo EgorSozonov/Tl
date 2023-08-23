@@ -880,6 +880,7 @@ const char errExpressionCannotContain[]     = "Expressions cannot contain scopes
 const char errExpressionFunctionless[]      = "Functionless expression!";
 const char errTypeDeclCannotContain[]       = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
 const char errTypeDeclError[]               = "Cannot parse type declaration!";
+const char errTypeDeclParamsError[]         = "Error parsing type params. Should look like this: [T U/2]";
 const char errOperatorWrongArity[]          = "Wrong number of arguments for operator!";
 const char errUnknownBinding[]              = "Unknown binding!";
 const char errUnknownFunction[]             = "Unknown function!";
@@ -1933,7 +1934,7 @@ private void lexNonAsciiError(Compiler* lx, Arr(byte) source) {
 
 /// Must agree in order with token types in tl.internal.h
 const char* tokNames[] = {
-    "Int", "Long", "Float", "Bool", "String", "_", "DocComment", 
+    "Int", "Long", "Float", "Bool", "String", "_",
     "word", "Type", ":kwarg", ".strFld", "operator", "@cc", "=>",
     "stmt", "(", "call(", "Type(", "oper(", "[", "=", ":=", "*=", "alias",
     "assert", "assertDbg", "await", "break", "continue", "defer", 
@@ -2207,11 +2208,6 @@ private void parseSkip(Token tok, Arr(Token) tokens, Compiler* cm) {
 private void parseScope(Token tok, Arr(Token) tokens, Compiler* cm) {
     addParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
 }
-
-private void parseStruct(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
 
 private void parseTry(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
@@ -3598,6 +3594,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 
     cm->expStack = createStackint32_t(16, cm->aTmp);
     cm->typeStack = createStackint32_t(16, cm->aTmp);
+    cm->newTypeStack = createStackint32_t(16, cm->aTmp);
     cm->scopeStack = createScopeStack();
     
     importPrelude(cm);
@@ -3759,7 +3756,6 @@ private void validateOverloadsFull(Compiler* cm) {
                 throwExcInternal(iErrorOverloadsNotFull, cm);
             }
             if (cm->overloads.content[j] >= lenTypes) {
-                print("type over board j %d %d", j, cm->overloads.content[j]);
                 throwExcInternal(iErrorOverloadsIncoherent, cm);
             }
         }
@@ -4194,13 +4190,93 @@ private Int typeUpTo(Token callToken, Int sentinelToken, Arr(Token) tokens, Comp
     return mergeType(tentativeTypeInd, cm);
 }
 
-/// Parses an expression that is a type name into the types table
 testable Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm) {
+    /// Parses an expression that is a type name into the types table
+    /// Precondition: cm->typeStack must be filled with the names, arities of the type parameters 
+    /// For example, if there was a [T U/2], typeStack must look like [nameT 0 nameU 2]
+    /// Postcondition: typeStack will be the same as before this function was called
     if (tk.tp == tokTypeCall) {
         return typeUpTo(tk, cm->i + tk.pl2, tokens, cm);
     } else {
         return typeSingleItem(tk, cm);
     }
+}
+    
+private Int typeProcessDef(StackInt* exps, StackInt* types, StackInt* newType, Compiler* cm) {
+    /// Processes the "type expression" produced by "typeDef".
+    /// Returns the typeId of the new typeId
+    // Walk back to front, collapsing stuff. Before collapsing structs, check that their nameIds
+    // are unique. Finally, when we get to the initial element, a struct, then check it and return
+    // its typeId.
+    return 0;
+}
+   
+private Int typeDefReadParams(Token bracketTk, Int j, StackInt* params, Compiler* cm) {
+    Int k = j; 
+    Int brackSentinel = k + firstTok.pl2 + 1;
+    ++k;
+    while (k < brackSentinel) {
+        Token tk = cm->tokens.content[k]; 
+        VALIDATEP(tk.tp == tokTypeName, errTypeDeclParamsError)
+        push(tk.pl2, params); 
+        if (tk.pl1 > 0) {
+            VALIDATEP(k + 1 < brackSentinel, errTypeDeclParamsError)
+            ++k; 
+            Token arityTk = cm->tokens.content[k]; 
+            VALIDATEP(arityTk.tp == tokInt && arityTk.pl1 == 0 
+                      && arityTk.pl2 > 0 && arityTk.pl2 < 255, errTypeDeclParamsError)
+            push(arityTk.pl2, params) 
+        } else {
+            push(0, params); 
+            ++k; 
+        }
+    }
+    return k; 
+}
+    
+#define tydStruct 1 // payload: length of struct in tokens
+#define tydType   2 // payload: typeId
+#define tydField  3 // payload: nameId
+#define tydMeta   4 // payload: index of this meta's token
+
+testable Int typeDef(Int startInd, Compiler* cm) {
+    /// Parses the definition of a type (struct, sum type)
+    /// Uses cm->expStack to build a "type expression" and cm->typeStack for the sentinels
+    /// Produces no AST nodes, but potentially lots of new types
+    /// startInd: the index of the parens token containing the definition 
+    /// Data format: (8 bits tag, 24 bits length) (value if it's a type or fld). For tag, see "tyd"
+    Int j = startInd; 
+    Int sentinel = j + 1 + cm->tokens[j].pl2;
+    StackInt* exp = cm->expStack; 
+    StackInt* params = cm->typeStack; 
+    StackInt* newType = cm->newTypeStack; 
+    exp->length = 0;
+    params->length = 0;
+    newType->length = 0;
+    
+    Token firstTok = cm->tokens.content[j];
+    if (firstTok.tp == tokBrackets) {
+        j = typeDefReadParams(firstTok, j, params, cm); 
+    }
+    while (j < sentinel) {
+        Token cTk = cm->tokens[j];
+        if (cTk.tp == tokParens) {
+        } else if (cTk.tp == tokTypeCall || cTk.tp == tokType) {
+            Int cType = parseTypeName(cTk, ?, cm); 
+            push((tydType << 26) + cType, exp); 
+        } else if (cTk.tp == tokStructField) {
+            VALIDATEP(j + 1 < sentinel, errTypeDeclError)
+            Token nextTk = cm->tokens[j + 1];
+            VALIDATEP(nextTk.tp == tokType || nextTk.tp == tokTypeCall || nextTk.tp == tokParens,
+                      errTypeDeclError)
+        } else if (cTk.tp == tokMeta) {
+            push((tydMeta << 26) + j, exp); 
+        } else {
+            throwExcParser(errTypeDeclError, cm); 
+        }
+        ++j; 
+    }
+    return typeProcessDef(exps, types, newType, cm); 
 }
     
 ///}}}
@@ -4448,10 +4524,14 @@ testable void typeSkipNode(Int* ind, Compiler* cm) {
     
 #define typeGenTag(val) ((val >> 24) & 0xFF) 
     
-private Int typeEltArity(Int typeElt) { 
-    /// Get type-arity from a type element (which may be a type call, concrete type, type param etc) 
-     
-    return 0; 
+private Int typeEltArgcount(Int typeElt) { 
+    /// Get type-arg-count from a type element (which may be a type call, concrete type, type param etc) 
+    untt genericTag = typeGenTag(typeElt);
+    if (genericTag == 255) {
+        return typeElt & 0xFF; 
+    } else {
+        return genericTag; 
+    }
 }
 
 
@@ -4486,6 +4566,11 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
             ++i2;
         } else {
             // TODO check the arities 
+            Int argCount1 = typeEltArgcount(nod1);
+            Int argCount2 = typeEltArgcount(nod2);
+            if (argCount1 != argCount2) {
+                return false;
+            }
             typeSkipNode(&i1, cm); 
             typeSkipNode(&i2, cm); 
         }
@@ -4517,73 +4602,59 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
     
     Int i1 = typeId + 3; // +3 to skip the type length, type tag and name
     Int i2 = genericId + 3 + genericHeader.arity;
-    Int b1 = i1;
-    Int b2 = i2;
     Int sentinel1 = typeId + cm->types.content[typeId] + 1; 
     Int sentinel2 = genericId + cm->types.content[genericId] + 1; 
-    print("sent 1 %d 2 %d i1 %d i2 %d", sentinel1, sentinel2, i1, i2) 
     while (i1 < sentinel1 && i2 < sentinel2) {
         untt nod1 = cm->types.content[i1];
         untt nod2 = cm->types.content[i2];
-        print("i1 %d i2 %d", i1 - b1, i2 - b2) 
         if (typeGenTag(nod2) < 255) {
-            print("concrete arity in generic: %d meanwhile in concrete %d", typeGenTag(nod2), typeGenTag(nod1)) 
             if (nod1 != nod2) {
-                print("concrete diff %d vs %d", nod1, nod2) 
                 return NULL;
             }
             ++i1;
             ++i2;
         } else {
-            Int paramArity = nod2 & 0xFF;
+            Int paramArgcount = nod2 & 0xFF;
             Int paramId = (nod2 >> 8) & 0xFF;
 #ifdef SAFETY
             VALIDATEI(paramId <= genericHeader.arity, iErrorGenericTypesParamOutOfBou) 
 #endif
-            Int concreteArity = typeGenTag(nod1);
+            Int concreteArgcount = typeEltArgcount(nod1);
             Int concreteElt = nod1 & LOWER24BITS;
-            print("param arity %d", paramArity) 
-            if (paramArity > 0) {
+            if (paramArgcount > 0) {
                 // A param that is being called must correspond to a concrete type being called
                 // E.g. for type = L(Int), gen = [U/1 V]U(V), param U = L, not L(Int) 
-                if (paramArity != concreteArity) {
-                    print("param arity diff") 
+                if (paramArgcount != concreteArgcount) {
                     return NULL;
                 }
                 if (tStack->content[paramId] == -1) {
                     tStack->content[paramId] = concreteElt;
                 } else if (tStack->content[paramId] != concreteElt) {
-                    print("paramId %d in stack %d new %d", paramId, tStack->content[paramId], concreteElt) 
-                    print("already met param diff") 
                     return NULL;
                 }
                 ++i1;
                 ++i2;
             } else {
-                // A param not being called may correspond to a, simple type, a type call or 
+                // A param not being called may correspond to a simple type, a type call or 
                 // a callable type.
                 // E.g. for a generic type G = [U/1] U(Int), concrete type G(L), generic type [T/1] G(T):
                 // we will have T = L, even though the type param T is not being called in generic type
                 Int declaredArity = cm->types.content[genericId + 3 + paramId];
                 Int typeFromConcrete = -1; 
-                if (concreteArity > 0) {
-                    typeFromConcrete = typeMergeTypeCall(i1, concreteArity, cm);
+                if (concreteArgcount > 0) {
+                    typeFromConcrete = typeMergeTypeCall(i1, concreteArgcount, cm);
                     typeSkipNode(&i1, cm); 
                 } else {
-                    TypeHeader elementHeader = typeReadHeader(concreteElt, cm); 
-                    if (elementHeader.arity != declaredArity) {
-                        print("arity for param %d different from declared. arity %d declared %d", paramId, elementHeader.arity, declaredArity) 
+                    if (typeEltArgcount(nod1) != declaredArity) {
                         return NULL;
                     }
                     typeFromConcrete = concreteElt;
                     ++i1; 
                 }
-                print("param noncall Id %d", paramId) 
                 if (tStack->content[paramId] == -1) {
                     tStack->content[paramId] = typeFromConcrete; 
                 } else {
                     if (tStack->content[paramId] != typeFromConcrete) {
-                        print("already met param diff2") 
                         return NULL;
                     }
                 }
