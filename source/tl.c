@@ -3364,6 +3364,7 @@ private void buildPreludeTypes(Compiler* cm) {
     pushIntypes(6, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameTypeId = stToNameId(strL), .nameLen = 1,
                                  .depth = 2, .arity = 1}, cm); 
+    pushIntypes(0, cm); // the arity of the type param
     pushIntypes(stToNameId(strLen), cm);
     pushIntypes(stToNameId(strCap), cm);
     pushIntypes(stToNameId(strInt), cm);
@@ -3375,6 +3376,7 @@ private void buildPreludeTypes(Compiler* cm) {
     pushIntypes(4, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameTypeId = stToNameId(strA), .nameLen = 1,
                                  .depth = 1, .arity = 1}, cm); 
+    pushIntypes(0, cm); // the arity of the type param
     pushIntypes(stToNameId(strLen), cm);
     pushIntypes(stToNameId(strInt), cm);
     cm->activeBindings[stToNameId(strA)] = typeIndA;
@@ -3384,6 +3386,8 @@ private void buildPreludeTypes(Compiler* cm) {
     pushIntypes(6, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameTypeId = stToNameId(strTu), .nameLen = 2,
                                  .depth = 2, .arity = 2}, cm); 
+    pushIntypes(0, cm); // the arities of the type params
+    pushIntypes(0, cm);
     pushIntypes(stToNameId(strF1), cm);
     pushIntypes(stToNameId(strF2), cm);
     typeAddTypeParam(0, 0, cm);
@@ -4021,7 +4025,8 @@ private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
 }
     
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
-    /// Writes the bytes for the type header to the tail of the cm->types table. 
+    /// Writes the bytes for the type header to the tail of the cm->types table.
+    /// Adds 2 elements
     pushIntypes((Int)((untt)(hdr.sort << 16) + (hdr.depth << 8) + hdr.arity), cm);
     if (hdr.sort == sorPartial || hdr.sort == sorConcrete) {
         pushIntypes(hdr.nameTypeId, cm);
@@ -4441,8 +4446,15 @@ testable void typeSkipNode(Int* ind, Compiler* cm) {
     } 
 }
     
-#define typeGenArity(val) ((val >> 24) & 0xFF) 
+#define typeGenTag(val) ((val >> 24) & 0xFF) 
     
+private Int typeEltArity(Int typeElt) { 
+    /// Get type-arity from a type element (which may be a type call, concrete type, type param etc) 
+     
+    return 0; 
+}
+
+
 testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
     /// Returns true iff two generic types intersect (i.e. a concrete type may satisfy both of them)
     /// Warning: this function assumes that both types have sort = Partial 
@@ -4457,7 +4469,7 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
     untt top2 = cm->types.content[i2];
     if (top1 != top2) {
         return false;
-    } else if (typeGenArity(top1) == 255 || typeGenArity(top2) == 255) {
+    } else if (typeGenTag(top1) == 255 || typeGenTag(top2) == 255) {
         // If any type has a param in top position, they already intersect
         return true; 
     }
@@ -4466,7 +4478,7 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
     while (i1 < sentinel1 && i2 < sentinel2) {
         untt nod1 = cm->types.content[i1];
         untt nod2 = cm->types.content[i2];
-        if (typeGenArity(nod1) < 255 && typeGenArity(nod2) < 255) {
+        if (typeGenTag(nod1) < 255 && typeGenTag(nod2) < 255) {
             if (nod1 != nod2) {
                 return false;
             }
@@ -4501,19 +4513,23 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
     // yet-unknown values of the type parameters 
     for (Int j = 0; j < genericHeader.arity; j++) {
         push(-1, cm->typeStack); 
-        push(0, cm->typeStack); 
     }
     
     Int i1 = typeId + 3; // +3 to skip the type length, type tag and name
-    Int i2 = genericId + 3;
-
+    Int i2 = genericId + 3 + genericHeader.arity;
+    Int b1 = i1;
+    Int b2 = i2;
     Int sentinel1 = typeId + cm->types.content[typeId] + 1; 
     Int sentinel2 = genericId + cm->types.content[genericId] + 1; 
+    print("sent 1 %d 2 %d i1 %d i2 %d", sentinel1, sentinel2, i1, i2) 
     while (i1 < sentinel1 && i2 < sentinel2) {
         untt nod1 = cm->types.content[i1];
         untt nod2 = cm->types.content[i2];
-        if (typeGenArity(nod2) < 255) {
+        print("i1 %d i2 %d", i1 - b1, i2 - b2) 
+        if (typeGenTag(nod2) < 255) {
+            print("concrete arity in generic: %d meanwhile in concrete %d", typeGenTag(nod2), typeGenTag(nod1)) 
             if (nod1 != nod2) {
+                print("concrete diff %d vs %d", nod1, nod2) 
                 return NULL;
             }
             ++i1;
@@ -4524,42 +4540,50 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
 #ifdef SAFETY
             VALIDATEI(paramId <= genericHeader.arity, iErrorGenericTypesParamOutOfBou) 
 #endif
-            Int concreteArity = typeGenArity(nod1);
-            Int concreteType = nod1 & LOWER24BITS;
+            Int concreteArity = typeGenTag(nod1);
+            Int concreteElt = nod1 & LOWER24BITS;
+            print("param arity %d", paramArity) 
             if (paramArity > 0) {
                 // A param that is being called must correspond to a concrete type being called
                 // E.g. for type = L(Int), gen = [U/1 V]U(V), param U = L, not L(Int) 
                 if (paramArity != concreteArity) {
+                    print("param arity diff") 
                     return NULL;
                 }
                 if (tStack->content[paramId] == -1) {
-                    tStack->content[paramId] = concreteType;
-                } else if (tStack->content[paramId] != concreteType) {
+                    tStack->content[paramId] = concreteElt;
+                } else if (tStack->content[paramId] != concreteElt) {
+                    print("paramId %d in stack %d new %d", paramId, tStack->content[paramId], concreteElt) 
+                    print("already met param diff") 
                     return NULL;
                 }
+                ++i1;
+                ++i2;
             } else {
                 // A param not being called may correspond to a, simple type, a type call or 
                 // a callable type.
                 // E.g. for a generic type G = [U/1] U(Int), concrete type G(L), generic type [T/1] G(T):
                 // we will have T = L, even though the type param T is not being called in generic type
-                Int declaredArity = cm->types.content[genericId] + 3 + paramId; 
+                Int declaredArity = cm->types.content[genericId + 3 + paramId];
                 Int typeFromConcrete = -1; 
                 if (concreteArity > 0) {
                     typeFromConcrete = typeMergeTypeCall(i1, concreteArity, cm);
                     typeSkipNode(&i1, cm); 
                 } else {
-                    TypeHeader elementHeader = typeReadHeader(concreteType, cm); 
+                    TypeHeader elementHeader = typeReadHeader(concreteElt, cm); 
                     if (elementHeader.arity != declaredArity) {
+                        print("arity for param %d different from declared. arity %d declared %d", paramId, elementHeader.arity, declaredArity) 
                         return NULL;
                     }
-                    typeFromConcrete = concreteType;
+                    typeFromConcrete = concreteElt;
                     ++i1; 
                 }
-                 
+                print("param noncall Id %d", paramId) 
                 if (tStack->content[paramId] == -1) {
                     tStack->content[paramId] = typeFromConcrete; 
                 } else {
                     if (tStack->content[paramId] != typeFromConcrete) {
+                        print("already met param diff2") 
                         return NULL;
                     }
                 }
