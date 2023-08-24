@@ -559,12 +559,11 @@ struct Compiler { //:Compiler
     StackParseFrame* backtrack;// [aTmp] 
     ScopeStack* scopeStack;    // stack of currently active scopes (for active bindings tracking)
 
-    /*
-     *  Current entities and overloads in scope. -1 means "inactive"
-     * Var & type bindings are nameId (index into stringTable) -> bindingId
-     * Function bindings are nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
-     */
     Arr(Int) activeBindings;   // [aTmp] length = stringTable.length
+    /// Current entities and overloads in scope. -1 means "inactive"
+    /// Var & type bindings are nameId (index into stringTable) -> bindingId
+    /// Type parameter bindings are nameId => (-paramId - 2) 
+    /// Function bindings are nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
 
     Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
 

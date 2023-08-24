@@ -850,7 +850,6 @@ const char errCoreNotInsideStmt[]          = "Core form must be directly inside 
 const char errCoreMisplacedColon[]         = "The colon separator (:) must be inside an if, ifEq, ifPr or match form";
 const char errCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
 const char errCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace immediately after keyword!"; 
-const char errDocComment[]                 = "Doc comments must have the syntax: (*comment)";
 const char errBareAtom[]                   = "Malformed token stream (atoms and parentheses must not be bare)";
 const char errImportsNonUnique[]           = "Import names must be unique!";
 const char errCannotMutateImmutable[]      = "Immutable variables cannot be reassigned to!";
@@ -2937,9 +2936,9 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
     return result;
 }
 
-/// Definition of the operators, reserved words, lexer dispatch and parser dispatch tables for the
-/// compiler.
 testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
+    /// Definition of the operators, reserved words, lexer dispatch and parser dispatch tables for the
+    /// compiler.
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
     (*result) = (LanguageDefinition) {
         .possiblyReservedDispatch = tabulateReservedBytes(a), .dispatchTable = tabulateDispatch(a),
@@ -2985,8 +2984,8 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) {
 }
 
 testable Compiler* createProtoCompiler(Arena* a) {
-    /// Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned for every 
-    /// source code module. The proto-compiler contains the following data:
+    /// Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned 
+    /// for every source code module. The proto-compiler contains the following data:
     /// - langDef with operators whose "builtinOverloads" is filled in
     /// - types that are sufficient for the built-in operators
     /// - entities with the built-in operator entities
@@ -3007,8 +3006,8 @@ testable Compiler* createProtoCompiler(Arena* a) {
 }
 
 private void finalizeLexer(Compiler* lx) {
-    /// Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and an open
-    /// statement, if any.
+    /// Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and 
+    /// an open statement, if any.
     if (!hasValues(lx->lexBtrack)) {
         return;
     }
@@ -3171,9 +3170,9 @@ private void addBinding(int nameId, int bindingId, Compiler* cm) {
     cm->activeBindings[nameId] = bindingId;
 }
 
-///  Pops a frame from the ScopeStack. For a scope type of frame, also deactivates its bindings.
-///  Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
 private void popScopeFrame(Compiler* cm) {
+    ///  Pops a frame from the ScopeStack. For a scope type of frame, also deactivates its bindings.
+    ///  Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     ScopeStack* scopeStack = cm->scopeStack;
     if (topScope->bindings) {
@@ -3208,9 +3207,9 @@ private void popScopeFrame(Compiler* cm) {
     scopeStack->length--;
 }
 
-///  Processes the name of a defined function. Creates an overload counter, or increments it if it exists. 
-///  Consumes no tokens.
 private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
+    ///  Processes the name of a defined function. Creates an overload counter, or increments it if
+    ///  it exists. Consumes no tokens.
     Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
     VALIDATEP(activeValue < 0, errAssignmentShadowing);
     if (activeValue == -1) { // this is the first-registered overload of this function
@@ -3551,8 +3550,8 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
     return lx;
 }
 
-/// Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
 testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
+    /// Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
     if (lx->wasError) {
         return;
     }
@@ -3604,10 +3603,11 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(Int typeId, Compiler* cm);
 
-/// Now that the overloads are freshly allocated, we need to write all the existing entities 
-/// (operators and imported functions) to the overloads table, which consists of variable-length entries: 
-/// [count typeId1 typeId2 entId1 entId2]
 private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
+    /// Now that the overloads are freshly allocated, we need to write all the existing entities 
+    /// (operators and imported functions) to the overloads table, which consists of 
+    /// variable-length entries: 
+    /// [count typeId1 typeId2 entId1 entId2]
     Int o;
     Int countOverls;
     Int currOperId = -1;
@@ -3658,9 +3658,10 @@ private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
     }
 }
 
-/// Allocates the table with overloads and semi-fills it (only the imports and built-ins, no toplevel).
-/// Also finalizes the overloadIds table to contain actual indices (not counts that were there initially)
 testable void createOverloads(Compiler* cm) {
+    /// Allocates the table with overloads and semi-fills it (only the imports and built-ins, 
+    /// no toplevel). Also finalizes the overloadIds table to contain actual indices 
+    /// (not counts that were there initially)
     Int neededCount = 0;
     for (Int i = 0; i < cm->overloadIds.length; i++) {
         // a typeId and an entityId for each overload, plus a length field for the list
@@ -3681,12 +3682,13 @@ testable void createOverloads(Compiler* cm) {
     pushInoverloadIds(neededCount, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds
 }
 
-/// Parses top-level types but not functions. Writes them to the types table and adds their bindings to the scope
 private void parseToplevelTypes(Compiler* cm) {
+    /// Parses top-level types but not functions. Writes them to the types table and adds 
+    /// their bindings to the scope
 }
 
-/// Parses top-level constants but not functions, and adds their bindings to the scope
 private void parseToplevelConstants(Compiler* cm) {
+    /// Parses top-level constants but not functions, and adds their bindings to the scope
     cm->i = 0;
     const Int len = cm->totalTokens;
     while (cm->i < len) {
@@ -3702,9 +3704,9 @@ private void parseToplevelConstants(Compiler* cm) {
     }    
 }
 
-/// Parses top-level function names, and determines if they have at least 1 parameter 
-/// to increment overload counts
 private void surveyToplevelFunctionNames(Compiler* cm) {
+    /// Parses top-level function names, and determines if they have at least 1 parameter 
+    /// to increment overload counts
     cm->i = 0;
     const Int len = cm->totalTokens;
     Token* tokens = cm->tokens.content;
@@ -3721,8 +3723,9 @@ private void surveyToplevelFunctionNames(Compiler* cm) {
     } 
 }
 
-/// A new parsed overload (i.e. a top-level function). Called when parsing a top-level function signature
 private void addParsedOverload(Int overloadId, Int firstParamTypeId, Int entityId, Compiler* cm) {
+    /// A new parsed overload (i.e. a top-level function). 
+    /// Called when parsing a top-level function signature
     Int overloadInd = cm->overloadIds.content[overloadId];
     Int nextOverloadInd = cm->overloadIds.content[overloadId + 1];
     Int maxOverloadCount = (nextOverloadInd - overloadInd - 1)/2;
@@ -3773,9 +3776,9 @@ private void validateOverloadsFull(Compiler* cm) {
 }
 #endif
 
-/// Parses a top-level function signature. Emits no nodes, only an entity and an overload. 
-/// Saves the info to "toplevelSignatures". Pre-condition: we are 2 tokens past the tokFn.
 testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm) {
+    /// Parses a top-level function signature. Emits no nodes, only an entity and an overload. 
+    /// Saves the info to "toplevelSignatures". Pre-condition: we are 2 tokens past the tokFn.
     Int fnStartTokenId = cm->i - 2;    
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
     
@@ -3843,9 +3846,9 @@ testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures,
                      .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
 }
 
-/// Parses a top-level function.
-/// The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... )
 private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compiler* cm) {
+    /// Parses a top-level function.
+    /// The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... )
     Int fnStartInd = toplevelSignature.startBt;
     Int fnSentinel = toplevelSignature.lenBts;
 
@@ -3884,17 +3887,17 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     parseUpTo(fnSentinel, tokens, cm);
 }
 
-/// Parses top-level function params and bodies
 private void parseFunctionBodies(StackNode* toplevelSignatures, Arr(Token) tokens, Compiler* cm) {
+    /// Parses top-level function params and bodies
     for (int j = 0; j < toplevelSignatures->length; j++) {
         cm->loopCounter = 0;
         parseToplevelBody(toplevelSignatures->content[j], tokens, cm);
     }
 }
 
-/// Walks the top-level functions' signatures (but not bodies).
-/// Result: the complete overloads & overloadIds tables, and the list of toplevel functions to parse
 private StackNode* parseToplevelSignatures(Compiler* cm) {
+    /// Walks the top-level functions' signatures (but not bodies).
+    /// Result: the complete overloads & overloadIds tables, and the list of toplevel functions to parse
     StackNode* topLevelSignatures = createStackNode(16, cm->aTmp);
     cm->i = 0;
     const Int len = cm->totalTokens;
@@ -4006,8 +4009,8 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
     return cm;
 }
 
-/// Parses a single file in 4 passes, see docs/parser.txt
 testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
+    /// Parses a single file in 4 passes, see docs/parser.txt
     initializeParser(cm, proto, a);
     return parseMain(cm, a);
 }
@@ -4051,15 +4054,15 @@ testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
     pushIntypes((0xFF << 24) + (paramInd << 8) + arity, cm);
 }
 
-/// Known type fn call
 testable void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm) {
+    /// Known type fn call
     pushIntypes((arity << 24) + typeInd, cm);
 }
 
-/// A single-item type, like "Int". Consumes no tokens.
-/// Pre-condition: we are 1 token past the token we're parsing.
-/// Returns the type of the single item, or in case it's a type param, (-nameId - 1)
 testable Int typeSingleItem(Token tk, Compiler* cm) {
+    /// A single-item type, like "Int". Consumes no tokens.
+    /// Pre-condition: we are 1 token past the token we're parsing.
+    /// Returns the type of the single item, or in case it's a type param, (-nameId - 1)
     Int typeId = -1;
     if (tk.tp == tokTypeName) {
         bool isAParam = tk.pl1 > 0;
@@ -4083,8 +4086,9 @@ private Int typeGetArity(Int typeId, Compiler* cm) {
     return tag & 0xFF;
 }
 
-/// Counts the arity of a type call. Consumes no tokens. Precondition: we are pointing directly at type call
 private Int typeCountArity(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
+    /// Counts the arity of a type call. Consumes no tokens. 
+    /// Precondition: we are pointing directly at type call
     Int arity = 0;
     Int j = cm->i + 1;
     while (j < sentinelToken) {
@@ -4095,8 +4099,8 @@ private Int typeCountArity(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
     return arity;
 }
 
-/// Performs a binary search among the binary params in cm->typeStack. Returns -1 if nothing is found
 testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
+    /// Performs a binary search among the binary params in cm->typeStack. Returns -1 if nothing is found
     Arr(Int) st = cm->typeStack->content;
     Int i = 0;
     Int j = cm->typeStack->length - 2;
@@ -4127,11 +4131,11 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
     return -1;
 }
 
-/// General "big" type name parser. Parses an expression whether there is a token or not.
-/// Starts from cm->i and goes up to the sentinel token. Returns the expression's type
-/// Precondition: we are looking 1 past the tokExpr.
-/// Uses the cm->expStack, but that's not a problem because
 private Int typeUpTo(Token callToken, Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
+    /// General "big" type name parser. Parses an expression whether there is a token or not.
+    /// Starts from cm->i and goes up to the sentinel token. Returns the expression's type
+    /// Precondition: we are looking 1 past the tokExpr.
+    /// Uses the cm->expStack, but that's not a problem because
     Int tentativeTypeInd = cm->types.length;
 
     Int typeLength = sentinelToken - cm->i + 2; // +2 for the name/paramId and the tag 
@@ -4211,79 +4215,111 @@ private Int typeProcessDef(StackInt* exps, StackInt* types, StackInt* newType, C
     return 0;
 }
    
-private Int typeDefReadParams(Token bracketTk, Int j, StackInt* params, Compiler* cm) {
-    Int k = j; 
-    Int brackSentinel = k + firstTok.pl2 + 1;
-    ++k;
-    while (k < brackSentinel) {
-        Token tk = cm->tokens.content[k]; 
+private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) {
+    /// Precondition: we are pointing 1 past the bracket token 
+    Int brackSentinel = cm->i + bracketTk.pl2;
+    while (cm->i < brackSentinel) {
+        Token tk = cm->tokens.content[cm->i]; 
         VALIDATEP(tk.tp == tokTypeName, errTypeDeclParamsError)
+        Int nameId = tk.pl2;
+        VALIDATEP(cm->activeBindings[nameId] == -1, errAssignmentShadowing)
+        cm->activeBindings[nameId] = -params->length - 2; 
         push(tk.pl2, params); 
         if (tk.pl1 > 0) {
-            VALIDATEP(k + 1 < brackSentinel, errTypeDeclParamsError)
-            ++k; 
-            Token arityTk = cm->tokens.content[k]; 
+            VALIDATEP(cm->i + 1 < brackSentinel, errTypeDeclParamsError)
+            Token arityTk = cm->tokens.content[cm->i]; 
             VALIDATEP(arityTk.tp == tokInt && arityTk.pl1 == 0 
                       && arityTk.pl2 > 0 && arityTk.pl2 < 255, errTypeDeclParamsError)
-            push(arityTk.pl2, params) 
+            push(arityTk.pl2, params);
         } else {
             push(0, params); 
-            ++k; 
         }
+        ++cm->i; 
     }
-    return k; 
+}
+
+private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
+    /// Precondition: we are 1 past the parens token
+    Int count = 0; 
+    Int j = cm->i;
+    Int sentinel = j + length; 
+    while (j < sentinel) { 
+        VALIDATEP(cm->tokens.content[j].tp == tokStructField, errTypeDeclCannotContain) 
+        ++j;
+        Token nextTk = cm->tokens.content[j]; 
+        if (nextTk.tp == tokTypeCall || nextTk.tp == tokParens) {
+            j += nextTk.pl2 + 1;
+        } else if (nextTk.tp == tokTypeName) {
+            ++j; 
+        } else {
+            throwExcParser(errTypeDeclCannotContain, cm);
+        } 
+        ++count; 
+    } 
+    return count; 
 }
     
-#define tydStruct 1 // payload: length of struct in tokens
+#define tydStruct 1 // payload: count of fields in the struct
 #define tydType   2 // payload: typeId
 #define tydField  3 // payload: nameId
 #define tydMeta   4 // payload: index of this meta's token
 
-testable Int typeDef(Int startInd, Compiler* cm) {
+testable Int typeDef(Compiler* cm) {
     /// Parses the definition of a type (struct, sum type)
     /// Uses cm->expStack to build a "type expression" and cm->typeStack for the sentinels
     /// Produces no AST nodes, but potentially lots of new types
-    /// startInd: the index of the parens token containing the definition 
+    /// Consumes the whole parens 
     /// Data format: (8 bits tag, 24 bits length) (value if it's a type or fld). For tag, see "tyd"
-    Int j = startInd; 
-    Int sentinel = j + 1 + cm->tokens[j].pl2;
+    Int sentinel = cm->i + 1 + cm->tokens.content[cm->i].pl2;
     StackInt* exp = cm->expStack; 
     StackInt* params = cm->typeStack; 
     StackInt* newType = cm->newTypeStack; 
     exp->length = 0;
     params->length = 0;
     newType->length = 0;
+    Arr(Token) tokens = cm->tokens.content; 
     
-    Token firstTok = cm->tokens.content[j];
+    Token firstTok = cm->tokens.content[cm->i];
     if (firstTok.tp == tokBrackets) {
-        j = typeDefReadParams(firstTok, j, params, cm); 
+        ++cm->i; // CONSUME the brackets token
+        typeDefReadParams(firstTok, params, cm); 
     }
-    while (j < sentinel) {
-        Token cTk = cm->tokens[j];
+    while (cm->i < sentinel) {
+        Token cTk = tokens[cm->i];
+        ++cm->i; // CONSUME the current token 
         if (cTk.tp == tokParens) {
-        } else if (cTk.tp == tokTypeCall || cTk.tp == tokType) {
-            Int cType = parseTypeName(cTk, ?, cm); 
-            push((tydType << 26) + cType, exp); 
+            Int countFields = typeCountFieldsInStruct(cTk.pl2, cm); 
+            push(tydStruct, exp); 
+            push(countFields, exp);
+        } else if (cTk.tp == tokTypeCall || cTk.tp == tokTypeName) {
+            Int cType = parseTypeName(cTk, tokens, cm); 
+            push(tydType, exp); 
+            push(cType, exp); 
         } else if (cTk.tp == tokStructField) {
-            VALIDATEP(j + 1 < sentinel, errTypeDeclError)
-            Token nextTk = cm->tokens[j + 1];
-            VALIDATEP(nextTk.tp == tokType || nextTk.tp == tokTypeCall || nextTk.tp == tokParens,
+            VALIDATEP(cm->i < sentinel, errTypeDeclError)
+            push(tydField, exp); 
+            push(cTk.pl2, exp);  // nameId
+            Token nextTk = tokens[cm->i];
+            VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall || nextTk.tp == tokParens,
                       errTypeDeclError)
         } else if (cTk.tp == tokMeta) {
-            push((tydMeta << 26) + j, exp); 
+            push(tydMeta, exp); 
+            push(cm->i - 1, exp); 
         } else {
+            print("erroneous type %d", cTk.tp) 
             throwExcParser(errTypeDeclError, cm); 
         }
-        ++j; 
     }
-    return typeProcessDef(exps, types, newType, cm); 
+    print("type expression") 
+    printIntArray(exp->length, exp->content); 
+    return typeProcessDef(exp, params, newType, cm); 
 }
     
 ///}}}
 //{{{ Overloads, type check & resolve
     
-/// Gets the type of the last param of a function.
 private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
+    /// Gets the type of the last param of a function.
     return cm->types.content[funcTypeId + 2];
 }
 
@@ -4291,8 +4327,8 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
     return cm->types.content[typeId] > 1;
 }
 
-/// Performs a binary search among the concrete overloads. Returns false if nothing is found
 testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int sentinelInd, Int* entityId, Arr(Int) overloads) {
+    /// Performs a binary search among the concrete overloads. Returns false if nothing is found
     Int countAllOverloads = (sentinelInd - startInd - 1)/2;
     Int i = startInd + 1;
     Int j = startInd + overloads[startInd];
@@ -4323,16 +4359,16 @@ testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int sentinelI
     return false;
 }
 
-/// Params: start = ind of the first element of the overload
-///         end = ind of the last entityId of the overload (inclusive)
-///         entityId = address where to store the result, if successful
 testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm) {
+    /// Params: start = ind of the first element of the overload
+    ///         end = ind of the last entityId of the overload (inclusive)
+    ///         entityId = address where to store the result, if successful
     return overloadBinarySearch(typeId, start, sentinel, entityId, cm->overloads.content);
 }
 
-/// Shifts elements from start and until the end to the left.
-/// E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
+    /// Shifts elements from start and until the end to the left.
+    /// E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
     Int from = startInd;
     Int to = startInd - byHowMany;
     Int sentinel = cm->expStack->length;
@@ -4403,8 +4439,8 @@ void typePrint(Int typeId, Compiler* cm) {
 }
 #endif
 
-/// Populates the expression's type stack with the operands and functions of an expression
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
+    /// Populates the expression's type stack with the operands and functions of an expression
     cm->expStack->length = 0;
     for (Int j = indExpr + 1; j < sentinelNode; ++j) {
         Node nd = cm->nodes.content[j];
@@ -4412,7 +4448,9 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
             push((Int)nd.tp, cm->expStack);
         } else if (nd.tp == nodCall) {
             push(BIG + nd.pl2, cm->expStack); // signifies that it's a call, and its arity
-            push((nd.pl2 > 0 ? -nd.pl1 - 2 : nd.pl1), cm->expStack); // index into overloadIds, or entityId for 0-arity fns
+            push((nd.pl2 > 0 ? -nd.pl1 - 2 : nd.pl1), cm->expStack);
+            // index into overloadIds, or entityId for 0-arity fns
+    
             ++(*currAhead);
         } else if (nd.pl1 > -1) { // entityId 
             push(cm->entities.content[nd.pl1].typeId, cm->expStack);
@@ -4420,6 +4458,9 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
             push(nd.pl1, cm->expStack); // overloadId            
         }
     }
+#if defined(TRACE) && defined(TEST)
+    printExpSt(st);
+#endif
 }
 
 /// Typechecks and resolves overloads in a single expression
@@ -4428,11 +4469,8 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     StackInt* st = cm->expStack;
     
     populateExpStack(indExpr, sentinelNode, &currAhead, cm);
-#if defined(TRACE) && defined(TEST)
-    printExpSt(st);
-#endif
-    // now go from back to front, resolving the calls, typechecking & collapsing args, and replacing calls with their 
-    // return types
+    // now go from back to front: resolving the calls, typechecking & collapsing args, and replacing calls
+    // with their return types
     Int j = cm->expStack->length - 1;
     Arr(Int) cont = st->content;
     while (j > -1) {
@@ -4443,7 +4481,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
         
         // It's a function call. cont[j] contains the arity, cont[j + 1] the index into overloads table
         Int arity = cont[j] - BIG;
-        Int o = cont[j + 1]; // index into the table of overloadIds, or, for 0-arity funcs, directly their entityId
+        Int o = cont[j + 1];
         if (arity == 0) {
             VALIDATEP(o > -1, errTypeZeroArityOverload)
 
@@ -4453,13 +4491,17 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 #endif
             
             cont[j] = cm->types.content[functionTypeInd + 1]; // write the return type
-            shiftTypeStackLeft(j + 2, 1, cm); // the function returns nothing, so there's no return type to write
+            shiftTypeStackLeft(j + 2, 1, cm); 
+            // the function returns nothing, so there's no return type to write
+    
             --currAhead;
 #if defined(TRACE) && defined(TEST)
             printExpSt(st);
 #endif
         } else {
-            Int tpFstArg = cont[j + 2]; // + 1 for the element with the overloadId of the func, +1 for return type
+            Int tpFstArg = cont[j + 2];
+            // + 1 for the element with the overloadId of the func, +1 for return type
+    
             VALIDATEP(tpFstArg > -1, errTypeUnknownFirstArg)
             Int entityId;
 
@@ -4476,8 +4518,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             Int typeOfFunc = cm->entities.content[entityId].typeId;
             VALIDATEP(cm->types.content[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) // first parm matches, but not arity
             
-            // We know the type of the function, now to validate arg types against param types
-            for (int k = j + 3; k < j + arity + 2; k++) { // not "k = j + 2", because we've already checked the first param
+            for (int k = j + 3; k < j + arity + 2; k++) {
+                // We know the type of the function, now to validate arg types against param types
+                // Loop init is not "k = j + 2" because we've already checked the first param
                 if (cont[k] > -1) {                  
                     VALIDATEP(cont[k] == cm->types.content[typeOfFunc + k - j], errTypeWrongArgumentType)
                 } else {
@@ -4486,8 +4529,9 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
                 }
             }
             --currAhead;
-            cm->nodes.content[j + indExpr + 1 - currAhead].pl1 = entityId; // the type-resolved function of the call
-            cont[j] = cm->types.content[typeOfFunc + 1];         // the function return type
+            cm->nodes.content[j + indExpr + 1 - currAhead].pl1 = entityId;
+            // the type-resolved function of the call
+            cont[j] = cm->types.content[typeOfFunc + 1];    // the function return type
             shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
 #if defined(TRACE) && defined(TEST)
             printExpSt(st);
@@ -4497,7 +4541,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     }
     
     if (st->length == 1) {
-        return st->content[0]; // the last remaining element is the type of the expression
+        return st->content[0]; // the last remaining element is the type of the whole expression
     } else {
         return -1;
     }

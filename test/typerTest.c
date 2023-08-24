@@ -429,9 +429,11 @@ void testGenericsSatisfies3(Int* countFailed, Compiler* proto, Arena* a) {
     
 void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
     Compiler* cm = lexicallyAnalyze(prepareInput("Foo = (.id Int .name String)", a), proto, a);
+    initializeParser(cm, proto, a); 
     printLexer(cm);
-    Int newType = typeDef(3, cm);
-
+    cm->i = 2; 
+    Int newType = typeDef(cm);
+    print("newType %d", newType)
     return;
     StandardText sta = getStandardTextLength();
     
@@ -445,7 +447,7 @@ void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
 }
     
 void structTest2(Compiler* proto, Arena* a) {
-    Compiler* cm = buildLexer(prepareInput("Foo = ([C/1 E] .lst C(E) .elt E)", a), ((Token[]){
+    Compiler* cm = buildLexer(prepareInput("Foo = ([C/1 E] .lst C(String) .elt E)", a), ((Token[]){
         (Token){ .tp = tokAssignment, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
         (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
         (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
@@ -453,21 +455,15 @@ void structTest2(Compiler* proto, Arena* a) {
     initializeParser(cm, proto, a);
     printLexer(cm);
     
-    StandardText sta = getStandardTextLength();
-    
-    // type params
-    push(sta.numNames, cm->typeStack);
-    
-    Token tk = cm->tokens.content[7];
-    cm->i = 8;
-    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
-    typePrint(typeId, cm);
+    cm->i = 2; 
+    Int newType = typeDef(cm);
+    print("newType %d", newType)
 }
 //}}}
 //{{{ Main 
 int main() {
     printf("----------------------------\n");
-    printf("--  TYPER TEST  --\n");
+    printf("--  TYPES TEST  --\n");
     printf("----------------------------\n");
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
