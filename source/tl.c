@@ -827,6 +827,7 @@ const char errWordChunkStart[]             = "In an identifier, each word piece 
 const char errWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
 const char errWordUnderscoresOnlyAtStart[] = "Underscores are only allowed at start of word (snake case is forbidden)!";
 const char errWordWrongAccessor[]          = "Only regular identifier words may be used for data access with []!";
+const char errWordLengthExceeded[]         = "I don't know why you want an identifier of more than 255 chars, but they aren't supported";
 const char errWordReservedWithDot[]        = "Reserved words may not be called like functions!";
 const char errNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
 const char errNumericWidthExceeded[]       = "Numeric literal width is exceeded!";
@@ -905,7 +906,8 @@ const char errTypeWrongReturnType[]         = "Wrong return type";
 const char errTypeMismatch[]                = "Declared type doesn't match actual type";
 const char errTypeMustBeBool[]              = "Expression must have the Bool type";
 const char errTypeConstructorWrongArity[]   = "Wrong arity for the type constructor";
-const char errTypeOnlyTypesArity[]   = "Only type constructors (i.e. capitalized words) may have arity specification";
+const char errTypeOnlyTypesArity[]          = "Only type constructors (i.e. capitalized words) may have arity specification";
+const char errTypeTooManyParameters[]       = "Only up to 254 type parameters are supported";
 
 //}}}
     
@@ -964,6 +966,8 @@ const Int standardToks[] = {
     reservedOr, tokReturn,  reservedTrue, tokTry, 
     tokWhile, tokYield 
 };
+
+#define maxWordLength 255
 //}}}
 //{{{ LexerUtils
 #ifdef TEST 
@@ -1561,6 +1565,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     byte firstByte = lx->sourceCode->content[startBt];
     Int lenBts = lx->i - realStartByte;
     Int lenString = lx->i - startBt;
+    VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded) 
         
     Int mbReservedWord = -1; 
     if (firstByte >= aALower && firstByte <= aYLower) {
@@ -4206,15 +4211,39 @@ testable Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm) {
     }
 }
     
-private Int typeProcessDef(StackInt* exps, StackInt* types, StackInt* newType, Compiler* cm) {
+private Int typeCreateStruct(StackInt* exp, Int startInd, Int sentinel, StackInt* params, Compiler* cm) {
+    /// Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
+    /// in "params". The sequence must be flat, i.e. not include any nested structs.
+    /// Returns the typeId of the new type 
+    // create type header
+    //
+}
+    
+private Int typeProcessDef(StackInt* exps, StackInt* params, StackInt* newType, Compiler* cm) {
     /// Processes the "type expression" produced by "typeDef".
     /// Returns the typeId of the new typeId
     // Walk back to front, collapsing stuff. Before collapsing structs, check that their nameIds
     // are unique. Finally, when we get to the initial element, a struct, then check it and return
     // its typeId.
+    Int j = exps->length - 2; 
+    while (j > -1) {
+        Int tyd = exps->content[j];
+        if (tyd == tydStruct) {
+            shiftTypeStackLeft(start, byHowMany, cm); 
+        } else if (tyd == tydType) {
+    
+        } else if (tyd == tydField) {
+    
+        } else { // tydMeta
+        }
+    
+        j -= 2; 
+    }
     return 0;
 }
-   
+    
+#define maxTypeParams 254 
+    
 private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) {
     /// Precondition: we are pointing 1 past the bracket token 
     Int brackSentinel = cm->i + bracketTk.pl2;
@@ -4234,6 +4263,7 @@ private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) 
         } else {
             push(0, params); 
         }
+        VALIDATEP(params->length <= maxTypeParams, errWordLengthExceeded) 
         ++cm->i; 
     }
 }

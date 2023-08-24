@@ -42,6 +42,7 @@ extern const char errWordChunkStart[];
 extern const char errWordCapitalizationOrder[];
 extern const char errWordUnderscoresOnlyAtStart[];
 extern const char errWordWrongAccessor[];
+extern const char errWordLengthExceeded[];
 extern const char errWordReservedWithDot[];
 extern const char errNumericEndUnderscore[];
 extern const char errNumericWidthExceeded[];
@@ -134,6 +135,7 @@ extern const char errTypeWrongArgumentType[];
 extern const char errTypeWrongReturnType[];
 extern const char errTypeMismatch[];
 extern const char errTypeMustBeBool[];
+extern const char errTypeTooManyParameters[];
 
 #endif
 
