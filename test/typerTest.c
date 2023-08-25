@@ -432,8 +432,10 @@ void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
     initializeParser(cm, proto, a); 
     printLexer(cm);
     cm->i = 2; 
+    print("types length before %d", cm->types.length) 
     Int newType = typeDef(cm);
     print("newType %d", newType)
+    typePrint(newType, cm);
     return;
     StandardText sta = getStandardTextLength();
     

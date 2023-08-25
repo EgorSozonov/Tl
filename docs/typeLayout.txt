@@ -6,8 +6,10 @@ Type length = number of ints
 Type header = sort, arity, depth, nameTypeId, nameLen
 
 II. Differing parts:
+    
 Struct:
-[nameId](member names)(member types)|meta flags|
+[nameId](Arities of type params, count = arity)
+(member names)(member types)|meta flags, 1 Int|
 
 Sum:
 [nameId](variant names)(variant types)|meta flags|

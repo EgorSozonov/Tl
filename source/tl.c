@@ -3263,7 +3263,7 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
             if (stringValues[i].hash == theHash
                   && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {                    
                 // key already present
-                cm->types.length -= (lenInts + 1); // +1 for the typelength
+                cm->types.length -= lenInts;
                 return stringValues[i].indString/4;
             }
         }
@@ -3276,8 +3276,8 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
 testable Int mergeType(Int startInd, Compiler* cm) {
     /// Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its tail.
     /// Returns the resulting index of this type and updates the length of cm->types if appropriate.
-    Int lenInts = cm->types.content[startInd];
-    return mergeTypeWorker(startInd + 1, lenInts, cm); // +1 to skip the type length
+    Int lenInts = cm->types.content[startInd] + 1; // +1 for the type length
+    return mergeTypeWorker(startInd, lenInts, cm);
 }
     
 testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
@@ -4022,7 +4022,7 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 
 //}}}
 //{{{ Types
-//{{{ Creation of types
+//{{{ Parsing type names
     
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((untt)(sort << 16) + (depth << 8) + arity);
@@ -4211,35 +4211,87 @@ testable Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm) {
     }
 }
     
-private Int typeCreateStruct(StackInt* exp, Int startInd, Int sentinel, StackInt* params, Compiler* cm) {
+//}}}    
+//{{{ Parsing structs    
+    
+#define tydStruct 1 // payload: count of fields in the struct
+#define tydType   2 // payload: typeId
+#define tydField  3 // payload: nameId
+#define tydMeta   4 // payload: index of this meta's token
+private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm);
+    
+private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* params, Compiler* cm) {
     /// Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
     /// in "params". The sequence must be flat, i.e. not include any nested structs.
     /// Returns the typeId of the new type 
-    // create type header
-    //
+    Int tentativeTypeId = cm->types.length; 
+    print("tentative type Id %d", tentativeTypeId) 
+    pushIntypes(0, cm); 
+    Int sentinel = startInd + length; 
+    if (length % 4 == 2) { // because there's a meta node in last place
+        sentinel -= 2; 
+    }
+#ifdef SAFETY
+    VALIDATEP(sentinel - startInd % 4 == 0, "typeCreateStruct err not divisible by 4")
+#endif
+    Int countFields = (sentinel - startInd)/4;
+    print("count fields %d startInd %d sentinel %d", countFields, startInd, sentinel) 
+    typeAddHeader((TypeHeader){
+        .sort = sorStruct, .arity = params->length/2, .depth = countFields,
+        .nameTypeId = -1, .nameLen = 0}, cm); 
+    print("length after adding header  %d", cm->types.length) 
+    for (Int j = 1; j < params->length; j += 2) {
+        pushIntypes(params->content[j], cm); 
+    }
+    
+    for (Int j = 1; j < sentinel; j += 4) {
+        // names of fields
+#ifdef SAFETY
+        VALIDATEP(exp->content[j + startInd] == tydField, "not a field")
+#endif
+        pushIntypes(params->content[j + startInd + 1], cm); 
+    }
+    print("length after adding names  %d", cm->types.length) 
+    
+    for (Int j = 3; j < sentinel; j += 4) {
+        // types of fields
+#ifdef SAFETY
+        VALIDATEP(exp->content[j + startInd + 2] == tydType, "not a type")
+#endif
+        pushIntypes(params->content[j + startInd + 3], cm); 
+    }
+    print("length after adding types  %d", cm->types.length) 
+    cm->types.content[tentativeTypeId] = cm->types.length - tentativeTypeId - 1;
+    print("created struct with type length %d", cm->types.length - tentativeTypeId - 1); 
+    return mergeType(tentativeTypeId, cm); 
 }
     
-private Int typeProcessDef(StackInt* exps, StackInt* params, StackInt* newType, Compiler* cm) {
+private Int typeProcessDef(StackInt* exp, StackInt* params, StackInt* newType, Compiler* cm) {
     /// Processes the "type expression" produced by "typeDef".
     /// Returns the typeId of the new typeId
-    // Walk back to front, collapsing stuff. Before collapsing structs, check that their nameIds
-    // are unique. Finally, when we get to the initial element, a struct, then check it and return
-    // its typeId.
-    Int j = exps->length - 2; 
-    while (j > -1) {
-        Int tyd = exps->content[j];
+    Int j = exp->length - 2; 
+    print("begin processing");
+    printIntArray(exp->length, exp->content);
+    while (j > 0) {
+        Int tyd = exp->content[j];
         if (tyd == tydStruct) {
-            shiftTypeStackLeft(start, byHowMany, cm); 
-        } else if (tyd == tydType) {
+            Int lengthStruct = exp->content[j + 1]*4; // *4 because for every field there are 4 ints
+            Int typeNestedStruct = typeCreateStruct(exp, j + 2, lengthStruct, params, cm);
+            exp->content[j] = tydType;
+            exp->content[j + 1] = typeNestedStruct;
+            shiftTypeStackLeft(j + 2 + lengthStruct, lengthStruct, cm); 
     
-        } else if (tyd == tydField) {
-    
-        } else { // tydMeta
+            print("after shift:");
+            printIntArray(exp->length, exp->content);
         }
-    
         j -= 2; 
     }
-    return 0;
+    print("after processing") 
+    printIntArray(exp->length, exp->content);
+    // at this point, exp must contain just a single struct with its fields followed by just typeIds
+    Int lengthNewStruct = exp->content[1]*4; // *4 because for every field there are 4 ints
+    print("length new struct %d", lengthNewStruct) 
+    return typeCreateStruct(exp, 2, lengthNewStruct, params, cm);
 }
     
 #define maxTypeParams 254 
@@ -4269,7 +4321,7 @@ private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) 
 }
 
 private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
-    /// Precondition: we are 1 past the parens token
+    /// Returns the number of fields in struct definition. Precondition: we are 1 past the parens token
     Int count = 0; 
     Int j = cm->i;
     Int sentinel = j + length; 
@@ -4288,11 +4340,6 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
     } 
     return count; 
 }
-    
-#define tydStruct 1 // payload: count of fields in the struct
-#define tydType   2 // payload: typeId
-#define tydField  3 // payload: nameId
-#define tydMeta   4 // payload: index of this meta's token
 
 testable Int typeDef(Compiler* cm) {
     /// Parses the definition of a type (struct, sum type)
@@ -4397,8 +4444,9 @@ testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, C
 }
 
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
-    /// Shifts elements from start and until the end to the left.
+    /// Shifts ints from start and until the end to the left.
     /// E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
+    /// startInd and byHowMany are measured in units of Int. 
     Int from = startInd;
     Int to = startInd - byHowMany;
     Int sentinel = cm->expStack->length;
@@ -4413,23 +4461,42 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
 
 
 #ifdef TEST
+    
 private void printExpSt(StackInt* st) {
     printIntArray(st->length, st->content);
 }
     
+    
+private void typePrintGenElt(Int v) {
+    Int upper = (v >> 24) & 0xFF;
+    Int lower = v & LOWER24BITS;
+    if (upper == 0) {
+        printf("Type %d, ", lower);
+    } else if (upper == 255) {
+        Int arity = lower & 0xFF;
+        if (arity > 0) {
+            printf("ParamCall %d arity = %d, ", (lower >> 8) & 0xFF, lower & 0xFF);
+        } else {
+            printf("Param %d, ", (lower >> 8) & 0xFF);
+        }
+    } else {
+        printf("TypeCall %d arity = %d, ", lower, upper);
+    }
+}
+    
+    
 void typePrint(Int typeId, Compiler* cm) {
-    printf("[%d]", cm->types.content[typeId]);
+    printf("Type [%d]\n", cm->types.content[typeId]);
     Int sentinel = typeId + cm->types.content[typeId] + 1;
 
-    Int tag = cm->types.content[typeId + 1];
-    Int sort = tag >> 16;
-    if (sort == sorStruct) {
+    TypeHeader hdr = typeReadHeader(typeId, cm); 
+    if (hdr.sort == sorStruct) {
         printf("[Struct]");
-    } else if (sort == sorSum) {
+    } else if (hdr.sort == sorSum) {
         printf("[Sum]");
-    } else if (sort == sorFunction) {
+    } else if (hdr.sort == sorFunction) {
         printf("[Fn]");
-    } else if (sort == sorPartial) {
+    } else if (hdr.sort == sorPartial) {
         printf("[Partial]");
     }
 
@@ -4445,27 +4512,35 @@ void typePrint(Int typeId, Compiler* cm) {
         printf("}"); 
     }
 
-    if (sort == sorPartial) {
-        printf("(\n    ");
-        for (Int j = typeId + 3; j < sentinel; j++) {
-            Int v = cm->types.content[j];
-            Int upper = (v >> 24) & 0xFF;
-            Int lower = v & LOWER24BITS;
-            if (upper == 0) {
-                printf("Type %d, ", lower);
-            } else if (upper == 255) {
-                Int arity = lower & 0xFF;
-                if (arity > 0) {
-                    printf("ParamCall %d arity = %d, ", (lower >> 8) & 0xFF, lower & 0xFF);
-                } else {
-                    printf("Param %d, ", (lower >> 8) & 0xFF);
-                }
-            } else {
-                printf("TypeCall %d arity = %d, ", lower, upper);
+    if (hdr.sort == sorStruct) {
+        if (hdr.arity > 0) {
+            printf("[Params: ");
+            for (Int j = 0; j < hdr.arity; j++) {
+                printf("%d ", cm->types.content[j + typeId + 3]); 
             }
+            printf("]"); 
         }
-        print("\n)");
+        printf("("); 
+        Int fieldsStart = typeId + hdr.arity + 3; 
+        Int fieldsSentinel = fieldsStart + hdr.depth; 
+        for (Int j = fieldsStart; j < fieldsSentinel; j++) {
+            printf("name %d ", cm->types.content[j]); 
+        }
+        fieldsStart += hdr.depth;
+        fieldsSentinel += hdr.depth;
+        for (Int j = fieldsStart; j < fieldsSentinel; j++) {
+            typePrintGenElt(cm->types.content[j]); 
+        }
+
+        printf("\n)"); 
+    } else if (hdr.sort == sorPartial) {
+        printf("(\n    ");
+        for (Int j = typeId + hdr.arity + 3; j < sentinel; j++) {
+            typePrintGenElt(cm->types.content[j]); 
+        }
+        printf("\n)");
     }
+    print(")"); 
 }
 #endif
 
