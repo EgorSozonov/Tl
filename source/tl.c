@@ -2197,7 +2197,8 @@ private Int calcSentinel(Token tok, Int tokInd) {
 
 testable void pushLexScope(ScopeStack* scopeStack);
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
-
+testable Int typeDef(Int nameId, Int nameLen, Compiler* cm);
+    
 private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
     /// Performs coordinated insertions to start a scope within the parser
     push(((ParseFrame){.tp = nodScope, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
@@ -2267,38 +2268,34 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
-    /// Parses an assignment like "x = 5". The right side must never be a scope or contain any loops,
-    /// or recursion will ensue
-    Int rLen = tok.pl2 - 1;
-    VALIDATEP(rLen >= 1, errAssignment)
-    
+    /// Parses an assignment like "x = 5 or Foo = (.id Int)". The right side must never 
+    /// be a scope or contain any loops, or recursion will ensue
     Int sentinelToken = cm->i + tok.pl2;
+    VALIDATEP(sentinelToken >= cm->i + 2, errAssignment)
 
     Token bindingTk = tokens[cm->i];
-    VALIDATEP(bindingTk.tp == tokWord, errAssignment)
-    Int newBindingId = createEntity(bindingTk.pl2, cm);
+    VALIDATEP(bindingTk.tp == tokWord || bindingTk.tp == tokTypeName, errAssignment)
+    if (bindingTk.tp == tokWord) {
+        Int newBindingId = createEntity(bindingTk.pl2, cm);
 
-    push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
-    pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    
-    pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-    cm->i++; // CONSUME the word token before the assignment sign
+        push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
+        pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+        
+        pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
+        cm->i++; // CONSUME the word token before the assignment sign
 
-    Int declaredTypeId = -1;
-    if (tokens[cm->i].tp == tokTypeName) {
-        declaredTypeId = cm->activeBindings[tokens[cm->i].pl1];
-        VALIDATEP(declaredTypeId > -1, errUnknownType)
-        ++cm->i; // CONSUME the type decl of the binding
-        --rLen; // for the type decl token
-    }
+        Int declaredTypeId = -1;
 
-    Token rTk = tokens[cm->i];
-    Int rightTypeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-    VALIDATEP(rightTypeId != -2, errAssignment)
-    VALIDATEP(declaredTypeId == -1 || rightTypeId == declaredTypeId, errTypeMismatch)
-    
-    if (rightTypeId > -1) {
-        cm->entities.content[newBindingId].typeId = rightTypeId;
+        Token rTk = tokens[cm->i];
+        Int rightTypeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+        VALIDATEP(rightTypeId != -2, errAssignment)
+        VALIDATEP(declaredTypeId == -1 || rightTypeId == declaredTypeId, errTypeMismatch)
+        
+        if (rightTypeId > -1) {
+            cm->entities.content[newBindingId].typeId = rightTypeId;
+        }
+    } else {
+        typeDef(bindingTk.pl2, bindingTk.lenBts, cm); 
     }
 }
 
@@ -3362,7 +3359,7 @@ private void buildPreludeTypes(Compiler* cm) {
     // List
     Int typeIndL = cm->types.length; 
     pushIntypes(6, cm);
-    typeAddHeader((TypeHeader){.sort = sorStruct, .nameTypeId = stToNameId(strL), .nameLen = 1,
+    typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (1 << 24) + stToNameId(strL),
                                  .depth = 2, .arity = 1}, cm); 
     pushIntypes(0, cm); // the arity of the type param
     pushIntypes(stToNameId(strLen), cm);
@@ -3374,7 +3371,7 @@ private void buildPreludeTypes(Compiler* cm) {
     // Array
     Int typeIndA = cm->types.length; 
     pushIntypes(4, cm);
-    typeAddHeader((TypeHeader){.sort = sorStruct, .nameTypeId = stToNameId(strA), .nameLen = 1,
+    typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (1 << 24) + stToNameId(strA),
                                  .depth = 1, .arity = 1}, cm); 
     pushIntypes(0, cm); // the arity of the type param
     pushIntypes(stToNameId(strLen), cm);
@@ -3384,7 +3381,7 @@ private void buildPreludeTypes(Compiler* cm) {
     // Tuple
     Int typeIndTu = cm->types.length; 
     pushIntypes(6, cm);
-    typeAddHeader((TypeHeader){.sort = sorStruct, .nameTypeId = stToNameId(strTu), .nameLen = 2,
+    typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (2 << 24) + stToNameId(strTu), 
                                  .depth = 2, .arity = 2}, cm); 
     pushIntypes(0, cm); // the arities of the type params
     pushIntypes(0, cm);
@@ -4032,25 +4029,16 @@ testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
     /// Writes the bytes for the type header to the tail of the cm->types table.
     /// Adds 2 elements
     pushIntypes((Int)((untt)(hdr.sort << 16) + (hdr.depth << 8) + hdr.arity), cm);
-    if (hdr.sort == sorPartial || hdr.sort == sorConcrete) {
-        pushIntypes(hdr.nameTypeId, cm);
-    } else { 
-        pushIntypes(((untt)hdr.nameLen << 24) + (untt)hdr.nameTypeId, cm);
-    }
+    pushIntypes((Int)hdr.nameAndLen, cm);
 }
 
 testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
     /// Reads a type header from the type array
     Int tag = cm->types.content[typeId + 1];
-    Int nameTypeId = cm->types.content[typeId + 2];
+    untt nameAndLen = (untt)cm->types.content[typeId + 2];
     TypeHeader result = (TypeHeader){.sort = (tag >> 16) & LOWER24BITS,
+            .nameAndLen = nameAndLen, 
             .depth = (tag >> 8) & 0xFF, .arity = tag & 0xFF };
-    if (result.sort == sorPartial || result.sort == sorConcrete) {
-        result.nameTypeId = nameTypeId;
-    } else { 
-        result.nameTypeId = nameTypeId & LOWER24BITS;
-        result.nameLen = (nameTypeId >> 24) & 0xFF;
-    }
     return result; 
 }
     
@@ -4220,7 +4208,8 @@ testable Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm) {
 #define tydMeta   4 // payload: index of this meta's token
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm);
     
-private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* params, Compiler* cm) {
+private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* params, 
+                             untt nameAndLen, Compiler* cm) {
     /// Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
     /// in "params". The sequence must be flat, i.e. not include any nested structs.
     /// Returns the typeId of the new type 
@@ -4238,35 +4227,36 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
     print("count fields %d startInd %d sentinel %d", countFields, startInd, sentinel) 
     typeAddHeader((TypeHeader){
         .sort = sorStruct, .arity = params->length/2, .depth = countFields,
-        .nameTypeId = -1, .nameLen = 0}, cm); 
-    print("length after adding header  %d", cm->types.length) 
+        .nameAndLen = nameAndLen}, cm); 
+    print("length after adding header  %d", cm->types.length - tentativeTypeId) 
     for (Int j = 1; j < params->length; j += 2) {
         pushIntypes(params->content[j], cm); 
     }
     
-    for (Int j = 1; j < sentinel; j += 4) {
+    print("length after adding params  %d", cm->types.length - tentativeTypeId) 
+    for (Int j = startInd + 1; j < sentinel; j += 4) {
         // names of fields
 #ifdef SAFETY
-        VALIDATEP(exp->content[j + startInd] == tydField, "not a field")
+        VALIDATEP(exp->content[j - 1] == tydField, "not a field")
 #endif
-        pushIntypes(params->content[j + startInd + 1], cm); 
+        pushIntypes(exp->content[j], cm); 
     }
-    print("length after adding names  %d", cm->types.length) 
+    print("length after adding names  %d", cm->types.length - tentativeTypeId) 
     
-    for (Int j = 3; j < sentinel; j += 4) {
+    for (Int j = startInd + 3; j < sentinel; j += 4) {
         // types of fields
 #ifdef SAFETY
-        VALIDATEP(exp->content[j + startInd + 2] == tydType, "not a type")
+        VALIDATEP(exp->content[j - 1] == tydType, "not a type")
 #endif
-        pushIntypes(params->content[j + startInd + 3], cm); 
+        pushIntypes(exp->content[j], cm); 
     }
-    print("length after adding types  %d", cm->types.length) 
+    print("length after adding types  %d", cm->types.length - tentativeTypeId) 
     cm->types.content[tentativeTypeId] = cm->types.length - tentativeTypeId - 1;
     print("created struct with type length %d", cm->types.length - tentativeTypeId - 1); 
     return mergeType(tentativeTypeId, cm); 
 }
     
-private Int typeProcessDef(StackInt* exp, StackInt* params, StackInt* newType, Compiler* cm) {
+private Int typeProcessDef(StackInt* exp, StackInt* params, untt nameAndLen, Compiler* cm) {
     /// Processes the "type expression" produced by "typeDef".
     /// Returns the typeId of the new typeId
     Int j = exp->length - 2; 
@@ -4276,7 +4266,7 @@ private Int typeProcessDef(StackInt* exp, StackInt* params, StackInt* newType, C
         Int tyd = exp->content[j];
         if (tyd == tydStruct) {
             Int lengthStruct = exp->content[j + 1]*4; // *4 because for every field there are 4 ints
-            Int typeNestedStruct = typeCreateStruct(exp, j + 2, lengthStruct, params, cm);
+            Int typeNestedStruct = typeCreateStruct(exp, j + 2, lengthStruct, params, 0, cm);
             exp->content[j] = tydType;
             exp->content[j + 1] = typeNestedStruct;
             shiftTypeStackLeft(j + 2 + lengthStruct, lengthStruct, cm); 
@@ -4291,7 +4281,7 @@ private Int typeProcessDef(StackInt* exp, StackInt* params, StackInt* newType, C
     // at this point, exp must contain just a single struct with its fields followed by just typeIds
     Int lengthNewStruct = exp->content[1]*4; // *4 because for every field there are 4 ints
     print("length new struct %d", lengthNewStruct) 
-    return typeCreateStruct(exp, 2, lengthNewStruct, params, cm);
+    return typeCreateStruct(exp, 2, lengthNewStruct, params, nameAndLen, cm);
 }
     
 #define maxTypeParams 254 
@@ -4341,7 +4331,7 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
     return count; 
 }
 
-testable Int typeDef(Compiler* cm) {
+testable Int typeDef(Int nameId, Int nameLen, Compiler* cm) {
     /// Parses the definition of a type (struct, sum type)
     /// Uses cm->expStack to build a "type expression" and cm->typeStack for the sentinels
     /// Produces no AST nodes, but potentially lots of new types
@@ -4350,10 +4340,8 @@ testable Int typeDef(Compiler* cm) {
     Int sentinel = cm->i + 1 + cm->tokens.content[cm->i].pl2;
     StackInt* exp = cm->expStack; 
     StackInt* params = cm->typeStack; 
-    StackInt* newType = cm->newTypeStack; 
     exp->length = 0;
     params->length = 0;
-    newType->length = 0;
     Arr(Token) tokens = cm->tokens.content; 
     
     Token firstTok = cm->tokens.content[cm->i];
@@ -4389,7 +4377,7 @@ testable Int typeDef(Compiler* cm) {
     }
     print("type expression") 
     printIntArray(exp->length, exp->content); 
-    return typeProcessDef(exp, params, newType, cm); 
+    return typeProcessDef(exp, params, ((untt)(nameLen) << 24) + nameId, cm); 
 }
     
 ///}}}
@@ -4486,9 +4474,9 @@ private void typePrintGenElt(Int v) {
     
     
 void typePrint(Int typeId, Compiler* cm) {
-    printf("Type [%d]\n", cm->types.content[typeId]);
+    printf("Type [len = %d]\n", cm->types.content[typeId]);
     Int sentinel = typeId + cm->types.content[typeId] + 1;
-
+    print("printint sentinel %d", sentinel)
     TypeHeader hdr = typeReadHeader(typeId, cm); 
     if (hdr.sort == sorStruct) {
         printf("[Struct]");
@@ -4498,18 +4486,21 @@ void typePrint(Int typeId, Compiler* cm) {
         printf("[Fn]");
     } else if (hdr.sort == sorPartial) {
         printf("[Partial]");
+    } else if (hdr.sort == sorConcrete) {
+        printf("[Concrete]");
     }
 
     untt nameParamId = cm->types.content[typeId + 2];
-    Int mainNameTag = (nameParamId >> 24) & 0xFF; 
+    Int mainNameLen = (nameParamId >> 24) & 0xFF; 
     Int mainName = nameParamId & LOWER24BITS; 
-    if (mainNameTag == 0) {
-        printf("[Type param %d]", -mainName - 1);
+     
+    if (mainNameLen == 0) {
+        printf("[$anonymous]");
     } else {
         printf("{"); 
         Int startBt = cm->stringTable->content[mainName];
-        fwrite(cm->sourceCode->content + startBt, 1, mainNameTag, stdout);
-        printf("}"); 
+        fwrite(cm->sourceCode->content + startBt, 1, mainNameLen, stdout);
+        printf("}\n"); 
     }
 
     if (hdr.sort == sorStruct) {

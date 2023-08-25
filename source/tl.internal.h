@@ -623,8 +623,7 @@ typedef struct {
     byte sort;
     byte arity;
     byte depth;
-    Int nameTypeId; // for sorPartial and sorConcrete, it's typeId; otherwise, nameId
-    byte nameLen; 
+    untt nameAndLen;
 } TypeHeader;
     
 //}}}

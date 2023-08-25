@@ -431,13 +431,13 @@ void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
     Compiler* cm = lexicallyAnalyze(prepareInput("Foo = (.id Int .name String)", a), proto, a);
     initializeParser(cm, proto, a); 
     printLexer(cm);
+    StandardText sta = getStandardTextLength();
     cm->i = 2; 
     print("types length before %d", cm->types.length) 
-    Int newType = typeDef(cm);
+    Int newType = typeDef(cm->stringTable->length - 3, 3, cm);
     print("newType %d", newType)
     typePrint(newType, cm);
     return;
-    StandardText sta = getStandardTextLength();
     
     // type params
     push(sta.numNames, cm->typeStack);
@@ -448,19 +448,6 @@ void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
     typePrint(typeId, cm);
 }
     
-void structTest2(Compiler* proto, Arena* a) {
-    Compiler* cm = buildLexer(prepareInput("Foo = ([C/1 E] .lst C(String) .elt E)", a), ((Token[]){
-        (Token){ .tp = tokAssignment, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
-        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
-        (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
-    }));
-    initializeParser(cm, proto, a);
-    printLexer(cm);
-    
-    cm->i = 2; 
-    Int newType = typeDef(cm);
-    print("newType %d", newType)
-}
 //}}}
 //{{{ Main 
 int main() {
