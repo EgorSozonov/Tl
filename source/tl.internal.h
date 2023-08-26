@@ -51,6 +51,7 @@ typedef struct {
     testable bool hasValues ## T (Stack ## T * st);                      \
     testable T pop ## T (Stack ## T * st);                               \
     testable T peek ## T(Stack ## T * st);                               \
+    testable T penultimate ## T(Stack ## T * st);                        \
     testable void push ## T (T newItem, Stack ## T * st);                \
     testable void clear ## T (Stack ## T * st);
 
@@ -589,9 +590,9 @@ struct Compiler { //:Compiler
 
     Int countOperatorEntities;
     Int countNonparsedEntities; // the index of the first parsed (as opposed to being built-in or imported) entity
-    StackInt* expStack;     // [aTmp] temporary scratch space for type checking/resolving an expression
-    StackInt* typeStack;    // [aTmp] temporary scratch space for type params. Entries: [nameId arity]
-    StackInt* newTypeStack; // [aTmp] temporary for writing out new types during type definition parses
+    StackInt* expStack;   // [aTmp] temporary scratch space for type checking/resolving an expression
+    StackInt* typeStack;  // [aTmp] temporary scratch space for type params. Entries: [nameId arity]
+    StackInt* tempStack;  // [aTmp] a very temporary scratch space for stuff
     
     // GENERAL STATE
     Int i;                     // index in the input
@@ -644,6 +645,13 @@ typedef struct {
     StackNode*: peekNode \
     )(X)
 
+#define penultimate(X) _Generic((X), \
+    StackBtToken*: penultimateBtToken, \
+    StackParseFrame*: penultimateParseFrame, \
+    Stackint32_t*: penultimateint32_t, \
+    StackNode*: penultimateNode \
+    )(X)
+    
 #define push(A, X) _Generic((X), \
     StackBtToken*: pushBtToken, \
     StackParseFrame*: pushParseFrame, \

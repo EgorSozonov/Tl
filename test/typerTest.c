@@ -434,7 +434,7 @@ void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
     StandardText sta = getStandardTextLength();
     cm->i = 2; 
     print("types length before %d", cm->types.length) 
-    Int newType = typeDef(cm->stringTable->length - 3, 3, cm);
+    Int newType = typeExpr(cm->stringTable->length - 3, 3, cm);
     print("newType %d", newType)
     typePrint(newType, cm);
     return;
@@ -456,7 +456,7 @@ void structTest2(Int* countFailed, Compiler* proto, Arena* a) {
     StandardText sta = getStandardTextLength();
     cm->i = 2; 
     print("types length before %d", cm->types.length) 
-    Int newType = typeDef(cm->stringTable->length - 3, 3, cm);
+    Int newType = typeExpr(cm->stringTable->length - 3, 3, cm);
     print("newType %d", newType)
     typePrint(newType, cm);
     typePrint(111, cm);
@@ -479,7 +479,7 @@ void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
     StandardText sta = getStandardTextLength();
     cm->i = 2; 
     print("types length before %d", cm->types.length) 
-    Int newType = typeDef(cm->stringTable->length - 3, 3, cm);
+    Int newType = typeExpr(cm->stringTable->length - 3, 3, cm);
     print("newType %d", newType)
     typePrint(newType, cm);
     typePrint(111, cm);
