@@ -26,9 +26,9 @@ private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int
     for (int i = 0; i < totalTokens; i++) {
         Token tok = tokens[i];
         // offset nameIds and startBts for the standardText and standard nameIds correspondingly 
-        tok.startBt += stText.lenStandardText;
+        tok.startBt += stText.len;
         if (tok.tp == tokMutation) {
-            tok.pl1 += stText.lenStandardText;
+            tok.pl1 += stText.len;
         }
         if (tok.tp == tokWord || tok.tp == tokKwArg || tok.tp == tokTypeName || tok.tp == tokStructField
             || (tok.tp == tokAccessor && tok.pl1 == tkAccDot)) {
@@ -56,58 +56,6 @@ private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int
 //}}}
 //{{{ Parsing functions
     
-void typerTest1(Compiler* proto, Arena* a) {
-    Compiler* cm = buildLexer(prepareInput("fn([U/2 V] lst U(Int V))", a), ((Token[]){
-        (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
-        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
-        (Token){ .tp = tokBrackets,           .pl2 = 3, .startBt = 3, .lenBts = 7 },
-        (Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = 0, .startBt = 4,     .lenBts = 1 },
-        (Token){ .tp = tokInt,                .pl2 = 2, .startBt = 6,     .lenBts = 1 },
-        (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 8,     .lenBts = 1 },
-
-        (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
-
-        (Token){ .tp = tokTypeCall, .pl1 = 0, .pl2 = 2, .startBt = 15, .lenBts = 8 },
-        (Token){ .tp = tokTypeName,           .pl2 = strInt + S, .startBt = 17, .lenBts = 3 },
-        (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
-    }));
-    initializeParser(cm, proto, a);
-    printLexer(cm);
-    
-    StandardText sta = getStandardTextLength();
-    
-    // type params
-    push(sta.numNames, cm->typeStack);
-    push(2, cm->typeStack);
-    push(sta.numNames + 1, cm->typeStack);
-    push(0, cm->typeStack);
-    
-    Token tk = cm->tokens.content[7];
-    cm->i = 8;
-    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
-    typePrint(typeId, cm);
-}
-
-void typerTest2(Compiler* proto, Arena* a) {
-    Compiler* cm = buildLexer(prepareInput("fn(lst A(L(A(Double))))", a), ((Token[]){ // ""
-        (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
-        (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
-        (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
-
-        (Token){ .tp = tokTypeCall, .pl1 = (strA + S), .pl2 = 3, .startBt = 15, .lenBts = 8 },
-        (Token){ .tp = tokTypeCall, .pl1 = (strL + S), .pl2 = 2, .startBt = 15, .lenBts = 8 },
-        (Token){ .tp = tokTypeCall, .pl1 = (strA + S), .pl2 = 1, .startBt = 15, .lenBts = 8 },
-        (Token){ .tp = tokTypeName,           .pl2 = strDouble + S, .startBt = 17, .lenBts = 3 },
-    }));
-    initializeParser(cm, proto, a);
-    printLexer(cm);
-    
-    Token tk = cm->tokens.content[3];
-    cm->i = 4;
-    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
-    typePrint(typeId, cm);
-}
-   
 void typeTest3(Compiler* proto, Arena* a) {
     Compiler* cm = buildLexer(prepareInput("fn(lst A(L(A(Double))))", a), ((Token[]){ // ""
         (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
@@ -431,68 +379,54 @@ void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
     Compiler* cm = lexicallyAnalyze(prepareInput("Foo = (.id Int .name String)", a), proto, a);
     initializeParser(cm, proto, a); 
     printLexer(cm);
-    StandardText sta = getStandardTextLength();
     cm->i = 2; 
     print("types length before %d", cm->types.length) 
-    Int newType = typeExpr(cm->stringTable->length - 3, 3, cm);
+    Int newType = typeExpr(18, 3, false, cm); // 3 for the length of "Foo"
     print("newType %d", newType)
     typePrint(newType, cm);
     return;
     
     // type params
-    push(sta.numNames, cm->typeStack);
-    
-    Token tk = cm->tokens.content[7];
-    cm->i = 8;
-    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
-    typePrint(typeId, cm);
+//~    push(sta.numNames, cm->typeStack);
+//~    
+//~    Token tk = cm->tokens.content[7];
+//~    cm->i = 8;
+//~    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
+//~    typePrint(typeId, cm);
 }
+    
     
 void structTest2(Int* countFailed, Compiler* proto, Arena* a) {
     Compiler* cm = lexicallyAnalyze(prepareInput(
-                "Foo = (.id Int .name String .pl Tu(Int L(Double)))", a), proto, a);
+                "Foo = (.id Int .pl Tu(Int (.id String)))", a), proto, a);
     initializeParser(cm, proto, a); 
     printLexer(cm);
-    StandardText sta = getStandardTextLength();
+    //StandardText sta = getStandardTextLength();
     cm->i = 2; 
-    print("types length before %d", cm->types.length) 
-    Int newType = typeExpr(cm->stringTable->length - 3, 3, cm);
-    print("newType %d", newType)
+    Int newType = typeExpr(cm->stringTable->length - 3, 3, false, cm);
+    print("\nnew Type has id = %d", newType)
     typePrint(newType, cm);
+    print("anonymous struct:") 
     typePrint(111, cm);
-    return;
-    
-    // type params
-    push(sta.numNames, cm->typeStack);
-    
-    Token tk = cm->tokens.content[7];
-    cm->i = 8;
-    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
-    typePrint(typeId, cm);
+    print("the Tu(...):") 
+    typePrint(116, cm);
 }   
+    
     
 void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
     Compiler* cm = lexicallyAnalyze(prepareInput(
-                "Foo = (.id Int .name (.id String .pl L(Int)))", a), proto, a);
+                "Foo = (.callback F(Int Int => (.id Int .breadth Double)))", a), proto, a);
     initializeParser(cm, proto, a); 
     printLexer(cm);
-    StandardText sta = getStandardTextLength();
     cm->i = 2; 
-    print("types length before %d", cm->types.length) 
-    Int newType = typeExpr(cm->stringTable->length - 3, 3, cm);
-    print("newType %d", newType)
+    Int newType = typeExpr(18, 3, false, cm);
+    print("\nnew Type %d", newType)
     typePrint(newType, cm);
+    print("fn type") 
+    typePrint(118, cm);
+    print("anon struct type") 
     typePrint(111, cm);
-    typePrint(115, cm);
     return;
-    
-    // type params
-    push(sta.numNames, cm->typeStack);
-    
-    Token tk = cm->tokens.content[7];
-    cm->i = 8;
-    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
-    typePrint(typeId, cm);
 }   
     
 //}}}
@@ -519,9 +453,9 @@ int main() {
 //~        testGenericsSatisfies2(&countFailed, proto, a); 
 //~        testGenericsSatisfies3(&countFailed, proto, a); 
     
-//~        structTest1(&countFailed, proto, a); 
+        structTest1(&countFailed, proto, a); 
 //~        structTest2(&countFailed, proto, a); 
-        structTest3(&countFailed, proto, a); 
+//~        structTest3(&countFailed, proto, a); 
     } else {
         print("An exception was thrown in the tests") 
     }

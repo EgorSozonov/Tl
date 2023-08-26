@@ -893,6 +893,7 @@ const char errTypeMustBeBool[]              = "Expression must have the Bool typ
 const char errTypeConstructorWrongArity[]   = "Wrong arity for the type constructor";
 const char errTypeOnlyTypesArity[]          = "Only type constructors (i.e. capitalized words) may have arity specification";
 const char errTypeTooManyParameters[]       = "Only up to 254 type parameters are supported";
+const char errTypeFnSingleReturnType[]      = "More than one return type in a function type";
 
 //}}}
     
@@ -927,7 +928,8 @@ const int operatorStartSymbols[15] = {
 ///  The standard text prepended to all source code inputs and the hash table to provide a built-in string set.
 ///  The Tl reserved words must be at the start and be sorted alphabetically on the first letter.
 const char standardText[] = "aliasandassertawaitbreakcatchcontinuedeferdoelseembedfalsefnfor"
-                            "ififPrimplimportinterfacematchorreturntruetrywhileyield" // reserved words end here
+                            "ififPrimplimportinterfacematchorreturntruetrywhileyield"
+                            // reserved words end here
                             "IntLongDoubleBoolStringVoidFLATulencapf1f2TUprintalertmath-pimath-e";
 
 const Int standardStrings[] = {
@@ -4012,13 +4014,27 @@ private Int typeGetArity(Int typeId, Compiler* cm) {
 
 private Int typeCountArgs(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
     /// Counts the arity of a type call. Consumes no tokens. 
-    /// Precondition: we are pointing directly at type call
+    /// Precondition: we are pointing 1 past the type call
     Int arity = 0;
-    Int j = cm->i + 1;
+    Int j = cm->i;
+    bool metArrow = false; 
     while (j < sentinelToken) {
         Token tok = tokens[j];
+         
+        if (tok.tp == tokArrow) {
+            metArrow = true; 
+            ++j; 
+        } else { 
+            if (tok.tp == tokTypeCall || tok.tp == tokParens) { 
+                j += tok.pl2 + 1;
+            } else {
+                ++j;
+            }
+            if (metArrow) {
+                VALIDATEP(j == sentinelToken, errTypeFnSingleReturnType) 
+            }
+        }
         ++arity;
-        j += (tok.tp == tokTypeCall) ? (tok.pl2 + 1) : 1;
     }
     return arity;
 }
@@ -4056,92 +4072,17 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
     }    
     return -1;
 }
-
-private Int typeUpTo(Token callToken, Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
-    /// General "big" type name parser. Parses an expression whether there is a token or not.
-    /// Starts from cm->i and goes up to the sentinel token. Returns the expression's type
-    /// Precondition: we are looking 1 past the tokExpr.
-    /// Uses the cm->expStack, but that's not a problem because
-    Int tentativeTypeInd = cm->types.length;
-
-    Int typeLength = sentinelToken - cm->i + 2; // +2 for the name/paramId and the tag 
-    // TYPE LENGTH 
-    pushIntypes(typeLength, cm);
-    // TAG 
-    pushIntypes(0, cm); // we don't know the arity yet, so will overwrite this at end of func
-
-    // Name 
-    Int mainParamInd = typeParamBinarySearch(callToken.pl1, cm);
-    if (mainParamInd == -1) {
-        Int mainTypeId = cm->activeBindings[callToken.pl1];
-        VALIDATEP(mainTypeId > -1, errUnknownTypeConstructor)
-        pushIntypes(cm->types.content[mainTypeId + 2], cm); // name of the original type we're concretizing
-    } else {
-        pushIntypes(-mainParamInd/2 - 1, cm); // ParamId of the param being called
-    }
-
-    while (cm->i < sentinelToken) {
-        Token cTk = tokens[cm->i];
-        untt tokType = cTk.tp;
-
-        if (tokType == tokTypeCall) {
-            Int nameId = cTk.pl1;
-            VALIDATEP(nameId != -1, errUnknownTypeConstructor)
-            Int arity = typeCountArgs(calcSentinel(cTk, cm->i), tokens, cm);
-            if (nameId < 0) {
-                nameId = -nameId - 1;
-                Int paramInd = typeParamBinarySearch(nameId, cm);
-                VALIDATEP(arity == cm->typeStack->content[paramInd + 1], errTypeConstructorWrongArity)
-                typeAddTypeParam(paramInd, arity, cm);
-            } else {
-                Int typeId = cm->activeBindings[nameId]; 
-                VALIDATEP(typeId > -1, errUnknownTypeConstructor)
-                Int typesArity = typeGetArity(typeId, cm);
-                VALIDATEP(arity == typesArity, errTypeConstructorWrongArity)
-                typeAddTypeCall(typeId, arity, cm);
-            }
-        } else if (tokType == tokTypeName) {
-            Int paramInd = typeParamBinarySearch(cTk.pl2, cm);
-            if (paramInd == -1) {
-                Int typeId = cm->activeBindings[cTk.pl2];
-                VALIDATEP(typeId > -1, errUnknownType)
-                pushIntypes(typeId, cm);
-            } else {
-                typeAddTypeParam(paramInd/2, 0, cm);
-            }
-        } else {
-            throwExcParser(errUnexpectedToken, cm);
-        }
-
-        cm->i++; // CONSUME the type/typeCall token
-    }
-    Int tg = typeEncodeTag(sorPartial, 0, cm->typeStack->length/2, cm);
-    cm->types.content[tentativeTypeInd + 1] = tg;
-    return mergeType(tentativeTypeInd, cm);
-}
-
-testable Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm) {
-    /// Parses an expression that is a type name into the types table
-    /// Precondition: cm->typeStack must be filled with the names, arities of the type parameters 
-    /// For example, if there was a [T U/2], typeStack must look like [nameT 0 nameU 2]
-    /// Postcondition: typeStack will be the same as before this function was called
-    if (tk.tp == tokTypeCall) {
-        return typeUpTo(tk, cm->i + tk.pl2, tokens, cm);
-    } else {
-        return typeSingleItem(tk, cm);
-    }
-}
     
 //}}}    
 //{{{ Type expressions
     
 /// Type expression data format: First element is the tag (one of the following
 /// constants), second is payload. Type calls need to have an extra payload, so their tag
-/// is (8 bits of "tyd", 24 bits of typeId)
+/// is (8 bits of "tye", 24 bits of typeId)
 #define tyeStruct     1 // payload: count of fields in the struct
 #define tyeSum        2 // payload: count of variants
 #define tyeFunction   3 // payload: count of parameters. This is a function signature, not the F(...)
-#define tyeFunType    4 // payload: count of parameters. This is the F(...)
+#define tyeFnType     4 // payload: count of parameters. This is the F(...)
 #define tyeType       5 // payload: typeId
 #define tyeTypeCall   6 // payload: count of args. Payl in tag: nameId
 #define tyeParam      7 // payload: paramId
@@ -4160,7 +4101,7 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
     Int tentativeTypeId = cm->types.length; 
     pushIntypes(0, cm); 
     Int sentinel = startInd + length; 
-    if (length % 4 == 2) { // because there's a meta node in last place
+    if (length % 4 == 2 && penultimate(exp) == tyeMeta) {
         sentinel -= 2; 
     }
 #ifdef SAFETY
@@ -4185,11 +4126,49 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
     for (Int j = startInd + 3; j < sentinel; j += 4) {
         // types of fields
 #ifdef SAFETY
-        VALIDATEP(exp->content[j - 1] == tydType, "not a type")
+        VALIDATEP(exp->content[j - 1] == tyeType, "not a type")
 #endif
         pushIntypes(exp->content[j], cm); 
     }
     cm->types.content[tentativeTypeId] = cm->types.length - tentativeTypeId - 1;
+    return mergeType(tentativeTypeId, cm); 
+} 
+    
+private Int typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt* params, 
+                               bool isFunction, Compiler* cm) {
+    /// Creates/merges a new type call from a sequence of pairs in "exp" and a list of type params
+    /// in "params". Handles both ordinary type calls and function types.
+    /// Returns the typeId of the new type 
+    Int tentativeTypeId = cm->types.length; 
+    pushIntypes(0, cm); 
+    Int sentinel = startInd + length; 
+    Int countFnParams = (sentinel - startInd)/2;
+    bool metRetType = exp->length >= 4 && exp->content[exp->length - 4] == tyeRetType; 
+    if (metRetType) {
+        --countFnParams;
+    }
+    typeAddHeader((TypeHeader){
+        .sort = (isFunction ? sorFunction : sorPartial), .arity = params->length/2, .depth = countFnParams,
+        .nameAndLen = 0}, cm); 
+    for (Int j = 1; j < params->length; j += 2) {
+        pushIntypes(params->content[j], cm); 
+    }
+    
+    for (Int j = startInd + 1; j < sentinel; j += 2) {
+        Int tye = exp->content[j - 1] & LOWER24BITS; 
+        if (tye == tyeRetType) {
+        } else if (tye == tyeType) {
+            pushIntypes(exp->content[j], cm); 
+        } else {
+            throwExcParser("not a type", cm);
+        } 
+    }
+    if (!metRetType) {
+        pushIntypes(stToNameId(strVoid), cm); 
+    }
+    
+    cm->types.content[tentativeTypeId] = cm->types.length - tentativeTypeId - 1;
+    print("created type call of length %d", cm->types.content[tentativeTypeId]); 
     return mergeType(tentativeTypeId, cm); 
 }
     
@@ -4197,28 +4176,46 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
     /// Processes the "type expression" produced by "typeDef".
     /// Returns the typeId of the new typeId
     Int j = exp->length - 2; 
-    print("begin type eval");
     printIntArray(exp->length, exp->content);
     while (j > 0) {
-        Int tyd = exp->content[j];
-        if (tyd == tyeStruct) {
+        Int tyeContent = exp->content[j]; 
+        Int tye = (exp->content[j] >> 24) & 0xFF;
+        if (tye == 0) {
+            tye = tyeContent;
+        }
+        if (tye == tyeStruct) {
             Int lengthStruct = exp->content[j + 1]*4; // *4 because for every field there are 4 ints
             Int typeNestedStruct = typeCreateStruct(exp, j + 2, lengthStruct, params, 0, cm);
             exp->content[j] = tyeType;
             exp->content[j + 1] = typeNestedStruct;
             shiftTypeStackLeft(j + 2 + lengthStruct, lengthStruct, cm); 
     
-            print("after shift:");
+            print("after struct shift:");
             printIntArray(exp->length, exp->content);
+        } else if (tye == tyeTypeCall || tye == tyeFnType) {
+            Int lengthFn = exp->content[j + 1]*2;
+            Int typeFn = typeCreateTypeCall(exp, j + 2, lengthFn, params, tye == tyeFnType, cm); 
+            exp->content[j] = tyeType;
+            exp->content[j + 1] = typeFn;
+            shiftTypeStackLeft(j + 2 + lengthFn, lengthFn, cm); 
+    
+            print("after typeCall/fnType shift:");
+            printIntArray(exp->length, exp->content);
+        } else if (tye == tyeParamCall) {
+    
         }
         j -= 2; 
     }
     print("after processing") 
     printIntArray(exp->length, exp->content);
-    // at this point, exp must contain just a single struct with its fields followed by just typeIds
-    Int lengthNewStruct = exp->content[1]*4; // *4 because for every field there are 4 ints
-    print("length new struct %d", lengthNewStruct) 
-    return typeCreateStruct(exp, 2, lengthNewStruct, params, nameAndLen, cm);
+    if (nameAndLen > 0) {
+        // at this point, exp must contain just a single struct with its fields followed by just typeIds
+        Int lengthNewStruct = exp->content[1]*4; // *4 because for every field there are 4 ints
+        return typeCreateStruct(exp, 2, lengthNewStruct, params, nameAndLen, cm);
+    } else {
+        Int lengthNewSignature = exp->content[1]*4; // *4 because for every field there are 4 ints
+        return typeCreate(exp, 2, lengthNewSignature, params, 0, cm);
+    }
 }
     
 #define maxTypeParams 254 
@@ -4274,13 +4271,13 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
     } 
     return count; 
 }
-
     
 private bool typeExprIsInside(Int tp, Compiler* cm) {
     /// Is the current type expression inside e.g. a struct or a function 
     return (cm->tempStack->length >= 2
             && penultimate(cm->tempStack) == tp);
 }
+    
     
 private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
     StackInt* params = cm->typeStack; 
@@ -4305,16 +4302,22 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
                 push(cTk.pl2, exp);
             }
         } else if (cTk.tp == tokTypeCall) {
-            Int countArgs = typeCountArgs(cTk.pl2, cm->tokens.content, cm); 
+            Int countArgs = typeCountArgs(calcSentinel(cTk, cm->i - 1), cm->tokens.content, cm); 
             Int nameId = cTk.pl1 & LOWER24BITS; 
             Int mbParamId = typeParamBinarySearch(nameId, cm); 
             if (mbParamId == -1) { 
                 if (nameId == stToNameId(strF)) { // F(...)
-                    push(((untt)tyeFunType << 24) + nameId, exp); 
+                    push(((untt)tyeFnType << 24) + nameId, exp); 
                     push(countArgs, exp); 
+    
+                    push(tyeFnType, cm->tempStack); 
+                    push(cm->i + cTk.pl2, cm->tempStack); 
                 } else {
                     Int typeId = cm->activeBindings[nameId];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
+                    print("typeId %d countArgs %d nameId %d", typeId, countArgs, nameId) 
+                    Int typeAr = typeGetArity(typeId, cm); 
+                    print("typeAr %d", typeAr)
                     VALIDATEP(typeGetArity(typeId, cm) == countArgs, errTypeConstructorWrongArity)
                     push(((untt)tyeTypeCall << 24) + nameId, exp);
                     push(countArgs, exp);
@@ -4343,7 +4346,8 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
         } else if (cTk.tp == tokArrow) {
             VALIDATEP(cm->tempStack->length >= 2, errTypeDeclError)
             Int penult = penultimate(cm->tempStack); 
-            VALIDATEP(penult == tyeFunction || penult == tyeFunType, errTypeDeclError)
+            printIntArray(cm->tempStack->length, cm->tempStack->content);
+            VALIDATEP(penult == tyeFunction || penult == tyeFnType, errTypeDeclError)
     
             push(tyeRetType, exp); 
             push(0, exp); 
@@ -4389,7 +4393,6 @@ testable Int typeExpr(Int nameId, Int nameLen, bool isFunction, Compiler* cm) {
         push(sentinel, cm->tempStack); 
     }
     typeBuildExpr(exp, sentinel, cm); 
-    
     printIntArray(exp->length, exp->content); 
     
     Int newTypeId = typeEvalExpr(exp, params, ((untt)(nameLen) << 24) + nameId, cm); 
@@ -5375,7 +5378,7 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
     
 StandardText getStandardTextLength(void) {
     return (StandardText){
-        .lenStandardText = sizeof(standardText) - 1, 
+        .len = sizeof(standardText) - 1, 
         .numNames = (sizeof(standardStrings)/4 - strFirstNonReserved - 1),
         .firstNonreserved = strFirstNonReserved};
 }
@@ -5457,7 +5460,7 @@ private void typePrintGenElt(Int v) {
     
     
 void typePrint(Int typeId, Compiler* cm) {
-    printf("Type [len = %d]\n", cm->types.content[typeId]);
+    printf("Type [ind = %d, len = %d]\n", typeId, cm->types.content[typeId]);
     Int sentinel = typeId + cm->types.content[typeId] + 1;
     TypeHeader hdr = typeReadHeader(typeId, cm); 
     if (hdr.sort == sorStruct) {
@@ -5506,6 +5509,26 @@ void typePrint(Int typeId, Compiler* cm) {
         }
 
         printf("\n)"); 
+    } else if (hdr.sort == sorFunction) {
+        if (hdr.arity > 0) {
+            printf("[Params: ");
+            for (Int j = 0; j < hdr.arity; j++) {
+                printf("%d ", cm->types.content[j + typeId + 3]); 
+            }
+            printf("]"); 
+        }
+        printf("("); 
+        Int fnParamsStart = typeId + hdr.arity + 3; 
+        Int fnParamsSentinel = fnParamsStart + hdr.depth - 1;
+        for (Int j = fnParamsStart; j < fnParamsSentinel; j++) {
+            typePrintGenElt(cm->types.content[j]); 
+        }
+        // now for the return type
+        printf("=> "); 
+        typePrintGenElt(cm->types.content[fnParamsSentinel]); 
+
+        printf("\n)"); 
+         
     } else if (hdr.sort == sorPartial) {
         printf("(\n    ");
         for (Int j = typeId + hdr.arity + 3; j < sentinel; j++) {

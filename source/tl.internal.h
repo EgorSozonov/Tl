@@ -93,7 +93,7 @@ testable bool endsWith(String* a, String* b);
 #define s(lit) str(lit, a)
 
 typedef struct {
-    Int lenStandardText;
+    Int len;
     Int numNames;
     Int firstNonreserved;
 } StandardText;

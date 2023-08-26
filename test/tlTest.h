@@ -160,7 +160,8 @@ void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm);
 Int typeSingleItem(Token tk, Compiler* cm);
 bool typeGenericsIntersect(Int id1, Int id2, Compiler* cm);
 StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
-Int typeExpr(Int, Int, Compiler* cm);
+Int typeExpr(Int, Int, bool, Compiler* cm);
+extern const char errTypeFnSingleReturnType[];
     
 #endif
 
