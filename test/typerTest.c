@@ -448,8 +448,56 @@ void structTest1(Int* countFailed, Compiler* proto, Arena* a) {
     typePrint(typeId, cm);
 }
     
+void structTest2(Int* countFailed, Compiler* proto, Arena* a) {
+    Compiler* cm = lexicallyAnalyze(prepareInput(
+                "Foo = (.id Int .name String .pl Tu(Int L(Double)))", a), proto, a);
+    initializeParser(cm, proto, a); 
+    printLexer(cm);
+    StandardText sta = getStandardTextLength();
+    cm->i = 2; 
+    print("types length before %d", cm->types.length) 
+    Int newType = typeDef(cm->stringTable->length - 3, 3, cm);
+    print("newType %d", newType)
+    typePrint(newType, cm);
+    typePrint(111, cm);
+    return;
+    
+    // type params
+    push(sta.numNames, cm->typeStack);
+    
+    Token tk = cm->tokens.content[7];
+    cm->i = 8;
+    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
+    typePrint(typeId, cm);
+}   
+    
+void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
+    Compiler* cm = lexicallyAnalyze(prepareInput(
+                "Foo = (.id Int .name (.id String .pl L(Int)))", a), proto, a);
+    initializeParser(cm, proto, a); 
+    printLexer(cm);
+    StandardText sta = getStandardTextLength();
+    cm->i = 2; 
+    print("types length before %d", cm->types.length) 
+    Int newType = typeDef(cm->stringTable->length - 3, 3, cm);
+    print("newType %d", newType)
+    typePrint(newType, cm);
+    typePrint(111, cm);
+    typePrint(115, cm);
+    return;
+    
+    // type params
+    push(sta.numNames, cm->typeStack);
+    
+    Token tk = cm->tokens.content[7];
+    cm->i = 8;
+    Int typeId = parseTypeName(tk, cm->tokens.content, cm);
+    typePrint(typeId, cm);
+}   
+    
 //}}}
 //{{{ Main 
+    
 int main() {
     printf("----------------------------\n");
     printf("--  TYPES TEST  --\n");
@@ -462,13 +510,18 @@ int main() {
 //~        typerTest2(proto, a);
     
 //~        skipTest(&countFailed, proto, a); 
+    
 //~        testGenericsIntersect1(&countFailed, proto, a); 
 //~        testGenericsIntersect2(&countFailed, proto, a); 
 //~        testGenericsIntersect3(&countFailed, proto, a); 
+    
 //~        testGenericsSatisfies1(&countFailed, proto, a); 
 //~        testGenericsSatisfies2(&countFailed, proto, a); 
 //~        testGenericsSatisfies3(&countFailed, proto, a); 
-        structTest1(&countFailed, proto, a); 
+    
+//~        structTest1(&countFailed, proto, a); 
+//~        structTest2(&countFailed, proto, a); 
+        structTest3(&countFailed, proto, a); 
     } else {
         print("An exception was thrown in the tests") 
     }

@@ -170,17 +170,18 @@ typedef struct {
 #define strBool      29
 #define strString    30
 #define strVoid      31
-#define strL         32 // List
-#define strA         33 // Array
-#define strTu        34 // Tu(ple)
-#define strLen       35
-#define strCap       36
-#define strF1        37
-#define strF2        38
-#define strPrint     39
-#define strAlert     40
-#define strMathPi    41
-#define strMathE     42
+#define strF         32
+#define strL         33 // List
+#define strA         34 // Array
+#define strTu        35 // Tu(ple)
+#define strLen       36
+#define strCap       37
+#define strF1        38
+#define strF2        39
+#define strPrint     40
+#define strAlert     41
+#define strMathPi    42
+#define strMathE     43
 
 //}}}
     
@@ -307,7 +308,7 @@ typedef struct { //:Token
 #define nodYield       33
 #define nodIfClause    34       
 #define nodWhile       34     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
-#define nodWhileCond   36
+#define nodWhileCond   37
 
 // Resumable core forms
 #define nodIf          37
@@ -611,7 +612,7 @@ struct Compiler { //:Compiler
 
 //}}}
 //{{{ Types
-
+    
 /// see the Type layout chapter in the docs
 #define sorStruct       1
 #define sorSum          2

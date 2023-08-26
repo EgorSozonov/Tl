@@ -643,6 +643,8 @@ private Int addStringDict(byte* text, Int startBt, Int lenBts, Stackint32_t* str
     Int hashOffset = hash % (hm->dictSize);
     Int newIndString;
     Bucket* bu = *(hm->dict + hashOffset);
+    
+    
     if (bu == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
@@ -1561,7 +1563,8 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
         }
     }
 
-    Int realStartByte = (wordType == tokWord) ? startBt : (startBt - 1); // accounting for the initial . or :
+    Int realStartByte = (wordType == tokWord) ? startBt : (startBt - 1);
+    // accounting for the initial ".", ":" or other symbol
     byte firstByte = lx->sourceCode->content[startBt];
     Int lenBts = lx->i - realStartByte;
     Int lenString = lx->i - startBt;
@@ -1569,17 +1572,19 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
         
     Int mbReservedWord = -1; 
     if (firstByte >= aALower && firstByte <= aYLower) {
-        mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](startBt, lenString, lx);
+        mbReservedWord = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](
+                startBt, lenString, lx
+        );
     }
     if (mbReservedWord == -1) { // a normal, unreserved word
         Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
         if (lx->i < lx->inpLength && CURR_BT == aParenLeft) {
             VALIDATEL(wordType == tokWord, errPunctuationWrongCall)
             wrapInAStatementStarting(startBt, lx, source);
-            untt finalTokType = wasCapitalized ? tokTypeCall : tokCall;
-            push(((BtToken){ .tp = finalTokType, .tokenInd = lx->tokens.length, .spanLevel = slSubexpr }),
+            untt finalTkTp = wasCapitalized ? tokTypeCall : tokCall;
+            push(((BtToken){ .tp = finalTkTp, .tokenInd = lx->tokens.length, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
-            pushIntokens((Token){ .tp = finalTokType, .pl1 = uniqueStringInd, 
+            pushIntokens((Token){ .tp = finalTkTp, .pl1 = uniqueStringInd, 
                          .startBt = realStartByte, .lenBts = lenBts }, lx);
             ++lx->i; // CONSUME the opening "(" of the call
         } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
@@ -1964,6 +1969,9 @@ testable void printLexer(Compiler* lx) {
         }
 
         Int realStartBt = tok.startBt - sizeof(standardText) + 1;
+        if (i < 10) {
+            printf(" ");
+        }
         printf("%d: ", i);
         for (int j = 0; j < indent; j++) {
             printf("  ");
@@ -4094,10 +4102,12 @@ private Int typeCountArity(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
 
 testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
     /// Performs a binary search among the binary params in cm->typeStack. Returns -1 if nothing is found
+    if (cm->typeStack->length == 0) {
+        return -1;
+    }
     Arr(Int) st = cm->typeStack->content;
     Int i = 0;
     Int j = cm->typeStack->length - 2;
-    
     if (st[i] == nameIdToFind) {
         return i;
     } else if (st[j] == nameIdToFind) {
@@ -4214,7 +4224,6 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
     /// in "params". The sequence must be flat, i.e. not include any nested structs.
     /// Returns the typeId of the new type 
     Int tentativeTypeId = cm->types.length; 
-    print("tentative type Id %d", tentativeTypeId) 
     pushIntypes(0, cm); 
     Int sentinel = startInd + length; 
     if (length % 4 == 2) { // because there's a meta node in last place
@@ -4224,16 +4233,13 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
     VALIDATEP(sentinel - startInd % 4 == 0, "typeCreateStruct err not divisible by 4")
 #endif
     Int countFields = (sentinel - startInd)/4;
-    print("count fields %d startInd %d sentinel %d", countFields, startInd, sentinel) 
     typeAddHeader((TypeHeader){
         .sort = sorStruct, .arity = params->length/2, .depth = countFields,
         .nameAndLen = nameAndLen}, cm); 
-    print("length after adding header  %d", cm->types.length - tentativeTypeId) 
     for (Int j = 1; j < params->length; j += 2) {
         pushIntypes(params->content[j], cm); 
     }
     
-    print("length after adding params  %d", cm->types.length - tentativeTypeId) 
     for (Int j = startInd + 1; j < sentinel; j += 4) {
         // names of fields
 #ifdef SAFETY
@@ -4241,7 +4247,6 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
 #endif
         pushIntypes(exp->content[j], cm); 
     }
-    print("length after adding names  %d", cm->types.length - tentativeTypeId) 
     
     for (Int j = startInd + 3; j < sentinel; j += 4) {
         // types of fields
@@ -4250,9 +4255,7 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
 #endif
         pushIntypes(exp->content[j], cm); 
     }
-    print("length after adding types  %d", cm->types.length - tentativeTypeId) 
     cm->types.content[tentativeTypeId] = cm->types.length - tentativeTypeId - 1;
-    print("created struct with type length %d", cm->types.length - tentativeTypeId - 1); 
     return mergeType(tentativeTypeId, cm); 
 }
     
@@ -4476,7 +4479,6 @@ private void typePrintGenElt(Int v) {
 void typePrint(Int typeId, Compiler* cm) {
     printf("Type [len = %d]\n", cm->types.content[typeId]);
     Int sentinel = typeId + cm->types.content[typeId] + 1;
-    print("printint sentinel %d", sentinel)
     TypeHeader hdr = typeReadHeader(typeId, cm); 
     if (hdr.sort == sorStruct) {
         printf("[Struct]");
