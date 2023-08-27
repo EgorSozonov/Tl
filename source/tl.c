@@ -652,7 +652,6 @@ private Int addStringDict(byte* text, Int startBt, Int lenBts, Stackint32_t* str
     Int newIndString;
     Bucket* bu = *(hm->dict + hashOffset);
     
-    
     if (bu == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
@@ -3321,6 +3320,11 @@ private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
     
 private void buildStandardStrings(Compiler* lx) {
     /// Inserts the necessary strings from the standardText into the string table and the hash table
+    /// The first "countOperators" nameIds are reserved for the operators (the lx->stringTable contains 
+    /// zeros in those places)
+    for (Int j = 0; j < countOperators; j++) {
+        push(0, lx->stringTable); 
+    }
     for (Int i = strFirstNonReserved; i <= strMathE; i++) {
         Int startBt = standardStrings[i];
         addStringDict(lx->sourceCode->content, startBt, standardStrings[i + 1] - startBt, 
@@ -3330,7 +3334,7 @@ private void buildStandardStrings(Compiler* lx) {
     
 testable Int stToNameId(Int a) {
     /// Converts a standard string to its nameId. Doesn't work for reserved words, obviously    
-    return a - strFirstNonReserved;
+    return a - strFirstNonReserved + countOperators;
 }
 
 private void buildPreludeTypes(Compiler* cm) {
@@ -3376,16 +3380,16 @@ private void buildPreludeTypes(Compiler* cm) {
 
 
 private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t externalNameId, Compiler* cm) {
-    pushInentities((Entity){
+    pushInfunctions((FunctionHeader){
         .typeId = typeId, .emit = emitAs, .class = classImmutable, .externalNameId = externalNameId}, cm);
     cm->overloadIds.content[operId] += SIXTEENPLUSONE;
     ++((*cm->langDef->operators)[operId].builtinOverloads);
 }
     
 private void buildOperators(Compiler* cm) {
-    /// Operators are the first-ever functions to be defined. This function builds their types, entities 
-    /// and overload counts. The order must agree with the order of operator definitions, 
-    /// and every operator must have at least one entity.
+    /// Operators are the first-ever functions to be defined. This function builds their [types], 
+    /// [functions] and overload counts. The order must agree with the order of operator definitions, 
+    /// and every operator must have at least one function defined.
     for (Int j = 0; j < countOperators; j++) {
         pushInoverloadIds(0, cm);
     }
@@ -3482,7 +3486,7 @@ private void buildOperators(Compiler* cm) {
 }
 
 private void createBuiltins(Compiler* cm) {
-    /// Entities and overloads for the built-in operators, types and functions.
+    /// Entities and functions for the built-in operators, types and functions.
     buildStandardStrings(cm);
     buildOperators(cm);
     cm->entImportedZero = cm->overloadIds.length;
@@ -3549,8 +3553,9 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->i = 0;
     cm->loopCounter = 0;
     cm->nodes = createInListNode(initNodeCap, a);
-    cm->fnMonos = createInListNode(initNodeCap, a);
-    cm->fnMonoIds = createInListInt(8, a);
+    cm->monoCode = createInListNode(initNodeCap, a);
+    cm->monoIds = createMultiList(a);
+    cm->overloadCounts = createMultiList(cm->aTmp); 
 
     if (lx->stringTable->length > 0) {
         memset(cm->activeBindings, 0xFF, lx->stringTable->length*4); // activeBindings is filled with -1
@@ -3561,8 +3566,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->entities.length = proto->entities.length;
     cm->entities.capacity = proto->entities.capacity;
 
-    cm->overloadIds = createInListuint32_t(proto->overloadIds.capacity, cm->aTmp);
-    memcpy(cm->overloadIds.content, proto->overloadIds.content, proto->overloadIds.length*4);
     cm->overloadIds.length = proto->overloadIds.length;
     cm->overloadIds.capacity = proto->overloadIds.capacity;
     cm->overloads = (InListInt){.length = 0, .content = NULL};    
@@ -3588,11 +3591,16 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(Int typeId, Compiler* cm);
 
-private void populateOverloadsForOperatorsAndImports(Compiler* cm) {
-    /// Now that the overloads are freshly allocated, we need to write all the existing entities 
-    /// (operators and imported functions) to the overloads table, which consists of 
-    /// variable-length entries: 
-    /// [count typeId1 typeId2 entId1 entId2]
+private void countOverloadsForOperatorsAndImports(Compiler* cm) {
+    for (Int j = 0; j < countOperators; j++) {
+        Int newListId = listAddMultiList(cm->overloadCounts);
+        cm->activeBindings[-j - 2] = newListId; 
+    }
+} 
+    
+private void createOverloadsForOperatorsAndImports(Compiler* cm) {
+    /// Creates and increments counts (inside [overloadCounts]) for names of operators
+    /// and imports.
     Int o;
     Int countOverls;
     Int currOperId = -1;
@@ -3647,6 +3655,9 @@ testable void createOverloads(Compiler* cm) {
     /// Allocates the table with overloads and semi-fills it (only the imports and built-ins, 
     /// no toplevel). Also finalizes the overloadIds table to contain actual indices 
     /// (not counts that were there initially)
+    createOverloadsForOperatorsAndImports(cm);
+    
+    
     Int neededCount = 0;
     for (Int i = 0; i < cm->overloadIds.length; i++) {
         // a typeId and an entityId for each overload, plus a length field for the list
@@ -3675,34 +3686,20 @@ private void parseToplevelTypes(Compiler* cm) {
 private void parseToplevelConstants(Compiler* cm) {
     /// Parses top-level constants but not functions, and adds their bindings to the scope
     cm->i = 0;
-    const Int len = cm->tokens.length;
+    Arr(Token) toks = cm->tokens.content; 
+    const Int len = toks.length;
     while (cm->i < len) {
-        Token tok = cm->tokens.content[cm->i];
-        if (tok.tp == tokAssignment) {
-            VALIDATEP(cm->tokens.content[cm->i + 1].tp == tokWord, errToplevelAssignment)
-            if (cm->tokens.content[cm->i + 2].tp != tokFn) { 
-                parseUpTo(cm->i + tok.pl2, cm->tokens.content, cm);
+        Token tok = toks.content[cm->i];
+        if (tok.tp == tokAssignment && (cm->i + 2) < len 
+            && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp != tokFn) {
+            VALIDATEP(toks[cm->i + 1].tp == tokWord, errToplevelAssignment)
+            if (toks[cm->i + 2].tp != tokFn) { 
+                parseUpTo(cm->i + tok.pl2, toks, cm);
             } 
         } else {
             cm->i += (tok.pl2 + 1);
         }
     }    
-}
-
-private void surveyToplevelFunctionNames(Compiler* cm) {
-    /// Parses top-level function names, and determines if they have at least 1 parameter 
-    /// to increment overload counts
-    cm->i = 0;
-    const Int len = cm->tokens.length;
-    Token* tokens = cm->tokens.content;
-    while (cm->i < len) {
-        Token tok = tokens[cm->i];
-        if (tok.tp == tokAssignment && cm->i + 2 < len && tokens[cm->i + 2].tp == tokFn) {
-            Int nameId = tokens[cm->i + 1].pl2; 
-            fnDefIncrementOverlCount(nameId, cm);
-        } 
-        cm->i += (tok.pl2 + 1);        
-    } 
 }
 
 private void addParsedOverload(Int overloadId, Int firstParamTypeId, Int fnId, Compiler* cm) {
@@ -3877,8 +3874,8 @@ private void parseFunctionBodies(StackNode* toplevelSignatures, Arr(Token) token
 }
 
 private StackNode* parseToplevelSignatures(Compiler* cm) {
-    /// Walks the top-level functions' signatures (but not bodies).
-    /// Result: the complete overloads & overloadIds tables, and the list of toplevel functions to parse
+    /// Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
+    /// Result: the overload counts and the list of toplevel functions to parse
     StackNode* topLevelSignatures = createStackNode(16, cm->aTmp);
     cm->i = 0;
     const Int len = cm->tokens.length;
@@ -3969,17 +3966,14 @@ testable void printParser(Compiler* cm, Arena* a) {
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(cm);
-        
-        // This gives us overload counts
-        surveyToplevelFunctionNames(cm);
 
         // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
-        createOverloads(cm);
-        populateOverloadsForOperatorsAndImports(cm);
+        countOverloadsForOperatorsAndImports(cm);
         parseToplevelConstants(cm);
         
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
         StackNode* topLevelSignatures = parseToplevelSignatures(cm);
+        createOverloads(cm);
 
 #ifdef SAFETY
         validateOverloadsFull(cm);

@@ -57,11 +57,11 @@ startByte of each string
 
 14. activeBindings = [aTmp] Current entities and overloads in scope. -1 means
 "inactive". Its length = stringTable length.
-1. Vars are < BIG, nameId (index into stringTable) -> bindingId
-2. Type bindings are < BIG, nameId -> bindingId
-3. Type parameter bindings are < -1, nameId => (-paramId - 2) 
-4. Function bindings are < -1, nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
-5. Variables that have been assigned a definite overload are >= BIG and point to the functions table nameId -> (functionId + BIG). These, top-level functions
+1) Vars are < BIG, nameId (index into stringTable) -> bindingId
+2) Type bindings are < BIG, nameId -> bindingId
+3) Type parameter bindings are < -1, nameId => (-paramId - 2) 
+4) Function bindings are < -1, nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
+5) Variables that have been assigned a definite overload are >= BIG and point to the functions table nameId -> (functionId + BIG). These, top-level functions
 and top-level constants are the only immutable vars.
 
 (BIG = 70million)
@@ -70,10 +70,10 @@ and top-level constants are the only immutable vars.
 
 16. nodes = list of AST nodes emitted by the parser
 
-17. fnMonos = list of function monomorphizations. AST nodes stored in a single
-list, with indices stored in [fnMonoInds]
+17. monoCode = list of function monomorphizations. AST nodes stored in a single
+list, with indices stored in [monoIds]
     
-18. fnMonoIds = list of ids
+18. monoIds = list of ids
 Format: [length of what follows (in units of int)](typeId [fnMono]) 
 TypeIds are concrete
 
@@ -83,18 +83,25 @@ TypeIds are concrete
 Format: [length of what follows][typeId][flags = 30 bits 0, 1 bit if it's public, 
 1 bit if it has an exception handler](sorted list of nameIds of fn parameters)
     
-21. entImportedZero = the index of hte first imported entity    
+21. entImportedZero = the index of the first imported entity    
     
-22. overloadIds = [aTmp] Initially, a growing array of counts of all fn names
-encountered. Upper 16 bits contain concrete count, lower 16 bits total count.
-After {createOverloads}, contains overload indices into [overloads]
-    
-23. overloads = links from type to [functions] and [fnMonoIds] 
-Format: [length of what follows](namedGroups)
+22. overloads = links from type to [functions] and [fnMonoIds] 
+Format: (namedGroups)
     
 namedGroup is all the overloads of a single name 
     
-namedGroup = (prefixTypeGroups)
+namedGroup = [16 bits countOuter + 16 bits countRefs]
+             (sorted outer types)(ref indices)(ref types    )(refs)
+             |<---countOuter--->|             |<-countRefs->|
+overload finding algorithm = 
+1) binary-search first countOuter for the outerType 
+2) for result j, get the ref index r from (j + countOuter), and the sentinel s from next
+cell (or use s = countRefs if the cell's last)
+2a) if r or s are negative, transform them via (-x - 1) 
+3) full search from r to s for the full (not outer) type
+4) if found result f (r <= f < s), then the sweet ref is at index
+    2*countOuter + countRefs + f
+  The ref will either be a functionId (if r was non-negative at 2a) or (-monoId - 1)  
     
 prefixTypeGroup = [1 bit flag + 31 bits length (in units of int)]
 [prefixType](actualOverloads)
@@ -104,22 +111,28 @@ actualOverload = (typeId [function]) if flag false, (typeId [fnMonoId]) if true
 For (typeId functionId) case, typeIds are concrete. For (typeId [fnMonoId] it is 
 sorPartial.
     
-24. types = list of all the unique type data. See docs/typeLayout.txt    
+23. types = list of all the unique type data. See docs/typeLayout.txt    
     
-25. typesDict = hash dictionary of types to keep them unique
+24. typesDict = hash dictionary of types to keep them unique
 
-26. imports = [aTmp] imported function overloads
+25. imports = [aTmp] imported function overloads
     
-27. countOperatorEntities = ?
+26. countOperatorEntities = ?
 
-28. countNonparsedEntities = the index of the first parsed (as opposed to being built-in or imported) entity
+27. countNonparsedEntities = the index of the first parsed (as opposed to being built-in or imported) entity
     
-29. expStack = [aTmp] temporary scratch space for type checking/resolving an expression    
+28. expStack = [aTmp] temporary scratch space for type checking/resolving an expression    
     
-30. typeStack = [aTmp] temporary scratch space for type params. Entries: [nameId arity]    
+29. typeStack = [aTmp] temporary scratch space for type params. Entries: [nameId arity]    
     
-31. tempStack = [aTmp]  a very temporary scratch space for stuff    
+30. tempStack = [aTmp]  a very temporary scratch space for stuff    
     
+31. overloadCounts = [aTmp] a multilist used during overloads
+construction.
+Format: for every nameId, including the operators, contains
+a list of [ordered pairs: (outerTypeId count)]. Counts are positive
+for concrete types and negative (-x) for generic types.
+
 32. i = current index into whatever we're reading (source code, tokens)    
     
 33. wasError = flag if the compiler has encountered an error    

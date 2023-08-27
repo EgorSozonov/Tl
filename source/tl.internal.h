@@ -468,6 +468,9 @@ typedef struct {
 typedef struct { // :FunctionHeader
     bool isPublic;
     bool hasExceptionHandler;
+    uint16_t externalNameId;
+    uint8_t class;
+    uint8_t emit;
 } FunctionHeader;
     
 typedef struct { //:Entity
@@ -489,6 +492,7 @@ typedef struct {
     Int sentinelToken;
     untt name;
     Int fnOrEntityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities] 
+    bool isFunction; 
 } Toplevel;
 
 typedef struct ScopeStackFrame ScopeStackFrame;
@@ -545,12 +549,11 @@ struct Compiler { //:Compiler
     Arr(Int) activeBindings;    // [aTmp]
     Int loopCounter;
     InListNode nodes;
-    InListNode fnMonos;
-    InListInt fnMonoIds;
+    InListNode monoCode;
+    MultiList* monoIds;
     InListEntity entities;
     InListInt functions;
     Int entImportedZero;
-    InListUns overloadIds;      // [aTmp]
     InListInt overloads;
     InListInt types;
     StringDict* typesDict;
@@ -560,6 +563,7 @@ struct Compiler { //:Compiler
     StackInt* expStack;   // [aTmp]
     StackInt* typeStack;  // [aTmp]
     StackInt* tempStack;  // [aTmp]
+    MultiList* overloadCounts; // [aTmp]
     
     // GENERAL STATE
     Int i;
