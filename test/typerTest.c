@@ -46,7 +46,6 @@ private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int
         }
         pushIntokens(tok, result);
     }
-    result->totalTokens = totalTokens;
     
     return result;
 }

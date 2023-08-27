@@ -285,12 +285,16 @@ testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
     
 //}}}
 //{{{ Datatypes a la carte
+    
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Token)
 DEFINE_INTERNAL_LIST(tokens, Token, a)
+    
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Toplevel)
+DEFINE_INTERNAL_LIST(toplevels, Toplevel, a)
     
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node)
 DEFINE_INTERNAL_LIST(nodes, Node, a)
@@ -309,6 +313,7 @@ DEFINE_INTERNAL_LIST(overloadIds, uint32_t, aTmp)
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(EntityImport)
 DEFINE_INTERNAL_LIST(imports, EntityImport, aTmp)
+    
 //}}}
 //{{{ Strings
 
@@ -1920,7 +1925,7 @@ testable void printLexer(Compiler* lx) {
     Int indent = 0;
     Arena* a = lx->a;
     Stackint32_t* sentinels = createStackint32_t(16, a);
-    for (int i = 0; i < lx->totalTokens; i++) {
+    for (int i = 0; i < lx->tokens.length; i++) {
         Token tok = lx->tokens.content[i];
         for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
             popint32_t(sentinels);
@@ -2076,6 +2081,7 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     
 //}}}
 //{{{ Parser
+//{{{ Parser utils    
     
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
     
@@ -2102,6 +2108,32 @@ _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Comp
 
 #define throwExcParser(errMsg, cm) throwExcParser0(errMsg, __LINE__, cm)
 
+private Int getActiveVar(Int nameId, Compiler* cm) {
+    Int rawValue = cm->activeBindings[nameId]; 
+    VALIDATEP(rawValue > -1 && rawValue < BIG, errUnknownFunction) 
+    return rawValue;
+}
+    
+private Int getActiveOverload(Int nameId, Compiler* cm) {
+    Int rawValue = cm->activeBindings[nameId]; 
+    VALIDATEP(rawValue < -1, errUnknownFunction) 
+    return -rawValue - 2;
+}
+    
+private Int getActiveFunction(Int nameId, Compiler* cm) {
+    Int rawValue = cm->activeBindings[nameId]; 
+    VALIDATEP(rawValue >= BIG, errUnknownFunction) 
+    return rawValue - BIG;
+}
+    
+private Int getActiveType(Int nameId, Compiler* cm) {
+    Int rawValue = cm->activeBindings[nameId]; 
+    VALIDATEP(rawValue > -1, errUnknownType) 
+    return rawValue;
+}
+    
+//}}} 
+    
 private Int createEntity(Int nameId, Compiler* cm) {
     /// Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope
     Int mbBinding = cm->activeBindings[nameId];
@@ -2318,10 +2350,9 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
     /// Returns the type of the single item.
     Int typeId = -1;
     if (tk.tp == tokWord) {
-        Int entityId = cm->activeBindings[tk.pl2];
-        VALIDATEP(entityId > -1, errUnknownBinding) 
-        typeId = cm->entities.content[entityId].typeId;
-        pushInnodes((Node){.tp = nodId, .pl1 = entityId, .pl2 = tk.pl2, 
+        Int varId = getActiveVar(tk.pl2, cm);
+        typeId = varId < BIG ? (cm->entities.content[varId].typeId) : (cm->functions.content[varId + 1]);
+        pushInnodes((Node){.tp = nodId, .pl1 = varId, .pl2 = tk.pl2, 
                            .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
     } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
@@ -2429,9 +2460,8 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
             cm->i++; // CONSUME the verbatim token
         } else {
             if (tokType == tokWord) {
-                Int mbBnd = cm->activeBindings[cTk.pl2];
-                VALIDATEP(mbBnd != -1, errUnknownBinding)
-                pushInnodes((Node){ .tp = nodId, .pl1 = mbBnd, .pl2 = cTk.pl2, 
+                Int varId = getActiveVar(cTk.pl2, cm);
+                pushInnodes((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2, 
                                     .startBt = cTk.startBt, .lenBts = cTk.lenBts}, cm);
             } else if (tokType == tokOperator) {
                 exprOperator(cTk, tokens, cm);
@@ -2971,7 +3001,6 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
         }
         finalizeLexer(lx);
     }
-    lx->totalTokens = lx->tokens.length;
     return lx;
 }
 
@@ -3490,13 +3519,14 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     Compiler* cm = lx;
     cm->activeBindings = allocateOnArena(4*lx->stringTable->length, lx->aTmp);
     
-    Int initNodeCap = lx->totalTokens > 64 ? lx->totalTokens : 64;
+    Int initNodeCap = lx->tokens.length > 64 ? lx->tokens.length : 64;
     cm->scopeStack = createScopeStack();
     cm->backtrack = createStackParseFrame(16, lx->aTmp);
     cm->i = 0;
     cm->loopCounter = 0;
     cm->nodes = createInListNode(initNodeCap, a);
     cm->fnMonos = createInListNode(initNodeCap, a);
+    cm->fnMonoIds = createInListInt(8, a);
 
     if (lx->stringTable->length > 0) {
         memset(cm->activeBindings, 0xFF, lx->stringTable->length*4); // activeBindings is filled with -1
@@ -3621,7 +3651,7 @@ private void parseToplevelTypes(Compiler* cm) {
 private void parseToplevelConstants(Compiler* cm) {
     /// Parses top-level constants but not functions, and adds their bindings to the scope
     cm->i = 0;
-    const Int len = cm->totalTokens;
+    const Int len = cm->tokens.length;
     while (cm->i < len) {
         Token tok = cm->tokens.content[cm->i];
         if (tok.tp == tokAssignment) {
@@ -3639,7 +3669,7 @@ private void surveyToplevelFunctionNames(Compiler* cm) {
     /// Parses top-level function names, and determines if they have at least 1 parameter 
     /// to increment overload counts
     cm->i = 0;
-    const Int len = cm->totalTokens;
+    const Int len = cm->tokens.length;
     Token* tokens = cm->tokens.content;
     while (cm->i < len) {
         Token tok = tokens[cm->i];
@@ -3707,15 +3737,15 @@ private void validateOverloadsFull(Compiler* cm) {
 }
 #endif
 
-testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm) {
-    /// Parses a top-level function signature. Emits no nodes, only an entity and an overload. 
-    /// Saves the info to "toplevelSignatures". Pre-condition: we are 2 tokens past the tokFn.
+testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler* cm) {
+    /// Parses a function signature. Emits no nodes, only an entity and an overload. 
+    /// Saves the info to [toplevels]. Pre-condition: we are 2 tokens past the tokFn.
     Int fnStartTokenId = cm->i - 2;    
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
     
-    Token fnName = cm->tokens.content[cm->i];
-    Int fnNameId = fnName.pl2;
+    Int fnNameId = name & LOWER24BITS;
     Int activeBinding = cm->activeBindings[fnNameId];
+    
     Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
     
     cm->i++; // CONSUME the function name token
@@ -3739,6 +3769,11 @@ testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures,
     Token parens = cm->tokens.content[paramsTokenInd];   
     Int paramsSentinel = cm->i + parens.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list            
+    
+    Int fnEntityId = cm->functions.length;    
+    pushInfunctions(0, cm); // we don't know the length yet
+    
+    
     Int arity = 0;
     while (cm->i < paramsSentinel) {
         Token paramName = cm->tokens.content[cm->i];
@@ -3762,18 +3797,15 @@ testable void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures,
     
     Int uniqueTypeId = mergeType(tentativeTypeInd, cm);
 
-    bool isOverload = arity > 0;
-    Int fnEntityId = cm->entities.length;    
+    
     pushInentities(((Entity){.emit = isOverload ? emitOverloaded : emitPrefix, .class = classImmutable,
                             .typeId = uniqueTypeId}), cm);
-    if (isOverload) {
-        addParsedOverload(overloadId, cm->types.content[uniqueTypeId + 2], fnEntityId, cm);
-    } else {
-        cm->activeBindings[fnNameId] = fnEntityId;
-    }
+    addParsedOverload(overloadId, cm->types.content[uniqueTypeId + 2], fnEntityId, cm);
 
     // not a real node, just a record to later find this signature
-    pushNode((Node){ .tp = nodFnDef, .pl1 = fnEntityId, .pl2 = paramsTokenInd,
+    pushIntoplevels((Toplevel){.indToken = fnStartTokenId, .sentinel = fnSentinelToken,
+            .name = , .fnOrEntityId = fnId }, cm); 
+    pushNode((Node){ .indToken = , .pl1 = fnEntityId, .pl2 = paramsTokenInd,
                      .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
 }
 
@@ -3831,7 +3863,7 @@ private StackNode* parseToplevelSignatures(Compiler* cm) {
     /// Result: the complete overloads & overloadIds tables, and the list of toplevel functions to parse
     StackNode* topLevelSignatures = createStackNode(16, cm->aTmp);
     cm->i = 0;
-    const Int len = cm->totalTokens;
+    const Int len = cm->tokens.length;
     while (cm->i < len) {
         Token tok = cm->tokens.content[cm->i];
         if (tok.tp == tokFn) {
@@ -4172,6 +4204,47 @@ private Int typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt
     return mergeType(tentativeTypeId, cm); 
 }
     
+private Int typeCreateFnSignature(StackInt* exp, Int startInd, Int length, StackInt* params, 
+                             untt nameAndLen, Compiler* cm) {
+    /// Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
+    /// in "params". The sequence must be flat, i.e. not include any nested structs.
+    /// Returns the typeId of the new type 
+    Int tentativeTypeId = cm->types.length; 
+    pushIntypes(0, cm); 
+    Int sentinel = startInd + length; 
+    if (length % 4 == 2 && penultimate(exp) == tyeMeta) {
+        sentinel -= 2; 
+    }
+#ifdef SAFETY
+    VALIDATEP(sentinel - startInd % 4 == 0, "typeCreateStruct err not divisible by 4")
+#endif
+    Int countFields = (sentinel - startInd)/4;
+    typeAddHeader((TypeHeader){
+        .sort = sorStruct, .arity = params->length/2, .depth = countFields,
+        .nameAndLen = nameAndLen}, cm); 
+    for (Int j = 1; j < params->length; j += 2) {
+        pushIntypes(params->content[j], cm); 
+    }
+    
+    for (Int j = startInd + 1; j < sentinel; j += 4) {
+        // names of fields
+#ifdef SAFETY
+        VALIDATEP(exp->content[j - 1] == tydField, "not a field")
+#endif
+        pushIntypes(exp->content[j], cm); 
+    }
+    
+    for (Int j = startInd + 3; j < sentinel; j += 4) {
+        // types of fields
+#ifdef SAFETY
+        VALIDATEP(exp->content[j - 1] == tyeType, "not a type")
+#endif
+        pushIntypes(exp->content[j], cm); 
+    }
+    cm->types.content[tentativeTypeId] = cm->types.length - tentativeTypeId - 1;
+    return mergeType(tentativeTypeId, cm); 
+} 
+    
 private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compiler* cm) {
     /// Processes the "type expression" produced by "typeDef".
     /// Returns the typeId of the new typeId
@@ -4214,7 +4287,7 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
         return typeCreateStruct(exp, 2, lengthNewStruct, params, nameAndLen, cm);
     } else {
         Int lengthNewSignature = exp->content[1]*4; // *4 because for every field there are 4 ints
-        return typeCreate(exp, 2, lengthNewSignature, params, 0, cm);
+        return typeCreateFnSignature(exp, 2, lengthNewSignature, params, 0, cm);
     }
 }
     
@@ -5407,7 +5480,7 @@ int equalityLexer(Compiler a, Compiler b) {
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
-    int commonLength = a.totalTokens < b.totalTokens ? a.totalTokens : b.totalTokens;
+    int commonLength = a.tokens.length < b.tokens.length ? a.tokens.length : b.tokens.length;
     int i = 0;
     for (; i < commonLength; i++) {
         Token tokA = a.tokens.content[i];
@@ -5433,7 +5506,7 @@ int equalityLexer(Compiler a, Compiler b) {
             return i;
         }
     }
-    return (a.totalTokens == b.totalTokens) ? -2 : i;        
+    return (a.tokens.length == b.tokens.length) ? -2 : i;
 }
     
 private void printExpSt(StackInt* st) {

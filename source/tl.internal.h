@@ -278,43 +278,45 @@ typedef struct { //:Token
 /** Nodes */
 #define nodId           7    // pl1 = index of entity, pl2 = index of name
 #define nodCall         8    // pl1 = index of entity, pl2 = arity
-#define nodBinding      9    // pl1 = index of entity, pl2 = 1 if it's a type binding
+#define nodComplexCall  9    // pl2 = arity
+#define nodBinding     10    // pl1 = index of entity, pl2 = 1 if it's a type binding
 
 // Punctuation (inner node)
-#define nodScope       10     // (* This is resumable but trivially so, that's why it's not grouped with the others
-#define nodExpr        11
-#define nodAssignment  12
-#define nodReassign    13     // :=
-#define nodAccessor    14     // pl1 = "acc" constants
+#define nodScope       11     // (* This is resumable but trivially so, that's why it's not grouped with the others
+#define nodExpr        12
+#define nodAssignment  13
+#define nodReassign    14     // :=
+#define nodAccessor    15     // pl1 = "acc" constants
+#define nodArglist     16 // Used after nodComplexCall
 
 // Single-shot core syntax forms
-#define nodAlias       15
-#define nodAssert      16
-#define nodAssertDbg   17
-#define nodAwait       18
-#define nodBreak       19     // pl1 = number of label to break to, or -1 if none needed
-#define nodCatch       20     // "(catch e => print e)"
-#define nodContinue    21     // pl1 = number of label to continue to, or -1 if none needed
-#define nodDefer       22
-#define nodEmbed       23     // noParen. Embed a text file as a string literal, or a binary resource file
-#define nodExport      24       
-#define nodExposePriv  25     // TODO replace with "import". This is for test files
-#define nodFnDef       26     // pl1 = entityId
-#define nodIface       27
-#define nodLambda      28
-#define nodMeta        29       
-#define nodPackage     30     // for single-file packages
-#define nodReturn      31
-#define nodTry         32     // the Rust kind of "try" (early return from current function)
-#define nodYield       33
-#define nodIfClause    34       
-#define nodWhile       34     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
-#define nodWhileCond   37
+#define nodAlias       17
+#define nodAssert      18
+#define nodAssertDbg   19
+#define nodAwait       20
+#define nodBreak       21     // pl1 = number of label to break to, or -1 if none needed
+#define nodCatch       22     // "(catch e => print e)"
+#define nodContinue    23     // pl1 = number of label to continue to, or -1 if none needed
+#define nodDefer       24
+#define nodEmbed       25     // noParen. Embed a text file as a string literal, or a binary resource file
+#define nodExport      26       
+#define nodExposePriv  27     // TODO replace with "import". This is for test files
+#define nodFnDef       28     // pl1 = entityId
+#define nodIface       29
+#define nodLambda      30
+#define nodMeta        31       
+#define nodPackage     32     // for single-file packages
+#define nodReturn      33
+#define nodTry         34     // the Rust kind of "try" (early return from current function)
+#define nodYield       35
+#define nodIfClause    36       
+#define nodWhile       37     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
+#define nodWhileCond   38
 
 // Resumable core forms
-#define nodIf          37
-#define nodImpl        38
-#define nodMatch       39     // pattern matching on sum type tag
+#define nodIf          39
+#define nodImpl        40
+#define nodMatch       41     // pattern matching on sum type tag
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)
@@ -447,6 +449,11 @@ typedef struct {
     void* scopeStackFrame; // only for tp = scope or expr
 } ParseFrame;
 
+typedef struct {
+    byte isPublic;
+    byte hasExceptionHandler;
+
+} FunctionHeader;
 
 #define classMutableGuaranteed 0
 #define classMutatedGuaranteed 1
@@ -470,25 +477,30 @@ typedef struct { //:Entity
     uint8_t emit;
 } Entity;
 
-
 typedef struct {
     Int nameId;  // index in the stringTable of the current compilation
     Int externalNameId; // index in the "codegenText"
     Int typeInd; // index in the intermediary array of types that is imported alongside
 } EntityImport;
 
+typedef struct {
+    /// Toplevel definitions (functions, variables, types) for parsing order and name searchability
+    Int indToken;
+    Int sentinelToken;
+    untt name;
+    Int fnOrEntityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities] 
+} Toplevel;
+
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
 struct ScopeChunk {
     ScopeChunk *next;
     int length; // length is divisible by 4
-    Int content[];   
+    Int content[];
 };
 
-/** 
- * Either currChunk->next == NULL or currChunk->next->next == NULL
- */
 typedef struct { //:ScopeStack
+    /// Either currChunk->next == NULL or currChunk->next->next == NULL
     ScopeChunk* firstChunk;
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
@@ -511,94 +523,48 @@ DEFINE_INTERNAL_LIST_TYPE(uint32_t)
 
 DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 
-
-/*
- * COMPILER DATA
- * 
- * 1) a = Arena for the results
- * AST (i.e. the resulting code)
- * Entities
- * Types
- *
- * 2) aBt = Arena for the temporary stuff (like the backtrack). Freed after end of parsing
- *
- * 3) ScopeStack (temporary, but knows how to free parts of itself, so in a separate arena)
- *
- * WORKFLOW
- * The "stringTable" is frozen: it was filled by the lexer. The "bindings" table is growing
- * with every new assignment form encountered. "Nodes" is obviously growing with the new AST nodes
- * emitted.
- * Any new span (scope, expression, assignment etc) means 
- * - pushing a ParseFrame onto the "backtrack" stack
- * - if the new frame is a lexical scope, also pushing a scope onto the "scopeStack"
- * The end of a span means popping from "backtrack" and also, if needed, popping from "scopeStack".
- *
- * ENTITIES AND OVERLOADS
- * In the parser, all non-functions are bound to Entities, but functions are instead bound to Overloads.
- * Binding ids go: 0, 1, 2... Overload ids go: -2, -3, -4...
- * Those overloads are used for counting how many functions for each name there are.
- * Then they are resolved at the stage of the typer, after which there are only the Entities.
- */
 struct Compiler { //:Compiler
-    String* sourceCode;
-    Int inpLength;
-
+    /// See docs/compiler.txt, docs/architecture.svgz
     LanguageDefinition* langDef;
 
     // LEXING
-    InListToken tokens; 
+    String* sourceCode;
+    Int inpLength;
+    InListToken tokens;
     InListInt newlines;
-    InListInt numeric;         // [aTmp]
-    StackBtToken* lexBtrack;   // [aTmp]
-    
-    Stackint32_t* stringTable; // The table of unique strings from code. Contains only the startByte of each string.
-    StringDict* stringDict;    // A hash table for quickly deduplicating strings. Points into stringTable
-
-    Int lastClosingPunctInd;   // temp, the index of the last encountered closing punctuation sign, used for statement length
-    Int totalTokens;           // set in "finalizeLexing"
+    InListInt numeric;          // [aTmp]
+    StackBtToken* lexBtrack;    // [aTmp]
+    Stackint32_t* stringTable;
+    StringDict* stringDict;
+    Int lastClosingPunctInd;
 
     // PARSING
-    StackParseFrame* backtrack;// [aTmp] 
-    ScopeStack* scopeStack;    // stack of currently active scopes (for active bindings tracking)
-
-    Arr(Int) activeBindings;   // [aTmp] length = stringTable.length
-    /// Current entities and overloads in scope. -1 means "inactive"
-    /// Var & type bindings are nameId (index into stringTable) -> bindingId
-    /// Type parameter bindings are nameId => (-paramId - 2) 
-    /// Function bindings are nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
-
-    Int loopCounter;           // used to assign unique labels to loops. Restarts at function start
-
+    InListToplevel toplevels;  
+    StackParseFrame* backtrack; // [aTmp]
+    ScopeStack* scopeStack;
+    Arr(Int) activeBindings;    // [aTmp]
+    Int loopCounter;
     InListNode nodes;
-    InListNode fnMonos;        // Function monomorphizations. Created for generic functions 
-    InListEntity entities;    // growing array of all entities (variables, function defs, constants etc) ever encountered    
-    Int entImportedZero;      // the index of the first imported entity
-    
-    /**
-     * [aTmp] Initially, growing array of counts of all fn names encountered.
-     * Upper 16 bits contain concrete count, lower 16 bits total count. After "createOverloads", contains overload indices
-     * into the "overloads" table.
-     */
-    InListUns overloadIds;
-
-    InListInt overloads; // Contains 2 types of pairs: (concreteType entityId) and (genericType fnMonoListId)
-
-    InListInt types; // ([] (arity + 1) returnType param1Type param2Type...)
+    InListNode fnMonos;
+    InListInt fnMonoIds;
+    InListEntity entities;
+    InListInt functions;
+    Int entImportedZero;
+    InListUns overloadIds;      // [aTmp]
+    InListInt overloads;
+    InListInt types;
     StringDict* typesDict;
-
-    InListEntityImport imports; // [aTmp] imported function overloads
-
+    InListEntityImport imports; // [aTmp]
     Int countOperatorEntities;
-    Int countNonparsedEntities; // the index of the first parsed (as opposed to being built-in or imported) entity
-    StackInt* expStack;   // [aTmp] temporary scratch space for type checking/resolving an expression
-    StackInt* typeStack;  // [aTmp] temporary scratch space for type params. Entries: [nameId arity]
-    StackInt* tempStack;  // [aTmp] a very temporary scratch space for stuff
+    Int countNonparsedEntities;
+    StackInt* expStack;   // [aTmp]
+    StackInt* typeStack;  // [aTmp]
+    StackInt* tempStack;  // [aTmp]
     
     // GENERAL STATE
-    Int i;                     // index in the input
+    Int i;
     bool wasError;
     String* errMsg;
-
     Arena* a;
     Arena* aTmp;
 };
