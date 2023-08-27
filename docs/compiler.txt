@@ -57,10 +57,14 @@ startByte of each string
 
 14. activeBindings = [aTmp] Current entities and overloads in scope. -1 means
 "inactive". Its length = stringTable length.
-Vars are nameId (index into stringTable) -> bindingId
-Type bindings are nameId -> bindingId
-Type parameter bindings are nameId => (-paramId - 2) 
-Function bindings are nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
+1. Vars are < BIG, nameId (index into stringTable) -> bindingId
+2. Type bindings are < BIG, nameId -> bindingId
+3. Type parameter bindings are < -1, nameId => (-paramId - 2) 
+4. Function bindings are < -1, nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
+5. Variables that have been assigned a definite overload are >= BIG and point to the functions table nameId -> (functionId + BIG). These, top-level functions
+and top-level constants are the only immutable vars.
+
+(BIG = 70million)
 
 15. loopCounter = used to assign unique labels to loops during parsing. Restarts at function start
 
@@ -70,6 +74,8 @@ Function bindings are nameId -> (-overloadId - 2). So a negative value less than
 list, with indices stored in [fnMonoInds]
     
 18. fnMonoIds = list of ids
+Format: [length of what follows (in units of int)](typeId [fnMono]) 
+TypeIds are concrete
 
 19. entities = list of entites for local variables and non-function constants
     
@@ -79,9 +85,24 @@ Format: [length of what follows][typeId][flags = 30 bits 0, 1 bit if it's public
     
 21. entImportedZero = the index of hte first imported entity    
     
-22. overloadIds = [aTmp] Initially, a growing array of counts of all fn names encountered. Upper 16 bits contain concrete count, lower 16 bits total count. After {createOverloads}, contains overload indices into the "overloads" table.
+22. overloadIds = [aTmp] Initially, a growing array of counts of all fn names
+encountered. Upper 16 bits contain concrete count, lower 16 bits total count.
+After {createOverloads}, contains overload indices into [overloads]
     
-23. overloads = links from type to functions and fnMonoIds 
+23. overloads = links from type to [functions] and [fnMonoIds] 
+Format: [length of what follows](namedGroups)
+    
+namedGroup is all the overloads of a single name 
+    
+namedGroup = (prefixTypeGroups)
+    
+prefixTypeGroup = [1 bit flag + 31 bits length (in units of int)]
+[prefixType](actualOverloads)
+    
+actualOverload = (typeId [function]) if flag false, (typeId [fnMonoId]) if true
+    
+For (typeId functionId) case, typeIds are concrete. For (typeId [fnMonoId] it is 
+sorPartial.
     
 24. types = list of all the unique type data. See docs/typeLayout.txt    
     

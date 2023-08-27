@@ -136,7 +136,8 @@ extern const char errTypeWrongReturnType[];
 extern const char errTypeMismatch[];
 extern const char errTypeMustBeBool[];
 extern const char errTypeTooManyParameters[];
-
+extern const char errAssignmentAccessOnToplevel[];
+    
 #endif
 
 

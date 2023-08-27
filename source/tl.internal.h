@@ -449,17 +449,12 @@ typedef struct {
     void* scopeStackFrame; // only for tp = scope or expr
 } ParseFrame;
 
-typedef struct {
-    byte isPublic;
-    byte hasExceptionHandler;
 
-} FunctionHeader;
-
-#define classMutableGuaranteed 0
-#define classMutatedGuaranteed 1
-#define classMutableNullable   2
-#define classMutatedNullable   3
-#define classImmutable         4
+#define classMutableGuaranteed 1
+#define classMutatedGuaranteed 2
+#define classMutableNullable   3
+#define classMutatedNullable   4
+#define classImmutable         5
 #define emitPrefix         1  // normal singular native names
 #define emitOverloaded     2  // normal singular native names
 #define emitPrefixShielded 3  // a native name in need of shielding from target reserved word (by appending a "_")
@@ -470,6 +465,11 @@ typedef struct {
 #define emitInfixDot       8  // emitted as a "dot-call", like ".toString()"
 #define emitNop            9  // for unary operators that don't need to be emitted, like ","
 
+typedef struct { // :FunctionHeader
+    bool isPublic;
+    bool hasExceptionHandler;
+} FunctionHeader;
+    
 typedef struct { //:Entity
     Int typeId;
     uint16_t externalNameId;

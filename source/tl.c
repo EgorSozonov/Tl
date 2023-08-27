@@ -878,6 +878,7 @@ const char errOperatorUsedInappropriately[] = "Operator used in an inappropriate
 const char errAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
 const char errMutation[]                    = "Cannot parse mutation, it must look like `freshIdentifier` += `expression`";
 const char errAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
+const char errAssignmentAccessOnToplevel[]  = "Accessor on the left side of an assignment at toplevel";
 const char errReturn[]                      = "Cannot parse return statement, it must look like `return ` {expression}";
 const char errScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
 const char errLoopBreakOutside[]            = "The break keyword can only be used inside a loop scope!";
@@ -2113,31 +2114,20 @@ private Int getActiveVar(Int nameId, Compiler* cm) {
     VALIDATEP(rawValue > -1 && rawValue < BIG, errUnknownFunction) 
     return rawValue;
 }
-    
-private Int getActiveOverload(Int nameId, Compiler* cm) {
-    Int rawValue = cm->activeBindings[nameId]; 
-    VALIDATEP(rawValue < -1, errUnknownFunction) 
-    return -rawValue - 2;
+
+private Int getTypeOfVar(Int varId, Compiler* cm) {
+    return varId < BIG ? cm->entities.content[varId].typeId : cm->functions.content[varId - BIG + 1]; 
+} 
+
+private bool isVarMutable(Int varId, Compiler* cm) {
 }
-    
-private Int getActiveFunction(Int nameId, Compiler* cm) {
-    Int rawValue = cm->activeBindings[nameId]; 
-    VALIDATEP(rawValue >= BIG, errUnknownFunction) 
-    return rawValue - BIG;
-}
-    
-private Int getActiveType(Int nameId, Compiler* cm) {
-    Int rawValue = cm->activeBindings[nameId]; 
-    VALIDATEP(rawValue > -1, errUnknownType) 
-    return rawValue;
-}
-    
-//}}} 
     
 private Int createEntity(Int nameId, Compiler* cm) {
-    /// Validates a new binding (that it is unique), creates an entity for it, and adds it to the current scope
+    /// Validates a new binding (that it is unique), creates an entity for it, 
+    /// and adds it to the current scope
     Int mbBinding = cm->activeBindings[nameId];
-    VALIDATEP(mbBinding < 0, errAssignmentShadowing) // if it's a binding, it should be -1, and if overload, <-1
+    VALIDATEP(mbBinding < 0, errAssignmentShadowing)
+    // if it's a binding, it should be -1, and if overload, < -1
 
     Int newEntityId = cm->entities.length;
     pushInentities(((Entity){.emit = emitPrefix, .class = classMutableGuaranteed}), cm);
@@ -2151,11 +2141,28 @@ private Int createEntity(Int nameId, Compiler* cm) {
     return newEntityId;
 }
 
+private Int createFunctionHeader(FunctionHeader fnHeader, Compiler* cm) {
+    /// Returns the functionId of the newly defined function. After this call, push the param names.
+    /// After the params, add the length to the header created here
+    Int newFnId = cm->functions.length;
+    Int hdr = 0; 
+    if (fnHeader.isPublic) {
+        hdr += (1 << 17);
+    }
+    if (fnHeader.hasExceptionHandler) {
+        hdr += (1 << 16);
+    }
+    pushInfunctions(hdr, cm);
+    return newFnId;
+}
+
 private Int calcSentinel(Token tok, Int tokInd) {
     /// Calculates the sentinel token for a token at a specific index
     return (tok.tp >= firstSpanTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
-
+    
+//}}}
+    
 testable void pushLexScope(ScopeStack* scopeStack);
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 testable Int typeExpr(Int nameId, Int nameLen, bool isFunction, Compiler* cm);
@@ -2227,37 +2234,56 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
         *tok = tokens[cm->i];
     }
 }
+    
+private void assignmentWordLeftSide(Token tk, Arr(Token) tokens, Compiler* cm) {
+    /// Parses an assignment's left side that starts with a word, including accessor strips
+    /// like "x.foo.bar" or "y@+(x 1)"
+    
+    if (tokens[cm->i + 1].tp != tokAccessor) {
+        pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, 
+                           .lenBts = bindingTk.lenBts}, cm);
+        cm->i++; // CONSUME the word token before the assignment sign
+        return; 
+    }
+    VALIDATEP(!isToplevel, errAssignmentAccessOnToplevel)
+    
+}
 
-private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Compiler* cm) {
     /// Parses an assignment like "x = 5 or Foo = (.id Int)". The right side must never 
     /// be a scope or contain any loops, or recursion will ensue
     Int sentinelToken = cm->i + tok.pl2;
     VALIDATEP(sentinelToken >= cm->i + 2, errAssignment)
-
     Token bindingTk = tokens[cm->i];
-    VALIDATEP(bindingTk.tp == tokWord || bindingTk.tp == tokTypeName, errAssignment)
     if (bindingTk.tp == tokWord) {
-        Int newBindingId = createEntity(bindingTk.pl2, cm);
-
-        push(((ParseFrame){ .tp = nodAssignment, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
+        push(((ParseFrame){.tp = nodAssignment, .startNodeInd = cm->nodes.length, 
+                           .sentinelToken = sentinelToken }), cm->backtrack);
         pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
         
-        pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-        cm->i++; // CONSUME the word token before the assignment sign
-
-        Int declaredTypeId = -1;
+        assignmentWordLeftSide(bindingTk, tokens, cm)) {
 
         Token rTk = tokens[cm->i];
-        Int rightTypeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-        VALIDATEP(rightTypeId != -2, errAssignment)
-        VALIDATEP(declaredTypeId == -1 || rightTypeId == declaredTypeId, errTypeMismatch)
-        
-        if (rightTypeId > -1) {
-            cm->entities.content[newBindingId].typeId = rightTypeId;
+        Int rightType = -1; 
+        if (rTk.tp == tokFn) {
+            // TODO newFnId = parseFnDef(&rightType, cm); 
+        } else {
+            rightType = exprHeadless(sentinelToken, rTk.startBt, 
+                                       tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+            Int newBindingId = createEntity(bindingTk.pl2, cm);
+            VALIDATEP(rightType != -2, errAssignment)
+            if (rightType > -1) {
+                cm->entities.content[newBindingId].typeId = rightType;
+            }
         }
-    } else {
+    } else if (bindingTk.tp == tokTypeName) {
         typeExpr(bindingTk.pl2, bindingTk.lenBts, false, cm); 
-    }
+    } else {
+        throwExcParser(errAssignment, cm);
+    } 
+}
+
+private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
+    assignmentWorker(tok, false, tokens, cm); 
 }
 
 private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
@@ -2351,7 +2377,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
     Int typeId = -1;
     if (tk.tp == tokWord) {
         Int varId = getActiveVar(tk.pl2, cm);
-        typeId = varId < BIG ? (cm->entities.content[varId].typeId) : (cm->functions.content[varId + 1]);
+        typeId = getTypeOfVar(varId, cm);
         pushInnodes((Node){.tp = nodId, .pl1 = varId, .pl2 = tk.pl2, 
                            .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
     } else if (tk.tp == tokOperator) {
@@ -2563,10 +2589,9 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
     } else if (tok.tp == tokWord) {        
         Int nameId = tok.pl2;
         Int mbBinding = cm->activeBindings[nameId];
-        VALIDATEP(mbBinding != -1, errUnknownBinding)    
         pushInnodes((Node){.tp = nodId, .pl1 = mbBinding, .pl2 = nameId, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
         if (mbBinding > -1) {
-            typeId = cm->entities.content[mbBinding].typeId;
+            typeId = getTypeOfVar(mbBinding, cm);
         }
     } else {
         return -2;
@@ -2592,9 +2617,8 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int sentinelToken = cm->i + tok.pl2;
 
     Token bindingTk = tokens[cm->i];
-    Int entityId = cm->activeBindings[bindingTk.pl2];
+    Int varId = getActiveVar(bindingTk.pl2, cm);
     Entity ent = cm->entities.content[entityId];
-    VALIDATEP(entityId > -1, errUnknownBinding)
     VALIDATEP(ent.class < classImmutable, errCannotMutateImmutable)
 
     push(((ParseFrame){ .tp = nodReassign, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
@@ -2645,11 +2669,11 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
 #ifdef SAFETY
     VALIDATEP(bindingTk.tp == tokWord, errMutation);
 #endif
-    Int leftEntityId = cm->activeBindings[bindingTk.pl2];
+    Int leftEntityId = getActiveVar(bindingTk.pl2, cm);
+    Int leftType = getTypeOfVar(leftEntityId, cm); 
     Entity leftEntity = cm->entities.content[leftEntityId];
     VALIDATEP(leftEntityId > -1 && leftEntity.typeId > -1, errUnknownBinding);
     VALIDATEP(leftEntity.class < classImmutable, errCannotMutateImmutable);
-    Int leftType = cm->entities.content[leftEntityId].typeId;
 
     Int operatorOv;
     bool foundOv = findOverload(leftType, cm->overloadIds.content[opType], cm->overloadIds.content[opType + 1], &operatorOv, cm);
@@ -3673,18 +3697,15 @@ private void surveyToplevelFunctionNames(Compiler* cm) {
     Token* tokens = cm->tokens.content;
     while (cm->i < len) {
         Token tok = tokens[cm->i];
-        if (tok.tp == tokAssignment && tokens[cm->i + 2].tp == tokFn) {
-            Int j = cm->i + 2; // tokFn 
-            if (tokens[j].pl2 > 0) {
-                Int nameId = tokens[cm->i + 1].pl2; 
-                fnDefIncrementOverlCount(nameId, cm);
-            }
+        if (tok.tp == tokAssignment && cm->i + 2 < len && tokens[cm->i + 2].tp == tokFn) {
+            Int nameId = tokens[cm->i + 1].pl2; 
+            fnDefIncrementOverlCount(nameId, cm);
         } 
         cm->i += (tok.pl2 + 1);        
     } 
 }
 
-private void addParsedOverload(Int overloadId, Int firstParamTypeId, Int entityId, Compiler* cm) {
+private void addParsedOverload(Int overloadId, Int firstParamTypeId, Int fnId, Compiler* cm) {
     /// A new parsed overload (i.e. a top-level function). 
     /// Called when parsing a top-level function signature
     Int overloadInd = cm->overloadIds.content[overloadId];
@@ -3738,9 +3759,9 @@ private void validateOverloadsFull(Compiler* cm) {
 #endif
 
 testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler* cm) {
-    /// Parses a function signature. Emits no nodes, only an entity and an overload. 
-    /// Saves the info to [toplevels]. Pre-condition: we are 2 tokens past the tokFn.
-    Int fnStartTokenId = cm->i - 2;    
+    /// Parses a function signature. Emits no nodes, adds data to [toplevels], [functions], [overloads].
+    /// Pre-condition: we are 1 token past the tokAssignment.
+    Int fnStartTokenId = cm->i - 1;    
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
     
     Int fnNameId = name & LOWER24BITS;
@@ -3796,7 +3817,6 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler
     cm->types.content[tentativeTypeInd] = arity + 1;
     
     Int uniqueTypeId = mergeType(tentativeTypeInd, cm);
-
     
     pushInentities(((Entity){.emit = isOverload ? emitOverloaded : emitPrefix, .class = classImmutable,
                             .typeId = uniqueTypeId}), cm);
@@ -3805,8 +3825,6 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler
     // not a real node, just a record to later find this signature
     pushIntoplevels((Toplevel){.indToken = fnStartTokenId, .sentinel = fnSentinelToken,
             .name = , .fnOrEntityId = fnId }, cm); 
-    pushNode((Node){ .indToken = , .pl1 = fnEntityId, .pl2 = paramsTokenInd,
-                     .startBt = fnStartTokenId, .lenBts = fnSentinelToken }, toplevelSignatures);
 }
 
 private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compiler* cm) {
