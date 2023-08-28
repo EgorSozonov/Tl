@@ -867,9 +867,9 @@ const char errExpressionInfixNotSecond[]   = "An infix expression must have the 
 const char errExpressionError[]             = "Cannot parse expression!";
 const char errExpressionCannotContain[]     = "Expressions cannot contain scopes or statements!";
 const char errExpressionFunctionless[]      = "Functionless expression!";
-const char errTypeDeclCannotContain[]       = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
-const char errTypeDeclError[]               = "Cannot parse type declaration!";
-const char errTypeDeclParamsError[]         = "Error parsing type params. Should look like this: [T U/2]";
+const char errTypeDefCannotContain[]       = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
+const char errTypeDefError[]               = "Cannot parse type declaration!";
+const char errTypeDefParamsError[]         = "Error parsing type params. Should look like this: [T U/2]";
 const char errOperatorWrongArity[]          = "Wrong number of arguments for operator!";
 const char errUnknownBinding[]              = "Unknown binding!";
 const char errUnknownFunction[]             = "Unknown function!";
@@ -1010,6 +1010,17 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
     cleanup:
     fclose(file);
     return result;
+}
+
+private untt nameOfToken(Token tk) {
+    return ((untt)tk.lenBts << 24) + (untt)tk.pl2;
+}
+    
+    
+private untt nameOfStandard(Int strId) {
+    Int len = standardStrings[strId + 1] - standardStrings[strId]; 
+    Int nameId = standardStrings[strId] - strFirstNonReserved;
+    return ((untt)len << 24) + (untt)(nameId);
 }
 
 //}}}
@@ -2118,18 +2129,16 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
     return varId < BIG ? cm->entities.content[varId].typeId : cm->functions.content[varId - BIG + 1]; 
 } 
 
-private bool isVarMutable(Int varId, Compiler* cm) {
-}
-    
-private Int createEntity(Int nameId, Compiler* cm) {
+private Int createEntity(untt name, Compiler* cm) {
     /// Validates a new binding (that it is unique), creates an entity for it, 
     /// and adds it to the current scope
+    Int nameId = name & LOWER24BITS; 
     Int mbBinding = cm->activeBindings[nameId];
     VALIDATEP(mbBinding < 0, errAssignmentShadowing)
     // if it's a binding, it should be -1, and if overload, < -1
 
     Int newEntityId = cm->entities.length;
-    pushInentities(((Entity){.emit = emitPrefix, .class = classMutableGuaranteed}), cm);
+    pushInentities(((Entity){.emit = emitPrefix, .name = name, .class = classMutableGuaranteed}), cm);
 
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->length > 0) {
@@ -2138,21 +2147,6 @@ private Int createEntity(Int nameId, Compiler* cm) {
         cm->activeBindings[nameId] = newEntityId; // makes it active
     }
     return newEntityId;
-}
-
-private Int createFunctionHeader(FunctionHeader fnHeader, Compiler* cm) {
-    /// Returns the functionId of the newly defined function. After this call, push the param names.
-    /// After the params, add the length to the header created here
-    Int newFnId = cm->functions.length;
-    Int hdr = 0; 
-    if (fnHeader.isPublic) {
-        hdr += (1 << 17);
-    }
-    if (fnHeader.hasExceptionHandler) {
-        hdr += (1 << 16);
-    }
-    pushInfunctions(hdr, cm);
-    return newFnId;
 }
 
 private Int calcSentinel(Token tok, Int tokInd) {
@@ -2268,7 +2262,7 @@ private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Com
         } else {
             rightType = exprHeadless(sentinelToken, rTk.startBt, 
                                        tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-            Int newBindingId = createEntity(bindingTk.pl2, cm);
+            Int newBindingId = createEntity(nameOfToken(bindingTk), cm);
             VALIDATEP(rightType != -2, errAssignment)
             if (rightType > -1) {
                 cm->entities.content[newBindingId].typeId = rightType;
@@ -2863,10 +2857,9 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int
     for (int j = 0; j < countEntities; j++) {
         EntityImport impt = impts[j];
         Int typeInd = typeIds[impt.typeInd];
-        addAndActivateEntity(impt.nameId, (Entity){
+        importAndActivateEntity(impt.nameId, (Entity){
             .class = classImmutable, .typeId = typeInd, .emit = emitPrefixExternal, .externalNameId = impt.externalNameId },
             cm);
-        pushInimports(impt, cm);
     }
     cm->countNonparsedEntities = cm->entities.length;
 }
@@ -3203,8 +3196,8 @@ private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
     }
 }
 
-
-private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm) {
+private Int importAndActivateEntity(Int nameId, Entity ent, Compiler* cm) {
+    /// Adds an import to the entities table, activates it and, if function, adds an overload for it
     Int existingBinding = cm->activeBindings[nameId];
     Int typeLength = cm->types.content[ent.typeId];
     VALIDATEP(existingBinding == -1 || typeLength > 0, errAssignmentShadowing) // either the name unique, or it's a function
@@ -3500,12 +3493,12 @@ private void importPrelude(Compiler* cm) {
     Int voidOfFloat = addFunctionType(1, (Int[]){tokUnderscore, tokFloat}, cm);
     
     EntityImport imports[6] =  {
-        (EntityImport) { .nameId = strMathPi - strFirstNonReserved, .externalNameId = cgStrPi, .typeInd = 0},
-        (EntityImport) { .nameId = strMathE - strFirstNonReserved, .externalNameId = cgStrE, .typeInd = 0},
-        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrConsoleLog, .typeInd = 1},
-        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrConsoleLog, .typeInd = 2},
-        (EntityImport) { .nameId = strPrint - strFirstNonReserved, .externalNameId = cgStrConsoleLog, .typeInd = 3},
-        (EntityImport) { .nameId = strAlert - strFirstNonReserved, .externalNameId = cgStrAlert, .typeInd = 1}
+        (EntityImport) { .name = nameOfStandard(strMathPi), .externalNameId = cgStrPi, .typeInd = 0},
+        (EntityImport) { .name = nameOfStandard(strMathE), .externalNameId = cgStrE, .typeInd = 0},
+        (EntityImport) { .name = nameOfStandard(strPrint), .externalNameId = cgStrConsoleLog, .typeInd = 1},
+        (EntityImport) { .name = nameOfStandard(strPrint), .externalNameId = cgStrConsoleLog, .typeInd = 2},
+        (EntityImport) { .name = nameOfStandard(strPrint), .externalNameId = cgStrConsoleLog, .typeInd = 3},
+        (EntityImport) { .name = nameOfStandard(strAlert), .externalNameId = cgStrAlert, .typeInd = 1}
     };
     // These base types occupy the first places in the stringTable and in the types table. 
     // So for them nameId == typeId, unlike type funcs like L(ist) and A(rray)
@@ -3555,7 +3548,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiList(a);
-    cm->overloadCounts = createMultiList(cm->aTmp); 
+    cm->rawOverloads = createMultiList(cm->aTmp); 
 
     if (lx->stringTable->length > 0) {
         memset(cm->activeBindings, 0xFF, lx->stringTable->length*4); // activeBindings is filled with -1
@@ -3566,8 +3559,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->entities.length = proto->entities.length;
     cm->entities.capacity = proto->entities.capacity;
 
-    cm->overloadIds.length = proto->overloadIds.length;
-    cm->overloadIds.capacity = proto->overloadIds.capacity;
     cm->overloads = (InListInt){.length = 0, .content = NULL};    
     
     cm->types.content = allocateOnArena(proto->types.capacity*8, a);
@@ -3591,12 +3582,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(Int typeId, Compiler* cm);
 
-private void countOverloadsForOperatorsAndImports(Compiler* cm) {
-    for (Int j = 0; j < countOperators; j++) {
-        Int newListId = listAddMultiList(cm->overloadCounts);
-        cm->activeBindings[-j - 2] = newListId; 
-    }
-} 
     
 private void createOverloadsForOperatorsAndImports(Compiler* cm) {
     /// Creates and increments counts (inside [overloadCounts]) for names of operators
@@ -3681,6 +3666,18 @@ testable void createOverloads(Compiler* cm) {
 private void parseToplevelTypes(Compiler* cm) {
     /// Parses top-level types but not functions. Writes them to the types table and adds 
     /// their bindings to the scope
+    cm->i = 0;
+    Arr(Token) toks = cm->tokens.content; 
+    const Int len = toks.length;
+    while (cm->i < len) {
+        Token tok = toks[cm->i];
+        if (tok.tp == tokAssignment && toks[cm->i + 1].tp == tokTypeName) {
+            ++cm->i; // CONSUME the assignment token
+            typeDef(tok, false, toks, cm);
+        } else {
+            cm->i += (tok.pl2 + 1);
+        }
+    }
 }
 
 private void parseToplevelConstants(Compiler* cm) {
@@ -3699,7 +3696,7 @@ private void parseToplevelConstants(Compiler* cm) {
         } else {
             cm->i += (tok.pl2 + 1);
         }
-    }    
+    }
 }
 
 private void addParsedOverload(Int overloadId, Int firstParamTypeId, Int fnId, Compiler* cm) {
@@ -3850,9 +3847,9 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     cm->i++; // CONSUME the parens token for the param list            
     while (cm->i < paramsSentinel) {
         Token paramName = tokens[cm->i];
-        Int newEntityId = createEntity(paramName.pl2, cm);
+        Int newEntityId = createEntity(nameOfToken(paramName), cm);
         ++cm->i; // CONSUME the param name
-        Int typeId = cm->activeBindings[tokens[cm->i].pl2];
+        Int typeId = cm->activeBindings[paramName.pl2];
         cm->entities.content[newEntityId].typeId = typeId;
 
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
@@ -3968,7 +3965,7 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
         parseToplevelTypes(cm);
 
         // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
-        countOverloadsForOperatorsAndImports(cm);
+        createOverloadsForOperatorsAndImports(cm);
         parseToplevelConstants(cm);
         
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
@@ -4310,16 +4307,16 @@ private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) 
     Int brackSentinel = cm->i + bracketTk.pl2;
     while (cm->i < brackSentinel) {
         Token tk = cm->tokens.content[cm->i]; 
-        VALIDATEP(tk.tp == tokTypeName, errTypeDeclParamsError)
+        VALIDATEP(tk.tp == tokTypeName, errTypeDefParamsError)
         Int nameId = tk.pl2;
         VALIDATEP(cm->activeBindings[nameId] == -1, errAssignmentShadowing)
         cm->activeBindings[nameId] = -params->length - 2; 
         push(tk.pl2, params); 
         if (tk.pl1 > 0) {
-            VALIDATEP(cm->i + 1 < brackSentinel, errTypeDeclParamsError)
+            VALIDATEP(cm->i + 1 < brackSentinel, errTypeDefParamsError)
             Token arityTk = cm->tokens.content[cm->i]; 
             VALIDATEP(arityTk.tp == tokInt && arityTk.pl1 == 0 
-                      && arityTk.pl2 > 0 && arityTk.pl2 < 255, errTypeDeclParamsError)
+                      && arityTk.pl2 > 0 && arityTk.pl2 < 255, errTypeDefParamsError)
             push(arityTk.pl2, params);
         } else {
             push(0, params); 
@@ -4342,7 +4339,7 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
     Int j = cm->i;
     Int sentinel = j + length; 
     while (j < sentinel) { 
-        VALIDATEP(cm->tokens.content[j].tp == tokStructField, errTypeDeclCannotContain) 
+        VALIDATEP(cm->tokens.content[j].tp == tokStructField, errTypeDefCannotContain) 
         ++j;
         Token nextTk = cm->tokens.content[j]; 
         if (nextTk.tp == tokTypeCall || nextTk.tp == tokParens) {
@@ -4350,7 +4347,7 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
         } else if (nextTk.tp == tokTypeName) {
             ++j; 
         } else {
-            throwExcParser(errTypeDeclCannotContain, cm);
+            throwExcParser(errTypeDefCannotContain, cm);
         } 
         ++count; 
     } 
@@ -4456,19 +4453,27 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
     }
 } 
     
-testable Int typeExpr(Int nameId, Int nameLen, bool isFunction, Compiler* cm) {
+testable Int typeDef(Token assignTk, bool isFunction, Arr(Tokens) toks, Compiler* cm) {
     /// Builds a type expression. Accepts a name or -1 for nameless type exprs (like function signatures). 
     /// Uses cm->expStack to build a "type expression" and cm->params for the type parameters
     /// Produces no AST nodes, but potentially lots of new types
     /// Consumes the whole type assignment, or the whole function signature 
     /// Data format: see "Type expression data format"
-    Int sentinel = cm->i + 1 + cm->tokens.content[cm->i].pl2;
+    /// Precondition: we are 1 past the assignment token 
     StackInt* exp = cm->expStack; 
     StackInt* params = cm->typeStack; 
     exp->length = 0;
     params->length = 0;
     
-    Token firstTok = cm->tokens.content[cm->i];
+    Int sentinel = cm->i + assignTk.pl2;
+    Token nameTk = toks[cm->i]; 
+    untt name = nameOfToken(nameTk); 
+    ++cm->i; // CONSUME the type name 
+    
+    VALIDATEP(cm->i < sentinel && toks[cm->i].tp == tokParens, errTypeDefError)
+    Token parens = toks[cm->i];
+    ++cm->i; // CONSUME the parens token
+    Token firstTok = toks[cm->i];
     if (firstTok.tp == tokBrackets) {
         ++cm->i; // CONSUME the brackets token
         typeDefReadParams(firstTok, params, cm); 

@@ -465,23 +465,18 @@ typedef struct {
 #define emitInfixDot       8  // emitted as a "dot-call", like ".toString()"
 #define emitNop            9  // for unary operators that don't need to be emitted, like ","
 
-typedef struct { // :FunctionHeader
-    bool isPublic;
-    bool hasExceptionHandler;
-    uint16_t externalNameId;
-    uint8_t class;
-    uint8_t emit;
-} FunctionHeader;
-    
 typedef struct { //:Entity
     Int typeId;
+    Int name; 
     uint16_t externalNameId;
     uint8_t class;
     uint8_t emit;
+    bool isPublic;
+    bool hasExceptionHandler;
 } Entity;
 
 typedef struct {
-    Int nameId;  // index in the stringTable of the current compilation
+    untt name;  // 8 bits of length, 24 bits or nameId
     Int externalNameId; // index in the "codegenText"
     Int typeInd; // index in the intermediary array of types that is imported alongside
 } EntityImport;
@@ -552,18 +547,16 @@ struct Compiler { //:Compiler
     InListNode monoCode;
     MultiList* monoIds;
     InListEntity entities;
-    InListInt functions;
     Int entImportedZero;
     InListInt overloads;
     InListInt types;
     StringDict* typesDict;
-    InListEntityImport imports; // [aTmp]
     Int countOperatorEntities;
     Int countNonparsedEntities;
     StackInt* expStack;   // [aTmp]
     StackInt* typeStack;  // [aTmp]
     StackInt* tempStack;  // [aTmp]
-    MultiList* overloadCounts; // [aTmp]
+    MultiList* rawOverloads; // [aTmp]
     
     // GENERAL STATE
     Int i;

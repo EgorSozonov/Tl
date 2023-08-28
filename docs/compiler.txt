@@ -79,10 +79,6 @@ TypeIds are concrete
 
 19. entities = list of entites for local variables and non-function constants
     
-20. functions = list of ints for each function definition.
-Format: [length of what follows][typeId][flags = 30 bits 0, 1 bit if it's public, 
-1 bit if it has an exception handler](sorted list of nameIds of fn parameters)
-    
 21. entImportedZero = the index of the first imported entity    
     
 22. overloads = links from type to [functions] and [fnMonoIds] 
@@ -90,9 +86,9 @@ Format: (namedGroups)
     
 namedGroup is all the overloads of a single name 
     
-namedGroup = [16 bits countOuter + 16 bits countRefs]
-             (sorted outer types)(ref indices)(ref types    )(refs)
-             |<---countOuter--->|             |<-countRefs->|
+namedGroup = [16 bits countRefs]
+             (sorted outer types)(ref types    )(refs        )
+             |<---countOuter--->||<-countRefs->||<-countRefs->
 overload finding algorithm = 
 1) binary-search first countOuter for the outerType 
 2) for result j, get the ref index r from (j + countOuter), and the sentinel s from next
@@ -127,11 +123,11 @@ sorPartial.
     
 30. tempStack = [aTmp]  a very temporary scratch space for stuff    
     
-31. overloadCounts = [aTmp] a multilist used during overloads
+31. rawOverloads = [aTmp] a multilist used during overloads
 construction.
 Format: for every nameId, including the operators, contains
-a list of [ordered pairs: (outerTypeId count)]. Counts are positive
-for concrete types and negative (-x) for generic types.
+a list of [outerType type ref]. Refs are positive
+for [entities] and negative (-x - 1) for [monoIds]
 
 32. i = current index into whatever we're reading (source code, tokens)    
     
