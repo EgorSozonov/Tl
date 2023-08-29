@@ -2081,7 +2081,6 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[39] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
     p[40] = (OpDef){.name=s("neg"),  .arity=1, .bytes={0, 0, 0, 0 }};
     for (Int k = 0; k < countOperators; k++) {
-        p[k].builtinOverloads = 0;
         Int m = 0;
         for (; m < 4 && p[k].bytes[m] > 0; m++) {}
         p[k].lenBts = m;
@@ -2100,7 +2099,7 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
-private Int addAndActivateEntity(Int nameId, Entity ent, Compiler* cm);
+private Int importAndActivateEntity(Int nameId, Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
@@ -2963,12 +2962,10 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) {
 testable Compiler* createProtoCompiler(Arena* a) {
     /// Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned 
     /// for every source code module. The proto-compiler contains the following data:
-    /// - langDef with operators whose "builtinOverloads" is filled in
+    /// - langDef with operators
     /// - types that are sufficient for the built-in operators
     /// - entities with the built-in operator entities
     /// - overloadIds with counts
-    /// - entImportedZero
-    /// - countOperatorEntities
     Compiler* proto = allocateOnArena(sizeof(Compiler), a);
     (*proto) = (Compiler){
         .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(32, a),
@@ -3183,31 +3180,20 @@ private void popScopeFrame(Compiler* cm) {
     scopeStack->length--;
 }
 
-private void fnDefIncrementOverlCount(Int nameId, Compiler* cm) {
-    ///  Processes the name of a defined function. Creates an overload counter, or increments it if
-    ///  it exists. Consumes no tokens.
-    Int activeValue = (nameId > -1) ? cm->activeBindings[nameId] : -1;
-    VALIDATEP(activeValue < 0, errAssignmentShadowing);
-    if (activeValue == -1) { // this is the first-registered overload of this function
-        cm->activeBindings[nameId] = -cm->overloadIds.length - 2;
-        pushInoverloadIds(SIXTEENPLUSONE, cm);
-    } else { // other overloads have already been registered, so just increment the counts
-        cm->overloadIds.content[-activeValue - 2] += SIXTEENPLUSONE;
-    }
-}
-
 private Int importAndActivateEntity(Int nameId, Entity ent, Compiler* cm) {
     /// Adds an import to the entities table, activates it and, if function, adds an overload for it
     Int existingBinding = cm->activeBindings[nameId];
-    Int typeLength = cm->types.content[ent.typeId];
-    VALIDATEP(existingBinding == -1 || typeLength > 0, errAssignmentShadowing) // either the name unique, or it's a function
+    bool isAFunc = isFunction(ent.typeId);
+    VALIDATEP(existingBinding == -1 || isAFunc, errAssignmentShadowing)
 
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
-    if (typeLength <= 1) { // not a function, or is a 0-arity function => not overloaded
-        cm->activeBindings[nameId] = newEntityId;
-    } else {
+    
+    if (isAFunc) {
+        addRawOverload(operId, typeId, newEntityId);
         fnDefIncrementOverlCount(nameId, cm);
+    } else {
+        cm->activeBindings[nameId] = newEntityId;
     }
     return newEntityId;
 }
@@ -3371,12 +3357,26 @@ private void buildPreludeTypes(Compiler* cm) {
     cm->activeBindings[stToNameId(strTu)] = typeIndTu;
 }
 
-
+private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) {
+    Int mbListId = cm->activeBindings[operId]; 
+    if (mbListId == -1) {
+        Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
+        cm->activeBindings[operId] = listId;
+    } else {
+        Int updatedListId = addMultiList(typeId, entityId, cm->rawOverloads);
+        if (updatedListId != mbListId) {
+            cm->activeBindings[operId] = updatedListId;
+        }
+    }
+    ++cm->countOverloads;
+}
+    
 private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t externalNameId, Compiler* cm) {
-    pushInfunctions((FunctionHeader){
+    /// Creates an entity, pushes it to [rawOverloads] and activates its name
+    Int newEntityId = cm->entities.length; 
+    pushInentities((Entity){
         .typeId = typeId, .emit = emitAs, .class = classImmutable, .externalNameId = externalNameId}, cm);
-    cm->overloadIds.content[operId] += SIXTEENPLUSONE;
-    ++((*cm->langDef->operators)[operId].builtinOverloads);
+    addRawOverload(operId, typeId, newEntityId);
 }
     
 private void buildOperators(Compiler* cm) {
@@ -3475,14 +3475,16 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opTOr,     boolOfBoolBool, emitInfixExternal, cgStrLogicalOr, cm);
     buildOperator(opTNegation, intOfInt, emitPrefix, 0, cm);
     buildOperator(opTNegation, flOfFl, emitPrefix, 0, cm);
-    cm->countOperatorEntities = cm->entities.length;
 }
 
 private void createBuiltins(Compiler* cm) {
     /// Entities and functions for the built-in operators, types and functions.
     buildStandardStrings(cm);
     buildOperators(cm);
-    cm->entImportedZero = cm->overloadIds.length;
+}
+
+private void addRawOverload(Int nameId, Int firstParamType, Int typeId, Compiler* cm) {
+    /// Adds an overload to the rawOverloads table and activates it, if needed
 }
 
 private void importPrelude(Compiler* cm) {
@@ -3524,7 +3526,6 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
         .stringTable = copyStringTable(proto->stringTable, a), 
         .stringDict = copyStringDict(proto->stringDict, a),
         .sourceCode = sourceCode,
-        .countOperatorEntities = proto->countOperatorEntities, .entImportedZero = proto->entities.length,
         .wasError = false, .errMsg = &empty,
         .a = a, .aTmp = aTmp
     };
@@ -3637,13 +3638,9 @@ private void createOverloadsForOperatorsAndImports(Compiler* cm) {
 }
 
 testable void createOverloads(Compiler* cm) {
-    /// Allocates the table with overloads and semi-fills it (only the imports and built-ins, 
-    /// no toplevel). Also finalizes the overloadIds table to contain actual indices 
-    /// (not counts that were there initially)
-    createOverloadsForOperatorsAndImports(cm);
-    
-    
-    Int neededCount = 0;
+    /// Allocates the [overloads] and fills it from [rawOverloads]. Replaces all indices in
+    /// [activeBindings] to point to the new overloads table (they pointed to rawOverloads previously)
+    Int neededCount = cm->countOverloads*6/5;
     for (Int i = 0; i < cm->overloadIds.length; i++) {
         // a typeId and an entityId for each overload, plus a length field for the list
         neededCount += (2*(cm->overloadIds.content[i] >> 16) + 1);
@@ -3989,12 +3986,8 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 
 //}}}
 //{{{ Types
-//{{{ Parsing type names
-
-#ifdef TEST
-void printIntArray(Int count, Arr(Int) arr);
-#endif 
-
+//{{{ Type utils
+    
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((untt)(sort << 16) + (depth << 8) + arity);
 }
@@ -4015,6 +4008,31 @@ testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
             .depth = (tag >> 8) & 0xFF, .arity = tag & 0xFF };
     return result; 
 }
+    
+private Int typeGetArity(Int typeId, Compiler* cm) {
+    if (cm->types.content[typeId] == 0) {
+        return 0;
+    }
+    Int tag = cm->types.content[typeId + 1];
+    return tag & 0xFF;
+}
+    
+private Int typeGetOuter(Int typeId, Compiler* cm) {
+    TypeHeader hdr = typeReadHeader(typeId, cm);
+    if (hdr.sort <= sorFunction) {
+        return typeId;
+    } else {
+        return cm->types.content[typeId + hdr.arity + 3]; 
+    }
+}
+    
+//}}}
+//{{{ Parsing type names
+
+#ifdef TEST
+void printIntArray(Int count, Arr(Int) arr);
+#endif 
+
     
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
     /// Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call.
@@ -4045,13 +4063,6 @@ testable Int typeSingleItem(Token tk, Compiler* cm) {
     }
 }
 
-private Int typeGetArity(Int typeId, Compiler* cm) {
-    if (cm->types.content[typeId] == 0) {
-        return 0;
-    }
-    Int tag = cm->types.content[typeId + 1];
-    return tag & 0xFF;
-}
 
 private Int typeCountArgs(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
     /// Counts the arity of a type call. Consumes no tokens. 
@@ -4133,6 +4144,9 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
 #define tyeRetType   11 // payload: none
     
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm);
+    
+private bool isFunction(Int typeId, Compiler* cm) {
+}
     
 private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* params, 
                              untt nameAndLen, Compiler* cm) {

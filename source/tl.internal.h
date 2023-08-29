@@ -343,7 +343,6 @@ typedef struct { //:OpDef
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool overloadable;
     bool assignable;
-    Int builtinOverloads;
     int8_t lenBts;
 } OpDef;
 
@@ -547,15 +546,14 @@ struct Compiler { //:Compiler
     InListNode monoCode;
     MultiList* monoIds;
     InListEntity entities;
-    Int entImportedZero;
     InListInt overloads;
     InListInt types;
     StringDict* typesDict;
-    Int countOperatorEntities;
     Int countNonparsedEntities;
     StackInt* expStack;   // [aTmp]
     StackInt* typeStack;  // [aTmp]
     StackInt* tempStack;  // [aTmp]
+    Int countOverloads;
     MultiList* rawOverloads; // [aTmp]
     
     // GENERAL STATE

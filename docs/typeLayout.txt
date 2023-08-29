@@ -19,7 +19,7 @@ Function:
 (parameter types)|return type|
 
 Partial:
-[outer typeId/paramId](Arities of type params, count = arity)
+(Arities of type params, count = arity)
 (Full type expression in prefix form, with arities)
 
 
