@@ -272,7 +272,8 @@ testable Int listAddMultiList(Int newKey, Int newVal, MultiList* ml) {
 }
     
 testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
-    /// Search for a key in a particular list within the MultiList. Returns the value if found, -1 otherwise
+    /// Search for a key in a particular list within the MultiList. Returns the value if found, 
+    /// -1 otherwise
     Int len = ml->content[listInd]/2; 
     Int endInd = listInd + 2 + len; 
     for (Int j = listInd + 2; j < endInd; j++) {
@@ -305,6 +306,7 @@ DEFINE_INTERNAL_LIST(entities, Entity, a)
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int)
 DEFINE_INTERNAL_LIST(newlines, Int, a)
 DEFINE_INTERNAL_LIST(numeric, Int, a)
+DEFINE_INTERNAL_LIST(imports, Int, a)
 DEFINE_INTERNAL_LIST(overloads, Int, a)
 DEFINE_INTERNAL_LIST(types, Int, a)
 
@@ -889,7 +891,7 @@ const char errTemp[]                        = "Temporary, delete it when finishe
 const char errUnknownType[]                 = "Unknown type";
 const char errUnknownTypeConstructor[]      = "Unknown type constructor";
 const char errTypeUnknownFirstArg[]         = "The type of first argument to a call must be known, otherwise I can't resolve the function overload!";
-const char errTypeZeroArityOverload[]       = "A function with no parameters cannot be overloaded.";
+const char errTypeOverloadsIntersect[]      = "Two or more overloads of a single function intersect (impossible to choose one over the other)";
 const char errTypeNoMatchingOverload[]      = "No matching function overload was found";
 const char errTypeWrongArgumentType[]       = "Wrong argument type";
 const char errTypeWrongReturnType[]         = "Wrong return type";
@@ -3192,6 +3194,7 @@ private Int importAndActivateEntity(Int nameId, Entity ent, Compiler* cm) {
     if (isAFunc) {
         addRawOverload(operId, typeId, newEntityId);
         fnDefIncrementOverlCount(nameId, cm);
+        pushInimports(nameId, cm); 
     } else {
         cm->activeBindings[nameId] = newEntityId;
     }
@@ -3637,27 +3640,75 @@ private void createOverloadsForOperatorsAndImports(Compiler* cm) {
     }
 }
 
-testable void createOverloads(Compiler* cm) {
-    /// Allocates the [overloads] and fills it from [rawOverloads]. Replaces all indices in
-    /// [activeBindings] to point to the new overloads table (they pointed to rawOverloads previously)
-    Int neededCount = cm->countOverloads*6/5;
-    for (Int i = 0; i < cm->overloadIds.length; i++) {
-        // a typeId and an entityId for each overload, plus a length field for the list
-        neededCount += (2*(cm->overloadIds.content[i] >> 16) + 1);
+private void reserveSpaceInList(Int neededSpace, StackInt* lst) {
+    if (lst->length + neededSpace >= lst->capacity) {
+        Arr(Int) newContent = allocateOnArena(8*(st->capacity), st->arena);
+        memcpy(newContent, st->content, st->length*4);
+        st->capacity *= 2;
+        st->content = newContent;
     }
-    cm->overloads = createInListInt(neededCount, cm->a);
-    cm->overloads.length = neededCount;
-    memset(cm->overloads.content, 0xFF, neededCount*4);
-
+}
+    
+private bool validateNameOverloads(Int listId, Int countOverloads, Compiler* cm) {
     Int j = 0;
-    for (Int i = 0; i < cm->overloadIds.length; i++) {
-        // length of the overload list (to be filled during type check/resolution)
-        Int maxCountOverloads = (Int)(cm->overloadIds.content[i] >> 16);
-        cm->overloads.content[j] = maxCountOverloads;
-        cm->overloadIds.content[i] = j;
-        j += (2*maxCountOverloads + 1);
+    while (scratch->content[j] == -2) {
+        j++;
     }
-    pushInoverloadIds(neededCount, cm); // the extra sentinel, since lengths of overloads are deduced from overloadIds
+}
+    
+testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
+    /// Returns the index in the overloads table for the new name 
+    // use the scratch space to create a list of (outerType, index). For zero-arity functions,
+    // outerType = -1, for Generic outerType it's -2.
+    // Sort that list by outerType
+    // If there're -2s, then check that their arities are different and also different from every
+    // generic type
+    // Lay out the original types and refs according to the sorted order
+    // Validate every pocket of outerType for: 1) homogeneity (either all concrete or all generic 
+    // types) 2) non-intersection (for concrete types it's uniqueness, for generics non-intersection)
+    // If everything's OK, move it to the main [overloads]
+    scratchSpace->length = 0; 
+    Int listId = cm->activeBindings[nameId];
+    Int listSentinel = listId + 2 + cm->rawOverloads->content[listId];
+    for (Int j = listId + 2; j < listSentinel; j++) {
+        push(cm->rawOverloads->content[j], scratch); 
+        push(j - listId - 2, scratch); 
+    }
+    Int countOverloads = scratch->length/2;
+    sortPairs(0, scratch->length, scratch->content);
+    Int newInd = cm->overloads.length; 
+    
+    reserveSpaceInList(3*countOverloads + 1, cm->overloads);
+    cm->overloads[newInd] = countOverloads;
+    for (Int j = 0; j < countOverloads; j += 2) {
+        cm->overloads->content[newOverloadInd + j + 1] = scratch->content[j]; // outerTypeId
+        cm->overloads->content[newOverloadInd + j + 1 + countOverloads] = 
+            cm->rawOverloads->content[scratch->content[j + 1]]; // typeId
+        cm->overloads->content[newOverloadInd + j + 1 + 2*countOverloads] = 
+            cm->rawOverloads->content[scratch->content[j + 1] + 1]; // ref
+    }
+    VALIDATEP(validateNameOverloads(newInd, countOverloads, cm), errTypeOverloadsIntersect)
+    return newInd; 
+}
+    
+testable void createOverloads(Compiler* cm) {
+    /// Fills [overloads] it from [rawOverloads]. Replaces all indices in
+    /// [activeBindings] to point to the new overloads table (they pointed to rawOverloads previously)
+    StackInt scratch = createStackint32_t(cm->aTmp);
+    for (Int j = 0; j < countOperators; j++) {
+        Int newIndex = createNameOverloads(j, scratch, cm);
+        cm->activeBindings[j] = newIndex; 
+    }
+    for (Int j = 0; j < cm->imports.length; j++) {
+        Int nameId = cm->imports.content[j]; 
+        Int newIndex = createNameOverloads(nameId, scratch, cm);
+        cm->activeBindings[nameId] = newIndex; 
+    }
+    for (Int j = 0; j < cm->toplevels.length; j++) {
+        Int nameId = cm->toplevels.content[j].name & LOWER24BITS;
+        Int newIndex = createNameOverloads(nameId, scratch, cm);
+        cm->activeBindings[nameId] = newIndex; 
+    }
 }
 
 private void parseToplevelTypes(Compiler* cm) {

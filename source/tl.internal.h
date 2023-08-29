@@ -480,7 +480,7 @@ typedef struct {
     Int typeInd; // index in the intermediary array of types that is imported alongside
 } EntityImport;
 
-typedef struct {
+typedef struct { // :Toplevel
     /// Toplevel definitions (functions, variables, types) for parsing order and name searchability
     Int indToken;
     Int sentinelToken;
