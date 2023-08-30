@@ -309,12 +309,6 @@ DEFINE_INTERNAL_LIST(numeric, Int, a)
 DEFINE_INTERNAL_LIST(imports, Int, a)
 DEFINE_INTERNAL_LIST(overloads, Int, a)
 DEFINE_INTERNAL_LIST(types, Int, a)
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(uint32_t)
-DEFINE_INTERNAL_LIST(overloadIds, uint32_t, aTmp)
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(EntityImport)
-DEFINE_INTERNAL_LIST(imports, EntityImport, aTmp)
     
 //}}}
 //{{{ Strings
@@ -791,6 +785,34 @@ testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) a
     return true;
 }
 
+private bool binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
+    if (end <= start) {
+        return -1;
+    }
+    Int i = start;
+    Int j = end - 1;
+    if (arr[i] == key) {
+        return i;
+    } else if (arr[j] == key) {
+        return j;
+    }
+    
+    while (i < j) {
+        if (j - i == 1) {
+            return -1;
+        }
+        Int midInd = (i + j)/2;
+        Int mid = arr[midInd];
+        if (mid > key) {
+            j = midInd;
+        } else if (mid < key) {
+            i = midInd;
+        } else {
+            return midInd;
+        }                        
+    }    
+    return -1;
+}
     
 //}}}
 //}}}
@@ -892,6 +914,7 @@ const char errUnknownType[]                 = "Unknown type";
 const char errUnknownTypeConstructor[]      = "Unknown type constructor";
 const char errTypeUnknownFirstArg[]         = "The type of first argument to a call must be known, otherwise I can't resolve the function overload!";
 const char errTypeOverloadsIntersect[]      = "Two or more overloads of a single function intersect (impossible to choose one over the other)";
+const char errTypeOverloadsOnlyOneZero[]    = "Only one 0-arity function version is possible, otherwise I can't disambiguate the overloads!";
 const char errTypeNoMatchingOverload[]      = "No matching function overload was found";
 const char errTypeWrongArgumentType[]       = "Wrong argument type";
 const char errTypeWrongReturnType[]         = "Wrong return type";
@@ -2127,7 +2150,7 @@ private Int getActiveVar(Int nameId, Compiler* cm) {
 }
 
 private Int getTypeOfVar(Int varId, Compiler* cm) {
-    return varId < BIG ? cm->entities.content[varId].typeId : cm->functions.content[varId - BIG + 1]; 
+    return cm->entities.content[varId].typeId; 
 } 
 
 private Int createEntity(untt name, Compiler* cm) {
@@ -2234,12 +2257,12 @@ private void assignmentWordLeftSide(Token tk, Arr(Token) tokens, Compiler* cm) {
     /// like "x.foo.bar" or "y@+(x 1)"
     
     if (tokens[cm->i + 1].tp != tokAccessor) {
-        pushInnodes((Node){.tp = nodBinding, .pl1 = newBindingId, .startBt = bindingTk.startBt, 
-                           .lenBts = bindingTk.lenBts}, cm);
+        Int newEntityId = createEntity(nameOfToken(tk), cm); 
+        pushInnodes((Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = tk.startBt, 
+                           .lenBts = tk.lenBts}, cm);
         cm->i++; // CONSUME the word token before the assignment sign
         return; 
     }
-    VALIDATEP(!isToplevel, errAssignmentAccessOnToplevel)
     
 }
 
@@ -2254,7 +2277,7 @@ private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Com
                            .sentinelToken = sentinelToken }), cm->backtrack);
         pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
         
-        assignmentWordLeftSide(bindingTk, tokens, cm)) {
+        assignmentWordLeftSide(bindingTk, tokens, cm);
 
         Token rTk = tokens[cm->i];
         Int rightType = -1; 
@@ -2612,24 +2635,24 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 
     Token bindingTk = tokens[cm->i];
     Int varId = getActiveVar(bindingTk.pl2, cm);
-    Entity ent = cm->entities.content[entityId];
+    Entity ent = cm->entities.content[varId];
     VALIDATEP(ent.class < classImmutable, errCannotMutateImmutable)
 
     push(((ParseFrame){ .tp = nodReassign, .startNodeInd = cm->nodes.length, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    pushInnodes((Node){.tp = nodBinding, .pl1 = entityId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
+    pushInnodes((Node){.tp = nodBinding, .pl1 = varId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
     
     cm->i++; // CONSUME the word token before the assignment sign
 
-    Int typeId = cm->entities.content[entityId].typeId;
+    Int typeId = cm->entities.content[varId].typeId;
     Token rTk = tokens[cm->i];
     Int rightTypeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
     
     VALIDATEP(rightTypeId == typeId, errTypeMismatch)
-    setClassToMutated(entityId, cm);
+    setClassToMutated(varId, cm);
 }
 
-testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm);
+testable bool findOverload(Int typeId, Int start, Int* entityId, Compiler* cm);
 
 private void mutationTwiddle(Int ind, Token mutTk, Compiler* cm) {
     /// Performs some AST twiddling to turn a mutation into a reassignment:
@@ -2670,7 +2693,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(leftEntity.class < classImmutable, errCannotMutateImmutable);
 
     Int operatorOv;
-    bool foundOv = findOverload(leftType, cm->overloadIds.content[opType], cm->overloadIds.content[opType + 1], &operatorOv, cm);
+    bool foundOv = findOverload(leftType, cm->overloadIds.content[opType], &operatorOv, cm);
     Int opTypeInd = cm->entities.content[operatorOv].typeId;
     VALIDATEP(foundOv && cm->types.content[opTypeInd] == 3, errTypeNoMatchingOverload); // operator must be binary
     
@@ -3572,7 +3595,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     
     cm->typesDict = copyStringDict(proto->typesDict, a);
 
-    cm->imports = createInListEntityImport(8, lx->aTmp);
+    cm->imports = createInListint32_t(8, lx->aTmp);
 
     cm->expStack = createStackint32_t(16, cm->aTmp);
     cm->typeStack = createStackint32_t(16, cm->aTmp);
@@ -3586,60 +3609,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(Int typeId, Compiler* cm);
 
-    
-private void createOverloadsForOperatorsAndImports(Compiler* cm) {
-    /// Creates and increments counts (inside [overloadCounts]) for names of operators
-    /// and imports.
-    Int o;
-    Int countOverls;
-    Int currOperId = -1;
-    Int entitySentinel = 0;
-
-    // overloads for built-in operators
-    for (Int j = 0; j < cm->countOperatorEntities; j++) {
-        Entity ent = cm->entities.content[j];
-
-        if (j == entitySentinel) {
-            ++currOperId;
-            
-            o = cm->overloadIds.content[currOperId] + 1;
-            countOverls = (cm->overloadIds.content[currOperId + 1] - cm->overloadIds.content[currOperId] - 1)/2;
-            entitySentinel += (*cm->langDef->operators)[currOperId].builtinOverloads;
-        }
-        cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
-#ifdef SAFETY
-        VALIDATEI(cm->overloads.content[o + countOverls] == -1, iErrorOverloadsOverflow)
-#endif
-
-        cm->overloads.content[o + countOverls] = j;
-        
-        o++;
-    }
-    
-    // overloads for imported functions
-    Int currFuncId = -1;
-    for (Int j = cm->entImportedZero; j < cm->entities.length; j++) {
-        Entity ent = cm->entities.content[j];
-        if (!isFunctionWithParams(ent.typeId, cm)) {
-            continue;
-        }
-        EntityImport imp = cm->imports.content[j - cm->entImportedZero];
-        currFuncId = cm->activeBindings[imp.nameId];
-#ifdef SAFETY
-        VALIDATEI(currFuncId < -1, iErrorImportedFunctionNotInScope)
-#endif            
-        o = cm->overloadIds.content[-currFuncId - 2] + 1;
-        countOverls = cm->overloads.content[o - 1];
-
-#ifdef SAFETY
-        VALIDATEI(cm->overloads.content[o + countOverls] == -1, iErrorOverloadsOverflow)
-#endif
-        cm->overloads.content[o] = getFirstParamType(ent.typeId, cm);
-        cm->overloads.content[o + countOverls] = j;
-        o++;
-    }
-}
-
 private void reserveSpaceInList(Int neededSpace, StackInt* lst) {
     if (lst->length + neededSpace >= lst->capacity) {
         Arr(Int) newContent = allocateOnArena(8*(st->capacity), st->arena);
@@ -3649,51 +3618,77 @@ private void reserveSpaceInList(Int neededSpace, StackInt* lst) {
     }
 }
     
-private bool validateNameOverloads(Int listId, Int countOverloads, Compiler* cm) {
-    Int j = 0;
-    while (scratch->content[j] == -2) {
-        j++;
+private bool validateNameOverloads(Int listId, Int countOverloads, StackInt* scratch, Compiler* cm) {
+    /// Validates the overloads for a name for non-intersecting via their outer types and full types
+    /// 1. For parameter outer types, their arities must be unique and not match any other outer types
+    /// 2. A zero-arity function, if any, must be unique 
+    /// 3. For any run of types with same outerType, all refs must be either to concrete entities or
+    ///    to [monoIds] (no mixing within same outerType)
+    /// 4. For refs to concrete entities, full types (which are concrete) must be different
+    /// 5. outerTypes with refs to [monoIds] must not intersect amongst themselves
+    Arr(Int) ov = cm->overloads->content; 
+    Int start = listId + 1;
+    Int outerSentinel = j + countOverloads; 
+    Int sentinel = j + ov[listId]; 
+    Int prevParamOuter = -1; 
+    Int o = j; 
+    for (; o < outerSentinel && ov[o] < -1) {
+        // These are the param outer types, like the outer of "[U/1]U(Int)". The values are (-arity - 1)
+        VALIDATEP(ov[o] != prevParamOuter, errTypeOverloadsIntersect)
+        prevParamOuter = ov[o];
+        o++;
     }
+    if (o > 0) {
+        // Since we have some param outer types, we need to check every other outer type
+        // The simple (though rough) criterion is they must have different arities
+        Int countParamOuter = o;
+        for (Int k = countParamOuter; k < outerSentinel; k++) {
+            if (ov[k] == -1) {
+                continue;
+            }
+            Int outerArityNegated = -typeGetArity(ov[k], cm) - 1; 
+            VALIDATEP(binarySearch(outerArityNegated, 0, countParamOuter, ov) == -1,
+                      errTypeOverloadsIntersect)
+        }
+    }
+    if (o + 1 < outerSentinel && ov[o] == -1) {
+        VALIDATEP(ov[o + 1] > -1, errTypeOverloadsOnlyOneZero)
+    }
+    // Validate every pocket of nonnegative outerType for: 1) homogeneity (either all concrete or all generic 
+    // types) 2) non-intersection (for concrete types it's uniqueness, for generics non-intersection)
 }
     
 testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
-    /// Returns the index in the overloads table for the new name 
-    // use the scratch space to create a list of (outerType, index). For zero-arity functions,
-    // outerType = -1, for Generic outerType it's -2.
-    // Sort that list by outerType
-    // If there're -2s, then check that their arities are different and also different from every
-    // generic type
-    // Lay out the original types and refs according to the sorted order
-    // Validate every pocket of outerType for: 1) homogeneity (either all concrete or all generic 
-    // types) 2) non-intersection (for concrete types it's uniqueness, for generics non-intersection)
-    // If everything's OK, move it to the main [overloads]
+    /// Creates a final overloads table for a name and returns its index
+    /// Precondition: [rawOverloads] contain pairs of (typeId ref) 
     scratchSpace->length = 0; 
+    Arr(Int) raw = cm->rawOverloads->content; 
     Int listId = cm->activeBindings[nameId];
-    Int listSentinel = listId + 2 + cm->rawOverloads->content[listId];
-    for (Int j = listId + 2; j < listSentinel; j++) {
-        push(cm->rawOverloads->content[j], scratch); 
-        push(j - listId - 2, scratch); 
+    Int listSentinel = listId + 2 + raw[listId];
+    for (Int j = listId + 2; j < listSentinel; j += 2) {
+        Int outerType = typeGetOuter(raw[j], cm);
+        push(outerType, scratch); 
+        push((j - listId - 2)/2, scratch);  // we need the index to get the original items after sorting
     }
     Int countOverloads = scratch->length/2;
-    sortPairs(0, scratch->length, scratch->content);
+    sortPairs(0, scratch->length, scratch->content); // sort by outerType ASC
     Int newInd = cm->overloads.length; 
     
-    reserveSpaceInList(3*countOverloads + 1, cm->overloads);
-    cm->overloads[newInd] = countOverloads;
-    for (Int j = 0; j < countOverloads; j += 2) {
-        cm->overloads->content[newOverloadInd + j + 1] = scratch->content[j]; // outerTypeId
-        cm->overloads->content[newOverloadInd + j + 1 + countOverloads] = 
-            cm->rawOverloads->content[scratch->content[j + 1]]; // typeId
-        cm->overloads->content[newOverloadInd + j + 1 + 2*countOverloads] = 
-            cm->rawOverloads->content[scratch->content[j + 1] + 1]; // ref
+    reserveSpaceInList(3*countOverloads + 1, cm->overloads); // 3 because it's: outerType, typeId, ref
+    Arr(Int) ov = cm->overloads->content; 
+    ov[newInd] = 3*countOverloads;
+    for (Int j = 0; j < countOverloads; j++) {
+        ov[newInd + j + 1] = scratch->content[2*j]; // outerTypeId
+        ov[newInd + j + 1 + countOverloads] = raw[scratch->content[2*j + 1]]; // typeId
+        ov[newInd + j + 1 + 2*countOverloads] = raw[scratch->content[2*j + 1] + 1]; // ref
     }
-    VALIDATEP(validateNameOverloads(newInd, countOverloads, cm), errTypeOverloadsIntersect)
+    VALIDATEP(validateNameOverloads(newInd, countOverloads, scratch, cm), errTypeOverloadsIntersect)
     return newInd; 
 }
     
 testable void createOverloads(Compiler* cm) {
-    /// Fills [overloads] it from [rawOverloads]. Replaces all indices in
-    /// [activeBindings] to point to the new overloads table (they pointed to rawOverloads previously)
+    /// Fills [overloads] from [rawOverloads]. Replaces all indices in
+    /// [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
     StackInt scratch = createStackint32_t(cm->aTmp);
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, scratch, cm);
@@ -4013,7 +4008,6 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
         parseToplevelTypes(cm);
 
         // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
-        createOverloadsForOperatorsAndImports(cm);
         parseToplevelConstants(cm);
         
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
@@ -4060,6 +4054,7 @@ testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
     return result; 
 }
     
+    
 private Int typeGetArity(Int typeId, Compiler* cm) {
     if (cm->types.content[typeId] == 0) {
         return 0;
@@ -4068,12 +4063,19 @@ private Int typeGetArity(Int typeId, Compiler* cm) {
     return tag & 0xFF;
 }
     
+    
 private Int typeGetOuter(Int typeId, Compiler* cm) {
     TypeHeader hdr = typeReadHeader(typeId, cm);
     if (hdr.sort <= sorFunction) {
         return typeId;
+    } else if (hdr.sort == sorPartial) {
+        Int genElt = cm->types.content[typeId + hdr.arity + 3]; 
+        if ((genElt >> 24) & 0xFF == 0xFF) {
+            return -(genElt & 0xFF) - 1; // a param type in outer position, so we return its (-arity -1) 
+        } else {
+            return genElt & LOWER24BITS;
     } else {
-        return cm->types.content[typeId + hdr.arity + 3]; 
+        return cm->types.content[typeId + hdr.arity + 3] & LOWER24BITS; 
     }
 }
     
@@ -4567,7 +4569,8 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
     return cm->types.content[typeId] > 1;
 }
 
-testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int sentinelInd, Int* entityId, Arr(Int) overloads) {
+testable bool overloadBinarySearch(Int typeIdToFind, Int outerId, Int startInd, 
+                                   Int* entityId, Arr(Int) overloads) {
     /// Performs a binary search among the concrete overloads. Returns false if nothing is found
     Int countAllOverloads = (sentinelInd - startInd - 1)/2;
     Int i = startInd + 1;
@@ -4599,11 +4602,12 @@ testable bool overloadBinarySearch(Int typeIdToFind, Int startInd, Int sentinelI
     return false;
 }
 
-testable bool findOverload(Int typeId, Int start, Int sentinel, Int* entityId, Compiler* cm) {
+testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
     /// Params: start = ind of the first element of the overload
     ///         end = ind of the last entityId of the overload (inclusive)
     ///         entityId = address where to store the result, if successful
-    return overloadBinarySearch(typeId, start, sentinel, entityId, cm->overloads.content);
+    Int outerType = typeGetOuter(typeId, cm); 
+    return overloadBinarySearch(outerType, typeId, ovInd, entityId, cm->overloads.content);
 }
 
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
@@ -4688,7 +4692,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             VALIDATEP(tpFstArg > -1, errTypeUnknownFirstArg)
             Int entityId;
 
-            bool ovFound = findOverload(tpFstArg, cm->overloadIds.content[o], cm->overloadIds.content[o + 1], &entityId, cm);
+            bool ovFound = findOverload(tpFstArg, o, &entityId, cm);
 
 #if defined(TRACE) && defined(TEST)
             if (!ovFound) {

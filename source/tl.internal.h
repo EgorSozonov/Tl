@@ -515,6 +515,7 @@ DEFINE_INTERNAL_LIST_TYPE(Node)
 
 DEFINE_INTERNAL_LIST_TYPE(Entity)
 
+DEFINE_INTERNAL_LIST_TYPE(Toplevel)
 DEFINE_INTERNAL_LIST_TYPE(Int)
 
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
@@ -537,7 +538,8 @@ struct Compiler { //:Compiler
     Int lastClosingPunctInd;
 
     // PARSING
-    InListToplevel toplevels;  
+    InListToplevel toplevels;
+    InListInt imports;
     StackParseFrame* backtrack; // [aTmp]
     ScopeStack* scopeStack;
     Arr(Int) activeBindings;    // [aTmp]

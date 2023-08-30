@@ -146,6 +146,7 @@ extern const char errAssignmentAccessOnToplevel[];
 void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm);
 Int typeCheckResolveExpr(Int indExpr, Compiler* cm);
 Arr(Int) createOverloads(Compiler* cm);
+extern const char errTypeOverloadsIntersect[];
 extern const char errTypeUnknownLastArg[];
 extern const char errTypeZeroArityOverload[];
 extern const char errTypeNoMatchingOverload[];
