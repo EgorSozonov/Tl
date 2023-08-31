@@ -485,7 +485,7 @@ typedef struct { // :Toplevel
     Int indToken;
     Int sentinelToken;
     untt name;
-    Int fnOrEntityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities] 
+    Int entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities] 
     bool isFunction; 
 } Toplevel;
 
