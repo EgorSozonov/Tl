@@ -3728,11 +3728,8 @@ private void parseToplevelConstants(Compiler* cm) {
     while (cm->i < len) {
         Token tok = toks[cm->i];
         if (tok.tp == tokAssignment && (cm->i + 2) < len
-            && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp != tokFn) {
-            VALIDATEP(toks[cm->i + 1].tp == tokWord, errToplevelAssignment)
-            if (toks[cm->i + 2].tp != tokFn) {
-                parseUpTo(cm->i + tok.pl2, toks, cm);
-            }
+           && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp != tokFn) {
+            parseUpTo(cm->i + tok.pl2, toks, cm);
         } else {
             cm->i += (tok.pl2 + 1);
         }
@@ -3781,10 +3778,6 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
 
     Int fnNameId = name & LOWER24BITS;
-    Int activeBinding = cm->activeBindings[fnNameId];
-
-    Int overloadId = activeBinding < -1 ? (-activeBinding - 2) : -1;
-
     cm->i++; // CONSUME the function name token
 
     Int tentativeTypeInd = cm->types.length;
@@ -3840,32 +3833,31 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler
             .name = name, .entityId = fnEntityId }, cm);
 }
 
-private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compiler* cm) {
+private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
     /// Parses a top-level function.
     /// The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... )
-    Int fnStartInd = toplevelSignature.startBt;
-    Int fnSentinel = toplevelSignature.lenBts;
+    Int fnStartInd = toplevelSignature.indToken;
+    Int fnSentinel = toplevelSignature.sentinelToken;
 
-    cm->i = toplevelSignature.pl2; // paramsTokenInd from fn "parseToplevelSignature"
-    Token fnDefTk = tokens[fnStartInd];
-    Token fnNameTk = tokens[fnStartInd + 2];
+    cm->i = fnStartInd + 2; // tokFn
+    Int startBt = toks[fnStartInd + 1].startBt;
+    Token fnTk = toks[cm->i];
 
     // the fnDef scope & node
-    Int entityId = toplevelSignature.pl1;
+    Int entityId = toplevelSignature.entityId;
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.length, .sentinelToken = fnSentinel,
                         .typeId = cm->entities.content[entityId].typeId}), cm->backtrack);
-    pushInnodes(((Node){ .tp = nodFnDef, .startBt = fnDefTk.startBt, .lenBts = fnDefTk.lenBts }), cm);
-    pushInnodes((Node){ .tp = nodBinding, .pl1 = entityId, .startBt = fnNameTk.startBt, .lenBts = fnNameTk.lenBts }, cm);
+    pushInnodes(((Node){ .tp = nodFnDef, .startBt = fnTk.startBt, .lenBts = fnTk.lenBts }), cm);
+    pushInnodes((Node){ .tp = nodBinding, .pl1 = entityId, .startBt = startBt, 
+                        .lenBts = (Int)(startBt >> 24) }, cm);
 
     // the scope for the function's body
-    addParsedScope(fnSentinel, tokens[cm->i].startBt, fnDefTk.lenBts - tokens[cm->i].startBt + fnDefTk.startBt, cm);
+    addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
 
-    Token parens = tokens[cm->i];
-
-    Int paramsSentinel = cm->i + parens.pl2 + 1;
+    Int paramsSentinel = cm->i + fnTk.pl2 + 1;
     cm->i++; // CONSUME the parens token for the param list
     while (cm->i < paramsSentinel) {
-        Token paramName = tokens[cm->i];
+        Token paramName = toks[cm->i];
         Int newEntityId = createEntity(nameOfToken(paramName), cm);
         ++cm->i; // CONSUME the param name
         Int typeId = cm->activeBindings[paramName.pl2];
@@ -3878,38 +3870,38 @@ private void parseToplevelBody(Node toplevelSignature, Arr(Token) tokens, Compil
     }
 
     ++cm->i; // CONSUME the "=" sign
-    parseUpTo(fnSentinel, tokens, cm);
+    parseUpTo(fnSentinel, toks, cm);
 }
 
-private void parseFunctionBodies(StackNode* toplevelSignatures, Arr(Token) tokens, Compiler* cm) {
+private void parseFunctionBodies(Arr(Token) toks, Compiler* cm) {
     /// Parses top-level function params and bodies
-    for (int j = 0; j < toplevelSignatures->length; j++) {
+    for (int j = 0; j < cm->toplevels.length; j++) {
         cm->loopCounter = 0;
-        parseToplevelBody(toplevelSignatures->content[j], tokens, cm);
+        parseToplevelBody(cm->toplevels.content[j], toks, cm);
     }
 }
 
-private StackNode* parseToplevelSignatures(Compiler* cm) {
+private void parseToplevelSignatures(Compiler* cm) {
     /// Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
     /// Result: the overload counts and the list of toplevel functions to parse
-    StackNode* topLevelSignatures = createStackNode(16, cm->aTmp);
     cm->i = 0;
-    const Int len = cm->tokens.length;
+    Arr(Token) toks = cm->tokens.content;
+    Int len = cm->inpLength;
     while (cm->i < len) {
-        Token tok = cm->tokens.content[cm->i];
-        if (tok.tp == tokFn) {
-            Int lenTokens = tok.pl2;
-            Int sentinelToken = cm->i + lenTokens + 1;
-            VALIDATEP(lenTokens >= 2, errFnNameAndParams)
+        Token tok = toks[cm->i];
+        if (tok.tp == tokAssignment && (cm->i + 2) < len
+           && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp == tokFn) {
+            Int sentinel = calcSentinel(tok, cm->i); 
+            parseUpTo(cm->i + tok.pl2, toks, cm);
+            Token nameTk = toks[cm->i + 1];
 
-            cm->i += 2; // CONSUME the function def token and the stmt token
-            parseToplevelSignature(tok, topLevelSignatures, cm);
-            cm->i = sentinelToken;
+            untt name =  ((untt)nameTk.lenBts << 24) + (untt)nameTk.pl2;
+            parseFnSignature(tok, true, name, cm);
+            cm->i = sentinel; 
         } else {
             cm->i += (tok.pl2 + 1);  // CONSUME the whole non-function span
         }
     }
-    return topLevelSignatures;
 }
 
 /// Must agree in order with node types in tl.internal.h
@@ -3987,14 +3979,14 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
         parseToplevelConstants(cm);
 
         // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
-        StackNode* topLevelSignatures = parseToplevelSignatures(cm);
+        parseToplevelSignatures(cm);
         createOverloads(cm);
 
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
         // The main parse (all top-level function bodies)
-        parseFunctionBodies(topLevelSignatures, cm->tokens.content, cm);
+        parseFunctionBodies(cm->tokens.content, cm);
     }
     return cm;
 }
@@ -4050,6 +4042,7 @@ private Int typeGetOuter(Int typeId, Compiler* cm) {
             return -(genElt & 0xFF) - 1; // a param type in outer position, so we return its (-arity -1)
         } else {
             return genElt & LOWER24BITS;
+        } 
     } else {
         return cm->types.content[typeId + hdr.arity + 3] & LOWER24BITS;
     }
@@ -4455,38 +4448,38 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
                 push(countArgs, exp);
             }
         } else if (cTk.tp == tokStructField) {
-            VALIDATEP(typeExprIsInside(tyeStruct, cm), errTypeDeclError)
+            VALIDATEP(typeExprIsInside(tyeStruct, cm), errTypeDefError)
 
             push(tyeName, exp);
             push(cTk.pl2, exp);  // nameId
             Token nextTk = cm->tokens.content[cm->i];
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall || nextTk.tp == tokParens,
-                      errTypeDeclError)
+                      errTypeDefError)
         } else if (cTk.tp == tokWord) {
-            VALIDATEP(typeExprIsInside(tyeFunction, cm), errTypeDeclError)
+            VALIDATEP(typeExprIsInside(tyeFunction, cm), errTypeDefError)
 
             push(tyeName, exp);
             push(cTk.pl2, exp);  // nameId
             Token nextTk = cm->tokens.content[cm->i];
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall || nextTk.tp == tokParens,
-                      errTypeDeclError)
+                      errTypeDefError)
         } else if (cTk.tp == tokArrow) {
-            VALIDATEP(cm->tempStack->length >= 2, errTypeDeclError)
+            VALIDATEP(cm->tempStack->length >= 2, errTypeDefError)
             Int penult = penultimate(cm->tempStack);
             printIntArray(cm->tempStack->length, cm->tempStack->content);
-            VALIDATEP(penult == tyeFunction || penult == tyeFnType, errTypeDeclError)
+            VALIDATEP(penult == tyeFunction || penult == tyeFnType, errTypeDefError)
 
             push(tyeRetType, exp);
             push(0, exp);
         } else if (cTk.tp == tokMeta) {
-            VALIDATEP(cm->tempStack->length >= 2, errTypeDeclError)
-            VALIDATEP(penultimate(cm->tempStack) == tyeStruct, errTypeDeclError)
+            VALIDATEP(cm->tempStack->length >= 2, errTypeDefError)
+            VALIDATEP(penultimate(cm->tempStack) == tyeStruct, errTypeDefError)
 
             push(tyeMeta, exp);
             push(cm->i - 1, exp);
         } else {
             print("erroneous type %d", cTk.tp)
-            throwExcParser(errTypeDeclError, cm);
+            throwExcParser(errTypeDefError, cm);
         }
         while (cm->tempStack->length > 0) {
             if (peek(cm->tempStack) != cm->i) {
@@ -4512,11 +4505,9 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
 
     Int sentinel = cm->i + assignTk.pl2;
     Token nameTk = toks[cm->i];
-    untt name = nameOfToken(nameTk);
     ++cm->i; // CONSUME the type name
 
     VALIDATEP(cm->i < sentinel && toks[cm->i].tp == tokParens, errTypeDefError)
-    Token parens = toks[cm->i];
     ++cm->i; // CONSUME the parens token
     Token firstTok = toks[cm->i];
     if (firstTok.tp == tokBrackets) {
@@ -4530,7 +4521,7 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
     typeBuildExpr(exp, sentinel, cm);
     printIntArray(exp->length, exp->content);
 
-    Int newTypeId = typeEvalExpr(exp, params, ((untt)(nameLen) << 24) + nameId, cm);
+    Int newTypeId = typeEvalExpr(exp, params, ((untt)(nameTk.lenBts) << 24) + nameTk.pl2, cm);
     typeDefClearParams(params, cm);
     return newTypeId;
 }
