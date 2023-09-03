@@ -4541,7 +4541,7 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
 testable bool overloadBinarySearch(Int typeIdToFind, Int outerId, Int startInd,
                                    Int* entityId, Arr(Int) overloads) {
     /// Performs a binary search among the concrete overloads. Returns false if nothing is found
-    Int countAllOverloads = (sentinelInd - startInd - 1)/2;
+    Int countOverloads = overloads[startInd];
     Int i = startInd + 1;
     Int j = startInd + overloads[startInd];
 
@@ -4572,8 +4572,8 @@ testable bool overloadBinarySearch(Int typeIdToFind, Int outerId, Int startInd,
 }
 
 testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
-    /// Params: start = ind of the first element of the overload
-    ///         end = ind of the last entityId of the overload (inclusive)
+    /// Params: typeId = type of the first function parameter
+    ///         ovInd = ind in [overloads]
     ///         entityId = address where to store the result, if successful
     Int outerType = typeGetOuter(typeId, cm);
     return overloadBinarySearch(outerType, typeId, ovInd, entityId, cm->overloads.content);
