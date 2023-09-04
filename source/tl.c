@@ -3204,7 +3204,7 @@ private void popScopeFrame(Compiler* cm) {
     scopeStack->length--;
 }
 
-private bool isFunction(Int typeId, Compiler* cm);
+private Int isFunction(Int typeId, Compiler* cm);
 
 
 private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) {
@@ -3225,14 +3225,14 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
 private Int importAndActivateEntity(Entity ent, Compiler* cm) {
     /// Adds an import to the entities table, activates it and, if function, adds an overload for it
     Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
-    bool isAFunc = isFunction(ent.typeId, cm);
-    VALIDATEP(existingBinding == -1 || isAFunc, errAssignmentShadowing)
+    Int isAFunc = isFunction(ent.typeId, cm);
+    VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
 
     Int newEntityId = cm->entities.length;
     pushInentities(ent, cm);
     Int nameId = ent.name & LOWER24BITS;
 
-    if (isAFunc) {
+    if (isAFunc > -1) {
         addRawOverload(nameId, ent.typeId, newEntityId, cm);
         pushInimports(nameId, cm);
     } else {
@@ -4048,9 +4048,10 @@ private Int typeGetOuter(Int typeId, Compiler* cm) {
     }
 }
 
-private bool isFunction(Int typeId, Compiler* cm) {
+private Int isFunction(Int typeId, Compiler* cm) {
+    /// Returns the function's depth (arity) if the type is a function type, -1 otherwise. 
     TypeHeader hdr = typeReadHeader(typeId, cm);
-    return hdr.sort == sorFunction;
+    return (hdr.sort == sorFunction) ? hdr.depth : -1;
 }
 
 //}}}
@@ -4546,10 +4547,10 @@ testable bool overloadBinarySearch(Int typeIdToFind, Int outerId, Int startInd,
     Int j = startInd + overloads[startInd];
 
     if (overloads[i] == typeIdToFind) {
-        *entityId = overloads[i + countAllOverloads];
+        *entityId = overloads[i + countOverloads];
         return true;
     } else if (overloads[j] == typeIdToFind) {
-        *entityId = overloads[j + countAllOverloads];
+        *entityId = overloads[j + countOverloads];
         return true;
     }
 
@@ -4564,7 +4565,7 @@ testable bool overloadBinarySearch(Int typeIdToFind, Int outerId, Int startInd,
         } else if (mid < typeIdToFind) {
             i = midInd;
         } else {
-            *entityId = overloads[midInd + countAllOverloads];
+            *entityId = overloads[midInd + countOverloads];
             return true;
         }
     }
@@ -4572,10 +4573,42 @@ testable bool overloadBinarySearch(Int typeIdToFind, Int outerId, Int startInd,
 }
 
 testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
-    /// Params: typeId = type of the first function parameter
+    /// Params: typeId = type of the first function parameter, or -1 if it's 0-arity
     ///         ovInd = ind in [overloads]
     ///         entityId = address where to store the result, if successful
+    Int start = ovInd + 1; 
+    Arr(Int) overs = cm->overloads.content;
+    Int countOvs = overs[ovInd];
+    Int sentinel = ovInd + overs[ovInd] + 1;
+    if (typeId == -1) {
+        Int j = 0;
+        while (j < sentinel && overs[j] < 0) {
+            if (overs[j] == -1) {
+                (*entityId) = overs[j + 2*countOvs]; 
+                return true; 
+            }
+            ++j;
+        }
+        throwExcParser(errTypeNoMatchingOverload, cm); 
+    } else {
+        Int mbFuncArity = isFunction(typeId, cm);
+        if (mbFuncArity > -1) {
+            Int j = sentinel - 1;
+            while (j > start && overs[j] > BIG) {
+                if (overs[j] - BIG == mbFuncArity) {
+                    (*entityId) = overs[j + 2*countOvs]; 
+                    return true;
+                }
+                --j; 
+            }
+        } else {
+            // binary search 
+        }
+    }
     Int outerType = typeGetOuter(typeId, cm);
+    // if outer is function, search from back
+    // else search from front the minuses
+    //
     return overloadBinarySearch(outerType, typeId, ovInd, entityId, cm->overloads.content);
 }
 
@@ -4639,7 +4672,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
         Int arity = cont[j] - BIG;
         Int o = cont[j + 1];
         if (arity == 0) {
-            VALIDATEP(o > -1, errTypeZeroArityOverload)
+            VALIDATEP(o > -1, errTypeOverloadsOnlyOneZero)
 
             Int functionTypeInd = cm->entities.content[o].typeId;
 #ifdef SAFETY
