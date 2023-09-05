@@ -57,9 +57,9 @@ typedef struct {
 
 #define DEFINE_INTERNAL_LIST_TYPE(T) \
 typedef struct {    \
-    Int capacity;   \
-    Int length;     \
-    Arr(T) content; \
+    Int cap;   \
+    Int len;     \
+    Arr(T) cont; \
 } InList##T;
 
 #define DEFINE_INTERNAL_LIST_HEADER(fieldName, T)              \
@@ -75,7 +75,7 @@ typedef struct { // :MultiList
     Int len;
     Int cap;
     Int freeList;
-    Arr(Int) content; 
+    Arr(Int) cont; 
     Arena* a; 
 } MultiList;
     
