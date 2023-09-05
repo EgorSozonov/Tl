@@ -4539,48 +4539,52 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
     return cm->types.content[typeId] > 1;
 }
 
-testable bool overloadBinarySearch(Int typeIdToFind, Int outerId, Int startInd,
-                                   Int* entityId, Arr(Int) overloads) {
-    /// Performs a binary search among the concrete overloads. Returns false if nothing is found
-    Int countOverloads = overloads[startInd];
-    Int i = startInd + 1;
-    Int j = startInd + overloads[startInd];
-
-    if (overloads[i] == typeIdToFind) {
-        *entityId = overloads[i + countOverloads];
-        return true;
-    } else if (overloads[j] == typeIdToFind) {
-        *entityId = overloads[j + countOverloads];
-        return true;
+private Int findOnPlateauOverload(Int outerTypeVal, Int ind, Int typeId, Int ovStart, Int countOvs,
+                                  Arr(Int) overs) {
+    /// Find the inclusive left and right indices of a plateau (same outer type) in [overloads]. 
+    /// Returns index of the reference in [overloads], or -1 if not match was found
+    Int j = ind - 1; 
+    while (j > ovStart && overs[j] == val) {
+        --j;
     }
-
-    while (i < j) {
-        if (j - i == 1) {
-            return false;
-        }
-        Int midInd = (i + j)/2;
-        Int mid = overloads[midInd];
-        if (mid > typeIdToFind) {
-            j = midInd;
-        } else if (mid < typeIdToFind) {
-            i = midInd;
-        } else {
-            *entityId = overloads[midInd + countOverloads];
-            return true;
-        }
+    Int plateauLeft = j + 1 + countOvs; 
+    j = ind + 1; 
+    Int sentinel = ovStart + countOvs + 1; 
+    while (j < sentinel && overs[j] == val) {
+        ++j;
     }
-    return false;
+    Int plateauRight = j - 1 + countOvs;
+    // We've found the plateau in the outer types, now to search the full types.
+    // They may contain either only negative values (for generic function's first parameter) or only
+    // non-negative values (for concrete fn param)
+    bool genericMode = overs[plateauLeft] < 0;
+    if (genericMode) {
+        for (Int k = plateauLeft; k <= plateauRight; k++) {
+            if (typeSatisfiesGeneric(typeId, overs[k], cm)) {
+                return k + countOvs;
+            }
+        }
+        return -1; 
+    } else {
+        Int indFullType = binarySearch(typeId, plateauLeft, plateauRight, overs); 
+        return indFullType > -1 ? (indFullType + countOvs) : -1; 
+    }
 }
-
+    
 testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
     /// Params: typeId = type of the first function parameter, or -1 if it's 0-arity
     ///         ovInd = ind in [overloads]
     ///         entityId = address where to store the result, if successful
+    /// We have 4 scenarios here, sorted from left to right in the outerType part of [overloads]:
+    /// 1. outerType < -1: non-function generic types with outer generic, e.g. "U(Int)" => -2
+    /// 2. outerType = -1: 0-arity function
+    /// 3. outerType >=< 0 BIG: non-function types with outer concrete, e.g. "L(U)" => ind of L
+    /// 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1
     Int start = ovInd + 1; 
     Arr(Int) overs = cm->overloads.content;
     Int countOvs = overs[ovInd];
-    Int sentinel = ovInd + overs[ovInd] + 1;
-    if (typeId == -1) {
+    Int sentinel = ovInd + countOvs + 1;
+    if (typeId == -1) { // looking for scenario 2
         Int j = 0;
         while (j < sentinel && overs[j] < 0) {
             if (overs[j] == -1) {
@@ -4591,25 +4595,41 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
         }
         throwExcParser(errTypeNoMatchingOverload, cm); 
     } else {
+        Int outerType = typeGetOuter(typeId, cm);
         Int mbFuncArity = isFunction(typeId, cm);
-        if (mbFuncArity > -1) {
+        if (mbFuncArity > -1) { // scenario 4
+            mbFuncArity += BIG; 
             Int j = sentinel - 1;
-            while (j > start && overs[j] > BIG) {
-                if (overs[j] - BIG == mbFuncArity) {
-                    (*entityId) = overs[j + 2*countOvs]; 
-                    return true;
+            for (Int j = sentinel - 1; j > start && overs[j] > BIG; j--) {
+                if (overs[j] != mbFuncArity) {
+                    continue;
                 }
-                --j; 
+                Int res = overloadOnPlateau(mbFuncArity, j, ovInd, &plateauLeft, &plateauRight, overs);
+                (*entityId) = overs[j + 2*countOvs]; 
+                return true;
             }
-        } else {
-            // binary search 
+        } else { // scenarios 1 or 3
+            Int j = start;
+            while (j < sentinel + overs[j] < -1) { // scenario 1
+            }
+            if (overs[j] == -1) {
+                ++j;
+            }
+            Int k = sentinel - 1;
+            while (k > j && overs[k] >= BIG) {
+                --k;
+            }
+            // scenario 3 
+            Int ind = binarySearch(outerType, j, k, overs);
+            if (ind == -1) {
+                return false;
+            }
+
+            Int res = overloadOnPlateau(outerType, ind, ovInd, overs);
+            (*entityId) = overs[j + 2*countOvs]; 
+            return true;
         }
     }
-    Int outerType = typeGetOuter(typeId, cm);
-    // if outer is function, search from back
-    // else search from front the minuses
-    //
-    return overloadBinarySearch(outerType, typeId, ovInd, entityId, cm->overloads.content);
 }
 
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
