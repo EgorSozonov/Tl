@@ -736,6 +736,43 @@ testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
         arr[minInd + countPairs] = tmp;
     }
 }
+    
+testable void sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) arr) {
+    /// Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
+    /// same swap on values is also performed.
+    /// Example of such a swap: [type1 type2 type3 ... entity1 entity2 entity3 ...] ->
+    ///                         [type3 type1 type2 ... entity3 entity1 entity2 ...]
+    /// The ... is the same number of elements in both halves that don't participate in sorting 
+    /// Sorts only the concrete group of overloads, doesn't touch the generic part.
+    /// Params: startInd = inclusive
+    ///         endInd = exclusive
+    Int countPairs = (endInd - startInd)/2;
+    if (countPairs == 2) return;
+    Int keyEnd = startInd + countPairs;
+
+    for (Int i = startInd; i < keyEnd; i++) {
+        Int minValue = arr[i];
+        Int minInd = i;
+        for (Int j = i + 1; j < keyEnd; j++) {
+            if (arr[j] < minValue) {
+                minValue = arr[j];
+                minInd = j;
+            }
+        }
+        if (minInd == i) {
+            continue;
+        }
+
+        // swap the keys
+        Int tmp = arr[i];
+        arr[i] = arr[minInd];
+        arr[minInd] = tmp;
+        // swap the corresponding values
+        tmp = arr[i + distance];
+        arr[i + distance] = arr[minInd + distance];
+        arr[minInd + distance] = tmp;
+    }
+}
 
 testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) {
     /// Performs an ASC sort for compact pairs (array-of-structs) by key:
@@ -2182,7 +2219,7 @@ private Int calcSentinel(Token tok, Int tokInd) {
 
 testable void pushLexScope(ScopeStack* scopeStack);
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
-testable Int typeExpr(Int nameId, Int nameLen, bool isFunction, Compiler* cm);
+testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler* cm);
 
 private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
     /// Performs coordinated insertions to start a scope within the parser
@@ -2293,7 +2330,7 @@ private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Com
             }
         }
     } else if (bindingTk.tp == tokTypeName) {
-        typeExpr(bindingTk.pl2, bindingTk.lenBts, false, cm);
+        typeDef(bindingTk, bindingTk.lenBts, false, cm);
     } else {
         throwExcParser(errAssignment, cm);
     }
@@ -3614,7 +3651,7 @@ private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) {
     }
 }
 
-private bool validateNameOverloads(Int listId, Int countOverloads, StackInt* scratch, Compiler* cm) {
+private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scratch, Compiler* cm) {
     /// Validates the overloads for a name for non-intersecting via their outer types and full types
     /// 1. For parameter outer types, their arities must be unique and not match any other outer types
     /// 2. A zero-arity function, if any, must be unique
@@ -3652,7 +3689,6 @@ private bool validateNameOverloads(Int listId, Int countOverloads, StackInt* scr
     // types) 2) non-intersection (for concrete types it's uniqueness, for generics non-intersection)
 }
 
-
 testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     /// Creates a final overloads table for a name and returns its index
     /// Precondition: [rawOverloads] contain twoples of (typeId ref) (yes, "twople" = tuple of two)
@@ -3660,12 +3696,13 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     Arr(Int) raw = cm->rawOverloads->cont;
     Int rawStart = cm->activeBindings[nameId];
     Int rawSentinel = rawStart + 1 + raw[rawStart];
-    // After this, scratch will contain twoples of (outerType ind) 
     for (Int j = rawStart + 1; j < rawSentinel; j += 2) {
         Int outerType = typeGetOuter(raw[j], cm);
         push(outerType, scratch);
         push((j - rawStart - 1)/2, scratch);  // we need the index to get the original items after sorting
     }
+    // Scratch contains twoples of (outerType ind) 
+    
     Int countOverloads = scratch->len/2;
     sortPairs(0, scratch->len, scratch->cont); // sort by outerType ASC
     Int newInd = cm->overloads.len;
@@ -3674,29 +3711,31 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     Arr(Int) ov = cm->overloads.cont;
     ov[newInd] = 3*countOverloads;
    
-
-    // After this, outerTypes will be filled in, and scratch will contain twoples of (typeId ind)
     for (Int j = 0; j < countOverloads; j++) {
         ov[newInd + j + 1] = scratch->cont[2*j]; // outerTypeId
         scratch->cont[j*2] = raw[j*2]; // typeId 
     }
+    // outerTypes part is filled in, and scratch contains twoples of (typeId ind)
+    
     // Now to sort every plateau of outerType, but in the scratch list 
     Int prevOuter = -1; 
     Int prevInd = 0; 
-    for (Int j = 0; j < countOverloads; j++) {
+    Int j = 0; 
+    for (; j < countOverloads; j++) {
         Int currOuter = ov[newInd + j + 1]; 
         if (currOuter != prevOuter) {
             prevOuter = currOuter; 
-            sort??(prevInd, j); 
+            sortPairsDistant(prevInd, j - 1, countOverloads, scratch->cont); 
             prevInd = j; 
         }
     }
-    // Now scratch consists of sorted plateaus. Finally we can fill the remaining 2/3 of [overloads] 
-    for (Int j = 0; j < countOverloads; j++) {
-//~        ov[newInd + j + 1 + countOverloads] = raw[scratch->cont[2*j + 1]]; // typeId
-//~        ov[newInd + j + 1 + 2*countOverloads] = raw[scratch->cont[2*j + 1] + 1]; // ref
+     
+    // Scratch consists of sorted plateaus. Finally we can fill the remaining 2/3 of [overloads] 
+    for (Int k = 0; k < countOverloads; k++) {
+        ov[newInd + k + 1 + countOverloads] = raw[scratch->cont[2*k + 1]]; // typeId
+        ov[newInd + k + 1 + 2*countOverloads] = raw[scratch->cont[2*k + 1] + 1]; // ref
     }
-    VALIDATEP(validateNameOverloads(newInd, countOverloads, scratch, cm), errTypeOverloadsIntersect)
+    validateNameOverloads(newInd, countOverloads, scratch, cm);
     return newInd;
 }
 
@@ -3719,8 +3758,6 @@ testable void createOverloads(Compiler* cm) {
         cm->activeBindings[nameId] = newIndex;
     }
 }
-
-testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler* cm);
 
 private void parseToplevelTypes(Compiler* cm) {
     /// Parses top-level types but not functions. Writes them to the types table and adds
@@ -4549,6 +4586,8 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
 ///}}}
 //{{{ Overloads, type check & resolve
 
+testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
+    
 private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
     /// Gets the type of the last param of a function.
     return cm->types.cont[funcTypeId + 2];
@@ -4558,18 +4597,20 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
     return cm->types.cont[typeId] > 1;
 }
 
-private Int findOnPlateauOverload(Int outerTypeVal, Int ind, Int typeId, Int ovStart, Int countOvs,
-                                  Arr(Int) overs) {
+private Int overloadOnPlateau(Int outerType, Int ind, Int typeId, Int ovInd, Int countOvs,
+                                  Compiler* cm) {
     /// Find the inclusive left and right indices of a plateau (same outer type) in [overloads]. 
+    /// ovInd 
     /// Returns index of the reference in [overloads], or -1 if not match was found
+    Arr(Int) overs = cm->overloads.cont; 
     Int j = ind - 1; 
-    while (j > ovStart && overs[j] == val) {
+    while (j > ovInd && overs[j] == outerType) {
         --j;
     }
     Int plateauLeft = j + 1 + countOvs; 
     j = ind + 1; 
-    Int sentinel = ovStart + countOvs + 1; 
-    while (j < sentinel && overs[j] == val) {
+    Int sentinel = ovInd + countOvs + 1; 
+    while (j < sentinel && overs[j] == outerType) {
         ++j;
     }
     Int plateauRight = j - 1 + countOvs;
@@ -4579,15 +4620,15 @@ private Int findOnPlateauOverload(Int outerTypeVal, Int ind, Int typeId, Int ovS
     bool genericMode = overs[plateauLeft] < 0;
     if (genericMode) {
         for (Int k = plateauLeft; k <= plateauRight; k++) {
-            if (typeSatisfiesGeneric(typeId, overs[k], cm)) {
+            if (typeSatisfiesGeneric(typeId, -overs[k] - 1, cm)) {
                 return k + countOvs;
             }
         }
-        return -1; 
     } else {
         Int indFullType = binarySearch(typeId, plateauLeft, plateauRight, overs); 
         return indFullType > -1 ? (indFullType + countOvs) : -1; 
     }
+    return -1; 
 }
     
 testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
@@ -4603,7 +4644,7 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
     Arr(Int) overs = cm->overloads.cont;
     Int countOvs = overs[ovInd];
     Int sentinel = ovInd + countOvs + 1;
-    if (typeId == -1) { // looking for scenario 2
+    if (typeId == -1) { // scenario 2
         Int j = 0;
         while (j < sentinel && overs[j] < 0) {
             if (overs[j] == -1) {
@@ -4619,36 +4660,43 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
         if (mbFuncArity > -1) { // scenario 4
             mbFuncArity += BIG; 
             Int j = sentinel - 1;
-            for (Int j = sentinel - 1; j > start && overs[j] > BIG; j--) {
+            for (; j > start && overs[j] > BIG; j--) {
                 if (overs[j] != mbFuncArity) {
                     continue;
                 }
-                Int res = overloadOnPlateau(mbFuncArity, j, ovInd, &plateauLeft, &plateauRight, overs);
-                (*entityId) = overs[j + 2*countOvs]; 
-                return true;
+                Int res = overloadOnPlateau(mbFuncArity, j, typeId, ovInd, countOvs, cm);
+                if (res > -1) { 
+                    (*entityId) = overs[res]; 
+                    return true;
+                }
             }
         } else { // scenarios 1 or 3
             Int j = start;
-            while (j < sentinel + overs[j] < -1) { // scenario 1
-            }
-            if (overs[j] == -1) {
-                ++j;
-            }
+            for (; j < sentinel && overs[j] < 0; j++); // scenario 1
+    
             Int k = sentinel - 1;
             while (k > j && overs[k] >= BIG) {
                 --k;
             }
+    
+            if (k < j) {
+                return false;
+            }
+    
             // scenario 3 
             Int ind = binarySearch(outerType, j, k, overs);
             if (ind == -1) {
                 return false;
             }
 
-            Int res = overloadOnPlateau(outerType, ind, ovInd, overs);
-            (*entityId) = overs[j + 2*countOvs]; 
-            return true;
+            Int res = overloadOnPlateau(outerType, ind, typeId, ovInd, countOvs, cm);
+            if (res > -1) { 
+                (*entityId) = overs[res]; 
+                return true;
+            }
         }
     }
+    return false; 
 }
 
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
@@ -4946,9 +4994,9 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
 
 typedef struct Codegen Codegen;
 typedef void CgFunc(Node, bool, Arr(Node), Codegen*);
-typedef struct {
+typedef struct { //:CgCall
     Int startInd; // or externalNameId
-    Int length; // only for native names
+    Int len; // only for native names
     uint8_t emit;
     uint8_t arity;
     uint8_t countArgs;
@@ -4976,18 +5024,18 @@ struct Codegen {
 
 private void ensureBufferLength(Int additionalLength, Codegen* cg) {
     /// Ensures that the buffer has space for at least that many bytes plus 10
-    if (cg->len + additionalLength + 10 < cg->capacity) {
+    if (cg->len + additionalLength + 10 < cg->cap) {
         return;
     }
     Int neededLength = cg->len + additionalLength + 10;
-    Int newCap = 2*cg->capacity;
+    Int newCap = 2*cg->cap;
     while (newCap <= neededLength) {
         newCap *= 2;
     }
     Arr(byte) new = allocateOnArena(newCap, cg->a);
     memcpy(new, cg->buffer, cg->len);
     cg->buffer = new;
-    cg->capacity = newCap;
+    cg->cap = newCap;
 }
 
 
@@ -5744,7 +5792,7 @@ void printOverloads(Int nameId, Compiler* cm) {
         print("Overloads not found")
         return; 
     }
-    Arr(Int) overs = cm->overloads.content; 
+    Arr(Int) overs = cm->overloads.cont; 
     Int countOverloads = overs[listId]/3; 
     printf("%d overloads:\n[outer = ", countOverloads); 
     Int sentinel = listId + countOverloads + 1;
