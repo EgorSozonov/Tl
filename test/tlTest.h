@@ -22,7 +22,7 @@ Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* createProtoCompiler(Arena* a);
 StandardText getStandardTextLength();
 void typePrint(Int, Compiler*);
-void pushIntokens(Token, Compiler*); 
+void pushIntokens(Token, Compiler*);
 Int stToNameId(Int a);
 
 #ifdef LEXER_TEST
@@ -137,7 +137,7 @@ extern const char errTypeMismatch[];
 extern const char errTypeMustBeBool[];
 extern const char errTypeTooManyParameters[];
 extern const char errAssignmentAccessOnToplevel[];
-    
+
 #endif
 
 
@@ -155,7 +155,7 @@ Int findOverload(Int typeId, Int start, Int end, Entity* ent, Compiler* cm);
 Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm);
 void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm);
 void typeSkipNode(Int* ind, Compiler* cm);
-    
+
 void typeAddHeader(TypeHeader hdr, Compiler* cm);
 void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm);
@@ -164,7 +164,7 @@ bool typeGenericsIntersect(Int id1, Int id2, Compiler* cm);
 StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
 Int typeDef(Token, bool, Arr(Token), Compiler* cm);
 extern const char errTypeFnSingleReturnType[];
-    
+
 #endif
 
 
@@ -182,7 +182,7 @@ MultiList* createMultiList(Arena* a);
 Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml);
 Int listAddMultiList(Int newKey, Int newVal, MultiList* ml);
 Int searchMultiList(Int searchKey, Int listInd, MultiList* ml);
-    
+
 void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr);
 void sortPairs(Int startInd, Int endInd, Arr(Int) arr);
 bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr);

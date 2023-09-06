@@ -42,10 +42,10 @@ typedef struct {
 
 #define DEFINE_STACK_HEADER(T)                                  \
     typedef struct {                                   \
-        Int capacity;                                           \
-        Int length;                                             \
+        Int cap;                                           \
+        Int len;                                             \
         Arena* arena;                                           \
-        T* content;                                             \
+        T* cont;                                             \
     } Stack##T;                                                 \
     testable Stack ## T * createStack ## T (Int initCapacity, Arena* a); \
     testable bool hasValues ## T (Stack ## T * st);                      \
@@ -66,23 +66,23 @@ typedef struct {    \
     InList##T createInList ## T (Int initCapacity, Arena* a); \
     void pushIn ## fieldName (T newItem, Compiler* cm);
 
-    
-/// A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse 
+
+/// A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse
 /// old allocations via an intrusive free list.
-/// Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors 
-/// Units of measurement of len and cap are 1's. I.e. len can never be = 1. 
+/// Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
+/// Units of measurement of len and cap are 1's. I.e. len can never be = 1.
 typedef struct { // :MultiList
     Int len;
     Int cap;
     Int freeList;
-    Arr(Int) cont; 
-    Arena* a; 
+    Arr(Int) cont;
+    Arena* a;
 } MultiList;
-    
-    
+
+
 typedef struct {
-    int length;
-    byte content[];
+    int len;
+    byte cont[];
 } String;
 testable void printStringNoLn(String* s);
 testable void printString(String* s);
@@ -105,7 +105,7 @@ DEFINE_STACK_HEADER(int32_t)
 typedef struct {
     Arr(int*) dict;
     int dictSize;
-    int length;    
+    int len;
     Arena* a;
 } IntMap;
 
@@ -121,20 +121,20 @@ typedef struct {
 
 typedef struct {
     untt capAndLen;
-    StringValue content[];
+    StringValue cont[];
 } Bucket;
 
 /** Hash map of all words/identifiers encountered in a source module */
 typedef struct {
     Arr(Bucket*) dict;
     int dictSize;
-    int length;    
+    int len;
     Arena* a;
 } StringDict;
 
 //}}}
 //{{{ Lexer
-    
+
 //{{{ Standard strings
 
 #define strAlias      0
@@ -185,7 +185,7 @@ typedef struct {
 #define strMathE     43
 
 //}}}
-    
+
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
 typedef struct { //:BtToken
     untt tp : 6;
@@ -196,7 +196,7 @@ typedef struct { //:BtToken
 } BtToken;
 
 DEFINE_STACK_HEADER(BtToken)
- 
+
 typedef struct { //:Token
     untt tp : 6;
     untt lenBts: 26;
@@ -227,7 +227,7 @@ typedef struct { //:Token
 #define tokArrow       12
 
 // Single-statement token types
-#define tokStmt        13    // firstSpanTokenType 
+#define tokStmt        13    // firstSpanTokenType
 #define tokParens      14    // this is mostly for data instantiation
 #define tokCall        15    // pl1 = nameId, index in the string table
 #define tokTypeCall    16    // pl1 = nameId
@@ -253,7 +253,7 @@ typedef struct { //:Token
 #define tokElse        36    // not a real span, but placed here so the parser can dispatch on it
 
 // Parenthesized (multi-statement) token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       37    // denoted by do(). firstParenSpanTokenType 
+#define tokScope       37    // denoted by do(). firstParenSpanTokenType
 #define tokCatch       38    // paren "catch(e => print(e))"
 #define tokFn          39
 #define tokPublicDef   40
@@ -262,11 +262,11 @@ typedef struct { //:Token
 #define tokPackage     43    // for single-file packages
 
 // Resumable core forms
-#define tokIf          44    // "if( " 
+#define tokIf          44    // "if( "
 #define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       46    // "(*m " or "(match " pattern matching on sum type tag 
-#define tokImpl        47  
-#define tokWhile       48   
+#define tokMatch       46    // "(*m " or "(match " pattern matching on sum type tag
+#define tokImpl        47
+#define tokWhile       48
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
@@ -299,17 +299,17 @@ typedef struct { //:Token
 #define nodContinue    23     // pl1 = number of label to continue to, or -1 if none needed
 #define nodDefer       24
 #define nodEmbed       25     // noParen. Embed a text file as a string literal, or a binary resource file
-#define nodExport      26       
+#define nodExport      26
 #define nodExposePriv  27     // TODO replace with "import". This is for test files
 #define nodFnDef       28     // pl1 = entityId
 #define nodIface       29
 #define nodLambda      30
-#define nodMeta        31       
+#define nodMeta        31
 #define nodPackage     32     // for single-file packages
 #define nodReturn      33
 #define nodTry         34     // the Rust kind of "try" (early return from current function)
 #define nodYield       35
-#define nodIfClause    36       
+#define nodIfClause    36
 #define nodWhile       37     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
 #define nodWhileCond   38
 
@@ -370,7 +370,7 @@ typedef struct { //:OpDef
 #define opTMinus            14 // -
 #define opTDivByExt         15 // /.
 #define opTDivBy            16 // /
-#define opTToString         17 // ; 
+#define opTToString         17 // ;
 #define opTBitShiftLeftExt  18 // <<.
 #define opTBitShiftLeft     19 // <<
 #define opTLTEQ             20 // <=
@@ -397,7 +397,7 @@ typedef struct { //:OpDef
 
 /** Count of lexical operators, i.e. things that are lexed as operator tokens.
  * must be equal to the count of following constants
- */ 
+ */
 #define countLexOperators   38
 #define countOperators      41 // count of things that are stored as operators, regardless of how they are lexed
 
@@ -437,7 +437,7 @@ typedef struct {
     untt lenBts: 26;
     untt startBt;
     Int pl1;
-    Int pl2;   
+    Int pl2;
 } Node;
 
 typedef struct {
@@ -466,7 +466,7 @@ typedef struct {
 
 typedef struct { //:Entity
     Int typeId;
-    Int name; 
+    Int name;
     uint16_t externalNameId;
     uint8_t class;
     uint8_t emit;
@@ -485,16 +485,16 @@ typedef struct { // :Toplevel
     Int indToken;
     Int sentinelToken;
     untt name;
-    Int entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities] 
-    bool isFunction; 
+    Int entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
+    bool isFunction;
 } Toplevel;
 
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
 struct ScopeChunk {
     ScopeChunk *next;
-    int length; // length is divisible by 4
-    Int content[];
+    int len; // length is divisible by 4
+    Int cont[];
 };
 
 typedef struct { //:ScopeStack
@@ -503,7 +503,7 @@ typedef struct { //:ScopeStack
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
     ScopeStackFrame* topScope;
-    Int length;
+    Int len;
     int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
 } ScopeStack;
 
@@ -557,7 +557,7 @@ struct Compiler { //:Compiler
     StackInt* tempStack;  // [aTmp]
     Int countOverloads;
     MultiList* rawOverloads; // [aTmp]
-    
+
     // GENERAL STATE
     Int i;
     bool wasError;
@@ -576,7 +576,7 @@ struct Compiler { //:Compiler
 
 //}}}
 //{{{ Types
-    
+
 /// see the Type layout chapter in the docs
 #define sorStruct       1
 #define sorSum          2
@@ -590,7 +590,7 @@ typedef struct {
     byte depth;
     untt nameAndLen;
 } TypeHeader;
-    
+
 //}}}
 //{{{ Generics
 
@@ -614,14 +614,14 @@ typedef struct {
     Stackint32_t*: penultimateint32_t, \
     StackNode*: penultimateNode \
     )(X)
-    
+
 #define push(A, X) _Generic((X), \
     StackBtToken*: pushBtToken, \
     StackParseFrame*: pushParseFrame, \
     Stackint32_t*: pushint32_t, \
     StackNode*: pushNode \
     )(A, X)
-    
+
 #define hasValues(X) _Generic((X), \
     StackBtToken*: hasValuesBtToken, \
     StackParseFrame*: hasValuesParseFrame, \

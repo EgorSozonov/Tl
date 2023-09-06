@@ -91,44 +91,44 @@ testable void deleteArena(Arena* ar) {
 
 //}}}
 //{{{Stack
-#define DEFINE_STACK(T)                                                             \
-    testable Stack##T * createStack##T (int initCapacity, Arena* a) {               \
-        int capacity = initCapacity < 4 ? 4 : initCapacity;                         \
-        Stack##T * result = allocateOnArena(sizeof(Stack##T), a);                   \
-        result->capacity = capacity;                                                \
-        result->length = 0;                                                         \
-        result->arena = a;                                                          \
-        T* arr = allocateOnArena(capacity*sizeof(T), a);                            \
-        result->content = arr;                                                      \
-        return result;                                                              \
-    }                                                                               \
-    testable bool hasValues ## T (Stack ## T * st) {                                \
-        return st->length > 0;                                                      \
-    }                                                                               \
-    testable T pop##T (Stack ## T * st) {                                           \
-        st->length--;                                                               \
-        return st->content[st->length];                                             \
-    }                                                                               \
-    testable T peek##T(Stack##T * st) {                                             \
-        return st->content[st->length - 1];                                         \
-    }                                                                               \
-    testable T penultimate##T(Stack##T * st) {                                      \
-        return st->content[st->length - 2];                                         \
-    }                                                                               \
-    testable void push##T (T newItem, Stack ## T * st) {                            \
-        if (st->length < st->capacity) {                                            \
-            memcpy((T*)(st->content) + (st->length), &newItem, sizeof(T));          \
-        } else {                                                                    \
-            T* newContent = allocateOnArena(2*(st->capacity)*sizeof(T), st->arena); \
-            memcpy(newContent, st->content, st->length*sizeof(T));                  \
-            memcpy((T*)(newContent) + (st->length), &newItem, sizeof(T));           \
-            st->capacity *= 2;                                                      \
-            st->content = newContent;                                               \
-        }                                                                           \
-        st->length++;                                                               \
-    }                                                                               \
-    testable void clear##T (Stack##T * st) {                                        \
-        st->length = 0;                                                             \
+#define DEFINE_STACK(T)\
+    testable Stack##T * createStack##T (int initCapacity, Arena* a) {\
+        int capacity = initCapacity < 4 ? 4 : initCapacity;\
+        Stack##T * result = allocateOnArena(sizeof(Stack##T), a);\
+        result->cap = capacity;\
+        result->len = 0;\
+        result->arena = a;\
+        T* arr = allocateOnArena(capacity*sizeof(T), a);\
+        result->cont = arr;\
+        return result;\
+    }\
+    testable bool hasValues ## T (Stack ## T * st) {\
+        return st->len > 0;\
+    }\
+    testable T pop##T (Stack ## T * st) {\
+        st->len--;\
+        return st->cont[st->len];\
+    }\
+    testable T peek##T(Stack##T * st) {\
+        return st->cont[st->len - 1];\
+    }\
+    testable T penultimate##T(Stack##T * st) {\
+        return st->cont[st->len - 2];\
+    }\
+    testable void push##T (T newItem, Stack ## T * st) {\
+        if (st->len < st->cap) {\
+            memcpy((T*)(st->cont) + (st->len), &newItem, sizeof(T));\
+        } else {\
+            T* newContent = allocateOnArena(2*(st->cap)*sizeof(T), st->arena);\
+            memcpy(newContent, st->cont, st->len*sizeof(T));\
+            memcpy((T*)(newContent) + (st->len), &newItem, sizeof(T));\
+            st->cap *= 2;\
+            st->cont = newContent;\
+        }\
+        ++st->len;\
+    }\
+    testable void clear##T (Stack##T * st) {\
+        st->len = 0;\
     }
 //}}}
 //{{{ Internal list
@@ -184,18 +184,18 @@ private Int multiListFindFree(Int neededCap, MultiList* ml) {
     Int prevFreeInd = -1;
     Int freeStep = 0;
     while (freeInd > -1 && freeStep < 10) {
-        Int freeCap = ml->content[freeInd + 1];
+        Int freeCap = ml->cont[freeInd + 1];
         if (freeCap == neededCap) {
             print("found freeInd %d prevFree %d step %d", freeInd, prevFreeInd, freeStep)
             if (prevFreeInd > -1) {
-                ml->content[prevFreeInd] = ml->content[freeInd]; // remove this node from the free list
+                ml->cont[prevFreeInd] = ml->cont[freeInd]; // remove this node from the free list
             } else {
                 ml->freeList = -1;
             }
             return freeInd;
         }
         prevFreeInd = freeInd;
-        freeInd = ml->content[freeInd];
+        freeInd = ml->cont[freeInd];
         ++freeStep;
     }
     return -1;
@@ -203,9 +203,9 @@ private Int multiListFindFree(Int neededCap, MultiList* ml) {
 
 
 private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, MultiList* ml) {
-    ml->content[ml->len] = listLen;
-    ml->content[ml->len + 1] = neededCap;
-    memcpy(ml->content + ml->len + 2, ml->content + listInd + 2, listLen*4);
+    ml->cont[ml->len] = listLen;
+    ml->cont[ml->len + 1] = neededCap;
+    memcpy(ml->cont + ml->len + 2, ml->cont + listInd + 2, listLen*4);
     ml->len += neededCap + 2;
 }
 
@@ -213,26 +213,26 @@ private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, Mult
 private void multiListDoubleSize(MultiList* ml) {
     Int newMultiCap = ml->cap*2;
     Arr(Int) newAlloc = allocateOnArena(newMultiCap*4, ml->a);
-    memcpy(newAlloc, ml->content, ml->len);
-    ml->content = newAlloc;
+    memcpy(newAlloc, ml->cont, ml->len);
+    ml->cont = newAlloc;
 }
 
 testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
     /// Add a new key-value pair to a particular list within the MultiList. Returns the new index for this
     /// list in case it had to be reallocated, -1 if not.
     /// Throws an exception if key already exists
-    Int listLen = ml->content[listInd];
-    Int listCap = ml->content[listInd + 1];
-    ml->content[listInd + listLen + 2] = newKey;
-    ml->content[listInd + listLen + 3] = newVal;
+    Int listLen = ml->cont[listInd];
+    Int listCap = ml->cont[listInd + 1];
+    ml->cont[listInd + listLen + 2] = newKey;
+    ml->cont[listInd + listLen + 3] = newVal;
     listLen += 2;
     Int newListInd = -1;
     if (listLen == listCap) { // look in the freelist, but not more than 10 steps to save time
         Int neededCap = listCap*2;
         Int freeInd = multiListFindFree(neededCap, ml);
         if (freeInd > -1) {
-            ml->content[freeInd] = listLen;
-            memcpy(ml->content + freeInd + 2, ml->content + listInd + 2, listLen);
+            ml->cont[freeInd] = listLen;
+            memcpy(ml->cont + freeInd + 2, ml->cont + listInd + 2, listLen);
             newListInd = freeInd;
         } else if (ml->len + neededCap + 2 < ml->cap) {
             newListInd = ml->len;
@@ -244,10 +244,10 @@ testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
         }
 
         // add this freed sector to the freelist
-        ml->content[listInd] = ml->freeList;
+        ml->cont[listInd] = ml->freeList;
         ml->freeList = listInd;
     } else {
-        ml->content[listInd] = listLen;
+        ml->cont[listInd] = listLen;
     }
     return newListInd;
 }
@@ -264,21 +264,21 @@ testable Int listAddMultiList(Int newKey, Int newVal, MultiList* ml) {
         ml->len += (initCap + 2);
     }
 
-    ml->content[newInd] = 2;
-    ml->content[newInd + 1] = initCap;
-    ml->content[newInd + 2] = newKey;
-    ml->content[newInd + 3] = newVal;
+    ml->cont[newInd] = 2;
+    ml->cont[newInd + 1] = initCap;
+    ml->cont[newInd + 2] = newKey;
+    ml->cont[newInd + 3] = newVal;
     return newInd;
 }
 
 testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
     /// Search for a key in a particular list within the MultiList. Returns the value if found,
     /// -1 otherwise
-    Int len = ml->content[listInd]/2;
+    Int len = ml->cont[listInd]/2;
     Int endInd = listInd + 2 + len;
     for (Int j = listInd + 2; j < endInd; j++) {
-        if (ml->content[j] == searchKey) {
-            return ml->content[j + len];
+        if (ml->cont[j] == searchKey) {
+            return ml->cont[j + len];
         }
     }
     return -1;
@@ -376,31 +376,31 @@ testable String* str(const char* content, Arena* a) {
         len++;
 
     String* result = allocateOnArena(len + 1 + sizeof(String), a);
-    result->length = len;
-    memcpy(result->content, content, len + 1);
+    result->len = len;
+    memcpy(result->cont, content, len + 1);
     return result;
 }
 
 testable bool endsWith(String* a, String* b) {
     /// Does string "a" end with string "b"?
-    if (a->length < b->length) {
+    if (a->len < b->len) {
         return false;
-    } else if (b->length == 0) {
+    } else if (b->len == 0) {
         return true;
     }
 
-    int shift = a->length - b->length;
-    int cmpResult = memcmp(a->content + shift, b->content, b->length);
+    int shift = a->len - b->len;
+    int cmpResult = memcmp(a->cont + shift, b->cont, b->len);
     return cmpResult == 0;
 }
 
 
 private bool equal(String* a, String* b) {
-    if (a->length != b->length) {
+    if (a->len != b->len) {
         return false;
     }
 
-    int cmpResult = memcmp(a->content, b->content, b->length);
+    int cmpResult = memcmp(a->cont, b->cont, b->len);
     return cmpResult == 0;
 }
 
@@ -421,21 +421,21 @@ private Int stringLenOfInt(Int n) {
 private String* stringOfInt(Int i, Arena* a) {
     Int stringLen = stringLenOfInt(i);
     String* result = allocateOnArena(sizeof(String) + stringLen + 1, a);
-    result->length = stringLen;
-    sprintf(result->content, "%d", i);
+    result->len = stringLen;
+    sprintf(result->cont, "%d", i);
     return result;
 }
 
 testable void printString(String* s) {
-    if (s->length == 0) return;
-    fwrite(s->content, 1, s->length, stdout);
+    if (s->len == 0) return;
+    fwrite(s->cont, 1, s->len, stdout);
     printf("\n");
 }
 
 
 testable void printStringNoLn(String* s) {
-    if (s->length == 0) return;
-    fwrite(s->content, 1, s->length, stdout);
+    if (s->len == 0) return;
+    fwrite(s->cont, 1, s->len, stdout);
 }
 
 private bool isLetter(byte a) {
@@ -625,16 +625,16 @@ private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, untt hash,
     Int capacity = (p->capAndLen) >> 16;
     Int lenBucket = (p->capAndLen & 0xFFFF);
     if (lenBucket + 1 < capacity) {
-        *(p->content + lenBucket) = (StringValue){.hash = hash, .indString = newIndString};
+        *(p->cont + lenBucket) = (StringValue){.hash = hash, .indString = newIndString};
         ++(p->capAndLen);
         if (hash == 177649) {
         }
     } else {
         // TODO handle the case when we're overflowing the 16 bits of capacity
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + 2*capacity*sizeof(StringValue), a);
-        memcpy(newBucket->content, p->content, capacity*sizeof(StringValue));
+        memcpy(newBucket->cont, p->cont, capacity*sizeof(StringValue));
 
-        Arr(StringValue) newValues = (StringValue*)newBucket->content;
+        Arr(StringValue) newValues = (StringValue*)newBucket->cont;
         newValues[capacity] = (StringValue){.indString = newIndString, .hash = hash};
         *ptrToBucket = newBucket;
         newBucket->capAndLen = ((2*capacity) << 16) + capacity + 1;
@@ -651,9 +651,9 @@ private Int addStringDict(byte* text, Int startBt, Int lenBts, Stackint32_t* str
     if (bu == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
-        StringValue* firstElem = (StringValue*)newBucket->content;
+        StringValue* firstElem = (StringValue*)newBucket->cont;
 
-        newIndString = stringTable->length;
+        newIndString = stringTable->len;
         push(startBt, stringTable);
 
         *firstElem = (StringValue){.hash = hash, .indString = newIndString };
@@ -661,15 +661,15 @@ private Int addStringDict(byte* text, Int startBt, Int lenBts, Stackint32_t* str
     } else {
         int lenBucket = (bu->capAndLen & 0xFFFF);
         for (int i = 0; i < lenBucket; i++) {
-            StringValue strVal = bu->content[i];
+            StringValue strVal = bu->cont[i];
             if (strVal.hash == hash &&
-                  memcmp(text + stringTable->content[strVal.indString], text + startBt, lenBts) == 0) {
+                  memcmp(text + stringTable->cont[strVal.indString], text + startBt, lenBts) == 0) {
                 // key already present
                 return strVal.indString;
             }
         }
 
-        newIndString = stringTable->length;
+        newIndString = stringTable->len;
         push(startBt, stringTable);
         addValueToBucket(hm->dict + hashOffset, newIndString, hash, hm->a);
     }
@@ -678,22 +678,22 @@ private Int addStringDict(byte* text, Int startBt, Int lenBts, Stackint32_t* str
 
 testable Int getStringDict(byte* text, String* strToSearch, Stackint32_t* stringTable, StringDict* hm) {
     /// Returns the index of a string within the string table, or -1 if it's not present
-    Int lenBts = strToSearch->length;
-    untt hash = hashCode(strToSearch->content, lenBts);
+    Int lenBts = strToSearch->len;
+    untt hash = hashCode(strToSearch->cont, lenBts);
     Int hashOffset = hash % (hm->dictSize);
     if (*(hm->dict + hashOffset) == NULL) {
         return -1;
     } else {
         Bucket* p = *(hm->dict + hashOffset);
         int lenBucket = (p->capAndLen & 0xFFFF);
-        Arr(StringValue) stringValues = (StringValue*)p->content;
+        Arr(StringValue) stringValues = (StringValue*)p->cont;
         for (int i = 0; i < lenBucket; i++) {
             if (stringValues[i].hash == hash
-                && memcmp(strToSearch->content, text + stringTable->content[stringValues[i].indString], lenBts) == 0) {
+                && memcmp(strToSearch->cont, 
+                          text + stringTable->cont[stringValues[i].indString], lenBts) == 0) {
                 return stringValues[i].indString;
             }
         }
-
         return -1;
     }
 }
@@ -1023,15 +1023,15 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
         goto cleanup;
     }
 
-    memcpy(result->content, standardText, lenStandard);
+    memcpy(result->cont, standardText, lenStandard);
     // Read the entire file into memory.
-    size_t newLen = fread(result->content + lenStandard, 1, fileSize, file);
+    size_t newLen = fread(result->cont + lenStandard, 1, fileSize, file);
     if (ferror(file) != 0 ) {
         fputs("Error reading file", stderr);
     } else {
-        result->content[newLen] = '\0'; // Just to be safe.
+        result->cont[newLen] = '\0'; // Just to be safe.
     }
-    result->length = newLen;
+    result->len = newLen;
     cleanup:
     fclose(file);
     return result;
@@ -1043,9 +1043,9 @@ private untt nameOfToken(Token tk) {
 
 
 private untt nameOfStandard(Int strId) {
-    Int len = standardStrings[strId + 1] - standardStrings[strId];
+    Int length = standardStrings[strId + 1] - standardStrings[strId];
     Int nameId = standardStrings[strId] - strFirstNonReserved;
-    return ((untt)len << 24) + (untt)(nameId);
+    return ((untt)length << 24) + (untt)(nameId);
 }
 
 //}}}
@@ -1114,8 +1114,8 @@ private Int probeReservedWords(Int indStart, Int indEnd, Int startBt, Int lenBts
     for (Int i = indStart; i < indEnd; i++) {
         Int len = standardStrings[i + 1] - standardStrings[i];
         if (len == lenBts &&
-            memcmp(lx->sourceCode->content + standardStrings[i],
-                   lx->sourceCode->content + startBt, len) == 0) {
+            memcmp(lx->sourceCode->cont + standardStrings[i],
+                   lx->sourceCode->cont + startBt, len) == 0) {
             return standardToks[i];
         }
     }
@@ -1237,8 +1237,8 @@ private void closeRegularPunctuation(Int closingType, Compiler* lx) {
 
     // since a closing paren might be closing something with statements inside it, like a lex scope
     // or a core syntax form, we need to close the last statement before closing its parent
-    if (bt->length > 0 && top.spanLevel != slScope
-          && (bt->content[bt->length - 1].spanLevel <= slParenMulti)) {
+    if (bt->len > 0 && top.spanLevel != slScope
+          && (bt->cont[bt->len - 1].spanLevel <= slParenMulti)) {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
@@ -1565,7 +1565,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
 
     Int realStartByte = (wordType == tokWord) ? startBt : (startBt - 1);
     // accounting for the initial ".", ":" or other symbol
-    byte firstByte = lx->sourceCode->content[startBt];
+    byte firstByte = lx->sourceCode->cont[startBt];
     Int lenBts = lx->i - realStartByte;
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
@@ -1676,7 +1676,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
         tok->tp = tokMutation;
         tok->pl1 = (Int)((untt)((opType << 26) + lx->i));
     }
-    lx->lexBtrack->content[lx->lexBtrack->length - 1] = (BtToken){ .tp = tok->tp, .spanLevel = slStmt, .tokenInd = tokenInd };
+    lx->lexBtrack->cont[lx->lexBtrack->len - 1] = (BtToken){ .tp = tok->tp, .spanLevel = slStmt, .tokenInd = tokenInd };
 }
 
 private void lexDollar(Compiler* lx, Arr(byte) source) {
@@ -1701,7 +1701,7 @@ private void lexColon(Compiler* lx, Arr(byte) source) {
             return;
         }
     }
-    VALIDATEL(lx->lexBtrack->length >= 2, errCoreMisplacedColon)
+    VALIDATEL(lx->lexBtrack->len >= 2, errCoreMisplacedColon)
     maybeBreakStatement(lx);
     pushIntokens((Token){.tp = tokColon, .startBt = lx->i, .lenBts = 1 }, lx);
     ++lx->i; // CONSUME the ":"
@@ -1894,8 +1894,8 @@ private void lexBracketRight(Compiler* lx, Arr(byte) source) {
 
     // since a closing paren might be closing something with statements inside it, like a lex scope
     // or a core syntax form, we need to close the last statement before closing its parent
-    if (bt->length > 0 && top.spanLevel != slScope
-          && (bt->content[bt->length - 1].spanLevel <= slParenMulti)) {
+    if (bt->len > 0 && top.spanLevel != slScope
+          && (bt->cont[bt->len - 1].spanLevel <= slParenMulti)) {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
@@ -1963,7 +1963,7 @@ testable void printLexer(Compiler* lx) {
     Stackint32_t* sentinels = createStackint32_t(16, a);
     for (int i = 0; i < lx->tokens.len; i++) {
         Token tok = lx->tokens.cont[i];
-        for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
+        for (int m = sentinels->len - 1; m > -1 && sentinels->cont[m] == i; m--) {
             popint32_t(sentinels);
             indent--;
         }
@@ -2165,7 +2165,7 @@ private Int createEntity(untt name, Compiler* cm) {
     pushInentities(((Entity){.emit = emitPrefix, .name = name, .class = classMutableGuaranteed}), cm);
 
     if (nameId > -1) { // nameId == -1 only for the built-in operators
-        if (cm->scopeStack->length > 0) {
+        if (cm->scopeStack->len > 0) {
             addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
         }
         cm->activeBindings[nameId] = newEntityId; // makes it active
@@ -2457,7 +2457,7 @@ private void exprSubexpr(Int sentinelToken, Int* arity, Arr(Token) tokens, Compi
 
 private void subexprClose(Arr(Token) tokens, Compiler* cm) {
     /// Flushes the finished subexpr frames from the top of the funcall stack.
-    while (cm->scopeStack->length > 0 && cm->i == peek(cm->backtrack).sentinelToken) {
+    while (cm->scopeStack->len > 0 && cm->i == peek(cm->backtrack).sentinelToken) {
         popFrame(cm);
     }
 }
@@ -2757,13 +2757,13 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
         return -1;
     }
 
-    Int j = cm->backtrack->length;
+    Int j = cm->backtrack->len;
     while (j > -1) {
-        Int pfType = cm->backtrack->content[j].tp;
+        Int pfType = cm->backtrack->cont[j].tp;
         if (pfType == nodWhile) {
             --unwindLevel;
             if (unwindLevel == 0) {
-                ParseFrame loopFrame = cm->backtrack->content[j];
+                ParseFrame loopFrame = cm->backtrack->cont[j];
                 Int loopId = loopFrame.typeId;
                 cm->nodes.cont[loopFrame.startNodeInd].pl1 = loopId;
                 return unwindLevel == 1 ? -1 : loopId;
@@ -2852,11 +2852,11 @@ private void parsePackage(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void typecheckFnReturn(Int typeId, Compiler* cm) {
-    Int j = cm->backtrack->length - 1;
-    while (j > -1 && cm->backtrack->content[j].tp != nodFnDef) {
+    Int j = cm->backtrack->len - 1;
+    while (j > -1 && cm->backtrack->cont[j].tp != nodFnDef) {
         --j;
     }
-    Int fnTypeInd = cm->backtrack->content[j].typeId;
+    Int fnTypeInd = cm->backtrack->cont[j].typeId;
     VALIDATEP(cm->types.cont[fnTypeInd + 1] == typeId, errTypeWrongReturnType)
 }
 
@@ -2952,10 +2952,10 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 
 
 private Stackint32_t* copyStringTable(Stackint32_t* table, Arena* a) {
-    Stackint32_t* result = createStackint32_t(table->capacity, a);
-    result->length = table->length;
-    result->capacity = table->capacity;
-    memcpy(result->content, table->content, table->length*4);
+    Stackint32_t* result = createStackint32_t(table->cap, a);
+    result->len = table->len;
+    result->cap = table->cap;
+    memcpy(result->cont, table->cont, table->len*4);
     return result;
 }
 
@@ -2975,7 +2975,7 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) {
             Int len = old->capAndLen & LOWER16BITS;
             Bucket* new = allocateOnArena(sizeof(Bucket) + capacity*sizeof(StringValue), a);
             new->capAndLen = old->capAndLen;
-            memcpy(new->content, old->content, len*sizeof(StringValue));
+            memcpy(new->cont, old->cont, len*sizeof(StringValue));
             dict[i] = new;
         }
     }
@@ -3020,7 +3020,7 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
     /// Main lexer function. Precondition: the input byte array has been prepended with StandardText
     Compiler* lx = createLexerFromProto(sourceCode, proto, a);
     Int inpLength = lx->inpLength;
-    Arr(byte) inp = lx->sourceCode->content;
+    Arr(byte) inp = lx->sourceCode->cont;
     VALIDATEL(inpLength > 0, "Empty input")
 
     // Check for UTF-8 BOM at start of file
@@ -3045,7 +3045,7 @@ struct ScopeStackFrame {
     /// This frame corresponds either to a lexical scope or a subexpression.
     /// It contains string ids introduced in the current scope, used not for cleanup after the frame is popped.
     /// Otherwise, it contains the function call of the subexpression.
-    int length;                // number of elements in scope stack
+    int len;                // number of elements in scope stack
 
     ScopeChunk* previousChunk;
     int previousInd;           // index of the start of previous frame within its chunk
@@ -3080,15 +3080,15 @@ testable ScopeStack* createScopeStack(void) {
 
     ScopeChunk* firstChunk = malloc(CHUNK_SIZE);
 
-    firstChunk->length = FRESH_CHUNK_LEN;
+    firstChunk->len = FRESH_CHUNK_LEN;
     firstChunk->next = NULL;
 
     result->firstChunk = firstChunk;
     result->currChunk = firstChunk;
     result->lastChunk = firstChunk;
-    result->topScope = (ScopeStackFrame*)firstChunk->content;
+    result->topScope = (ScopeStackFrame*)firstChunk->cont;
     result->nextInd = ceiling4(sizeof(ScopeStackFrame))/4;
-    Arr(int) firstFrame = (int*)firstChunk->content + result->nextInd;
+    Arr(int) firstFrame = (int*)firstChunk->cont + result->nextInd;
 
     (*result->topScope) = (ScopeStackFrame){.len = 0, .previousChunk = NULL, .thisChunk = firstChunk,
         .thisInd = result->nextInd, .bindings = firstFrame };
@@ -3103,7 +3103,7 @@ private void mbNewChunk(ScopeStack* scopeStack) {
         return;
     }
     ScopeChunk* newChunk = malloc(CHUNK_SIZE);
-    newChunk->length = FRESH_CHUNK_LEN;
+    newChunk->len = FRESH_CHUNK_LEN;
     newChunk->next = NULL;
     scopeStack->currChunk->next = newChunk;
     scopeStack->lastChunk = NULL;
@@ -3113,7 +3113,7 @@ testable void pushLexScope(ScopeStack* scopeStack) {
     /// Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within a brand
     /// new chunk. Scopes have a simple size policy: 64 elements at first, then 256, then throw exception.
     /// This is because only 256 local variables are allowed in one function, and transitively in one scope.
-    int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
+    int remainingSpace = scopeStack->currChunk->len - scopeStack->nextInd + 1;
     int necessarySpace = ceiling4(sizeof(ScopeStackFrame))/4 + 64;
 
     ScopeChunk* oldChunk = scopeStack->topScope->thisChunk;
@@ -3124,10 +3124,10 @@ testable void pushLexScope(ScopeStack* scopeStack) {
         mbNewChunk(scopeStack);
         scopeStack->currChunk = scopeStack->currChunk->next;
         scopeStack->nextInd = necessarySpace;
-        newScope = (ScopeStackFrame*)scopeStack->currChunk->content;
+        newScope = (ScopeStackFrame*)scopeStack->currChunk->cont;
         newInd = 0;
     } else {
-        newScope = (ScopeStackFrame*)((int*)scopeStack->currChunk->content + scopeStack->nextInd);
+        newScope = (ScopeStackFrame*)((int*)scopeStack->currChunk->cont + scopeStack->nextInd);
         newInd = scopeStack->nextInd;
         scopeStack->nextInd += necessarySpace;
     }
@@ -3136,18 +3136,18 @@ testable void pushLexScope(ScopeStack* scopeStack) {
         .bindings = (int*)newScope + ceiling4(sizeof(ScopeStackFrame))};
 
     scopeStack->topScope = newScope;
-    scopeStack->length++;
+    scopeStack->len++;
 }
 
 
 private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope, ScopeStack* scopeStack) {
-    int newLength = scopeStack->topScope->length + 1;
+    int newLength = scopeStack->topScope->len + 1;
     if (newLength == initLength) {
-        int remainingSpace = scopeStack->currChunk->length - scopeStack->nextInd + 1;
+        int remainingSpace = scopeStack->currChunk->len - scopeStack->nextInd + 1;
         if (remainingSpace + initLength < 256) {
             mbNewChunk(scopeStack);
             scopeStack->currChunk = scopeStack->currChunk->next;
-            Arr(int) newContent = scopeStack->currChunk->content;
+            Arr(int) newContent = scopeStack->currChunk->cont;
 
             memcpy(topScope->bindings, newContent, initLength*4);
             topScope->bindings = newContent;
@@ -3161,8 +3161,8 @@ private void addBinding(int nameId, int bindingId, Compiler* cm) {
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
 
-    topScope->bindings[topScope->length] = nameId;
-    topScope->length++;
+    topScope->bindings[topScope->len] = nameId;
+    topScope->len++;
 
     cm->activeBindings[nameId] = bindingId;
 }
@@ -3173,7 +3173,7 @@ private void popScopeFrame(Compiler* cm) {
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     ScopeStack* scopeStack = cm->scopeStack;
     if (topScope->bindings) {
-        for (int i = 0; i < topScope->length; i++) {
+        for (int i = 0; i < topScope->len; i++) {
             cm->activeBindings[*(topScope->bindings + i)] = -1;
         }
     }
@@ -3181,7 +3181,7 @@ private void popScopeFrame(Compiler* cm) {
     if (topScope->previousChunk) {
         scopeStack->currChunk = topScope->previousChunk;
         scopeStack->lastChunk = scopeStack->currChunk->next;
-        scopeStack->topScope = (ScopeStackFrame*)(scopeStack->currChunk->content + topScope->previousInd);
+        scopeStack->topScope = (ScopeStackFrame*)(scopeStack->currChunk->cont + topScope->previousInd);
     }
 
     // if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but everything after it
@@ -3201,7 +3201,7 @@ private void popScopeFrame(Compiler* cm) {
             } while (ch != NULL);
         }
     }
-    scopeStack->length--;
+    scopeStack->len--;
 }
 
 private Int isFunction(Int typeId, Compiler* cm);
@@ -3252,13 +3252,13 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
     if (*(hm->dict + hashOffset) == NULL) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
-        StringValue* firstElem = (StringValue*)newBucket->content;
+        StringValue* firstElem = (StringValue*)newBucket->cont;
         *firstElem = (StringValue){.hash = theHash, .indString = startBt };
         *(hm->dict + hashOffset) = newBucket;
     } else {
         Bucket* p = *(hm->dict + hashOffset);
         int lenBucket = (p->capAndLen & 0xFFFF);
-        Arr(StringValue) stringValues = (StringValue*)p->content;
+        Arr(StringValue) stringValues = (StringValue*)p->cont;
         for (int i = 0; i < lenBucket; i++) {
             if (stringValues[i].hash == theHash
                   && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {
@@ -3269,7 +3269,7 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
         }
         addValueToBucket((hm->dict + hashOffset), startBt, lenBts, hm->a);
     }
-    ++hm->length;
+    ++hm->len;
     return startInd;
 }
 
@@ -3349,7 +3349,7 @@ private void buildStandardStrings(Compiler* lx) {
     }
     for (Int i = strFirstNonReserved; i <= strMathE; i++) {
         Int startBt = standardStrings[i];
-        addStringDict(lx->sourceCode->content, startBt, standardStrings[i + 1] - startBt,
+        addStringDict(lx->sourceCode->cont, startBt, standardStrings[i + 1] - startBt,
                       lx->stringTable, lx->stringDict);
     }
 }
@@ -3539,7 +3539,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
     (*lx) = (Compiler){
         // this assumes that the source code is prefixed with the "standardText"
         .i = sizeof(standardText) - 1, .langDef = proto->langDef, .sourceCode = sourceCode,
-        .inpLength = sourceCode->length,
+        .inpLength = sourceCode->len,
         .tokens = createInListToken(LEXER_INIT_SIZE, a),
         .newlines = createInListInt(500, a),
         .numeric = createInListInt(50, aTmp),
@@ -3560,7 +3560,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     }
 
     Compiler* cm = lx;
-    cm->activeBindings = allocateOnArena(4*lx->stringTable->length, lx->aTmp);
+    cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
 
     Int initNodeCap = lx->tokens.len > 64 ? lx->tokens.len : 64;
     cm->scopeStack = createScopeStack();
@@ -3572,8 +3572,8 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->monoIds = createMultiList(a);
     cm->rawOverloads = createMultiList(cm->aTmp);
 
-    if (lx->stringTable->length > 0) {
-        memset(cm->activeBindings, 0xFF, lx->stringTable->length*4); // activeBindings is filled with -1
+    if (lx->stringTable->len > 0) {
+        memset(cm->activeBindings, 0xFF, lx->stringTable->len*4); // activeBindings is filled with -1
     }
 
     cm->entities = createInListEntity(proto->entities.cap, a);
@@ -3656,8 +3656,8 @@ private bool validateNameOverloads(Int listId, Int countOverloads, StackInt* scr
 testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     /// Creates a final overloads table for a name and returns its index
     /// Precondition: [rawOverloads] contain twoples of (typeId ref) (yes, "twople" = tuple of two)
-    scratch->length = 0;
-    Arr(Int) raw = cm->rawOverloads->content;
+    scratch->len = 0;
+    Arr(Int) raw = cm->rawOverloads->cont;
     Int rawStart = cm->activeBindings[nameId];
     Int rawSentinel = rawStart + 1 + raw[rawStart];
     // After this, scratch will contain twoples of (outerType ind) 
@@ -3666,8 +3666,8 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
         push(outerType, scratch);
         push((j - rawStart - 1)/2, scratch);  // we need the index to get the original items after sorting
     }
-    Int countOverloads = scratch->length/2;
-    sortPairs(0, scratch->length, scratch->content); // sort by outerType ASC
+    Int countOverloads = scratch->len/2;
+    sortPairs(0, scratch->len, scratch->cont); // sort by outerType ASC
     Int newInd = cm->overloads.len;
 
     reserveSpaceInList(3*countOverloads + 1, cm->overloads, cm); // 3 because it's: outerType, typeId, ref
@@ -3677,8 +3677,8 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
 
     // After this, outerTypes will be filled in, and scratch will contain twoples of (typeId ind)
     for (Int j = 0; j < countOverloads; j++) {
-        ov[newInd + j + 1] = scratch->content[2*j]; // outerTypeId
-        scratch->content[j*2] = raw[j*2]; // typeId 
+        ov[newInd + j + 1] = scratch->cont[2*j]; // outerTypeId
+        scratch->cont[j*2] = raw[j*2]; // typeId 
     }
     // Now to sort every plateau of outerType, but in the scratch list 
     Int prevOuter = -1; 
@@ -3693,8 +3693,8 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     }
     // Now scratch consists of sorted plateaus. Finally we can fill the remaining 2/3 of [overloads] 
     for (Int j = 0; j < countOverloads; j++) {
-//~        ov[newInd + j + 1 + countOverloads] = raw[scratch->content[2*j + 1]]; // typeId
-//~        ov[newInd + j + 1 + 2*countOverloads] = raw[scratch->content[2*j + 1] + 1]; // ref
+//~        ov[newInd + j + 1 + countOverloads] = raw[scratch->cont[2*j + 1]]; // typeId
+//~        ov[newInd + j + 1 + 2*countOverloads] = raw[scratch->cont[2*j + 1] + 1]; // ref
     }
     VALIDATEP(validateNameOverloads(newInd, countOverloads, scratch, cm), errTypeOverloadsIntersect)
     return newInd;
@@ -3966,7 +3966,7 @@ testable void printParser(Compiler* cm, Arena* a) {
     Stackint32_t* sentinels = createStackint32_t(16, a);
     for (int i = 0; i < cm->nodes.len; i++) {
         Node nod = cm->nodes.cont[i];
-        for (int m = sentinels->length - 1; m > -1 && sentinels->content[m] == i; m--) {
+        for (int m = sentinels->len - 1; m > -1 && sentinels->cont[m] == i; m--) {
             popint32_t(sentinels);
             indent--;
         }
@@ -4140,12 +4140,12 @@ private Int typeCountArgs(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
 
 testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
     /// Performs a binary search among the binary params in cm->typeStack. Returns -1 if nothing is found
-    if (cm->typeStack->length == 0) {
+    if (cm->typeStack->len == 0) {
         return -1;
     }
-    Arr(Int) st = cm->typeStack->content;
+    Arr(Int) st = cm->typeStack->cont;
     Int i = 0;
-    Int j = cm->typeStack->length - 2;
+    Int j = cm->typeStack->len - 2;
     if (st[i] == nameIdToFind) {
         return i;
     } else if (st[j] == nameIdToFind) {
@@ -4208,26 +4208,26 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
 #endif
     Int countFields = (sentinel - startInd)/4;
     typeAddHeader((TypeHeader){
-        .sort = sorStruct, .arity = params->length/2, .depth = countFields,
+        .sort = sorStruct, .arity = params->len/2, .depth = countFields,
         .nameAndLen = nameAndLen}, cm);
-    for (Int j = 1; j < params->length; j += 2) {
-        pushIntypes(params->content[j], cm);
+    for (Int j = 1; j < params->len; j += 2) {
+        pushIntypes(params->cont[j], cm);
     }
 
     for (Int j = startInd + 1; j < sentinel; j += 4) {
         // names of fields
 #ifdef SAFETY
-        VALIDATEP(exp->content[j - 1] == tydField, "not a field")
+        VALIDATEP(exp->cont[j - 1] == tydField, "not a field")
 #endif
-        pushIntypes(exp->content[j], cm);
+        pushIntypes(exp->cont[j], cm);
     }
 
     for (Int j = startInd + 3; j < sentinel; j += 4) {
         // types of fields
 #ifdef SAFETY
-        VALIDATEP(exp->content[j - 1] == tyeType, "not a type")
+        VALIDATEP(exp->cont[j - 1] == tyeType, "not a type")
 #endif
-        pushIntypes(exp->content[j], cm);
+        pushIntypes(exp->cont[j], cm);
     }
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
     return mergeType(tentativeTypeId, cm);
@@ -4242,22 +4242,22 @@ private Int typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt
     pushIntypes(0, cm);
     Int sentinel = startInd + length;
     Int countFnParams = (sentinel - startInd)/2;
-    bool metRetType = exp->length >= 4 && exp->content[exp->length - 4] == tyeRetType;
+    bool metRetType = exp->len >= 4 && exp->cont[exp->len - 4] == tyeRetType;
     if (metRetType) {
         --countFnParams;
     }
     typeAddHeader((TypeHeader){
-        .sort = (isFunction ? sorFunction : sorPartial), .arity = params->length/2, .depth = countFnParams,
+        .sort = (isFunction ? sorFunction : sorPartial), .arity = params->len/2, .depth = countFnParams,
         .nameAndLen = 0}, cm);
-    for (Int j = 1; j < params->length; j += 2) {
-        pushIntypes(params->content[j], cm);
+    for (Int j = 1; j < params->len; j += 2) {
+        pushIntypes(params->cont[j], cm);
     }
 
     for (Int j = startInd + 1; j < sentinel; j += 2) {
-        Int tye = exp->content[j - 1] & LOWER24BITS;
+        Int tye = exp->cont[j - 1] & LOWER24BITS;
         if (tye == tyeRetType) {
         } else if (tye == tyeType) {
-            pushIntypes(exp->content[j], cm);
+            pushIntypes(exp->cont[j], cm);
         } else {
             throwExcParser("not a type", cm);
         }
@@ -4287,26 +4287,26 @@ private Int typeCreateFnSignature(StackInt* exp, Int startInd, Int length, Stack
 #endif
     Int countFields = (sentinel - startInd)/4;
     typeAddHeader((TypeHeader){
-        .sort = sorStruct, .arity = params->length/2, .depth = countFields,
+        .sort = sorStruct, .arity = params->len/2, .depth = countFields,
         .nameAndLen = nameAndLen}, cm);
-    for (Int j = 1; j < params->length; j += 2) {
-        pushIntypes(params->content[j], cm);
+    for (Int j = 1; j < params->len; j += 2) {
+        pushIntypes(params->cont[j], cm);
     }
 
     for (Int j = startInd + 1; j < sentinel; j += 4) {
         // names of fields
 #ifdef SAFETY
-        VALIDATEP(exp->content[j - 1] == tydField, "not a field")
+        VALIDATEP(exp->cont[j - 1] == tydField, "not a field")
 #endif
-        pushIntypes(exp->content[j], cm);
+        pushIntypes(exp->cont[j], cm);
     }
 
     for (Int j = startInd + 3; j < sentinel; j += 4) {
         // types of fields
 #ifdef SAFETY
-        VALIDATEP(exp->content[j - 1] == tyeType, "not a type")
+        VALIDATEP(exp->cont[j - 1] == tyeType, "not a type")
 #endif
-        pushIntypes(exp->content[j], cm);
+        pushIntypes(exp->cont[j], cm);
     }
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
     return mergeType(tentativeTypeId, cm);
@@ -4315,45 +4315,45 @@ private Int typeCreateFnSignature(StackInt* exp, Int startInd, Int length, Stack
 private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compiler* cm) {
     /// Processes the "type expression" produced by "typeDef".
     /// Returns the typeId of the new typeId
-    Int j = exp->length - 2;
-    printIntArray(exp->length, exp->content);
+    Int j = exp->len - 2;
+    printIntArray(exp->len, exp->cont);
     while (j > 0) {
-        Int tyeContent = exp->content[j];
-        Int tye = (exp->content[j] >> 24) & 0xFF;
+        Int tyeContent = exp->cont[j];
+        Int tye = (exp->cont[j] >> 24) & 0xFF;
         if (tye == 0) {
             tye = tyeContent;
         }
         if (tye == tyeStruct) {
-            Int lengthStruct = exp->content[j + 1]*4; // *4 because for every field there are 4 ints
+            Int lengthStruct = exp->cont[j + 1]*4; // *4 because for every field there are 4 ints
             Int typeNestedStruct = typeCreateStruct(exp, j + 2, lengthStruct, params, 0, cm);
-            exp->content[j] = tyeType;
-            exp->content[j + 1] = typeNestedStruct;
+            exp->cont[j] = tyeType;
+            exp->cont[j + 1] = typeNestedStruct;
             shiftTypeStackLeft(j + 2 + lengthStruct, lengthStruct, cm);
 
             print("after struct shift:");
-            printIntArray(exp->length, exp->content);
+            printIntArray(exp->len, exp->cont);
         } else if (tye == tyeTypeCall || tye == tyeFnType) {
-            Int lengthFn = exp->content[j + 1]*2;
+            Int lengthFn = exp->cont[j + 1]*2;
             Int typeFn = typeCreateTypeCall(exp, j + 2, lengthFn, params, tye == tyeFnType, cm);
-            exp->content[j] = tyeType;
-            exp->content[j + 1] = typeFn;
+            exp->cont[j] = tyeType;
+            exp->cont[j + 1] = typeFn;
             shiftTypeStackLeft(j + 2 + lengthFn, lengthFn, cm);
 
             print("after typeCall/fnType shift:");
-            printIntArray(exp->length, exp->content);
+            printIntArray(exp->len, exp->cont);
         } else if (tye == tyeParamCall) {
 
         }
         j -= 2;
     }
     print("after processing")
-    printIntArray(exp->length, exp->content);
+    printIntArray(exp->len, exp->cont);
     if (nameAndLen > 0) {
         // at this point, exp must contain just a single struct with its fields followed by just typeIds
-        Int lengthNewStruct = exp->content[1]*4; // *4 because for every field there are 4 ints
+        Int lengthNewStruct = exp->cont[1]*4; // *4 because for every field there are 4 ints
         return typeCreateStruct(exp, 2, lengthNewStruct, params, nameAndLen, cm);
     } else {
-        Int lengthNewSignature = exp->content[1]*4; // *4 because for every field there are 4 ints
+        Int lengthNewSignature = exp->cont[1]*4; // *4 because for every field there are 4 ints
         return typeCreateFnSignature(exp, 2, lengthNewSignature, params, 0, cm);
     }
 }
@@ -4368,7 +4368,7 @@ private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) 
         VALIDATEP(tk.tp == tokTypeName, errTypeDefParamsError)
         Int nameId = tk.pl2;
         VALIDATEP(cm->activeBindings[nameId] == -1, errAssignmentShadowing)
-        cm->activeBindings[nameId] = -params->length - 2;
+        cm->activeBindings[nameId] = -params->len - 2;
         push(tk.pl2, params);
         if (tk.pl1 > 0) {
             VALIDATEP(cm->i + 1 < brackSentinel, errTypeDefParamsError)
@@ -4379,16 +4379,16 @@ private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) 
         } else {
             push(0, params);
         }
-        VALIDATEP(params->length <= maxTypeParams, errWordLengthExceeded)
+        VALIDATEP(params->len <= maxTypeParams, errWordLengthExceeded)
         ++cm->i;
     }
 }
 
 private void typeDefClearParams(StackInt* params, Compiler* cm) {
-    for (Int j = 0; j < params->length; j += 2) {
-        cm->activeBindings[params->content[j]] = -1;
+    for (Int j = 0; j < params->len; j += 2) {
+        cm->activeBindings[params->cont[j]] = -1;
     }
-    params->length = 0;
+    params->len = 0;
 }
 
 private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
@@ -4414,7 +4414,7 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
 
 private bool typeExprIsInside(Int tp, Compiler* cm) {
     /// Is the current type expression inside e.g. a struct or a function
-    return (cm->tempStack->length >= 2
+    return (cm->tempStack->len >= 2
             && penultimate(cm->tempStack) == tp);
 }
 
@@ -4463,7 +4463,7 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
                     push(countArgs, exp);
                 }
             } else {
-                VALIDATEP(params->content[mbParamId + 1] == countArgs, errTypeConstructorWrongArity)
+                VALIDATEP(params->cont[mbParamId + 1] == countArgs, errTypeConstructorWrongArity)
                 push(((untt)tyeParamCall << 24) + nameId, exp);
                 push(countArgs, exp);
             }
@@ -4484,15 +4484,15 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall || nextTk.tp == tokParens,
                       errTypeDefError)
         } else if (cTk.tp == tokArrow) {
-            VALIDATEP(cm->tempStack->length >= 2, errTypeDefError)
+            VALIDATEP(cm->tempStack->len >= 2, errTypeDefError)
             Int penult = penultimate(cm->tempStack);
-            printIntArray(cm->tempStack->length, cm->tempStack->content);
+            printIntArray(cm->tempStack->len, cm->tempStack->cont);
             VALIDATEP(penult == tyeFunction || penult == tyeFnType, errTypeDefError)
 
             push(tyeRetType, exp);
             push(0, exp);
         } else if (cTk.tp == tokMeta) {
-            VALIDATEP(cm->tempStack->length >= 2, errTypeDefError)
+            VALIDATEP(cm->tempStack->len >= 2, errTypeDefError)
             VALIDATEP(penultimate(cm->tempStack) == tyeStruct, errTypeDefError)
 
             push(tyeMeta, exp);
@@ -4501,7 +4501,7 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
             print("erroneous type %d", cTk.tp)
             throwExcParser(errTypeDefError, cm);
         }
-        while (cm->tempStack->length > 0) {
+        while (cm->tempStack->len > 0) {
             if (peek(cm->tempStack) != cm->i) {
                 break;
             }
@@ -4520,8 +4520,8 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
     /// Precondition: we are 1 past the assignment token
     StackInt* exp = cm->expStack;
     StackInt* params = cm->typeStack;
-    exp->length = 0;
-    params->length = 0;
+    exp->len = 0;
+    params->len = 0;
 
     Int sentinel = cm->i + assignTk.pl2;
     Token nameTk = toks[cm->i];
@@ -4539,7 +4539,7 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
         push(sentinel, cm->tempStack);
     }
     typeBuildExpr(exp, sentinel, cm);
-    printIntArray(exp->length, exp->content);
+    printIntArray(exp->len, exp->cont);
 
     Int newTypeId = typeEvalExpr(exp, params, ((untt)(nameTk.lenBts) << 24) + nameTk.pl2, cm);
     typeDefClearParams(params, cm);
@@ -4657,19 +4657,19 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
     /// startInd and byHowMany are measured in units of Int.
     Int from = startInd;
     Int to = startInd - byHowMany;
-    Int sentinel = cm->expStack->length;
+    Int sentinel = cm->expStack->len;
     while (from < sentinel) {
         Int pieceSize = MIN(byHowMany, sentinel - from);
-        memcpy(cm->expStack->content + to, cm->expStack->content + from, pieceSize*4);
+        memcpy(cm->expStack->cont + to, cm->expStack->cont + from, pieceSize*4);
         from += pieceSize;
         to += pieceSize;
     }
-    cm->expStack->length -= byHowMany;
+    cm->expStack->len -= byHowMany;
 }
 
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
     /// Populates the expression's type stack with the operands and functions of an expression
-    cm->expStack->length = 0;
+    cm->expStack->len = 0;
     for (Int j = indExpr + 1; j < sentinelNode; ++j) {
         Node nd = cm->nodes.cont[j];
         if (nd.tp <= tokString) {
@@ -4699,8 +4699,8 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     populateExpStack(indExpr, sentinelNode, &currAhead, cm);
     // now go from back to front: resolving the calls, typechecking & collapsing args, and replacing calls
     // with their return types
-    Int j = cm->expStack->length - 1;
-    Arr(Int) cont = st->content;
+    Int j = cm->expStack->len - 1;
+    Arr(Int) cont = st->cont;
     while (j > -1) {
         if (cont[j] < BIG) { // it's not a function call, because function call indicators have BIG in them
             --j;
@@ -4768,8 +4768,8 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
         --j;
     }
 
-    if (st->length == 1) {
-        return st->content[0]; // the last remaining element is the type of the whole expression
+    if (st->len == 1) {
+        return st->cont[0]; // the last remaining element is the type of the whole expression
     } else {
         return -1;
     }
@@ -4865,7 +4865,7 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
     /// Example: for typeId = L(L(Int)) and genericId = [T/1]L(T(Int)) returns Generic[L]
     /// Warning: assumes that typeId points to a concrete type, and genericId to a partial one
     StackInt* tStack = cm->typeStack;
-    tStack->length = 0;
+    tStack->len = 0;
     TypeHeader genericHeader = typeReadHeader(genericId, cm);
     // yet-unknown values of the type parameters
     for (Int j = 0; j < genericHeader.arity; j++) {
@@ -4899,9 +4899,9 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
                 if (paramArgcount != concreteArgcount) {
                     return NULL;
                 }
-                if (tStack->content[paramId] == -1) {
-                    tStack->content[paramId] = concreteElt;
-                } else if (tStack->content[paramId] != concreteElt) {
+                if (tStack->cont[paramId] == -1) {
+                    tStack->cont[paramId] = concreteElt;
+                } else if (tStack->cont[paramId] != concreteElt) {
                     return NULL;
                 }
                 ++i1;
@@ -4923,10 +4923,10 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
                     typeFromConcrete = concreteElt;
                     ++i1;
                 }
-                if (tStack->content[paramId] == -1) {
-                    tStack->content[paramId] = typeFromConcrete;
+                if (tStack->cont[paramId] == -1) {
+                    tStack->cont[paramId] = typeFromConcrete;
                 } else {
-                    if (tStack->content[paramId] != typeFromConcrete) {
+                    if (tStack->cont[paramId] != typeFromConcrete) {
                         return NULL;
                     }
                 }
@@ -4976,16 +4976,16 @@ struct Codegen {
 
 private void ensureBufferLength(Int additionalLength, Codegen* cg) {
     /// Ensures that the buffer has space for at least that many bytes plus 10
-    if (cg->length + additionalLength + 10 < cg->capacity) {
+    if (cg->len + additionalLength + 10 < cg->capacity) {
         return;
     }
-    Int neededLength = cg->length + additionalLength + 10;
+    Int neededLength = cg->len + additionalLength + 10;
     Int newCap = 2*cg->capacity;
     while (newCap <= neededLength) {
         newCap *= 2;
     }
     Arr(byte) new = allocateOnArena(newCap, cg->a);
-    memcpy(new, cg->buffer, cg->length);
+    memcpy(new, cg->buffer, cg->len);
     cg->buffer = new;
     cg->capacity = newCap;
 }
@@ -4993,55 +4993,55 @@ private void ensureBufferLength(Int additionalLength, Codegen* cg) {
 
 private void writeBytes(byte* ptr, Int countBytes, Codegen* cg) {
     ensureBufferLength(countBytes + 10, cg);
-    memcpy(cg->buffer + cg->length, ptr, countBytes);
-    cg->length += countBytes;
+    memcpy(cg->buffer + cg->len, ptr, countBytes);
+    cg->len += countBytes;
 }
 
 private void writeConstant(Int indConst, Codegen* cg) {
     /// Write a constant to codegen
     Int len = codegenStrings[indConst + 1] - codegenStrings[indConst];
     ensureBufferLength(len, cg);
-    memcpy(cg->buffer + cg->length, standardText + codegenStrings[indConst], len);
-    cg->length += len;
+    memcpy(cg->buffer + cg->len, standardText + codegenStrings[indConst], len);
+    cg->len += len;
 }
 
 private void writeConstantWithSpace(Int indConst, Codegen* cg) {
     /// Write a constant to codegen and add a space after it
     Int len = codegenStrings[indConst + 1] - codegenStrings[indConst];
     ensureBufferLength(len, cg); // no need for a "+ 1", for the function automatically ensures 10 extra bytes
-    memcpy(cg->buffer + cg->length, codegenText + codegenStrings[indConst], len);
-    cg->length += (len + 1);
-    cg->buffer[cg->length - 1] = 32;
+    memcpy(cg->buffer + cg->len, codegenText + codegenStrings[indConst], len);
+    cg->len += (len + 1);
+    cg->buffer[cg->len - 1] = 32;
 }
 
 
 private void writeChar(byte chr, Codegen* cg) {
     ensureBufferLength(1, cg);
-    cg->buffer[cg->length] = chr;
-    ++cg->length;
+    cg->buffer[cg->len] = chr;
+    ++cg->len;
 }
 
 
 private void writeChars0(Codegen* cg, Int count, Arr(byte) chars){
     ensureBufferLength(count, cg);
     for (Int j = 0; j < count; j++) {
-        cg->buffer[cg->length + j] = chars[j];
+        cg->buffer[cg->len + j] = chars[j];
     }
-    cg->length += count;
+    cg->len += count;
 }
 
 #define writeChars(cg, chars) writeChars0(cg, sizeof(chars), chars)
 
 private void writeStr(String* str, Codegen* cg) {
-    ensureBufferLength(str->length + 2, cg);
-    cg->buffer[cg->length] = aBacktick;
-    memcpy(cg->buffer + cg->length + 1, str->content, str->length);
-    cg->length += (str->length + 2);
-    cg->buffer[cg->length - 1] = aBacktick;
+    ensureBufferLength(str->len + 2, cg);
+    cg->buffer[cg->len] = aBacktick;
+    memcpy(cg->buffer + cg->len + 1, str->cont, str->len);
+    cg->len += (str->len + 2);
+    cg->buffer[cg->len - 1] = aBacktick;
 }
 
 private void writeBytesFromSource(Node nd, Codegen* cg) {
-    writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+    writeBytes(cg->sourceCode->cont + nd.startBt, nd.lenBts, cg);
 }
 
 
@@ -5055,7 +5055,7 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
         writeConstant(top->startInd, cg); return;
     case emitInfix:
         writeChar(aSpace, cg);
-        writeBytes(cg->sourceCode->content + top->startInd, top->length, cg);
+        writeBytes(cg->sourceCode->cont + top->startInd, top->len, cg);
         writeChar(aSpace, cg); return;
     case emitInfixExternal:
         writeChar(aSpace, cg);
@@ -5072,19 +5072,19 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
 
 private void writeIndex(Int ind, Codegen* cg) {
     ensureBufferLength(40, cg);
-    Int lenWritten = sprintf(cg->buffer + cg->length, "%d", ind);
-    cg->length += lenWritten;
+    Int lenWritten = sprintf(cg->buffer + cg->len, "%d", ind);
+    cg->len += lenWritten;
 }
 
 
 private void writeId(Node nd, Codegen* cg) {
     Entity ent = cg->cm->entities.cont[nd.pl1];
     if (ent.emit == emitPrefix) {
-        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+        writeBytes(cg->sourceCode->cont + nd.startBt, nd.lenBts, cg);
     } else if (ent.emit == emitPrefixExternal) {
         writeConstant(ent.externalNameId, cg);
     } else if (ent.emit == emitPrefixShielded) {
-        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+        writeBytes(cg->sourceCode->cont + nd.startBt, nd.lenBts, cg);
         writeChar(aUnderscore, cg);
     }
 }
@@ -5099,8 +5099,8 @@ private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
         uint64_t total = (upper << 32) + lower;
         int64_t signedTotal = (int64_t)total;
         ensureBufferLength(45, cg);
-        Int lenWritten = sprintf(cg->buffer + cg->length, "%d", signedTotal);
-        cg->length += lenWritten;
+        Int lenWritten = sprintf(cg->buffer + cg->len, "%d", signedTotal);
+        cg->len += lenWritten;
     } else if (n.tp == tokString) {
         writeBytesFromSource(n, cg);
     } else if (n.tp == tokFloat) {
@@ -5109,8 +5109,8 @@ private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
         int64_t total = (int64_t)((upper << 32) + lower);
         double floating = doubleOfLongBits(total);
         ensureBufferLength(45, cg);
-        Int lenWritten = sprintf(cg->buffer + cg->length, "%f", floating);
-        cg->length += lenWritten;
+        Int lenWritten = sprintf(cg->buffer + cg->len, "%f", floating);
+        cg->len += lenWritten;
     } else if (n.tp == tokBool) {
         writeBytesFromSource(n, cg);
     }
@@ -5169,14 +5169,14 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
             case emitField:
                 new.needClosingParen = false; break;
             default:
-                new.needClosingParen = cg->calls->length > 0;
+                new.needClosingParen = cg->calls->len > 0;
             }
             if (new.needClosingParen) {
                 writeChar(aParenLeft, cg);
             }
             pushCgCall(new, cg->calls);
         } else {
-            CgCall* top = cg->calls->content + (cg->calls->length - 1);
+            CgCall* top = cg->calls->cont + (cg->calls->len - 1);
             if (top->emit != emitInfix && top->emit != emitInfixExternal && top->countArgs > 0) {
                 writeChars(cg, ((byte[]){aComma, aSpace}));
             }
@@ -5191,7 +5191,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
                 if (!hasValuesCgCall(cg->calls)) {
                     break;
                 }
-                CgCall* second = cg->calls->content + (cg->calls->length - 1);
+                CgCall* second = cg->calls->cont + (cg->calls->len - 1);
                 ++second->countArgs;
                 writeExprProcessFirstArg(second, cg);
                 top = second;
@@ -5205,7 +5205,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
 private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
     /// Precondition: we are looking 1 past the nodExpr/singular node. Consumes all nodes of the expr
     if (nd.tp <= topVerbatimType) {
-        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+        writeBytes(cg->sourceCode->cont + nd.startBt, nd.lenBts, cg);
     } else if (nd.tp == nodId) {
         writeId(nd, cg);
     } else {
@@ -5221,8 +5221,8 @@ private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
 
 private void writeIndentation(Codegen* cg) {
     ensureBufferLength(cg->indentation, cg);
-    memset(cg->buffer + cg->length, aSpace, cg->indentation);
-    cg->length += cg->indentation;
+    memset(cg->buffer + cg->len, aSpace, cg->indentation);
+    cg->len += cg->indentation;
 }
 
 
@@ -5263,7 +5263,7 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         Int j = cg->i + 2; // +2 to skip the function binding node and nodScope
         if (nodes[j].tp == nodBinding) {
             Node binding = nodes[j];
-            writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+            writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
             ++j;
         }
 
@@ -5272,7 +5272,7 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
             writeChar(aComma, cg);
             writeChar(aSpace, cg);
             Node binding = nodes[j];
-            writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+            writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
             ++j;
         }
         cg->i = j;
@@ -5293,7 +5293,7 @@ private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
     /// Pre-condition: we are looking at the binding node, 1 past the assignment node
     Node binding = nodes[cg->i];
 
-    writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+    writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
     writeChars(cg, ((byte[]){aSpace, aEqual, aSpace}));
 
     ++cg->i; // CONSUME the binding node
@@ -5419,8 +5419,8 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
 private void writeLoopLabel(Int labelId, Codegen* cg) {
     writeConstant(cgStrLo, cg);
     ensureBufferLength(14, cg);
-    Int lenWritten = sprintf(cg->buffer + cg->length, "%d", labelId);
-    cg->length += lenWritten;
+    Int lenWritten = sprintf(cg->buffer + cg->len, "%d", labelId);
+    cg->len += lenWritten;
 }
 
 
@@ -5594,9 +5594,9 @@ String* prepareInput(const char* content, Arena* a) {
     }
 
     String* result = allocateOnArena(lenStandard + len + 1 + sizeof(String), a); // + 1 for the \0
-    result->length = lenStandard + len;
-    memcpy(result->content, standardText, lenStandard);
-    memcpy(result->content + lenStandard, content, len + 1); // + 1 to copy the \0
+    result->len = lenStandard + len;
+    memcpy(result->cont, standardText, lenStandard);
+    memcpy(result->cont + lenStandard, content, len + 1); // + 1 to copy the \0
     return result;
 }
 
@@ -5636,7 +5636,7 @@ int equalityLexer(Compiler a, Compiler b) {
 }
 
 private void printExpSt(StackInt* st) {
-    printIntArray(st->length, st->content);
+    printIntArray(st->len, st->cont);
 }
 
 
@@ -5682,8 +5682,8 @@ void typePrint(Int typeId, Compiler* cm) {
         printf("[$anonymous]");
     } else {
         printf("{");
-        Int startBt = cm->stringTable->content[mainName];
-        fwrite(cm->sourceCode->content + startBt, 1, mainNameLen, stdout);
+        Int startBt = cm->stringTable->cont[mainName];
+        fwrite(cm->sourceCode->cont + startBt, 1, mainNameLen, stdout);
         printf("}\n");
     }
 
@@ -5738,8 +5738,31 @@ void typePrint(Int typeId, Compiler* cm) {
     print(")");
 }
 
-void overloadsPrint(Int nameId, Compiler* cm) {
+void printOverloads(Int nameId, Compiler* cm) {
     Int listId = -cm->activeBindings[nameId] - 1;
+    if (listId < 0) {
+        print("Overloads not found")
+        return; 
+    }
+    Arr(Int) overs = cm->overloads.content; 
+    Int countOverloads = overs[listId]/3; 
+    printf("%d overloads:\n[outer = ", countOverloads); 
+    Int sentinel = listId + countOverloads + 1;
+    Int j = listId + 1;
+    for (; j < sentinel; j++) {
+        printf("%d ", overs[j]);
+    }
+    printf("]\n[typeId = ");
+    sentinel += countOverloads;
+    for (; j < sentinel; j++) {
+        printf("%d ", overs[j]); 
+    }
+    printf("]\n[ref = "); 
+    sentinel += countOverloads;
+    for (; j < sentinel; j++) {
+        printf("%d ", overs[j]); 
+    }
+    printf("]\n"); 
 }
 
 #endif
@@ -5778,7 +5801,7 @@ Int main(int argc, char* argv) {
 
     Codegen* cg = compile(sourceCode);
     if (cg != NULL) {
-        fwrite(cg->buffer, 1, cg->length, stdout);
+        fwrite(cg->buffer, 1, cg->len, stdout);
     }
     cleanup:
     deleteArena(a);

@@ -86,7 +86,7 @@ Format: (namedGroups)
     
 namedGroup is all the overloads of a single name 
     
-namedGroup = [16 bits countRefs]
+namedGroup = [count of what follows, so countOveroads*3]
              (sorted outer types)(ref types    )(refs        )
              |<---countOuter--->||<-countRefs->||<-countRefs->
 overload finding algorithm = 
