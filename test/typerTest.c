@@ -429,6 +429,15 @@ void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
 }
 
 //}}}
+//{{{
+    
+void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {   
+    Compiler* cm = createLexerFromProto(str("x = 5", a), proto, a);
+    print("lexed") 
+    initializeParser(cm, proto, a);
+} 
+    
+//}}}
 //{{{ Main
 
 int main() {
@@ -452,9 +461,10 @@ int main() {
 //~        testGenericsSatisfies2(&countFailed, proto, a);
 //~        testGenericsSatisfies3(&countFailed, proto, a);
 
-        structTest1(&countFailed, proto, a);
+//~        structTest1(&countFailed, proto, a);
 //~        structTest2(&countFailed, proto, a);
 //~        structTest3(&countFailed, proto, a);
+        overloadsTest1(&countFailed, proto, a); 
     } else {
         print("An exception was thrown in the tests")
     }
@@ -465,4 +475,5 @@ int main() {
     }
     deleteArena(a);
 }
+
 //}}}

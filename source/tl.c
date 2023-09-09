@@ -3034,6 +3034,7 @@ testable Compiler* createProtoCompiler(Arena* a) {
         .sourceCode = str(standardText, a),
         .stringTable = createStackint32_t(16, a), .stringDict = createStringDict(128, a),
         .types = createInListInt(64, a), .typesDict = createStringDict(128, a),
+        .activeBindings = allocateOnArena(4*countOperators, a), 
         .a = a
     };
     createBuiltins(proto);
@@ -3059,6 +3060,7 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
     Int inpLength = lx->inpLength;
     Arr(byte) inp = lx->sourceCode->cont;
     VALIDATEL(inpLength > 0, "Empty input")
+    print("lexin'") 
 
     // Check for UTF-8 BOM at start of file
     if ((lx->i + 3) < lx->inpLength
@@ -3246,6 +3248,7 @@ private Int isFunction(Int typeId, Compiler* cm);
 
 private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) {
     /// Adds an overload to the [rawOverloads] and activates it, if needed
+    print("active bindings %p", cm->activeBindings); 
     Int mbListId = cm->activeBindings[nameId];
     if (mbListId == -1) {
         Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
