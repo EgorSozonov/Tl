@@ -1872,9 +1872,6 @@ private void lexMinus(Compiler* lx, Arr(byte) source) {
             wrapInAStatement(lx, source);
             decNumber(true, lx, source);
             lx->numeric.len = 0;
-        } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
-            pushIntokens((Token){.tp = tokOperator, .pl1 = opTNegation, .startBt = lx->i, .lenBts = 1}, lx);
-            lx->i++; // CONSUME the minus symbol
         } else if (nextBt == aMinus) {
             lexComment(lx, source);
         } else {
