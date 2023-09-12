@@ -343,16 +343,23 @@ typedef struct { //:OpDef
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool overloadable;
     bool assignable;
+    bool isTypelevel;
+    byte prece;
     int8_t lenBts;
 } OpDef;
 
+#define preceEquality 1
+#define preceAdd 2
+#define preceMultiply 3
+#define preceExponent 4
+#define preceFn 5
+#define precePrefix 6
 
 /**
  * OperatorType
- * Values must exactly agree in order with the operatorSymbols array in the lexer.c file.
+ * Values must exactly agree in order with the operatorSymbols array in the tl.c file.
  * The order is defined by ASCII.
  */
-
 #define opTNotEqual          0 // !=
 #define opTBoolNegation      1 // !. bitwise negation
 #define opTBoolNegation      2 // !
@@ -371,29 +378,29 @@ typedef struct { //:OpDef
 #define opTMinusExt         15 // -.
 #define opTMinus            16 // -
 #define opTDivByExt         17 // /.
-#define opTDivBy            18 // /
-#define opTToString         19 // ;
-#define opTBitShiftLeft     20 // <<.
-#define opTShiftLeft        21 // <<
-#define opTLTEQ             22 // <=
-#define opTComparator       23 // <>
-#define opTLessThan         24 // <
-#define opTEquality         25 // ==
-#define opTIntervalBoth     26 // >=<= inclusive interval check
-#define opTIntervalLeft     27 // >=<  left-inclusive interval check
+#define opTIntersection     18 // /|
+#define opTDivBy            19 // /
+#define opTToString         20 // ;
+#define opTBitShiftLeft     21 // <<.
+#define opTShiftLeft        22 // <<
+#define opTLTEQ             23 // <=
+#define opTComparator       24 // <>
+#define opTLessThan         25 // <
+#define opTEquality         26 // ==
+#define opTIntervalBoth     27 // >=<= inclusive interval check
 #define opTIntervalRight    28 // ><=  right-inclusive interval check
-#define opTIntervalExcl     29 // ><   exclusive interval check
-#define opTGTEQ             30 // >=
-#define opTBitShiftRight    31 // >>.  unsigned right bit shift
-#define opTShiftRight       32 // >>  unsigned right bit shift
-#define opTGreaterThan      33 // >
-#define opTNullCoalesce     34 // ?:   null coalescing operator
-#define opTQuestionMark     35 // ?    nullable type operator
-#define opTExponentExt      36 // ^.   exponentiation extended
-#define opTExponent         37 // ^    exponentiation
-#define opTBoolOr           38 // ||.  bitwise or
-#define opTBoolOr           39 // ||   logical or
-#define opTBitwiseXor       40 // |.   bitwise xor
+#define opTIntervalLeft     29 // >=<  left-inclusive interval check
+#define opTBitShiftRight    30 // >>.  unsigned right bit shift
+#define opTIntervalExcl     31 // ><   exclusive interval check
+#define opTGTEQ             32 // >=
+#define opTShiftRight       33 // >>  unsigned right bit shift
+#define opTGreaterThan      34 // >
+#define opTNullCoalesce     35 // ?:   null coalescing operator
+#define opTQuestionMark     36 // ?    nullable type operator
+#define opTExponentExt      37 // ^.   bitwise XOR
+#define opTExponent         38 // ^    exponentiation
+#define opTBoolOr           39 // ||.  bitwise or
+#define opTBoolOr           40 // ||   logical or
 
 #define countOperators      41
 

@@ -689,7 +689,7 @@ testable Int getStringDict(byte* text, String* strToSearch, Stackint32_t* string
         Arr(StringValue) stringValues = (StringValue*)p->cont;
         for (int i = 0; i < lenBucket; i++) {
             if (stringValues[i].hash == hash
-                && memcmp(strToSearch->cont, 
+                && memcmp(strToSearch->cont,
                           text + stringTable->cont[stringValues[i].indString], lenBts) == 0) {
                 return stringValues[i].indString;
             }
@@ -736,13 +736,13 @@ testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
         arr[minInd + countPairs] = tmp;
     }
 }
-    
+
 testable void sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) arr) {
     /// Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
     /// same swap on values is also performed.
     /// Example of such a swap: [type1 type2 type3 ... entity1 entity2 entity3 ...] ->
     ///                         [type3 type1 type2 ... entity3 entity1 entity2 ...]
-    /// The ... is the same number of elements in both halves that don't participate in sorting 
+    /// The ... is the same number of elements in both halves that don't participate in sorting
     /// Sorts only the concrete group of overloads, doesn't touch the generic part.
     /// Params: startInd = inclusive
     ///         endInd = exclusive
@@ -2091,54 +2091,96 @@ private ReservedProbe (*tabulateReservedBytes(Arena* a))[countReservedLetters] {
 }
 
 private OpDef (*tabulateOperators(Arena* a))[countOperators] {
-    /// The set of base operators in the language
+    /// The set of operators in the language. Must agree in order with tl.internal.h
     OpDef (*result)[countOperators] = allocateOnArena(countOperators*sizeof(OpDef), a);
     OpDef* p = *result;
 
     // This is an array of 4-byte arrays containing operator byte sequences.
     // Sorted: 1) by first byte ASC 2) by second byte DESC 3) third byte DESC 4) fourth byte DESC.
     // It's used to lex operator symbols using left-to-right search.
-    p[ 0] = (OpDef){.name=s("!="),   .arity=2, .bytes={aExclamation, aEqual, 0, 0 } };
-    p[ 1] = (OpDef){.name=s("!"),    .arity=1, .bytes={aExclamation, 0, 0, 0 } };
-    p[ 2] = (OpDef){.name=s("#"),    .arity=1, .bytes={aSharp, 0, 0, 0 }, .overloadable=true};
-    p[ 3] = (OpDef){.name=s("%"),    .arity=2, .bytes={aPercent, 0, 0, 0 } };
-    p[ 4] = (OpDef){.name=s("&&"),   .arity=2, .bytes={aAmp, aAmp, 0, 0 }, .assignable=true};
-    p[ 5] = (OpDef){.name=s("&"),    .arity=1, .bytes={aAmp, 0, 0, 0 } };
-    p[ 6] = (OpDef){.name=s("'"),    .arity=1, .bytes={aApostrophe, 0, 0, 0 } };
-    p[ 7] = (OpDef){.name=s("*."),   .arity=2, .bytes={aTimes, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[ 8] = (OpDef){.name=s("*"),    .arity=2, .bytes={aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[ 9] = (OpDef){.name=s("+."),   .arity=2, .bytes={aPlus, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[10] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true};
-    p[11] = (OpDef){.name=s(",,"),   .arity=1, .bytes={aComma, aComma, 0, 0}};
-    p[12] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0}};
-    p[13] = (OpDef){.name=s("-."),   .arity=2, .bytes={aMinus, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[14] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0}, .assignable = true, .overloadable = true };
-    p[15] = (OpDef){.name=s("/."),   .arity=2, .bytes={aDivBy, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[16] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[17] = (OpDef){.name=s(";"),    .arity=1, .bytes={aSemicolon, 0, 0, 0 }, .overloadable=true};
-    p[18] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0}, .assignable = true, .overloadable = true};
-    p[19] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0}, .assignable = true, .overloadable = true };
-    p[20] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0}};
-    p[21] = (OpDef){.name=s("<>"),   .arity=2, .bytes={aLT, aGT, 0, 0}};
-    p[22] = (OpDef){.name=s("<"),    .arity=2, .bytes={aLT, 0, 0, 0 } };
-    p[23] = (OpDef){.name=s("=="),   .arity=2, .bytes={aEqual, aEqual, 0, 0 } };
-    p[24] = (OpDef){.name=s(">=<="), .arity=3, .bytes={aGT, aEqual, aLT, aEqual } };
-    p[25] = (OpDef){.name=s(">=<"),  .arity=3, .bytes={aGT, aEqual, aLT, 0 } };
-    p[26] = (OpDef){.name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 } };
-    p[27] = (OpDef){.name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 } };
-    p[28] = (OpDef){.name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 } };
-    p[29] = (OpDef){.name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0}, .assignable = true, .overloadable = true};
-    p[30] = (OpDef){.name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0}, .assignable = true, .overloadable = true };
-    p[31] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 }};
-    p[32] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 } };
-    p[33] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 } };
-    p[34] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0}, .assignable = true, .overloadable = true};
-    p[35] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0}, .assignable = true, .overloadable = true};
-    p[36] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0}, .assignable=true, };
-    p[37] = (OpDef){.name=s("|"),    .arity=2, .bytes={aPipe, 0, 0, 0}};
-    p[38] = (OpDef){.name=s("and"),  .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[39] = (OpDef){.name=s("or"),   .arity=2, .bytes={0, 0, 0, 0 }, .assignable=true};
-    p[40] = (OpDef){.name=s("neg"),  .arity=1, .bytes={0, 0, 0, 0 }};
+    p[ 0] = (OpDef){.name=s("!."),   .arity=1, .bytes={aExclamation, aDot, 0, 0 },
+            .prece=preceAdd };
+    p[ 1] = (OpDef){.name=s("!="),   .arity=2, .bytes={aExclamation, aEqual, 0, 0 }
+            .prece=preceEquality };
+    p[ 2] = (OpDef){.name=s("!"),    .arity=1, .bytes={aExclamation, 0, 0, 0 }
+            .prece=precePrefix };
+    p[ 3] = (OpDef){.name=s("#"),    .arity=1, .bytes={aSharp, 0, 0, 0 },
+            .prece=precePrefix,      .overloadable=true };
+    p[ 4] = (OpDef){.name=s("%"),    .arity=2, .bytes={aPercent, 0, 0, 0 }
+            .prece=preceMultiply };
+    p[ 5] = (OpDef){.name=s("&&."),  .arity=2, .bytes={aAmp, aAmp, aDot, 0 },
+            .prece=preceAdd};
+    p[ 6] = (OpDef){.name=s("&&"),   .arity=2, .bytes={aAmp, aAmp, 0, 0 },
+            .prece=preceMultiply };
+    p[ 7] = (OpDef){.name=s("&"),    .arity=1, .bytes={aAmp, 0, 0, 0 },
+            .prece=precePrefix,      .isTypelevel=true };
+    p[ 8] = (OpDef){.name=s("'"),    .arity=1, .bytes={aApostrophe, 0, 0, 0 },
+            .prece=precePrefix };
+    p[ 9] = (OpDef){.name=s("*:"),   .arity=2, .bytes={aTimes, aColon, 0, 0},
+            .prece=preceMultiply,    .assignable = true, .overloadable = true};
+    p[10] = (OpDef){.name=s("*"),    .arity=2, .bytes={aTimes, 0, 0, 0 },
+            .prece=preceMultiply,    .assignable = true, .overloadable = true};
+    p[11] = (OpDef){.name=s("+:"),   .arity=2, .bytes={aPlus, aColon, 0, 0},
+            .prece=preceAdd,         .assignable = true, .overloadable = true};
+    p[12] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 },
+            .prece=preceAdd,         .assignable = true, .overloadable = true};
+    p[13] = (OpDef){.name=s(",:"),   .arity=1, .bytes={aComma, aColon, 0, 0},
+            .prece=precePrefix };
+    p[14] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0},
+            .prece=precePrefix };
+    p[15] = (OpDef){.name=s("-:"),   .arity=2, .bytes={aMinus, aColon, 0, 0},
+            .prece=preceAdd,         .assignable = true, .overloadable = true};
+    p[16] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0},
+            .prece=preceAdd,         .assignable = true, .overloadable = true };
+    p[17] = (OpDef){.name=s("/:"),   .arity=2, .bytes={aDivBy, aColon, 0, 0},
+            .prece=preceMultiply,    .assignable = true, .overloadable = true};
+    p[18] = (OpDef){.name=s("/|"),   .arity=2, .bytes={aDivBy, aPipe, 0, 0},
+            .prece=preceMultiply,    .isTypelevel = true};
+    p[19] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0},
+            .prece=preceMultiply,    .assignable = true, .overloadable = true};
+    p[20] = (OpDef){.name=s(";"),    .arity=1, .bytes={aSemicolon, 0, 0, 0 },
+            .prece=precePrefix,      .overloadable=true};
+    p[21] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0},
+            .prece=preceAdd };
+    p[22] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0},
+            .prece=preceAdd,         .assignable = true, .overloadable = true };
+    p[23] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0},
+            .prece=preceExponent };
+    p[24] = (OpDef){.name=s("<>"),   .arity=2, .bytes={aLT, aGT, 0, 0},
+            .prece=preceExponent };
+    p[25] = (OpDef){.name=s("<"),    .arity=2, .bytes={aLT, 0, 0, 0 },
+            .prece=preceExponent };
+    p[26] = (OpDef){.name=s("=="),   .arity=2, .bytes={aEqual, aEqual, 0, 0 },
+            .prece=preceEquality };
+    p[27] = (OpDef){.name=s(">=<="), .arity=3, .bytes={aGT, aEqual, aLT, aEqual },
+            .prece=preceExponent };
+    p[28] = (OpDef){.name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 },
+            .prece=preceExponent };
+    p[29] = (OpDef){.name=s(">=<"),  .arity=3, .bytes={aGT, aEqual, aLT, 0 },
+            .prece=preceExponent };
+    p[30] = (OpDef){.name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0},
+            .prece=preceAdd,         .assignable=true, .overloadable = true};
+    p[31] = (OpDef){.name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 },
+            .prece=preceExponent };
+    p[32] = (OpDef){.name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 },
+            .prece=preceExponent };
+    p[33] = (OpDef){.name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0},
+            .prece=preceAdd,         .assignable=true, .overloadable = true };
+    p[34] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 },
+            .prece=preceExponent };
+    p[35] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 },
+            .prece=preceAdd };
+    p[36] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 },
+            .prece=precePrefix,      .isTypelevel=true };
+    p[37] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0},
+            .prece=precePrefix };
+    p[38] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0},
+            .prece=preceExponent,    .assignable=true, .overloadable = true};
+    p[39] = (OpDef){.name=s("||."),  .arity=2, .bytes={aPipe, aPipe, aDot, 0},
+            .prece=preceAdd };
+    p[40] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0},
+            .prece=preceAdd };
+
     for (Int k = 0; k < countOperators; k++) {
         Int m = 0;
         for (; m < 4 && p[k].bytes[m] > 0; m++) {}
@@ -3031,7 +3073,7 @@ testable Compiler* createProtoCompiler(Arena* a) {
         .sourceCode = str(standardText, a),
         .stringTable = createStackint32_t(16, a), .stringDict = createStringDict(128, a),
         .types = createInListInt(64, a), .typesDict = createStringDict(128, a),
-        .activeBindings = allocateOnArena(4*countOperators, a), 
+        .activeBindings = allocateOnArena(4*countOperators, a),
         .a = a
     };
     createBuiltins(proto);
@@ -3057,7 +3099,7 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
     Int inpLength = lx->inpLength;
     Arr(byte) inp = lx->sourceCode->cont;
     VALIDATEL(inpLength > 0, "Empty input")
-    print("lexin'") 
+    print("lexin'")
 
     // Check for UTF-8 BOM at start of file
     if ((lx->i + 3) < lx->inpLength
@@ -3245,7 +3287,7 @@ private Int isFunction(Int typeId, Compiler* cm);
 
 private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) {
     /// Adds an overload to the [rawOverloads] and activates it, if needed
-    print("active bindings %p", cm->activeBindings); 
+    print("active bindings %p", cm->activeBindings);
     Int mbListId = cm->activeBindings[nameId];
     if (mbListId == -1) {
         Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
@@ -3447,8 +3489,8 @@ private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t exte
 
 private void buildOperators(Compiler* cm) {
     /// Operators are the first-ever functions to be defined. This function builds their [types],
-    /// [functions] and overload counts. The order must agree with the order of operator definitions,
-    /// and every operator must have at least one function defined.
+    /// [functions] and overload counts. The order must agree with the order of operator
+    /// definitions in tl.internal.h, and every operator must have at least one function defined.
     Int boolOfIntInt = addFunctionType(2, (Int[]){tokBool, tokInt, tokInt}, cm);
     Int boolOfIntIntInt = addFunctionType(3, (Int[]){tokBool, tokInt, tokInt, tokInt}, cm);
     Int boolOfFlFl = addFunctionType(2, (Int[]){tokBool, tokFloat, tokFloat}, cm);
@@ -3701,8 +3743,8 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
         push(outerType, scratch);
         push((j - rawStart - 1)/2, scratch);  // we need the index to get the original items after sorting
     }
-    // Scratch contains twoples of (outerType ind) 
-    
+    // Scratch contains twoples of (outerType ind)
+
     Int countOverloads = scratch->len/2;
     sortPairs(0, scratch->len, scratch->cont); // sort by outerType ASC
     Int newInd = cm->overloads.len;
@@ -3710,27 +3752,27 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     reserveSpaceInList(3*countOverloads + 1, cm->overloads, cm); // 3 because it's: outerType, typeId, ref
     Arr(Int) ov = cm->overloads.cont;
     ov[newInd] = 3*countOverloads;
-   
+
     for (Int j = 0; j < countOverloads; j++) {
         ov[newInd + j + 1] = scratch->cont[2*j]; // outerTypeId
-        scratch->cont[j*2] = raw[j*2]; // typeId 
+        scratch->cont[j*2] = raw[j*2]; // typeId
     }
     // outerTypes part is filled in, and scratch contains twoples of (typeId ind)
-    
-    // Now to sort every plateau of outerType, but in the scratch list 
-    Int prevOuter = -1; 
-    Int prevInd = 0; 
-    Int j = 0; 
+
+    // Now to sort every plateau of outerType, but in the scratch list
+    Int prevOuter = -1;
+    Int prevInd = 0;
+    Int j = 0;
     for (; j < countOverloads; j++) {
-        Int currOuter = ov[newInd + j + 1]; 
+        Int currOuter = ov[newInd + j + 1];
         if (currOuter != prevOuter) {
-            prevOuter = currOuter; 
-            sortPairsDistant(prevInd, j - 1, countOverloads, scratch->cont); 
-            prevInd = j; 
+            prevOuter = currOuter;
+            sortPairsDistant(prevInd, j - 1, countOverloads, scratch->cont);
+            prevInd = j;
         }
     }
-     
-    // Scratch consists of sorted plateaus. Finally we can fill the remaining 2/3 of [overloads] 
+
+    // Scratch consists of sorted plateaus. Finally we can fill the remaining 2/3 of [overloads]
     for (Int k = 0; k < countOverloads; k++) {
         ov[newInd + k + 1 + countOverloads] = raw[scratch->cont[2*k + 1]]; // typeId
         ov[newInd + k + 1 + 2*countOverloads] = raw[scratch->cont[2*k + 1] + 1]; // ref
@@ -3904,7 +3946,7 @@ private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Comp
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
                         .typeId = cm->entities.cont[entityId].typeId}), cm->backtrack);
     pushInnodes(((Node){ .tp = nodFnDef, .startBt = fnTk.startBt, .lenBts = fnTk.lenBts }), cm);
-    pushInnodes((Node){ .tp = nodBinding, .pl1 = entityId, .startBt = startBt, 
+    pushInnodes((Node){ .tp = nodBinding, .pl1 = entityId, .startBt = startBt,
                         .lenBts = (Int)(startBt >> 24) }, cm);
 
     // the scope for the function's body
@@ -3947,13 +3989,13 @@ private void parseToplevelSignatures(Compiler* cm) {
         Token tok = toks[cm->i];
         if (tok.tp == tokAssignment && (cm->i + 2) < len
            && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp == tokFn) {
-            Int sentinel = calcSentinel(tok, cm->i); 
+            Int sentinel = calcSentinel(tok, cm->i);
             parseUpTo(cm->i + tok.pl2, toks, cm);
             Token nameTk = toks[cm->i + 1];
 
             untt name =  ((untt)nameTk.lenBts << 24) + (untt)nameTk.pl2;
             parseFnSignature(tok, true, name, cm);
-            cm->i = sentinel; 
+            cm->i = sentinel;
         } else {
             cm->i += (tok.pl2 + 1);  // CONSUME the whole non-function span
         }
@@ -4098,14 +4140,14 @@ private Int typeGetOuter(Int typeId, Compiler* cm) {
             return -(genElt & 0xFF) - 1; // a param type in outer position, so we return its (-arity -1)
         } else {
             return genElt & LOWER24BITS;
-        } 
+        }
     } else {
         return cm->types.cont[typeId + hdr.arity + 3] & LOWER24BITS;
     }
 }
 
 private Int isFunction(Int typeId, Compiler* cm) {
-    /// Returns the function's depth (arity) if the type is a function type, -1 otherwise. 
+    /// Returns the function's depth (arity) if the type is a function type, -1 otherwise.
     TypeHeader hdr = typeReadHeader(typeId, cm);
     return (hdr.sort == sorFunction) ? hdr.depth : -1;
 }
@@ -4587,7 +4629,7 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
 //{{{ Overloads, type check & resolve
 
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
-    
+
 private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
     /// Gets the type of the last param of a function.
     return cm->types.cont[funcTypeId + 2];
@@ -4599,17 +4641,17 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
 
 private Int overloadOnPlateau(Int outerType, Int ind, Int typeId, Int ovInd, Int countOvs,
                                   Compiler* cm) {
-    /// Find the inclusive left and right indices of a plateau (same outer type) in [overloads]. 
-    /// ovInd 
+    /// Find the inclusive left and right indices of a plateau (same outer type) in [overloads].
+    /// ovInd
     /// Returns index of the reference in [overloads], or -1 if not match was found
-    Arr(Int) overs = cm->overloads.cont; 
-    Int j = ind - 1; 
+    Arr(Int) overs = cm->overloads.cont;
+    Int j = ind - 1;
     while (j > ovInd && overs[j] == outerType) {
         --j;
     }
-    Int plateauLeft = j + 1 + countOvs; 
-    j = ind + 1; 
-    Int sentinel = ovInd + countOvs + 1; 
+    Int plateauLeft = j + 1 + countOvs;
+    j = ind + 1;
+    Int sentinel = ovInd + countOvs + 1;
     while (j < sentinel && overs[j] == outerType) {
         ++j;
     }
@@ -4625,12 +4667,12 @@ private Int overloadOnPlateau(Int outerType, Int ind, Int typeId, Int ovInd, Int
             }
         }
     } else {
-        Int indFullType = binarySearch(typeId, plateauLeft, plateauRight, overs); 
-        return indFullType > -1 ? (indFullType + countOvs) : -1; 
+        Int indFullType = binarySearch(typeId, plateauLeft, plateauRight, overs);
+        return indFullType > -1 ? (indFullType + countOvs) : -1;
     }
-    return -1; 
+    return -1;
 }
-    
+
 testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
     /// Params: typeId = type of the first function parameter, or -1 if it's 0-arity
     ///         ovInd = ind in [overloads]
@@ -4640,7 +4682,7 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
     /// 2. outerType = -1: 0-arity function
     /// 3. outerType >=< 0 BIG: non-function types with outer concrete, e.g. "L(U)" => ind of L
     /// 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1
-    Int start = ovInd + 1; 
+    Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
     Int countOvs = overs[ovInd];
     Int sentinel = ovInd + countOvs + 1;
@@ -4648,55 +4690,55 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
         Int j = 0;
         while (j < sentinel && overs[j] < 0) {
             if (overs[j] == -1) {
-                (*entityId) = overs[j + 2*countOvs]; 
-                return true; 
+                (*entityId) = overs[j + 2*countOvs];
+                return true;
             }
             ++j;
         }
-        throwExcParser(errTypeNoMatchingOverload, cm); 
+        throwExcParser(errTypeNoMatchingOverload, cm);
     } else {
         Int outerType = typeGetOuter(typeId, cm);
         Int mbFuncArity = isFunction(typeId, cm);
         if (mbFuncArity > -1) { // scenario 4
-            mbFuncArity += BIG; 
+            mbFuncArity += BIG;
             Int j = sentinel - 1;
             for (; j > start && overs[j] > BIG; j--) {
                 if (overs[j] != mbFuncArity) {
                     continue;
                 }
                 Int res = overloadOnPlateau(mbFuncArity, j, typeId, ovInd, countOvs, cm);
-                if (res > -1) { 
-                    (*entityId) = overs[res]; 
+                if (res > -1) {
+                    (*entityId) = overs[res];
                     return true;
                 }
             }
         } else { // scenarios 1 or 3
             Int j = start;
             for (; j < sentinel && overs[j] < 0; j++); // scenario 1
-    
+
             Int k = sentinel - 1;
             while (k > j && overs[k] >= BIG) {
                 --k;
             }
-    
+
             if (k < j) {
                 return false;
             }
-    
-            // scenario 3 
+
+            // scenario 3
             Int ind = binarySearch(outerType, j, k, overs);
             if (ind == -1) {
                 return false;
             }
 
             Int res = overloadOnPlateau(outerType, ind, typeId, ovInd, countOvs, cm);
-            if (res > -1) { 
-                (*entityId) = overs[res]; 
+            if (res > -1) {
+                (*entityId) = overs[res];
                 return true;
             }
         }
     }
-    return false; 
+    return false;
 }
 
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
@@ -5790,11 +5832,11 @@ void printOverloads(Int nameId, Compiler* cm) {
     Int listId = -cm->activeBindings[nameId] - 1;
     if (listId < 0) {
         print("Overloads not found")
-        return; 
+        return;
     }
-    Arr(Int) overs = cm->overloads.cont; 
-    Int countOverloads = overs[listId]/3; 
-    printf("%d overloads:\n[outer = ", countOverloads); 
+    Arr(Int) overs = cm->overloads.cont;
+    Int countOverloads = overs[listId]/3;
+    printf("%d overloads:\n[outer = ", countOverloads);
     Int sentinel = listId + countOverloads + 1;
     Int j = listId + 1;
     for (; j < sentinel; j++) {
@@ -5803,14 +5845,14 @@ void printOverloads(Int nameId, Compiler* cm) {
     printf("]\n[typeId = ");
     sentinel += countOverloads;
     for (; j < sentinel; j++) {
-        printf("%d ", overs[j]); 
+        printf("%d ", overs[j]);
     }
-    printf("]\n[ref = "); 
+    printf("]\n[ref = ");
     sentinel += countOverloads;
     for (; j < sentinel; j++) {
-        printf("%d ", overs[j]); 
+        printf("%d ", overs[j]);
     }
-    printf("]\n"); 
+    printf("]\n");
 }
 
 #endif
