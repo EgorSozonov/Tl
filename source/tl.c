@@ -1132,7 +1132,7 @@ private void setSpanLengthLexer(Int tokenInd, Compiler* lx) {
     lx->tokens.cont[tokenInd].pl2 = lx->tokens.len - tokenInd - 1;
 }
 
-private void setStmtSpanLength(Int topTokenInd, Compiler* lx) {
+private void setStmtSpanLength(Int topokenInd, Compiler* lx) {
     /// Correctly calculates the lenBts for a single-line, statement-type span.
     Token lastToken = lx->tokens.cont[lx->tokens.len - 1];
     Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
@@ -1140,10 +1140,10 @@ private void setStmtSpanLength(Int topTokenInd, Compiler* lx) {
     // This is for correctly calculating lengths of statements when they are ended by parens in case of a gap before ")"
     Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
     Int lenBts = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken)
-                    - lx->tokens.cont[topTokenInd].startBt;
+                    - lx->tokens.cont[topokenInd].startBt;
 
-    lx->tokens.cont[topTokenInd].lenBts = lenBts;
-    lx->tokens.cont[topTokenInd].pl2 = lx->tokens.len - topTokenInd - 1;
+    lx->tokens.cont[topokenInd].lenBts = lenBts;
+    lx->tokens.cont[topokenInd].pl2 = lx->tokens.len - topokenInd - 1;
 }
 
 
@@ -1658,13 +1658,7 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
         closeStatement(lx);
         pushIntokens((Token){.tp = tokElse, .startBt = realStartByte, .lenBts = 4}, lx);
     } else if (mbReservedWord < firstSpanTokenType) {
-        if (mbReservedWord == reservedAnd) {
-            wrapInAStatementStarting(startBt, lx, source);
-            pushIntokens((Token){.tp=tokOperator, .pl1 = opTAnd, .startBt=realStartByte, .lenBts=3}, lx);
-        } else if (mbReservedWord == reservedOr) {
-            wrapInAStatementStarting(startBt, lx, source);
-            pushIntokens((Token){.tp=tokOperator, .pl1 = opTOr, .startBt=realStartByte, .lenBts=2}, lx);
-        } else if (mbReservedWord == reservedTrue) {
+        if (mbReservedWord == reservedTrue) {
             wrapInAStatementStarting(startBt, lx, source);
             pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartByte, .lenBts=4}, lx);
         } else if (mbReservedWord == reservedFalse) {
@@ -1753,7 +1747,7 @@ private void lexOperator(Compiler* lx, Arr(byte) source) {
     byte thirdSymbol = (lx->inpLength > lx->i + 2) ? source[lx->i + 2] : 0;
     byte fourthSymbol = (lx->inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
     Int k = 0;
-    Int opType = -1; // corresponds to the opT... operator types
+    Int opType = -1; // corresponds to the op... operator types
     OpDef (*operators)[countOperators] = lx->langDef->operators;
     while (k < countOperators && (*operators)[k].bytes[0] < firstSymbol) {
         k++;
@@ -2098,87 +2092,89 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     // This is an array of 4-byte arrays containing operator byte sequences.
     // Sorted: 1) by first byte ASC 2) by second byte DESC 3) third byte DESC 4) fourth byte DESC.
     // It's used to lex operator symbols using left-to-right search.
-    p[ 0] = (OpDef){.name=s("!."),   .arity=1, .bytes={aExclamation, aDot, 0, 0 },
+    p[ 0] = (OpDef){ .arity=1, .bytes={aExclamation, aDot, 0, 0 }, // !.
             .prece=preceAdd };
-    p[ 1] = (OpDef){.name=s("!="),   .arity=2, .bytes={aExclamation, aEqual, 0, 0 }
+    p[ 1] = (OpDef){ .arity=2, .bytes={aExclamation, aEqual, 0, 0 }, // !=
             .prece=preceEquality };
-    p[ 2] = (OpDef){.name=s("!"),    .arity=1, .bytes={aExclamation, 0, 0, 0 }
+    p[ 2] = (OpDef){ .arity=1, .bytes={aExclamation, 0, 0, 0 }, // !
             .prece=precePrefix };
-    p[ 3] = (OpDef){.name=s("#"),    .arity=1, .bytes={aSharp, 0, 0, 0 },
+    p[ 3] = (OpDef){ .arity=1, .bytes={aSharp, 0, 0, 0 }, // #
             .prece=precePrefix,      .overloadable=true };
-    p[ 4] = (OpDef){.name=s("%"),    .arity=2, .bytes={aPercent, 0, 0, 0 }
+    p[ 4] = (OpDef){ .arity=2, .bytes={aPercent, 0, 0, 0 }, // %
             .prece=preceMultiply };
-    p[ 5] = (OpDef){.name=s("&&."),  .arity=2, .bytes={aAmp, aAmp, aDot, 0 },
+    p[ 5] = (OpDef){ .arity=2, .bytes={aAmp, aAmp, aDot, 0 }, // &&.
             .prece=preceAdd};
-    p[ 6] = (OpDef){.name=s("&&"),   .arity=2, .bytes={aAmp, aAmp, 0, 0 },
+    p[ 6] = (OpDef){ .arity=2, .bytes={aAmp, aAmp, 0, 0 }, // &&
             .prece=preceMultiply };
-    p[ 7] = (OpDef){.name=s("&"),    .arity=1, .bytes={aAmp, 0, 0, 0 },
+    p[ 7] = (OpDef){ .arity=1, .bytes={aAmp, 0, 0, 0 }, // &
             .prece=precePrefix,      .isTypelevel=true };
-    p[ 8] = (OpDef){.name=s("'"),    .arity=1, .bytes={aApostrophe, 0, 0, 0 },
+    p[ 8] = (OpDef){ .arity=1, .bytes={aApostrophe, 0, 0, 0 }, // '
             .prece=precePrefix };
-    p[ 9] = (OpDef){.name=s("*:"),   .arity=2, .bytes={aTimes, aColon, 0, 0},
+    p[ 9] = (OpDef){ .arity=2, .bytes={aTimes, aColon, 0, 0}, // *:
             .prece=preceMultiply,    .assignable = true, .overloadable = true};
-    p[10] = (OpDef){.name=s("*"),    .arity=2, .bytes={aTimes, 0, 0, 0 },
+    p[10] = (OpDef){ .arity=2, .bytes={aTimes, 0, 0, 0 }, // *
             .prece=preceMultiply,    .assignable = true, .overloadable = true};
-    p[11] = (OpDef){.name=s("+:"),   .arity=2, .bytes={aPlus, aColon, 0, 0},
+    p[11] = (OpDef){ .arity=2, .bytes={aPlus, aColon, 0, 0}, // +:
             .prece=preceAdd,         .assignable = true, .overloadable = true};
-    p[12] = (OpDef){.name=s("+"),    .arity=2, .bytes={aPlus, 0, 0, 0 },
+    p[12] = (OpDef){ .arity=2, .bytes={aPlus, 0, 0, 0 }, // +
             .prece=preceAdd,         .assignable = true, .overloadable = true};
-    p[13] = (OpDef){.name=s(",:"),   .arity=1, .bytes={aComma, aColon, 0, 0},
+    p[13] = (OpDef){ .arity=1, .bytes={aComma, aColon, 0, 0}, // ,:
             .prece=precePrefix };
-    p[14] = (OpDef){.name=s(","),    .arity=1, .bytes={aComma, 0, 0, 0},
+    p[14] = (OpDef){ .arity=1, .bytes={aComma, 0, 0, 0}, // ,
             .prece=precePrefix };
-    p[15] = (OpDef){.name=s("-:"),   .arity=2, .bytes={aMinus, aColon, 0, 0},
+    p[15] = (OpDef){ .arity=2, .bytes={aMinus, aColon, 0, 0}, // -:
             .prece=preceAdd,         .assignable = true, .overloadable = true};
-    p[16] = (OpDef){.name=s("-"),    .arity=2, .bytes={aMinus, 0, 0, 0},
+    p[16] = (OpDef){ .arity=2, .bytes={aMinus, 0, 0, 0}, // -
             .prece=preceAdd,         .assignable = true, .overloadable = true };
-    p[17] = (OpDef){.name=s("/:"),   .arity=2, .bytes={aDivBy, aColon, 0, 0},
+    p[17] = (OpDef){ .arity=2, .bytes={aDivBy, aColon, 0, 0}, // /:
             .prece=preceMultiply,    .assignable = true, .overloadable = true};
-    p[18] = (OpDef){.name=s("/|"),   .arity=2, .bytes={aDivBy, aPipe, 0, 0},
+    p[18] = (OpDef){ .arity=2, .bytes={aDivBy, aPipe, 0, 0}, // /|
             .prece=preceMultiply,    .isTypelevel = true};
-    p[19] = (OpDef){.name=s("/"),    .arity=2, .bytes={aDivBy, 0, 0, 0},
+    p[19] = (OpDef){ .arity=2, .bytes={aDivBy, 0, 0, 0}, // /
             .prece=preceMultiply,    .assignable = true, .overloadable = true};
-    p[20] = (OpDef){.name=s(";"),    .arity=1, .bytes={aSemicolon, 0, 0, 0 },
+    p[20] = (OpDef){ .arity=1, .bytes={aSemicolon, 0, 0, 0 }, // ;
             .prece=precePrefix,      .overloadable=true};
-    p[21] = (OpDef){.name=s("<<."),  .arity=2, .bytes={aLT, aLT, aDot, 0},
+    p[21] = (OpDef){ .arity=2, .bytes={aLT, aLT, aDot, 0}, // <<.
             .prece=preceAdd };
-    p[22] = (OpDef){.name=s("<<"),   .arity=2, .bytes={aLT, aLT, 0, 0},
+    p[22] = (OpDef){ .arity=2, .bytes={aLT, aLT, 0, 0}, // <<
             .prece=preceAdd,         .assignable = true, .overloadable = true };
-    p[23] = (OpDef){.name=s("<="),   .arity=2, .bytes={aLT, aEqual, 0, 0},
+    p[23] = (OpDef){ .arity=2, .bytes={aLT, aEqual, 0, 0}, // <=
             .prece=preceExponent };
-    p[24] = (OpDef){.name=s("<>"),   .arity=2, .bytes={aLT, aGT, 0, 0},
+    p[24] = (OpDef){ .arity=2, .bytes={aLT, aGT, 0, 0}, // <>
             .prece=preceExponent };
-    p[25] = (OpDef){.name=s("<"),    .arity=2, .bytes={aLT, 0, 0, 0 },
+    p[25] = (OpDef){ .arity=2, .bytes={aLT, 0, 0, 0 }, // <
             .prece=preceExponent };
-    p[26] = (OpDef){.name=s("=="),   .arity=2, .bytes={aEqual, aEqual, 0, 0 },
+    p[26] = (OpDef){ .arity=2, .bytes={aEqual, aEqual, aEqual, 0 }, // ===
             .prece=preceEquality };
-    p[27] = (OpDef){.name=s(">=<="), .arity=3, .bytes={aGT, aEqual, aLT, aEqual },
+    p[27] = (OpDef){ .arity=2, .bytes={aEqual, aEqual, 0, 0 }, // ==
+            .prece=preceEquality };
+    p[28] = (OpDef){ .arity=3, .bytes={aGT, aEqual, aLT, aEqual }, // >=<=
             .prece=preceExponent };
-    p[28] = (OpDef){.name=s("><="),  .arity=3, .bytes={aGT, aLT, aEqual, 0 },
+    p[29] = (OpDef){ .arity=3, .bytes={aGT, aLT, aEqual, 0 }, // ><=
             .prece=preceExponent };
-    p[29] = (OpDef){.name=s(">=<"),  .arity=3, .bytes={aGT, aEqual, aLT, 0 },
+    p[30] = (OpDef){ .arity=3, .bytes={aGT, aEqual, aLT, 0 }, // >=<
             .prece=preceExponent };
-    p[30] = (OpDef){.name=s(">>."),  .arity=2, .bytes={aGT, aGT, aDot, 0},
+    p[31] = (OpDef){ .arity=2, .bytes={aGT, aGT, aDot, 0}, // >>.
             .prece=preceAdd,         .assignable=true, .overloadable = true};
-    p[31] = (OpDef){.name=s("><"),   .arity=3, .bytes={aGT, aLT, 0, 0 },
+    p[32] = (OpDef){ .arity=3, .bytes={aGT, aLT, 0, 0 }, // ><
             .prece=preceExponent };
-    p[32] = (OpDef){.name=s(">="),   .arity=2, .bytes={aGT, aEqual, 0, 0 },
+    p[33] = (OpDef){ .arity=2, .bytes={aGT, aEqual, 0, 0 }, // >=
             .prece=preceExponent };
-    p[33] = (OpDef){.name=s(">>"),   .arity=2, .bytes={aGT, aGT, 0, 0},
+    p[34] = (OpDef){ .arity=2, .bytes={aGT, aGT, 0, 0}, // >>
             .prece=preceAdd,         .assignable=true, .overloadable = true };
-    p[34] = (OpDef){.name=s(">"),    .arity=2, .bytes={aGT, 0, 0, 0 },
+    p[35] = (OpDef){ .arity=2, .bytes={aGT, 0, 0, 0 }, // >
             .prece=preceExponent };
-    p[35] = (OpDef){.name=s("?:"),   .arity=2, .bytes={aQuestion, aColon, 0, 0 },
+    p[36] = (OpDef){ .arity=2, .bytes={aQuestion, aColon, 0, 0 }, // ?:
             .prece=preceAdd };
-    p[36] = (OpDef){.name=s("?"),    .arity=1, .bytes={aQuestion, 0, 0, 0 },
+    p[37] = (OpDef){ .arity=1, .bytes={aQuestion, 0, 0, 0 }, // ?
             .prece=precePrefix,      .isTypelevel=true };
-    p[37] = (OpDef){.name=s("^."),   .arity=2, .bytes={aCaret, aDot, 0, 0},
+    p[38] = (OpDef){ .arity=2, .bytes={aCaret, aDot, 0, 0}, // ^.
             .prece=precePrefix };
-    p[38] = (OpDef){.name=s("^"),    .arity=2, .bytes={aCaret, 0, 0, 0},
+    p[39] = (OpDef){ .arity=2, .bytes={aCaret, 0, 0, 0}, // ^
             .prece=preceExponent,    .assignable=true, .overloadable = true};
-    p[39] = (OpDef){.name=s("||."),  .arity=2, .bytes={aPipe, aPipe, aDot, 0},
+    p[40] = (OpDef){ .arity=2, .bytes={aPipe, aPipe, aDot, 0}, // ||.
             .prece=preceAdd };
-    p[40] = (OpDef){.name=s("||"),   .arity=2, .bytes={aPipe, aPipe, 0, 0},
+    p[41] = (OpDef){ .arity=2, .bytes={aPipe, aPipe, 0, 0}, // ||
             .prece=preceAdd };
 
     for (Int k = 0; k < countOperators; k++) {
@@ -2379,10 +2375,10 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     assignmentWorker(tok, false, tokens, cm);
 }
 
-private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
+private void parseWhile(Token loopok, Arr(Token) tokens, Compiler* cm) {
     /// While loops. Look like "while(x = 0. <(x 100): x += 1)"
     ++cm->loopCounter;
-    Int sentinel = cm->i + loopTok.pl2;
+    Int sentinel = cm->i + loopok.pl2;
 
     Int condInd = cm->i;
     Token condTk = tokens[condInd];
@@ -2393,9 +2389,9 @@ private void parseWhile(Token loopTok, Arr(Token) tokens, Compiler* cm) {
 
     push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->loopCounter }), cm->backtrack);
-    pushInnodes((Node){.tp = nodWhile,  .startBt = loopTok.startBt, .lenBts = loopTok.lenBts}, cm);
+    pushInnodes((Node){.tp = nodWhile,  .startBt = loopok.startBt, .lenBts = loopok.lenBts}, cm);
 
-    addParsedScope(sentinel, startBtScope, loopTok.lenBts - startBtScope + loopTok.startBt, cm);
+    addParsedScope(sentinel, startBtScope, loopok.lenBts - startBtScope + loopok.startBt, cm);
 
     // variable initializations, if any
 
@@ -3512,73 +3508,70 @@ private void buildOperators(Compiler* cm) {
     Int flOfInt = addFunctionType(1, (Int[]){tokFloat, tokInt}, cm);
     Int flOfFl = addFunctionType(1, (Int[]){tokFloat, tokFloat}, cm);
 
-    buildOperator(opTNotEqual, boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opTNotEqual, boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opTNotEqual, boolOfStrStr, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opTBoolNegation, boolOfBool, emitPrefix, 0, cm);
-    buildOperator(opTSize,     intOfStr, emitField, cgStrLength, cm);
-    buildOperator(opTSize,     intOfInt, emitPrefixExternal, cgStrAbsolute, cm);
-    buildOperator(opTToString, strOfInt, emitInfixDot, cgStrToStr, cm);
-    buildOperator(opTToString, strOfFloat, emitInfixDot, cgStrToStr, cm);
-    buildOperator(opTToString, strOfBool, emitInfixDot, cgStrToStr, cm);
-    buildOperator(opTRemainder, intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTBinaryAnd, boolOfBoolBool, 0, 0, cm); // dummy
-    buildOperator(opTTypeAnd,   boolOfBoolBool, 0, 0, cm); // dummy
-    buildOperator(opTIsNull,    boolOfBoolBool, 0, 0, cm); // dummy
-    buildOperator(opTTimesExt,  flOfFlFl, 0, 0, cm); // dummy
-    buildOperator(opTTimes,     intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTTimes,     flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTPlusExt,   strOfStrStr, 0, 0, cm); // dummy
-    buildOperator(opTPlus,      intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTPlus,      flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTPlus,      strOfStrStr, emitInfix, 0, cm);
-    buildOperator(opTToInt,     intOfFl, emitNop, 0, cm);
-    buildOperator(opTToFloat,   flOfInt, emitNop, 0, cm);
-    buildOperator(opTMinusExt,  intOfIntInt, 0, 0, cm); // dummy
-    buildOperator(opTMinus,     intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTMinus,     flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTDivByExt,  intOfIntInt, 0, 0, cm); // dummy
-    buildOperator(opTDivBy,     intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTDivBy,     flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTBitShiftLeftExt,  intOfIntInt, 0, 0, cm);  // dummy
-    buildOperator(opTBitShiftLeft,     intOfFlFl, 0, 0, cm);  // dummy
-    buildOperator(opTLTEQ, boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTLTEQ, boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTLTEQ, boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opTComparator, intOfIntInt, 0, 0, cm);  // dummy
-    buildOperator(opTComparator, intOfFlFl, 0, 0, cm);  // dummy
-    buildOperator(opTComparator, intOfStrStr, 0, 0, cm);  // dummy
-    buildOperator(opTLessThan, boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTLessThan, boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTLessThan, boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opTEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm);
-    buildOperator(opTIntervalBoth, boolOfIntIntInt, 0, 0, cm); // dummy
-    buildOperator(opTIntervalBoth, boolOfFlFlFl, 0, 0, cm); // dummy
-    buildOperator(opTIntervalLeft, boolOfIntIntInt, 0, 0, cm); // dummy
-    buildOperator(opTIntervalLeft, boolOfFlFlFl, 0, 0, cm); // dummy
-    buildOperator(opTIntervalRight, boolOfIntIntInt, 0, 0, cm); // dummy
-    buildOperator(opTIntervalRight, boolOfFlFlFl, 0, 0, cm); // dummy
-    buildOperator(opTIntervalExcl, boolOfIntIntInt, 0, 0, cm); // dummy
-    buildOperator(opTIntervalExcl, boolOfFlFlFl, 0, 0, cm); // dummy
-    buildOperator(opTGTEQ, boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTGTEQ, boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTGTEQ, boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opTBitShiftRightExt, intOfIntInt, 0, 0, cm);  // dummy
-    buildOperator(opTBitShiftRight,    intOfFlFl, 0, 0, cm);  // dummy
-    buildOperator(opTGreaterThan, boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTGreaterThan, boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opTGreaterThan, boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opTNullCoalesce, intOfIntInt, 0, 0, cm); // dummy
-    buildOperator(opTQuestionMark, flOfFlFl, 0, 0, cm); // dummy
-    buildOperator(opTExponentExt, intOfIntInt, 0, 0, cm); // dummy
-    buildOperator(opTExponent, intOfIntInt, emitPrefixExternal, cgStrExpon, cm);
-    buildOperator(opTExponent, flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
-    buildOperator(opTBoolOr, flOfFl, 0, 0, cm); // dummy
-    buildOperator(opTXor,    flOfFlFl, 0, 0, cm); // dummy
-    buildOperator(opTAnd,    boolOfBoolBool, emitInfixExternal, cgStrLogicalAnd, cm);
-    buildOperator(opTOr,     boolOfBoolBool, emitInfixExternal, cgStrLogicalOr, cm);
-    buildOperator(opTNegation, intOfInt, emitPrefix, 0, cm);
-    buildOperator(opTNegation, flOfFl, emitPrefix, 0, cm);
+    buildOperator(opNotEqual, boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
+    buildOperator(opNotEqual, boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
+    buildOperator(opNotEqual, boolOfStrStr, emitInfixExternal, cgStrNotEqual, cm);
+    buildOperator(opBitwiseNegation, boolOfBool, emitPrefix, 0, cm); // dummy
+    buildOperator(opBoolNegation, boolOfBool, emitPrefix, 0, cm);
+    buildOperator(opSize,     intOfStr, emitField, cgStrLength, cm);
+    buildOperator(opSize,     intOfInt, emitPrefixExternal, cgStrAbsolute, cm);
+    buildOperator(opRemainder, intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opBitwiseAnd, boolOfBoolBool, 0, 0, cm); // dummy
+    buildOperator(opBoolAnd,    boolOfBoolBool, emitInfixExternal, cgStrLogicalAnd, cm);
+    buildOperator(opIsNull,    boolOfBoolBool, 0, 0, cm); // dummy
+    buildOperator(opTimesExt,  flOfFlFl, 0, 0, cm); // dummy
+    buildOperator(opTimes,     intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTimes,     flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opPlusExt,   strOfStrStr, 0, 0, cm); // dummy
+    buildOperator(opPlus,      intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opPlus,      flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opPlus,      strOfStrStr, emitInfix, 0, cm);
+    buildOperator(opToInt,     intOfFl, emitNop, 0, cm);
+    buildOperator(opToFloat,   flOfInt, emitNop, 0, cm);
+    buildOperator(opMinusExt,  intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opMinus,     intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opMinus,     flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opDivByExt,  intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opDivBy,     intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opDivBy,     flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opToString, strOfInt, emitInfixDot, cgStrToStr, cm);
+    buildOperator(opToString, strOfFloat, emitInfixDot, cgStrToStr, cm);
+    buildOperator(opToString, strOfBool, emitInfixDot, cgStrToStr, cm);
+    buildOperator(opBitShiftLeft,     intOfFlFl, 0, 0, cm);  // dummy
+    buildOperator(opShiftLeft,     intOfFlFl, 0, 0, cm);  // dummy
+    buildOperator(opLTEQ, boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opLTEQ, boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opLTEQ, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opComparator, intOfIntInt, 0, 0, cm);  // dummy
+    buildOperator(opComparator, intOfFlFl, 0, 0, cm);  // dummy
+    buildOperator(opComparator, intOfStrStr, 0, 0, cm);  // dummy
+    buildOperator(opLessThan, boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opLessThan, boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opLessThan, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opRefEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm); //dummy
+    buildOperator(opEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm);
+    buildOperator(opIntervalBoth, boolOfIntIntInt, 0, 0, cm); // dummy
+    buildOperator(opIntervalBoth, boolOfFlFlFl, 0, 0, cm); // dummy
+    buildOperator(opIntervalRight, boolOfIntIntInt, 0, 0, cm); // dummy
+    buildOperator(opIntervalRight, boolOfFlFlFl, 0, 0, cm); // dummy
+    buildOperator(opIntervalLeft, boolOfIntIntInt, 0, 0, cm); // dummy
+    buildOperator(opIntervalLeft, boolOfFlFlFl, 0, 0, cm); // dummy
+    buildOperator(opBitShiftRight, boolOfBoolBool, 0, 0, cm); // dummy
+    buildOperator(opIntervalExcl, boolOfIntIntInt, 0, 0, cm); // dummy
+    buildOperator(opIntervalExcl, boolOfFlFlFl, 0, 0, cm); // dummy
+    buildOperator(opGTEQ, boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opGTEQ, boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opGTEQ, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opShiftRight,    intOfFlFl, 0, 0, cm);  // dummy
+    buildOperator(opGreaterThan, boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opGreaterThan, boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opGreaterThan, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opNullCoalesce, intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opBitwiseXor, intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opExponent, intOfIntInt, emitPrefixExternal, cgStrExpon, cm);
+    buildOperator(opExponent, flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
+    buildOperator(opBitwiseOr, intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opBoolOr, flOfFl, 0, 0, cm); // dummy
 }
 
 private void createBuiltins(Compiler* cm) {
