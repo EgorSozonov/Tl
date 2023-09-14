@@ -275,8 +275,11 @@ typedef struct { //:Token
 
 /// List of keywords that don't correspond directly to a token.
 /// All these numbers must be below firstKeywordToken to avoid any clashes
-#define keywArray       1
-#define keywContinue    2
+#define keywTrue        1
+#define keywFalse       2
+#define keywArray       3
+#define keywBreak       4
+#define keywContinue    5
 
 /// AST nodes
 #define nodId           7    // pl1 = index of entity, pl2 = index of name
@@ -536,6 +539,7 @@ struct Compiler { //:Compiler
     StackBtToken* lexBtrack;    // [aTmp]
     Stackint32_t* stringTable;
     StringDict* stringDict;
+    Int indentation; 
     Int lastClosingPunctInd;
 
     // PARSING

@@ -1008,7 +1008,7 @@ const Int standardStrings[] = {
 };
 
 const Int standardKeywords[] = {
-    keywArray,    tokAlias, tokAssert, tokBreak,   tokCatch, 
+    keywArray,    tokAlias, tokAssert, keywBreak,   tokCatch, 
     keywContinue, tokDefer, tokScope,  tokElse,    tokEmbed, 
     keywFalse,    tokFn,    tokFor,    tokHashmap, tokIf,
     tokIfPr,      tokImpl,  tokImport, tokIface,   tokList,
@@ -1149,7 +1149,7 @@ private Int probeReservedWords(Int indStart, Int indEnd, Int startBt, Int lenBts
         if (len == lenBts &&
             memcmp(lx->sourceCode->cont + standardStrings[i],
                    lx->sourceCode->cont + startBt, len) == 0) {
-            return standardToks[i];
+            return standardKeywords[i];
         }
     }
     return -1;
@@ -1214,21 +1214,26 @@ private Int determineUnreserved(Int startBt, Int lenBts, Compiler* lx) {
 
 private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
     Int lenBts = 0;
+    Int pl1 = 0; 
     // Some types of statements may legitimately consist of 0 tokens; for them, we need to write their lenBts in the init token
-    if (stmtType == tokBreak) {
+    if (stmtType == keywBreak) {
         lenBts = 5;
-    } else if (stmtType == tokContinue) {
+        stmtType = tokBreakCont; 
+    } else if (stmtType == keywContinue) {
         lenBts = 8;
+        pl1 = 1; 
+        stmtType = tokBreakCont; 
     }
     push(((BtToken){ .tp = stmtType, .tokenInd = lx->tokens.len, .spanLevel = slStmt }), lx->lexBtrack);
-    pushIntokens((Token){ .tp = stmtType, .startBt = startBt, .lenBts = lenBts}, lx);
+    pushIntokens((Token){ .tp = stmtType, .pl1 = pl1, .startBt = startBt, .lenBts = lenBts }, lx);
 }
 
 
 private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) source) {
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->tokens.len, .spanLevel = slStmt }), lx->lexBtrack);
+            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->tokens.len, .spanLevel = slStmt }), 
+                lx->lexBtrack);
             pushIntokens((Token){ .tp = tokStmt, .startBt = startBt},  lx);
         }
     } else {
@@ -1240,7 +1245,8 @@ private void wrapInAStatementStarting(Int startBt, Compiler* lx, Arr(byte) sourc
 private void wrapInAStatement(Compiler* lx, Arr(byte) source) {
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->tokens.len, .spanLevel = slStmt }), lx->lexBtrack);
+            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->tokens.len, .spanLevel = slStmt }), 
+                lx->lexBtrack);
             pushIntokens((Token){ .tp = tokStmt, .startBt = lx->i},  lx);
         }
     } else {
@@ -1261,8 +1267,8 @@ private void maybeBreakStatement(Compiler* lx) {
 
 private void closeRegularPunctuation(Int closingType, Compiler* lx) {
     /// Processes a right paren which serves as the closer of all punctuation scopes.
-    /// This doesn't actually add any tokens to the array, just performs validation and sets the token length
-    /// for the opener token.
+    /// This doesn't actually add any tokens to the array, just performs validation and sets the 
+    /// token length for the opener token.
     StackBtToken* bt = lx->lexBtrack;
     closeColons(lx);
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
@@ -1527,7 +1533,8 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
         Int scopeLevel = reservedWordType == tokScope ? slScope : slParenMulti;
         push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len, .spanLevel = scopeLevel }),
              lx->lexBtrack);
-        pushIntokens((Token){ .tp = reservedWordType, .pl1 = scopeLevel, .startBt = startBt, .lenBts = lenBts}, lx);
+        pushIntokens((Token){ .tp = reservedWordType, .pl1 = scopeLevel, 
+            .startBt = startBt, .lenBts = lenBts}, lx);
         ++lx->i; // CONSUME the opening "(" of the core form
     } else if (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
@@ -1596,10 +1603,10 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
         }
     }
 
-    Int realStartByte = (wordType == tokWord) ? startBt : (startBt - 1);
+    Int realStartBt = (wordType == tokWord) ? startBt : (startBt - 1);
     // accounting for the initial ".", ":" or other symbol
     byte firstByte = lx->sourceCode->cont[startBt];
-    Int lenBts = lx->i - realStartByte;
+    Int lenBts = lx->i - realStartBt;
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
 
@@ -1618,51 +1625,56 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
             push(((BtToken){ .tp = finalTkTp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
             pushIntokens((Token){ .tp = finalTkTp, .pl1 = uniqueStringInd,
-                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+                         .startBt = realStartBt, .lenBts = lenBts }, lx);
             ++lx->i; // CONSUME the opening "(" of the call
         } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
             VALIDATEL(wasCapitalized, errTypeOnlyTypesArity)
             pushIntokens((Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = uniqueStringInd,
-                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+                         .startBt = realStartBt, .lenBts = lenBts }, lx);
             ++lx->i; // CONSUME the "/" in the type func arity spec
         } else if (wordType == tokWord) {
             wrapInAStatementStarting(startBt, lx, source);
             pushIntokens((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd,
-                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+                         .startBt = realStartBt, .lenBts = lenBts }, lx);
         } else if (wordType == tokAccessor) {
             // What looks like an accessor ("a.x") may actually be a struct field ("(.id 5 .name `foo`")
             if (lx->tokens.len > 0) {
                 Token prevToken = lx->tokens.cont[lx->tokens.len - 1];
-                if (prevToken.startBt + prevToken.lenBts < realStartByte) {
+                if (prevToken.startBt + prevToken.lenBts < realStartBt) {
                     pushIntokens((Token){ .tp = tokStructField, .pl2 = uniqueStringInd,
-                                 .startBt = realStartByte, .lenBts = lenBts }, lx);
+                                 .startBt = realStartBt, .lenBts = lenBts }, lx);
                     return;
                 }
             }
             pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd,
-                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+                         .startBt = realStartBt, .lenBts = lenBts }, lx);
         } else if (wordType == tokKwArg) {
             pushIntokens((Token){ .tp = tokKwArg, .pl2 = uniqueStringInd,
-                         .startBt = realStartByte, .lenBts = lenBts }, lx);
+                         .startBt = realStartBt, .lenBts = lenBts }, lx);
         }
         return;
     }
 
     VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
-
-    if (mbReservedWord == tokElse){
+    StackBtToken* bt = lx->lexBtrack;
+    if (mbReservedWord == tokElse) {
         closeStatement(lx);
-        pushIntokens((Token){.tp = tokElse, .startBt = realStartByte, .lenBts = 4}, lx);
+        pushIntokens((Token){.tp = tokElse, .startBt = realStartBt, .lenBts = 4}, lx);
     } else if (mbReservedWord < firstSpanTokenType) {
-        if (mbReservedWord == reservedTrue) {
+        if (mbReservedWord == keywTrue) {
             wrapInAStatementStarting(startBt, lx, source);
-            pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartByte, .lenBts=4}, lx);
-        } else if (mbReservedWord == reservedFalse) {
+            pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartBt, .lenBts=4}, lx);
+        } else if (mbReservedWord == keywFalse) {
+            VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
+            addStatementSpan(reservedWordType, startBt, lx);
             wrapInAStatementStarting(startBt, lx, source);
-            pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartByte, .lenBts=5}, lx);
+            pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
+        } else if (mbReservedWord == keywBreak) {
+            wrapInAStatementStarting(startBt, lx, source);
+            pushIntokens((Token){.tp=tokBreakCont, .pl1=0, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
         }
     } else {
-        lexReservedWord(mbReservedWord, realStartByte, lenBts, lx, source);
+        lexReservedWord(mbReservedWord, realStartBt, lenBts, lx, source);
     }
 }
 
