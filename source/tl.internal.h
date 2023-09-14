@@ -216,111 +216,111 @@ typedef struct { //:Token
 #define tokFloat        2
 #define tokBool         3    // pl2 = value (1 or 0)
 #define tokString       4
-#define tokUnderscore   5    // in the world of types, signifies the Void type
+#define tokTildes       5    // used to mark up to 3 anonymous params in a function. pl1 = count
+#define tokUnderscore   6
 
-#define tokWord         6    // pl2 = index in the string table
-#define tokTypeName     7    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
-#define tokKwArg        8    // pl2 = same as tokWord. The ":argName"
-#define tokStructField  9    // pl2 = same as tokWord. The ".structField"
-#define tokOperator    10    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    11    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
-#define tokArrow       12
+#define tokWord         7    // pl2 = index in the string table
+#define tokTypeName     8    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
+#define tokKwArg        9    // pl2 = same as tokWord. The ":argName"
+#define tokStructField 10    // pl2 = same as tokWord. The ".structField"
+#define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
+#define tokAccessor    12    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
+#define tokArrow       13
+#define tokPub         14
 
 // Single-statement token types
-#define tokStmt        13    // firstSpanTokenType
-#define tokParens      14    // this is mostly for data instantiation
-#define tokCall        15    // pl1 = nameId, index in the string table
-#define tokTypeCall    16    // pl1 = nameId
-#define tokOperCall    17    // pl1 = same as tokOperator
-#define tokBrackets    18
-#define tokAssignment  19
-#define tokReassign    20    // :=
-#define tokMutation    21    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
-#define tokAlias       22
-#define tokAssert      23
-#define tokAssertDbg   24
-#define tokAwait       25
-#define tokBreak       26
-#define tokContinue    27
-#define tokDefer       28
-#define tokEmbed       29    // Embed a text file as a string literal, or a binary resource file // 200
-#define tokIface       30
-#define tokImport      31
-#define tokReturn      32
-#define tokTry         33    // early exit
-#define tokYield       34
+#define tokStmt        15    // firstSpanTokenType
+#define tokParens      16    // subexpressions and struct/sum type instances
+#define tokCall        17    // pl1 = nameId, index in the string table
+#define tokTypeCall    18    // pl1 = nameId
+#define tokOperCall    19    // pl1 = same as tokOperator
+#define tokList        20    // pl1 = 1 iff it's an array
+#define tokHashmap     21
+#define tokBrackets    22
+#define tokAssignment  23
+#define tokReassign    24    // :=
+#define tokMutation    25    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
+#define tokAlias       26
+#define tokAssert      27
+#define tokBreakCont   28    // pl1 = BIG iff it's a continue
+#define tokDefer       29
+#define tokEmbed       30    // Embed a text/binary file as a string literal/binary resource
+#define tokIface       31
+#define tokImport      32
+#define tokReturn      33
+#define tokTry         34    // early exit
 #define tokColon       35    // not a real span, but placed here so the parser can dispatch on it
 #define tokElse        36    // not a real span, but placed here so the parser can dispatch on it
 
 // Parenthesized (multi-statement) token types. pl1 = spanLevel, see "sl" constants
 #define tokScope       37    // denoted by do(). firstParenSpanTokenType
-#define tokCatch       38    // paren "catch(e => print(e))"
-#define tokFn          39
-#define tokPublicDef   40
-#define tokFor         41
-#define tokMeta        42
-#define tokPackage     43    // for single-file packages
+#define tokCatch       38    // paren "catch(e: print(e))"
+#define tokFn          39    // f(a Int: body)
+#define tokFor         40
+#define tokMeta        41
 
 // Resumable core forms
-#define tokIf          44    // "if( "
-#define tokIfPr        45    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       46    // "(*m " or "(match " pattern matching on sum type tag
-#define tokImpl        47
-#define tokWhile       48
+#define tokIf          42    // "if( "
+#define tokIfPr        43    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       44    // "(*m " or "(match " pattern matching on sum type tag
+#define tokImpl        45
+#define tokWhile       46
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
+#define firstKeywordToken tokPub // The first token that is read in as a keyword
 #define firstSpanTokenType tokStmt
 #define firstParenSpanTokenType tokScope
 #define firstResumableSpanTokenType tokIf
 
+/// List of keywords that don't correspond directly to a token.
+/// All these numbers must be below firstKeywordToken to avoid any clashes
+#define keywArray       1
+#define keywContinue    2
 
-/** Nodes */
+/// AST nodes
 #define nodId           7    // pl1 = index of entity, pl2 = index of name
 #define nodCall         8    // pl1 = index of entity, pl2 = arity
-#define nodComplexCall  9    // pl2 = arity
-#define nodBinding     10    // pl1 = index of entity, pl2 = 1 if it's a type binding
+#define nodBinding      9    // pl1 = index of entity, pl2 = 1 if it's a type binding
 
 // Punctuation (inner node)
-#define nodScope       11     // (* This is resumable but trivially so, that's why it's not grouped with the others
-#define nodExpr        12
-#define nodAssignment  13
-#define nodReassign    14     // :=
-#define nodAccessor    15     // pl1 = "acc" constants
-#define nodArglist     16 // Used after nodComplexCall
+#define nodScope       10     // This syntax form is resumable but trivially so, 
+                              // that's why it's not grouped with the others
+#define nodExpr        11
+#define nodAssignment  12
+#define nodReassign    13     // :=
+#define nodAccessor    14     // pl1 = "acc" constants
 
 // Single-shot core syntax forms
-#define nodAlias       17
-#define nodAssert      18
-#define nodAssertDbg   19
-#define nodAwait       20
-#define nodBreak       21     // pl1 = number of label to break to, or -1 if none needed
-#define nodCatch       22     // "(catch e => print e)"
-#define nodContinue    23     // pl1 = number of label to continue to, or -1 if none needed
-#define nodDefer       24
-#define nodEmbed       25     // noParen. Embed a text file as a string literal, or a binary resource file
-#define nodExport      26
-#define nodExposePriv  27     // TODO replace with "import". This is for test files
-#define nodFnDef       28     // pl1 = entityId
-#define nodIface       29
-#define nodLambda      30
-#define nodMeta        31
-#define nodPackage     32     // for single-file packages
-#define nodReturn      33
-#define nodTry         34     // the Rust kind of "try" (early return from current function)
-#define nodYield       35
-#define nodIfClause    36
-#define nodWhile       37     // pl1 = id of loop (unique within a function) if it needs to have a label in codegen
-#define nodWhileCond   38
+#define nodAlias       15
+#define nodAssert      16     // pl1 = 1 iff it's a debug assert
+#define nodBreakCont   17     // pl1 = number of label to break or continue to, -1 if none needed
+                              // It's a continue iff it's >= BIG.
+#define nodCatch       18     // "(catch e: print e)"
+#define nodDefer       19
+#define nodEmbed       20     // Embed a text file as a string literal, or a binary resource file
+#define nodImport      21     // This is for test files only, no need to import anything in main
+#define nodFnDef       22     // pl1 = entityId
+#define nodIface       23
+#define nodMeta        24
+#define nodReturn      25
+#define nodTry         26     // the Rust kind of "try" (early return from current function)
+#define nodIfClause    27
+#define nodWhile       28     // pl1 = id of loop (unique within a function) if it needs to 
+                              // have a label in codegen
+#define nodWhileCond   29
 
 // Resumable core forms
-#define nodIf          39
-#define nodImpl        40
-#define nodMatch       41     // pattern matching on sum type tag
+#define nodIf          30
+#define nodImpl        31
+#define nodMatch       32     // pattern matching on sum type tag
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)
 #define countSpanForms (nodMatch - nodScope + 1)
+
+#define metaDoc         1     // Doc comments
+#define metaDefault     2     // Default values for type arguments
 
 
 /**

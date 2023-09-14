@@ -978,13 +978,6 @@ const byte maxInt[19] = (byte []){
 /// 2**53
 const byte maximumPreciselyRepresentedFloatingInt[16] = (byte []){ 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
 
-/// The indices of reserved words that are stored in token pl2. Must be positive, unique,
-/// and below "firstPunctuationTokenType"
-#define reservedFalse   2
-#define reservedTrue    1
-#define reservedAnd     3
-#define reservedOr      4
-
 
 /// Symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" - by lexEqual
 const int operatorStartSymbols[15] = {
@@ -994,34 +987,37 @@ const int operatorStartSymbols[15] = {
 
 ///  The standard text prepended to all source code inputs and the hash table to provide a built-in string set.
 ///  The Tl reserved words must be at the start and be sorted alphabetically on the first letter.
-const char standardText[] = "aliasandassertawaitbreakcatchcontinuedeferdoelseembedfalsefnfor"
-                            "ififPrimplimportinterfacematchorreturntruetrywhileyield"
+const char standardText[] = "aaliasassertbreakcatchcontinuedeferdoelseembedfalseffor"
+                            "hififPrimplimportinterfacelmatchmetapubreturntruetrywhile"
                             // reserved words end here
-                            "IntLongDoubleBoolStringVoidFLATulencapf1f2TUprintalertmath-pimath-e";
+                            "IntLongDoubleBoolStringVoidFLAHTulencapf1f2printprintErr"
+                            "math-pimath-eTU";
 
 const Int standardStrings[] = {
-      0,   5,   8,  14,  19, // break
-     24,  29,  37,  42,  44, // else
-     48,  53,  58,  60,  63, // if
-     65,  69,  73,  79,  88, // match
-     93,  95, 101, 105, 108, // while
-    113,                     // yield
-    118, 121, 125, 131, 135, // String
-    141, 145, 146, 147, 148, // Tu
-    150, 153, 156, 158, 160, // print
-    165, 170, 177, 183
+      0,   1,   6,  12,  17, // catch
+     22,  30,  35,  37,  41, // embed
+     46,  51,  52,  55,  56, // if
+     58,  62,  67,  72,  81, // l
+     82,  87,  91,  94, 100, // true
+    104, 107, 112,           // Int
+    115, 119, 125, 129, 135, // Void
+    139, 140, 141, 142, 143, // Tu 
+    145, 148, 151, 153, 155, // print
+    160, 168, 175, 181, 182, // U 
+    183
 };
 
-const Int standardToks[] = {
-    tokAlias,  reservedAnd, tokAssert, tokAwait, tokBreak,
-    tokCatch,  tokContinue, tokDefer,  tokScope, tokElse,
-    tokEmbed,  reservedFalse, tokFn,   tokFor, tokIf,
-    tokIfPr,   tokImpl,     tokImport,  tokIface, tokMatch,
-    reservedOr, tokReturn,  reservedTrue, tokTry,
-    tokWhile, tokYield
+const Int standardKeywords[] = {
+    keywArray,    tokAlias, tokAssert, tokBreak,   tokCatch, 
+    keywContinue, tokDefer, tokScope,  tokElse,    tokEmbed, 
+    keywFalse,    tokFn,    tokFor,    tokHashmap, tokIf,
+    tokIfPr,      tokImpl,  tokImport, tokIface,   tokList,
+    tokMatch,     tokMeta,  tokPub,    tokReturn,  keywTrue,
+    tokTry,       tokWhile
 };
 
 #define maxWordLength 255
+
 //}}}
 //{{{ LexerUtils
 
@@ -3070,6 +3066,7 @@ testable Compiler* createProtoCompiler(Arena* a) {
         .stringTable = createStackint32_t(16, a), .stringDict = createStringDict(128, a),
         .types = createInListInt(64, a), .typesDict = createStringDict(128, a),
         .activeBindings = allocateOnArena(4*countOperators, a),
+        .rawOverloads = allocateOnArena(4*countOperators, a),
         .a = a
     };
     createBuiltins(proto);
@@ -3283,7 +3280,7 @@ private Int isFunction(Int typeId, Compiler* cm);
 
 private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) {
     /// Adds an overload to the [rawOverloads] and activates it, if needed
-    print("active bindings %p", cm->activeBindings);
+    print("active bindings %p rawOvers %p", cm->activeBindings, cm->rawOverloads);
     Int mbListId = cm->activeBindings[nameId];
     if (mbListId == -1) {
         Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
