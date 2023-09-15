@@ -539,7 +539,6 @@ struct Compiler { //:Compiler
     StackBtToken* lexBtrack;    // [aTmp]
     Stackint32_t* stringTable;
     StringDict* stringDict;
-    Int indentation; 
     Int lastClosingPunctInd;
 
     // PARSING

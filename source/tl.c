@@ -422,7 +422,7 @@ private String* stringOfInt(Int i, Arena* a) {
     Int stringLen = stringLenOfInt(i);
     String* result = allocateOnArena(sizeof(String) + stringLen + 1, a);
     result->len = stringLen;
-    sprintf(result->cont, "%d", i);
+    sprintf((char* restrict)result->cont, "%d", i);
     return result;
 }
 
@@ -970,13 +970,13 @@ const char errTypeFnSingleReturnType[]      = "More than one return type in a fu
 //{{{ LexerConstants
 
 /// The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
-const byte maxInt[19] = (byte []){
+const byte maxInt[19] = {
     9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
     8, 5, 4, 7, 7, 5, 8, 0, 7
 };
 
 /// 2**53
-const byte maximumPreciselyRepresentedFloatingInt[16] = (byte []){ 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
+const byte maximumPreciselyRepresentedFloatingInt[16] = { 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
 
 
 /// Symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" - by lexEqual
@@ -1519,7 +1519,7 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 }
 
 private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
-                             Compiler* lx, Arr(byte) source) {
+                             Arr(byte) source, Compiler* lx) {
     /// Lexer action for a paren-type or statement-type reserved word. It turns parentheses into
     /// an slParenMulti core form.
     /// Precondition: we are looking at the character immediately after the keyword
@@ -1576,12 +1576,78 @@ private void closeStatement(Compiler* lx) {
     }
 }
 
+private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCapitalized, 
+                        Int lenString, Arr(byte) source, Compiler* lx) {
+    Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
+    Int lenBts = lx->i - startBt; 
+    if (lx->i < lx->inpLength && CURR_BT == aParenLeft) {
+        VALIDATEL(wordType == tokWord, errPunctuationWrongCall)
+        wrapInAStatementStarting(startBt, lx, source);
+        untt finalTkTp = wasCapitalized ? tokTypeCall : tokCall;
+        push(((BtToken){ .tp = finalTkTp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
+             lx->lexBtrack);
+        pushIntokens((Token){ .tp = finalTkTp, .pl1 = uniqueStringInd,
+                     .startBt = realStartBt, .lenBts = lx->i - realStartBt }, lx);
+        ++lx->i; // CONSUME the opening "(" of the call
+    } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
+        VALIDATEL(wasCapitalized, errTypeOnlyTypesArity)
+        pushIntokens((Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = uniqueStringInd,
+                     .startBt = realStartBt, .lenBts = lenBts }, lx);
+        ++lx->i; // CONSUME the "/" in the type func arity spec
+    } else if (wordType == tokWord) {
+        wrapInAStatementStarting(startBt, lx, source);
+        pushIntokens((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd,
+                     .startBt = realStartBt, .lenBts = lenBts }, lx);
+    } else if (wordType == tokAccessor) {
+        // What looks like an accessor ("a.x") may actually be a struct field ("(.id 5 .name `foo`")
+        if (lx->tokens.len > 0) {
+            Token prevToken = lx->tokens.cont[lx->tokens.len - 1];
+            if (prevToken.startBt + prevToken.lenBts < realStartBt) {
+                pushIntokens((Token){ .tp = tokStructField, .pl2 = uniqueStringInd,
+                             .startBt = realStartBt, .lenBts = lenBts }, lx);
+                return;
+            }
+        }
+        pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd,
+                     .startBt = realStartBt, .lenBts = lenBts }, lx);
+    } else if (wordType == tokKwArg) {
+        pushIntokens((Token){ .tp = tokKwArg, .pl2 = uniqueStringInd,
+                     .startBt = realStartBt, .lenBts = lenBts }, lx);
+    }
+}
+
+private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realStartBt, Arr(byte) source,
+                          Compiler* lx) {
+    VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
+    Int lenBts = lx->i - startBt; 
+    StackBtToken* bt = lx->lexBtrack;
+    if (keywordTp == tokElse) {
+        closeStatement(lx);
+        pushIntokens((Token){.tp = tokElse, .startBt = realStartBt, .lenBts = 4}, lx);
+    } else if (keywordTp < firstSpanTokenType) {
+        if (keywordTp == keywTrue) {
+            wrapInAStatementStarting(startBt, lx, source);
+            pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartBt, .lenBts=4}, lx);
+        } else if (keywordTp == keywFalse) {
+            VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
+            addStatementSpan(keywordTp, startBt, lx);
+            wrapInAStatementStarting(startBt, lx, source);
+            pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
+        } else if (keywordTp == keywBreak) {
+            wrapInAStatementStarting(startBt, lx, source);
+            pushIntokens((Token){.tp=tokBreakCont, .pl1=0, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
+        }
+    } else {
+        lexReservedWord(keywordTp, realStartBt, lenBts, source, lx);
+    }
+}
+
 private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     /// Lexes a word (both reserved and identifier) according to Tl's rules.
     /// Precondition: we are pointing at the first letter character of the word (i.e. past the possible
-    /// "@" or ":")
-    /// Examples of acceptable expressions: A-B-c-d, asdf123, ab-_cd45
-    /// Examples of unacceptable expressions: 1asdf23, ab-cd_45
+    /// "." or ":")
+    /// Examples of acceptable words: A-B-c-d, asdf123, ab-_cd45
+    /// Examples of unacceptable words: 1asdf23, ab-cd_45
     Int startBt = lx->i;
 
     bool wasCapitalized = wordChunk(lx, source);
@@ -1606,7 +1672,6 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
     Int realStartBt = (wordType == tokWord) ? startBt : (startBt - 1);
     // accounting for the initial ".", ":" or other symbol
     byte firstByte = lx->sourceCode->cont[startBt];
-    Int lenBts = lx->i - realStartBt;
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
 
@@ -1617,64 +1682,9 @@ private void wordInternal(untt wordType, Compiler* lx, Arr(byte) source) {
         );
     }
     if (mbReservedWord == -1) { // a normal, unreserved word
-        Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
-        if (lx->i < lx->inpLength && CURR_BT == aParenLeft) {
-            VALIDATEL(wordType == tokWord, errPunctuationWrongCall)
-            wrapInAStatementStarting(startBt, lx, source);
-            untt finalTkTp = wasCapitalized ? tokTypeCall : tokCall;
-            push(((BtToken){ .tp = finalTkTp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
-                 lx->lexBtrack);
-            pushIntokens((Token){ .tp = finalTkTp, .pl1 = uniqueStringInd,
-                         .startBt = realStartBt, .lenBts = lenBts }, lx);
-            ++lx->i; // CONSUME the opening "(" of the call
-        } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
-            VALIDATEL(wasCapitalized, errTypeOnlyTypesArity)
-            pushIntokens((Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = uniqueStringInd,
-                         .startBt = realStartBt, .lenBts = lenBts }, lx);
-            ++lx->i; // CONSUME the "/" in the type func arity spec
-        } else if (wordType == tokWord) {
-            wrapInAStatementStarting(startBt, lx, source);
-            pushIntokens((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd,
-                         .startBt = realStartBt, .lenBts = lenBts }, lx);
-        } else if (wordType == tokAccessor) {
-            // What looks like an accessor ("a.x") may actually be a struct field ("(.id 5 .name `foo`")
-            if (lx->tokens.len > 0) {
-                Token prevToken = lx->tokens.cont[lx->tokens.len - 1];
-                if (prevToken.startBt + prevToken.lenBts < realStartBt) {
-                    pushIntokens((Token){ .tp = tokStructField, .pl2 = uniqueStringInd,
-                                 .startBt = realStartBt, .lenBts = lenBts }, lx);
-                    return;
-                }
-            }
-            pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd,
-                         .startBt = realStartBt, .lenBts = lenBts }, lx);
-        } else if (wordType == tokKwArg) {
-            pushIntokens((Token){ .tp = tokKwArg, .pl2 = uniqueStringInd,
-                         .startBt = realStartBt, .lenBts = lenBts }, lx);
-        }
-        return;
-    }
-
-    VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
-    StackBtToken* bt = lx->lexBtrack;
-    if (mbReservedWord == tokElse) {
-        closeStatement(lx);
-        pushIntokens((Token){.tp = tokElse, .startBt = realStartBt, .lenBts = 4}, lx);
-    } else if (mbReservedWord < firstSpanTokenType) {
-        if (mbReservedWord == keywTrue) {
-            wrapInAStatementStarting(startBt, lx, source);
-            pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartBt, .lenBts=4}, lx);
-        } else if (mbReservedWord == keywFalse) {
-            VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
-            addStatementSpan(reservedWordType, startBt, lx);
-            wrapInAStatementStarting(startBt, lx, source);
-            pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
-        } else if (mbReservedWord == keywBreak) {
-            wrapInAStatementStarting(startBt, lx, source);
-            pushIntokens((Token){.tp=tokBreakCont, .pl1=0, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
-        }
+        wordNormal(wordType, startBt, realStartBt, wasCapitalized, lenString, source, lx); 
     } else {
-        lexReservedWord(mbReservedWord, realStartBt, lenBts, lx, source);
+        wordReserved(wordType, mbReservedWord, startBt, realStartBt, source, lx); 
     }
 }
 
@@ -2789,8 +2799,8 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
 
     Int ind = cm->nodes.len;
     // space for the operator and left side
-    pushInnodes(((Node){}), cm);
-    pushInnodes(((Node){}), cm);
+    pushInnodes(((Node){0}), cm);
+    pushInnodes(((Node){0}), cm);
 
     Token rTk = tokens[cm->i];
     Int rightType = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
@@ -2856,18 +2866,14 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
 }
 
 
-private void parseBreak(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseBreakCont(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int sentinel = cm->i;
     Int loopId = breakContinue(tok, &sentinel, tokens, cm);
-    pushInnodes((Node){.tp = nodBreak, .pl1 = loopId, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    cm->i = sentinel; // CONSUME the whole break statement
-}
-
-
-private void parseContinue(Token tok, Arr(Token) tokens, Compiler* cm) {
-    Int sentinel = cm->i;
-    Int loopId = breakContinue(tok, &sentinel, tokens, cm);
-    pushInnodes((Node){.tp = nodContinue, .pl1 = loopId, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+    if (tok.pl1 > 0) { // continue
+        loopId += BIG;
+    }
+    pushInnodes((Node){.tp = nodBreakCont, .pl1 = loopId, 
+                       .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     cm->i = sentinel; // CONSUME the whole break statement
 }
 
@@ -2986,23 +2992,18 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
 
     p[tokAlias]      = &parseAlias;
     p[tokAssert]     = &parseAssert;
-    p[tokAssertDbg]  = &parseAssertDbg;
-    p[tokAwait]      = &parseAlias;
-    p[tokBreak]      = &parseBreak;
+    p[tokBreakCont]  = &parseBreakCont;
     p[tokCatch]      = &parseAlias;
-    p[tokContinue]   = &parseContinue;
     p[tokDefer]      = &parseAlias;
     p[tokEmbed]      = &parseAlias;
     p[tokFn]         = &parseAlias;
     p[tokIface]      = &parseAlias;
     p[tokImport]     = &parseAlias;
-    p[tokPackage]    = &parseAlias;
+    p[tokMeta]       = &parseAlias;
     p[tokReturn]     = &parseReturn;
     p[tokTry]        = &parseAlias;
-    p[tokYield]      = &parseAlias;
 
     p[tokIf]         = &parseIf;
-    //p[tokElse]       = &parseSkip;
     p[tokWhile]      = &parseWhile;
     return result;
 }
@@ -5164,7 +5165,7 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
 
 private void writeIndex(Int ind, Codegen* cg) {
     ensureBufferLength(40, cg);
-    Int lenWritten = sprintf(cg->buffer + cg->len, "%d", ind);
+    Int lenWritten = sprintf((char* restrict)(cg->buffer + cg->len), "%d", ind);
     cg->len += lenWritten;
 }
 
@@ -5191,7 +5192,7 @@ private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
         uint64_t total = (upper << 32) + lower;
         int64_t signedTotal = (int64_t)total;
         ensureBufferLength(45, cg);
-        Int lenWritten = sprintf(cg->buffer + cg->len, "%d", signedTotal);
+        Int lenWritten = sprintf((char* restrict)(cg->buffer + cg->len), "%d", signedTotal);
         cg->len += lenWritten;
     } else if (n.tp == tokString) {
         writeBytesFromSource(n, cg);
@@ -5201,7 +5202,7 @@ private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
         int64_t total = (int64_t)((upper << 32) + lower);
         double floating = doubleOfLongBits(total);
         ensureBufferLength(45, cg);
-        Int lenWritten = sprintf(cg->buffer + cg->len, "%f", floating);
+        Int lenWritten = sprintf((char* restrict)(cg->buffer + cg->len), "%f", floating);
         cg->len += lenWritten;
     } else if (n.tp == tokBool) {
         writeBytesFromSource(n, cg);
@@ -5511,7 +5512,7 @@ private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) 
 private void writeLoopLabel(Int labelId, Codegen* cg) {
     writeConstant(cgStrLo, cg);
     ensureBufferLength(14, cg);
-    Int lenWritten = sprintf(cg->buffer + cg->len, "%d", labelId);
+    Int lenWritten = sprintf((char* restrict)(cg->buffer + cg->len), "%d", labelId);
     cg->len += lenWritten;
 }
 
@@ -5575,14 +5576,8 @@ private void writeBreakContinue(Node fr, Int indKeyword, Codegen* cg) {
     writeChar(aNewline, cg);
 }
 
-
-private void writeBreak(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+private void writeBreakCont(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     writeBreakContinue(fr, strBreak, cg);
-}
-
-
-private void writeContinue(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
-    writeBreakContinue(fr, strContinue, cg);
 }
 
 
@@ -5611,8 +5606,7 @@ private void tabulateCgDispatch(Codegen* cg) {
     cg->cgTable[nodIfClause   - nodScope] = &writeIfClause;
     cg->cgTable[nodFnDef      - nodScope] = &writeFn;
     cg->cgTable[nodReturn     - nodScope] = &writeReturn;
-    cg->cgTable[nodBreak      - nodScope] = &writeBreak;
-    cg->cgTable[nodContinue   - nodScope] = &writeContinue;
+    cg->cgTable[nodBreakCont  - nodScope] = &writeBreakCont;
 }
 
 
