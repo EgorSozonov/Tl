@@ -4,7 +4,7 @@
 #define StackInt Stackint32_t
 #define InListUns InListuint32_t
 #define private static
-#define byte unsigned char
+#define Byte unsigned char
 #define Arr(T) T*
 #define untt uint32_t
 #ifdef TEST
@@ -82,7 +82,7 @@ typedef struct { // :MultiList
 
 typedef struct {
     int len;
-    byte cont[];
+    Byte cont[];
 } String;
 testable void printStringNoLn(String* s);
 testable void printString(String* s);
@@ -137,52 +137,53 @@ typedef struct {
 
 //{{{ Standard strings
 
-#define strAlias      0
-#define strAnd        1
+#define strArray      0
+#define strAlias      1
 #define strAssert     2
-#define strAwait      3
-#define strBreak      4
-#define strCatch      5
-#define strContinue   6
-#define strDefer      7
-#define strDo         8
-#define strElse       9
-#define strEmbed     10
-#define strFalse     11
-#define strFn        12
-#define strFor       13
+#define strBreak      3
+#define strCatch      4
+#define strContinue   5
+#define strDefer      6
+#define strDo         7
+#define strElse       8
+#define strEmbed      9
+#define strFalse     10
+#define strFn        11
+#define strFor       12
+#define strHashMap   13
 #define strIf        14
 #define strIfPr      15
 #define strImpl      16
 #define strImport    17
 #define strInterface 18
-#define strMatch     19
-#define strOr        20
-#define strReturn    21
-#define strTrue      22
-#define strTry       23
-#define strWhile     24
-#define strYield     25
+#define strList      19
+#define strMatch     20
+#define strMeta      21
+#define strPub       22
+#define strReturn    23
+#define strTrue      24
+#define strTry       25
+#define strWhile     26
 
-#define strInt       26
+#define strInt       27
 #define strFirstNonReserved strInt
-#define strLong      27
-#define strDouble    28
-#define strBool      29
-#define strString    30
-#define strVoid      31
-#define strF         32
-#define strL         33 // List
-#define strA         34 // Array
-#define strTu        35 // Tu(ple)
-#define strLen       36
-#define strCap       37
-#define strF1        38
-#define strF2        39
-#define strPrint     40
-#define strAlert     41
-#define strMathPi    42
-#define strMathE     43
+#define strLong      28
+#define strDouble    29
+#define strBool      30
+#define strString    31
+#define strVoid      32
+#define strF         33
+#define strL         34 // List
+#define strA         35 // Array
+#define strTu        36 // Tu(ple)
+#define strLen       37
+#define strCap       38
+#define strF1        39
+#define strF2        40
+#define strPrint     41
+#define strPrintErr  42
+#define strMathPi    43
+#define strMathE     44
 
 //}}}
 
@@ -208,12 +209,12 @@ typedef struct { //:Token
 /**
  * Regular (leaf) Token types
  */
-// The following group of variants are transferred to the AST byte for byte, with no analysis
+// The following group of variants are transferred to the AST Byte for Byte, with no analysis
 // Their values must exactly correspond with the initial group of variants in "RegularAST"
 // The largest value must be stored in "topVerbatimTokenVariant" constant
 #define tokInt          0
 #define tokLong         1
-#define tokFloat        2
+#define tokDouble       2
 #define tokBool         3    // pl2 = value (1 or 0)
 #define tokString       4
 #define tokTildes       5    // used to mark up to 3 anonymous params in a function. pl1 = count
@@ -224,7 +225,7 @@ typedef struct { //:Token
 #define tokKwArg        9    // pl2 = same as tokWord. The ":argName"
 #define tokStructField 10    // pl2 = same as tokWord. The ".structField"
 #define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    12    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "@"
+#define tokAccessor    12    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "_smth"
 #define tokArrow       13
 #define tokPub         14
 
@@ -340,13 +341,13 @@ typedef struct { //:Token
  * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
  */
 typedef struct { //:OpDef
-    byte bytes[4];
+    Byte bytes[4];
     Int arity;
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
     bool overloadable;
     bool assignable;
     bool isTypelevel;
-    byte prece;
+    Byte prece;
     int8_t lenBts;
 } OpDef;
 
@@ -405,7 +406,7 @@ typedef struct { //:OpDef
 
 #define countOperators     42
 
-#define countReservedLetters   25 // length of the interval of letters that may be init for reserved words (A to Y)
+#define countReservedLetters   23 // length of the interval of letters that may be init for reserved words (A to W)
 #define countCoreForms (tokWhile - tokAlias + 1)
 #define countSyntaxForms (tokWhile + 1)
 typedef struct Compiler Compiler;
@@ -415,14 +416,14 @@ typedef struct Compiler Compiler;
 #define tkAccDot     1
 #define tkAccAt      2
 #define accField     1    // field accessor in a struct, like "foo.field". pl2 = nameId of the string
-#define accArrayInd  2    // single-integer array access, like "arr@5". pl2 = int value of the ind
-#define accArrayWord 3    // single-variable array access, like "arr@i". pl2 = nameId of the string
-#define accString    4    // string-based access inside hashmap, like "map@`foo`". pl2 = 0
-#define accExpr      5    // an expression for an array access, like "arr:+(i 1)". pl2 = number of tokens/nodes
+#define accArrayInd  2    // single-integer array access, like "arr_5". pl2 = int value of the ind
+#define accArrayWord 3    // single-variable array access, like "arr_i". pl2 = nameId of the string
+#define accString    4    // string-based access inside hashmap, like "map_`foo`". pl2 = 0
+#define accExpr      5    // an expression array access, like "arr_(i + 1)". pl2 = number of tokens/nodes
 #define accUndef     6    // undefined after lexing (to be determined by the parser)
 
 
-typedef void (*LexerFunc)(Compiler*, Arr(byte)); // LexerFunc = &(Lexer* => void)
+typedef void (*LexerFunc)(Compiler*, Arr(Byte)); // LexerFunc = &(Lexer* => void)
 typedef Int (*ReservedProbe)(int, int, Compiler*);
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
@@ -508,7 +509,7 @@ typedef struct { //:ScopeStack
     ScopeChunk* lastChunk;
     ScopeStackFrame* topScope;
     Int len;
-    int nextInd; // next ind inside currChunk, unit of measurement is 4 bytes
+    int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
 } ScopeStack;
 
 DEFINE_STACK_HEADER(ParseFrame)
@@ -589,9 +590,9 @@ struct Compiler { //:Compiler
 #define sorConcrete     5 // Fully applied type (no type params)
 
 typedef struct {
-    byte sort;
-    byte arity;
-    byte depth;
+    Byte sort;
+    Byte arity;
+    Byte depth;
     untt nameAndLen;
 } TypeHeader;
 

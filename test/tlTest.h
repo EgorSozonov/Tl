@@ -27,7 +27,7 @@ Int stToNameId(Int a);
 
 #ifdef LEXER_TEST
 
-Int getStringDict(byte* text, String* strToSearch, StackInt* stringTable, StringDict* hm);
+Int getStringDict(Byte* text, String* strToSearch, StackInt* stringTable, StringDict* hm);
 
 Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);

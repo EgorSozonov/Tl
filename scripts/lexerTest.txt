@@ -2,7 +2,7 @@ clear
 gcc -g3 --std=c17 -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration \
 -Werror=int-conversion \
--o _bin/lexerTest \
 -iquote source -iquote test test/lexerTest.c source/tl.c \
+-o _bin/lexerTest \
 -DLEXER_TEST -DTEST  \
 -lm && _bin/lexerTest
