@@ -1,6 +1,7 @@
 clear
 gcc -g3 --std=c17 -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=int-conversion -Werror=implicit-int \
+-Werror=incompatible-pointer-types \
 -o _bin/typerTest \
 -iquote source -iquote test test/typerTest.c source/tl.c \
 -DLEXER_TEST -DTYPER_TEST -DTEST  \

@@ -93,9 +93,9 @@ testable bool endsWith(String* a, String* b);
 #define s(lit) str(lit, a)
 
 typedef struct {
-    Int len;
-    Int numNames;
-    Int firstNonreserved;
+    Int len; // length of standardText
+    Int firstParsed; // the nameId for the first parsed word
+    Int firstBuiltin; // the nameId for the first built-in word in standardStrings
 } StandardText;
 
 //}}}
@@ -184,6 +184,7 @@ typedef struct {
 #define strPrintErr  42
 #define strMathPi    43
 #define strMathE     44
+#define strSentinel  45
 
 //}}}
 
@@ -361,8 +362,8 @@ typedef struct { //:OpDef
 /// OperatorType
 /// Values must exactly agree in order with the operatorSymbols array in the tl.c file.
 /// The order is defined by ASCII.
-#define opNotEqual          0 // !=
-#define opBitwiseNegation   1 // !. bitwise negation
+#define opBitwiseNegation   0 // !. bitwise negation
+#define opNotEqual          1 // !=
 #define opBoolNegation      2 // !
 #define opSize              3 // #
 #define opRemainder         4 // %
@@ -414,7 +415,7 @@ typedef struct Compiler Compiler;
 
 // Subclasses of the data accessor tokens/nodes
 #define tkAccDot     1
-#define tkAccAt      2
+#define tkAccArray   2
 #define accField     1    // field accessor in a struct, like "foo.field". pl2 = nameId of the string
 #define accArrayInd  2    // single-integer array access, like "arr_5". pl2 = int value of the ind
 #define accArrayWord 3    // single-variable array access, like "arr_i". pl2 = nameId of the string
@@ -423,7 +424,7 @@ typedef struct Compiler Compiler;
 #define accUndef     6    // undefined after lexing (to be determined by the parser)
 
 
-typedef void (*LexerFunc)(Compiler*, Arr(Byte)); // LexerFunc = &(Lexer* => void)
+typedef void (*LexerFunc)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void)
 typedef Int (*ReservedProbe)(int, int, Compiler*);
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);

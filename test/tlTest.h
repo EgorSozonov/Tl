@@ -129,6 +129,8 @@ extern const char errLoopBreakOutside[];
 extern const char errTemp[];
 
 extern const char errTypeUnknownFirstArg[];
+extern const char errExpectedType[];
+extern const char errUnexpectedType[];
 extern const char errTypeZeroArityOverload[];
 extern const char errTypeNoMatchingOverload[];
 extern const char errTypeWrongArgumentType[];
