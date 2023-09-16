@@ -1631,19 +1631,18 @@ private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realSta
                           Compiler* lx) {
     /// Returns true iff 'twas truly a reserved word. E.g., just "a" without a paren is not reserved
     Int lenBts = lx->i - startBt;
-    StackBtToken* bt = lx->lexBtrack;
+    //StackBtToken* bt = lx->lexBtrack;
 
+    VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
     if (keywordTp == tokElse) {
         closeStatement(lx);
         pushIntokens((Token){.tp = tokElse, .startBt = realStartBt, .lenBts = 4}, lx);
     } else if (keywordTp < firstSpanTokenType) {
         if (keywordTp == keywTrue) {
-            VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
             wrapInAStatementStarting(startBt, source, lx);
             pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartBt, .lenBts=4}, lx);
         } else if (keywordTp == keywFalse) {
-            VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
-            addStatementSpan(keywordTp, startBt, lx);
+            //VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
             wrapInAStatementStarting(startBt, source, lx);
             pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
         } else if (keywordTp == keywBreak) {
@@ -1822,12 +1821,13 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) {
         processAssignment(2, opType, lx);
     } else {
         if (j < lx->inpLength && source[j] == aParenLeft) {
-            push(((BtToken){ .tp = tokOperCall, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
+            push(((BtToken){ .tp = tokOperator, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
-            pushIntokens((Token){ .tp = tokOperCall, .pl1 = opType, .startBt = lx->i }, lx);
+            pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i }, lx);
             ++j; // CONSUME the opening "(" of the operator call
         } else {
-            pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i, .lenBts = j - lx->i}, lx);
+            pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i, 
+                         .lenBts = j - lx->i}, lx);
         }
     }
     lx->i = j; // CONSUME the operator

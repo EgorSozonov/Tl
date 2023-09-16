@@ -804,78 +804,78 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
 //~                 (Token){ .tp = tokWord, .pl2 = 0, .startBt = 2, .lenBts = 1 },                // x
 //~                 (Token){ .tp = tokParens, .startBt = 4 }
 //~         }))},
-
-         (LexerTest) { .name = s("Paren-type core form"),
-             .input = in("if(x <> 7 > 0 : true)"),
-             .expectedOutput = buildLexer(((Token[]){
-                 (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 9, .startBt = 0, .lenBts = 21 },
-
-                 (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 3, .lenBts = 10 },
-                 (Token){ .tp = tokWord, .startBt = 3, .lenBts = 1 },                // x
-                 (Token){ .tp = tokOperCall, .pl1 = opGreaterThan, .pl2 = 4, 
-                          .startBt = 5, .lenBts = 2 },
-                 (Token){ .tp = tokOperCall, .pl1 = opComparator, .pl2 = 2, .startBt = 5, .lenBts = 7 },
-                 (Token){ .tp = tokInt, .pl2 = 7, .startBt = 10, .lenBts = 1 },
-                 (Token){ .tp = tokInt, .startBt = 13, .lenBts = 1 },
-
-                 (Token){ .tp = tokColon, .startBt = 16, .lenBts = 1 },
-                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 18, .lenBts = 4 },
-                 (Token){ .tp = tokBool, .pl2 = 1, .startBt = 18, .lenBts = 4 },
-         }))},
-
+//~         (LexerTest) { .name = s("Paren-type core form"),
+//~             .input = in("if(x <> 7 > 0 : true)"),
+//~             .expectedOutput = buildLexer(((Token[]){
+//~                 (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 9, .startBt = 0, .lenBts = 21 },
+//~
+//~                 (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 3, .lenBts = 10 },
+//~                 (Token){ .tp = tokWord, .startBt = 3, .lenBts = 1 },                // x
+//~                 (Token){ .tp = tokOperator, .pl1 = opComparator,
+//~                          .startBt = 5, .lenBts = 2 },
+//~                 (Token){ .tp = tokInt, .pl2 = 7, .startBt = 8, .lenBts = 1 },
+//~                 (Token){ .tp = tokOperator, .pl1 = opGreaterThan, .startBt = 10, .lenBts = 1 },
+//~                 (Token){ .tp = tokInt, .startBt = 12, .lenBts = 1 },
+//~
+//~                 (Token){ .tp = tokColon, .startBt = 14, .lenBts = 1 },
+//~                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 16, .lenBts = 4 },
+//~                 (Token){ .tp = tokBool, .pl2 = 1, .startBt = 16, .lenBts = 4 },
+//~         }))},
 //~         (LexerTest) { .name = s("If with else"),
 //~             .input = in("if(x <> 7 > 0 : true else false)"),
 //~             .expectedOutput = buildLexer(((Token[]){
-//~                 (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 12, .startBt = 0, .lenBts = 34 },
+//~                 (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 12, .startBt = 0, .lenBts = 32 },
 //~
-//~                 (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 3, .lenBts = 12 },
-//~                 (Token){ .tp = tokOperCall, .pl1 = opGreaterThan, .pl2 = 4, .startBt = 3, .lenBts = 12 },
-//~                 (Token){ .tp = tokOperCall, .pl1 = opComparator, .pl2 = 2, .startBt = 5, .lenBts = 7 },
-//~                 (Token){ .tp = tokWord, .startBt = 8, .lenBts = 1 },                // x
-//~                 (Token){ .tp = tokInt, .pl2 = 7, .startBt = 10, .lenBts = 1 },
-//~                 (Token){ .tp = tokInt, .startBt = 13, .lenBts = 1 },
-//~                 (Token){ .tp = tokColon, .startBt = 16, .lenBts = 1 },
+//~                 (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 3, .lenBts = 10 },
+//~                 (Token){ .tp = tokWord, .startBt = 3, .lenBts = 1 },                // x
+//~                 (Token){ .tp = tokOperator, .pl1 = opComparator, .startBt = 5, .lenBts = 2 },
+//~                 (Token){ .tp = tokInt, .pl2 = 7, .startBt = 8, .lenBts = 1 },
+//~                 (Token){ .tp = tokOperator, .pl1 = opGreaterThan, .startBt = 10, .lenBts = 1 },
+//~                 (Token){ .tp = tokInt, .startBt = 12, .lenBts = 1 },
+//~                 (Token){ .tp = tokColon, .startBt = 14, .lenBts = 1 },
 //~
-//~                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 18, .lenBts = 4 },
-//~                 (Token){ .tp = tokBool, .pl2 = 1, .startBt = 18, .lenBts = 4 },
+//~                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 16, .lenBts = 4 },
+//~                 (Token){ .tp = tokBool, .pl2 = 1, .startBt = 16, .lenBts = 4 },
 //~
-//~                 (Token){ .tp = tokElse,                .startBt = 23, .lenBts = 4 },
-//~                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 28, .lenBts = 5 },
-//~                 (Token){ .tp = tokBool,                .startBt = 28, .lenBts = 5 }
+//~                 (Token){ .tp = tokElse,                .startBt = 21, .lenBts = 4 },
+//~                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 26, .lenBts = 5 },
+//~                 (Token){ .tp = tokBool,                .startBt = 26, .lenBts = 5 }
 //~         }))},
-//~        (LexerTest) { .name = s("If with elseif and else"),
-//~            .input = in("if( x <> 7 > 0 : 5\n"
-//~                       "    x <> 7 < 0 : 11\n"
-//~                       "    else true)"),
-//~            .expectedOutput = buildLexer(((Token[]){
-//~                (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 21, .startBt = 0, .lenBts = 57 },
-//~
-//~                (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 4, .lenBts = 12 },
-//~                (Token){ .tp = tokOperCall, .pl1 = opGreaterThan, .pl2 = 4, .startBt = 4, .lenBts = 12 },
-//~                (Token){ .tp = tokOperCall, .pl1 = opComparator, .pl2 = 2, .startBt = 6, .lenBts = 7 },
-//~                (Token){ .tp = tokWord, .startBt = 9, .lenBts = 1 },                // x
-//~                (Token){ .tp = tokInt, .pl2 = 7, .startBt = 11, .lenBts = 1 },
-//~                (Token){ .tp = tokInt, .startBt = 14, .lenBts = 1 },
-//~                (Token){ .tp = tokColon, .startBt = 17, .lenBts = 1 },
-//~
-//~                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 19, .lenBts = 1 },
-//~                (Token){ .tp = tokInt, .pl2 = 5, .startBt = 19, .lenBts = 1 },
-//~
-//~                (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 25, .lenBts = 12 },
-//~                (Token){ .tp = tokOperCall, .pl1 = opLessThan, .pl2 = 4, .startBt = 25, .lenBts = 12 },
-//~                (Token){ .tp = tokOperCall, .pl1 = opComparator, .pl2 = 2, .startBt = 27, .lenBts = 7 },
-//~                (Token){ .tp = tokWord, .startBt = 30, .lenBts = 1 },                // x
-//~                (Token){ .tp = tokInt, .pl2 = 7, .startBt = 32, .lenBts = 1 },
-//~                (Token){ .tp = tokInt,                .startBt = 35, .lenBts = 1 },
-//~
-//~                (Token){ .tp = tokColon, .startBt = 38, .lenBts = 1 },
-//~                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 40, .lenBts = 2 },
-//~                (Token){ .tp = tokInt,  .pl2 = 11,.startBt = 40, .lenBts = 2 },
-//~
-//~                (Token){ .tp = tokElse,                .startBt = 47, .lenBts = 4 },
-//~                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 52, .lenBts = 4 },
-//~                (Token){ .tp = tokBool, .pl2 = 1, .startBt = 52, .lenBts = 4 }
-//~         }))},
+
+        (LexerTest) { .name = s("If with elseif and else"),
+            .input = in("if( x <> 7 > 0 : 5\n"
+                       "    x <> 7 < 0 : 11\n"
+                       "    else true)"),
+            .expectedOutput = buildLexer(((Token[]){
+                (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 21, .startBt = 0, .lenBts = 57 },
+
+                (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 4, .lenBts = 12 },
+                (Token){ .tp = tokOperCall, .pl1 = opGreaterThan, .pl2 = 4, .startBt = 4, .lenBts = 12 },
+                (Token){ .tp = tokOperCall, .pl1 = opComparator, .pl2 = 2, .startBt = 6, .lenBts = 7 },
+                (Token){ .tp = tokWord, .startBt = 9, .lenBts = 1 },                // x
+                (Token){ .tp = tokInt, .pl2 = 7, .startBt = 11, .lenBts = 1 },
+                (Token){ .tp = tokInt, .startBt = 14, .lenBts = 1 },
+                (Token){ .tp = tokColon, .startBt = 17, .lenBts = 1 },
+
+                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 19, .lenBts = 1 },
+                (Token){ .tp = tokInt, .pl2 = 5, .startBt = 19, .lenBts = 1 },
+
+                (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 25, .lenBts = 12 },
+                (Token){ .tp = tokOperCall, .pl1 = opLessThan, .pl2 = 4, .startBt = 25, .lenBts = 12 },
+                (Token){ .tp = tokOperCall, .pl1 = opComparator, .pl2 = 2, .startBt = 27, .lenBts = 7 },
+                (Token){ .tp = tokWord, .startBt = 30, .lenBts = 1 },                // x
+                (Token){ .tp = tokInt, .pl2 = 7, .startBt = 32, .lenBts = 1 },
+                (Token){ .tp = tokInt,                .startBt = 35, .lenBts = 1 },
+
+                (Token){ .tp = tokColon, .startBt = 38, .lenBts = 1 },
+                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 40, .lenBts = 2 },
+                (Token){ .tp = tokInt,  .pl2 = 11,.startBt = 40, .lenBts = 2 },
+
+                (Token){ .tp = tokElse,                .startBt = 47, .lenBts = 4 },
+                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 52, .lenBts = 4 },
+                (Token){ .tp = tokBool, .pl2 = 1, .startBt = 52, .lenBts = 4 }
+         }))},
+
 //~         (LexerTest) { .name = s("Paren-type form error 1"),
 //~             .input = in("if x <> 7 > 0"),
 //~             .expectedOutput = buildEmptyLexerWithError(s(errCoreMissingParen)

@@ -235,38 +235,37 @@ typedef struct { //:Token
 #define tokParens      16    // subexpressions and struct/sum type instances
 #define tokCall        17    // pl1 = nameId, index in the string table
 #define tokTypeCall    18    // pl1 = nameId
-#define tokOperCall    19    // pl1 = same as tokOperator
-#define tokList        20    // pl1 = 1 iff it's an array
-#define tokHashmap     21
-#define tokBrackets    22
-#define tokAssignment  23
-#define tokReassign    24    // :=
-#define tokMutation    25    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
-#define tokAlias       26
-#define tokAssert      27
-#define tokBreakCont   28    // pl1 = BIG iff it's a continue
-#define tokDefer       29
-#define tokEmbed       30    // Embed a text/binary file as a string literal/binary resource
-#define tokIface       31
-#define tokImport      32
-#define tokReturn      33
-#define tokTry         34    // early exit
-#define tokColon       35    // not a real span, but placed here so the parser can dispatch on it
-#define tokElse        36    // not a real span, but placed here so the parser can dispatch on it
+#define tokList        19    // pl1 = 1 iff it's an array
+#define tokHashmap     20
+#define tokBrackets    21
+#define tokAssignment  22
+#define tokReassign    23    // :=
+#define tokMutation    24    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
+#define tokAlias       25
+#define tokAssert      26
+#define tokBreakCont   27    // pl1 = BIG iff it's a continue
+#define tokDefer       28
+#define tokEmbed       29    // Embed a text/binary file as a string literal/binary resource
+#define tokIface       30
+#define tokImport      31
+#define tokReturn      32
+#define tokTry         33    // early exit
+#define tokColon       34    // not a real span, but placed here so the parser can dispatch on it
+#define tokElse        35    // not a real span, but placed here so the parser can dispatch on it
 
 // Parenthesized (multi-statement) token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       37    // denoted by do(). firstParenSpanTokenType
-#define tokCatch       38    // paren "catch(e: print(e))"
-#define tokFn          39    // f(a Int: body)
-#define tokFor         40
-#define tokMeta        41
+#define tokScope       36    // denoted by do(). firstParenSpanTokenType
+#define tokCatch       37    // paren "catch(e: print(e))"
+#define tokFn          38    // f(a Int: body)
+#define tokFor         39
+#define tokMeta        40
 
 // Resumable core forms
-#define tokIf          42    // "if( "
-#define tokIfPr        43    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       44    // "(*m " or "(match " pattern matching on sum type tag
-#define tokImpl        45
-#define tokWhile       46
+#define tokIf          41    // "if( "
+#define tokIfPr        42    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       43    // "(*m " or "(match " pattern matching on sum type tag
+#define tokImpl        44
+#define tokWhile       45
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType tokString
