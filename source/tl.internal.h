@@ -165,26 +165,27 @@ typedef struct {
 #define strTry       25
 #define strWhile     26
 
-#define strInt       27
-#define strFirstNonReserved strInt
+#define strFirstNonReserved 27
+#define strInt       strFirstNonReserved
 #define strLong      28
 #define strDouble    29
 #define strBool      30
 #define strString    31
 #define strVoid      32
-#define strF         33
+#define strF         33 // F(unction type)
 #define strL         34 // List
 #define strA         35 // Array
-#define strTu        36 // Tu(ple)
-#define strLen       37
-#define strCap       38
-#define strF1        39
-#define strF2        40
-#define strPrint     41
-#define strPrintErr  42
-#define strMathPi    43
-#define strMathE     44
-#define strSentinel  45
+#define strH         36 // Hashmap
+#define strTu        37 // Tu(ple)
+#define strLen       38
+#define strCap       39
+#define strF1        40
+#define strF2        41
+#define strPrint     42
+#define strPrintErr  43
+#define strMathPi    44
+#define strMathE     45
+#define strSentinel  46
 
 //}}}
 

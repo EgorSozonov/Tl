@@ -980,8 +980,8 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = { 9, 0, 0, 7, 1, 9, 9, 2
 /// Symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" - by lexEqual
 /// ">" by lexGT
 const int operatorStartSymbols[14] = {
-    aExclamation, aSharp, aPercent, aApostrophe, aTimes, aPlus, aComma, aDivBy,
-    aSemicolon, aLT, aQuestion, aCaret, aPipe
+    aExclamation, aSharp, aPercent, aAmp, aApostrophe, aTimes, aPlus, 
+    aComma, aDivBy, aSemicolon, aLT, aQuestion, aCaret, aPipe
 };
 
 ///  The standard text prepended to all source code inputs and the hash table to provide a built-in
@@ -1106,7 +1106,7 @@ _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* c
 _Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compiler* lx) {
     /// Sets i to beyond input's length to communicate to callers that lexing is over
     lx->wasError = true;
-#ifdef TEST
+#ifdef TRACE
     printf("Error on code line %d, i = %d: %s\n", lineNumber, IND_BT, errMsg);
 #endif
     lx->errMsg = str(errMsg, lx->a);
@@ -1541,7 +1541,6 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
         VALIDATEL(lx->i < lx->inpLength && CURR_BT == aParenLeft, errCoreMissingParen)
         if (hasValues(lx->lexBtrack)) {
             BtToken top = peek(lx->lexBtrack);
-            print("top tp %d", top.tp)
             VALIDATEL(top.spanLevel <= slStmt && top.tp != tokStmt, errPunctuationScope)
         }
         Int scopeLevel = reservedWordType == tokScope ? slScope : slParenMulti;
@@ -1586,7 +1585,7 @@ private void closeStatement(Compiler* lx) {
 
 private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCapitalized,
                         Int lenString, Arr(Byte) source, Compiler* lx) {
-    Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
+    Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict); 
     Int lenBts = lx->i - realStartBt;
     if (lx->i < lx->inpLength && CURR_BT == aParenLeft) { // Type call
         VALIDATEL(wordType == tokWord && wasCapitalized, errExpectedType)
@@ -1694,7 +1693,7 @@ private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) {
     if (mbReserved > -1) {
         if ((mbReserved == keywArray || mbReserved == tokList
             || mbReserved == tokFn || mbReserved == tokHashmap)
-          && (lx->i < lx->inpLength || CURR_BT != aParenLeft)) {
+          && (lx->i == lx->inpLength || CURR_BT != aParenLeft)) {
              // words like "l", "a" etc are only reserved when in front of a paren
             wordNormal(wordType, startBt, realStartBt, wasCapitalized, lenString, source, lx);
         }
@@ -1752,15 +1751,15 @@ private void lexDollar(Arr(Byte) source, Compiler* lx) {
     lx->i++; // CONSUME the "$"
 }
 
-
 private void lexColon(Arr(Byte) source, Compiler* lx) {
+    /// Handles reassignment ":=" and keyword arguments ":asdf"
     if (lx->i < lx->inpLength - 1) {
         Byte nextBt = NEXT_BT;
         if (nextBt == aEqual) {
             processAssignment(1, 0, lx);
             lx->i += 2; // CONSUME the ":="
             return;
-        } else if (isLowercaseLetter(nextBt) || nextBt == aUnderscore) {
+        } else if (isLowercaseLetter(nextBt)) {
             ++lx->i; // CONSUME the ":"
             wordInternal(tokKwArg, source, lx);
             return;
@@ -2242,7 +2241,7 @@ private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm);
 
 _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
     cm->wasError = true;
-#ifdef TEST
+#ifdef TRACE
     printf("Error on i = %d line %d\n", cm->i, lineNumber);
 #endif
     cm->errMsg = str(errMsg, cm->a);
