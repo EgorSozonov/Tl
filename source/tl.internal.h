@@ -7,6 +7,7 @@
 #define Byte unsigned char
 #define Arr(T) T*
 #define untt uint32_t
+#define null nullptr
 #ifdef TEST
     #define testable
 #else
@@ -34,36 +35,36 @@ struct ArenaChunk {
     char memory[]; // flexible array member
 };
 
-typedef struct {
+typedef struct { // :Arena
     ArenaChunk* firstChunk;
     ArenaChunk* currChunk;
     int currInd;
 } Arena;
 
 #define DEFINE_STACK_HEADER(T)                                  \
-    typedef struct {                                   \
-        Int cap;                                           \
-        Int len;                                             \
-        Arena* arena;                                           \
-        T* cont;                                             \
-    } Stack##T;                                                 \
-    testable Stack ## T * createStack ## T (Int initCapacity, Arena* a); \
-    testable bool hasValues ## T (Stack ## T * st);                      \
-    testable T pop ## T (Stack ## T * st);                               \
-    testable T peek ## T(Stack ## T * st);                               \
-    testable T penultimate ## T(Stack ## T * st);                        \
-    testable void push ## T (T newItem, Stack ## T * st);                \
+    typedef struct {\
+        Int cap;\
+        Int len;\
+        Arena* arena;\
+        T* cont;\
+    } Stack##T;\
+    testable Stack ## T * createStack ## T (Int initCapacity, Arena* a);\
+    testable bool hasValues ## T (Stack ## T * st);\
+    testable T pop ## T (Stack ## T * st);\
+    testable T peek ## T(Stack ## T * st);\
+    testable T penultimate ## T(Stack ## T * st);\
+    testable void push ## T (T newItem, Stack ## T * st);\
     testable void clear ## T (Stack ## T * st);
 
-#define DEFINE_INTERNAL_LIST_TYPE(T) \
-typedef struct {    \
-    Int cap;   \
-    Int len;     \
-    Arr(T) cont; \
+#define DEFINE_INTERNAL_LIST_TYPE(T)\
+typedef struct {\
+    Int cap;\
+    Int len;\
+    Arr(T) cont;\
 } InList##T;
 
-#define DEFINE_INTERNAL_LIST_HEADER(fieldName, T)              \
-    InList##T createInList ## T (Int initCapacity, Arena* a); \
+#define DEFINE_INTERNAL_LIST_HEADER(fieldName, T)\
+    InList##T createInList ## T (Int initCapacity, Arena* a);\
     void pushIn ## fieldName (T newItem, Compiler* cm);
 
 
@@ -80,10 +81,11 @@ typedef struct { // :MultiList
 } MultiList;
 
 
-typedef struct {
+typedef struct { // :String
     int len;
     Byte cont[];
 } String;
+
 testable void printStringNoLn(String* s);
 testable void printString(String* s);
 extern String empty;
@@ -341,7 +343,7 @@ typedef struct { //:Token
  * Plus, many have automatic assignment counterparts.
  * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
  */
-typedef struct { //:OpDef
+typedef struct { // :OpDef
     Byte bytes[4];
     Int arity;
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
@@ -438,7 +440,7 @@ typedef struct { //:LanguageDefinition
 } LanguageDefinition;
 
 
-typedef struct {
+typedef struct { // :Node
     untt tp : 6;
     untt lenBts: 26;
     untt startBt;
@@ -446,7 +448,7 @@ typedef struct {
     Int pl2;
 } Node;
 
-typedef struct {
+typedef struct { // :ParseFrame
     untt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
@@ -600,39 +602,39 @@ typedef struct {
 //}}}
 //{{{ Generics
 
-#define pop(X) _Generic((X), \
-    StackBtToken*: popBtToken, \
-    StackParseFrame*: popParseFrame, \
-    Stackint32_t*: popint32_t, \
-    StackNode*: popNode \
+#define pop(X) _Generic((X),\
+    StackBtToken*: popBtToken,\
+    StackParseFrame*: popParseFrame,\
+    Stackint32_t*: popint32_t,\
+    StackNode*: popNode\
     )(X)
 
-#define peek(X) _Generic((X), \
-    StackBtToken*: peekBtToken, \
-    StackParseFrame*: peekParseFrame, \
-    Stackint32_t*: peekint32_t, \
-    StackNode*: peekNode \
+#define peek(X) _Generic((X),\
+    StackBtToken*: peekBtToken,\
+    StackParseFrame*: peekParseFrame,\
+    Stackint32_t*: peekint32_t,\
+    StackNode*: peekNode\
     )(X)
 
-#define penultimate(X) _Generic((X), \
-    StackBtToken*: penultimateBtToken, \
-    StackParseFrame*: penultimateParseFrame, \
-    Stackint32_t*: penultimateint32_t, \
-    StackNode*: penultimateNode \
+#define penultimate(X) _Generic((X),\
+    StackBtToken*: penultimateBtToken,\
+    StackParseFrame*: penultimateParseFrame,\
+    Stackint32_t*: penultimateint32_t,\
+    StackNode*: penultimateNode\
     )(X)
 
-#define push(A, X) _Generic((X), \
-    StackBtToken*: pushBtToken, \
-    StackParseFrame*: pushParseFrame, \
-    Stackint32_t*: pushint32_t, \
-    StackNode*: pushNode \
+#define push(A, X) _Generic((X),\
+    StackBtToken*: pushBtToken,\
+    StackParseFrame*: pushParseFrame,\
+    Stackint32_t*: pushint32_t,\
+    StackNode*: pushNode\
     )(A, X)
 
-#define hasValues(X) _Generic((X), \
-    StackBtToken*: hasValuesBtToken, \
-    StackParseFrame*: hasValuesParseFrame, \
-    Stackint32_t*:  hasValuesint32_t, \
-    StackNode*: hasValuesNode \
+#define hasValues(X) _Generic((X),\
+    StackBtToken*: hasValuesBtToken,\
+    StackParseFrame*: hasValuesParseFrame,\
+    Stackint32_t*:  hasValuesint32_t,\
+    StackNode*: hasValuesNode\
     )(X)
 
 //}}}

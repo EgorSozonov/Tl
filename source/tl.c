@@ -28,7 +28,7 @@ testable Arena* mkArena(void) {
     size_t firstChunkSize = minChunkSize();
     ArenaChunk* firstChunk = malloc(firstChunkSize);
     firstChunk->size = firstChunkSize - sizeof(ArenaChunk);
-    firstChunk->next = NULL;
+    firstChunk->next = null;
 
     result->firstChunk = firstChunk;
     result->currChunk = firstChunk;
@@ -65,7 +65,7 @@ testable void* allocateOnArena(size_t allocSize, Arena* ar) {
         };
         // sizeof counts everything but the flexible array member, that's why we subtract it
         newChunk->size = newSize - sizeof(ArenaChunk);
-        newChunk->next = NULL;
+        newChunk->next = null;
 
         ar->currChunk->next = newChunk;
         ar->currChunk = newChunk;
@@ -80,7 +80,7 @@ testable void* allocateOnArena(size_t allocSize, Arena* ar) {
 testable void deleteArena(Arena* ar) {
     ArenaChunk* curr = ar->firstChunk;
     ArenaChunk* nextToFree = curr;
-    while (curr != NULL) {
+    while (curr != null) {
         nextToFree = curr->next;
         free(curr);
         curr = nextToFree;
@@ -367,7 +367,7 @@ DEFINE_INTERNAL_LIST(types, Int, a)
 
 testable String* str(const char* content, Arena* a) {
     /// Allocates a C string literal into an arena. The length of the literal is determined in O(N).
-    if (content == NULL) return NULL;
+    if (content == null) return null;
     const char* ind = content;
     int len = 0;
     for (; *ind != '\0'; ind++)
@@ -479,7 +479,7 @@ testable IntMap* createIntMap(int initSize, Arena* a) {
     int** d = dict;
 
     for (int i = 0; i < realInitSize; i++) {
-        d[i] = NULL;
+        d[i] = null;
     }
     result->dictSize = realInitSize;
     result->dict = dict;
@@ -492,7 +492,7 @@ testable void addIntMap(int key, int value, IntMap* hm) {
     if (key < 0) return;
 
     int hash = key % (hm->dictSize);
-    if (*(hm->dict + hash) == NULL) {
+    if (*(hm->dict + hash) == null) {
         Arr(int) newBucket = allocateOnArena(9*sizeof(int), hm->a);
         newBucket[0] = (8 << 16) + 1; // left u16 = capacity, right u16 = length
         newBucket[1] = key;
@@ -529,7 +529,7 @@ testable bool hasKeyIntMap(int key, IntMap* hm) {
 
     int hash = key % hm->dictSize;
     printf("when searching, hash = %d\n", hash);
-    if (hm->dict[hash] == NULL) { return false; }
+    if (hm->dict[hash] == null) { return false; }
     int* p = *(hm->dict + hash);
     int maxInd = 2*((*p) & 0xFFFF) + 1;
     for (int i = 1; i < maxInd; i += 2) {
@@ -543,7 +543,7 @@ testable bool hasKeyIntMap(int key, IntMap* hm) {
 
 private int getIntMap(int key, int* value, IntMap* hm) {
     int hash = key % (hm->dictSize);
-    if (*(hm->dict + hash) == NULL) {
+    if (*(hm->dict + hash) == null) {
         return 1;
     }
 
@@ -561,7 +561,7 @@ private int getIntMap(int key, int* value, IntMap* hm) {
 private int getUnsafeIntMap(int key, IntMap* hm) {
     /// Throws an exception when key is absent
     int hash = key % (hm->dictSize);
-    if (*(hm->dict + hash) == NULL) {
+    if (*(hm->dict + hash) == null) {
         longjmp(excBuf, 1);
     }
 
@@ -598,7 +598,7 @@ private StringDict* createStringDict(int initSize, Arena* a) {
     Arr(Bucket*) d = dict;
 
     for (int i = 0; i < realInitSize; i++) {
-        d[i] = NULL;
+        d[i] = null;
     }
     result->dictSize = realInitSize;
     result->dict = dict;
@@ -646,7 +646,7 @@ private Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* str
     Int newIndString;
     Bucket* bu = *(hm->dict + hashOffset);
 
-    if (bu == NULL) {
+    if (bu == null) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
         StringValue* firstElem = (StringValue*)newBucket->cont;
@@ -679,7 +679,7 @@ testable Int getStringDict(Byte* text, String* strToSearch, Stackint32_t* string
     Int lenBts = strToSearch->len;
     untt hash = hashCode(strToSearch->cont, lenBts);
     Int hashOffset = hash % (hm->dictSize);
-    if (*(hm->dict + hashOffset) == NULL) {
+    if (*(hm->dict + hashOffset) == null) {
         return -1;
     } else {
         Bucket* p = *(hm->dict + hashOffset);
@@ -1043,9 +1043,9 @@ typedef union {
 
 
 private String* readSourceFile(const Arr(char) fName, Arena* a) {
-    String* result = NULL;
+    String* result = null;
     FILE *file = fopen(fName, "r");
-    if (file == NULL) {
+    if (file == null) {
         goto cleanup;
     }
     /* Go to the end of the file. */
@@ -2400,7 +2400,7 @@ private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Com
             }
         }
     } else if (bindingTk.tp == tokTypeName) {
-        typeDef(bindingTk, bindingTk.lenBts, false, cm);
+        typeDef(bindingTk, false, tokens, cm);
     } else {
         throwExcParser(errAssignment, cm);
     }
@@ -3065,8 +3065,8 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) {
 
     result->a = a;
     for (int i = 0; i < dictSize; i++) {
-        if (from->dict[i] == NULL) {
-            dict[i] = NULL;
+        if (from->dict[i] == null) {
+            dict[i] = null;
         } else {
             Bucket* old = from->dict[i];
             Int capacity = old->capAndLen >> 16;
@@ -3181,7 +3181,7 @@ testable ScopeStack* createScopeStack(void) {
     ScopeChunk* firstChunk = malloc(CHUNK_SIZE);
 
     firstChunk->len = FRESH_CHUNK_LEN;
-    firstChunk->next = NULL;
+    firstChunk->next = null;
 
     result->firstChunk = firstChunk;
     result->currChunk = firstChunk;
@@ -3190,7 +3190,7 @@ testable ScopeStack* createScopeStack(void) {
     result->nextInd = ceiling4(sizeof(ScopeStackFrame))/4;
     Arr(int) firstFrame = (int*)firstChunk->cont + result->nextInd;
 
-    (*result->topScope) = (ScopeStackFrame){.len = 0, .previousChunk = NULL, .thisChunk = firstChunk,
+    (*result->topScope) = (ScopeStackFrame){.len = 0, .previousChunk = null, .thisChunk = firstChunk,
         .thisInd = result->nextInd, .bindings = firstFrame };
 
     result->nextInd += 64;
@@ -3199,14 +3199,14 @@ testable ScopeStack* createScopeStack(void) {
 }
 
 private void mbNewChunk(ScopeStack* scopeStack) {
-    if (scopeStack->currChunk->next != NULL) {
+    if (scopeStack->currChunk->next != null) {
         return;
     }
     ScopeChunk* newChunk = malloc(CHUNK_SIZE);
     newChunk->len = FRESH_CHUNK_LEN;
-    newChunk->next = NULL;
+    newChunk->next = null;
     scopeStack->currChunk->next = newChunk;
-    scopeStack->lastChunk = NULL;
+    scopeStack->lastChunk = null;
 }
 
 testable void pushLexScope(ScopeStack* scopeStack) {
@@ -3269,7 +3269,7 @@ private void addBinding(int nameId, int bindingId, Compiler* cm) {
 
 private void popScopeFrame(Compiler* cm) {
     ///  Pops a frame from the ScopeStack. For a scope type of frame, also deactivates its bindings.
-    ///  Returns pointer to previous frame (which will be top after this call) or NULL if there isn't any
+    ///  Returns pointer to previous frame (which will be top after this call) or null if there isn't any
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     ScopeStack* scopeStack = cm->scopeStack;
     if (topScope->bindings) {
@@ -3288,17 +3288,17 @@ private void popScopeFrame(Compiler* cm) {
     // needs to go
     if (scopeStack->lastChunk) {
         ScopeChunk* ch = scopeStack->lastChunk->next;
-        if (ch != NULL) {
-            scopeStack->lastChunk->next = NULL;
+        if (ch != null) {
+            scopeStack->lastChunk->next = null;
             do {
                 ScopeChunk* nextToDelete = ch->next;
                 printf("ScopeStack is freeing a chunk of memory at %p next = %p\n", ch, nextToDelete);
                 free(ch);
 
-                if (nextToDelete == NULL) break;
+                if (nextToDelete == null) break;
                 ch = nextToDelete;
 
-            } while (ch != NULL);
+            } while (ch != null);
         }
     }
     scopeStack->len--;
@@ -3349,7 +3349,7 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
     Int lenBts = lenInts*4;
     untt theHash = hashCode(types + startBt, lenBts);
     Int hashOffset = theHash % (hm->dictSize);
-    if (*(hm->dict + hashOffset) == NULL) {
+    if (*(hm->dict + hashOffset) == null) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
         StringValue* firstElem = (StringValue*)newBucket->cont;
@@ -3685,7 +3685,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->entities.len = proto->entities.len;
     cm->entities.cap = proto->entities.cap;
 
-    cm->overloads = (InListInt){.len = 0, .cont = NULL};
+    cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->types.cont = allocateOnArena(proto->types.cap*8, a);
     memcpy(cm->types.cont, proto->types.cont, proto->types.len*4);
@@ -4976,7 +4976,7 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm) {
     /// Checks whether a concrete type satisfies a generic type. Returns a pointer to
-    /// cm->typeStack with the values of parameters if satisfies, NULL otherwise.
+    /// cm->typeStack with the values of parameters if satisfies, null otherwise.
     /// Example: for typeId = L(L(Int)) and genericId = [T/1]L(T(Int)) returns Generic[L]
     /// Warning: assumes that typeId points to a concrete type, and genericId to a partial one
     StackInt* tStack = cm->typeStack;
@@ -4996,7 +4996,7 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
         untt nod2 = cm->types.cont[i2];
         if (typeGenTag(nod2) < 255) {
             if (nod1 != nod2) {
-                return NULL;
+                return null;
             }
             ++i1;
             ++i2;
@@ -5012,12 +5012,12 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
                 // A param that is being called must correspond to a concrete type being called
                 // E.g. for type = L(Int), gen = [U/1 V]U(V), param U = L, not L(Int)
                 if (paramArgcount != concreteArgcount) {
-                    return NULL;
+                    return null;
                 }
                 if (tStack->cont[paramId] == -1) {
                     tStack->cont[paramId] = concreteElt;
                 } else if (tStack->cont[paramId] != concreteElt) {
-                    return NULL;
+                    return null;
                 }
                 ++i1;
                 ++i2;
@@ -5033,7 +5033,7 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
                     typeSkipNode(&i1, cm);
                 } else {
                     if (typeEltArgcount(nod1) != declaredArity) {
-                        return NULL;
+                        return null;
                     }
                     typeFromConcrete = concreteElt;
                     ++i1;
@@ -5042,7 +5042,7 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
                     tStack->cont[paramId] = typeFromConcrete;
                 } else {
                     if (tStack->cont[paramId] != typeFromConcrete) {
-                        return NULL;
+                        return null;
                     }
                 }
                 ++i2;
@@ -5649,7 +5649,7 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
     printParser(cm, a);
 #endif
     if (cm->wasError) {
-        return NULL;
+        return null;
     }
     Codegen* cg = createCodegen(cm, a);
     const Int len = cm->nodes.len;
@@ -5687,7 +5687,7 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
 
 String* prepareInput(const char* content, Arena* a) {
     /// Allocates a test input into an arena after prepending it with the standardText.
-    if (content == NULL) return NULL;
+    if (content == null) return null;
     const char* ind = content;
     Int lenStandard = sizeof(standardText) - 1; // -1 for the invisible \0 char at end
     Int len = 0;
@@ -5896,13 +5896,13 @@ Codegen* compile(String* source) {
 Int main(int argc, char* argv) {
     Arena* a = mkArena();
     String* sourceCode = readSourceFile("_bin/code.tl", a);
-    if (sourceCode == NULL) {
+    if (sourceCode == null) {
         goto cleanup;
     }
     printString(sourceCode);
 
     Codegen* cg = compile(sourceCode);
-    if (cg != NULL) {
+    if (cg != null) {
         fwrite(cg->buffer, 1, cg->len, stdout);
     }
     cleanup:
