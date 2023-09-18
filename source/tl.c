@@ -5839,6 +5839,7 @@ void typePrint(Int typeId, Compiler* cm) {
     }
     print(")");
 }
+// (5.4 ;; twoDig) >printSpaced ;myTimestamp `] = [` ;userName ;userEmail
 
 void printOverloads(Int nameId, Compiler* cm) {
     Int listId = -cm->activeBindings[nameId] - 1;
@@ -5848,13 +5849,14 @@ void printOverloads(Int nameId, Compiler* cm) {
     }
     Arr(Int) overs = cm->overloads.cont;
     Int countOverloads = overs[listId]/3;
-    printf("%d overloads:\n[outer = ", countOverloads);
+    printf("%d overloads:\n");
+    printf("[outer = %d]\n", countOverloads);
     Int sentinel = listId + countOverloads + 1;
     Int j = listId + 1;
     for (; j < sentinel; j++) {
         printf("%d ", overs[j]);
     }
-    printf("]\n[typeId = ");
+    printf("\n[typeId]");
     sentinel += countOverloads;
     for (; j < sentinel; j++) {
         printf("%d ", overs[j]);
@@ -5864,7 +5866,7 @@ void printOverloads(Int nameId, Compiler* cm) {
     for (; j < sentinel; j++) {
         printf("%d ", overs[j]);
     }
-    printf("]\n");
+    printf("]\n\n");
 }
 
 #endif

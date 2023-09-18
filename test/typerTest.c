@@ -32,16 +32,18 @@ private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int
         }
         if (tok.tp == tokWord || tok.tp == tokKwArg || tok.tp == tokTypeName || tok.tp == tokStructField
             || (tok.tp == tokAccessor && tok.pl1 == tkAccDot)) {
-            if (tok.pl2 < S) {
-                tok.pl2 += stText.numNames;
-            } else {
-                tok.pl2 -= (S + stText.firstNonreserved);
+            if (tok.pl2 < S) { // parsed words
+                tok.pl2 += stText.firstParsed;
+            } else { // built-in words
+                tok.pl2 -= (S + strFirstNonReserved);
+                tok.pl2 += countOperators; 
             }
         } else if (tok.tp == tokCall || tok.tp == tokTypeCall) {
-            if (tok.pl1 < S) {
-                tok.pl1 += stText.numNames;
-            } else {
-                tok.pl1 -= (S + stText.firstNonreserved);
+            if (tok.pl1 < S) { // parsed words
+                tok.pl1 += stText.firstParsed;
+            } else { // built-in words
+                tok.pl1 -= (S + strFirstNonReserved);
+                tok.pl1 += countOperators; 
             }
         }
         pushIntokens(tok, result);
@@ -56,7 +58,7 @@ private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int
 //{{{ Parsing functions
 
 void typeTest3(Compiler* proto, Arena* a) {
-    Compiler* cm = buildLexer(prepareInput("fn(lst A(L(A(Double))))", a), ((Token[]){ // ""
+    Compiler* cm = buildLexer(prepareInput("f(lst A(L(A(Double))))", a), ((Token[]){ // ""
         (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 24 },
         (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 3, .lenBts = 20 },
         (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
@@ -434,7 +436,7 @@ void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
 void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {   
     Compiler* cm = createLexerFromProto(str("x = 5", a), proto, a);
     print("lexed") 
-    initializeParser(cm, proto, a);
+    printOverloads(opTimes, cm); 
 } 
     
 //}}}
@@ -448,8 +450,8 @@ int main() {
     Compiler* proto = createProtoCompiler(a);
     Int countFailed = 0;
     if (setjmp(excBuf) == 0) {
-//~        typerTest1(proto, a);
-//~        typerTest2(proto, a);
+        
+//~        typeTest3(proto, a);
 
 //~        skipTest(&countFailed, proto, a);
 
@@ -464,7 +466,9 @@ int main() {
 //~        structTest1(&countFailed, proto, a);
 //~        structTest2(&countFailed, proto, a);
 //~        structTest3(&countFailed, proto, a);
+
         overloadsTest1(&countFailed, proto, a); 
+        
     } else {
         print("An exception was thrown in the tests")
     }
