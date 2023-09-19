@@ -15,8 +15,9 @@ Sum:
 [nameId](variant names)(variant types)|meta flags|
 
 Function:
+depth = count of func params + 1
 (Arities of type params, count = arity)
-(parameter types)|return type|
+(function parameter types)|return type|
 
 Partial:
 (Arities of type params, count = arity)

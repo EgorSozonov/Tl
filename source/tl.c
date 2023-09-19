@@ -3325,7 +3325,9 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
 private Int importAndActivateEntity(Entity ent, Compiler* cm) {
     /// Adds an import to the entities table, activates it and, if function, adds an overload for it
     Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
+    print("ent nameId %d len %d", (untt)ent.name & LOWER24BITS, ((untt)ent.name >> 24) & 0xFF) 
     Int isAFunc = isFunction(ent.typeId, cm);
+    print("existing %d isAFunc %d", existingBinding, isAFunc) 
     VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
 
     Int newEntityId = cm->entities.len;
@@ -3380,14 +3382,20 @@ testable Int mergeType(Int startInd, Compiler* cm) {
     return mergeTypeWorker(startInd, lenInts, cm);
 }
 
-testable Int addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
+testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
+testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
+private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
+
+testable Int addConcreteFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
     ///  Function types are stored as: (length, return type, paramType1, paramType2, ...)
     Int newInd = cm->types.len;
-    pushIntypes(arity + 1, cm);
-    pushIntypes(paramsAndReturn[0], cm);
+    pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints and 1 more for the return typeId
+    typeAddHeader((TypeHeader){.sort = sorFunction, .arity = 0, .depth = arity + 1, .nameAndLen = -1},
+                  cm); 
     for (Int k = 0; k < arity; k++) {
-        pushIntypes(paramsAndReturn[k + 1], cm);
+        pushIntypes(paramsAndReturn[k], cm);
     }
+    pushIntypes(paramsAndReturn[arity], cm);
     return mergeType(newInd, cm);
 }
 
@@ -3435,10 +3443,6 @@ const Int codegenStrings[] = {
 #define cgStrLo         24
 
 //}}}
-
-testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
-testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
-private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
 
 private void buildStandardStrings(Compiler* lx) {
     /// Inserts the necessary strings from the standardText into the string table and the hash table
@@ -3512,26 +3516,26 @@ private void buildOperators(Compiler* cm) {
     /// Operators are the first-ever functions to be defined. This function builds their [types],
     /// [functions] and overload counts. The order must agree with the order of operator
     /// definitions in tl.internal.h, and every operator must have at least one function defined.
-    Int boolOfIntInt = addFunctionType(2, (Int[]){tokBool, tokInt, tokInt}, cm);
-    Int boolOfIntIntInt = addFunctionType(3, (Int[]){tokBool, tokInt, tokInt, tokInt}, cm);
-    Int boolOfFlFl = addFunctionType(2, (Int[]){tokBool, tokDouble, tokDouble}, cm);
-    Int boolOfFlFlFl = addFunctionType(3, (Int[]){tokBool, tokDouble, tokDouble, tokDouble}, cm);
-    Int boolOfStrStr = addFunctionType(2, (Int[]){tokBool, tokString, tokString}, cm);
-    Int boolOfBool = addFunctionType(1, (Int[]){tokBool, tokBool}, cm);
-    Int boolOfBoolBool = addFunctionType(2, (Int[]){tokBool, tokBool, tokBool}, cm);
-    Int intOfStr = addFunctionType(1, (Int[]){tokInt, tokString}, cm);
-    Int intOfInt = addFunctionType(1, (Int[]){tokInt, tokInt}, cm);
-    Int intOfFl = addFunctionType(1, (Int[]){tokInt, tokDouble}, cm);
-    Int intOfIntInt = addFunctionType(2, (Int[]){tokInt, tokInt, tokInt}, cm);
-    Int intOfFlFl = addFunctionType(2, (Int[]){tokInt, tokDouble, tokDouble}, cm);
-    Int intOfStrStr = addFunctionType(2, (Int[]){tokInt, tokString, tokString}, cm);
-    Int strOfInt = addFunctionType(1, (Int[]){tokString, tokInt}, cm);
-    Int strOfFloat = addFunctionType(1, (Int[]){tokString, tokDouble}, cm);
-    Int strOfBool = addFunctionType(1, (Int[]){tokString, tokBool}, cm);
-    Int strOfStrStr = addFunctionType(2, (Int[]){tokString, tokString, tokString}, cm);
-    Int flOfFlFl = addFunctionType(2, (Int[]){tokDouble, tokDouble, tokDouble}, cm);
-    Int flOfInt = addFunctionType(1, (Int[]){tokDouble, tokInt}, cm);
-    Int flOfFl = addFunctionType(1, (Int[]){tokDouble, tokDouble}, cm);
+    Int boolOfIntInt = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
+    Int boolOfIntIntInt = addConcreteFunctionType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
+    Int boolOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
+    Int boolOfFlFlFl = addConcreteFunctionType(3, (Int[]){ tokDouble, tokDouble, tokDouble, tokBool}, cm);
+    Int boolOfStrStr = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokBool}, cm);
+    Int boolOfBool = addConcreteFunctionType(1, (Int[]){ tokBool, tokBool, tokBool}, cm);
+    Int boolOfBoolBool = addConcreteFunctionType(2, (Int[]){ tokBool, tokBool, tokBool}, cm);
+    Int intOfStr = addConcreteFunctionType(1, (Int[]){ tokString, tokInt}, cm);
+    Int intOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokInt}, cm);
+    Int intOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokInt}, cm);
+    Int intOfIntInt = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokInt}, cm);
+    Int intOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokInt}, cm);
+    Int intOfStrStr = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokInt}, cm);
+    Int strOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokString}, cm);
+    Int strOfFloat = addConcreteFunctionType(1, (Int[]){ tokDouble, tokString}, cm);
+    Int strOfBool = addConcreteFunctionType(1, (Int[]){ tokBool, tokString}, cm);
+    Int strOfStrStr = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokString}, cm);
+    Int flOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
+    Int flOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokDouble}, cm);
+    Int flOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
 
     buildOperator(opNotEqual, boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
     buildOperator(opNotEqual, boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
@@ -3608,9 +3612,9 @@ private void createBuiltins(Compiler* cm) {
 private void importPrelude(Compiler* cm) {
     /// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
-    Int voidOfStr = addFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
-    Int voidOfInt = addFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
-    Int voidOfFloat = addFunctionType(1, (Int[]){tokUnderscore, tokDouble}, cm);
+    Int strToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
+    Int intToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
+    Int floatToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokDouble}, cm);
 
     EntityImport imports[6] =  {
         (EntityImport) { .name = nameOfStandard(strMathPi), .externalNameId = cgStrPi,
@@ -3632,7 +3636,7 @@ private void importPrelude(Compiler* cm) {
         cm->activeBindings[j - strInt] = j - strInt;
     }
     importEntities(imports, sizeof(imports)/sizeof(EntityImport),
-                   ((Int[]){strDouble - strFirstNonReserved, voidOfStr, voidOfInt, voidOfFloat}), cm);
+                   ((Int[]){strDouble - strFirstNonReserved, strToVoid, intToVoid, floatToVoid }), cm);
     print("after prelude, tbl %d", cm->stringTable->len)
 }
 
@@ -3679,7 +3683,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     if (lx->stringTable->len > 0) {
         memset(cm->activeBindings, 0xFF, lx->stringTable->len*4); // activeBindings is filled with -1
     }
-
     cm->entities = createInListEntity(proto->entities.cap, a);
     memcpy(cm->entities.cont, proto->entities.cont, proto->entities.len*sizeof(Entity));
     cm->entities.len = proto->entities.len;
@@ -4130,18 +4133,18 @@ private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
 
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
     /// Writes the bytes for the type header to the tail of the cm->types table.
-    /// Adds 2 elements
-    pushIntypes((Int)((untt)(hdr.sort << 16) + (hdr.depth << 8) + hdr.arity), cm);
+    /// Adds two 4-byte elements
+    pushIntypes((Int)((untt)((untt)hdr.sort << 16) + ((untt)hdr.depth << 8) + hdr.arity), cm);
     pushIntypes((Int)hdr.nameAndLen, cm);
 }
 
 testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
     /// Reads a type header from the type array
     Int tag = cm->types.cont[typeId + 1];
-    untt nameAndLen = (untt)cm->types.cont[typeId + 2];
-    TypeHeader result = (TypeHeader){.sort = (tag >> 16) & LOWER24BITS,
-            .nameAndLen = nameAndLen,
-            .depth = (tag >> 8) & 0xFF, .arity = tag & 0xFF };
+    print("tag %d sort %d", tag, ((untt)tag >> 16) & LOWER16BITS)
+    TypeHeader result = (TypeHeader){ .sort = ((untt)tag >> 16) & LOWER16BITS,
+            .depth = (tag >> 8) & 0xFF, .arity = tag & 0xFF,
+            .nameAndLen = (untt)cm->types.cont[typeId + 2] };
     return result;
 }
 
@@ -4172,7 +4175,10 @@ private Int typeGetOuter(Int typeId, Compiler* cm) {
 }
 
 private Int isFunction(Int typeId, Compiler* cm) {
-    /// Returns the function's depth (arity) if the type is a function type, -1 otherwise.
+    /// Returns the function's depth (count of args) if the type is a function type, -1 otherwise.
+    if (typeId < topVerbatimType) {
+        return -1;
+    }
     TypeHeader hdr = typeReadHeader(typeId, cm);
     return (hdr.sort == sorFunction) ? hdr.depth : -1;
 }
@@ -5839,10 +5845,10 @@ void typePrint(Int typeId, Compiler* cm) {
     }
     print(")");
 }
-// (5.4 ;; twoDig) >printSpaced ;myTimestamp `] = [` ;userName ;userEmail
 
 void printOverloads(Int nameId, Compiler* cm) {
     Int listId = -cm->activeBindings[nameId] - 1;
+    print("listId %d") 
     if (listId < 0) {
         print("Overloads not found")
         return;

@@ -435,6 +435,7 @@ void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
     
 void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {   
     Compiler* cm = createLexerFromProto(str("x = 5", a), proto, a);
+    initializeParser(cm, proto, a); 
     print("lexed") 
     printOverloads(opTimes, cm); 
 } 

@@ -592,7 +592,7 @@ struct Compiler { //:Compiler
 #define sorPartial      4 // Partially applied type
 #define sorConcrete     5 // Fully applied type (no type params)
 
-typedef struct {
+typedef struct { // :TypeHeader
     Byte sort;
     Byte arity;
     Byte depth;
