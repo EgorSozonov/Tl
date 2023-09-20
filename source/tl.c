@@ -282,6 +282,18 @@ testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
     return -1;
 }
 
+#ifdef TEST
+void printFromMultilist(Int listInd, MultiList* ml) {
+    Int len = ml->cont[listInd]/2;
+    print("listId %d", listInd); 
+    printf("["); 
+    for (Int j = 0; j < len; j++) {
+        printf("%d: %d ", ml->cont[listInd + 2 + 2*j], ml->cont[listInd + 2*j + 3]);
+    }
+    print("]"); 
+}
+#endif
+
 //}}}
 //{{{ Datatypes a la carte
 
@@ -1085,8 +1097,9 @@ private untt nameOfToken(Token tk) {
 
 
 private untt nameOfStandard(Int strId) {
+    /// Builds a name (id + length) for a standardString after "strFirstNonreserved"
     Int length = standardStrings[strId + 1] - standardStrings[strId];
-    Int nameId = standardStrings[strId] - strFirstNonReserved;
+    Int nameId = strId - strFirstNonReserved + countOperators;
     return ((untt)length << 24) + (untt)(nameId);
 }
 
@@ -3313,6 +3326,10 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
     if (mbListId == -1) {
         Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
         cm->activeBindings[nameId] = newListId;
+         
+        if (nameId == opTimes) {
+            print("adding overl for *, newListId %d", newListId)
+        }
     } else {
         Int updatedListId = addMultiList(typeId, entityId, mbListId, cm->rawOverloads);
         if (updatedListId != mbListId) {
@@ -3325,9 +3342,7 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
 private Int importAndActivateEntity(Entity ent, Compiler* cm) {
     /// Adds an import to the entities table, activates it and, if function, adds an overload for it
     Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
-    print("ent nameId %d len %d", (untt)ent.name & LOWER24BITS, ((untt)ent.name >> 24) & 0xFF) 
     Int isAFunc = isFunction(ent.typeId, cm);
-    print("existing %d isAFunc %d", existingBinding, isAFunc) 
     VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
 
     Int newEntityId = cm->entities.len;
@@ -3611,6 +3626,7 @@ private void createBuiltins(Compiler* cm) {
 
 private void importPrelude(Compiler* cm) {
     /// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
+    print("in imp prel %d", cm->activeBindings[strMathPi - strFirstNonReserved + countOperators]);
     buildPreludeTypes(cm);
     Int strToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int intToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
@@ -3637,7 +3653,6 @@ private void importPrelude(Compiler* cm) {
     }
     importEntities(imports, sizeof(imports)/sizeof(EntityImport),
                    ((Int[]){strDouble - strFirstNonReserved, strToVoid, intToVoid, floatToVoid }), cm);
-    print("after prelude, tbl %d", cm->stringTable->len)
 }
 
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {

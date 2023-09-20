@@ -2,6 +2,8 @@ clear
 gcc -g3 --std=c2x -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=int-conversion -Werror=implicit-int \
 -Werror=incompatible-pointer-types \
+-Werror=int-conversion -fstrict-flex-arrays=3 \
+-Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
 -o _bin/typerTest \
 -iquote source -iquote test test/typerTest.c source/tl.c \
 -DLEXER_TEST -DTYPER_TEST -DTEST  \
