@@ -434,9 +434,10 @@ void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
 //{{{ Overloads
     
 void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {   
-    Compiler* cm = createLexerFromProto(str("x = 5", a), proto, a);
-    initializeParser(cm, proto, a); 
+    Compiler* cm = lexicallyAnalyze(str("x = 5", a), proto, a);
     print("lexed") 
+    initializeParser(cm, proto, a); 
+    print("teh listId for * %d", -cm->activeBindings[opTimes] - 2)
     printFromMultilist(-cm->activeBindings[opTimes] - 1, cm->rawOverloads); 
     
     printOverloads(opTimes, cm); 

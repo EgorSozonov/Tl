@@ -61,8 +61,7 @@ startByte of each string
 2) Type bindings are < BIG, nameId -> bindingId
 3) Type parameter bindings are < -1, nameId => (-paramId - 2) 
 4) Function bindings are < -1, nameId -> (-overloadId - 2). So a negative value less than -1 means "the function is active"
-5) Variables that have been assigned a definite overload are >= BIG and point to the functions table nameId -> (functionId + BIG). These, top-level functions
-and top-level constants are the only immutable vars.
+5) Variables that have been assigned a definite overload are >= BIG and point to the functions table, i.e. nameId -> (functionId + BIG). These, top-level functions and top-level constants are the only immutable vars.
 
 (BIG = 70million)
 

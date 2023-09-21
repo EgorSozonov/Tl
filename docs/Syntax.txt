@@ -53,16 +53,11 @@ structural (11):
 
 =   local immutable definition
 :=  mutable assignment
-:   type declaration
 ->  syntax arrow
 =>  # unused but probably will
 <-  # unused but probably will
-:>  arrow for the 'else' case
-|   sum type definition + pattern match union
 ..  range operator
 ..< half-open range operator
-&   function composition
-\   lambda definition
 
 equalable & extensible (11 * 6):
 

@@ -3112,6 +3112,8 @@ testable Compiler* createProtoCompiler(Arena* a) {
         .rawOverloads = createMultiList(a),
         .a = a
     };
+    memset(proto->activeBindings, 0xFF, 4*countOperators); 
+    print("in proto %d", proto->activeBindings[0]) 
     createBuiltins(proto);
     return proto;
 }
@@ -3322,10 +3324,13 @@ private Int isFunction(Int typeId, Compiler* cm);
 
 private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) {
     /// Adds an overload to the [rawOverloads] and activates it, if needed
-    Int mbListId = cm->activeBindings[nameId];
+    Int mbListId = -cm->activeBindings[nameId] - 2;
+    if (nameId == opTimes) {
+        print("listId for * is %d", mbListId)
+    }
     if (mbListId == -1) {
         Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
-        cm->activeBindings[nameId] = newListId;
+        cm->activeBindings[nameId] = -newListId - 2;
          
         if (nameId == opTimes) {
             print("adding overl for *, newListId %d", newListId)
@@ -3333,7 +3338,7 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
     } else {
         Int updatedListId = addMultiList(typeId, entityId, mbListId, cm->rawOverloads);
         if (updatedListId != mbListId) {
-            cm->activeBindings[nameId] = updatedListId;
+            cm->activeBindings[nameId] = -updatedListId - 2;
         }
     }
     ++cm->countOverloads;
@@ -3551,7 +3556,8 @@ private void buildOperators(Compiler* cm) {
     Int flOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     Int flOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokDouble}, cm);
     Int flOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
-
+    
+    buildOperator(opBitwiseNegation, boolOfBool, emitInfixExternal, cgStrNotEqual, cm); // dummy
     buildOperator(opNotEqual, boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
     buildOperator(opNotEqual, boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
     buildOperator(opNotEqual, boolOfStrStr, emitInfixExternal, cgStrNotEqual, cm);
@@ -3626,7 +3632,6 @@ private void createBuiltins(Compiler* cm) {
 
 private void importPrelude(Compiler* cm) {
     /// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
-    print("in imp prel %d", cm->activeBindings[strMathPi - strFirstNonReserved + countOperators]);
     buildPreludeTypes(cm);
     Int strToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int intToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
@@ -3656,7 +3661,8 @@ private void importPrelude(Compiler* cm) {
 }
 
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
-    /// A proto compiler contains just the built-in definitions and tables. This fn copies it and performs init
+    /// A proto compiler contains just the built-in definitions and tables. This fn copies it and
+    /// performs initialization
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
@@ -3683,7 +3689,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     }
 
     Compiler* cm = lx;
-    cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
 
     Int initNodeCap = lx->tokens.len > 64 ? lx->tokens.len : 64;
     cm->scopeStack = createScopeStack();
@@ -3695,6 +3700,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->monoIds = createMultiList(a);
     cm->rawOverloads = createMultiList(cm->aTmp);
 
+    cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
     if (lx->stringTable->len > 0) {
         memset(cm->activeBindings, 0xFF, lx->stringTable->len*4); // activeBindings is filled with -1
     }
@@ -4156,7 +4162,6 @@ testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
 testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
     /// Reads a type header from the type array
     Int tag = cm->types.cont[typeId + 1];
-    print("tag %d sort %d", tag, ((untt)tag >> 16) & LOWER16BITS)
     TypeHeader result = (TypeHeader){ .sort = ((untt)tag >> 16) & LOWER16BITS,
             .depth = (tag >> 8) & 0xFF, .arity = tag & 0xFF,
             .nameAndLen = (untt)cm->types.cont[typeId + 2] };
@@ -5862,7 +5867,7 @@ void typePrint(Int typeId, Compiler* cm) {
 }
 
 void printOverloads(Int nameId, Compiler* cm) {
-    Int listId = -cm->activeBindings[nameId] - 1;
+    Int listId = -cm->activeBindings[nameId] - 2;
     print("listId %d") 
     if (listId < 0) {
         print("Overloads not found")
