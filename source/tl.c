@@ -3701,9 +3701,10 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->rawOverloads = createMultiList(cm->aTmp);
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
-    if (lx->stringTable->len > 0) {
-        memset(cm->activeBindings, 0xFF, lx->stringTable->len*4); // activeBindings is filled with -1
-    }
+    memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators);
+    if (lx->stringTable->len > countOperators) {
+        memset(cm->activeBindings + countOperators, 0xFF, (lx->stringTable->len - countOperators)*4);
+    } 
     cm->entities = createInListEntity(proto->entities.cap, a);
     memcpy(cm->entities.cont, proto->entities.cont, proto->entities.len*sizeof(Entity));
     cm->entities.len = proto->entities.len;
