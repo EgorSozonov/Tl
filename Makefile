@@ -18,7 +18,7 @@ BIN=tlc
 
 CFLAGS = $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(LIBS)
 
-SOURCE=$(wildcard source/*.c)
+SOURCE=$(wildcard src/*.c)
 
 OBJ=$(addprefix _bin/cache/, $(notdir $(SOURCE:.c=.o)))
 

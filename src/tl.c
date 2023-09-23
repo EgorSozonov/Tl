@@ -192,7 +192,7 @@ private Int multiListFindFree(Int neededCap, MultiList* ml) {
             } else {
                 ml->freeList = -1;
             }
-            print("found freeInd %d", freeInd) 
+            print("found freeInd %d", freeInd)
             return freeInd;
         }
         prevFreeInd = freeInd;
@@ -215,12 +215,12 @@ private void multiListDoubleCap(MultiList* ml) {
     Int newMultiCap = ml->cap*2;
     Arr(Int) newAlloc = allocateOnArena(newMultiCap*4, ml->a);
     memcpy(newAlloc, ml->cont, ml->len*4);
-    ml->cap = newMultiCap; 
+    ml->cap = newMultiCap;
     ml->cont = newAlloc;
 }
 
 testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
-    /// Add a new key-value pair to a particular list within the MultiList. Returns the new index for 
+    /// Add a new key-value pair to a particular list within the MultiList. Returns the new index for
     /// this list in case it had to be reallocated, -1 if not.
     /// Throws an exception if key already exists
     Int listLen = ml->cont[listInd];
@@ -289,27 +289,28 @@ testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
 private MultiList* copyMultiList(MultiList* ml, Arena* a) {
     MultiList* result = allocateOnArena(sizeof(MultiList), a);
     Arr(Int) cont = allocateOnArena(4*ml->cap, a);
-    memcpy(cont, ml->cont, 4*ml->cap); 
+    memcpy(cont, ml->cont, 4*ml->cap);
     (*result) = (MultiList){
-        .len = ml->len, .cap = ml->cap, .freeList = ml->freeList, .cont = cont, .a = a  
+        .len = ml->len, .cap = ml->cap, .freeList = ml->freeList, .cont = cont, .a = a
     };
-    return result; 
-} 
+    return result;
+}
 
 #ifdef TEST
 
 void printRawOverload(Int listInd, Compiler* cm) {
     MultiList* ml = cm->rawOverloads;
     Int len = ml->cont[listInd]/2;
-    print("listId %d len %d", listInd, len); 
-    printf("["); 
+    print("listId %d len %d", listInd, len);
+    printf("[");
     for (Int j = 0; j < len; j++) {
         printf("%d: %d ", ml->cont[listInd + 2 + 2*j], ml->cont[listInd + 2*j + 3]);
     }
-    print("]"); 
-    printf("types: "); 
+    print("]");
+    printf("types: ");
     for (Int j = 0; j < len; j++) {
         typePrint(ml->cont[listInd + 2 + 2*j], cm);
+        printf("\n");
     }
 }
 
@@ -1013,7 +1014,7 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = { 9, 0, 0, 7, 1, 9, 9, 2
 /// Symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" - by lexEqual
 /// ">" by lexGT
 const int operatorStartSymbols[14] = {
-    aExclamation, aSharp, aPercent, aAmp, aApostrophe, aTimes, aPlus, 
+    aExclamation, aSharp, aPercent, aAmp, aApostrophe, aTimes, aPlus,
     aComma, aDivBy, aSemicolon, aLT, aQuestion, aCaret, aPipe
 };
 
@@ -1619,7 +1620,7 @@ private void closeStatement(Compiler* lx) {
 
 private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCapitalized,
                         Int lenString, Arr(Byte) source, Compiler* lx) {
-    Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict); 
+    Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
     Int lenBts = lx->i - realStartBt;
     if (lx->i < lx->inpLength && CURR_BT == aParenLeft) { // Type call
         VALIDATEL(wordType == tokWord && wasCapitalized, errExpectedType)
@@ -1859,7 +1860,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) {
             pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i }, lx);
             ++j; // CONSUME the opening "(" of the operator call
         } else {
-            pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i, 
+            pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i,
                          .lenBts = j - lx->i}, lx);
         }
     }
@@ -3133,9 +3134,9 @@ testable Compiler* createProtoCompiler(Arena* a) {
         .rawOverloads = createMultiList(a),
         .a = a
     };
-    memset(proto->activeBindings, 0xFF, 4*countOperators); 
+    memset(proto->activeBindings, 0xFF, 4*countOperators);
     createBuiltins(proto);
-    print("in proto %d", -proto->activeBindings[opTimes] - 2) 
+    print("in proto %d", -proto->activeBindings[opTimes] - 2)
     return proto;
 }
 
@@ -3346,6 +3347,9 @@ private Int isFunction(Int typeId, Compiler* cm);
 private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) {
     /// Adds an overload to the [rawOverloads] and activates it, if needed
     Int mbListId = -cm->activeBindings[nameId] - 2;
+    if (nameId == opTimes) {
+        print("adding typeId %d entityId %d", typeId, entityId)
+    }
     if (mbListId == -1) {
         Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
         if (nameId == opPlusExt) {
@@ -3428,7 +3432,7 @@ testable Int addConcreteFunctionType(Int arity, Arr(Int) paramsAndReturn, Compil
     Int newInd = cm->types.len;
     pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints and 1 more for the return typeId
     typeAddHeader((TypeHeader){.sort = sorFunction, .arity = 0, .depth = arity + 1, .nameAndLen = -1},
-                  cm); 
+                  cm);
     for (Int k = 0; k < arity; k++) {
         pushIntypes(paramsAndReturn[k], cm);
     }
@@ -3573,7 +3577,7 @@ private void buildOperators(Compiler* cm) {
     Int flOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     Int flOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokDouble}, cm);
     Int flOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
-    
+
     buildOperator(opBitwiseNegation, boolOfBool, emitPrefix, 0, cm); // dummy
     buildOperator(opNotEqual, boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
     buildOperator(opNotEqual, boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
@@ -3588,9 +3592,9 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opTimesExt,  flOfFlFl, 0, 0, cm); // dummy
     buildOperator(opTimes,     intOfIntInt, emitInfix, 0, cm);
     buildOperator(opTimes,     flOfFlFl, emitInfix, 0, cm);
-    print("after opTimes %d", cm->rawOverloads->cont[90]) 
+    print("after opTimes %d", cm->rawOverloads->cont[90])
     buildOperator(opPlusExt,   strOfStrStr, 0, 0, cm); // dummy
-    print("p0 %d", cm->rawOverloads->cont[90]) 
+    print("p0 %d", cm->rawOverloads->cont[90])
     buildOperator(opPlus,      intOfIntInt, emitInfix, 0, cm);
     buildOperator(opPlus,      flOfFlFl, emitInfix, 0, cm);
     buildOperator(opPlus,      strOfStrStr, emitInfix, 0, cm);
@@ -3617,7 +3621,6 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opLessThan, boolOfFlFl, emitInfix, 0, cm);
     buildOperator(opLessThan, boolOfStrStr, emitInfix, 0, cm);
     buildOperator(opRefEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm); //dummy
-    print("p1 %d", cm->rawOverloads->cont[90]) 
     buildOperator(opEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm);
     buildOperator(opIntervalBoth, boolOfIntIntInt, 0, 0, cm); // dummy
     buildOperator(opIntervalBoth, boolOfFlFlFl, 0, 0, cm); // dummy
@@ -3631,7 +3634,6 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opGTEQ, boolOfIntInt, emitInfix, 0, cm);
     buildOperator(opGTEQ, boolOfFlFl, emitInfix, 0, cm);
     buildOperator(opGTEQ, boolOfStrStr, emitInfix, 0, cm);
-    print("p2 %d", cm->rawOverloads->cont[90]) 
     buildOperator(opShiftRight,    intOfFlFl, 0, 0, cm);  // dummy
     buildOperator(opGreaterThan, boolOfIntInt, emitInfix, 0, cm);
     buildOperator(opGreaterThan, boolOfFlFl, emitInfix, 0, cm);
@@ -3642,7 +3644,6 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opExponent, flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
     buildOperator(opBitwiseOr, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opBoolOr, flOfFl, 0, 0, cm); // dummy
-    print("after build opers %d", cm->rawOverloads->cont[90]) 
 }
 
 private void createBuiltins(Compiler* cm) {
@@ -3719,17 +3720,17 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiList(a);
-    print("b4 %d", proto->rawOverloads->cont[90]) 
+    print("b4 %d", proto->rawOverloads->cont[90])
     cm->rawOverloads = copyMultiList(proto->rawOverloads, cm->aTmp);
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
     memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators);
-    print("after memcpy %d, proto %d", -cm->activeBindings[opTimes] - 2, -proto->activeBindings[opTimes]-2) 
-    Int extraActive = lx->stringTable->len - countOperators; 
+    print("after memcpy %d, proto %d", -cm->activeBindings[opTimes] - 2, -proto->activeBindings[opTimes]-2)
+    Int extraActive = lx->stringTable->len - countOperators;
     if (extraActive > 0) {
         memset(cm->activeBindings + 4*countOperators, 0xFF, extraActive*4);
-    } 
-    print("after memset %d", -cm->activeBindings[opTimes] - 2) 
+    }
+    print("after memset %d", -cm->activeBindings[opTimes] - 2)
     cm->entities = createInListEntity(proto->entities.cap, a);
     memcpy(cm->entities.cont, proto->entities.cont, proto->entities.len*sizeof(Entity));
     cm->entities.len = proto->entities.len;
@@ -4472,9 +4473,9 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
     /// Processes the "type expression" produced by "typeDef".
     /// Returns the typeId of the new typeId
     Int j = exp->len - 2;
-#if defined(TEST) && defined(TRACE) 
+#if defined(TEST) && defined(TRACE)
     printIntArray(exp->len, exp->cont);
-#endif 
+#endif
     while (j > 0) {
         Int tyeContent = exp->cont[j];
         Int tye = (exp->cont[j] >> 24) & 0xFF;
@@ -4488,10 +4489,10 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
             exp->cont[j + 1] = typeNestedStruct;
             shiftTypeStackLeft(j + 2 + lengthStruct, lengthStruct, cm);
 
-#if defined(TEST) && defined(TRACE) 
+#if defined(TEST) && defined(TRACE)
             print("after struct shift:");
             printIntArray(exp->len, exp->cont);
-#endif 
+#endif
         } else if (tye == tyeTypeCall || tye == tyeFnType) {
             Int lengthFn = exp->cont[j + 1]*2;
             Int typeFn = typeCreateTypeCall(exp, j + 2, lengthFn, params, tye == tyeFnType, cm);
@@ -4499,19 +4500,19 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
             exp->cont[j + 1] = typeFn;
             shiftTypeStackLeft(j + 2 + lengthFn, lengthFn, cm);
 
-#if defined(TEST) && defined(TRACE) 
+#if defined(TEST) && defined(TRACE)
             print("after typeCall/fnType shift:");
             printIntArray(exp->len, exp->cont);
-#endif 
+#endif
         } else if (tye == tyeParamCall) {
 
         }
         j -= 2;
     }
-#if defined(TEST) && defined(TRACE) 
+#if defined(TEST) && defined(TRACE)
     print("after processing")
     printIntArray(exp->len, exp->cont);
-#endif 
+#endif
     if (nameAndLen > 0) {
         // at this point, exp must contain just a single struct with its fields followed by just typeIds
         Int lengthNewStruct = exp->cont[1]*4; // *4 because for every field there are 4 ints
@@ -4650,9 +4651,9 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
         } else if (cTk.tp == tokArrow) {
             VALIDATEP(cm->tempStack->len >= 2, errTypeDefError)
             Int penult = penultimate(cm->tempStack);
-#if defined(TEST) && defined(TRACE) 
+#if defined(TEST) && defined(TRACE)
             printIntArray(cm->tempStack->len, cm->tempStack->cont);
-#endif 
+#endif
             VALIDATEP(penult == tyeFunction || penult == tyeFnType, errTypeDefError)
 
             push(tyeRetType, exp);
@@ -4705,7 +4706,7 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
         push(sentinel, cm->tempStack);
     }
     typeBuildExpr(exp, sentinel, cm);
-#if defined(TEST) && defined(TRACE) 
+#if defined(TEST) && defined(TRACE)
     printIntArray(exp->len, exp->cont);
 #endif
     Int newTypeId = typeEvalExpr(exp, params, ((untt)(nameTk.lenBts) << 24) + nameTk.pl2, cm);
@@ -5839,13 +5840,13 @@ void typePrint(Int typeId, Compiler* cm) {
         printf("[Concrete]");
     }
 
-    untt nameParamId = cm->types.cont[typeId + 2];
+    untt nameParamId = hdr.nameAndLen;
     Int mainNameLen = (nameParamId >> 24) & 0xFF;
     Int mainName = nameParamId & LOWER24BITS;
 
     if (mainNameLen == 0) {
         printf("[$anonymous]");
-    } else {
+    } else if (hdr.sort != sorFunction) {
         printf("{");
         Int startBt = cm->stringTable->cont[mainName];
         fwrite(cm->sourceCode->cont + startBt, 1, mainNameLen, stdout);
@@ -5891,21 +5892,21 @@ void typePrint(Int typeId, Compiler* cm) {
         printf("=> ");
         typePrintGenElt(cm->types.cont[fnParamsSentinel]);
 
-        printf("\n)");
+        printf("\n");
 
     } else if (hdr.sort == sorPartial) {
         printf("(\n    ");
         for (Int j = typeId + hdr.arity + 3; j < sentinel; j++) {
             typePrintGenElt(cm->types.cont[j]);
         }
-        printf("\n)");
+        printf("\n");
     }
     print(")");
 }
 
 void printOverloads(Int nameId, Compiler* cm) {
     Int listId = -cm->activeBindings[nameId] - 2;
-    print("listId %d") 
+    print("listId %d")
     if (listId < 0) {
         print("Overloads for name %d not found", nameId)
         return;

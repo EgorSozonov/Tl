@@ -3,6 +3,6 @@ gcc -g3 --std=c2x -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-er
 -Werror=implicit-function-declaration -Werror=int-conversion -Werror=implicit-int \
 -Werror=incompatible-pointer-types \
 -Isource  \
-test/parserTest.c source/tl.c \
+test/parserTest.c src/tl.c \
 -DPARSER_TEST -DTEST -DSAFETY \
 -lm
