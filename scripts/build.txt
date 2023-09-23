@@ -1,5 +1,0 @@
-clear
-gcc -g3 -Wshadow -Wfatal-errors -Werror=implicit-function-declaration --std=c17 -o _bin/tlbr \
--iquote source source/tl.c  \
--DTRACE \
--lm
