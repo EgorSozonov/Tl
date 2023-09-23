@@ -71,7 +71,7 @@ typedef struct {\
 /// A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse
 /// old allocations via an intrusive free list.
 /// Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
-/// Units of measurement of len and cap are 1's. I.e. len can never be = 1.
+/// Units of measurement of len and cap are 1's. I.e. len can never be = 1, it starts with 2.
 typedef struct { // :MultiList
     Int len;
     Int cap;

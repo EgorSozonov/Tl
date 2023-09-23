@@ -24,7 +24,7 @@ StandardText getStandardTextLength();
 void typePrint(Int, Compiler*);
 void pushIntokens(Token, Compiler*);
 Int stToNameId(Int a);
-void printFromMultilist(Int listInd, MultiList* ml);
+void printRawOverload(Int listInd, Compiler* cm);
 
 #ifdef LEXER_TEST
 

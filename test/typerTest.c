@@ -438,7 +438,7 @@ void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {
     print("lexed") 
     initializeParser(cm, proto, a); 
     print("teh listId for * is currently %d", -cm->activeBindings[opTimes] - 2)
-    printFromMultilist(-cm->activeBindings[opTimes] - 2, cm->rawOverloads); 
+    printRawOverload(-cm->activeBindings[opTimes] - 2, cm); 
     
     //printOverloads(opTimes, cm); 
 } 

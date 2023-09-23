@@ -165,6 +165,8 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
 //}}}
 //{{{ MultiList
 
+void typePrint(Int typeId, Compiler* cm);
+
 MultiList* createMultiList(Arena* a) {
     MultiList* ml = allocateOnArena(sizeof(MultiList), a);
     Arr(Int) content = allocateOnArena(12*4, a);
@@ -190,6 +192,7 @@ private Int multiListFindFree(Int neededCap, MultiList* ml) {
             } else {
                 ml->freeList = -1;
             }
+            print("found freeInd %d", freeInd) 
             return freeInd;
         }
         prevFreeInd = freeInd;
@@ -208,10 +211,11 @@ private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, Mult
 }
 
 
-private void multiListDoubleSize(MultiList* ml) {
+private void multiListDoubleCap(MultiList* ml) {
     Int newMultiCap = ml->cap*2;
     Arr(Int) newAlloc = allocateOnArena(newMultiCap*4, ml->a);
-    memcpy(newAlloc, ml->cont, ml->len);
+    memcpy(newAlloc, ml->cont, ml->len*4);
+    ml->cap = newMultiCap; 
     ml->cont = newAlloc;
 }
 
@@ -237,7 +241,7 @@ testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
             multiListReallocToEnd(listInd, listLen, neededCap, ml);
         } else {
             newListInd = ml->len;
-            multiListDoubleSize(ml);
+            multiListDoubleCap(ml);
             multiListReallocToEnd(listInd, listLen, neededCap, ml);
         }
 
@@ -256,7 +260,7 @@ testable Int listAddMultiList(Int newKey, Int newVal, MultiList* ml) {
     Int newInd = multiListFindFree(initCap, ml);
     if (newInd == -1) {
         if (ml->len + initCap + 2 >= ml->cap) {
-             multiListDoubleSize(ml);
+             multiListDoubleCap(ml);
         }
         newInd = ml->len;
         ml->len += (initCap + 2);
@@ -282,16 +286,31 @@ testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
     return -1;
 }
 
+private MultiList* copyMultiList(MultiList* ml, Arena* a) {
+    MultiList* result = allocateOnArena(sizeof(MultiList), a);
+    Arr(Int) cont = allocateOnArena(4*ml->cap, a);
+    memcpy(cont, ml->cont, 4*ml->cap); 
+    (*result) = (MultiList){
+        .len = ml->len, .cap = ml->cap, .freeList = ml->freeList, .cont = cont, .a = a  
+    };
+    return result; 
+} 
+
 #ifdef TEST
 
-void printFromMultilist(Int listInd, MultiList* ml) {
+void printRawOverload(Int listInd, Compiler* cm) {
+    MultiList* ml = cm->rawOverloads;
     Int len = ml->cont[listInd]/2;
-    print("listId %d", listInd); 
+    print("listId %d len %d", listInd, len); 
     printf("["); 
     for (Int j = 0; j < len; j++) {
         printf("%d: %d ", ml->cont[listInd + 2 + 2*j], ml->cont[listInd + 2*j + 3]);
     }
     print("]"); 
+    printf("types: "); 
+    for (Int j = 0; j < len; j++) {
+        typePrint(ml->cont[listInd + 2 + 2*j], cm);
+    }
 }
 
 #endif
@@ -3329,8 +3348,10 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
     Int mbListId = -cm->activeBindings[nameId] - 2;
     if (mbListId == -1) {
         Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
+        if (nameId == opPlusExt) {
+            print("+: List %d value %d", newListId, cm->rawOverloads->cont[90])
+        }
         cm->activeBindings[nameId] = -newListId - 2;
-         
     } else {
         Int updatedListId = addMultiList(typeId, entityId, mbListId, cm->rawOverloads);
         if (updatedListId != -1) {
@@ -3553,11 +3574,10 @@ private void buildOperators(Compiler* cm) {
     Int flOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokDouble}, cm);
     Int flOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
     
-    buildOperator(opBitwiseNegation, boolOfBool, emitInfixExternal, cgStrNotEqual, cm); // dummy
+    buildOperator(opBitwiseNegation, boolOfBool, emitPrefix, 0, cm); // dummy
     buildOperator(opNotEqual, boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
     buildOperator(opNotEqual, boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
     buildOperator(opNotEqual, boolOfStrStr, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opBitwiseNegation, boolOfBool, emitPrefix, 0, cm); // dummy
     buildOperator(opBoolNegation, boolOfBool, emitPrefix, 0, cm);
     buildOperator(opSize,     intOfStr, emitField, cgStrLength, cm);
     buildOperator(opSize,     intOfInt, emitPrefixExternal, cgStrAbsolute, cm);
@@ -3567,10 +3587,10 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opIsNull,    boolOfBoolBool, 0, 0, cm); // dummy
     buildOperator(opTimesExt,  flOfFlFl, 0, 0, cm); // dummy
     buildOperator(opTimes,     intOfIntInt, emitInfix, 0, cm);
-    print("immeditately 0 %d", -cm->activeBindings[opTimes]-2) 
     buildOperator(opTimes,     flOfFlFl, emitInfix, 0, cm);
-    print("immeditately %d", -cm->activeBindings[opTimes]-2) 
+    print("after opTimes %d", cm->rawOverloads->cont[90]) 
     buildOperator(opPlusExt,   strOfStrStr, 0, 0, cm); // dummy
+    print("p0 %d", cm->rawOverloads->cont[90]) 
     buildOperator(opPlus,      intOfIntInt, emitInfix, 0, cm);
     buildOperator(opPlus,      flOfFlFl, emitInfix, 0, cm);
     buildOperator(opPlus,      strOfStrStr, emitInfix, 0, cm);
@@ -3597,6 +3617,7 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opLessThan, boolOfFlFl, emitInfix, 0, cm);
     buildOperator(opLessThan, boolOfStrStr, emitInfix, 0, cm);
     buildOperator(opRefEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm); //dummy
+    print("p1 %d", cm->rawOverloads->cont[90]) 
     buildOperator(opEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm);
     buildOperator(opIntervalBoth, boolOfIntIntInt, 0, 0, cm); // dummy
     buildOperator(opIntervalBoth, boolOfFlFlFl, 0, 0, cm); // dummy
@@ -3610,6 +3631,7 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opGTEQ, boolOfIntInt, emitInfix, 0, cm);
     buildOperator(opGTEQ, boolOfFlFl, emitInfix, 0, cm);
     buildOperator(opGTEQ, boolOfStrStr, emitInfix, 0, cm);
+    print("p2 %d", cm->rawOverloads->cont[90]) 
     buildOperator(opShiftRight,    intOfFlFl, 0, 0, cm);  // dummy
     buildOperator(opGreaterThan, boolOfIntInt, emitInfix, 0, cm);
     buildOperator(opGreaterThan, boolOfFlFl, emitInfix, 0, cm);
@@ -3620,6 +3642,7 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opExponent, flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
     buildOperator(opBitwiseOr, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opBoolOr, flOfFl, 0, 0, cm); // dummy
+    print("after build opers %d", cm->rawOverloads->cont[90]) 
 }
 
 private void createBuiltins(Compiler* cm) {
@@ -3696,7 +3719,8 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiList(a);
-    cm->rawOverloads = createMultiList(cm->aTmp);
+    print("b4 %d", proto->rawOverloads->cont[90]) 
+    cm->rawOverloads = copyMultiList(proto->rawOverloads, cm->aTmp);
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
     memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators);
