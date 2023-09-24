@@ -131,7 +131,7 @@ sorPartial.
 31. rawOverloads = [aTmp] a multilist used during overloads
 construction.
 Format: for every nameId, including the operators, contains
-a list of [outerType type ref]. Refs are positive
+[len cap](list of (typeId ref)). Refs are positive
 for [entities] and negative (-x - 1) for [monoIds]
 
 32. i = current index into whatever we're reading (source code, tokens)    

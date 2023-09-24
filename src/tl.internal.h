@@ -72,13 +72,13 @@ typedef struct {\
 /// old allocations via an intrusive free list.
 /// Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
 /// Units of measurement of len and cap are 1's. I.e. len can never be = 1, it starts with 2.
-typedef struct { // :MultiList
+typedef struct { // :MultiAssocList
     Int len;
     Int cap;
     Int freeList;
     Arr(Int) cont;
     Arena* a;
-} MultiList;
+} MultiAssocList;
 
 
 typedef struct { // :String
@@ -210,19 +210,17 @@ typedef struct { //:Token
     untt pl2;
 } Token;
 
-/**
- * Regular (leaf) Token types
- */
-// The following group of variants are transferred to the AST Byte for Byte, with no analysis
+/// Regular (leaf) Token types
+// The following group of variants are transferred to the AST byte for byte, with no analysis
 // Their values must exactly correspond with the initial group of variants in "RegularAST"
 // The largest value must be stored in "topVerbatimTokenVariant" constant
-#define tokNull         0
-#define tokInt          1
-#define tokLong         2
-#define tokDouble       3
-#define tokBool         4    // pl2 = value (1 or 0)
-#define tokString       5
-#define tokTildes       6    // used to mark up to 2 anonymous params in a function. pl1 = count
+#define tokInt          0
+#define tokLong         1
+#define tokDouble       2
+#define tokBool         3    // pl2 = value (1 or 0)
+#define tokString       4
+#define tokTilde        5    // used to mark up to 2 anonymous params in a function. pl1 = count
+#define tokNull         6
 #define tokUnderscore   7
 
 #define tokWord         8    // pl2 = index in the string table
@@ -362,7 +360,7 @@ typedef struct { // :OpDef
 
 /// OperatorType
 /// Values must exactly agree in order with the operatorSymbols array in the tl.c file.
-/// The order is defined by ASCII.
+/// The order is defined by ASCII. Operator is bitwise <=> it ends wih dot
 #define opBitwiseNegation   0 // !. bitwise negation
 #define opNotEqual          1 // !=
 #define opBoolNegation      2 // !
@@ -372,41 +370,39 @@ typedef struct { // :OpDef
 #define opBoolAnd           6 // && logical and
 #define opPtr               7 // & pointers/values at type level
 #define opIsNull            8 // '
-#define opTimesExt          9 // *.
+#define opTimesExt          9 // *:
 #define opTimes            10 // *
-#define opPlusExt          11 // +.
+#define opPlusExt          11 // +:
 #define opPlus             12 // +
-#define opToInt            13 // ,,
-#define opToFloat          14 // ,
-#define opMinusExt         15 // -.
-#define opMinus            16 // -
-#define opDivByExt         17 // /.
-#define opIntersection     18 // /|
-#define opDivBy            19 // /
-#define opToString         20 // ;
-#define opBitShiftLeft     21 // <<.
-#define opShiftLeft        22 // <<
-#define opLTEQ             23 // <=
-#define opComparator       24 // <>
-#define opLessThan         25 // <
-#define opRefEquality      26 // ===
-#define opEquality         27 // ==
-#define opIntervalBoth     28 // >=<= inclusive interval check
-#define opIntervalRight    29 // ><=  right-inclusive interval check
-#define opIntervalLeft     30 // >=<  left-inclusive interval check
-#define opBitShiftRight    31 // >>.  unsigned right bit shift
-#define opIntervalExcl     32 // ><   exclusive interval check
-#define opGTEQ             33 // >=
-#define opShiftRight       34 // >>  unsigned right bit shift
-#define opGreaterThan      35 // >
-#define opNullCoalesce     36 // ?:   null coalescing operator
-#define opQuestionMark     37 // ?    nullable type operator
-#define opBitwiseXor       38 // ^.   bitwise XOR
-#define opExponent         39 // ^    exponentiation
-#define opBitwiseOr        40 // ||.  bitwise or
-#define opBoolOr           41 // ||   logical or
+#define opMinusExt         13 // -:
+#define opMinus            14 // -
+#define opDivByExt         15 // /:
+#define opIntersection     16 // /|
+#define opDivBy            17 // /
+#define opToString         18 // ;
+#define opBitShiftLeft     19 // <<.
+#define opShiftLeft        20 // <<
+#define opLTEQ             21 // <=
+#define opComparator       22 // <>
+#define opLessThan         23 // <
+#define opRefEquality      24 // ===
+#define opEquality         25 // ==
+#define opIntervalBoth     26 // >=<= inclusive interval check
+#define opIntervalRight    27 // ><=  right-inclusive interval check
+#define opIntervalLeft     28 // >=<  left-inclusive interval check
+#define opBitShiftRight    29 // >>.  unsigned right bit shift
+#define opIntervalExcl     30 // ><   exclusive interval check
+#define opGTEQ             31 // >=
+#define opShiftRight       32 // >>  right shift or increment
+#define opGreaterThan      33 // >
+#define opNullCoalesce     34 // ?:   null coalescing operator
+#define opQuestionMark     35 // ?    nullable type operator
+#define opBitwiseXor       36 // ^.   bitwise XOR
+#define opExponent         37 // ^    exponentiation
+#define opBitwiseOr        38 // ||.  bitwise or
+#define opBoolOr           39 // ||   logical or
 
-#define countOperators     42
+#define countOperators     40
 
 #define countReservedLetters   23 // length of the interval of letters that may be init for reserved words (A to W)
 #define countCoreForms (tokForeach - tokAlias + 1)
@@ -554,7 +550,7 @@ struct Compiler { //:Compiler
     Int loopCounter;
     InListNode nodes;
     InListNode monoCode;
-    MultiList* monoIds;
+    MultiAssocList* monoIds;
     InListEntity entities;
     InListInt overloads;
     InListInt types;
@@ -565,7 +561,7 @@ struct Compiler { //:Compiler
     StackInt* tempStack;  // [aTmp]
     Int countOverloads;
     Int countOverloadedNames; 
-    MultiList* rawOverloads; // [aTmp]
+    MultiAssocList* rawOverloads; // [aTmp]
 
     // GENERAL STATE
     Int i;

@@ -435,7 +435,6 @@ void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
 
 void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {
     Compiler* cm = lexicallyAnalyze(str("x = 5", a), proto, a);
-    print("lexed")
     initializeParser(cm, proto, a);
     //printRawOverload(-cm->activeBindings[opTimes] - 2, cm);
     createOverloads(cm);
@@ -443,7 +442,7 @@ void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {
         printString(cm->errMsg);
         return;
     }
-    print("created the overls")
+    print("created the overls %d", cm->activeBindings[opTimes])
     printOverloads(opTimes, cm);
 }
 

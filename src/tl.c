@@ -163,14 +163,14 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
         cm->fieldName.len++;                                                                \
     }
 //}}}
-//{{{ MultiList
+//{{{ AssocList
 
 void typePrint(Int typeId, Compiler* cm);
 
-MultiList* createMultiList(Arena* a) {
-    MultiList* ml = allocateOnArena(sizeof(MultiList), a);
+MultiAssocList* createMultiAssocList(Arena* a) {
+    MultiAssocList* ml = allocateOnArena(sizeof(MultiAssocList), a);
     Arr(Int) content = allocateOnArena(12*4, a);
-    (*ml) = (MultiList) {
+    (*ml) = (MultiAssocList) {
         .len = 0,
         .cap = 12,
         .cont = content,
@@ -180,7 +180,7 @@ MultiList* createMultiList(Arena* a) {
     return ml;
 }
 
-private Int multiListFindFree(Int neededCap, MultiList* ml) {
+private Int multiListFindFree(Int neededCap, MultiAssocList* ml) {
     Int freeInd = ml->freeList;
     Int prevFreeInd = -1;
     Int freeStep = 0;
@@ -192,7 +192,6 @@ private Int multiListFindFree(Int neededCap, MultiList* ml) {
             } else {
                 ml->freeList = -1;
             }
-            print("found freeInd %d", freeInd)
             return freeInd;
         }
         prevFreeInd = freeInd;
@@ -203,7 +202,7 @@ private Int multiListFindFree(Int neededCap, MultiList* ml) {
 }
 
 
-private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, MultiList* ml) {
+private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, MultiAssocList* ml) {
     ml->cont[ml->len] = listLen;
     ml->cont[ml->len + 1] = neededCap;
     memcpy(ml->cont + ml->len + 2, ml->cont + listInd + 2, listLen*4);
@@ -211,7 +210,7 @@ private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, Mult
 }
 
 
-private void multiListDoubleCap(MultiList* ml) {
+private void multiListDoubleCap(MultiAssocList* ml) {
     Int newMultiCap = ml->cap*2;
     Arr(Int) newAlloc = allocateOnArena(newMultiCap*4, ml->a);
     memcpy(newAlloc, ml->cont, ml->len*4);
@@ -219,8 +218,8 @@ private void multiListDoubleCap(MultiList* ml) {
     ml->cont = newAlloc;
 }
 
-testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
-    /// Add a new key-value pair to a particular list within the MultiList. Returns the new index for
+testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocList* ml) {
+    /// Add a new key-value pair to a particular list within the MultiAssocList. Returns the new index for
     /// this list in case it had to be reallocated, -1 if not.
     /// Throws an exception if key already exists
     Int listLen = ml->cont[listInd];
@@ -229,7 +228,7 @@ testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
     ml->cont[listInd + listLen + 3] = newVal;
     listLen += 2;
     Int newListInd = -1;
-    if (listLen == listCap) { // look in the freelist, but not more than 10 steps to save time
+    if (listLen == listCap) { // look in the freelist, but not more than 10 steps to not waste much time
         Int neededCap = listCap*2;
         Int freeInd = multiListFindFree(neededCap, ml);
         if (freeInd > -1) {
@@ -245,7 +244,7 @@ testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
             multiListReallocToEnd(listInd, listLen, neededCap, ml);
         }
 
-        // add this freed sector to the freelist
+        // add this newly freed sector to the freelist
         ml->cont[listInd] = ml->freeList;
         ml->freeList = listInd;
     } else {
@@ -254,8 +253,8 @@ testable Int addMultiList(Int newKey, Int newVal, Int listInd, MultiList* ml) {
     return newListInd;
 }
 
-testable Int listAddMultiList(Int newKey, Int newVal, MultiList* ml) {
-    /// Adds a new list to the MultiList and populates it with one key-value pair. Returns its index.
+testable Int listAddMultiAssocList(Int newKey, Int newVal, MultiAssocList* ml) {
+    /// Adds a new list to the MultiAssocList and populates it with one key-value pair. Returns its index.
     Int initCap = 8;
     Int newInd = multiListFindFree(initCap, ml);
     if (newInd == -1) {
@@ -273,8 +272,8 @@ testable Int listAddMultiList(Int newKey, Int newVal, MultiList* ml) {
     return newInd;
 }
 
-testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
-    /// Search for a key in a particular list within the MultiList. Returns the value if found,
+testable Int searchMultiAssocList(Int searchKey, Int listInd, MultiAssocList* ml) {
+    /// Search for a key in a particular list within the MultiAssocList. Returns the value if found,
     /// -1 otherwise
     Int len = ml->cont[listInd]/2;
     Int endInd = listInd + 2 + len;
@@ -286,11 +285,11 @@ testable Int searchMultiList(Int searchKey, Int listInd, MultiList* ml) {
     return -1;
 }
 
-private MultiList* copyMultiList(MultiList* ml, Arena* a) {
-    MultiList* result = allocateOnArena(sizeof(MultiList), a);
+private MultiAssocList* copyMultiAssocList(MultiAssocList* ml, Arena* a) {
+    MultiAssocList* result = allocateOnArena(sizeof(MultiAssocList), a);
     Arr(Int) cont = allocateOnArena(4*ml->cap, a);
     memcpy(cont, ml->cont, 4*ml->cap);
-    (*result) = (MultiList){
+    (*result) = (MultiAssocList){
         .len = ml->len, .cap = ml->cap, .freeList = ml->freeList, .cont = cont, .a = a
     };
     return result;
@@ -299,7 +298,7 @@ private MultiList* copyMultiList(MultiList* ml, Arena* a) {
 #ifdef TEST
 
 void printRawOverload(Int listInd, Compiler* cm) {
-    MultiList* ml = cm->rawOverloads;
+    MultiAssocList* ml = cm->rawOverloads;
     Int len = ml->cont[listInd]/2;
     print("listId %d len %d", listInd, len);
     printf("[");
@@ -1901,6 +1900,16 @@ private void lexGT(Arr(Byte) source, Compiler* lx) {
     }
 }
 
+private void lexTilde(Arr(Byte) source, Compiler* lx) {
+    if ((lx->i < lx->inpLength - 1) && NEXT_BT == aTilde) {
+        pushIntokens((Token){ .tp = tokTilde, .pl1 = 2, .startBt = lx->i - 1, .lenBts = 2 }, lx);
+        lx->i += 2; // CONSUME the "~~"
+    } else {
+        pushIntokens((Token){ .tp = tokTilde, .pl1 = 1, .startBt = lx->i - 1, .lenBts = 2 }, lx);
+        ++lx->i; // CONSUME the "~~"
+    }
+}
+
 private void lexNewline(Arr(Byte) source, Compiler* lx) {
     /// Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes
     /// the current statement unless it's inside an inline span (i.e. parens or accessor parens)
@@ -2119,6 +2128,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aDollar] = &lexDollar;
     p[aEqual] = &lexEqual;
     p[aGT] = &lexGT;
+    p[aTilde] = &lexTilde;
 
     for (Int i = sizeof(operatorStartSymbols)/4 - 1; i > -1; i--) {
         p[operatorStartSymbols[i]] = &lexOperator;
@@ -2196,63 +2206,59 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
             .prece=preceAdd, .assignable = true, .overloadable = true};
     p[12] = (OpDef){ .arity=2, .bytes={aPlus, 0, 0, 0 }, // +
             .prece=preceAdd, .assignable = true, .overloadable = true};
-    p[13] = (OpDef){ .arity=1, .bytes={aComma, aColon, 0, 0}, // ,:
-            .prece=precePrefix };
-    p[14] = (OpDef){ .arity=1, .bytes={aComma, 0, 0, 0}, // ,
-            .prece=precePrefix };
-    p[15] = (OpDef){ .arity=2, .bytes={aMinus, aColon, 0, 0}, // -:
+    p[13] = (OpDef){ .arity=2, .bytes={aMinus, aColon, 0, 0}, // -:
             .prece=preceAdd, .assignable = true, .overloadable = true};
-    p[16] = (OpDef){ .arity=2, .bytes={aMinus, 0, 0, 0}, // -
+    p[14] = (OpDef){ .arity=2, .bytes={aMinus, 0, 0, 0}, // -
             .prece=preceAdd, .assignable = true, .overloadable = true };
-    p[17] = (OpDef){ .arity=2, .bytes={aDivBy, aColon, 0, 0}, // /:
+    p[15] = (OpDef){ .arity=2, .bytes={aDivBy, aColon, 0, 0}, // /:
             .prece=preceMultiply, .assignable = true, .overloadable = true};
-    p[18] = (OpDef){ .arity=2, .bytes={aDivBy, aPipe, 0, 0}, // /|
+    p[16] = (OpDef){ .arity=2, .bytes={aDivBy, aPipe, 0, 0}, // /|
             .prece=preceMultiply,    .isTypelevel = true};
-    p[19] = (OpDef){ .arity=2, .bytes={aDivBy, 0, 0, 0}, // /
+    p[17] = (OpDef){ .arity=2, .bytes={aDivBy, 0, 0, 0}, // /
             .prece=preceMultiply,    .assignable = true, .overloadable = true};
-    p[20] = (OpDef){ .arity=1, .bytes={aSemicolon, 0, 0, 0 }, // ;
+    p[18] = (OpDef){ .arity=1, .bytes={aSemicolon, 0, 0, 0 }, // ;
             .prece=precePrefix,      .overloadable=true};
-    p[21] = (OpDef){ .arity=2, .bytes={aLT, aLT, aDot, 0}, // <<.
+    p[19] = (OpDef){ .arity=2, .bytes={aLT, aLT, aDot, 0}, // <<.
             .prece=preceAdd };
-    p[22] = (OpDef){ .arity=2, .bytes={aLT, aLT, 0, 0}, // <<
+    p[20] = (OpDef){ .arity=2, .bytes={aLT, aLT, 0, 0}, // <<
             .prece=preceAdd,         .assignable = true, .overloadable = true };
-    p[23] = (OpDef){ .arity=2, .bytes={aLT, aEqual, 0, 0}, // <=
+    p[21] = (OpDef){ .arity=2, .bytes={aLT, aEqual, 0, 0}, // <=
             .prece=preceExponent };
-    p[24] = (OpDef){ .arity=2, .bytes={aLT, aGT, 0, 0}, // <>
+    p[22] = (OpDef){ .arity=2, .bytes={aLT, aGT, 0, 0}, // <>
             .prece=preceExponent };
-    p[25] = (OpDef){ .arity=2, .bytes={aLT, 0, 0, 0 }, // <
+    p[23] = (OpDef){ .arity=2, .bytes={aLT, 0, 0, 0 }, // <
             .prece=preceExponent };
-    p[26] = (OpDef){ .arity=2, .bytes={aEqual, aEqual, aEqual, 0 }, // ===
+    p[24] = (OpDef){ .arity=2, .bytes={aEqual, aEqual, aEqual, 0 }, // ===
             .prece=preceEquality };
-    p[27] = (OpDef){ .arity=2, .bytes={aEqual, aEqual, 0, 0 }, // ==
+    p[25] = (OpDef){ .arity=2, .bytes={aEqual, aEqual, 0, 0 }, // ==
             .prece=preceEquality };
-    p[28] = (OpDef){ .arity=3, .bytes={aGT, aEqual, aLT, aEqual }, // >=<=
+    p[26] = (OpDef){ .arity=3, .bytes={aGT, aEqual, aLT, aEqual }, // >=<=
             .prece=preceExponent };
-    p[29] = (OpDef){ .arity=3, .bytes={aGT, aLT, aEqual, 0 }, // ><=
+    p[27] = (OpDef){ .arity=3, .bytes={aGT, aLT, aEqual, 0 }, // ><=
             .prece=preceExponent };
-    p[30] = (OpDef){ .arity=3, .bytes={aGT, aEqual, aLT, 0 }, // >=<
+    p[28] = (OpDef){ .arity=3, .bytes={aGT, aEqual, aLT, 0 }, // >=<
             .prece=preceExponent };
-    p[31] = (OpDef){ .arity=2, .bytes={aGT, aGT, aDot, 0}, // >>.
+    p[29] = (OpDef){ .arity=2, .bytes={aGT, aGT, aDot, 0}, // >>.
             .prece=preceAdd,         .assignable=true, .overloadable = true};
-    p[32] = (OpDef){ .arity=3, .bytes={aGT, aLT, 0, 0 }, // ><
+    p[30] = (OpDef){ .arity=3, .bytes={aGT, aLT, 0, 0 }, // ><
             .prece=preceExponent };
-    p[33] = (OpDef){ .arity=2, .bytes={aGT, aEqual, 0, 0 }, // >=
+    p[31] = (OpDef){ .arity=2, .bytes={aGT, aEqual, 0, 0 }, // >=
             .prece=preceExponent };
-    p[34] = (OpDef){ .arity=2, .bytes={aGT, aGT, 0, 0}, // >>
+    p[32] = (OpDef){ .arity=2, .bytes={aGT, aGT, 0, 0}, // >>
             .prece=preceAdd,         .assignable=true, .overloadable = true };
-    p[35] = (OpDef){ .arity=2, .bytes={aGT, 0, 0, 0 }, // >
+    p[33] = (OpDef){ .arity=2, .bytes={aGT, 0, 0, 0 }, // >
             .prece=preceExponent };
-    p[36] = (OpDef){ .arity=2, .bytes={aQuestion, aColon, 0, 0 }, // ?:
+    p[34] = (OpDef){ .arity=2, .bytes={aQuestion, aColon, 0, 0 }, // ?:
             .prece=preceAdd };
-    p[37] = (OpDef){ .arity=1, .bytes={aQuestion, 0, 0, 0 }, // ?
+    p[35] = (OpDef){ .arity=1, .bytes={aQuestion, 0, 0, 0 }, // ?
             .prece=precePrefix,      .isTypelevel=true };
-    p[38] = (OpDef){ .arity=2, .bytes={aCaret, aDot, 0, 0}, // ^.
+    p[36] = (OpDef){ .arity=2, .bytes={aCaret, aDot, 0, 0}, // ^.
             .prece=precePrefix };
-    p[39] = (OpDef){ .arity=2, .bytes={aCaret, 0, 0, 0}, // ^
+    p[37] = (OpDef){ .arity=2, .bytes={aCaret, 0, 0, 0}, // ^
             .prece=preceExponent,    .assignable=true, .overloadable = true};
-    p[40] = (OpDef){ .arity=2, .bytes={aPipe, aPipe, aDot, 0}, // ||.
+    p[38] = (OpDef){ .arity=2, .bytes={aPipe, aPipe, aDot, 0}, // ||.
             .prece=preceAdd };
-    p[41] = (OpDef){ .arity=2, .bytes={aPipe, aPipe, 0, 0}, // ||
+    p[39] = (OpDef){ .arity=2, .bytes={aPipe, aPipe, 0, 0}, // ||
             .prece=preceAdd, .assignable=true };
 
     for (Int k = 0; k < countOperators; k++) {
@@ -3176,7 +3182,7 @@ testable Compiler* createProtoCompiler(Arena* a) {
         .stringTable = createStackint32_t(16, a), .stringDict = createStringDict(128, a),
         .types = createInListInt(64, a), .typesDict = createStringDict(128, a),
         .activeBindings = allocateOnArena(4*countOperators, a),
-        .rawOverloads = createMultiList(a),
+        .rawOverloads = createMultiAssocList(a),
         .a = a
     };
     memset(proto->activeBindings, 0xFF, 4*countOperators);
@@ -3391,18 +3397,12 @@ private Int isFunction(Int typeId, Compiler* cm);
 private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) {
     /// Adds an overload to the [rawOverloads] and activates it, if needed
     Int mbListId = -cm->activeBindings[nameId] - 2;
-    if (nameId == opTimes) {
-        print("adding typeId %d entityId %d", typeId, entityId)
-    }
     if (mbListId == -1) {
-        Int newListId = listAddMultiList(typeId, entityId, cm->rawOverloads);
-        if (nameId == opPlusExt) {
-            print("+: List %d value %d", newListId, cm->rawOverloads->cont[90])
-        }
+        Int newListId = listAddMultiAssocList(typeId, entityId, cm->rawOverloads);
         cm->activeBindings[nameId] = -newListId - 2;
         ++cm->countOverloadedNames;
     } else {
-        Int updatedListId = addMultiList(typeId, entityId, mbListId, cm->rawOverloads);
+        Int updatedListId = addMultiAssocList(typeId, entityId, mbListId, cm->rawOverloads);
         if (updatedListId != -1) {
             cm->activeBindings[nameId] = -updatedListId - 2;
         }
@@ -3594,7 +3594,6 @@ private void buildOperators(Compiler* cm) {
     Int boolOfBoolBool = addConcreteFunctionType(2, (Int[]){ tokBool, tokBool, tokBool}, cm);
     Int intOfStr = addConcreteFunctionType(1, (Int[]){ tokString, tokInt}, cm);
     Int intOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokInt}, cm);
-    Int intOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokInt}, cm);
     Int intOfIntInt = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokInt}, cm);
     Int intOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokInt}, cm);
     Int intOfStrStr = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokInt}, cm);
@@ -3603,7 +3602,6 @@ private void buildOperators(Compiler* cm) {
     Int strOfBool = addConcreteFunctionType(1, (Int[]){ tokBool, tokString}, cm);
     Int strOfStrStr = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokString}, cm);
     Int flOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
-    Int flOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokDouble}, cm);
     Int flOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
 
     buildOperator(opBitwiseNegation, boolOfBool, emitPrefix, 0, cm); // dummy
@@ -3621,14 +3619,10 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opTimesExt,  flOfFlFl, 0, 0, cm); // dummy
     buildOperator(opTimes,     intOfIntInt, emitInfix, 0, cm);
     buildOperator(opTimes,     flOfFlFl, emitInfix, 0, cm);
-    print("after opTimes %d", cm->activeBindings[0])
     buildOperator(opPlusExt,   strOfStrStr, 0, 0, cm); // dummy
-    print("p0 %d", cm->activeBindings[0])
     buildOperator(opPlus,      intOfIntInt, emitInfix, 0, cm);
     buildOperator(opPlus,      flOfFlFl, emitInfix, 0, cm);
     buildOperator(opPlus,      strOfStrStr, emitInfix, 0, cm);
-    buildOperator(opToInt,     intOfFl, emitNop, 0, cm);
-    buildOperator(opToFloat,   flOfInt, emitNop, 0, cm);
     buildOperator(opMinusExt,  intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opMinus,     intOfIntInt, emitInfix, 0, cm);
     buildOperator(opMinus,     flOfFlFl, emitInfix, 0, cm);
@@ -3669,6 +3663,7 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opGreaterThan, boolOfFlFl, emitInfix, 0, cm);
     buildOperator(opGreaterThan, boolOfStrStr, emitInfix, 0, cm);
     buildOperator(opNullCoalesce, intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opQuestionMark, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opBitwiseXor, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opExponent, intOfIntInt, emitPrefixExternal, cgStrExpon, cm);
     buildOperator(opExponent, flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
@@ -3688,6 +3683,8 @@ private void importPrelude(Compiler* cm) {
     Int strToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int intToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
     Int floatToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokDouble}, cm);
+    Int flOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokDouble}, cm);
+    Int intOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokInt}, cm);
 
     EntityImport imports[6] =  {
         (EntityImport) { .name = nameOfStandard(strMathPi), .externalNameId = cgStrPi,
@@ -3702,6 +3699,7 @@ private void importPrelude(Compiler* cm) {
             .typeInd = 3},
         (EntityImport) { .name = nameOfStandard(strPrintErr), .externalNameId = cgStrAlert,
             .typeInd = 1}
+           // TODO functions for casting (int, double, unsigned)
     };
     // These base types occupy the first places in the stringTable and in the types table.
     // So for them nameId == typeId, unlike type funcs like L(ist) and A(rray)
@@ -3710,7 +3708,9 @@ private void importPrelude(Compiler* cm) {
     }
 
     importEntities(imports, sizeof(imports)/sizeof(EntityImport),
-                   ((Int[]){strDouble - strFirstNonReserved, strToVoid, intToVoid, floatToVoid }), cm);
+                   ((Int[]){ strDouble - strFirstNonReserved, strToVoid, intToVoid, floatToVoid,
+                             flOfInt, intOfFl }),
+                   cm);
 }
 
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
@@ -3750,8 +3750,8 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->loopCounter = 0;
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
-    cm->monoIds = createMultiList(a);
-    cm->rawOverloads = copyMultiList(proto->rawOverloads, cm->aTmp);
+    cm->monoIds = createMultiAssocList(a);
+    cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
@@ -3849,19 +3849,23 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
 
 #if defined(SAFETY) || defined(TEST)
     if (rawStart == -1) {
-        print("nameId %d", nameId) 
+        print("nameId %d", nameId)
     }
     VALIDATEI(rawStart != -1, iErrorImportedFunctionNotInScope)
 #endif
 
-    Int rawSentinel = rawStart + 1 + raw[rawStart];
+    Int rawSentinel = rawStart + 2 + raw[rawStart]; // + 2 for the length and capacity in the assoc list
 
-    for (Int j = rawStart + 1; j < rawSentinel; j += 2) {
+    for (Int j = rawStart + 2; j < rawSentinel; j += 2) {
         Int outerType = typeGetOuter(raw[j], cm);
         push(outerType, scratch);
         push((j - rawStart - 1)/2, scratch);  // we need the index to get the original items after sorting
     }
-    printIntArray(scratch->len, scratch->cont);
+
+    if (nameId == opTimes) {
+        print("rawStart %d raw sentinel %d", rawStart, rawSentinel)
+        printIntArray(scratch->len, scratch->cont);
+    }
     // Scratch contains twoples of (outerType ind)
 
     Int countOverloads = scratch->len/2;
@@ -3910,18 +3914,19 @@ testable void createOverloads(Compiler* cm) {
     cm->overloads.len = cm->countOverloads;
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, scratch, cm);
-        cm->activeBindings[j] = newIndex;
+        cm->activeBindings[j] = -newIndex - 2;
     }
     for (Int j = 0; j < cm->imports.len; j++) {
         Int nameId = cm->imports.cont[j];
         Int newIndex = createNameOverloads(nameId, scratch, cm);
-        cm->activeBindings[nameId] = newIndex;
+        cm->activeBindings[nameId] = -newIndex - 2;
     }
     for (Int j = 0; j < cm->toplevels.len; j++) {
         Int nameId = cm->toplevels.cont[j].name & LOWER24BITS;
         Int newIndex = createNameOverloads(nameId, scratch, cm);
-        cm->activeBindings[nameId] = newIndex;
+        cm->activeBindings[nameId] = -newIndex - 2;
     }
+    print("in end of create overls %d", cm->activeBindings[opTimes])
 }
 
 private void parseToplevelTypes(Compiler* cm) {
@@ -4465,7 +4470,6 @@ private Int typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt
     }
 
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
-    print("created type call of length %d", cm->types.cont[tentativeTypeId]);
     return mergeType(tentativeTypeId, cm);
 }
 
@@ -5933,6 +5937,7 @@ void typePrint(Int typeId, Compiler* cm) {
 }
 
 void printOverloads(Int nameId, Compiler* cm) {
+    print("wtf %d", cm->activeBindings[nameId])
     Int listId = -cm->activeBindings[nameId] - 2;
     print("listId %d")
     if (listId < 0) {
@@ -5942,7 +5947,7 @@ void printOverloads(Int nameId, Compiler* cm) {
     Arr(Int) overs = cm->overloads.cont;
     Int countOverloads = overs[listId]/3;
     printf("%d overloads:\n");
-    printf("[outer = %d]\n", countOverloads);
+    printf("[outer types, %d]\n", countOverloads);
     Int sentinel = listId + countOverloads + 1;
     Int j = listId + 1;
     for (; j < sentinel; j++) {
