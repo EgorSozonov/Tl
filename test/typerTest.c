@@ -6,7 +6,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <setjmp.h>
-#include "../source/tl.internal.h"
+#include "../src/tl.internal.h"
 #include "tlTest.h"
 
 //}}}
@@ -36,14 +36,14 @@ private Compiler* buildLexer0(String* sourceCode, Compiler* proto, Arena *a, int
                 tok.pl2 += stText.firstParsed;
             } else { // built-in words
                 tok.pl2 -= (S + strFirstNonReserved);
-                tok.pl2 += countOperators; 
+                tok.pl2 += countOperators;
             }
         } else if (tok.tp == tokCall || tok.tp == tokTypeCall) {
             if (tok.pl1 < S) { // parsed words
                 tok.pl1 += stText.firstParsed;
             } else { // built-in words
                 tok.pl1 -= (S + strFirstNonReserved);
-                tok.pl1 += countOperators; 
+                tok.pl1 += countOperators;
             }
         }
         pushIntokens(tok, result);
@@ -432,17 +432,21 @@ void structTest3(Int* countFailed, Compiler* proto, Arena* a) {
 
 //}}}
 //{{{ Overloads
-    
-void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {   
+
+void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {
     Compiler* cm = lexicallyAnalyze(str("x = 5", a), proto, a);
-    print("lexed") 
-    initializeParser(cm, proto, a); 
-    print("teh listId for * is currently %d", -cm->activeBindings[opTimes] - 2)
-    printRawOverload(-cm->activeBindings[opTimes] - 2, cm); 
-    
-    //printOverloads(opTimes, cm); 
-} 
-    
+    print("lexed")
+    initializeParser(cm, proto, a);
+    //printRawOverload(-cm->activeBindings[opTimes] - 2, cm);
+    createOverloads(cm);
+    if (cm->wasError) {
+        printString(cm->errMsg);
+        return;
+    }
+    print("created the overls")
+    printOverloads(opTimes, cm);
+}
+
 //}}}
 //{{{ Main
 
@@ -454,7 +458,7 @@ int main() {
     Compiler* proto = createProtoCompiler(a);
     Int countFailed = 0;
     if (setjmp(excBuf) == 0) {
-        
+
 //~        typeTest3(proto, a);
 
 //~        skipTest(&countFailed, proto, a);
@@ -471,8 +475,8 @@ int main() {
 //~        structTest2(&countFailed, proto, a);
 //~        structTest3(&countFailed, proto, a);
 
-        overloadsTest1(&countFailed, proto, a); 
-        
+        overloadsTest1(&countFailed, proto, a);
+
     } else {
         print("An exception was thrown in the tests")
     }

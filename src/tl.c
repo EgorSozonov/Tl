@@ -907,7 +907,6 @@ const char errPrematureEndOfInput[]        = "Premature end of input";
 const char errUnrecognizedByte[]           = "Unrecognized Byte in source code!";
 const char errWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
 const char errWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
-const char errWordWrongAccessor[]          = "Only regular identifier words may be used for data access with []!";
 const char errWordLengthExceeded[]         = "I don't know why you want an identifier of more than 255 chars, but they aren't supported";
 const char errWordReservedWithDot[]        = "Reserved words may not be called like functions!";
 const char errNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
@@ -928,7 +927,6 @@ const char errToplevelAssignment[]         = "Toplevel assignments must have onl
 const char errOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
 const char errOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
 const char errCoreNotInsideStmt[]          = "Core form must be directly inside statement";
-const char errCoreMisplacedColon[]         = "The colon separator (:) must be inside an if, ifEq, ifPr or match form";
 const char errCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
 const char errCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace immediately after keyword!";
 const char errBareAtom[]                   = "Malformed token stream (atoms and parentheses must not be bare)";
@@ -1022,33 +1020,33 @@ const int operatorStartSymbols[14] = {
 ///  string set.
 ///  The Tl reserved words must be at the start and be sorted alphabetically on the first letter.
 ///  Also they must agree with the "Standard strings" in tl.internal.h
-const char standardText[] = "aaliasassertbreakcatchcontinuedeferdoelseembedfalseffor"
-                            "hififPrimplimportinterfacelmatchmetapubreturntruetrywhile"
+const char standardText[] = "aaliasassertbreakcatchcontinuedoelseembedfalseffinallyfor"
+                            "foreachhififPrimplimportinterfacelmatchmetapubreturntruetry"
                             // reserved words end here
                             "IntLongDoubleBoolStringVoidFLAHTulencapf1f2printprintErr"
                             "math-pimath-eTU";
 
 const Int standardStrings[] = {
       0,   1,   6,  12,  17, // catch
-     22,  30,  35,  37,  41, // embed
-     46,  51,  52,  55,  56, // if
-     58,  62,  67,  72,  81, // l
-     82,  87,  91,  94, 100, // true
-    104, 107, 112,           // Int
-    115, 119, 125, 129, 135, // Void
-    139, 140, 141, 142, 143, // Tu
-    145, 148, 151, 153, 155, // print
-    160, 168, 175, 181, 182, // U
-    183
+     22,  30,  32,  36,  41, // false
+     46,  47,  54,  57,  64, // h 
+     65,  67,  71,  75,  81, // interface 
+     90,  91,  96, 100, 103, // return
+    109, 113, 116,           // Int
+    119, 123, 129, 133, 139, // Void
+    143, 144, 145, 146, 147, // Tu
+    149, 152, 155, 157, 159, // print
+    164, 172, 179, 185, 186, // U
+    187
 };
 
 const Int standardKeywords[] = {
-    keywArray,    tokAlias, tokAssert, keywBreak,  tokCatch,
-    keywContinue, tokDefer, tokScope,  tokElse,    tokEmbed,
-    keywFalse,    tokFn,    tokFor,    tokHashmap, tokIf,
-    tokIfPr,      tokImpl,  tokImport, tokIface,   tokList,
-    tokMatch,     tokMeta,  tokPub,    tokReturn,  keywTrue,
-    tokTry,       tokWhile
+    keywArray,    tokAlias,   tokAssert, keywBreak,  tokCatch,
+    keywContinue, tokScope,   tokElse,   tokEmbed,   keywFalse,    
+    tokFn,        tokFinally, tokFor,    tokForeach, tokHashmap, 
+    tokIf,        tokIfPr,    tokImpl,   tokImport,  tokIface, 
+    tokList,      tokMatch,   tokMeta,   tokPub,     tokReturn,  
+    keywTrue,     tokTry
 };
 
 #define maxWordLength 255
@@ -1787,7 +1785,7 @@ private void lexDollar(Arr(Byte) source, Compiler* lx) {
 }
 
 private void lexColon(Arr(Byte) source, Compiler* lx) {
-    /// Handles reassignment ":=" and keyword arguments ":asdf"
+    /// Handles reassignment ":=" and keyword arguments ":asdf". Main purpose is start of a new block
     if (lx->i < lx->inpLength - 1) {
         Byte nextBt = NEXT_BT;
         if (nextBt == aEqual) {
@@ -1800,10 +1798,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) {
             return;
         }
     }
-    VALIDATEL(lx->lexBtrack->len >= 2, errCoreMisplacedColon)
-    maybeBreakStatement(lx);
-    pushIntokens((Token){.tp = tokColon, .startBt = lx->i, .lenBts = 1 }, lx);
-    ++lx->i; // CONSUME the ":"
+    throwExcLexer(errOperatorUnknown, lx);
 }
 
 
@@ -1976,8 +1971,13 @@ private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     wrapInAStatement(source, lx);
-    openPunctuation(tokBrackets, slSubexpr, lx->i, lx);
-    lx->i++; // CONSUME the left parenthesis
+    if (j < lx->inpLength && NEXT_BT == aBracketRight) {
+        pushIntokens((Token){.tp = tokNull, .startBt = lx->i, .lenBts = 2}, lx); 
+        lx->i += 2; // CONSUME the [] (aka null)
+    } else {
+        openPunctuation(tokBrackets, slSubexpr, lx->i, lx);
+        ++lx->i; // CONSUME the left bracket
+    }
 }
 
 
@@ -2039,13 +2039,13 @@ private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) {
 
 /// Must agree in order with token types in tl.internal.h
 const char* tokNames[] = {
-    "Int", "Long", "Double", "Bool", "String", "~", "_",
+    "[]", "Int", "Long", "Double", "Bool", "String", "~", "_",
     "word", "Type", ":kwarg", ".strFld", "operator", "_acc", "=>", "pub",
     "stmt", "(", "call(", "Type(", "lst", "hashMap", "[",
-    "=", ":=", "*=", "alias", "assert", "breakCont", "defer",
+    "=", ":=", "*=", "alias", "assert", "breakCont",
     "embed", "iface", "import", "return", "try", "colon",
-    "else", "do(", "catch(", "f(", "for(",
-    "meta(", "if(", "ifPr(", "match(", "impl(", "while("
+    "else", "do(", "f(", "for(", "foreach(", "catch(", "finally(", "meta("
+    "if(", "ifPr(", "match(", "impl(", "while(", "meta("
 };
 
 
@@ -2356,7 +2356,7 @@ private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
-    VALIDATEP(tokens[leftSentinel].tp == tokColon, errIfMalformed)
+    VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
     Int typeLeft = exprAfterHead(tok, tokens, cm);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
@@ -2374,7 +2374,7 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
     /// Returns to parsing within an if (either the beginning of a clause or an "else" block)
-    if (tok->tp == tokColon || tok->tp == tokElse) {
+    if (tok->tp == tokArrow || tok->tp == tokElse) {
         ++cm->i; // CONSUME the "=>" or "else"
         *tok = tokens[cm->i];
         Int sentinel = calcSentinel(*tok, cm->i);
@@ -2445,10 +2445,10 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     assignmentWorker(tok, false, tokens, cm);
 }
 
-private void parseWhile(Token loopok, Arr(Token) tokens, Compiler* cm) {
-    /// While loops. Look like "while(x = 0. <(x 100): x += 1)"
+private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
+    /// For loops. Look like "for(x = 0. x < 100: x += 1: ...)"
     ++cm->loopCounter;
-    Int sentinel = cm->i + loopok.pl2;
+    Int sentinel = cm->i + forTk.pl2;
 
     Int condInd = cm->i;
     Token condTk = tokens[condInd];
@@ -2459,9 +2459,9 @@ private void parseWhile(Token loopok, Arr(Token) tokens, Compiler* cm) {
 
     push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->loopCounter }), cm->backtrack);
-    pushInnodes((Node){.tp = nodWhile,  .startBt = loopok.startBt, .lenBts = loopok.lenBts}, cm);
+    pushInnodes((Node){.tp = nodWhile,  .startBt = forTk.startBt, .lenBts = forTk.lenBts}, cm);
 
-    addParsedScope(sentinel, startBtScope, loopok.lenBts - startBtScope + loopok.startBt, cm);
+    addParsedScope(sentinel, startBtScope, forTk.lenBts - startBtScope + forTk.startBt, cm);
 
     // variable initializations, if any
 
@@ -3040,15 +3040,15 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokAssignment] = &parseAssignment;
     p[tokReassign]   = &parseReassignment;
     p[tokMutation]   = &parseMutation;
-    p[tokColon]      = &parseSkip;
+    p[tokArrow]      = &parseSkip;
 
     p[tokAlias]      = &parseAlias;
     p[tokAssert]     = &parseAssert;
     p[tokBreakCont]  = &parseBreakCont;
     p[tokCatch]      = &parseAlias;
-    p[tokDefer]      = &parseAlias;
     p[tokEmbed]      = &parseAlias;
     p[tokFn]         = &parseAlias;
+    p[tokFinally]    = &parseAlias;
     p[tokIface]      = &parseAlias;
     p[tokImport]     = &parseAlias;
     p[tokMeta]       = &parseAlias;
@@ -3056,7 +3056,8 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokTry]        = &parseAlias;
 
     p[tokIf]         = &parseIf;
-    p[tokWhile]      = &parseWhile;
+    p[tokFor]        = &parseFor;
+    p[tokForeach]    = &parseAlias;
     return result;
 }
 
@@ -3136,7 +3137,6 @@ testable Compiler* createProtoCompiler(Arena* a) {
     };
     memset(proto->activeBindings, 0xFF, 4*countOperators);
     createBuiltins(proto);
-    print("in proto %d", -proto->activeBindings[opTimes] - 2)
     return proto;
 }
 
@@ -3356,6 +3356,7 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
             print("+: List %d value %d", newListId, cm->rawOverloads->cont[90])
         }
         cm->activeBindings[nameId] = -newListId - 2;
+        ++cm->countOverloadedNames; 
     } else {
         Int updatedListId = addMultiList(typeId, entityId, mbListId, cm->rawOverloads);
         if (updatedListId != -1) {
@@ -3592,9 +3593,9 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opTimesExt,  flOfFlFl, 0, 0, cm); // dummy
     buildOperator(opTimes,     intOfIntInt, emitInfix, 0, cm);
     buildOperator(opTimes,     flOfFlFl, emitInfix, 0, cm);
-    print("after opTimes %d", cm->rawOverloads->cont[90])
+    print("after opTimes %d", cm->activeBindings[0])
     buildOperator(opPlusExt,   strOfStrStr, 0, 0, cm); // dummy
-    print("p0 %d", cm->rawOverloads->cont[90])
+    print("p0 %d", cm->activeBindings[0])
     buildOperator(opPlus,      intOfIntInt, emitInfix, 0, cm);
     buildOperator(opPlus,      flOfFlFl, emitInfix, 0, cm);
     buildOperator(opPlus,      strOfStrStr, emitInfix, 0, cm);
@@ -3655,10 +3656,12 @@ private void createBuiltins(Compiler* cm) {
 private void importPrelude(Compiler* cm) {
     /// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
+    print("import prel 1 %d", cm->activeBindings[0])
     Int strToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int intToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
     Int floatToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokDouble}, cm);
 
+    print("import prel 1 %d", cm->activeBindings[0])
     EntityImport imports[6] =  {
         (EntityImport) { .name = nameOfStandard(strMathPi), .externalNameId = cgStrPi,
             .typeInd = 0},
@@ -3676,8 +3679,11 @@ private void importPrelude(Compiler* cm) {
     // These base types occupy the first places in the stringTable and in the types table.
     // So for them nameId == typeId, unlike type funcs like L(ist) and A(rray)
     for (Int j = strInt; j <= strVoid; j++) {
-        cm->activeBindings[j - strInt] = j - strInt;
+        cm->activeBindings[j - strInt + countOperators] = j - strInt;
     }
+    print("import prel 2 %d", cm->activeBindings[0])
+     
+    print("import prel %d", cm->activeBindings[0])
     importEntities(imports, sizeof(imports)/sizeof(EntityImport),
                    ((Int[]){strDouble - strFirstNonReserved, strToVoid, intToVoid, floatToVoid }), cm);
 }
@@ -3710,6 +3716,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
         return;
     }
 
+    print("init begin %d", proto->activeBindings[0])
     Compiler* cm = lx;
 
     Int initNodeCap = lx->tokens.len > 64 ? lx->tokens.len : 64;
@@ -3720,23 +3727,20 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiList(a);
-    print("b4 %d", proto->rawOverloads->cont[90])
     cm->rawOverloads = copyMultiList(proto->rawOverloads, cm->aTmp);
+    cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
     memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators);
-    print("after memcpy %d, proto %d", -cm->activeBindings[opTimes] - 2, -proto->activeBindings[opTimes]-2)
     Int extraActive = lx->stringTable->len - countOperators;
     if (extraActive > 0) {
         memset(cm->activeBindings + 4*countOperators, 0xFF, extraActive*4);
     }
-    print("after memset %d", -cm->activeBindings[opTimes] - 2)
     cm->entities = createInListEntity(proto->entities.cap, a);
     memcpy(cm->entities.cont, proto->entities.cont, proto->entities.len*sizeof(Entity));
     cm->entities.len = proto->entities.len;
     cm->entities.cap = proto->entities.cap;
 
-    cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->types.cont = allocateOnArena(proto->types.cap*8, a);
     memcpy(cm->types.cont, proto->types.cont, proto->types.len*4);
@@ -3753,6 +3757,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->scopeStack = createScopeStack();
 
     importPrelude(cm);
+    print("init end %d", cm->activeBindings[0])
 }
 
 private Int getFirstParamType(Int funcTypeId, Compiler* cm);
@@ -3803,29 +3808,39 @@ private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scr
     if (o + 1 < outerSentinel && ov[o] == -1) {
         VALIDATEP(ov[o + 1] > -1, errTypeOverloadsOnlyOneZero)
     }
-    // Validate every pocket of nonnegative outerType for: 1) homogeneity (either all concrete or all generic
-    // types) 2) non-intersection (for concrete types it's uniqueness, for generics non-intersection)
+    // Validate every pocket of nonnegative outerType for: 1) homogeneity (either all concrete or 
+    // all generic types) 2) non-intersection (for concrete types it's uniqueness, 
+    // for generics non-intersection)
 }
+
+#ifdef TEST
+void printIntArray(Int count, Arr(Int) arr);
+#endif
 
 testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     /// Creates a final overloads table for a name and returns its index
     /// Precondition: [rawOverloads] contain twoples of (typeId ref) (yes, "twople" = tuple of two)
     scratch->len = 0;
     Arr(Int) raw = cm->rawOverloads->cont;
-    Int rawStart = cm->activeBindings[nameId];
+    Int rawStart = -cm->activeBindings[nameId] - 2;
     Int rawSentinel = rawStart + 1 + raw[rawStart];
+    
+    print("creating for name %d", nameId) 
+    if (nameId == opTimes) { 
+        print("nameId %d raw start %d seninel %d", nameId, rawStart, rawSentinel) 
+    } 
     for (Int j = rawStart + 1; j < rawSentinel; j += 2) {
         Int outerType = typeGetOuter(raw[j], cm);
         push(outerType, scratch);
         push((j - rawStart - 1)/2, scratch);  // we need the index to get the original items after sorting
     }
+    printIntArray(scratch->len, scratch->cont);
     // Scratch contains twoples of (outerType ind)
 
     Int countOverloads = scratch->len/2;
     sortPairs(0, scratch->len, scratch->cont); // sort by outerType ASC
     Int newInd = cm->overloads.len;
 
-    reserveSpaceInList(3*countOverloads + 1, cm->overloads, cm); // 3 because it's: outerType, typeId, ref
     Arr(Int) ov = cm->overloads.cont;
     ov[newInd] = 3*countOverloads;
 
@@ -3861,6 +3876,11 @@ testable void createOverloads(Compiler* cm) {
     /// Fills [overloads] from [rawOverloads]. Replaces all indices in
     /// [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
     StackInt* scratch = createStackint32_t(16, cm->aTmp);
+    cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4, cm->a); 
+    // Each overload requires 3x4 = 12 bytes for the triple of (outerType typeId entityId).
+    // Plus you need an int per overloaded name to hold the length of the overloads for that name.
+    
+    cm->overloads.len = cm->countOverloads; 
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, scratch, cm);
         cm->activeBindings[j] = newIndex;
@@ -3994,7 +4014,6 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler
         ++cm->i; // CONSUME the param's type name
     }
 
-    VALIDATEP(cm->i < (fnSentinelToken - 1) && cm->tokens.cont[cm->i].tp == tokColon, errFnMissingBody)
     cm->types.cont[tentativeTypeInd] = arity + 1;
 
     Int uniqueTypeId = mergeType(tentativeTypeInd, cm);
@@ -4080,7 +4099,7 @@ private void parseToplevelSignatures(Compiler* cm) {
 
 /// Must agree in order with node types in tl.internal.h
 const char* nodeNames[] = {
-    "Int", "Long", "Float", "Bool", "String", "_", "DocComment",
+    "[]", "Int", "Long", "Double", "Bool", "String", "~", "_",
     "id", "call", "binding",
     "(:", "expr", "assign", ":=",
     "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
@@ -4232,11 +4251,6 @@ private Int isFunction(Int typeId, Compiler* cm) {
 
 //}}}
 //{{{ Parsing type names
-
-#ifdef TEST
-void printIntArray(Int count, Arr(Int) arr);
-#endif
-
 
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
     /// Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call.

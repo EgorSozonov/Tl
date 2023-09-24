@@ -216,63 +216,62 @@ typedef struct { //:Token
 // The following group of variants are transferred to the AST Byte for Byte, with no analysis
 // Their values must exactly correspond with the initial group of variants in "RegularAST"
 // The largest value must be stored in "topVerbatimTokenVariant" constant
-#define tokInt          0
-#define tokLong         1
-#define tokDouble       2
-#define tokBool         3    // pl2 = value (1 or 0)
-#define tokString       4
-#define tokTildes       5    // used to mark up to 3 anonymous params in a function. pl1 = count
-#define tokUnderscore   6
+#define tokNull         0
+#define tokInt          1
+#define tokLong         2
+#define tokDouble       3
+#define tokBool         4    // pl2 = value (1 or 0)
+#define tokString       5
+#define tokTildes       6    // used to mark up to 2 anonymous params in a function. pl1 = count
+#define tokUnderscore   7
 
-#define tokWord         7    // pl2 = index in the string table
-#define tokTypeName     8    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
-#define tokKwArg        9    // pl2 = same as tokWord. The ":argName"
-#define tokStructField 10    // pl2 = same as tokWord. The ".structField"
-#define tokOperator    11    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    12    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "_smth"
-#define tokArrow       13
-#define tokPub         14
+#define tokWord         8    // pl2 = index in the string table
+#define tokTypeName     9    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
+#define tokKwArg       10    // pl2 = same as tokWord. The ":argName"
+#define tokStructField 11    // pl2 = same as tokWord. The ".structField"
+#define tokOperator    12    // pl1 = OperatorToken, one of the "opT" constants below
+#define tokAccessor    13    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "_smth"
+#define tokArrow       14
+#define tokPub         15
 
 // Single-statement token types
-#define tokStmt        15    // firstSpanTokenType
-#define tokParens      16    // subexpressions and struct/sum type instances
-#define tokCall        17    // pl1 = nameId, index in the string table
-#define tokTypeCall    18    // pl1 = nameId
-#define tokList        19    // pl1 = 1 iff it's an array
-#define tokHashmap     20
-#define tokBrackets    21
-#define tokAssignment  22
-#define tokReassign    23    // :=
-#define tokMutation    24    // pl1 = (6 bits opType, 26 bits startBt of the operator symbol) "+="
-#define tokAlias       25
-#define tokAssert      26
-#define tokBreakCont   27    // pl1 = BIG iff it's a continue
-#define tokDefer       28
+#define tokStmt        16    // firstSpanTokenType
+#define tokParens      17    // subexpressions and struct/sum type instances
+#define tokCall        18    // pl1 = nameId, index in the string table
+#define tokTypeCall    19    // pl1 = nameId
+#define tokList        20    // pl1 = 1 iff it's an array
+#define tokHashmap     21
+#define tokBrackets    22
+#define tokAssignment  23
+#define tokReassign    24    // :=
+#define tokMutation    25    // "+=". pl1 = (6 bits opType, 26 bits startBt of the operator symbol)
+#define tokAlias       26
+#define tokAssert      27
+#define tokBreakCont   28    // pl1 = BIG iff it's a continue
 #define tokEmbed       29    // Embed a text/binary file as a string literal/binary resource
 #define tokIface       30
 #define tokImport      31
 #define tokReturn      32
 #define tokTry         33    // early exit
-#define tokColon       34    // not a real span, but placed here so the parser can dispatch on it
-#define tokElse        35    // not a real span, but placed here so the parser can dispatch on it
+#define tokElse        34    // not a real span, but placed here so the parser can dispatch on it
 
 // Parenthesized (multi-statement) token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       36    // denoted by do(). firstParenSpanTokenType
+#define tokScope       35    // denoted by do(). firstParenSpanTokenType
+#define tokFn          36    // f(a Int: body)
 #define tokCatch       37    // paren "catch(e: print(e))"
-#define tokFn          38    // f(a Int: body)
-#define tokFor         39
-#define tokMeta        40
+#define tokFinally     38    // paren "catch(e: print(e))"
+#define tokMeta        39
 
 // Resumable core forms
-#define tokIf          41    // "if( "
-#define tokIfPr        42    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       43    // "(*m " or "(match " pattern matching on sum type tag
-#define tokImpl        44
-#define tokWhile       45
+#define tokIf          40    // "if("
+#define tokIfPr        41    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       42    // "match(" pattern matching on sum type tag
+#define tokImpl        43
+#define tokFor         44
+#define tokForeach     45
 
 #define topVerbatimTokenVariant tokUnderscore
-#define topVerbatimType tokString
-#define firstKeywordToken tokPub // The first token that is read in as a keyword
+#define topVerbatimType    tokString
 #define firstSpanTokenType tokStmt
 #define firstParenSpanTokenType tokScope
 #define firstResumableSpanTokenType tokIf
@@ -410,8 +409,8 @@ typedef struct { // :OpDef
 #define countOperators     42
 
 #define countReservedLetters   23 // length of the interval of letters that may be init for reserved words (A to W)
-#define countCoreForms (tokWhile - tokAlias + 1)
-#define countSyntaxForms (tokWhile + 1)
+#define countCoreForms (tokForeach - tokAlias + 1)
+#define countSyntaxForms (tokForeach + 1)
 typedef struct Compiler Compiler;
 
 
@@ -539,6 +538,7 @@ struct Compiler { //:Compiler
     Int inpLength;
     InListToken tokens;
     InListInt newlines;
+    Int indentation; 
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
     Stackint32_t* stringTable;
@@ -564,6 +564,7 @@ struct Compiler { //:Compiler
     StackInt* typeStack;  // [aTmp]
     StackInt* tempStack;  // [aTmp]
     Int countOverloads;
+    Int countOverloadedNames; 
     MultiList* rawOverloads; // [aTmp]
 
     // GENERAL STATE

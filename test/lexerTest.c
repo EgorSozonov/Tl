@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../source/tl.internal.h"
+#include "../src/tl.internal.h"
 #include "tlTest.h"
 
 

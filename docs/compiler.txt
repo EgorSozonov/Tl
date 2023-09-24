@@ -65,6 +65,12 @@ startByte of each string
 
 (BIG = 70million)
 
+Structure of activeBindings after the {initializeParser}:
+
+    a. names for operators ({countOperators} of them) - permanently in scope
+    b. names for primitive types, from Int to Void - permanently in scope
+    c. parsed names - temporarily or permanently in scope 
+
 15. loopCounter = used to assign unique labels to loops during parsing. Restarts at function start
 
 16. nodes = list of AST nodes emitted by the parser
