@@ -6,5 +6,5 @@ gcc -g3 --std=c2x -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-er
 -Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
 -o _bin/typerTest \
 -iquote src -iquote test test/typerTest.c src/tl.c \
--DLEXER_TEST -DTYPER_TEST -DTEST  \
+-DLEXER_TEST -DTYPER_TEST -DTEST -DTRACE  \
 -lm && _bin/typerTest

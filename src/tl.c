@@ -1029,8 +1029,8 @@ const char standardText[] = "aaliasassertbreakcatchcontinuedoelseembedfalseffina
 const Int standardStrings[] = {
       0,   1,   6,  12,  17, // catch
      22,  30,  32,  36,  41, // false
-     46,  47,  54,  57,  64, // h 
-     65,  67,  71,  75,  81, // interface 
+     46,  47,  54,  57,  64, // h
+     65,  67,  71,  75,  81, // interface
      90,  91,  96, 100, 103, // return
     109, 113, 116,           // Int
     119, 123, 129, 133, 139, // Void
@@ -1042,10 +1042,10 @@ const Int standardStrings[] = {
 
 const Int standardKeywords[] = {
     keywArray,    tokAlias,   tokAssert, keywBreak,  tokCatch,
-    keywContinue, tokScope,   tokElse,   tokEmbed,   keywFalse,    
-    tokFn,        tokFinally, tokFor,    tokForeach, tokHashmap, 
-    tokIf,        tokIfPr,    tokImpl,   tokImport,  tokIface, 
-    tokList,      tokMatch,   tokMeta,   tokPub,     tokReturn,  
+    keywContinue, tokScope,   tokElse,   tokEmbed,   keywFalse,
+    tokFn,        tokFinally, tokFor,    tokForeach, tokHashmap,
+    tokIf,        tokIfPr,    tokImpl,   tokImport,  tokIface,
+    tokList,      tokMatch,   tokMeta,   tokPub,     tokReturn,
     keywTrue,     tokTry
 };
 
@@ -1108,6 +1108,23 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
     result->len = newLen;
     cleanup:
     fclose(file);
+    return result;
+}
+
+testable String* prepareInput(const char* content, Arena* a) {
+    /// Allocates a test input into an arena after prepending it with the standardText.
+    if (content == null) return null;
+    const char* ind = content;
+    Int lenStandard = sizeof(standardText) - 1; // -1 for the invisible \0 char at end
+    Int len = 0;
+    for (; *ind != '\0'; ind++) {
+        len++;
+    }
+
+    String* result = allocateOnArena(lenStandard + len + 1 + sizeof(String), a); // + 1 for the \0
+    result->len = lenStandard + len;
+    memcpy(result->cont, standardText, lenStandard);
+    memcpy(result->cont + lenStandard, content, len + 1); // + 1 to copy the \0
     return result;
 }
 
@@ -1206,12 +1223,9 @@ private Int determineReservedB(Int startBt, Int lenBts, Compiler* lx) {
 }
 
 private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strCatch, strDefer, startBt, lenBts, lx);
+    return probeReservedWords(strCatch, strElse, startBt, lenBts, lx);
 }
 
-private Int determineReservedD(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strDefer, strElse, startBt, lenBts, lx);
-}
 
 private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
     return probeReservedWords(strElse, strFalse, startBt, lenBts, lx);
@@ -1246,11 +1260,7 @@ private Int determineReservedR(Int startBt, Int lenBts, Compiler* lx) {
 }
 
 private Int determineReservedT(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strTrue, strWhile, startBt, lenBts, lx);
-}
-
-private Int determineReservedW(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strWhile, strFirstNonReserved, startBt, lenBts, lx);
+    return probeReservedWords(strTrue, strFirstNonReserved, startBt, lenBts, lx);
 }
 
 private Int determineUnreserved(Int startBt, Int lenBts, Compiler* lx) {
@@ -1972,7 +1982,7 @@ private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     wrapInAStatement(source, lx);
     if (j < lx->inpLength && NEXT_BT == aBracketRight) {
-        pushIntokens((Token){.tp = tokNull, .startBt = lx->i, .lenBts = 2}, lx); 
+        pushIntokens((Token){.tp = tokNull, .startBt = lx->i, .lenBts = 2}, lx);
         lx->i += 2; // CONSUME the [] (aka null)
     } else {
         openPunctuation(tokBrackets, slSubexpr, lx->i, lx);
@@ -2140,7 +2150,6 @@ private ReservedProbe (*tabulateReservedbytes(Arena* a))[countReservedLetters] {
     p[0] = determineReservedA;
     p[1] = determineReservedB;
     p[2] = determineReservedC;
-    p[3] = determineReservedD;
     p[4] = determineReservedE;
     p[5] = determineReservedF;
     p[7] = determineReservedH;
@@ -2150,7 +2159,6 @@ private ReservedProbe (*tabulateReservedbytes(Arena* a))[countReservedLetters] {
     p[15] = determineReservedP;
     p[17] = determineReservedR;
     p[19] = determineReservedT;
-    p[22] = determineReservedW;
     return result;
 }
 
@@ -2318,6 +2326,15 @@ private Int createEntity(untt name, Compiler* cm) {
 private Int calcSentinel(Token tok, Int tokInd) {
     /// Calculates the sentinel token for a token at a specific index
     return (tok.tp >= firstSpanTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
+}
+
+private void printName(Int name, Compiler* cm) {
+    untt unsign = (untt)name;
+    Int nameId = unsign & LOWER24BITS;
+    Int len = (unsign >> 24) & 0xFF;
+    Int startBt = cm->stringTable->cont[nameId];
+    fwrite(cm->sourceCode->cont + startBt, 1, len, stdout);
+    printf("\n");
 }
 
 //}}}
@@ -3015,6 +3032,33 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
+private Int isFunction(Int typeId, Compiler* cm);
+private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm);
+
+private Int importAndActivateEntity(Entity ent, Compiler* cm) {
+    /// Adds an import to the entities table, activates it and, if function, adds an overload for it
+    Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
+    Int isAFunc = isFunction(ent.typeId, cm);
+    if(!(existingBinding == -1 || isAFunc > -1)) {
+        printName(ent.name, cm);
+        print("existing %d nameId %d", existingBinding, ent.name & LOWER24BITS)
+    }
+    VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
+
+    Int newEntityId = cm->entities.len;
+    pushInentities(ent, cm);
+    Int nameId = ent.name & LOWER24BITS;
+
+    if (isAFunc > -1) {
+        addRawOverload(nameId, ent.typeId, newEntityId, cm);
+        pushInimports(nameId, cm);
+    } else {
+        cm->activeBindings[nameId] = newEntityId;
+    }
+    return newEntityId;
+}
+
+
 testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
     for (int j = 0; j < countEntities; j++) {
         EntityImport impt = impts[j];
@@ -3356,7 +3400,7 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
             print("+: List %d value %d", newListId, cm->rawOverloads->cont[90])
         }
         cm->activeBindings[nameId] = -newListId - 2;
-        ++cm->countOverloadedNames; 
+        ++cm->countOverloadedNames;
     } else {
         Int updatedListId = addMultiList(typeId, entityId, mbListId, cm->rawOverloads);
         if (updatedListId != -1) {
@@ -3365,26 +3409,6 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm) 
     }
     ++cm->countOverloads;
 }
-
-private Int importAndActivateEntity(Entity ent, Compiler* cm) {
-    /// Adds an import to the entities table, activates it and, if function, adds an overload for it
-    Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
-    Int isAFunc = isFunction(ent.typeId, cm);
-    VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
-
-    Int newEntityId = cm->entities.len;
-    pushInentities(ent, cm);
-    Int nameId = ent.name & LOWER24BITS;
-
-    if (isAFunc > -1) {
-        addRawOverload(nameId, ent.typeId, newEntityId, cm);
-        pushInimports(nameId, cm);
-    } else {
-        cm->activeBindings[nameId] = newEntityId;
-    }
-    return newEntityId;
-}
-
 
 private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
     Byte* types = (Byte*)cm->types.cont;
@@ -3493,11 +3517,14 @@ private void buildStandardStrings(Compiler* lx) {
     for (Int j = 0; j < countOperators; j++) {
         push(0, lx->stringTable);
     }
+
+    print("in bld standard strings 0 %d", lx->activeBindings[59])
     for (Int i = strFirstNonReserved; i < strSentinel; i++) {
         Int startBt = standardStrings[i];
         addStringDict(lx->sourceCode->cont, startBt, standardStrings[i + 1] - startBt,
                       lx->stringTable, lx->stringDict);
     }
+    print("in bld standard strings %d", lx->activeBindings[59])
 }
 
 testable Int stToNameId(Int a) {
@@ -3656,12 +3683,10 @@ private void createBuiltins(Compiler* cm) {
 private void importPrelude(Compiler* cm) {
     /// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
-    print("import prel 1 %d", cm->activeBindings[0])
     Int strToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int intToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
     Int floatToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokDouble}, cm);
 
-    print("import prel 1 %d", cm->activeBindings[0])
     EntityImport imports[6] =  {
         (EntityImport) { .name = nameOfStandard(strMathPi), .externalNameId = cgStrPi,
             .typeInd = 0},
@@ -3681,9 +3706,7 @@ private void importPrelude(Compiler* cm) {
     for (Int j = strInt; j <= strVoid; j++) {
         cm->activeBindings[j - strInt + countOperators] = j - strInt;
     }
-    print("import prel 2 %d", cm->activeBindings[0])
-     
-    print("import prel %d", cm->activeBindings[0])
+
     importEntities(imports, sizeof(imports)/sizeof(EntityImport),
                    ((Int[]){strDouble - strFirstNonReserved, strToVoid, intToVoid, floatToVoid }), cm);
 }
@@ -3695,7 +3718,8 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
         // this assumes that the source code is prefixed with the "standardText"
-        .i = sizeof(standardText) - 1, .langDef = proto->langDef, .sourceCode = sourceCode,
+        .i = sizeof(standardText) - 1, .langDef = proto->langDef,
+        .sourceCode = prepareInput((const char *)sourceCode->cont, a),
         .inpLength = sourceCode->len,
         .tokens = createInListToken(LEXER_INIT_SIZE, a),
         .newlines = createInListInt(500, a),
@@ -3703,7 +3727,6 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
         .lexBtrack = createStackBtToken(16, aTmp),
         .stringTable = copyStringTable(proto->stringTable, a),
         .stringDict = copyStringDict(proto->stringDict, a),
-        .sourceCode = sourceCode,
         .wasError = false, .errMsg = &empty,
         .a = a, .aTmp = aTmp
     };
@@ -3716,7 +3739,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
         return;
     }
 
-    print("init begin %d", proto->activeBindings[0])
     Compiler* cm = lx;
 
     Int initNodeCap = lx->tokens.len > 64 ? lx->tokens.len : 64;
@@ -3734,7 +3756,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators);
     Int extraActive = lx->stringTable->len - countOperators;
     if (extraActive > 0) {
-        memset(cm->activeBindings + 4*countOperators, 0xFF, extraActive*4);
+        memset(cm->activeBindings + countOperators, 0xFF, extraActive*4);
     }
     cm->entities = createInListEntity(proto->entities.cap, a);
     memcpy(cm->entities.cont, proto->entities.cont, proto->entities.len*sizeof(Entity));
@@ -3757,7 +3779,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->scopeStack = createScopeStack();
 
     importPrelude(cm);
-    print("init end %d", cm->activeBindings[0])
 }
 
 private Int getFirstParamType(Int funcTypeId, Compiler* cm);
@@ -3792,6 +3813,7 @@ private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scr
         VALIDATEP(ov[o] != prevParamOuter, errTypeOverloadsIntersect)
         prevParamOuter = ov[o];
     }
+    print("start %d o %d, outerSentinel %d countOverloads %d", start, o, outerSentinel, countOverloads)
     if (o > 0) {
         // Since we have some param outer types, we need to check every other outer type
         // The simple (though rough) criterion is they must have different arities
@@ -3801,6 +3823,7 @@ private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scr
                 continue;
             }
             Int outerArityNegated = -typeGetArity(ov[k], cm) - 1;
+
             VALIDATEP(binarySearch(outerArityNegated, 0, countParamOuter, ov) == -1,
                       errTypeOverloadsIntersect)
         }
@@ -3808,8 +3831,8 @@ private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scr
     if (o + 1 < outerSentinel && ov[o] == -1) {
         VALIDATEP(ov[o + 1] > -1, errTypeOverloadsOnlyOneZero)
     }
-    // Validate every pocket of nonnegative outerType for: 1) homogeneity (either all concrete or 
-    // all generic types) 2) non-intersection (for concrete types it's uniqueness, 
+    // Validate every pocket of nonnegative outerType for: 1) homogeneity (either all concrete or
+    // all generic types) 2) non-intersection (for concrete types it's uniqueness,
     // for generics non-intersection)
 }
 
@@ -3824,11 +3847,11 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     Arr(Int) raw = cm->rawOverloads->cont;
     Int rawStart = -cm->activeBindings[nameId] - 2;
     Int rawSentinel = rawStart + 1 + raw[rawStart];
-    
-    print("creating for name %d", nameId) 
-    if (nameId == opTimes) { 
-        print("nameId %d raw start %d seninel %d", nameId, rawStart, rawSentinel) 
-    } 
+
+    print("creating for name %d", nameId)
+    if (nameId == opTimes) {
+        print("nameId %d raw start %d seninel %d", nameId, rawStart, rawSentinel)
+    }
     for (Int j = rawStart + 1; j < rawSentinel; j += 2) {
         Int outerType = typeGetOuter(raw[j], cm);
         push(outerType, scratch);
@@ -3876,11 +3899,11 @@ testable void createOverloads(Compiler* cm) {
     /// Fills [overloads] from [rawOverloads]. Replaces all indices in
     /// [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
     StackInt* scratch = createStackint32_t(16, cm->aTmp);
-    cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4, cm->a); 
+    cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4, cm->a);
     // Each overload requires 3x4 = 12 bytes for the triple of (outerType typeId entityId).
     // Plus you need an int per overloaded name to hold the length of the overloads for that name.
-    
-    cm->overloads.len = cm->countOverloads; 
+
+    cm->overloads.len = cm->countOverloads;
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, scratch, cm);
         cm->activeBindings[j] = newIndex;
@@ -4844,6 +4867,10 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
     return false;
 }
 
+#if defined(TRACE) && defined(TEST)
+private void printExpSt(StackInt* st);
+#endif
+
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
     /// Shifts ints from start and until the end to the left.
     /// E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
@@ -4862,21 +4889,22 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
 
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
     /// Populates the expression's type stack with the operands and functions of an expression
-    cm->expStack->len = 0;
+    StackInt* st = cm->expStack;
+    st->len = 0;
     for (Int j = indExpr + 1; j < sentinelNode; ++j) {
         Node nd = cm->nodes.cont[j];
         if (nd.tp <= tokString) {
-            push((Int)nd.tp, cm->expStack);
+            push((Int)nd.tp, st);
         } else if (nd.tp == nodCall) {
-            push(BIG + nd.pl2, cm->expStack); // signifies that it's a call, and its arity
-            push((nd.pl2 > 0 ? -nd.pl1 - 2 : nd.pl1), cm->expStack);
+            push(BIG + nd.pl2, st); // signifies that it's a call, and its arity
+            push((nd.pl2 > 0 ? -nd.pl1 - 2 : nd.pl1), st);
             // index into overloadIds, or entityId for 0-arity fns
 
             ++(*currAhead);
         } else if (nd.pl1 > -1) { // entityId
-            push(cm->entities.cont[nd.pl1].typeId, cm->expStack);
+            push(cm->entities.cont[nd.pl1].typeId, st);
         } else { // overloadId
-            push(nd.pl1, cm->expStack); // overloadId
+            push(nd.pl1, st); // overloadId
         }
     }
 #if defined(TRACE) && defined(TEST)
@@ -4930,7 +4958,6 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 
 #if defined(TRACE) && defined(TEST)
             if (!ovFound) {
-                print("cm->overloadIds.cont[o] %d cm->overloadIds.cont[o + 1] %d", cm->overloadIds.cont[o], cm->overloadIds.cont[o + 1])
                 printExpSt(st);
             }
 #endif
@@ -5763,23 +5790,6 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
 }
 
 
-String* prepareInput(const char* content, Arena* a) {
-    /// Allocates a test input into an arena after prepending it with the standardText.
-    if (content == null) return null;
-    const char* ind = content;
-    Int lenStandard = sizeof(standardText) - 1; // -1 for the invisible \0 char at end
-    Int len = 0;
-    for (; *ind != '\0'; ind++) {
-        len++;
-    }
-
-    String* result = allocateOnArena(lenStandard + len + 1 + sizeof(String), a); // + 1 for the \0
-    result->len = lenStandard + len;
-    memcpy(result->cont, standardText, lenStandard);
-    memcpy(result->cont + lenStandard, content, len + 1); // + 1 to copy the \0
-    return result;
-}
-
 int equalityLexer(Compiler a, Compiler b) {
     /// Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
     /// differing token otherwise
@@ -5815,10 +5825,10 @@ int equalityLexer(Compiler a, Compiler b) {
     return (a.tokens.len == b.tokens.len) ? -2 : i;
 }
 
+
 private void printExpSt(StackInt* st) {
     printIntArray(st->len, st->cont);
 }
-
 
 private void typePrintGenElt(Int v) {
     Int upper = (v >> 24) & 0xFF;
