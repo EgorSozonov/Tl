@@ -3616,6 +3616,7 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opRemainder, intOfIntInt, emitInfix, 0, cm);
     buildOperator(opBitwiseAnd, boolOfBoolBool, 0, 0, cm); // dummy
     buildOperator(opBoolAnd,    boolOfBoolBool, emitInfixExternal, cgStrLogicalAnd, cm);
+    buildOperator(opPtr,       boolOfBoolBool, emitPrefixExternal, cgStrLogicalAnd, cm); // dummy
     buildOperator(opIsNull,    boolOfBoolBool, 0, 0, cm); // dummy
     buildOperator(opTimesExt,  flOfFlFl, 0, 0, cm); // dummy
     buildOperator(opTimes,     intOfIntInt, emitInfix, 0, cm);
@@ -3632,6 +3633,7 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opMinus,     intOfIntInt, emitInfix, 0, cm);
     buildOperator(opMinus,     flOfFlFl, emitInfix, 0, cm);
     buildOperator(opDivByExt,  intOfIntInt, 0, 0, cm); // dummy
+    buildOperator(opIntersection,  intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opDivBy,     intOfIntInt, emitInfix, 0, cm);
     buildOperator(opDivBy,     flOfFlFl, emitInfix, 0, cm);
     buildOperator(opToString, strOfInt, emitInfixDot, cgStrToStr, cm);
@@ -3813,18 +3815,16 @@ private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scr
         VALIDATEP(ov[o] != prevParamOuter, errTypeOverloadsIntersect)
         prevParamOuter = ov[o];
     }
-    print("start %d o %d, outerSentinel %d countOverloads %d", start, o, outerSentinel, countOverloads)
-    if (o > 0) {
-        // Since we have some param outer types, we need to check every other outer type
-        // The simple (though rough) criterion is they must have different arities
-        Int countParamOuter = o;
-        for (Int k = countParamOuter; k < outerSentinel; k++) {
+    if (o > start) {
+        // Since we have some param outer types, we need to check every positive outer type, and -1
+        // The simple (though rough) criterion is they must not have the same arity as any param outer
+        for (Int k = o; k < outerSentinel; k++) {
             if (ov[k] == -1) {
                 continue;
             }
             Int outerArityNegated = -typeGetArity(ov[k], cm) - 1;
-
-            VALIDATEP(binarySearch(outerArityNegated, 0, countParamOuter, ov) == -1,
+            print("k %d outerArityNegated %d", k, outerArityNegated)
+            VALIDATEP(binarySearch(outerArityNegated, start, o, ov) == -1,
                       errTypeOverloadsIntersect)
         }
     }
@@ -3846,12 +3846,16 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     scratch->len = 0;
     Arr(Int) raw = cm->rawOverloads->cont;
     Int rawStart = -cm->activeBindings[nameId] - 2;
+
+#if defined(SAFETY) || defined(TEST)
+    if (rawStart == -1) {
+        print("nameId %d", nameId) 
+    }
+    VALIDATEI(rawStart != -1, iErrorImportedFunctionNotInScope)
+#endif
+
     Int rawSentinel = rawStart + 1 + raw[rawStart];
 
-    print("creating for name %d", nameId)
-    if (nameId == opTimes) {
-        print("nameId %d raw start %d seninel %d", nameId, rawStart, rawSentinel)
-    }
     for (Int j = rawStart + 1; j < rawSentinel; j += 2) {
         Int outerType = typeGetOuter(raw[j], cm);
         push(outerType, scratch);
