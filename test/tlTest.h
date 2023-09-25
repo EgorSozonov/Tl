@@ -25,6 +25,7 @@ void typePrint(Int, Compiler*);
 void pushIntokens(Token, Compiler*);
 Int stToNameId(Int a);
 void printRawOverload(Int listInd, Compiler* cm);
+void printName(Int name, Compiler* cm);
 
 #ifdef LEXER_TEST
 

@@ -288,7 +288,7 @@ typedef struct { //:Token
 #define nodBinding      9    // pl1 = index of entity, pl2 = 1 if it's a type binding
 
 // Punctuation (inner node)
-#define nodScope       10     // This syntax form is resumable but trivially so, 
+#define nodScope       10     // This syntax form is resumable but trivially so,
                               // that's why it's not grouped with the others
 #define nodExpr        11
 #define nodAssignment  12
@@ -310,7 +310,7 @@ typedef struct { //:Token
 #define nodReturn      25
 #define nodTry         26     // the Rust kind of "try" (early return from current function)
 #define nodIfClause    27
-#define nodWhile       28     // pl1 = id of loop (unique within a function) if it needs to 
+#define nodWhile       28     // pl1 = id of loop (unique within a function) if it needs to
                               // have a label in codegen
 #define nodWhileCond   29
 
@@ -534,7 +534,7 @@ struct Compiler { //:Compiler
     Int inpLength;
     InListToken tokens;
     InListInt newlines;
-    Int indentation; 
+    Int indentation;
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
     Stackint32_t* stringTable;
@@ -560,7 +560,7 @@ struct Compiler { //:Compiler
     StackInt* typeStack;  // [aTmp]
     StackInt* tempStack;  // [aTmp]
     Int countOverloads;
-    Int countOverloadedNames; 
+    Int countOverloadedNames;
     MultiAssocList* rawOverloads; // [aTmp]
 
     // GENERAL STATE

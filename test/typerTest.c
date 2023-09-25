@@ -442,8 +442,10 @@ void overloadsTest1(Int* countFailed, Compiler* proto, Arena* a) {
         printString(cm->errMsg);
         return;
     }
-    print("created the overls %d", cm->activeBindings[opTimes])
     printOverloads(opTimes, cm);
+    print("Entities:")
+    print("13:")
+    printName(cm->entities.cont[13].name, cm);
 }
 
 //}}}
