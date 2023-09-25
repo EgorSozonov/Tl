@@ -1,5 +1,4 @@
-main = def(:
-    print(`10.0*(-pi) + 1.0 = `)
-    result = +(*(10.0 -math-pi) 1.0)
-    print(result)
-)
+main = f:
+    print `-10.0 * math-pi + 1.0 = `
+    result = -10.0 * math-pi + 1.0
+    print result

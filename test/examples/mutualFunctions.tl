@@ -1,14 +1,12 @@
-foo = def(s String flag Bool => Int:
-    if( flag : return #s
-          else return getLength(s)
-    )
-)
+foo = f: String, Bool => Int
+    s, flag
+    if: flag => return #s
+        else    return getLength s
 
-getLength = def(s String => Int:
-    return foo(s true)
-)
+getLength = f: String => Int.
+    s.
+    return foo s true
 
-main = def(:
-    result = foo(`Hello world` false)
-    print(+(`Result is ` $result))
-)
+main = f:
+    result = foo `Hello world` false
+    print $ concat $ `Result is ` ;result

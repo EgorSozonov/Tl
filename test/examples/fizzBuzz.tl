@@ -1,20 +1,16 @@
-fizzBuzz = def(:
+fizzBuzz = f:
     i = 1
-    while( <(i 101):
-        worker(i)
+    for: ; i < 101;
+        worker i
         i += 1
-    )
-)
 
-worker = def(i Int:
-    if( and(==(%(i 3) 0)
-            ==(%(i 5) 0)) : print(`FizzBuzz`)
-         ==(%(i 3) 0)     : print(`Fizz`)
-         ==(%(i 5) 0)     : print(`Buzz`)
-                       else print(i)
-    )
-)
-                            
-main = def(:
-    fizzBuzz()
-)
+worker = f:Int =>. i.
+    if: i % 3 == 0 &&
+            i % 5 == 0 => print `FizzBuzz`
+         i % 3 == 0   => print `Fizz`
+         i % 5 == 0   => print `Buzz`
+                    else print i
+
+
+main = f:
+    fizzBuzz _

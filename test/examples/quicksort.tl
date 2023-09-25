@@ -1,30 +1,26 @@
-swap = fn([E] i Int j Int arr L(E):
-    tmp = arr@i
-    arr@i = arr@j
-    arr@j = tmp
-)
+swap = f: [E] Int, Int, L(E)=>. i, j, arr.
+    tmp = arr_i
+    arr_i = arr_j
+    arr_j = tmp
 
-quickSort = fn([E] arr L(E):
-    stack = L(Int) () 
+quickSort = n: [E] L(E) =>. arr.
+    stack = l(L Int)
     i = 0
     j = #arr
-    while(<(i j): 
-        if(<(arr@i arr@j):
-            >(arr@i arr@j):
+    for: i < j;;
+        if: arr_i < arr_j =>
+            arr_i > arr_j =>
             else
-)))
 
-print = fn(lst L(Int):
-    printNoLn(`[`)
-    while(i = 0. <(i #lst):
-        printNoLn(arr@i)
-        printNoLn(` `)
-    )
-    printNoLn(`]`)
-)
+print = f: L(Int) =>. lst.
+    printNoLn `[`
+    for (i = 0; i < #lst;;
+        printNoLn arr_i
+        printNoLn ` `
+    printNoLn `]`
 
-main = fn(:
-    leArray = (5 1 2 4 3)
-    quickSort(leArray)
-    print(leArray)
-)
+main = f:
+    leArray = a(5 1 2 4 3)
+    quickSort leArray
+    print leArray
+
