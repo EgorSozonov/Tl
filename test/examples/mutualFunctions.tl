@@ -1,12 +1,12 @@
-foo = f: String, Bool => Int
-    s, flag
-    if: flag => return #s
-        else    return getLength s
+foo = {s String flag Bool => Int ::
+    if(flag => return #s)
+    else(return s.getLength)
 
-getLength = f: String => Int.
-    s.
-    return foo s true
+getLength = {s String => Int ::
+    return s.foo(true)
+}
 
-main = f:
-    result = foo `Hello world` false
-    print $ concat $ `Result is ` ;result
+main = {
+    result = `Hello world`.foo(false)
+    .print(`Result is ` $result)
+}

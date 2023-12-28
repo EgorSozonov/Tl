@@ -1,16 +1,16 @@
-fizzBuzz = f:
-    i = 1
-    for: ; i < 101;
-        worker i
-        i += 1
+fizzBuzz = {
+    for i = 1; i < 101; i++ (
+        i.worker
+    )
+}
 
-worker = f:Int =>. i.
-    if: i % 3 == 0 &&
-            i % 5 == 0 => print `FizzBuzz`
-         i % 3 == 0   => print `Fizz`
-         i % 5 == 0   => print `Buzz`
-                    else print i
+worker = { i Int => ::
+    if(i % 3 == 0 && i % 5 == 0 => `FizzBuzz`.print)
+    ei(i % 3 == 0 => `Fizz`.print)
+    ei(i % 5 == 0 => `Buzz`.print)
+    else(i.print)
+}
 
-
-main = f:
-    fizzBuzz _
+main = {
+    .fizzBuzz
+}
