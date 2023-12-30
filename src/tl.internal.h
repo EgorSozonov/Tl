@@ -192,17 +192,16 @@ typedef struct {
 //}}}
 
 /** Backtrack token, used during lexing to keep track of all the nested stuff */
-typedef struct { //:BtToken
+typedef struct { /* :BtToken */
     untt tp : 6;
     Int tokenInd;
     Int countClauses;
     untt spanLevel : 3;
-    bool wasOrigDollar;
 } BtToken;
 
 DEFINE_STACK_HEADER(BtToken)
 
-typedef struct { //:Token
+typedef struct { /* :Token */
     untt tp : 6;
     untt lenBts: 26;
     untt startBt;
@@ -210,10 +209,10 @@ typedef struct { //:Token
     untt pl2;
 } Token;
 
-/// Regular (leaf) Token types
-// The following group of variants are transferred to the AST byte for byte, with no analysis
-// Their values must exactly correspond with the initial group of variants in "RegularAST"
-// The largest value must be stored in "topVerbatimTokenVariant" constant
+/* Regular (leaf) Token types
+ The following group of variants are transferred to the AST byte for byte, with no analysis
+ Their values must exactly correspond with the initial group of variants in "RegularAST"
+ The largest value must be stored in "topVerbatimTokenVariant" constant */
 #define tokInt          0
 #define tokLong         1
 #define tokDouble       2
@@ -304,43 +303,43 @@ typedef struct { //:Token
 #define nodDefer       19
 #define nodEmbed       20     // Embed a text file as a string literal, or a binary resource file
 #define nodImport      21     // This is for test files only, no need to import anything in main
-#define nodFnDef       22     // pl1 = entityId
+#define nodFnDef       22     /* pl1 = entityId */
 #define nodIface       23
 #define nodMeta        24
 #define nodReturn      25
-#define nodTry         26     // the Rust kind of "try" (early return from current function)
+#define nodTry         26     /* the Rust kind of "try" (early return from current function) */
 #define nodIfClause    27
-#define nodWhile       28     // pl1 = id of loop (unique within a function) if it needs to
-                              // have a label in codegen
+#define nodWhile       28     /* pl1 = id of loop (unique within a function) if it needs to
+                               have a label in codegen */
 #define nodWhileCond   29
 
-// Resumable core forms
+/* Resumable core forms */
 #define nodIf          30
 #define nodImpl        31
-#define nodMatch       32     // pattern matching on sum type tag
+#define nodMatch       32     /* pattern matching on sum type tag */
 
 #define firstResumableForm nodIf
 #define countResumableForms (nodMatch - nodIf + 1)
 #define countSpanForms (nodMatch - nodScope + 1)
 
-#define metaDoc         1     // Doc comments
-#define metaDefault     2     // Default values for type arguments
+#define metaDoc         1     /* Doc comments */
+#define metaDefault     2     /* Default values for type arguments */
 
 
 /**
- * There is a closed set of operators in the language.
- *
- * For added flexibility, some operators may be extended into one more planes,
- * for example '+' may be extended into '+.', while '/' may be extended into '/.'.
- * These extended operators are declared by the language, and may be defined
- * for any type by the user, with the return type being arbitrary.
- * For example, the type of 3D vectors may have two different multiplication
- * operators: *. for vector product and * for scalar product.
- *
- * Plus, many have automatic assignment counterparts.
- * For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
- */
-typedef struct { // :OpDef
+ There is a closed set of operators in the language.
+ 
+ For added flexibility, some operators may be extended into one more planes,
+ for example '+' may be extended into '+.', while '/' may be extended into '/.'.
+ These extended operators are declared by the language, and may be defined
+ for any type by the user, with the return type being arbitrary.
+ For example, the type of 3D vectors may have two different multiplication
+ operators: *. for vector product and * for scalar product.
+ 
+ Plus, many have automatic assignment counterparts.
+ For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
+*/
+typedef struct { /* :OpDef */
     Byte bytes[4];
     Int arity;
     /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
@@ -358,75 +357,76 @@ typedef struct { // :OpDef
 #define preceFn 5
 #define precePrefix 6
 
-/// OperatorType
-/// Values must exactly agree in order with the operatorSymbols array in the tl.c file.
-/// The order is defined by ASCII. Operator is bitwise <=> it ends wih dot
-#define opBitwiseNegation   0 // !. bitwise negation
-#define opNotEqual          1 // !=
-#define opBoolNegation      2 // !
-#define opSize              3 // #
-#define opRemainder         4 // %
-#define opBitwiseAnd        5 // &&. bitwise and
-#define opBoolAnd           6 // && logical and
-#define opPtr               7 // & pointers/values at type level
-#define opIsNull            8 // '
-#define opTimesExt          9 // *:
-#define opTimes            10 // *
-#define opPlusExt          11 // +:
-#define opPlus             12 // +
-#define opMinusExt         13 // -:
-#define opMinus            14 // -
-#define opDivByExt         15 // /:
-#define opIntersection     16 // /|
-#define opDivBy            17 // /
-#define opToString         18 // ;
-#define opBitShiftLeft     19 // <<.
-#define opShiftLeft        20 // <<
-#define opLTEQ             21 // <=
-#define opComparator       22 // <>
-#define opLessThan         23 // <
-#define opRefEquality      24 // ===
-#define opEquality         25 // ==
-#define opIntervalBoth     26 // >=<= inclusive interval check
-#define opIntervalRight    27 // ><=  right-inclusive interval check
-#define opIntervalLeft     28 // >=<  left-inclusive interval check
-#define opBitShiftRight    29 // >>.  unsigned right bit shift
-#define opIntervalExcl     30 // ><   exclusive interval check
-#define opGTEQ             31 // >=
-#define opShiftRight       32 // >>  right shift or increment
-#define opGreaterThan      33 // >
-#define opNullCoalesce     34 // ?:   null coalescing operator
-#define opQuestionMark     35 // ?    nullable type operator
-#define opBitwiseXor       36 // ^.   bitwise XOR
-#define opExponent         37 // ^    exponentiation
-#define opBitwiseOr        38 // ||.  bitwise or
-#define opBoolOr           39 // ||   logical or
+/* :OperatorType
+ Values must exactly agree in order with the operatorSymbols array in the tl.c file.
+ The order is defined by ASCII. Operator is bitwise <=> it ends wih dot */
+#define opBitwiseNegation   0 /* !. bitwise negation */
+#define opNotEqual          1 /* != */
+#define opBoolNegation      2 /* ! */
+#define opSize              3 /* # */
+#define opToString          4 /* $ */
+#define opRemainder         5 /* % */
+#define opBitwiseAnd        6 /* &&. bitwise and */
+#define opBoolAnd           7 /* && logical and */
+#define opPtr               8 /* & pointers/values at type level */
+#define opIsNull            9 /* ' */
+#define opTimesExt         10 /* *: */
+#define opTimes            11 /* * */
+#define opIncrement        12 /* ++ */
+#define opPlusExt          13 /* +: */
+#define opPlus             14 /* + */
+#define opDecrement        15 /* -- */
+#define opMinusExt         16 /* -: */
+#define opMinus            17 /* - */
+#define opDivByExt         18 /* /: */
+#define opIntersection     19 /* /| */
+#define opDivBy            20 /* / */
+#define opBitShiftLeft     21 /* <<. */
+#define opLTEQ             22 /* <= */
+#define opComparator       23 /* <> */
+#define opLessThan         24 /* < */
+#define opRefEquality      25 /* === */
+#define opEquality         26 /* == */
+#define opIntervalBoth     27 /* >=<= inclusive interval check */
+#define opIntervalRight    28 /* ><=  right-inclusive interval check */
+#define opIntervalLeft     29 /* >=<  left-inclusive interval check */
+#define opBitShiftRight    30 /* >>.  unsigned right bit shift */
+#define opIntervalExcl     31 /* ><   exclusive interval check */
+#define opGTEQ             32 /* >= */
+#define opGreaterThan      33 /* > */
+#define opNullCoalesce     34 /* ?:   null coalescing operator */
+#define opQuestionMark     35 /* ?    nullable type operator */
+#define opBitwiseXor       36 /* ^.   bitwise XOR */
+#define opExponent         37 /* ^    exponentiation */
+#define opBitwiseOr        38 /* ||.  bitwise or */
+#define opBoolOr           39 /* ||   logical or */
 
 #define countOperators     40
 
-#define countReservedLetters   23 // length of the interval of letters that may be init for reserved words (A to W)
+#define countReservedLetters   23 /* length of the interval of letters that may be init for 
+                                   reserved words (A to W) */
 #define countCoreForms (tokForeach - tokAlias + 1)
 #define countSyntaxForms (tokForeach + 1)
 typedef struct Compiler Compiler;
 
 
-// Subclasses of the data accessor tokens/nodes
+/* Subclasses of the data accessor tokens/nodes */
 #define tkAccDot     1
 #define tkAccArray   2
-#define accField     1    // field accessor in a struct, like "foo.field". pl2 = nameId of the string
-#define accArrayInd  2    // single-integer array access, like "arr_5". pl2 = int value of the ind
-#define accArrayWord 3    // single-variable array access, like "arr_i". pl2 = nameId of the string
-#define accString    4    // string-based access inside hashmap, like "map_`foo`". pl2 = 0
-#define accExpr      5    // an expression array access, like "arr_(i + 1)". pl2 = number of tokens/nodes
-#define accUndef     6    // undefined after lexing (to be determined by the parser)
+#define accField     1 /* field accessor in a struct, like "foo.field". pl2 = nameId of the string */
+#define accArrayInd  2 /* single-integer array access, like "arr_5". pl2 = int value of the ind */
+#define accArrayWord 3 /* single-variable array access, like "arr_i". pl2 = nameId of the string */
+#define accString    4 /* string-based access inside hashmap, like "map_`foo`". pl2 = 0 */
+#define accExpr      5 /* expr array access, like "arr_(i + 1)". pl2 = number of tokens/nodes */
+#define accUndef     6 /* undefined after lexing (to be determined by the parser) */
 
 
-typedef void (*LexerFunc)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void)
+typedef void (*LexerFunc)(Arr(Byte), Compiler*); /* LexerFunc = &(Lexer* => void) */
 typedef Int (*ReservedProbe)(int, int, Compiler*);
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
 
-typedef struct { //:LanguageDefinition
+typedef struct { /* :LanguageDefinition */
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
@@ -435,7 +435,7 @@ typedef struct { //:LanguageDefinition
 } LanguageDefinition;
 
 
-typedef struct { // :Node
+typedef struct { /* :Node */
     untt tp : 6;
     untt lenBts: 26;
     untt startBt;
@@ -443,7 +443,7 @@ typedef struct { // :Node
     Int pl2;
 } Node;
 
-typedef struct { // :ParseFrame
+typedef struct { /* :ParseFrame */
     untt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
@@ -457,10 +457,11 @@ typedef struct { // :ParseFrame
 #define classMutableNullable   3
 #define classMutatedNullable   4
 #define classImmutable         5
-#define emitPrefix         1  // normal singular native names
-#define emitOverloaded     2  // normal singular native names
-#define emitPrefixShielded 3  // a native name in need of shielding from target reserved word (by appending a "_")
-#define emitPrefixExternal 4  // prefix names that are emitted differently than in source code
+#define emitPrefix         1  /* normal singular native names */
+#define emitOverloaded     2  /* normal singular native names */
+#define emitPrefixShielded 3  /* a native name in need of shielding from target reserved word 
+                                 (by appending a "_") */
+#define emitPrefixExternal 4  /* prefix names that are emitted differently than in source code */
 #define emitInfix          5  // infix operators that match between source code and target (e.g. +)
 #define emitInfixExternal  6  // infix operators that have a separate external name
 #define emitField          7  // emitted as field accesses, like ".length"
@@ -478,8 +479,8 @@ typedef struct { //:Entity
 } Entity;
 
 typedef struct {
-    untt name;  // 8 bits of length, 24 bits or nameId
-    Int externalNameId; // index in the "codegenText"
+    untt name;  /* 8 bits of length, 24 bits or nameId */
+    Int externalNameId; /* index in the "codegenText" */
     Int typeInd; // index in the intermediary array of types that is imported alongside
 } EntityImport;
 
@@ -500,14 +501,14 @@ struct ScopeChunk {
     Int cont[];
 };
 
-typedef struct { //:ScopeStack
-    /// Either currChunk->next == NULL or currChunk->next->next == NULL
+typedef struct { /* :ScopeStack */
+    /* Either currChunk->next == NULL or currChunk->next->next == NULL */
     ScopeChunk* firstChunk;
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
     ScopeStackFrame* topScope;
     Int len;
-    int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
+    int nextInd; /* next ind inside currChunk, unit of measurement is 4 Bytes */
 } ScopeStack;
 
 DEFINE_STACK_HEADER(ParseFrame)
@@ -525,28 +526,28 @@ DEFINE_INTERNAL_LIST_TYPE(uint32_t)
 
 DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 
-struct Compiler { //:Compiler
-    /// See docs/compiler.txt, docs/architecture.svgz
+struct Compiler { /* :Compiler */
+    /* See docs/compiler.txt, docs/architecture.svgz */
     LanguageDefinition* langDef;
 
-    // LEXING
+    /* LEXING */
     String* sourceCode;
     Int inpLength;
     InListToken tokens;
     InListInt newlines;
     Int indentation;
-    InListInt numeric;          // [aTmp]
-    StackBtToken* lexBtrack;    // [aTmp]
+    InListInt numeric;          /* [aTmp] */
+    StackBtToken* lexBtrack;    /* [aTmp] */
     Stackint32_t* stringTable;
     StringDict* stringDict;
     Int lastClosingPunctInd;
 
-    // PARSING
+    /* PARSING */
     InListToplevel toplevels;
     InListInt imports;
-    StackParseFrame* backtrack; // [aTmp]
+    StackParseFrame* backtrack; /* [aTmp] */
     ScopeStack* scopeStack;
-    Arr(Int) activeBindings;    // [aTmp]
+    Arr(Int) activeBindings;    /* [aTmp] */
     Int loopCounter;
     InListNode nodes;
     InListNode monoCode;
@@ -556,14 +557,14 @@ struct Compiler { //:Compiler
     InListInt types;
     StringDict* typesDict;
     Int countNonparsedEntities;
-    StackInt* expStack;   // [aTmp]
-    StackInt* typeStack;  // [aTmp]
-    StackInt* tempStack;  // [aTmp]
+    StackInt* expStack;   /* [aTmp] */
+    StackInt* typeStack;  /* [aTmp] */
+    StackInt* tempStack;  /* [aTmp] */
     Int countOverloads;
     Int countOverloadedNames;
-    MultiAssocList* rawOverloads; // [aTmp]
+    MultiAssocList* rawOverloads; /* [aTmp] */
 
-    // GENERAL STATE
+    /* GENERAL STATE */
     Int i;
     bool wasError;
     String* errMsg;
@@ -573,10 +574,10 @@ struct Compiler { //:Compiler
 
 
 /** Span levels */
-#define slScope         1 // scopes (denoted by brackets): newlines and commas just have no effect in them
-#define slParenMulti    2 // things like "(if)": they're multiline but they cannot contain any brackets
-#define slStmt          3 // single-line statements: newlines and commas break 'em
-#define slSubexpr       4 // parens and the like: newlines have no effect, dots error out
+#define slScope       1 /* scopes (denoted by brackets): newlines and commas have no effect there */
+#define slParenMulti  2 /* things like "(if)": they're multiline but cannot contain any brackets */
+#define slStmt        3 /* single-line statements: newlines and commas break 'em */
+#define slSubexpr     4 /* parens and the like: newlines have no effect, dots error out */
 
 
 //}}}
