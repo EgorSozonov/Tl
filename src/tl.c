@@ -1,4 +1,4 @@
-//{{{ Includes
+/*{{{ Includes */
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -9,12 +9,12 @@
 #include <math.h>
 #include <setjmp.h>
 #include "tl.internal.h"
-//}}}
+/*}}}*/
 /*{{{ Utils */
 
 jmp_buf excBuf;
 
-//{{{ Arena
+/*{{{ Arena */
 
 #define CHUNK_QUANT 32768
 
@@ -88,7 +88,7 @@ testable void deleteArena(Arena* ar) {
     free(ar);
 }
 
-//}}}
+/*}}}*/
 /*{{{ Stack */
 #define DEFINE_STACK(T)\
     testable Stack##T * createStack##T (int initCapacity, Arena* a) {\
@@ -130,7 +130,7 @@ testable void deleteArena(Arena* ar) {
         st->len = 0;\
     }
 /*}}}*/
-//{{{ Internal list
+/*{{{ Internal list */
 
 #define DEFINE_INTERNAL_LIST_CONSTRUCTOR(T)                 \
 testable InList##T createInList##T(Int initCap, Arena* a) { \
@@ -163,7 +163,7 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
         cm->fieldName.len++;                                                                \
     }
 /*}}}*/
-//{{{ AssocList
+/*{{{ AssocList */
 
 void typePrint(Int typeId, Compiler* cm);
 
@@ -229,7 +229,8 @@ testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocLi
     ml->cont[listInd + listLen + 3] = newVal;
     listLen += 2;
     Int newListInd = -1;
-    if (listLen == listCap) { // look in the freelist, but not more than 10 steps to not waste much time
+    if (listLen == listCap) { /* look in the freelist, but not more than 10 steps
+                                 to not waste much time */
         Int neededCap = listCap*2;
         Int freeInd = multiListFindFree(neededCap, ml);
         if (freeInd > -1) {
@@ -245,7 +246,7 @@ testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocLi
             multiListReallocToEnd(listInd, listLen, neededCap, ml);
         }
 
-        // add this newly freed sector to the freelist
+        /* add this newly freed sector to the freelist */
         ml->cont[listInd] = ml->freeList;
         ml->freeList = listInd;
     } else {
@@ -316,8 +317,8 @@ void printRawOverload(Int listInd, Compiler* cm) {
 
 #endif
 
-//}}}
-//{{{ Datatypes a la carte
+/*}}}*/
+/*{{{ Datatypes a la carte */
 
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
@@ -342,8 +343,8 @@ DEFINE_INTERNAL_LIST(imports, Int, a)
 DEFINE_INTERNAL_LIST(overloads, Int, a)
 DEFINE_INTERNAL_LIST(types, Int, a)
 
-//}}}
-//{{{ Strings
+/*}}}*/
+/*{{{ Strings */
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
@@ -400,7 +401,7 @@ DEFINE_INTERNAL_LIST(types, Int, a)
 #define aGT           62
 
 testable String* str(const char* content, Arena* a) {
-    /// Allocates a C string literal into an arena. The length of the literal is determined in O(N).
+/* Allocates a C string literal into an arena. The length of the literal is determined in O(N) */
     if (content == null) return null;
     const char* ind = content;
     int len = 0;
@@ -414,7 +415,7 @@ testable String* str(const char* content, Arena* a) {
 }
 
 testable bool endsWith(String* a, String* b) {
-    /// Does string "a" end with string "b"?
+/* Does string "a" end with string "b"? */
     if (a->len < b->len) {
         return false;
     } else if (b->len == 0) {
@@ -500,8 +501,8 @@ private bool isSpace(Byte a) {
 
 
 String empty = { .len = 0 };
-//}}}
-//{{{ Int Hashmap
+/*}}}*/
+/*{{{ Int Hashmap */
 
 testable IntMap* createIntMap(int initSize, Arena* a) {
     IntMap* result = allocateOnArena(sizeof(IntMap), a);
@@ -593,7 +594,7 @@ private int getIntMap(int key, int* value, IntMap* hm) {
 }
 
 private int getUnsafeIntMap(int key, IntMap* hm) {
-    /// Throws an exception when key is absent
+/* Throws an exception when key is absent */
     int hash = key % (hm->dictSize);
     if (*(hm->dict + hash) == null) {
         longjmp(excBuf, 1);
@@ -615,8 +616,8 @@ private bool hasKeyValueIntMap(int key, int value, IntMap* hm) {
 }
 
 
-//}}}
-//{{{ String Hashmap
+/*}}}*/
+/*{{{ String Hashmap */
 
 #define initBucketSize 8
 
@@ -674,7 +675,7 @@ private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, untt hash,
 }
 
 private Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringDict* hm) {
-    /// Unique'ing of symbols within source code
+/* Unique'ing of symbols within source code */
     untt hash = hashCode(text + startBt, lenBts);
     Int hashOffset = hash % (hm->dictSize);
     Int newIndString;
@@ -709,7 +710,7 @@ private Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* str
 }
 
 testable Int getStringDict(Byte* text, String* strToSearch, Stackint32_t* stringTable, StringDict* hm) {
-    /// Returns the index of a string within the string table, or -1 if it's not present
+/* Returns the index of a string within the string table, or -1 if it's not present */
     Int lenBts = strToSearch->len;
     untt hash = hashCode(strToSearch->cont, lenBts);
     Int hashOffset = hash % (hm->dictSize);
@@ -730,17 +731,17 @@ testable Int getStringDict(Byte* text, String* strToSearch, Stackint32_t* string
     }
 }
 
-//}}}
-//{{{ Algorithms
+/*}}}*/
+/*{{{ Algorithms */
 
 testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
-    /// Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
-    /// same swap on values is also performed.
-    /// Example of such a swap: [type1 type2 type3 entity1 entity2 entity3] ->
-    ///                         [type3 type1 type2 entity3 entity1 entity2]
-    /// Sorts only the concrete group of overloads, doesn't touch the generic part.
-    /// Params: startInd = inclusive
-    ///         endInd = exclusive
+/* Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
+same swap on values is also performed.
+Example of such a swap: [type1 type2 type3 entity1 entity2 entity3] ->
+                        [type3 type1 type2 entity3 entity1 entity2]
+Sorts only the concrete group of overloads, doesn't touch the generic part.
+Params: startInd = inclusive
+        endInd = exclusive */
     Int countPairs = (endInd - startInd)/2;
     if (countPairs == 2) return;
     Int keyEnd = startInd + countPairs;
@@ -770,14 +771,14 @@ testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
 }
 
 testable void sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) arr) {
-    /// Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
-    /// same swap on values is also performed.
-    /// Example of such a swap: [type1 type2 type3 ... entity1 entity2 entity3 ...] ->
-    ///                         [type3 type1 type2 ... entity3 entity1 entity2 ...]
-    /// The ... is the same number of elements in both halves that don't participate in sorting
-    /// Sorts only the concrete group of overloads, doesn't touch the generic part.
-    /// Params: startInd = inclusive
-    ///         endInd = exclusive
+/* Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
+same swap on values is also performed.
+Example of such a swap: [type1 type2 type3 ... entity1 entity2 entity3 ...] ->
+                        [type3 type1 type2 ... entity3 entity1 entity2 ...]
+The ... is the same number of elements in both halves that don't participate in sorting
+Sorts only the concrete group of overloads, doesn't touch the generic part.
+Params: startInd = inclusive
+        endInd = exclusive */
     Int countPairs = (endInd - startInd)/2;
     if (countPairs == 2) return;
     Int keyEnd = startInd + countPairs;
@@ -807,9 +808,9 @@ testable void sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) 
 }
 
 testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) {
-    /// Performs an ASC sort for compact pairs (array-of-structs) by key:
-    /// Params: startInd = the first index of the overload (the one with the count of concrete overloads)
-    ///         endInd = the last index belonging to the overload (the one with the last entityId)
+/* Performs an ASC sort for compact pairs (array-of-structs) by key:
+Params: startInd = the first index of the overload (the one with the count of concrete overloads)
+        endInd = the last index belonging to the overload (the one with the last entityId) */
     Int countPairs = (endInd - startInd)/2;
     if (countPairs == 2) return;
 
@@ -838,10 +839,10 @@ testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) {
 }
 
 testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
-    /// For disjoint (struct-of-arrays) pairs, makes sure the keys are unique and sorted ascending
-    /// Params: startInd = inclusive
-    ///         endInd = exclusive
-    /// Returns: true iff all's OK
+/* For disjoint (struct-of-arrays) pairs, makes sure the keys are unique and sorted ascending
+Params: startInd = inclusive
+        endInd = exclusive
+Returns: true iff all's OK */
     Int currKey = arr[startInd];
     Int i = startInd + 1;
     while (i < endInd) {
@@ -883,25 +884,33 @@ private bool binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
     return -1;
 }
 
-//}}}
-//}}}
-//{{{ Errors
+/*}}}*/
+/*}}}*/
+/*{{{ Errors */
 
 //{{{ Internal errors
 
-#define iErrorInconsistentSpans          1 // Inconsistent span length / structure of token scopes!;
-#define iErrorImportedFunctionNotInScope 2 // There is a -1 or something else in the activeBindings table for an imported function
-#define iErrorParsedFunctionNotInScope   3 // There is a -1 or something else in the activeBindings table for a parsed function
-#define iErrorOverloadsOverflow          4 // There were more overloads for a function than what was allocated
-#define iErrorOverloadsNotFull           5 // There were fewer overloads for a function than what was allocated
-#define iErrorOverloadsIncoherent        6 // The overloads table is incoherent
-#define iErrorExpressionIsNotAnExpr      7 // What is supposed to be an expression in the AST is not a nodExpr
-#define iErrorZeroArityFuncWrongEmit     8 // A 0-arity function has a wrong "emit" (should be one of the prefix ones)
-#define iErrorGenericTypesInconsistent   9 // Two generic types have inconsistent layout (premature end of type)
-#define iErrorGenericTypesParamOutOfBou 10 // A type contains a paramId that is out-of-bounds of the generic's arity
+#define iErrorInconsistentSpans          1 /* Inconsistent span length / structure of token scopes! */
+#define iErrorImportedFunctionNotInScope 2 /* There is a -1 or something else in the activeBindings
+                                              table for an imported function */
+#define iErrorParsedFunctionNotInScope   3 /* There is a -1 or something else in the activeBindings
+                                              table for a parsed function */
+#define iErrorOverloadsOverflow          4 /* There were more overloads for a function than what
+                                              was allocated */
+#define iErrorOverloadsNotFull           5 /* There were fewer overloads for a function than what
+                                              was allocated */
+#define iErrorOverloadsIncoherent        6 /* The overloads table is incoherent */
+#define iErrorExpressionIsNotAnExpr      7 /* What is supposed to be an expression in the AST is
+                                              not a nodExpr */
+#define iErrorZeroArityFuncWrongEmit     8 /* A 0-arity function has a wrong "emit" (should be one
+                                              of the prefix ones) */
+#define iErrorGenericTypesInconsistent   9 /* Two generic types have inconsistent layout (premature
+                                              end of type) */
+#define iErrorGenericTypesParamOutOfBou 10 /* A type contains a paramId that is out-of-bounds of the
+                                              generic's arity */
 
-//}}}
-//{{{ Syntax errors
+/*}}}*/
+/*{{{ Syntax errors */
 const char errNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";
 const char errPrematureEndOfInput[]        = "Premature end of input";
 const char errUnrecognizedByte[]           = "Unrecognized Byte in source code!";
@@ -972,7 +981,7 @@ const char errScope[]                       = "A scope may consist only of expre
 const char errLoopBreakOutside[]            = "The break keyword can only be used inside a loop scope!";
 const char errTemp[]                        = "Temporary, delete it when finished";
 
-//}}}
+/*}}}*/
 //{{{ Type errors
 
 const char errUnknownType[]                 = "Unknown type";
@@ -992,51 +1001,50 @@ const char errTypeOnlyTypesArity[]          = "Only type constructors (i.e. capi
 const char errTypeTooManyParameters[]       = "Only up to 254 type parameters are supported";
 const char errTypeFnSingleReturnType[]      = "More than one return type in a function type";
 
-//}}}
+/*}}}*/
 
-//}}}
-//{{{ Lexer
+/*}}}*/
+/*{{{ Lexer */
 
-//{{{ LexerConstants
+/*{{{ LexerConstants */
 
-/// The ASCII notation for the highest signed 64-bit integer absolute value, 9_223_372_036_854_775_807
+/* The ASCII notation for the highest signed 64-bit integer abs value, 9_223_372_036_854_775_807 */
 const Byte maxInt[19] = {
     9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
     8, 5, 4, 7, 7, 5, 8, 0, 7
 };
 
-/// 2**53
+/* 2**53 */
 const Byte maximumPreciselyRepresentedFloatingInt[16] = { 9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
 
 
-/* Symbols an operator may start with. "-" is absent because it's handled by lexMinus, "=" - by lexEqual
- ">" by lexGT */
-const int operatorStartSymbols[14] = {
-    aExclamation, aSharp, aPercent, aAmp, aApostrophe, aTimes, aPlus,
-    aComma, aDivBy, aSemicolon, aLT, aQuestion, aCaret, aPipe
+/* Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
+"=" - by lexEqual, "<" by lexLT */
+const int operatorStartSymbols[13] = {
+    aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus,
+    aDivBy, aGT, aQuestion, aCaret, aPipe
 };
 
 /*  The standard text prepended to all source code inputs and the hash table to provide a built-in
-  string set.
-  The Tl reserved words must be at the start and be sorted alphabetically on the first letter.
-  Also they must agree with the "Standard strings" in tl.internal.h */
+string set. Tl's reserved words must be at the start and be sorted alphabetically on the first letter.
+Also they must agree with the "Standard strings" in tl.internal.h */
 const char standardText[] = "aaliasassertbreakcatchcontinuedoelseembedfalseffinallyfor"
                             "foreachhififPrimplimportinterfacelmatchmetapubreturntruetry"
                             /* reserved words end here */
                             "IntLongDoubleBoolStringVoidFLAHTulencapf1f2printprintErr"
-                            "math-pimath-eTU";
+                            "math:pimath:eTU";
 
 const Int standardStrings[] = {
-      0,   1,   6,  12,  17, // catch
-     22,  30,  32,  36,  41, // false
-     46,  47,  54,  57,  64, // h
-     65,  67,  71,  75,  81, // interface
-     90,  91,  96, 100, 103, // return
-    109, 113, 116,           // Int
-    119, 123, 129, 133, 139, // Void
-    143, 144, 145, 146, 147, // Tu
-    149, 152, 155, 157, 159, // print
-    164, 172, 179, 185, 186, // U
+      0,   1,   6,  12, /*     catch */17,
+     22,  30,  32,  36, /*     false */41,
+     46,  47,  54,  57, /*         h */64,
+     65,  67,  71,  75, /* interface */81,
+     90,  91,  96, 100, /*   return */103,
+    109, 113,           /*   Int */116,
+    119, 123, 129, 133, /*  Void */139,
+    143, 144, 145, 146, /*    Tu */147,
+    149, 152, 155, 157, /* print */159,
+    164, 172, 179, 185, /*     U */186,
     187
 };
 
@@ -1058,8 +1066,8 @@ StandardText getStandardTextLength(void) {
         .firstBuiltin = countOperators };
 }
 
-//}}}
-//{{{ LexerUtils
+/*}}}*/
+/*{{{ LexerUtils */
 
 #define CURR_BT source[lx->i]
 #define NEXT_BT source[lx->i + 1]
@@ -1089,10 +1097,10 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
         goto cleanup;
     }
     Int lenStandard = sizeof(standardText);
-    // Allocate our buffer to that size, with space for the standard text in front of it.
+    /* Allocate our buffer to that size, with space for the standard text in front of it */
     result = allocateOnArena(lenStandard + fileSize + 1 + sizeof(String), a);
 
-    // Go back to the start of the file.
+    /* Go back to the start of the file */
     if (fseek(file, 0L, SEEK_SET) != 0) {
         goto cleanup;
     }
@@ -1112,7 +1120,7 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
 }
 
 testable String* prepareInput(const char* content, Arena* a) {
-    /// Allocates a test input into an arena after prepending it with the standardText.
+/* Allocates a source code into an arena after prepending it with the standardText */
     if (content == null) return null;
     const char* ind = content;
     Int lenStandard = sizeof(standardText) - 1; // -1 for the invisible \0 char at end
@@ -1121,10 +1129,10 @@ testable String* prepareInput(const char* content, Arena* a) {
         len++;
     }
 
-    String* result = allocateOnArena(lenStandard + len + 1 + sizeof(String), a); // + 1 for the \0
+    String* result = allocateOnArena(lenStandard + len + 1 + sizeof(String), a); /* +1 for the \0 */
     result->len = lenStandard + len;
     memcpy(result->cont, standardText, lenStandard);
-    memcpy(result->cont + lenStandard, content, len + 1); // + 1 to copy the \0
+    memcpy(result->cont + lenStandard, content, len + 1); /* + 1 to copy the \0 */
     return result;
 }
 
@@ -1134,14 +1142,14 @@ private untt nameOfToken(Token tk) {
 
 
 private untt nameOfStandard(Int strId) {
-    /// Builds a name (id + length) for a standardString after "strFirstNonreserved"
+/* Builds a name (id + length) for a standardString after "strFirstNonreserved" */
     Int length = standardStrings[strId + 1] - standardStrings[strId];
     Int nameId = strId - strFirstNonReserved + countOperators;
     return ((untt)length << 24) + (untt)(nameId);
 }
 
-//}}}
-//{{{ Lexer proper
+/*}}}*/
+/*{{{ Lexer proper */
 
 _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {
     cm->wasError = true;
@@ -1166,13 +1174,13 @@ _Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compi
 #define throwExcLexer(msg, lx) throwExcLexer0(msg, __LINE__, lx)
 
 private void checkPrematureEnd(Int requiredSymbols, Compiler* lx) {
-    /// Checks that there are at least 'requiredSymbols' symbols left in the input.
+/* Checks that there are at least 'requiredSymbols' symbols left in the input. */
     VALIDATEL(lx->i + requiredSymbols <= lx->inpLength, errPrematureEndOfInput)
 }
 
 private void setSpanLengthLexer(Int tokenInd, Compiler* lx) {
 /* Finds the top-level punctuation opener by its index, and sets its lengths.
- Called when the matching closer is lexed. */
+Called when the matching closer is lexed. */
     lx->tokens.cont[tokenInd].lenBts = lx->i - lx->tokens.cont[tokenInd].startBt + 1;
     lx->tokens.cont[tokenInd].pl2 = lx->tokens.len - tokenInd - 1;
 }
@@ -1569,6 +1577,7 @@ Consumes no bytes. */
                           .startBt = startBt }, lx);
 }
 
+
 private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
                              Arr(Byte) source, Compiler* lx) {
 /* Lexer action for a paren-type or statement-type reserved word. It turns parentheses into
@@ -1585,31 +1594,33 @@ Precondition: we are looking at the character immediately after the keyword */
         push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len, .spanLevel = scopeLevel }),
              lx->lexBtrack);
         pushIntokens((Token){ .tp = reservedWordType, .pl1 = scopeLevel,
-            .startBt = startBt, .lenBts = lenBts}, lx);
-        ++lx->i; // CONSUME the opening "(" of the core form
+            .startBt = startBt, .lenBts = lenBts }, lx);
+        ++lx->i; /* CONSUME the opening "(" of the core form */
     } else if (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
         addStatementSpan(reservedWordType, startBt, lx);
     }
 }
 
+
 private bool wordChunk(Arr(Byte) source, Compiler* lx) {
-/* Lexes a single chunk of a word, i.e. the characters between two minuses
-(or the whole word if there are no minuses).
-Returns True if the lexed chunk was capitalized */
+/* Lexes a single chunk of a word, i.e. the characters between two minuses (or the whole word
+if there are no minuses). Returns True if the lexed chunk was capitalized */
     bool result = false;
     checkPrematureEnd(1, lx);
 
-    if (isCapitalLetter(CURR_BT)) {
+    Byte currBt = CURR_BT;
+    if (isCapitalLetter(currBt)) {
         result = true;
-    } else VALIDATEL(isLowercaseLetter(CURR_BT), errWordChunkStart)
-    lx->i++; // CONSUME the first letter of the word
+    } else VALIDATEL(isLowercaseLetter(currBt), errWordChunkStart)
 
+    lx->i++; /* CONSUME the first letter of the word */
     while (lx->i < lx->inpLength && isAlphanumeric(CURR_BT)) {
-        lx->i++; // CONSUME alphanumeric characters
+        lx->i++; /* CONSUME alphanumeric characters */
     }
     return result;
 }
+
 
 private void closeStatement(Compiler* lx) {
 /* Closes the current statement. Consumes no tokens */
@@ -1625,18 +1636,18 @@ private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCap
                         Int lenString, Arr(Byte) source, Compiler* lx) {
     Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
     Int lenBts = lx->i - realStartBt;
-    if (lx->i < lx->inpLength && CURR_BT == aParenLeft) { // Type call
+    if (lx->i < lx->inpLength && CURR_BT == aParenLeft) { /* Type call */
         VALIDATEL(wordType == tokWord && wasCapitalized, errExpectedType)
         push(((BtToken){ .tp = tokTypeCall, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
         pushIntokens((Token){ .tp = tokTypeCall, .pl1 = uniqueStringInd,
                      .startBt = realStartBt, .lenBts = lenBts }, lx);
-        ++lx->i; // CONSUME the opening "(" of the call
+        ++lx->i; /* CONSUME the opening "(" of the call */
     } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
         VALIDATEL(wasCapitalized, errTypeOnlyTypesArity)
         pushIntokens((Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = uniqueStringInd,
                      .startBt = realStartBt, .lenBts = lenBts }, lx);
-        ++lx->i; // CONSUME the "/" in the type func arity spec
+        ++lx->i; /* CONSUME the "/" in the type func arity spec */
     } else if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
         pushIntokens((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd,
@@ -1646,7 +1657,7 @@ private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCap
         pushIntokens((Token){ .tp = tokCall, .pl1 = uniqueStringInd,
                      .startBt = realStartBt, .lenBts = lenBts }, lx);
     } else if (wordType == tokAccessor) {
-        // What looks like an accessor "a.x" may actually be a struct field ("(.id 5 .name `foo`")
+        /* What looks like an accessor "a.x" may actually be a struct field ("(.id 5 .name `f`") */
         if (lx->tokens.len > 0) {
             Token prevToken = lx->tokens.cont[lx->tokens.len - 1];
             if (prevToken.startBt + prevToken.lenBts < realStartBt) {
@@ -1702,10 +1713,10 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
 
     while (lx->i < (lx->inpLength - 1)) {
         Byte currBt = CURR_BT;
-        if (currBt == aMinus) {
+        if (currBt == aColon) {
             Byte nextBt = NEXT_BT;
             if (isLetter(nextBt)) {
-                lx->i++; // CONSUME the minus
+                lx->i++; /* CONSUME the minus */
                 bool isCurrCapitalized = wordChunk(source, lx);
                 VALIDATEL(!wasCapitalized, errWordCapitalizationOrder)
                 wasCapitalized = isCurrCapitalized;
@@ -1718,7 +1729,7 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
     }
 
     Int realStartBt = (wordType == tokWord) ? startBt : (startBt - 1);
-    // accounting for the initial ".", ":" or other symbol
+    /* accounting for the initial ".", ":" or other symbol */
     Byte firstByte = lx->sourceCode->cont[startBt];
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
@@ -1732,7 +1743,7 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
         if ((mbReserved == keywArray || mbReserved == tokList
             || mbReserved == tokFn || mbReserved == tokHashmap)
           && (lx->i == lx->inpLength || CURR_BT != aParenLeft)) {
-             // words like "l", "a" etc are only reserved when in front of a paren
+             /* words like "l", "a" etc are only reserved when in front of a paren */
             wordNormal(wordType, startBt, realStartBt, wasCapitalized, lenString, source, lx);
         }
         wordReserved(wordType, mbReserved, startBt, realStartBt, source, lx);
@@ -1747,13 +1758,13 @@ private void lexWord(Arr(Byte) source, Compiler* lx) {
 }
 
 private void lexDot(Arr(Byte) source, Compiler* lx) {
-    /// The dot is a statement separator or the start of a field accessor
+/* The dot is a statement separator or the start of a field accessor */
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
-        ++lx->i; // CONSUME the dot
+        ++lx->i; /* CONSUME the dot */
         wordInternal(tokAccessor, source, lx);
     } else if (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).spanLevel != slScope) {
         closeStatement(lx);
-        ++lx->i;  // CONSUME the dot
+        ++lx->i;  /* CONSUME the dot */
     }
 }
 
@@ -1778,16 +1789,10 @@ mutType = 0 if it's immutable assignment, 1 if it's "<-", 2 if it's a regular op
         tok->tp = tokMutation;
         tok->pl1 = (Int)((untt)((opType << 26) + lx->i));
     }
-    lx->lexBtrack->cont[lx->lexBtrack->len - 1] = (BtToken){ .tp = tok->tp, .spanLevel = slStmt, .tokenInd = tokenInd };
+    lx->lexBtrack->cont[lx->lexBtrack->len - 1] = (BtToken){ .tp = tok->tp, .spanLevel = slStmt,
+        .tokenInd = tokenInd };
 }
 
-private void lexDollar(Arr(Byte) source, Compiler* lx) {
-    /* A single $ means "parentheses until the next closing paren or end of statement" */
-    push(((BtToken){ .tp = tokParens, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
-         lx->lexBtrack);
-    pushIntokens((Token) {.tp = tokParens, .startBt = lx->i }, lx);
-    lx->i++; // CONSUME the "$"
-}
 
 private void lexColon(Arr(Byte) source, Compiler* lx) {
 /* Handles reassignment ":=" and keyword arguments ":asdf". Main purpose is start of a new block */
@@ -1815,7 +1820,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) {
     Byte thirdSymbol = (lx->inpLength > lx->i + 2) ? source[lx->i + 2] : 0;
     Byte fourthSymbol = (lx->inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
     Int k = 0;
-    Int opType = -1; // corresponds to the op... operator types
+    Int opType = -1; /* corresponds to the op... operator types */
     OpDef (*operators)[countOperators] = lx->langDef->operators;
     while (k < countOperators && (*operators)[k].bytes[0] < firstSymbol) {
         k++;
@@ -1852,20 +1857,20 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) {
         isAssignment = true;
         j++;
     }
-    if (isAssignment) { // mutation operators like "*=" or "*.="
+    if (isAssignment) { /* mutation operators like "*=" or "*.=" */
         processAssignment(2, opType, lx);
     } else {
         if (j < lx->inpLength && source[j] == aParenLeft) {
             push(((BtToken){ .tp = tokOperator, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
                  lx->lexBtrack);
             pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i }, lx);
-            ++j; // CONSUME the opening "(" of the operator call
+            ++j; /* CONSUME the opening "(" of the operator call */
         } else {
             pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i,
                          .lenBts = j - lx->i}, lx);
         }
     }
-    lx->i = j; // CONSUME the operator
+    lx->i = j; /* CONSUME the operator */
 }
 
 private bool isOperatorTypeful(Int opType) {
@@ -1878,20 +1883,22 @@ or an arrow "=>" */
     checkPrematureEnd(2, lx);
     Byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
-        lexOperator(source, lx); // ==
+        lexOperator(source, lx); /* == */
     } else if (nextBt == aGT) {
         pushIntokens((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
-        lx->i += 2;  // CONSUME the arrow "=>"
+        lx->i += 2;  /* CONSUME the arrow "=>" */
     } else {
         processAssignment(0, 0, lx);
-        lx->i++; // CONSUME the =
+        lx->i++; /* CONSUME the = */
     }
 }
 
-private void lexGT(Arr(Byte) source, Compiler* lx) {
-    if ((lx->i < lx->inpLength - 1) && isLetter(NEXT_BT)) {
-        ++lx->i; // CONSUME the ">"
-        wordInternal(tokCall, source, lx);
+
+private void lexLT(Arr(Byte) source, Compiler* lx) {
+/* Handles "<-" (reassignment) as well as operators */
+    if ((lx->i + 1 < lx->inpLength) && NEXT_BT == aMinus) {
+        processAssignment(1, 0, lx);
+        lx->i += 2; /* CONSUME the "<-" */
     } else {
         lexOperator(source, lx);
     }
@@ -1900,10 +1907,10 @@ private void lexGT(Arr(Byte) source, Compiler* lx) {
 private void lexTilde(Arr(Byte) source, Compiler* lx) {
     if ((lx->i < lx->inpLength - 1) && NEXT_BT == aTilde) {
         pushIntokens((Token){ .tp = tokTilde, .pl1 = 2, .startBt = lx->i - 1, .lenBts = 2 }, lx);
-        lx->i += 2; // CONSUME the "~~"
+        lx->i += 2; /* CONSUME the "~~" */
     } else {
         pushIntokens((Token){ .tp = tokTilde, .pl1 = 1, .startBt = lx->i - 1, .lenBts = 2 }, lx);
-        ++lx->i; // CONSUME the "~~"
+        ++lx->i; /* CONSUME the "~" */
     }
 }
 
@@ -1913,18 +1920,18 @@ the current statement unless it's inside an inline span (i.e. parens or accessor
     pushInnewlines(lx->i, lx);
     maybeBreakStatement(lx);
 
-    lx->i++;     // CONSUME the LF
+    lx->i++;     /* CONSUME the LF */
     while (lx->i < lx->inpLength) {
         if (CURR_BT != aSpace && CURR_BT != aTab && CURR_BT != aCarrReturn) {
             break;
         }
-        lx->i++; // CONSUME a space or tab
+        lx->i++; /* CONSUME a space or tab */
     }
 }
 
 private void lexComment(Arr(Byte) source, Compiler* lx) {
 /* All comments are of the / * comm * / form like in old-school C. */
-    lx->i += 2; // CONSUME the "/*"
+    lx->i += 2; /* CONSUME the "/ *" */
     if (lx->i >= lx->inpLength) {
         return;
     }
@@ -1933,13 +1940,13 @@ private void lexComment(Arr(Byte) source, Compiler* lx) {
     while (j < lx->inpLength) {
         Byte cByte = source[j];
         if (cByte == aTimes && j + 1 < lx->inpLength && NEXT_BT == aDivBy) {
-            lx->i = j + 1; // CONSUME the comment
+            lx->i = j + 1; /* CONSUME the comment */
             return;
         } else {
             j++;
         }
     }
-    lx->i = j;  // CONSUME the comment
+    lx->i = j;  /* CONSUME the comment */
 }
 
 private void lexMinus(Arr(Byte) source, Compiler* lx) {
@@ -1977,7 +1984,7 @@ private void lexParenLeft(Arr(Byte) source, Compiler* lx) {
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     wrapInAStatement(source, lx);
     openPunctuation(tokParens, slSubexpr, lx->i, lx);
-    lx->i++; // CONSUME the left parenthesis
+    lx->i++; /* CONSUME the left parenthesis */
 }
 
 
@@ -1997,10 +2004,10 @@ private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
     wrapInAStatement(source, lx);
     if (j < lx->inpLength && NEXT_BT == aBracketRight) {
         pushIntokens((Token){.tp = tokNull, .startBt = lx->i, .lenBts = 2}, lx);
-        lx->i += 2; // CONSUME the [] (aka null)
+        lx->i += 2; /* CONSUME the [] (aka null) */
     } else {
         openPunctuation(tokBrackets, slSubexpr, lx->i, lx);
-        ++lx->i; // CONSUME the left bracket
+        ++lx->i; /* CONSUME the left bracket */
     }
 }
 
@@ -2011,32 +2018,32 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
 
-    // since a closing paren might be closing something with statements inside it, like a lex scope
-    // or a core syntax form, we need to close the last statement before closing its parent
+    /* since a closing paren might be closing something with statements inside it, like a lex scope
+    or a core syntax form, we need to close the last statement before closing its parent */
     if (bt->len > 0 && top.spanLevel != slScope
           && (bt->cont[bt->len - 1].spanLevel <= slParenMulti)) {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
     setSpanLengthLexer(top.tokenInd, lx);
-    lx->i++; // CONSUME the closing "]"
+    lx->i++; /* CONSUME the closing "]" */
 
     if (!hasValues(lx->lexBtrack)) return;
     lx->lastClosingPunctInd = startInd;
 }
 
 private void lexUnderscore(Arr(Byte) source, Compiler* lx) {
-    /// The "_" sign that is used for accessing arrays, lists, dictionaries
+/* The "_" sign that is used for accessing arrays, lists, dictionaries */
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
     pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccArray, .startBt = lx->i, .lenBts = 1 }, lx);
-    ++lx->i; // CONSUME the "_" sign
+    ++lx->i; /* CONSUME the "_" sign */
 }
 
 
 private void lexSpace(Arr(Byte) source, Compiler* lx) {
-    lx->i++; // CONSUME the space
+    lx->i++; /* CONSUME the space */
     while (lx->i < lx->inpLength && CURR_BT == aSpace) {
-        lx->i++; // CONSUME a space
+        lx->i++; /* CONSUME a space */
     }
 }
 
@@ -2060,7 +2067,7 @@ private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) {
     throwExcLexer(errNonAscii, lx);
 }
 
-/// Must agree in order with token types in tl.internal.h
+/* Must agree in order with token types in tl.internal.h */
 const char* tokNames[] = {
     "[]", "Int", "Long", "Double", "Bool", "String", "~", "_",
     "word", "Type", ":kwarg", ".strFld", "operator", "_acc", "=>", "pub",
@@ -2129,9 +2136,8 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     }
     p[aUnderscore] = &lexUnderscore;
     p[aDot] = &lexDot;
-    p[aDollar] = &lexDollar;
     p[aEqual] = &lexEqual;
-    p[aGT] = &lexGT;
+    p[aLT] = &lexLT;
     p[aTilde] = &lexTilde;
 
     for (Int i = sizeof(operatorStartSymbols)/4 - 1; i > -1; i--) {
@@ -2271,11 +2277,11 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     }
     return result;
 }
-//}}}
+/*}}}*/
 
-//}}}
+/*}}}*/
 /*{{{ Parser */
-//{{{ Parser utils
+/*{{{ Parser utils */
 
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
 
@@ -2313,12 +2319,12 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
 }
 
 private Int createEntity(untt name, Compiler* cm) {
-    /// Validates a new binding (that it is unique), creates an entity for it,
-    /// and adds it to the current scope
+/* Validates a new binding (that it is unique), creates an entity for it,
+and adds it to the current scope */
     Int nameId = name & LOWER24BITS;
     Int mbBinding = cm->activeBindings[nameId];
     VALIDATEP(mbBinding < 0, errAssignmentShadowing)
-    // if it's a binding, it should be -1, and if overload, < -1
+    /* if it's a binding, it should be -1, and if overload, < -1 */
 
     Int newEntityId = cm->entities.len;
     pushInentities(((Entity){.emit = emitPrefix, .name = name, .class = classMutableGuaranteed}), cm);
@@ -2333,7 +2339,7 @@ private Int createEntity(untt name, Compiler* cm) {
 }
 
 private Int calcSentinel(Token tok, Int tokInd) {
-    /// Calculates the sentinel token for a token at a specific index
+/* Calculates the sentinel token for a token at a specific index */
     return (tok.tp >= firstSpanTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
 
@@ -2346,7 +2352,7 @@ testable void printName(Int name, Compiler* cm) {
     printf("\n");
 }
 
-//}}}
+/*}}}*/
 
 testable void pushLexScope(ScopeStack* scopeStack);
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
@@ -2354,7 +2360,7 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
 
 
 private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
-    /// Performs coordinated insertions to start a scope within the parser
+/* Performs coordinated insertions to start a scope within the parser */
     push(((ParseFrame){
             .tp = nodScope, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }),
         cm->backtrack);
@@ -2380,7 +2386,7 @@ private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
-    /// Precondition: we are 1 past the "stmt" token, which is the first parameter
+/* Precondition: we are 1 past the "stmt" token, which is the first parameter */
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
@@ -2392,17 +2398,18 @@ private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
-    ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.len, .sentinelToken = cm->i + tok.pl2 };
+    ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.len,
+            .sentinelToken = cm->i + tok.pl2 };
     push(newParseFrame, cm->backtrack);
     pushInnodes((Node){.tp = nodIf, .pl1 = tok.pl1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
 
     Token stmtTok = tokens[cm->i];
-    ++cm->i; // CONSUME the stmt token
+    ++cm->i; /* CONSUME the stmt token */
     ifLeftSide(stmtTok, tokens, cm);
 }
 
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    /* Returns to parsing within an if (either the beginning of a clause or an "else" block) */
+/* Returns to parsing within an if (either the beginning of a clause or an "else" block) */
     if (tok->tp == tokArrow || tok->tp == tokElse) {
         ++cm->i; /* CONSUME the "=>" or "else" */
         *tok = tokens[cm->i];
@@ -2417,29 +2424,28 @@ private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
         pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
         ++cm->i; /* CONSUME the first token of what follows */
     } else {
-        ++cm->i; // CONSUME the stmt token
+        ++cm->i; /* CONSUME the stmt token */
         ifLeftSide(*tok, tokens, cm);
         *tok = tokens[cm->i];
     }
 }
 
 private void assignmentWordLeftSide(Token tk, Arr(Token) tokens, Compiler* cm) {
-    /// Parses an assignment's left side that starts with a word, including accessor strips
-    /// like "x.foo.bar" or "y@+(x 1)"
-
+/* Parses an assignment's left side that starts with a word, including accessor strips
+like "x.foo.bar" or "y@+(x 1)" */
     if (tokens[cm->i + 1].tp != tokAccessor) {
         Int newEntityId = createEntity(nameOfToken(tk), cm);
         pushInnodes((Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = tk.startBt,
                            .lenBts = tk.lenBts}, cm);
-        cm->i++; // CONSUME the word token before the assignment sign
+        cm->i++; /* CONSUME the word token before the assignment sign */
         return;
     }
 
 }
 
 private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Compiler* cm) {
-    /* Parses an assignment like "x = 5 or Foo = (.id Int)". The right side must never
-     be a scope or contain any loops, or recursion will ensue */
+/* Parses an assignment like "x = 5 or Foo = (.id Int)". The right side must never
+be a scope or contain any loops, or recursion will ensue */
     Int sentinelToken = cm->i + tok.pl2;
     VALIDATEP(sentinelToken >= cm->i + 2, errAssignment)
     Token bindingTk = tokens[cm->i];
@@ -2475,7 +2481,7 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
-    /// For loops. Look like "for(x = 0. x < 100: x += 1: ...)"
+/* For loops. Look like "for(x = 0. x < 100: x += 1: ...)" */
     ++cm->loopCounter;
     Int sentinel = cm->i + forTk.pl2;
 
@@ -2492,7 +2498,7 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
 
     addParsedScope(sentinel, startBtScope, forTk.lenBts - startBtScope + forTk.startBt, cm);
 
-    // variable initializations, if any
+    /* variable initializations, if any */
 
     cm->i = condSent;
     while (cm->i < sentinel) {
@@ -2500,14 +2506,14 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
         if (tok.tp != tokAssignment) {
             break;
         }
-        ++cm->i; // CONSUME the assignment span marker
+        ++cm->i; /* CONSUME the assignment span marker */
         parseAssignment(tok, tokens, cm);
         maybeCloseSpans(cm);
     }
     Int indBody = cm->i;
     VALIDATEP(indBody < sentinel, errLoopEmptyBody);
 
-    // loop condition
+    /* loop condition */
     push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.len, .sentinelToken = condSent }),
          cm->backtrack);
     pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = condSent - condInd,
@@ -2534,8 +2540,8 @@ private void resumeMatch(Token* tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 private void setSpanLengthParser(Int nodeInd, Compiler* cm) {
-    /* Finds the top-level punctuation opener by its index, and sets its node length.
-       Called when the parsing of a span is finished. */
+/* Finds the top-level punctuation opener by its index, and sets its node length.
+Called when the parsing of a span is finished. */
     cm->nodes.cont[nodeInd].pl2 = cm->nodes.len - nodeInd - 1;
 }
 
@@ -2559,9 +2565,9 @@ private ParseFrame popFrame(Compiler* cm) {
 }
 
 private Int exprSingleItem(Token tk, Compiler* cm) {
-    /* A single-item expression, like "foo". Consumes no tokens.
-     Pre-condition: we are 1 token past the token we're parsing.
-     Returns the type of the single item. */
+/* A single-item expression, like "foo". Consumes no tokens.
+Pre-condition: we are 1 token past the token we're parsing.
+Returns the type of the single item. */
     Int typeId = -1;
     if (tk.tp == tokWord) {
         Int varId = getActiveVar(tk.pl2, cm);
@@ -2586,8 +2592,8 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
 }
 
 private void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
-    /// Counts the arity of the call, including skipping unary operators. Consumes no tokens.
-    /// Precondition:
+/* Counts the arity of the call, including skipping unary operators. Consumes no tokens.
+Precondition: */
     Token firstTok = tokens[cm->i];
     Int j = calcSentinel(firstTok, cm->i);
     while (j < sentinelToken) {
@@ -2600,13 +2606,13 @@ private void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Co
 }
 
 private void exprSubexpr(Int sentinelToken, Int* arity, Arr(Token) tokens, Compiler* cm) {
-    /* Parses a subexpression within an expression.
-    Precondition: the current token must be 1 past the opening paren / statement token
-    Examples: "foo 5 a"
-              "+ 5 !a"
+/* Parses a subexpression within an expression.
+Precondition: the current token must be 1 past the opening paren / statement token
+Examples: "foo 5 a"
+          "+ 5 !a"
 
-    Consumes 1 or 2 tokens
-    TODO: allow for core forms (but not scopes!) */
+Consumes 1 or 2 tokens
+TODO: allow for core forms (but not scopes!) */
     Token firstTk = tokens[cm->i];
 
     exprCountArity(arity, sentinelToken, tokens, cm);
@@ -2623,20 +2629,20 @@ private void exprSubexpr(Int sentinelToken, Int* arity, Arr(Token) tokens, Compi
         pushInnodes((Node){.tp = nodCall, .pl1 = mbBnd, .pl2 = *arity,
                            .startBt = firstTk.startBt, .lenBts = firstTk.lenBts}, cm);
         *arity = 0;
-        cm->i++; // CONSUME the function or operator call token
+        cm->i++; /* CONSUME the function or operator call token */
     }
 }
 
 private void subexprClose(Arr(Token) tokens, Compiler* cm) {
-    /* Flushes the finished subexpr frames from the top of the funcall stack. */
+/* Flushes the finished subexpr frames from the top of the funcall stack. */
     while (cm->scopeStack->len > 0 && cm->i == peek(cm->backtrack).sentinelToken) {
         popFrame(cm);
     }
 }
 
 private void exprOperator(Token tok, Arr(Token) tokens, Compiler* cm) {
-    /* An operator token in non-initial position is either a funcall (if unary)
-     or an operand. Consumes no tokens. */
+/* An operator token in non-initial position is either a funcall (if unary)
+or an operand. Consumes no tokens. */
     Int bindingId = tok.pl1;
     OpDef operDefinition = (*cm->langDef->operators)[bindingId];
 
@@ -2651,9 +2657,9 @@ private void exprOperator(Token tok, Arr(Token) tokens, Compiler* cm) {
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
-    /* General "big" expression parser. Parses an expression whether there is a token or not.
-     Starts from cm->i and goes up to the sentinel token. Returns the expression's type
-     Precondition: we are looking 1 past the tokExpr. */
+/* General "big" expression parser. Parses an expression whether there is a token or not.
+Starts from cm->i and goes up to the sentinel token. Returns the expression's type
+Precondition: we are looking 1 past the tokExpr. */
     Int arity = 0;
     Int startNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = sentinelToken }),
@@ -2667,13 +2673,13 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
         untt tokType = cTk.tp;
 
         if (tokType == tokParens) {
-            cm->i++; // CONSUME the parens token
+            cm->i++; /* CONSUME the parens token */
             exprSubexpr(cm->i + cTk.pl2, &arity, tokens, cm);
         } else VALIDATEP(tokType < firstSpanTokenType, errExpressionCannotContain)
         else if (tokType <= topVerbatimTokenVariant) {
             pushInnodes((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
                                 .startBt = cTk.startBt, .lenBts = cTk.lenBts }, cm);
-            cm->i++; // CONSUME the verbatim token
+            cm->i++; /* CONSUME the verbatim token */
         } else {
             if (tokType == tokWord) {
                 Int varId = getActiveVar(cTk.pl2, cm);
@@ -2693,13 +2699,13 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
 }
 
 private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
-    /* Precondition: we are looking at the first token of expr which does not have a tokStmt/tokParens header.
-     Consumes 1 or more tokens.
-     Returns the type of parsed expression. */
+/* Precondition: we are looking at the first token of expr which does not have a tokStmt/tokParens header.
+Consumes 1 or more tokens.
+Returns the type of parsed expression. */
     if (cm->i + 1 == sentinel) { // the [stmt 1, tokInt] case
         Token singleToken = tokens[cm->i];
         if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
-            cm->i += 1; // CONSUME the single literal
+            cm->i += 1; /* CONSUME the single literal */
             return exprSingleItem(singleToken, cm);
         }
     }
@@ -2707,8 +2713,8 @@ private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) token
 }
 
 private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm) {
-    /* Precondition: we are looking 1 past the first token of expr, which is the first parameter. Consumes 1
-     or more tokens. Returns the type of parsed expression. */
+/* Precondition: we are looking 1 past the first token of expr, which is the first parameter. Consumes 1
+or more tokens. Returns the type of parsed expression. */
     if (tk.tp == tokStmt || tk.tp == tokParens) {
         if (tk.pl2 == 1) {
             Token singleToken = tokens[cm->i];
@@ -2725,16 +2731,16 @@ private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm) {
 }
 
 private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
-    /* Parses an expression from an actual token. Precondition: we are 1 past that token. Handles statements
-     only, not single items. */
+/* Parses an expression from an actual token. Precondition: we are 1 past that token. Handles statements
+only, not single items. */
     exprAfterHead(tok, tokens, cm);
 }
 
 private void maybeCloseSpans(Compiler* cm) {
-    /* When we are at the end of a function parsing a parse frame, we might be at the end of said frame
-     (otherwise => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
-     in which case this function handles all the corresponding stack poppin'.
-     It also always handles updating all inner frames with consumed tokens. */
+/* When we are at the end of a function parsing a parse frame, we might be at the end of said frame
+(otherwise => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
+in which case this function handles all the corresponding stack poppin'.
+It also always handles updating all inner frames with consumed tokens. */
     while (hasValues(cm->backtrack)) { // loop over subscopes and expressions inside FunctionDef
         ParseFrame frame = peek(cm->backtrack);
         if (cm->i < frame.sentinelToken) {
@@ -2752,7 +2758,7 @@ private void maybeCloseSpans(Compiler* cm) {
 }
 
 private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
-    /* Parses anything from current cm->i to "sentinelToken" */
+/* Parses anything from current cm->i to "sentinelToken" */
     while (cm->i < sentinelToken) {
         Token currTok = tokens[cm->i];
         untt contextType = peek(cm->backtrack).tp;
@@ -2770,8 +2776,8 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
 }
 
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
-    /* Consumes 0 or 1 tokens. Returns the type of what it parsed, including -1 if unknown.
-     Returns -2 if didn't parse. */
+/* Consumes 0 or 1 tokens. Returns the type of what it parsed, including -1 if unknown.
+Returns -2 if didn't parse. */
     Int typeId = -1;
     if (tok.tp <= topVerbatimTokenVariant) {
         parseVerbatim(tok, cm);
@@ -2791,7 +2797,7 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
 }
 
 private void setClassToMutated(Int bindingId, Compiler* cm) {
-    /* Changes a mutable variable to mutated. Throws an exception for an immutable one */
+/* Changes a mutable variable to mutated. Throws an exception for an immutable one */
     Int class = cm->entities.cont[bindingId].class;
     VALIDATEP(class < classImmutable, errCannotMutateImmutable);
     if (class % 2 == 0) {
@@ -2828,13 +2834,13 @@ private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 testable bool findOverload(Int typeId, Int start, Int* entityId, Compiler* cm);
 
 private void mutationTwiddle(Int ind, Token mutTk, Compiler* cm) {
-    /* Performs some AST twiddling to turn a mutation into a reassignment:
-     1. [.    .]
-     2. [.    .      Expr     ...]
-     3. [Expr OpCall LeftSide ...]
+/* Performs some AST twiddling to turn a mutation into a reassignment:
+1. [.    .]
+2. [.    .      Expr     ...]
+3. [Expr OpCall LeftSide ...]
 
-     The end result is an expression that is the right side but wrapped in another binary call,
-     with .pl2 increased by + 2 */
+The end result is an expression that is the right side but wrapped in another binary call,
+with .pl2 increased by + 2 */
     Node rNd = cm->nodes.cont[ind + 2];
     if (rNd.tp == nodExpr) {
         cm->nodes.cont[ind] = (Node){.tp = nodExpr, .pl2 = rNd.pl2 + 2, .startBt = mutTk.startBt, .lenBts = mutTk.lenBts};
@@ -2879,10 +2885,10 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     push(((ParseFrame){.tp = nodReassign, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     pushInnodes((Node){.tp = nodBinding, .pl1 = leftEntityId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-    ++cm->i; // CONSUME the binding word
+    ++cm->i; /* CONSUME the binding word */
 
     Int ind = cm->nodes.len;
-    // space for the operator and left side
+    /* space for the operator and left side */
     pushInnodes(((Node){0}), cm);
     pushInnodes(((Node){0}), cm);
 
@@ -3052,7 +3058,7 @@ private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm);
 private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 
 private Int importAndActivateEntity(Entity ent, Compiler* cm) {
-    /* Adds an import to the entities table, activates it and, if function, adds its overload */
+/* Adds an import to the entities table, activates it and, if function, adds its overload */
     Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
     Int isAFunc = isFunction(ent.typeId, cm);
     VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
@@ -3128,8 +3134,8 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
 }
 
 testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
-    /* Definition of the operators, reserved words, lexer dispatch and parser dispatch tables for the
-     compiler. */
+/* Definition of the operators, reserved words, lexer dispatch and parser dispatch tables for the
+compiler. */
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
     (*result) = (LanguageDefinition) {
         .possiblyReservedDispatch = tabulateReservedbytes(a), .dispatchTable = tabulateDispatch(a),
@@ -3175,12 +3181,12 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) {
 }
 
 testable Compiler* createProtoCompiler(Arena* a) {
-    /* Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned
-     for every source code module. The proto-compiler contains the following data:
-     - langDef with operators
-     - types that are sufficient for the built-in operators
-     - entities with the built-in operator entities
-     - overloadIds with counts */
+/* Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned
+for every source code module. The proto-compiler contains the following data:
+- langDef with operators
+- types that are sufficient for the built-in operators
+- entities with the built-in operator entities
+- overloadIds with counts */
     Compiler* proto = allocateOnArena(sizeof(Compiler), a);
     (*proto) = (Compiler){
         .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(32, a),
@@ -3197,8 +3203,8 @@ testable Compiler* createProtoCompiler(Arena* a) {
 }
 
 private void finalizeLexer(Compiler* lx) {
-    /* Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and
-     an open statement, if any. */
+/* Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and
+an open statement, if any. */
     if (!hasValues(lx->lexBtrack)) {
         return;
     }
@@ -3209,21 +3215,21 @@ private void finalizeLexer(Compiler* lx) {
 }
 
 testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* a) {
-    /* Main lexer function. Precondition: the input Byte array has been prepended with StandardText */
+/* Main lexer function. Precondition: the input Byte array has been prepended with StandardText */
     Compiler* lx = createLexerFromProto(sourceCode, proto, a);
     Int inpLength = lx->inpLength;
     Arr(Byte) inp = lx->sourceCode->cont;
     VALIDATEL(inpLength > 0, "Empty input")
 
-    // Check for UTF-8 BOM at start of file
-    if ((lx->i + 3) < lx->inpLength
+    /* Check for UTF-8 BOM at start of file */
+    if ((lx->i + 3) < inpLength
         && (unsigned char)inp[lx->i] == 0xEF
         && (unsigned char)inp[lx->i + 1] == 0xBB
         && (unsigned char)inp[lx->i + 2] == 0xBF) {
         lx->i += 3;
     }
     LexerFunc (*dispatch)[256] = proto->langDef->dispatchTable;
-    // Main loop over the input
+    /* Main loop over the input */
     if (setjmp(excBuf) == 0) {
         while (lx->i < inpLength) {
             ((*dispatch)[inp[lx->i]])(inp, lx);
@@ -3234,17 +3240,17 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
 }
 
 struct ScopeStackFrame {
-    /* This frame corresponds either to a lexical scope or a subexpression.
-     It contains string ids introduced in the current scope, used not for cleanup after the frame
-     is popped. Otherwise, it contains the function call of the subexpression. */
-    int len;                // number of elements in scope stack
+/* This frame corresponds either to a lexical scope or a subexpression.
+It contains string ids introduced in the current scope, used not for cleanup after the frame
+is popped. Otherwise, it contains the function call of the subexpression. */
+    int len;                /* number of elements in scope stack */
 
     ScopeChunk* previousChunk;
-    int previousInd;           // index of the start of previous frame within its chunk
+    int previousInd;           /* index of the start of previous frame within its chunk */
 
     ScopeChunk* thisChunk;
-    int thisInd;               // index of the start of this frame within this chunk
-    Arr(int) bindings;         // list of names of bindings introduced in this scope
+    int thisInd;               /* index of the start of this frame within this chunk */
+    Arr(int) bindings;         /* list of names of bindings introduced in this scope */
 };
 
 
@@ -3267,7 +3273,7 @@ private size_t floor4(size_t sz) {
 
 
 testable ScopeStack* createScopeStack(void) {
-    /* TODO put it into an arena? */
+/* TODO put it into an arena? */
     ScopeStack* result = malloc(sizeof(ScopeStack));
 
     ScopeChunk* firstChunk = malloc(CHUNK_SIZE);
@@ -3302,10 +3308,10 @@ private void mbNewChunk(ScopeStack* scopeStack) {
 }
 
 testable void pushLexScope(ScopeStack* scopeStack) {
-    /* Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within
-     a brand new chunk. Scopes have a simple size policy: 64 elements at first, then 256, then
-     throw exception. This is because only 256 local variables are allowed in one function, and
-     transitively in one scope. */
+/* Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within
+a brand new chunk. Scopes have a simple size policy: 64 elements at first, then 256, then
+throw exception. This is because only 256 local variables are allowed in one function, and
+transitively in one scope. */
     int remainingSpace = scopeStack->currChunk->len - scopeStack->nextInd + 1;
     int necessarySpace = ceiling4(sizeof(ScopeStackFrame))/4 + 64;
 
@@ -3361,8 +3367,8 @@ private void addBinding(int nameId, int bindingId, Compiler* cm) {
 }
 
 private void popScopeFrame(Compiler* cm) {
-    /// Pops a frame from the ScopeStack. For a scope type of frame, also deactivates its bindings.
-    /// Returns pointer to previous frame (which will be top after this call) or null if there isn't any
+/* Pops a frame from the ScopeStack. For a scope type of frame, also deactivates its bindings.
+Returns pointer to previous frame (which will be top after this call) or null if there isn't any */
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     ScopeStack* scopeStack = cm->scopeStack;
     if (topScope->bindings) {
@@ -3377,8 +3383,8 @@ private void popScopeFrame(Compiler* cm) {
         scopeStack->topScope = (ScopeStackFrame*)(scopeStack->currChunk->cont + topScope->previousInd);
     }
 
-    // if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but
-    // everything after it needs to go
+    /* if the lastChunk is defined, it will serve as pre-allocated buffer for future frames, but
+     everything after it needs to go */
     if (scopeStack->lastChunk) {
         ScopeChunk* ch = scopeStack->lastChunk->next;
         if (ch != null) {
@@ -3401,7 +3407,7 @@ private Int isFunction(Int typeId, Compiler* cm);
 
 
 private void addRawOverload(Int nameId, Int firstParamType, Int entityId, Compiler* cm) {
-    /// Adds an overload of a function to the [rawOverloads] and activates it, if needed
+/* Adds an overload of a function to the [rawOverloads] and activates it, if needed */
     Int mbListId = -cm->activeBindings[nameId] - 2;
     if (mbListId == -1) {
         Int newListId = listAddMultiAssocList(firstParamType, entityId, cm->rawOverloads);
@@ -3425,8 +3431,9 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
     untt theHash = hashCode(types + startBt, lenBts);
     Int hashOffset = theHash % (hm->dictSize);
     if (*(hm->dict + hashOffset) == null) {
-        Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue), hm->a);
-        newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = capacity, right u16 = length
+        Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue),
+                hm->a);
+        newBucket->capAndLen = (initBucketSize << 16) + 1; /* left u16 = cap, right u16 = len */
         StringValue* firstElem = (StringValue*)newBucket->cont;
         *firstElem = (StringValue){.hash = theHash, .indString = startBt };
         *(hm->dict + hashOffset) = newBucket;
@@ -3449,9 +3456,9 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
 }
 
 testable Int mergeType(Int startInd, Compiler* cm) {
-    /* Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its
-     tail. Returns the resulting index of this type and updates the length of cm->types if
-     appropriate. */
+/* Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its
+tail. Returns the resulting index of this type and updates the length of cm->types if
+appropriate. */
     Int lenInts = cm->types.cont[startInd] + 1; // +1 for the type length
     return mergeTypeWorker(startInd, lenInts, cm);
 }
@@ -3516,12 +3523,12 @@ const Int codegenStrings[] = {
 #define cgStrAlert      23
 #define cgStrLo         24
 
-//}}}
+/*}}}*/
 
 private void buildStandardStrings(Compiler* lx) {
-    /* Inserts the necessary strings from the standardText into the string table and the hash table
-     The first "countOperators" nameIds are reserved for the operators (the lx->stringTable contains
-     zeros in those places) */
+/* Inserts the necessary strings from the standardText into the string table and the hash table
+The first "countOperators" nameIds are reserved for the operators (the lx->stringTable contains
+zeros in those places) */
     for (Int j = 0; j < countOperators; j++) {
         push(0, lx->stringTable);
     }
@@ -3534,28 +3541,28 @@ private void buildStandardStrings(Compiler* lx) {
 }
 
 testable Int stToNameId(Int a) {
-    /* Converts a standard string to its nameId. Doesn't work for reserved words, obviously */
+/* Converts a standard string to its nameId. Doesn't work for reserved words, obviously */
     return a - strFirstNonReserved + countOperators;
 }
 
 private void buildPreludeTypes(Compiler* cm) {
-    /// Creates the built-in types in the proto compiler
+/* Creates the built-in types in the proto compiler */
     for (int i = strInt; i <= strVoid; i++) {
         pushIntypes(0, cm);
     }
-    // List
+    /* List */
     Int typeIndL = cm->types.len;
     pushIntypes(6, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (1 << 24) + stToNameId(strL),
                                  .depth = 2, .arity = 1}, cm);
-    pushIntypes(0, cm); // the arity of the type param
+    pushIntypes(0, cm); /* the arity of the type param */
     pushIntypes(stToNameId(strLen), cm);
     pushIntypes(stToNameId(strCap), cm);
     pushIntypes(stToNameId(strInt), cm);
     pushIntypes(stToNameId(strInt), cm);
     cm->activeBindings[stToNameId(strL)] = typeIndL;
 
-    // Array
+    /* Array */
     Int typeIndA = cm->types.len;
     pushIntypes(4, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (1 << 24) + stToNameId(strA),
@@ -3565,7 +3572,7 @@ private void buildPreludeTypes(Compiler* cm) {
     pushIntypes(stToNameId(strInt), cm);
     cm->activeBindings[stToNameId(strA)] = typeIndA;
 
-    // Tuple
+    /* Tuple */
     Int typeIndTu = cm->types.len;
     pushIntypes(6, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (2 << 24) + stToNameId(strTu),
@@ -3580,7 +3587,7 @@ private void buildPreludeTypes(Compiler* cm) {
 }
 
 private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t externalNameId, Compiler* cm) {
-    /// Creates an entity, pushes it to [rawOverloads] and activates its name
+/* Creates an entity, pushes it to [rawOverloads] and activates its name */
     Int newEntityId = cm->entities.len;
     pushInentities((Entity){
         .typeId = typeId, .emit = emitAs, .class = classImmutable, .externalNameId = externalNameId}, cm);
@@ -3588,9 +3595,9 @@ private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t exte
 }
 
 private void buildOperators(Compiler* cm) {
-    /* Operators are the first-ever functions to be defined. This function builds their [types],
-     [functions] and overload counts. The order must agree with the order of operator
-     definitions in tl.internal.h, and every operator must have at least one function defined. */
+/* Operators are the first-ever functions to be defined. This function builds their [types],
+[functions] and overload counts. The order must agree with the order of operator
+definitions in tl.internal.h, and every operator must have at least one function defined. */
     Int boolOfIntInt = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     Int boolOfIntIntInt = addConcreteFunctionType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     Int boolOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
@@ -3675,17 +3682,16 @@ private void buildOperators(Compiler* cm) {
     buildOperator(opExponent, flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
     buildOperator(opBitwiseOr, intOfIntInt, 0, 0, cm); // dummy
     buildOperator(opBoolOr, flOfFl, 0, 0, cm); // dummy
-    print("after build %d", cm->activeBindings[opTimes])
 }
 
 private void createBuiltins(Compiler* cm) {
-    /// Entities and functions for the built-in operators, types and functions.
+/* Entities and functions for the built-in operators, types and functions */
     buildStandardStrings(cm);
     buildOperators(cm);
 }
 
 private void importPrelude(Compiler* cm) {
-    /// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
+/* Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase */
     buildPreludeTypes(cm);
     Int strToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
     Int intToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
@@ -3706,7 +3712,7 @@ private void importPrelude(Compiler* cm) {
             .typeInd = 3},
         (EntityImport) { .name = nameOfStandard(strPrintErr), .externalNameId = cgStrAlert,
             .typeInd = 1}
-           // TODO functions for casting (int, double, unsigned)
+           /* TODO functions for casting (int, double, unsigned) */
     };
     /* These base types occupy the first places in the stringTable and in the types table.
      So for them nameId == typeId, unlike type funcs like L(ist) and A(rray) */
@@ -3721,15 +3727,15 @@ private void importPrelude(Compiler* cm) {
 }
 
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
-    /* A proto compiler contains just the built-in definitions and tables. This fn copies it and
-     performs initialization */
+/* A proto compiler contains just the built-in definitions and tables. This fn copies it and
+performs initialization. Post-condition: i has been incremented by the standardText size */
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
-        // this assumes that the source code is prefixed with the "standardText"
+        /* this assumes that the source code is prefixed with the "standardText" */
         .i = sizeof(standardText) - 1, .langDef = proto->langDef,
         .sourceCode = prepareInput((const char *)sourceCode->cont, a),
-        .inpLength = sourceCode->len,
+        .inpLength = sourceCode->len + sizeof(standardText) - 1,
         .tokens = createInListToken(LEXER_INIT_SIZE, a),
         .newlines = createInListInt(500, a),
         .numeric = createInListInt(50, aTmp),
@@ -3743,7 +3749,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
 }
 
 testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
-    /* Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done */
+/* Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done */
     if (lx->wasError) {
         return;
     }
@@ -3805,32 +3811,32 @@ private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) {
 }
 
 private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scratch, Compiler* cm) {
-    /* Validates the overloads for a name for non-intersecting via their outer types and full types
-     1. For parameter outer types, their arities must be unique and not match any other outer types
-     2. A zero-arity function, if any, must be unique
-     3. For any run of types with same outerType, all refs must be either to concrete entities or
-        to [monoIds] (no mixing within same outerType)
-     4. For refs to concrete entities, full types (which are concrete) must be different
-     5. outerTypes with refs to [monoIds] must not intersect amongst themselves */
+/* Validates the overloads for a name for non-intersecting via their outer types and full types
+1. For parameter outer types, their arities must be unique and not match any other outer types
+2. A zero-arity function, if any, must be unique
+3. For any run of types with same outerType, all refs must be either to concrete entities or
+   to [monoIds] (no mixing within same outerType)
+4. For refs to concrete entities, full types (which are concrete) must be different
+5. outerTypes with refs to [monoIds] must not intersect amongst themselves */
     Arr(Int) ov = cm->overloads.cont;
     Int start = listId + 1;
     Int outerSentinel = start + countOverloads;
     Int prevParamOuter = -1;
     Int o = start;
     for (; o < outerSentinel && ov[o] < -1; o++) {
-        // These are the param outer types, like the outer of "[U/1]U(Int)". The values are (-arity - 1)
+        /* These are the param outer types, like the outer of "[U/1]U(Int)". The values are
+         (-arity - 1) */
         VALIDATEP(ov[o] != prevParamOuter, errTypeOverloadsIntersect)
         prevParamOuter = ov[o];
     }
     if (o > start) {
-        // Since we have some param outer types, we need to check every positive outer type, and -1
-        // The simple (though rough) criterion is they must not have the same arity as any param outer
+        /* Since we have some param outer types, we need to check every positive outer type, and -1
+         The simple (though rough) criterion is they must not have the same arity as any param outer */
         for (Int k = o; k < outerSentinel; k++) {
             if (ov[k] == -1) {
                 continue;
             }
             Int outerArityNegated = -typeGetArity(ov[k], cm) - 1;
-            print("k %d outerArityNegated %d", k, outerArityNegated)
             VALIDATEP(binarySearch(outerArityNegated, start, o, ov) == -1,
                       errTypeOverloadsIntersect)
         }
@@ -3848,8 +3854,8 @@ void printIntArray(Int count, Arr(Int) arr);
 #endif
 
 testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
-    /* Creates a final overloads table for a name and returns its index
-     Precondition: [rawOverloads] contain twoples of (typeId ref) (yes, "twople" = tuple of two) */
+/* Creates a final overloads table for a name and returns its index
+Precondition: [rawOverloads] contain twoples of (typeId ref) (yes, "twople" = tuple of two) */
     scratch->len = 0;
     Arr(Int) raw = cm->rawOverloads->cont;
     Int listId = -cm->activeBindings[nameId] - 2;
@@ -3860,19 +3866,16 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
 #endif
 
     Int rawSentinel = rawStart + raw[listId];
-    if (nameId == opTimes) {
-        print("start %d sentinel %d", rawStart, rawSentinel)
-    }
 
     for (Int j = rawStart; j < rawSentinel; j += 2) {
         Int outerType = typeGetOuter(raw[j], cm);
         push(outerType, scratch);
-        push(j, scratch);  // we need the index to get the original items after sorting
+        push(j, scratch);  /* we need the index to get the original items after sorting */
     }
-    // Scratch contains twoples of (outerType indexInRaw)
+    /* Scratch contains twoples of (outerType indexInRaw) */
 
     Int countOverloads = scratch->len/2;
-    sortPairs(0, scratch->len, scratch->cont); // sort by outerType ASC
+    sortPairs(0, scratch->len, scratch->cont); /* sort by outerType ASC */
 
     Arr(Int) ov = cm->overloads.cont;
     Int newInd = cm->overloads.len;
@@ -3880,12 +3883,12 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     cm->overloads.len += 3*countOverloads + 1;
 
     for (Int j = 0; j < countOverloads; j++) {
-        ov[newInd + j + 1] = scratch->cont[2*j]; // outerTypeId
-        scratch->cont[j*2] = raw[j*2]; // typeId
+        ov[newInd + j + 1] = scratch->cont[2*j]; /* outerTypeId */
+        scratch->cont[j*2] = raw[j*2]; /* typeId */
     }
-    // outerTypes part is filled in, and scratch contains twoples of (typeId ind)
+    /* outerTypes part is filled in, and scratch contains twoples of (typeId ind) */
 
-    // Now to sort every plateau of outerType, but in the scratch list
+    /* Now to sort every plateau of outerType, but in the scratch list */
     Int prevOuter = -1;
     Int prevInd = 0;
     Int j = 0;
@@ -3909,8 +3912,8 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
 }
 
 testable void createOverloads(Compiler* cm) {
-    /* Fills [overloads] from [rawOverloads]. Replaces all indices in
-     [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously) */
+/* Fills [overloads] from [rawOverloads]. Replaces all indices in
+[activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously) */
     StackInt* scratch = createStackint32_t(16, cm->aTmp);
     cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4, cm->a);
     /* Each overload requires 3x4 = 12 bytes for the triple of (outerType typeId entityId).
@@ -3934,8 +3937,8 @@ testable void createOverloads(Compiler* cm) {
 }
 
 private void parseToplevelTypes(Compiler* cm) {
-    /// Parses top-level types but not functions. Writes them to the types table and adds
-    /// their bindings to the scope
+/* Parses top-level types but not functions. Writes them to the types table and adds
+their bindings to the scope */
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
     const Int len = cm->tokens.len;
@@ -3951,7 +3954,7 @@ private void parseToplevelTypes(Compiler* cm) {
 }
 
 private void parseToplevelConstants(Compiler* cm) {
-    /// Parses top-level constants but not functions, and adds their bindings to the scope
+/* Parses top-level constants but not functions, and adds their bindings to the scope */
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
     const Int len = cm->tokens.len;
@@ -4002,8 +4005,8 @@ private void validateOverloadsFull(Compiler* cm) {
 #endif
 
 testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler* cm) {
-    /* Parses a function signature. Emits no nodes, adds data to [toplevels], [functions], [overloads].
-     Pre-condition: we are 1 token past the tokAssignment. */
+/* Parses a function signature. Emits no nodes, adds data to [toplevels], [functions], [overloads].
+Pre-condition: we are 1 token past the tokAssignment. */
     Int fnStartTokenId = cm->i - 1;
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
 
@@ -4051,7 +4054,7 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler
             firstParamType = paramTypeId;
         }
 
-        ++cm->i; // CONSUME the param's type name
+        ++cm->i; /* CONSUME the param's type name */
     }
 
     cm->types.cont[tentativeTypeInd] = arity + 1;
@@ -4067,8 +4070,8 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler
 }
 
 private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
-    /* Parses a top-level function.
-     The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... ) */
+/* Parses a top-level function.
+The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... ) */
     Int fnStartInd = toplevelSignature.indToken;
     Int fnSentinel = toplevelSignature.sentinelToken;
 
@@ -4076,7 +4079,7 @@ private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Comp
     Int startBt = toks[fnStartInd + 1].startBt;
     Token fnTk = toks[cm->i];
 
-    // the fnDef scope & node
+    /* the fnDef scope & node */
     Int entityId = toplevelSignature.entityId;
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
                         .typeId = cm->entities.cont[entityId].typeId}), cm->backtrack);
@@ -4084,15 +4087,15 @@ private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Comp
     pushInnodes((Node){ .tp = nodBinding, .pl1 = entityId, .startBt = startBt,
                         .lenBts = (Int)(startBt >> 24) }, cm);
 
-    // the scope for the function's body
+    /* the scope for the function's body */
     addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
 
     Int paramsSentinel = cm->i + fnTk.pl2 + 1;
-    cm->i++; // CONSUME the parens token for the param list
+    cm->i++; /* CONSUME the parens token for the param list */
     while (cm->i < paramsSentinel) {
         Token paramName = toks[cm->i];
         Int newEntityId = createEntity(nameOfToken(paramName), cm);
-        ++cm->i; // CONSUME the param name
+        ++cm->i; /* CONSUME the param name */
         Int typeId = cm->activeBindings[paramName.pl2];
         cm->entities.cont[newEntityId].typeId = typeId;
 
@@ -4107,7 +4110,7 @@ private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Comp
 }
 
 private void parseFunctionBodies(Arr(Token) toks, Compiler* cm) {
-    /* Parses top-level function params and bodies */
+/* Parses top-level function params and bodies */
     for (int j = 0; j < cm->toplevels.len; j++) {
         cm->loopCounter = 0;
         parseToplevelBody(cm->toplevels.cont[j], toks, cm);
@@ -4115,8 +4118,8 @@ private void parseFunctionBodies(Arr(Token) toks, Compiler* cm) {
 }
 
 private void parseToplevelSignatures(Compiler* cm) {
-    /* Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
-     Result: the overload counts and the list of toplevel functions to parse */
+/* Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
+Result: the overload counts and the list of toplevel functions to parse */
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
     Int len = cm->inpLength;
@@ -4137,7 +4140,7 @@ private void parseToplevelSignatures(Compiler* cm) {
     }
 }
 
-/// Must agree in order with node types in tl.internal.h
+/* Must agree in order with node types in tl.internal.h */
 const char* nodeNames[] = {
     "[]", "Int", "Long", "Double", "Bool", "String", "~", "_",
     "id", "call", "binding",
@@ -4208,45 +4211,46 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(cm);
 
-        // This gives us the semi-complete overloads & overloadIds tables (with only the built-ins and imports)
+        /* This gives us the semi-complete overloads & overloadIds tables (with only the
+         built-ins and imports) */
         parseToplevelConstants(cm);
 
-        // This gives us the complete overloads & overloadIds tables, and the list of toplevel functions
+        /* This gives the complete overloads & overloadIds tables + list of toplevel functions */
         parseToplevelSignatures(cm);
         createOverloads(cm);
 
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
-        // The main parse (all top-level function bodies)
+        /* The main parse (all top-level function bodies) */
         parseFunctionBodies(cm->tokens.cont, cm);
     }
     return cm;
 }
 
 testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
-    /* Parses a single file in 4 passes, see docs/parser.txt */
+/* Parses a single file in 4 passes, see docs/parser.txt */
     initializeParser(cm, proto, a);
     return parseMain(cm, a);
 }
 
-//}}}
-/*{{{ Types*/
-/*{{{ Type utils*/
+/*}}}*/
+/*{{{ Types */
+/*{{{ Type utils */
 
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((untt)(sort << 16) + (depth << 8) + arity);
 }
 
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
-    /* Writes the bytes for the type header to the tail of the cm->types table.
-     Adds two 4-byte elements */
+/* Writes the bytes for the type header to the tail of the cm->types table.
+Adds two 4-byte elements */
     pushIntypes((Int)((untt)((untt)hdr.sort << 16) + ((untt)hdr.depth << 8) + hdr.arity), cm);
     pushIntypes((Int)hdr.nameAndLen, cm);
 }
 
 testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
-    /// Reads a type header from the type array
+/* Reads a type header from the type array */
     Int tag = cm->types.cont[typeId + 1];
     TypeHeader result = (TypeHeader){ .sort = ((untt)tag >> 16) & LOWER16BITS,
             .depth = (tag >> 8) & 0xFF, .arity = tag & 0xFF,
@@ -4274,7 +4278,8 @@ private Int typeGetOuter(Int typeId, Compiler* cm) {
     } else if (hdr.sort == sorPartial) {
         Int genElt = cm->types.cont[typeId + hdr.arity + 3];
         if ((genElt >> 24) & 0xFF == 0xFF) {
-            return -(genElt & 0xFF) - 1; // a param type in outer position, so we return its (-arity -1)
+            return -(genElt & 0xFF) - 1; /* a param type in outer position,
+                                            so we return its (-arity -1) */
         } else {
             return genElt & LOWER24BITS;
         }
@@ -4284,7 +4289,7 @@ private Int typeGetOuter(Int typeId, Compiler* cm) {
 }
 
 private Int isFunction(Int typeId, Compiler* cm) {
-    /// Returns the function's depth (count of args) if the type is a function type, -1 otherwise.
+/* Returns the function's depth (count of args) if the type is a function type, -1 otherwise */
     if (typeId < topVerbatimType) {
         return -1;
     }
@@ -4292,23 +4297,23 @@ private Int isFunction(Int typeId, Compiler* cm) {
     return (hdr.sort == sorFunction) ? hdr.depth : -1;
 }
 
-//}}}
-//{{{ Parsing type names
+/*}}}*/
+/*{{{ Parsing type names */
 
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
-    /* Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call. */
+/* Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call. */
     pushIntypes((0xFF << 24) + (paramInd << 8) + arity, cm);
 }
 
 testable void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm) {
-    /* Known type fn call */
+/* Known type fn call */
     pushIntypes((arity << 24) + typeInd, cm);
 }
 
 testable Int typeSingleItem(Token tk, Compiler* cm) {
-    /* A single-item type, like "Int". Consumes no tokens.
-     Pre-condition: we are 1 token past the token we're parsing.
-     Returns the type of the single item, or in case it's a type param, (-nameId - 1) */
+/* A single-item type, like "Int". Consumes no tokens.
+Pre-condition: we are 1 token past the token we're parsing.
+Returns the type of the single item, or in case it's a type param, (-nameId - 1) */
     Int typeId = -1;
     if (tk.tp == tokTypeName) {
         bool isAParam = tk.pl1 > 0;
@@ -4326,8 +4331,8 @@ testable Int typeSingleItem(Token tk, Compiler* cm) {
 
 
 private Int typeCountArgs(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
-    /// Counts the arity of a type call. Consumes no tokens.
-    /// Precondition: we are pointing 1 past the type call
+/* Counts the arity of a type call. Consumes no tokens.
+Precondition: we are pointing 1 past the type call */
     Int arity = 0;
     Int j = cm->i;
     bool metArrow = false;
@@ -4353,7 +4358,7 @@ private Int typeCountArgs(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
 }
 
 testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
-    /// Performs a binary search among the binary params in cm->typeStack. Returns -1 if nothing is found
+/* Performs a binary search of the binary params in cm->typeStack. Returns -1 if nothing is found */
     if (cm->typeStack->len == 0) {
         return -1;
     }
@@ -4386,12 +4391,12 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
     return -1;
 }
 
-//}}}
-//{{{ Type expressions
+/*}}}*/
+/*{{{ Type expressions */
 
-/// Type expression data format: First element is the tag (one of the following
-/// constants), second is payload. Type calls need to have an extra payload, so their tag
-/// is (8 bits of "tye", 24 bits of typeId)
+/* Type expression data format: First element is the tag (one of the following
+ constants), second is payload. Type calls need to have an extra payload, so their tag
+ is (8 bits of "tye", 24 bits of typeId) */
 #define tyeStruct     1 // payload: count of fields in the struct
 #define tyeSum        2 // payload: count of variants
 #define tyeFunction   3 // payload: count of parameters. This is a function signature, not the F(...)
@@ -4408,9 +4413,9 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm);
 
 private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* params,
                              untt nameAndLen, Compiler* cm) {
-    /// Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
-    /// in "params". The sequence must be flat, i.e. not include any nested structs.
-    /// Returns the typeId of the new type
+/* Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
+in "params". The sequence must be flat, i.e. not include any nested structs.
+Returns the typeId of the new type */
     Int tentativeTypeId = cm->types.len;
     pushIntypes(0, cm);
     Int sentinel = startInd + length;
@@ -4449,9 +4454,9 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
 
 private Int typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt* params,
                                bool isFunction, Compiler* cm) {
-    /// Creates/merges a new type call from a sequence of pairs in "exp" and a list of type params
-    /// in "params". Handles both ordinary type calls and function types.
-    /// Returns the typeId of the new type
+/* Creates/merges a new type call from a sequence of pairs in "exp" and a list of type params
+in "params". Handles both ordinary type calls and function types.
+Returns the typeId of the new type */
     Int tentativeTypeId = cm->types.len;
     pushIntypes(0, cm);
     Int sentinel = startInd + length;
@@ -4486,9 +4491,9 @@ private Int typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt
 
 private Int typeCreateFnSignature(StackInt* exp, Int startInd, Int length, StackInt* params,
                              untt nameAndLen, Compiler* cm) {
-    /// Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
-    /// in "params". The sequence must be flat, i.e. not include any nested structs.
-    /// Returns the typeId of the new type
+/* Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
+in "params". The sequence must be flat, i.e. not include any nested structs.
+Returns the typeId of the new type */
     Int tentativeTypeId = cm->types.len;
     pushIntypes(0, cm);
     Int sentinel = startInd + length;
@@ -4526,8 +4531,8 @@ private Int typeCreateFnSignature(StackInt* exp, Int startInd, Int length, Stack
 }
 
 private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compiler* cm) {
-    /// Processes the "type expression" produced by "typeDef".
-    /// Returns the typeId of the new typeId
+/* Processes the "type expression" produced by "typeDef".
+Returns the typeId of the new typeId */
     Int j = exp->len - 2;
 #if defined(TEST) && defined(TRACE)
     printIntArray(exp->len, exp->cont);
@@ -4582,7 +4587,7 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
 #define maxTypeParams 254
 
 private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) {
-    /// Precondition: we are pointing 1 past the bracket token
+/* Precondition: we are pointing 1 past the bracket token */
     Int brackSentinel = cm->i + bracketTk.pl2;
     while (cm->i < brackSentinel) {
         Token tk = cm->tokens.cont[cm->i];
@@ -4613,7 +4618,7 @@ private void typeDefClearParams(StackInt* params, Compiler* cm) {
 }
 
 private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
-    /// Returns the number of fields in struct definition. Precondition: we are 1 past the parens token
+/* Returns the number of fields in struct definition. Precond: we are 1 past the parens token */
     Int count = 0;
     Int j = cm->i;
     Int sentinel = j + length;
@@ -4634,7 +4639,7 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
 }
 
 private bool typeExprIsInside(Int tp, Compiler* cm) {
-    /// Is the current type expression inside e.g. a struct or a function
+/* Is the current type expression inside e.g. a struct or a function */
     return (cm->tempStack->len >= 2
             && penultimate(cm->tempStack) == tp);
 }
@@ -4676,9 +4681,7 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
                 } else {
                     Int typeId = cm->activeBindings[nameId];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
-                    print("typeId %d countArgs %d nameId %d", typeId, countArgs, nameId)
-                    Int typeAr = typeGetArity(typeId, cm);
-                    print("typeAr %d", typeAr)
+                    /* Int typeAr = typeGetArity(typeId, cm); */
                     VALIDATEP(typeGetArity(typeId, cm) == countArgs, errTypeConstructorWrongArity)
                     push(((untt)tyeTypeCall << 24) + nameId, exp);
                     push(countArgs, exp);
@@ -4735,12 +4738,12 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
 }
 
 testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler* cm) {
-    /// Builds a type expression. Accepts a name or -1 for nameless type exprs (like function signatures).
-    /// Uses cm->expStack to build a "type expression" and cm->params for the type parameters
-    /// Produces no AST nodes, but potentially lots of new types
-    /// Consumes the whole type assignment, or the whole function signature
-    /// Data format: see "Type expression data format"
-    /// Precondition: we are 1 past the assignment token
+/* Builds a type expression. Accepts a name or -1 for nameless type exprs (like function signatures).
+Uses cm->expStack to build a "type expression" and cm->params for the type parameters
+Produces no AST nodes, but potentially lots of new types
+Consumes the whole type assignment, or the whole function signature
+Data format: see "Type expression data format"
+Precondition: we are 1 past the assignment token */
     StackInt* exp = cm->expStack;
     StackInt* params = cm->typeStack;
     exp->len = 0;
@@ -4770,13 +4773,13 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
     return newTypeId;
 }
 
-///}}}
-//{{{ Overloads, type check & resolve
+//*}}}*/
+/*{{{ Overloads, type check & resolve */
 
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
 
 private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
-    /// Gets the type of the first param of a function.
+/* Gets the type of the first param of a function */
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
 
     return cm->types.cont[funcTypeId + 3 + hdr.arity]; // +3 skips the type length, type tag and type name
@@ -4788,9 +4791,8 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
 
 private Int overloadOnPlateau(Int outerType, Int ind, Int typeId, Int ovInd, Int countOvs,
                                   Compiler* cm) {
-    /* Find the inclusive left and right indices of a plateau (same outer type) in [overloads].
-     ovInd
-     Returns index of the reference in [overloads], or -1 if not match was found */
+/* Find the inclusive left and right indices of a plateau (same outer type) in [overloads].
+Returns index of the reference in [overloads], or -1 if not match was found */
     Arr(Int) overs = cm->overloads.cont;
     Int j = ind - 1;
     while (j > ovInd && overs[j] == outerType) {
@@ -4821,14 +4823,14 @@ private Int overloadOnPlateau(Int outerType, Int ind, Int typeId, Int ovInd, Int
 }
 
 testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
-    /* Params: typeId = type of the first function parameter, or -1 if it's 0-arity
-             ovInd = ind in [overloads]
-             entityId = address where to store the result, if successful
-     We have 4 scenarios here, sorted from left to right in the outerType part of [overloads]:
-     1. outerType < -1: non-function generic types with outer generic, e.g. "U(Int)" => -2
-     2. outerType = -1: 0-arity function
-     3. outerType >=< 0 BIG: non-function types with outer concrete, e.g. "L(U)" => ind of L
-     4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1 */
+/* Params: typeId = type of the first function parameter, or -1 if it's 0-arity
+           ovInd = ind in [overloads]
+           entityId = address where to store the result, if successful
+ We have 4 scenarios here, sorted from left to right in the outerType part of [overloads]:
+ 1. outerType < -1: non-function generic types with outer generic, e.g. "U(Int)" => -2
+ 2. outerType = -1: 0-arity function
+ 3. outerType >=< 0 BIG: non-function types with outer concrete, e.g. "L(U)" => ind of L
+ 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1 */
     Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
     Int countOvs = overs[ovInd];
@@ -4893,9 +4895,9 @@ private void printExpSt(StackInt* st);
 #endif
 
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
-    /* Shifts ints from start and until the end to the left.
-     E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
-     startInd and byHowMany are measured in units of Int. */
+/* Shifts ints from start and until the end to the left.
+E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
+startInd and byHowMany are measured in units of Int. */
     Int from = startInd;
     Int to = startInd - byHowMany;
     Int sentinel = cm->expStack->len;
@@ -4909,7 +4911,7 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
 }
 
 private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
-    /// Populates the expression's type stack with the operands and functions of an expression
+/* Populates the expression's type stack with the operands and functions of an expression */
     StackInt* st = cm->expStack;
     st->len = 0;
     for (Int j = indExpr + 1; j < sentinelNode; ++j) {
@@ -4934,8 +4936,9 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
 }
 
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
-    /* Typechecks and resolves overloads in a single expression */
-    Int currAhead = 0; // how many elements ahead we are compared to the token array (because of extra call indicators)
+/* Typechecks and resolves overloads in a single expression */
+    Int currAhead = 0; /* how many elements ahead we are compared to the token array (because
+                          of extra call indicators) */
     StackInt* st = cm->expStack;
 
     populateExpStack(indExpr, sentinelNode, &currAhead, cm);
@@ -5016,12 +5019,12 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     }
 }
 
-//}}}
-//{{{ Generic types
+/*}}}*/
+/*{{{ Generic types */
 
 testable void typeSkipNode(Int* ind, Compiler* cm) {
-    /* Completely skips the current node in a type, whether the node is concrete or param,
-     a call or not */
+/* Completely skips the current node in a type, whether the node is concrete or param,
+a call or not */
     Int toSkip = 1;
     while (toSkip > 0) {
         Int cType = cm->types.cont[*ind];
@@ -5039,7 +5042,8 @@ testable void typeSkipNode(Int* ind, Compiler* cm) {
 #define typeGenTag(val) ((val >> 24) & 0xFF)
 
 private Int typeEltArgcount(Int typeElt) {
-    /// Get type-arg-count from a type element (which may be a type call, concrete type, type param etc)
+/* Get type-arg-count from a type element (which may be a type call, concrete type, type param
+etc) */
     untt genericTag = typeGenTag(typeElt);
     if (genericTag == 255) {
         return typeElt & 0xFF;
@@ -5050,11 +5054,11 @@ private Int typeEltArgcount(Int typeElt) {
 
 
 testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
-    /* Returns true iff two generic types intersect (i.e. a concrete type may satisfy both of them)
-     Warning: this function assumes that both types have sort = Partial */
+/* Returns true iff two generic types intersect (i.e. a concrete type may satisfy both of them)
+Warning: this function assumes that both types have sort = Partial */
     TypeHeader hdr1 = typeReadHeader(type1, cm);
     TypeHeader hdr2 = typeReadHeader(type2, cm);
-    Int i1 = type1 + 3 + hdr1.arity; // +3 to skip the type length, type tag and name
+    Int i1 = type1 + 3 + hdr1.arity; /* +3 to skip the type length, type tag and name */
     Int i2 = type2 + 3 + hdr2.arity;
 
     Int sentinel1 = type1 + cm->types.cont[type1] + 1;
@@ -5079,7 +5083,7 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
             ++i1;
             ++i2;
         } else {
-            // TODO check the arities
+            /* TODO check the arities */
             Int argCount1 = typeEltArgcount(nod1);
             Int argCount2 = typeEltArgcount(nod2);
             if (argCount1 != argCount2) {
@@ -5096,16 +5100,16 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
 }
 
 private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
-    /// Takes a single call from within a concrete type, and merges it into the type dictionary
-    /// as a whole, separate type. Returns the unique typeId
+/* Takes a single call from within a concrete type, and merges it into the type dictionary
+as a whole, separate type. Returns the unique typeId */
     return -1;
 }
 
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm) {
-    /* Checks whether a concrete type satisfies a generic type. Returns a pointer to
-     cm->typeStack with the values of parameters if satisfies, null otherwise.
-     Example: for typeId = L(L(Int)) and genericId = [T/1]L(T(Int)) returns Generic[L]
-     Warning: assumes that typeId points to a concrete type, and genericId to a partial one */
+/* Checks whether a concrete type satisfies a generic type. Returns a pointer to
+cm->typeStack with the values of parameters if satisfies, null otherwise.
+Example: for typeId = L(L(Int)) and genericId = [T/1]L(T(Int)) returns Generic[L]
+Warning: assumes that typeId points to a concrete type, and genericId to a partial one */
     StackInt* tStack = cm->typeStack;
     tStack->len = 0;
     TypeHeader genericHeader = typeReadHeader(genericId, cm);
@@ -5182,11 +5186,12 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
     return tStack;
 }
 
-//}}}
-//}}}
-//{{{ Interpreter
-//}}}
-//{{{ Utils for tests
+/*}}}*/
+/*}}}*/
+/*{{{ Interpreter */
+
+/*}}}*/
+/*{{{ Utils for tests */
 
 #ifdef TEST
 
@@ -5208,8 +5213,8 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
 
 
 int equalityLexer(Compiler a, Compiler b) {
-    /* Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
-     differing token otherwise */
+/* Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
+differing token otherwise */
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
@@ -5329,7 +5334,7 @@ void typePrint(Int typeId, Compiler* cm) {
         for (Int j = fnParamsStart; j < fnParamsSentinel; j++) {
             typePrintGenElt(cm->types.cont[j]);
         }
-        // now for the return type
+        /* now for the return type */
         printf("=> ");
         typePrintGenElt(cm->types.cont[fnParamsSentinel]);
 
@@ -5375,8 +5380,8 @@ void printOverloads(Int nameId, Compiler* cm) {
 
 #endif
 
-//}}}
-//{{{ Main
+/*}}}*/
+/*{{{ Main */
 
 
 #ifndef TEST
@@ -5386,7 +5391,6 @@ Int main(int argc, char** argv) {
     if (sourceCode == null) {
         goto cleanup;
     }
-    printString(sourceCode);
 
 //~    Codegen* cg = compile(sourceCode);
 //~    if (cg != null) {
@@ -5398,4 +5402,4 @@ Int main(int argc, char** argv) {
 }
 #endif
 
-//}}}
+/*}}}*/
