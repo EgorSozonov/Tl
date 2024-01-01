@@ -917,6 +917,7 @@ const char errUnrecognizedByte[]           = "Unrecognized Byte in source code!"
 const char errWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
 const char errWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
 const char errWordLengthExceeded[]         = "I don't know why you want an identifier of more than 255 chars, but they aren't supported";
+const char errWordWrongCall[]              = "Unsupported kind of call. Only 3 types of call are supported: prefix `foo()`, infix `a.foo()` and type calls `L(Int)`";
 const char errWordReservedWithDot[]        = "Reserved words may not be called like functions!";
 const char errNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
 const char errNumericWidthExceeded[]       = "Numeric literal width is exceeded!";
@@ -1492,7 +1493,7 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) {
 /* Lexes a decimal numeric literal (integer or floating-point). Adds a token.
 TODO: add support for the '1.23E4' format */
     Int j = (isNegative) ? (lx->i + 1) : lx->i;
-    Int digitsAfterDot = 0; // this is relative to first digit, so it includes the leading zeroes
+    Int digitsAfterDot = 0; /* this is relative to first digit, so it includes the leading zeroes */
     bool metDot = false;
     bool metNonzero = false;
     Int maximumInd = (lx->i + 40 > lx->inpLength) ? (lx->i + 40) : lx->inpLength;
@@ -1566,6 +1567,7 @@ private void lexNumber(Arr(Byte) source, Compiler* lx) {
     lx->numeric.len = 0;
 }
 
+
 private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* lx) {
 /* Adds a token which serves punctuation purposes, i.e. either a ( or  a [
 These tokens are used to define the structure, that is, nesting within the AST.
@@ -1632,15 +1634,24 @@ private void closeStatement(Compiler* lx) {
     }
 }
 
+
 private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCapitalized,
                         Int lenString, Arr(Byte) source, Compiler* lx) {
     Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
     Int lenBts = lx->i - realStartBt;
-    if (lx->i < lx->inpLength && CURR_BT == aParenLeft) { /* Type call */
-        VALIDATEL(wordType == tokWord && wasCapitalized, errExpectedType)
-        push(((BtToken){ .tp = tokTypeCall, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
+    if (lx->i < lx->inpLength && CURR_BT == aParenLeft) { /* A prefix, infix or type call */
+        VALIDATEL(wordType == tokWord || (wordType == tokAccessor && !wasCapitalized),
+                errWordWrongCall)
+        Int callType;
+        if (wordType == tokWord) {
+            callType = wasCapitalized ? tokTypeCall : tokPrefixCall;
+        } else {
+            callType = tokInfixCall;
+        }
+        push(((BtToken){ .tp = callType,
+                    .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
-        pushIntokens((Token){ .tp = tokTypeCall, .pl1 = uniqueStringInd,
+        pushIntokens((Token){ .tp = callType, .pl1 = uniqueStringInd,
                      .startBt = realStartBt, .lenBts = lenBts }, lx);
         ++lx->i; /* CONSUME the opening "(" of the call */
     } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
@@ -1652,16 +1663,12 @@ private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCap
         wrapInAStatementStarting(startBt, source, lx);
         pushIntokens((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd,
                      .startBt = realStartBt, .lenBts = lenBts }, lx);
-    } else if (wordType == tokCall) {
-        VALIDATEL(!wasCapitalized, errUnexpectedType)
-        pushIntokens((Token){ .tp = tokCall, .pl1 = uniqueStringInd,
-                     .startBt = realStartBt, .lenBts = lenBts }, lx);
     } else if (wordType == tokAccessor) {
         /* What looks like an accessor "a.x" may actually be a struct field ("(.id 5 .name `f`") */
         if (lx->tokens.len > 0) {
             Token prevToken = lx->tokens.cont[lx->tokens.len - 1];
             if (prevToken.startBt + prevToken.lenBts < realStartBt) {
-                pushIntokens((Token){ .tp = tokStructField, .pl2 = uniqueStringInd,
+                pushIntokens((Token){ .tp = tokDotWord, .pl2 = uniqueStringInd,
                              .startBt = realStartBt, .lenBts = lenBts }, lx);
                 return;
             }
@@ -1675,8 +1682,8 @@ private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCap
     }
 }
 
-private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realStartBt, Arr(Byte) source,
-                          Compiler* lx) {
+private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realStartBt,
+                          Arr(Byte) source, Compiler* lx) {
 /* True iff 'twas truly a reserved word. E.g., just "a" without a paren is not reserved */
     Int lenBts = lx->i - startBt;
     //StackBtToken* bt = lx->lexBtrack;
@@ -1701,6 +1708,7 @@ private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realSta
         lexReservedWord(keywordTp, realStartBt, lenBts, source, lx);
     }
 }
+
 
 private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) {
 /* Lexes a word (both reserved and identifier) according to Tl's rules.
@@ -1752,13 +1760,13 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
     }
 }
 
-
 private void lexWord(Arr(Byte) source, Compiler* lx) {
     wordInternal(tokWord, source, lx);
 }
 
+
 private void lexDot(Arr(Byte) source, Compiler* lx) {
-/* The dot is a statement separator or the start of a field accessor */
+/* The dot is a start of a field accessor */
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
         ++lx->i; /* CONSUME the dot */
         wordInternal(tokAccessor, source, lx);
@@ -1767,6 +1775,7 @@ private void lexDot(Arr(Byte) source, Compiler* lx) {
         ++lx->i;  /* CONSUME the dot */
     }
 }
+
 
 private void processAssignment(Int mutType, untt opType, Compiler* lx) {
 /* Handles the "=", "<-" and "+=" tokens.
@@ -1795,20 +1804,24 @@ mutType = 0 if it's immutable assignment, 1 if it's "<-", 2 if it's a regular op
 
 
 private void lexColon(Arr(Byte) source, Compiler* lx) {
-/* Handles reassignment ":=" and keyword arguments ":asdf". Main purpose is start of a new block */
+/* Handles keyword arguments ":asdf" */
     if (lx->i < lx->inpLength - 1) {
         Byte nextBt = NEXT_BT;
-        if (nextBt == aEqual) {
-            processAssignment(1, 0, lx);
-            lx->i += 2; // CONSUME the ":="
-            return;
-        } else if (isLowercaseLetter(nextBt)) {
+        if (isLowercaseLetter(nextBt)) {
             ++lx->i; // CONSUME the ":"
             wordInternal(tokKwArg, source, lx);
             return;
         }
     }
     throwExcLexer(errOperatorUnknown, lx);
+}
+
+
+private void lexSemicolon(Arr(Byte) source, Compiler* lx) {
+    if (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).spanLevel != slScope) {
+        closeStatement(lx);
+        ++lx->i;  /* CONSUME the ; */
+    }
 }
 
 
@@ -1861,8 +1874,8 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) {
         processAssignment(2, opType, lx);
     } else {
         if (j < lx->inpLength && source[j] == aParenLeft) {
-            push(((BtToken){ .tp = tokOperator, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
-                 lx->lexBtrack);
+            push(((BtToken){ .tp = tokOperator, .tokenInd = lx->tokens.len,
+                        .spanLevel = slSubexpr }), lx->lexBtrack);
             pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i }, lx);
             ++j; /* CONSUME the opening "(" of the operator call */
         } else {
@@ -1965,7 +1978,7 @@ private void lexMinus(Arr(Byte) source, Compiler* lx) {
     }
 }
 
-private void lexSlash(Arr(Byte) source, Compiler* lx) {
+private void lexDivBy(Arr(Byte) source, Compiler* lx) {
 /* Handles the binary operator as well as the unary negation operator and the comments */
     if (lx->i == lx->inpLength - 1) {
         lexOperator(source, lx);
@@ -2020,8 +2033,7 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
 
     /* since a closing paren might be closing something with statements inside it, like a lex scope
     or a core syntax form, we need to close the last statement before closing its parent */
-    if (bt->len > 0 && top.spanLevel != slScope
-          && (bt->cont[bt->len - 1].spanLevel <= slParenMulti)) {
+    if (top.spanLevel != slScope && bt->cont[bt->len - 1].spanLevel <= slParenMulti) {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
@@ -2031,6 +2043,39 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
     if (!hasValues(lx->lexBtrack)) return;
     lx->lastClosingPunctInd = startInd;
 }
+
+
+private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
+    Int j = lx->i + 1;
+    VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
+    if (j < lx->inpLength && NEXT_BT == aCaret) {
+        openPunctuation(tokFn, slScope, lx->i, lx);
+        lx->i += 2; /* CONSUME the `{^` */
+    } else {
+        openPunctuation(tokScope, slScope, lx->i, lx);
+        ++lx->i; /* CONSUME the left bracket */
+    }
+}
+
+
+private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
+    Int startInd = lx->i;
+    StackBtToken* bt = lx->lexBtrack;
+    VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
+    BtToken top = pop(bt);
+
+    /* since a closing curly is closing something with statements inside it, like a lex scope
+    or a core syntax form, we need to close the last statement before closing its parent */
+    if (top.spanLevel != slScope && bt->cont[bt->len - 1].spanLevel <= slParenMulti) {
+        setStmtSpanLength(top.tokenInd, lx);
+        top = pop(bt);
+    }
+    setSpanLengthLexer(top.tokenInd, lx);
+    lx->i++; /* CONSUME the closing "}" */
+
+    if (hasValues(lx->lexBtrack)) { lx->lastClosingPunctInd = startInd; }
+}
+
 
 private void lexUnderscore(Arr(Byte) source, Compiler* lx) {
 /* The "_" sign that is used for accessing arrays, lists, dictionaries */
@@ -2054,7 +2099,7 @@ private void lexStringLiteral(Arr(Byte) source, Compiler* lx) {
     for (; j < lx->inpLength && source[j] != aBacktick; j++);
     VALIDATEL(j != lx->inpLength, errPrematureEndOfInput)
     pushIntokens((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
-    lx->i = j + 1; // CONSUME the string literal, including the closing quote character
+    lx->i = j + 1; /* CONSUME the string literal, including the closing quote character */
 }
 
 
@@ -2069,13 +2114,13 @@ private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) {
 
 /* Must agree in order with token types in tl.internal.h */
 const char* tokNames[] = {
-    "[]", "Int", "Long", "Double", "Bool", "String", "~", "_",
+    "Int", "Long", "Double", "Bool", "String", "~", "null", "_",
     "word", "Type", ":kwarg", ".strFld", "operator", "_acc", "=>", "pub",
-    "stmt", "(", "call(", "Type(", "lst", "hashMap", "[",
-    "=", ":=", "*=", "alias", "assert", "breakCont",
-    "embed", "iface", "import", "return", "try", "colon",
-    "else", "do(", "f(", "for(", "foreach(", "catch(", "finally(", "meta("
-    "if(", "ifPr(", "match(", "impl(", "while(", "meta("
+    "stmt", "(", "prefixCall(", ".infixCall(", "Type(", "lst", "hashMap", "[",
+    "=", "<-", "*=", "alias", "assert", "breakCont",
+    "embed", "iface", "import", "return", "try", "else",
+    "{", "{^", "catch{", "finally{", "meta{"
+    "if{", "ifPr(", "match(", "impl(", "for{", "foreach{"
 };
 
 
@@ -2148,7 +2193,11 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aParenRight] = &lexParenRight;
     p[aBracketLeft] = &lexBracketLeft;
     p[aBracketRight] = &lexBracketRight;
+    p[aCurlyLeft] = &lexCurlyLeft;
+    p[aCurlyRight] = &lexCurlyRight;
+    p[aDivBy] = &lexDivBy;
     p[aColon] = &lexColon;
+    p[aSemicolon] = &lexSemicolon;
 
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
@@ -2190,85 +2239,85 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     /* This is an array of 4-Byte arrays containing operator Byte sequences.
     Sorted: 1) by first Byte ASC 2) by second Byte DESC 3) third Byte DESC 4) fourth Byte DESC.
     Used to lex operators. Indices must equal the :OperatorType constants */
-    p[ 0] = (OpDef){ .arity=1, .bytes={aExclamation, aDot, 0, 0 }, // !.
+    p[ 0] = (OpDef){ .arity=1, .bytes={ /* !. */aExclamation, aDot, 0, 0 },
             .prece=precePrefix };
-    p[ 1] = (OpDef){ .arity=2, .bytes={aExclamation, aEqual, 0, 0 }, // !=
+    p[ 1] = (OpDef){ .arity=2, .bytes={ /* != */aExclamation, aEqual, 0, 0 },
             .prece=preceEquality };
-    p[ 2] = (OpDef){ .arity=1, .bytes={aExclamation, 0, 0, 0 }, // !
+    p[ 2] = (OpDef){ .arity=1, .bytes={ /* ! */aExclamation, 0, 0, 0 },
             .prece=precePrefix };
-    p[ 3] = (OpDef){ .arity=1, .bytes={aSharp, 0, 0, 0 }, // #
+    p[ 3] = (OpDef){ .arity=1, .bytes={ /* ## */aSharp, aSharp, 0, 0 },
             .prece=precePrefix, .overloadable=true };
-    p[ 4] = (OpDef){ .arity=1, .bytes={aDollar, 0, 0, 0 }, // $
+    p[ 4] = (OpDef){ .arity=1, .bytes={ /* $ */aDollar, 0, 0, 0 },
             .prece=precePrefix };
-    p[ 5] = (OpDef){ .arity=2, .bytes={aPercent, 0, 0, 0 }, // %
+    p[ 5] = (OpDef){ .arity=2, .bytes={ /* % */aPercent, 0, 0, 0 },
             .prece=preceMultiply };
-    p[ 6] = (OpDef){ .arity=2, .bytes={aAmp, aAmp, aDot, 0 }, // &&.
+    p[ 6] = (OpDef){ .arity=2, .bytes={ /* &&. */aAmp, aAmp, aDot, 0 },
             .prece=preceAdd};
-    p[ 7] = (OpDef){ .arity=2, .bytes={aAmp, aAmp, 0, 0 }, // &&
+    p[ 7] = (OpDef){ .arity=2, .bytes={ /* && */aAmp, aAmp, 0, 0 },
             .prece=preceMultiply, .assignable=true };
-    p[ 8] = (OpDef){ .arity=1, .bytes={aAmp, 0, 0, 0 }, // &
+    p[ 8] = (OpDef){ .arity=1, .bytes={ /* & */aAmp, 0, 0, 0 },
             .prece=precePrefix, .isTypelevel=true };
-    p[ 9] = (OpDef){ .arity=1, .bytes={aApostrophe, 0, 0, 0 }, // '
+    p[ 9] = (OpDef){ .arity=1, .bytes={ /* ' */aApostrophe, 0, 0, 0 },
             .prece=precePrefix };
-    p[10] = (OpDef){ .arity=2, .bytes={aTimes, aColon, 0, 0}, // *:
+    p[10] = (OpDef){ .arity=2, .bytes={ /* *: */aTimes, aColon, 0, 0},
             .prece=preceMultiply, .assignable = true, .overloadable = true};
-    p[11] = (OpDef){ .arity=2, .bytes={aTimes, 0, 0, 0 }, // *
+    p[11] = (OpDef){ .arity=2, .bytes={ /* * */aTimes, 0, 0, 0 },
             .prece=preceMultiply, .assignable = true, .overloadable = true};
-    p[12] = (OpDef){ .arity=1, .bytes={aPlus, aPlus, 0, 0}, // ++
+    p[12] = (OpDef){ .arity=1, .bytes={ /* ++ */aPlus, aPlus, 0, 0},
             .prece=preceAdd, .assignable = false, .overloadable = true};
-    p[13] = (OpDef){ .arity=2, .bytes={aPlus, aColon, 0, 0}, // +:
+    p[13] = (OpDef){ .arity=2, .bytes={ /* +: */aPlus, aColon, 0, 0},
             .prece=preceAdd, .assignable = true, .overloadable = true};
-    p[14] = (OpDef){ .arity=2, .bytes={aPlus, 0, 0, 0 }, // +
+    p[14] = (OpDef){ .arity=2, .bytes={ /* + */aPlus, 0, 0, 0 },
             .prece=preceAdd, .assignable = true, .overloadable = true};
-    p[15] = (OpDef){ .arity=1, .bytes={aMinus, aMinus, 0, 0}, // --
+    p[15] = (OpDef){ .arity=1, .bytes={ /* -- */aMinus, aMinus, 0, 0},
             .prece=preceAdd, .assignable = false, .overloadable = true};
-    p[16] = (OpDef){ .arity=2, .bytes={aMinus, aColon, 0, 0}, // -:
+    p[16] = (OpDef){ .arity=2, .bytes={ /* -: */aMinus, aColon, 0, 0},
             .prece=preceAdd, .assignable = true, .overloadable = true};
-    p[17] = (OpDef){ .arity=2, .bytes={aMinus, 0, 0, 0}, // -
+    p[17] = (OpDef){ .arity=2, .bytes={ /* - */aMinus, 0, 0, 0},
             .prece=preceAdd, .assignable = true, .overloadable = true };
-    p[18] = (OpDef){ .arity=2, .bytes={aDivBy, aColon, 0, 0}, // /:
+    p[18] = (OpDef){ .arity=2, .bytes={ /* /: */aDivBy, aColon, 0, 0},
             .prece=preceMultiply, .assignable = true, .overloadable = true};
-    p[19] = (OpDef){ .arity=2, .bytes={aDivBy, aPipe, 0, 0}, // /|
+    p[19] = (OpDef){ .arity=2, .bytes={ /* /| */aDivBy, aPipe, 0, 0},
             .prece=preceMultiply,    .isTypelevel = true};
-    p[20] = (OpDef){ .arity=2, .bytes={aDivBy, 0, 0, 0}, // /
+    p[20] = (OpDef){ .arity=2, .bytes={ /* / */aDivBy, 0, 0, 0},
             .prece=preceMultiply,    .assignable = true, .overloadable = true};
-    p[21] = (OpDef){ .arity=2, .bytes={aLT, aLT, aDot, 0}, // <<.
+    p[21] = (OpDef){ .arity=2, .bytes={ /* <<. */aLT, aLT, aDot, 0},
             .prece=preceAdd };
-    p[22] = (OpDef){ .arity=2, .bytes={aLT, aEqual, 0, 0}, // <=
+    p[22] = (OpDef){ .arity=2, .bytes={ /* <= */aLT, aEqual, 0, 0},
             .prece=preceExponent };
-    p[23] = (OpDef){ .arity=2, .bytes={aLT, aGT, 0, 0}, // <>
+    p[23] = (OpDef){ .arity=2, .bytes={ /* <> */aLT, aGT, 0, 0},
             .prece=preceExponent };
-    p[24] = (OpDef){ .arity=2, .bytes={aLT, 0, 0, 0 }, // <
+    p[24] = (OpDef){ .arity=2, .bytes={ /* < */aLT, 0, 0, 0 },
             .prece=preceExponent };
-    p[25] = (OpDef){ .arity=2, .bytes={aEqual, aEqual, aEqual, 0 }, // ===
+    p[25] = (OpDef){ .arity=2, .bytes={ /* === */aEqual, aEqual, aEqual, 0 },
             .prece=preceEquality };
-    p[26] = (OpDef){ .arity=2, .bytes={aEqual, aEqual, 0, 0 }, // ==
+    p[26] = (OpDef){ .arity=2, .bytes={ /* == */aEqual, aEqual, 0, 0 },
             .prece=preceEquality };
-    p[27] = (OpDef){ .arity=3, .bytes={aGT, aEqual, aLT, aEqual }, // >=<=
+    p[27] = (OpDef){ .arity=3, .bytes={ /* >=<= */aGT, aEqual, aLT, aEqual },
             .prece=preceExponent };
-    p[28] = (OpDef){ .arity=3, .bytes={aGT, aLT, aEqual, 0 }, // ><=
+    p[28] = (OpDef){ .arity=3, .bytes={ /* ><= */aGT, aLT, aEqual, 0 },
             .prece=preceExponent };
-    p[29] = (OpDef){ .arity=3, .bytes={aGT, aEqual, aLT, 0 }, // >=<
+    p[29] = (OpDef){ .arity=3, .bytes={ /* >=< */aGT, aEqual, aLT, 0 },
             .prece=preceExponent };
-    p[30] = (OpDef){ .arity=2, .bytes={aGT, aGT, aDot, 0}, // >>.
+    p[30] = (OpDef){ .arity=2, .bytes={ /* >>. */aGT, aGT, aDot, 0},
             .prece=preceAdd,         .assignable=true, .overloadable = true};
-    p[31] = (OpDef){ .arity=3, .bytes={aGT, aLT, 0, 0 }, // ><
+    p[31] = (OpDef){ .arity=3, .bytes={ /* >< */aGT, aLT, 0, 0 },
             .prece=preceExponent };
-    p[32] = (OpDef){ .arity=2, .bytes={aGT, aEqual, 0, 0 }, // >=
+    p[32] = (OpDef){ .arity=2, .bytes={ /* >= */aGT, aEqual, 0, 0 },
             .prece=preceExponent };
-    p[33] = (OpDef){ .arity=2, .bytes={aGT, 0, 0, 0 }, // >
+    p[33] = (OpDef){ .arity=2, .bytes={ /* > */aGT, 0, 0, 0 },
             .prece=preceExponent };
-    p[34] = (OpDef){ .arity=2, .bytes={aQuestion, aColon, 0, 0 }, // ?:
+    p[34] = (OpDef){ .arity=2, .bytes={ /* ?: */aQuestion, aColon, 0, 0 },
             .prece=preceAdd };
-    p[35] = (OpDef){ .arity=1, .bytes={aQuestion, 0, 0, 0 }, // ?
+    p[35] = (OpDef){ .arity=1, .bytes={ /* ? */aQuestion, 0, 0, 0 },
             .prece=precePrefix,      .isTypelevel=true };
-    p[36] = (OpDef){ .arity=2, .bytes={aCaret, aDot, 0, 0}, // ^.
+    p[36] = (OpDef){ .arity=2, .bytes={ /* ^. */aCaret, aDot, 0, 0},
             .prece=precePrefix };
-    p[37] = (OpDef){ .arity=2, .bytes={aCaret, 0, 0, 0}, // ^
+    p[37] = (OpDef){ .arity=2, .bytes={ /* ^ */aCaret, 0, 0, 0},
             .prece=preceExponent,    .assignable=true, .overloadable = true};
-    p[38] = (OpDef){ .arity=2, .bytes={aPipe, aPipe, aDot, 0}, // ||.
+    p[38] = (OpDef){ .arity=2, .bytes={ /* ||. */aPipe, aPipe, aDot, 0},
             .prece=preceAdd };
-    p[39] = (OpDef){ .arity=2, .bytes={aPipe, aPipe, 0, 0}, // ||
+    p[39] = (OpDef){ .arity=2, .bytes={ /* || */aPipe, aPipe, 0, 0},
             .prece=preceAdd, .assignable=true };
     for (Int k = 0; k < countOperators; k++) {
         Int m = 0;
@@ -4623,7 +4672,7 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
     Int j = cm->i;
     Int sentinel = j + length;
     while (j < sentinel) {
-        VALIDATEP(cm->tokens.cont[j].tp == tokStructField, errTypeDefCannotContain)
+        VALIDATEP(cm->tokens.cont[j].tp == tokDotWord, errTypeDefCannotContain)
         ++j;
         Token nextTk = cm->tokens.cont[j];
         if (nextTk.tp == tokTypeCall || nextTk.tp == tokParens) {
@@ -4691,7 +4740,7 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
                 push(((untt)tyeParamCall << 24) + nameId, exp);
                 push(countArgs, exp);
             }
-        } else if (cTk.tp == tokStructField) {
+        } else if (cTk.tp == tokDotWord) {
             VALIDATEP(typeExprIsInside(tyeStruct, cm), errTypeDefError)
 
             push(tyeName, exp);

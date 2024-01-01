@@ -225,47 +225,48 @@ typedef struct { /* :Token */
 #define tokWord         8    // pl2 = index in the string table
 #define tokTypeName     9    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg       10    // pl2 = same as tokWord. The ":argName"
-#define tokStructField 11    // pl2 = same as tokWord. The ".structField"
+#define tokDotWord     11    // pl2 = same as tokWord. The ".structField"
 #define tokOperator    12    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    13    // pl1 = see "tkAcc" consts. Either an ".accessor" or a "_smth"
+#define tokAccessor    13    // pl1 = see "tkAcc" consts. Either an ".accessor" or a `_smth`
 #define tokArrow       14
 #define tokPub         15
 
 // Single-statement token types
 #define tokStmt        16    // firstSpanTokenType
 #define tokParens      17    // subexpressions and struct/sum type instances
-#define tokCall        18    // pl1 = nameId, index in the string table
-#define tokTypeCall    19    // pl1 = nameId
-#define tokList        20    // pl1 = 1 iff it's an array
-#define tokHashmap     21
-#define tokBrackets    22
-#define tokAssignment  23
-#define tokReassign    24    // :=
-#define tokMutation    25    // "+=". pl1 = (6 bits opType, 26 bits startBt of the operator symbol)
-#define tokAlias       26
-#define tokAssert      27
-#define tokBreakCont   28    // pl1 = BIG iff it's a continue
-#define tokEmbed       29    // Embed a text/binary file as a string literal/binary resource
-#define tokIface       30
-#define tokImport      31
-#define tokReturn      32
-#define tokTry         33    // early exit
-#define tokElse        34    // not a real span, but placed here so the parser can dispatch on it
+#define tokPrefixCall  18    // pl1 = nameId, index in the string table
+#define tokInfixCall   19    // pl1 = nameId, index in the string table
+#define tokTypeCall    20    // pl1 = nameId
+#define tokList        21    // pl1 = 1 iff it's an array
+#define tokHashmap     22
+#define tokBrackets    23
+#define tokAssignment  24
+#define tokReassign    25    // `<-` 
+#define tokMutation    26    // `+=`. pl1 = (6 bits opType, 26 bits startBt of the operator symbol)
+#define tokAlias       27
+#define tokAssert      28
+#define tokBreakCont   29    // pl1 = BIG iff it's a continue
+#define tokEmbed       30    // Embed a text/binary file as a string literal/binary resource
+#define tokIface       31
+#define tokImport      32
+#define tokReturn      33
+#define tokTry         34    // early exit
+#define tokElse        35    // not a real span, but placed here so the parser can dispatch on it
 
 // Parenthesized (multi-statement) token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       35    // denoted by do(). firstParenSpanTokenType
-#define tokFn          36    // f(a Int: body)
-#define tokCatch       37    // paren "catch(e: print(e))"
-#define tokFinally     38    // paren "catch(e: print(e))"
-#define tokMeta        39
+#define tokScope       36    // denoted by {}. firstParenSpanTokenType
+#define tokFn          37    // `{^ a Int => String;; body}`
+#define tokCatch       38    // paren `catch(e: print(e))`
+#define tokFinally     39    // paren `catch(e: print(e))`
+#define tokMeta        40
 
 // Resumable core forms
-#define tokIf          40    // "if("
-#define tokIfPr        41    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       42    // "match(" pattern matching on sum type tag
-#define tokImpl        43
-#define tokFor         44
-#define tokForeach     45
+#define tokIf          41    // `if ... {`
+#define tokIfPr        42    // like if, but every branch is a value compared using custom predicate
+#define tokMatch       43    // "match ... {" pattern matching on sum type tag
+#define tokImpl        44
+#define tokFor         45
+#define tokForeach     46
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType    tokString
@@ -363,7 +364,7 @@ typedef struct { /* :OpDef */
 #define opBitwiseNegation   0 /* !. bitwise negation */
 #define opNotEqual          1 /* != */
 #define opBoolNegation      2 /* ! */
-#define opSize              3 /* # */
+#define opSize              3 /* ## */
 #define opToString          4 /* $ */
 #define opRemainder         5 /* % */
 #define opBitwiseAnd        6 /* &&. bitwise and */
