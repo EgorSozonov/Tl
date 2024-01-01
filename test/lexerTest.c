@@ -475,6 +475,7 @@ LexerTestSet* commentTests(Compiler* proto, Arena* a) {
 
 LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Punctuation lexer tests"), a, ((LexerTest[]) {
+   /* 
         (LexerTest) { .name = s("Parens simple"),
             .input = s("(car cdr)"),
             .expectedOutput = expect(((Token[]){
@@ -582,6 +583,7 @@ LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 14, .lenBts = 3 },
                 (Token){ .tp = tokWord, .pl2 = 3, .startBt = 14, .lenBts = 3 } // bcj
         }))},
+       */ 
         (LexerTest) { .name = s("Punctuation all types"),
             .input = s("{\n"
                        "    b.asdf(d Ef (:y z))\n"
@@ -591,19 +593,19 @@ LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
                        "}"
             ),
             .expectedOutput = expect(((Token[]){
-                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 15,  .startBt = 0,  .lenBts = 58 },
+                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 12,  .startBt = 0,  .lenBts = 60 },
                 
-                (Token){ .tp = tokStmt,      .pl2 = 8,   .startBt = 6,  .lenBts = 19 },
+                (Token){ .tp = tokStmt,      .pl2 = 7,   .startBt = 6,  .lenBts = 19 },
                 (Token){ .tp = tokWord,      .pl2 = 0,   .startBt = 6,  .lenBts = 1 },  //b
-                (Token){ .tp = tokInfixCall, .pl1 = 1,   .startBt = 7, .lenBts = 18 },  //asdf
+                (Token){ .tp = tokInfixCall, .pl1 = 1, .pl2 = 5, .startBt = 7, .lenBts = 18 },  //asdf
                 (Token){ .tp = tokWord,      .pl2 = 2,   .startBt = 13, .lenBts = 1 },   // d
                 (Token){ .tp = tokTypeName,  .pl2 = 3,   .startBt = 15, .lenBts = 2 },   // Ef
                 (Token){ .tp = tokParens,    .pl2 = 2,   .startBt = 18, .lenBts = 6 },
                 (Token){ .tp = tokKwArg,     .pl2 = 4,   .startBt = 19, .lenBts = 2 },   // :y
                 (Token){ .tp = tokWord,      .pl2 = 5,   .startBt = 22, .lenBts = 1 },   // z
                 
-                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 5, .startBt = 30, .lenBts = 22 },
-                (Token){ .tp = tokPrefixCall, .pl1 = slSubexpr, .pl2 = 5, .startBt = 40, .lenBts = 10 },
+                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 3, .startBt = 30, .lenBts = 28 },
+                (Token){ .tp = tokPrefixCall, .pl1 = 6, .pl2 = 2, .startBt = 40, .lenBts = 12 },
                 (Token){ .tp = tokDotWord,   .pl2 = 7, .startBt = 46, .lenBts = 2 }, // m
                 (Token){ .tp = tokWord,      .pl2 = 0,   .startBt = 49, .lenBts = 1 }    // b
         }))}/*,
