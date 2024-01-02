@@ -95,9 +95,9 @@ testable bool endsWith(String* a, String* b);
 #define s(lit) str(lit, a)
 
 typedef struct {
-    Int len; // length of standardText
-    Int firstParsed; // the nameId for the first parsed word
-    Int firstBuiltin; // the nameId for the first built-in word in standardStrings
+    Int len; /* length of standardText */
+    Int firstParsed; /* the nameId for the first parsed word */
+    Int firstBuiltin; /* the nameId for the first built-in word in standardStrings */
 } StandardText;
 
 /*}}}*/
@@ -139,55 +139,48 @@ typedef struct {
 
 /*{{{ Standard strings */
 
-#define strArray      0
 #define strAlias      1
 #define strAssert     2
 #define strBreak      3
 #define strCatch      4
 #define strContinue   5
-#define strDo         7
-#define strElse       8
-#define strEmbed      9
-#define strFalse     10
-#define strFn        11
-#define strFinally   12
-#define strFor       12
-#define strForeach   13
-#define strHashMap   14
-#define strIf        15
-#define strIfPr      16
-#define strImpl      17
-#define strImport    18
-#define strInterface 19
-#define strList      20
-#define strMatch     21
-#define strMeta      22
-#define strPub       23
-#define strReturn    24
-#define strTrue      25
-#define strTry       26
-
-#define strFirstNonReserved 27
+#define strElseIf     6
+#define strElse       7
+#define strFalse      8
+#define strFinally    9
+#define strFor       10
+#define strForeach   11
+#define strIf        12
+#define strIfPr      13
+#define strImpl      14
+#define strImport    15
+#define strInterface 16
+#define strMatch     17
+#define strPub       18
+#define strReturn    19
+#define strTrue      20
+#define strTry       21
+#define strFirstNonReserved 22
 #define strInt       strFirstNonReserved
-#define strLong      28
-#define strDouble    29
-#define strBool      30
-#define strString    31
-#define strVoid      32
-#define strF         33 /* F(unction type) */
-#define strL         34 /* List */
-#define strA         35 /* Array */
-#define strH         36 /* Hashmap */
-#define strTu        37 /* Tu(ple) */
-#define strLen       38
-#define strCap       39
-#define strF1        40
-#define strF2        41
-#define strPrint     42
-#define strPrintErr  43
-#define strMathPi    44
-#define strMathE     45
-#define strSentinel  46
+#define strLong      23
+#define strDouble    24
+#define strBool      25
+#define strString    26
+#define strVoid      27
+#define strF         28 /* F(unction type) */
+#define strL         29 /* List */
+#define strA         30 /* Array */
+#define strD         31 /* Dictionary */
+#define strTu        32 /* Tu(ple) */
+#define strLen       33
+#define strCap       34
+#define strF1        35
+#define strF2        36
+#define strPrint     37
+#define strPrintErr  38
+#define strMathPi    39
+#define strMathE     40
+#define strSentinel  41
 
 /*}}}*/
 
@@ -219,25 +212,25 @@ typedef struct { /* :Token */
 #define tokBool         3    /* pl2 = value (1 or 0) */
 #define tokString       4
 #define tokTilde        5    /* marks up to 2 anonymous params in a lambda. pl1 = tilde count */
-#define tokNull         6
-#define tokUnderscore   7
+#define tokUnderscore   6
 
-#define tokWord         8    /* pl2 = index in the string table */
-#define tokTypeName     9    /* pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord */
-#define tokKwArg       10    /* pl2 = same as tokWord. The ":argName" */
-#define tokDotWord     11    /* pl2 = same as tokWord. The ".structField" */
-#define tokOperator    12    /* pl1 = OperatorToken, one of the "opT" constants below */
-#define tokAccessor    13    /* pl1 = see "tkAcc" consts. Either an ".accessor" or a `_smth` */
-#define tokArrow       14
-#define tokPub         15
+#define tokWord         7    /* pl2 = index in the string table */
+#define tokTypeName     8    /* pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord */
+#define tokKwArg        9    /* pl2 = same as tokWord. The ":argName" */
+#define tokDotWord     10    /* pl2 = same as tokWord. The ".structField" */
+#define tokOperator    11    /* pl1 = OperatorToken, one of the "opT" constants below */
+#define tokAccessor    12    /* pl1 = see "tkAcc" consts. Either an ".accessor" or a `_smth` */
+#define tokArrow       13
+#define tokPub         14
 
 /* Single-statement token types */
-#define tokStmt        16    /* firstSpanTokenType */
-#define tokParens      17    /* subexpressions and struct/sum type instances */
-#define tokPrefixCall  18    /* pl1 = nameId, index in the string table */
-#define tokInfixCall   19    /* pl1 = nameId, index in the string table */
-#define tokTypeCall    20    /* pl1 = nameId */
-#define tokTypeCon     21    /* Built-in types initializers. pl1 = typeId */
+#define tokStmt        15    /* firstSpanTokenType */
+#define tokParens      16    /* subexpressions and struct/sum type instances */
+#define tokPrefixCall  17    /* pl1 = nameId, index in the string table */
+#define tokInfixCall   18    /* pl1 = nameId, index in the string table */
+#define tokTypeCall    19    /* pl1 = nameId */
+#define tokTypeCon     20    /* Built-in type initializers. pl1 = typeId */
+#define tokParamList   21    /* Parameter lists, ended with `|` */
 #define tokAssignment  22    /* `=` */
 #define tokReassign    23    /* `<-`  */
 #define tokMutation    24    /* `+=`. pl1 = (6 bits opType, 26 bits startBt of the operator symbol) */
@@ -249,7 +242,7 @@ typedef struct { /* :Token */
 #define tokReturn      31
 
 /* Bracketed (multi-statement) token types. pl1 = spanLevel, see "sl" constants */
-#define tokScope       32    /* denoted by {}. firstParenSpanTokenType */
+#define tokScope       32    /* denoted by {}. firstScopeTokenType */
 #define tokFn          33    /* `{^ a Int => String;; body}` */
 #define tokTry         34    /* early exit */
 #define tokCatch       35    /* `catch MyExc e {` */
@@ -269,7 +262,7 @@ typedef struct { /* :Token */
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType    tokString
 #define firstSpanTokenType tokStmt
-#define firstParenSpanTokenType tokScope
+#define firstScopeTokenType tokScope
 #define firstResumableSpanTokenType tokIf
 
 /* List of keywords that don't correspond directly to a token.
@@ -284,7 +277,7 @@ typedef struct { /* :Token */
 #define nodCall         8    /* pl1 = index of entity, pl2 = arity */
 #define nodBinding      9    /* pl1 = index of entity, pl2 = 1 if it's a type binding */
 
-// Punctuation (inner node)
+/* Punctuation (inner node) */
 #define nodScope       10     /* This syntax form is resumable but trivially so,
                                that's why it's not grouped with the others */
 #define nodExpr        11
@@ -292,7 +285,7 @@ typedef struct { /* :Token */
 #define nodReassign    13     /* := */
 #define nodAccessor    14     /* pl1 = "acc" constants */
 
-// Single-shot core syntax forms
+/* Single-shot core syntax forms */
 #define nodAlias       15
 #define nodAssert      16     /* pl1 = 1 iff it's a debug assert */
 #define nodBreakCont   17     /* pl1 = number of label to break or continue to, -1 if none needed
@@ -494,7 +487,7 @@ typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
 struct ScopeChunk {
     ScopeChunk *next;
-    int len; // length is divisible by 4
+    int len; /* length is divisible by 4 */
     Int cont[];
 };
 
@@ -572,22 +565,21 @@ struct Compiler { /* :Compiler */
 
 /** Span levels */
 #define slScope       1 /* scopes (denoted by brackets): newlines and commas have no effect there */
-#define slParenMulti  2 /* things like "(if)": they're multiline but cannot contain any brackets */
-#define slStmt        3 /* single-line statements: newlines and commas break 'em */
-#define slSubexpr     4 /* parens and the like: newlines have no effect, dots error out */
+#define slStmt        2 /* single-line statements: newlines and semicolons break 'em */
+#define slSubexpr     3 /* parenthesized forms: newlines have no effect, semi-colons error out */
 
 
 /*}}}*/
-//{{{ Types
+/*{{{ Types */
 
-/// see the Type layout chapter in the docs
+/* see the Type layout chapter in the docs */
 #define sorStruct       1
 #define sorSum          2
 #define sorFunction     3
-#define sorPartial      4 // Partially applied type
-#define sorConcrete     5 // Fully applied type (no type params)
+#define sorPartial      4 /* Partially applied type */
+#define sorConcrete     5 /* Fully applied type (no type params) */
 
-typedef struct { // :TypeHeader
+typedef struct { /* :TypeHeader */
     Byte sort;
     Byte arity;
     Byte depth;
@@ -595,7 +587,7 @@ typedef struct { // :TypeHeader
 } TypeHeader;
 
 /*}}}*/
-//{{{ Generics
+/*{{{ Generics */
 
 #define pop(X) _Generic((X),\
     StackBtToken*: popBtToken,\

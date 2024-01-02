@@ -885,6 +885,7 @@ private bool binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
 }
 
 /*}}}*/
+
 /*}}}*/
 /*{{{ Errors */
 
@@ -1036,15 +1037,15 @@ const char standardText[] = "aliasassertbreakcatchcontinueeielsefalsefinallyfor"
                             "math:pimath:eTU";
 
 const Int standardStrings[] = {
-      0,   5,  11,  16, /*  continue */21,
-     29,  31,  35,  40, /*       for */47,
-     50,  57,  59,  63, /*    import */67,
-     73,  78,  83,  86, /*      true */92,
+      0,   5,  11,  16, /* continue */21,
+     29,  31,  35,  40, /*      for */47,
+     50,  57,  59,  63, /*   import */67,
+     73,  78,  83,  86, /*     true */92,
     /* try */96,
     99,  102, 106, 112, /* String */116,
     122, 126, 127, 128, /* D(ict) */129,
-    130, 132, 135, 138, /* f2 */140,
-    142, 147, 155, 162, /* T */ 168,
+    130, 132, 135, 138,     /* f2 */140,
+    142, 147, 155, 162,      /* T */168,
     169, 170
 };
 
@@ -1221,7 +1222,7 @@ private Int probeReservedWords(Int indStart, Int indEnd, Int startBt, Int lenBts
 }
 
 private Int determineReservedA(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strArray, strBreak, startBt, lenBts, lx);
+    return probeReservedWords(strAlias, strBreak, startBt, lenBts, lx);
 }
 
 private Int determineReservedB(Int startBt, Int lenBts, Compiler* lx) {
@@ -1229,28 +1230,19 @@ private Int determineReservedB(Int startBt, Int lenBts, Compiler* lx) {
 }
 
 private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strCatch, strElse, startBt, lenBts, lx);
+    return probeReservedWords(strCatch, strElseIf, startBt, lenBts, lx);
 }
 
-
 private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strElse, strFalse, startBt, lenBts, lx);
+    return probeReservedWords(strElseIf, strFalse, startBt, lenBts, lx);
 }
 
 private Int determineReservedF(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strFalse, strHashMap, startBt, lenBts, lx);
-}
-
-private Int determineReservedH(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strHashMap, strIf, startBt, lenBts, lx);
+    return probeReservedWords(strFalse, strIf, startBt, lenBts, lx);
 }
 
 private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strIf, strList, startBt, lenBts, lx);
-}
-
-private Int determineReservedL(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strList, strMatch, startBt, lenBts, lx);
+    return probeReservedWords(strIf, strMatch, startBt, lenBts, lx);
 }
 
 private Int determineReservedM(Int startBt, Int lenBts, Compiler* lx) {
@@ -1275,29 +1267,15 @@ private Int determineUnreserved(Int startBt, Int lenBts, Compiler* lx) {
 
 
 private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
-    Int lenBts = 0;
-    Int pl1 = 0;
-    /* Some types of statements may legitimately consist of 0 tokens; for them, we need to write
-     their lenBts in the init token */
-    if (stmtType == keywBreak) {
-        lenBts = 5;
-        stmtType = tokBreakCont;
-    } else if (stmtType == keywContinue) {
-        lenBts = 8;
-        pl1 = 1;
-        stmtType = tokBreakCont;
-    }
     push(((BtToken){ .tp = stmtType, .tokenInd = lx->tokens.len, .spanLevel = slStmt }), lx->lexBtrack);
-    pushIntokens((Token){ .tp = stmtType, .pl1 = pl1, .startBt = startBt, .lenBts = lenBts }, lx);
+    pushIntokens((Token){ .tp = stmtType, .startBt = startBt, .lenBts = 0 }, lx);
 }
 
 
 private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* lx) {
     if (hasValues(lx->lexBtrack)) {
-        if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->tokens.len, .spanLevel = slStmt }),
-                lx->lexBtrack);
-            pushIntokens((Token){ .tp = tokStmt, .startBt = startBt},  lx);
+        if (peek(lx->lexBtrack).spanLevel == slScope) {
+            addStatementSpan(tokStmt, startBt, lx);
         }
     } else {
         addStatementSpan(tokStmt, startBt, lx);
@@ -1307,10 +1285,8 @@ private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* l
 
 private void wrapInAStatement(Arr(Byte) source, Compiler* lx) {
     if (hasValues(lx->lexBtrack)) {
-        if (peek(lx->lexBtrack).spanLevel <= slParenMulti) {
-            push(((BtToken){ .tp = tokStmt, .tokenInd = lx->tokens.len, .spanLevel = slStmt }),
-                lx->lexBtrack);
-            pushIntokens((Token){ .tp = tokStmt, .startBt = lx->i},  lx);
+        if (peek(lx->lexBtrack).spanLevel == slScope) {
+            addStatementSpan(tokStmt, lx->i, lx);
         }
     } else {
         addStatementSpan(tokStmt, lx->i, lx);
@@ -1557,29 +1533,25 @@ Upon addition, they are saved to the backtracking stack to be updated with their
 once it is known.
 Consumes no bytes. */
     push(((BtToken){ .tp = tType, .tokenInd = lx->tokens.len, .spanLevel = spanLevel}), lx->lexBtrack);
-    pushIntokens((Token) {.tp = tType, .pl1 = (tType < firstParenSpanTokenType) ? 0 : spanLevel,
+    pushIntokens((Token) {.tp = tType, .pl1 = (tType < firstScopeTokenType) ? 0 : spanLevel,
                           .startBt = startBt }, lx);
 }
 
 
 private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
                              Arr(Byte) source, Compiler* lx) {
-/* Lexer action for a paren-type or statement-type reserved word. It turns parentheses into
-an slParenMulti core form.
+/* Lexer action for a paren-type or statement-type reserved word.
 Precondition: we are looking at the character immediately after the keyword */
     StackBtToken* bt = lx->lexBtrack;
-    if (reservedWordType >= firstParenSpanTokenType) { /* the "core(" case */
-        VALIDATEL(lx->i < lx->inpLength && CURR_BT == aParenLeft, errCoreMissingParen)
+    if (reservedWordType >= firstScopeTokenType) {
         if (hasValues(lx->lexBtrack)) {
             BtToken top = peek(lx->lexBtrack);
-            VALIDATEL(top.spanLevel <= slStmt && top.tp != tokStmt, errPunctuationScope)
+            VALIDATEL(top.spanLevel == slScope && top.tp != tokStmt, errPunctuationScope)
         }
-        Int scopeLevel = reservedWordType == tokScope ? slScope : slParenMulti;
-        push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len, .spanLevel = scopeLevel }),
+        push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len, .spanLevel = slScope }),
              lx->lexBtrack);
-        pushIntokens((Token){ .tp = reservedWordType, .pl1 = scopeLevel,
+        pushIntokens((Token){ .tp = reservedWordType, .pl1 = slScope,
             .startBt = startBt, .lenBts = lenBts }, lx);
-        ++lx->i; /* CONSUME the opening "(" of the core form */
     } else if (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
         addStatementSpan(reservedWordType, startBt, lx);
@@ -1667,17 +1639,13 @@ private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCap
     pushIntokens(newToken, lx);
 }
 
+
 private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realStartBt,
                           Arr(Byte) source, Compiler* lx) {
-/* True iff 'twas truly a reserved word. E.g., just "a" without a paren is not reserved */
     Int lenBts = lx->i - startBt;
-    /*StackBtToken* bt = lx->lexBtrack; */
 
     VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
-    if (keywordTp == tokElse) {
-        closeStatement(lx);
-        pushIntokens((Token){.tp = tokElse, .startBt = realStartBt, .lenBts = 4}, lx);
-    } else if (keywordTp < firstSpanTokenType) {
+    if (keywordTp < firstSpanTokenType) {
         if (keywordTp == keywTrue) {
             wrapInAStatementStarting(startBt, source, lx);
             pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartBt, .lenBts=4}, lx);
@@ -1688,6 +1656,9 @@ private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realSta
         } else if (keywordTp == keywBreak) {
             wrapInAStatementStarting(startBt, source, lx);
             pushIntokens((Token){.tp=tokBreakCont, .pl1=0, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
+        } else if (keywordTp == keywContinue) {
+            wrapInAStatementStarting(startBt, source, lx);
+            pushIntokens((Token){.tp=tokBreakCont, .pl1=1, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
         }
     } else {
         lexReservedWord(keywordTp, realStartBt, lenBts, source, lx);
@@ -1726,17 +1697,23 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
     Byte firstByte = lx->sourceCode->cont[startBt];
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
+   /*
     Int mbReserved = -1;
     if (firstByte >= aALower && firstByte <= aWLower) {
         mbReserved = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](
                 startBt, lenString, lx
         );
     }
+   */
+    print("mb reserved %d", mbReserved);
+    Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
+   /*
     if (mbReserved > -1) {
         wordReserved(wordType, mbReserved, startBt, realStartBt, source, lx);
     } else {
         wordNormal(wordType, startBt, realStartBt, wasCapitalized, lenString, source, lx);
     }
+   */
 }
 
 private void lexWord(Arr(Byte) source, Compiler* lx) {
@@ -1987,14 +1964,6 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) {
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
 
-    /* since a closing paren might be closing something with statements inside it, like a lex scope
-     or a core syntax form, we need to close the last statement before closing its parent
-    if (bt->len > 0 && top.spanLevel != slScope
-          && (bt->cont[bt->len - 1].spanLevel <= slParenMulti)) {
-        setStmtSpanLength(top.tokenInd, lx);
-        top = pop(bt);
-    }
-    */
     setSpanLengthLexer(top.tokenInd, lx);
     lx->i++; /* CONSUME the closing ")" */
 
@@ -2024,7 +1993,7 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
 
     /* since a closing curly is closing something with statements inside it, like a lex scope
     or a core syntax form, we need to close the last statement before closing its parent */
-    if (top.spanLevel != slScope && bt->cont[bt->len - 1].spanLevel <= slParenMulti) {
+    if (top.spanLevel != slScope && bt->cont[bt->len - 1].spanLevel == slScope) {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
@@ -2130,9 +2099,7 @@ may start with) */
     p[2] = determineReservedC;
     p[4] = determineReservedE;
     p[5] = determineReservedF;
-    p[7] = determineReservedH;
     p[8] = determineReservedI;
-    p[11] = determineReservedL;
     p[12] = determineReservedM;
     p[15] = determineReservedP;
     p[17] = determineReservedR;
@@ -3484,14 +3451,13 @@ const Int codegenStrings[] = {
 /*}}}*/
 
 private void buildStandardStrings(Compiler* lx) {
-/* Inserts the necessary strings from the standardText into the string table and the hash table
-The first "countOperators" nameIds are reserved for the operators (the lx->stringTable contains
-zeros in those places) */
+/* Inserts all strings from the standardText into the string table and the hash table
+But first inserts a reservation for every operator symbol ("countOperators" nameIds in all,
+the lx->stringTable contains zeros in those places) */
     for (Int j = 0; j < countOperators; j++) {
         push(0, lx->stringTable);
     }
-
-    for (Int i = strFirstNonReserved; i < strSentinel; i++) {
+    for (Int i = strAlias; i < strSentinel; i++) {
         Int startBt = standardStrings[i];
         addStringDict(lx->sourceCode->cont, startBt, standardStrings[i + 1] - startBt,
                       lx->stringTable, lx->stringDict);
@@ -5185,13 +5151,13 @@ private void printExpSt(StackInt* st) {
 
 /* Must agree in order with token types in tl.internal.h */
 const char* tokNames[] = {
-    "Int", "Long", "Double", "Bool", "String", "~", "null", "_",
+    "Int", "Long", "Double", "Bool", "String", "~", "_",
     "word", "Type", ":kwarg", ".strFld", "operator", "_acc", "=>", "pub",
-    "stmt", "()", "prefixCall", ".infixCall", "TypeCall", "lst", "hashMap", "[]",
+    "stmt", "()", "prefixCall", ".infixCall", "TypeCall", "TypeCon", "paramList",
     "=", "<-", "*=", "alias", "assert", "breakCont",
-    "embed", "iface", "import", "return", "try", "else",
-    "{}", "{^}", "catch{", "finally{", "meta{"
-    "if{", "ifPr(", "match(", "impl(", "for{", "foreach{"
+    "iface", "import", "return"
+    "{}", "{^}", "try{", "catch{", "finally{", "meta"
+    "if{", "ifPr(", "match(", "ei", "else", "impl(", "for{", "foreach{"
 };
 
 

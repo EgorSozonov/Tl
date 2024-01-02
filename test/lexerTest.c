@@ -469,7 +469,8 @@ LexerTestSet* commentTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Comments lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Comment simple"),
             .input = s("/* this is a comment */"),
-            .expectedOutput = expectEmpty()},
+            .expectedOutput = expectEmpty()}
+           /* TODO support nested comments */ 
     }));
 }
 
@@ -803,7 +804,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
          (LexerTest) { .name = s("Paren-type core form"),
              .input = s("if x <> 7 > 0 { true }"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 9, .startBt = 0, .lenBts = 21 },
+                 (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 9, .startBt = 0, .lenBts = 21 },
 
                  (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 3, .lenBts = 10 },
                  (Token){ .tp = tokWord, .startBt = 3, .lenBts = 1 },                // x
@@ -821,7 +822,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
          (LexerTest) { .name = s("If with else"),
              .input = s("if x <> 7 > 0 (true) else(false)"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 12, .startBt = 0, .lenBts = 32 },
+                 (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 12, .startBt = 0, .lenBts = 32 },
 
                  (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 3, .lenBts = 10 },
                  (Token){ .tp = tokWord, .startBt = 3, .lenBts = 1 },                // x
@@ -844,7 +845,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                         "ei x <> 7 < 0 (11)\n"
                         "else(true)"),
             .expectedOutput = expect(((Token[]){
-                (Token){ .tp = tokIf, .pl1 = slParenMulti, .pl2 = 21, .startBt = 0, .lenBts = 53 },
+                (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 21, .startBt = 0, .lenBts = 53 },
 
                 (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 4, .lenBts = 10 },
                 (Token){ .tp = tokWord, .startBt = 4, .lenBts = 1 },                 // x
@@ -883,7 +884,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokAssignment,               .pl2 = 14, .startBt = 0, .lenBts = 35 },
                  (Token){ .tp = tokWord,                                .startBt = 0, .lenBts = 3 },
 
-                 (Token){ .tp = tokFn,  .pl1 = slParenMulti, .pl2 = 12, .startBt = 6, .lenBts = 29 },
+                 (Token){ .tp = tokFn,  .pl1 = slScope, .pl2 = 12, .startBt = 6, .lenBts = 29 },
                  (Token){ .tp = tokStmt,                     .pl2 = 6, .startBt = 8, .lenBts = 18 },
                  (Token){ .tp = tokWord,                     .pl2 = 1, .startBt = 8, .lenBts = 1 }, // x
                  (Token){ .tp = tokTypeName,  .pl2 = (strInt + S), .startBt = 10, .lenBts = 3 }, // Int
@@ -909,7 +910,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
          (LexerTest) { .name = s("Loop simple"),
              .input = s("for x = 1; x < 101; {print(x)}"),
              .expectedOutput = expect(((Token[]) {
-                 (Token){ .tp = tokFor, .pl1 = slParenMulti, .pl2 = 11, .lenBts = 31 },
+                 (Token){ .tp = tokFor, .pl1 = slScope, .pl2 = 11, .lenBts = 31 },
 
                  (Token){ .tp = tokAssignment, .pl2 = 2, .startBt = 6, .lenBts = 5 },
                  (Token){ .tp = tokWord,                 .startBt = 6, .lenBts = 1 }, // print
@@ -942,7 +943,7 @@ LexerTestSet* typeTests(Compiler* proto, Arena* a) {
          (LexerTest) { .name = s("Generic function signature"),
              .input = s("{[U V] lst L(U), v V}"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,    .lenBts = 21 },
+                 (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 9,    .lenBts = 21 },
                  (Token){ .tp = tokStmt,         .pl2 = 8, .startBt = 2, .lenBts = 18 },
                  (Token){ .tp = tokBrackets,     .pl2 = 2, .startBt = 2, .lenBts = 5 },
                  (Token){ .tp = tokTypeName,     .pl2 = 0, .startBt = 3, .lenBts = 1 },
@@ -958,7 +959,7 @@ LexerTestSet* typeTests(Compiler* proto, Arena* a) {
          (LexerTest) { .name = s("Generic function signature with type funcs"),
              .input = s("f([U/2 V] lst U(Int V))"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokFn, .pl1 = slParenMulti, .pl2 = 9,        .lenBts = 23 },
+                 (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 9,        .lenBts = 23 },
                  (Token){ .tp = tokStmt,               .pl2 = 8, .startBt = 2, .lenBts = 20 },
                  (Token){ .tp = tokBrackets,           .pl2 = 3, .startBt = 2, .lenBts = 7 },
                  (Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = 0, .startBt = 3,     .lenBts = 1 },
