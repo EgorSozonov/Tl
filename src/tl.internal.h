@@ -139,48 +139,48 @@ typedef struct {
 
 /*{{{ Standard strings */
 
-#define strAlias      1
-#define strAssert     2
-#define strBreak      3
-#define strCatch      4
-#define strContinue   5
-#define strElseIf     6
-#define strElse       7
-#define strFalse      8
-#define strFinally    9
-#define strFor       10
-#define strForeach   11
-#define strIf        12
-#define strIfPr      13
-#define strImpl      14
-#define strImport    15
-#define strInterface 16
-#define strMatch     17
-#define strPub       18
-#define strReturn    19
-#define strTrue      20
-#define strTry       21
-#define strFirstNonReserved 22
+#define strAlias      0
+#define strAssert     1
+#define strBreak      2
+#define strCatch      3
+#define strContinue   4
+#define strElseIf     5
+#define strElse       6
+#define strFalse      7
+#define strFinally    8
+#define strFor        9
+#define strForeach   10
+#define strIf        11
+#define strIfPr      12
+#define strImpl      13
+#define strImport    14
+#define strInterface 15
+#define strMatch     16
+#define strPub       17
+#define strReturn    18
+#define strTrue      19
+#define strTry       20
+#define strFirstNonReserved 21
 #define strInt       strFirstNonReserved
-#define strLong      23
-#define strDouble    24
-#define strBool      25
-#define strString    26
-#define strVoid      27
-#define strF         28 /* F(unction type) */
-#define strL         29 /* List */
-#define strA         30 /* Array */
-#define strD         31 /* Dictionary */
-#define strTu        32 /* Tu(ple) */
-#define strLen       33
-#define strCap       34
-#define strF1        35
-#define strF2        36
-#define strPrint     37
-#define strPrintErr  38
-#define strMathPi    39
-#define strMathE     40
-#define strSentinel  41
+#define strLong      22
+#define strDouble    23
+#define strBool      24
+#define strString    25
+#define strVoid      26
+#define strF         27 /* F(unction type) */
+#define strL         28 /* List */
+#define strA         29 /* Array */
+#define strD         30 /* Dictionary */
+#define strTu        31 /* Tu(ple) */
+#define strLen       32
+#define strCap       33
+#define strF1        34
+#define strF2        35
+#define strPrint     36
+#define strPrintErr  37
+#define strMathPi    38
+#define strMathE     39
+#define strSentinel  40
 
 /*}}}*/
 
@@ -201,6 +201,8 @@ typedef struct { /* :Token */
     untt pl1;
     untt pl2;
 } Token;
+
+#define maxWordLength 255
 
 /* Regular (leaf) Token types
  The following group of variants are transferred to the AST byte for byte, with no analysis
@@ -237,27 +239,27 @@ typedef struct { /* :Token */
 #define tokAlias       25
 #define tokAssert      26
 #define tokBreakCont   27    /* pl1 = BIG iff it's a continue */
-#define tokIface       29
-#define tokImport      30    /* For test files and package decls */
-#define tokReturn      31
+#define tokIface       28
+#define tokImport      29    /* For test files and package decls */
+#define tokReturn      30
 
 /* Bracketed (multi-statement) token types. pl1 = spanLevel, see "sl" constants */
-#define tokScope       32    /* denoted by {}. firstScopeTokenType */
-#define tokFn          33    /* `{^ a Int => String;; body}` */
-#define tokTry         34    /* early exit */
-#define tokCatch       35    /* `catch MyExc e {` */
-#define tokFinally     36    /* `finally { ` */
-#define tokMeta        37    /* `[[` */
+#define tokScope       31    /* denoted by {}. firstScopeTokenType */
+#define tokFn          32    /* `{^ a Int => String;; body}` */
+#define tokTry         33    /* early exit */
+#define tokCatch       34    /* `catch MyExc e {` */
+#define tokFinally     35    /* `finally { ` */
+#define tokMeta        36    /* `[[` */
 
 /* Resumable core forms */
-#define tokIf          38    /* `if ... {` */
-#define tokIfPr        39    /* like if, but every branch is a value compared using custom predicate */
-#define tokMatch       40    /* "match ... {" pattern matching on sum type tag */
-#define tokElseIf      41    /* `ei ... {` */
-#define tokElse        42    /* `else {` */
-#define tokImpl        43
-#define tokFor         44
-#define tokForeach     45
+#define tokIf          37    /* `if ... {` */
+#define tokIfPr        38    /* like if, but every branch is a value compared using custom predicate */
+#define tokMatch       39    /* "match ... {" pattern matching on sum type tag */
+#define tokElseIf      40    /* `ei ... {` */
+#define tokElse        41    /* `else {` */
+#define tokImpl        42
+#define tokFor         43
+#define tokForeach     44
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType    tokString
@@ -393,10 +395,8 @@ typedef struct { /* :OpDef */
 
 #define countOperators     40
 
-#define countReservedLetters   23 /* length of the interval of letters that may be init for 
-                                   reserved words (A to W) */
-#define countCoreForms (tokForeach - tokAlias + 1)
 #define countSyntaxForms (tokForeach + 1)
+
 typedef struct Compiler Compiler;
 
 
@@ -412,14 +412,12 @@ typedef struct Compiler Compiler;
 
 
 typedef void (*LexerFunc)(Arr(Byte), Compiler*); /* LexerFunc = &(Lexer* => void) */
-typedef Int (*ReservedProbe)(int, int, Compiler*);
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
 
 typedef struct { /* :LanguageDefinition */
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
-    ReservedProbe (*possiblyReservedDispatch)[countReservedLetters];
     ParserFunc (*nonResumableTable)[countSyntaxForms];
     ResumeFunc (*resumableTable)[countResumableForms];
 } LanguageDefinition;
@@ -565,8 +563,10 @@ struct Compiler { /* :Compiler */
 
 /** Span levels */
 #define slScope       1 /* scopes (denoted by brackets): newlines and commas have no effect there */
-#define slStmt        2 /* single-line statements: newlines and semicolons break 'em */
-#define slSubexpr     3 /* parenthesized forms: newlines have no effect, semi-colons error out */
+#define slDoubleScope 2 /* double scopes like `if`, `for` etc. They last until the first 
+                           {} span gets closed */
+#define slStmt        3 /* single-line statements: newlines and semicolons break 'em */
+#define slSubexpr     4 /* parenthesized forms: newlines have no effect, semi-colons error out */
 
 
 /*}}}*/

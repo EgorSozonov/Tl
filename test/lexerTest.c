@@ -24,6 +24,7 @@ typedef struct {
                       names from others */
 
 /*{{{ Code*/
+
 private Compiler* buildExpectedLexer(Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
     Compiler* result = createLexerFromProto(&empty, proto, a);
     if (result == NULL) return result;
@@ -804,7 +805,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
          (LexerTest) { .name = s("Paren-type core form"),
              .input = s("if x <> 7 > 0 { true }"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 9, .startBt = 0, .lenBts = 21 },
+                 (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 9, .startBt = 0, .lenBts = 22 },
 
                  (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 3, .lenBts = 10 },
                  (Token){ .tp = tokWord, .startBt = 3, .lenBts = 1 },                // x
@@ -814,7 +815,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokOperator, .pl1 = opGreaterThan, .startBt = 10, .lenBts = 1 },
                  (Token){ .tp = tokInt, .startBt = 12, .lenBts = 1 },
 
-                 (Token){ .tp = tokScope, .pl2 = 2, .startBt = 14, .lenBts = 1 },
+                 (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 2, .startBt = 14, .lenBts = 8 },
                  (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 16, .lenBts = 4 },
                  (Token){ .tp = tokBool, .pl2 = 1, .startBt = 16, .lenBts = 4 },
          }))},

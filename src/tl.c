@@ -1057,12 +1057,11 @@ const Int standardKeywords[] = {
     tokTry
 };
 
-#define maxWordLength 255
 
 StandardText getStandardTextLength(void) {
     return (StandardText){
         .len = sizeof(standardText) - 1,
-        .firstParsed = (strSentinel - strFirstNonReserved + countOperators),
+        .firstParsed = (strSentinel + countOperators),
         .firstBuiltin = countOperators };
 }
 
@@ -1209,63 +1208,6 @@ private void setStmtSpanLength(Int tokenInd, Compiler* lx) {
 }
 
 
-private Int probeReservedWords(Int indStart, Int indEnd, Int startBt, Int lenBts, Compiler* lx) {
-    for (Int i = indStart; i < indEnd; i++) {
-        Int len = standardStrings[i + 1] - standardStrings[i];
-        if (len == lenBts &&
-            memcmp(lx->sourceCode->cont + standardStrings[i],
-                   lx->sourceCode->cont + startBt, len) == 0) {
-            return standardKeywords[i];
-        }
-    }
-    return -1;
-}
-
-private Int determineReservedA(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strAlias, strBreak, startBt, lenBts, lx);
-}
-
-private Int determineReservedB(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strBreak, strCatch, startBt, lenBts, lx);
-}
-
-private Int determineReservedC(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strCatch, strElseIf, startBt, lenBts, lx);
-}
-
-private Int determineReservedE(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strElseIf, strFalse, startBt, lenBts, lx);
-}
-
-private Int determineReservedF(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strFalse, strIf, startBt, lenBts, lx);
-}
-
-private Int determineReservedI(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strIf, strMatch, startBt, lenBts, lx);
-}
-
-private Int determineReservedM(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strMatch, strPub, startBt, lenBts, lx);
-}
-
-private Int determineReservedP(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strPub, strReturn, startBt, lenBts, lx);
-}
-
-private Int determineReservedR(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strReturn, strTrue, startBt, lenBts, lx);
-}
-
-private Int determineReservedT(Int startBt, Int lenBts, Compiler* lx) {
-    return probeReservedWords(strTrue, strFirstNonReserved, startBt, lenBts, lx);
-}
-
-private Int determineUnreserved(Int startBt, Int lenBts, Compiler* lx) {
-    return -1;
-}
-
-
 private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
     push(((BtToken){ .tp = stmtType, .tokenInd = lx->tokens.len, .spanLevel = slStmt }), lx->lexBtrack);
     pushIntokens((Token){ .tp = stmtType, .startBt = startBt, .lenBts = 0 }, lx);
@@ -1274,7 +1216,7 @@ private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
 
 private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* lx) {
     if (hasValues(lx->lexBtrack)) {
-        if (peek(lx->lexBtrack).spanLevel == slScope) {
+        if (peek(lx->lexBtrack).spanLevel <= slDoubleScope) {
             addStatementSpan(tokStmt, startBt, lx);
         }
     } else {
@@ -1285,7 +1227,7 @@ private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* l
 
 private void wrapInAStatement(Arr(Byte) source, Compiler* lx) {
     if (hasValues(lx->lexBtrack)) {
-        if (peek(lx->lexBtrack).spanLevel == slScope) {
+        if (peek(lx->lexBtrack).spanLevel <= slDoubleScope) {
             addStatementSpan(tokStmt, lx->i, lx);
         }
     } else {
@@ -1544,12 +1486,13 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
 Precondition: we are looking at the character immediately after the keyword */
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= firstScopeTokenType) {
+        print("here res type %d", reservedWordType);
         if (hasValues(lx->lexBtrack)) {
             BtToken top = peek(lx->lexBtrack);
             VALIDATEL(top.spanLevel == slScope && top.tp != tokStmt, errPunctuationScope)
         }
-        push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len, .spanLevel = slScope }),
-             lx->lexBtrack);
+        push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len,
+                    .spanLevel = slDoubleScope }), lx->lexBtrack);
         pushIntokens((Token){ .tp = reservedWordType, .pl1 = slScope,
             .startBt = startBt, .lenBts = lenBts }, lx);
     } else if (reservedWordType >= firstSpanTokenType) {
@@ -1589,11 +1532,10 @@ private void closeStatement(Compiler* lx) {
 }
 
 
-private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCapitalized,
-                        Int lenString, Arr(Byte) source, Compiler* lx) {
-    Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
+private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
+                        bool wasCapitalized, Arr(Byte) source, Compiler* lx) {
     Int lenBts = lx->i - realStartBt;
-    Token newToken = (Token){ .pl2 = uniqueStringInd, .startBt = realStartBt, .lenBts = lenBts };
+    Token newToken = (Token){ .pl2 = uniqueStringId, .startBt = realStartBt, .lenBts = lenBts };
 
     if (lx->i < lx->inpLength && CURR_BT == aParenLeft) { /* A prefix, infix or type call */
         VALIDATEL(wordType == tokWord || (wordType == tokAccessor && !wasCapitalized),
@@ -1640,10 +1582,10 @@ private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCap
 }
 
 
-private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realStartBt,
+private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartBt,
                           Arr(Byte) source, Compiler* lx) {
     Int lenBts = lx->i - startBt;
-
+    Int keywordTp = standardKeywords[wordId];
     VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
     if (keywordTp < firstSpanTokenType) {
         if (keywordTp == keywTrue) {
@@ -1694,26 +1636,14 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
 
     Int realStartBt = (wordType == tokWord) ? startBt : (startBt - 1);
     /* accounting for the initial ".", ":" or other symbol */
-    Byte firstByte = lx->sourceCode->cont[startBt];
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
-   /*
-    Int mbReserved = -1;
-    if (firstByte >= aALower && firstByte <= aWLower) {
-        mbReserved = (*lx->langDef->possiblyReservedDispatch)[firstByte - aALower](
-                startBt, lenString, lx
-        );
-    }
-   */
-    print("mb reserved %d", mbReserved);
-    Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
-   /*
-    if (mbReserved > -1) {
-        wordReserved(wordType, mbReserved, startBt, realStartBt, source, lx);
+    Int uniqueStringId = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
+    if (uniqueStringId - countOperators < strSentinel)  {
+        wordReserved(wordType, uniqueStringId - countOperators, startBt, realStartBt, source, lx);
     } else {
-        wordNormal(wordType, startBt, realStartBt, wasCapitalized, lenString, source, lx);
+        wordNormal(wordType, uniqueStringId, startBt, realStartBt, wasCapitalized, source, lx);
     }
-   */
 }
 
 private void lexWord(Arr(Byte) source, Compiler* lx) {
@@ -1975,6 +1905,7 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) {
 private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
+    closeStatement(lx);
     if (j < lx->inpLength && NEXT_BT == aCaret) {
         openPunctuation(tokFn, slScope, lx->i, lx);
         lx->i += 2; /* CONSUME the `{^` */
@@ -1986,26 +1917,35 @@ private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
 
 
 private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
+/* A closing curly brace may close the following configurations of lexer backtrack:
+1. [scope stmt] - if it's just a scope nested within another scope or a function
+2. [coreForm stmt] - eg. if it's closing the function body
+3. [coreForm scope stmt] - eg. if it's closing the {} part of an "if" */
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
 
     /* since a closing curly is closing something with statements inside it, like a lex scope
-    or a core syntax form, we need to close the last statement before closing its parent */
-    if (top.spanLevel != slScope && bt->cont[bt->len - 1].spanLevel == slScope) {
+    or a core syntax form, we need to close that statement before closing its parent */
+    if (top.spanLevel == slStmt && bt->cont[bt->len - 1].spanLevel <= slDoubleScope) {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
     setSpanLengthLexer(top.tokenInd, lx);
-    lx->i++; /* CONSUME the closing "}" */
 
-    if (hasValues(lx->lexBtrack)) { lx->lastClosingPunctInd = startInd; }
+    if (top.spanLevel == slScope && hasValues(bt) && peek(bt).spanLevel == slDoubleScope)  {
+        top = pop(bt);
+        setSpanLengthLexer(top.tokenInd, lx);
+    }
+
+    if (hasValues(bt)) { lx->lastClosingPunctInd = startInd; }
+    lx->i++; /* CONSUME the closing "}" */
 }
 
 
 private void lexUnderscore(Arr(Byte) source, Compiler* lx) {
-/* The "_" sign that is used for accessing arrays, lists, dictionaries */
+/* The "_" symbol that is used for accessing arrays, lists, dictionaries */
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
     pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccArray, .startBt = lx->i, .lenBts = 1 }, lx);
     ++lx->i; /* CONSUME the "_" sign */
@@ -2084,28 +2024,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     return result;
 }
 
-private ReservedProbe (*tabulateReservedbytes(Arena* a))[countReservedLetters] {
-/* Table for dispatch on the first letter of a word in case it might be a reserved word.
-It's indexed on the diff between first Byte and the letter "a" (the earliest letter a reserved word
-may start with) */
-    ReservedProbe (*result)[countReservedLetters] =
-            allocateOnArena(countReservedLetters*sizeof(ReservedProbe), a);
-    ReservedProbe* p = *result;
-    for (Int i = 1; i < countReservedLetters; i++) {
-        p[i] = determineUnreserved;
-    }
-    p[0] = determineReservedA;
-    p[1] = determineReservedB;
-    p[2] = determineReservedC;
-    p[4] = determineReservedE;
-    p[5] = determineReservedF;
-    p[8] = determineReservedI;
-    p[12] = determineReservedM;
-    p[15] = determineReservedP;
-    p[17] = determineReservedR;
-    p[19] = determineReservedT;
-    return result;
-}
 
 private OpDef (*tabulateOperators(Arena* a))[countOperators] {
 /* The set of operators in the language. Must agree in order with tl.internal.h */
@@ -3058,11 +2976,10 @@ private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
 }
 
 testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
-/* Definition of the operators, reserved words, lexer dispatch and parser dispatch tables for the
-compiler. */
+/* Definition of the operators, lexer dispatch and parser dispatch tables for the compiler. */
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
     (*result) = (LanguageDefinition) {
-        .possiblyReservedDispatch = tabulateReservedbytes(a), .dispatchTable = tabulateDispatch(a),
+        .dispatchTable = tabulateDispatch(a),
         .operators = tabulateOperators(a),
         .nonResumableTable = tabulateNonresumableDispatch(a),
         .resumableTable = tabulateResumableDispatch(a)
@@ -4680,8 +4597,8 @@ Precondition: we are 1 past the assignment token */
 
     VALIDATEP(cm->i < sentinel && toks[cm->i].tp == tokParens, errTypeDefError)
     ++cm->i; /* CONSUME the parens token */
-    Token firstTok = toks[cm->i];
     /*
+    Token firstTok = toks[cm->i];
     if (firstTok.tp == tokBrackets) {
         ++cm->i; /* CONSUME the brackets token /
         typeDefReadParams(firstTok, params, cm);
@@ -5155,11 +5072,10 @@ const char* tokNames[] = {
     "word", "Type", ":kwarg", ".strFld", "operator", "_acc", "=>", "pub",
     "stmt", "()", "prefixCall", ".infixCall", "TypeCall", "TypeCon", "paramList",
     "=", "<-", "*=", "alias", "assert", "breakCont",
-    "iface", "import", "return"
-    "{}", "{^}", "try{", "catch{", "finally{", "meta"
-    "if{", "ifPr(", "match(", "ei", "else", "impl(", "for{", "foreach{"
+    "iface", "import", "return",
+    "{}", "{^}", "try{", "catch{", "finally{", "meta",
+    "if{", "ifPr{", "match{", "ei", "else", "impl(", "for{", "foreach{"
 };
-
 
 Int pos(Compiler* lx) {
     return lx->i - sizeof(standardText) + 1;
