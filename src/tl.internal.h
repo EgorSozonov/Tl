@@ -1,4 +1,4 @@
-//{{{ Utils
+/*{{{ Utils */
 
 #define Int int32_t
 #define StackInt Stackint32_t
@@ -20,8 +20,8 @@
 #define LOWER32BITS 0x00000000FFFFFFFF
 #define PENULTIMATE8BITS 0xFF00
 #define THIRTYFIRSTBIT 0x40000000
-#define MAXTOKENLEN 67108864 // 2^26
-#define SIXTEENPLUSONE 65537 // 2^16 + 1
+#define MAXTOKENLEN 67108864 /* 2^26 */
+#define SIXTEENPLUSONE 65537 /* 2^16 + 1 */
 #define LEXER_INIT_SIZE 2000
 #define print(...) \
   printf(__VA_ARGS__);\
@@ -32,10 +32,10 @@ typedef struct ArenaChunk ArenaChunk;
 struct ArenaChunk {
     size_t size;
     ArenaChunk* next;
-    char memory[]; // flexible array member
+    char memory[]; /* flexible array member */
 };
 
-typedef struct { // :Arena
+typedef struct { /* :Arena */
     ArenaChunk* firstChunk;
     ArenaChunk* currChunk;
     int currInd;
@@ -68,11 +68,11 @@ typedef struct {\
     void pushIn ## fieldName (T newItem, Compiler* cm);
 
 
-/// A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse
-/// old allocations via an intrusive free list.
-/// Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
-/// Units of measurement of len and cap are 1's. I.e. len can never be = 1, it starts with 2.
-typedef struct { // :MultiAssocList
+/* A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse
+old allocations via an intrusive free list.
+Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
+Units of measurement of len and cap are 1's. I.e. len can never be = 1, it starts with 2. */
+typedef struct { /* :MultiAssocList */
     Int len;
     Int cap;
     Int freeList;
@@ -81,7 +81,7 @@ typedef struct { // :MultiAssocList
 } MultiAssocList;
 
 
-typedef struct { // :String
+typedef struct { /* :String */
     int len;
     Byte cont[];
 } String;
@@ -100,8 +100,8 @@ typedef struct {
     Int firstBuiltin; // the nameId for the first built-in word in standardStrings
 } StandardText;
 
-//}}}
-//{{{ Int Hashmap
+/*}}}*/
+/*{{{ Int Hashmap */
 
 DEFINE_STACK_HEADER(int32_t)
 typedef struct {
@@ -111,10 +111,10 @@ typedef struct {
     Arena* a;
 } IntMap;
 
-//}}}
-//{{{ String Hashmap
+/*}}}*/
+/*{{{ String Hashmap */
 
-/** Reference to first occurrence of a string identifier within input text */
+/* Reference to first occurrence of a string identifier within input text */
 typedef struct {
     untt hash;
     Int indString;
@@ -126,7 +126,7 @@ typedef struct {
     StringValue cont[];
 } Bucket;
 
-/** Hash map of all words/identifiers encountered in a source module */
+/* Hash map of all words/identifiers encountered in a source module */
 typedef struct {
     Arr(Bucket*) dict;
     int dictSize;
@@ -134,10 +134,10 @@ typedef struct {
     Arena* a;
 } StringDict;
 
-//}}}
-//{{{ Lexer
+/*}}}*/
+/*{{{ Lexer */
 
-//{{{ Standard strings
+/*{{{ Standard strings */
 
 #define strArray      0
 #define strAlias      1
@@ -174,11 +174,11 @@ typedef struct {
 #define strBool      30
 #define strString    31
 #define strVoid      32
-#define strF         33 // F(unction type)
-#define strL         34 // List
-#define strA         35 // Array
-#define strH         36 // Hashmap
-#define strTu        37 // Tu(ple)
+#define strF         33 /* F(unction type) */
+#define strL         34 /* List */
+#define strA         35 /* Array */
+#define strH         36 /* Hashmap */
+#define strTu        37 /* Tu(ple) */
 #define strLen       38
 #define strCap       39
 #define strF1        40
@@ -189,9 +189,9 @@ typedef struct {
 #define strMathE     45
 #define strSentinel  46
 
-//}}}
+/*}}}*/
 
-/** Backtrack token, used during lexing to keep track of all the nested stuff */
+/* Backtrack token, used during lexing to keep track of all the nested stuff */
 typedef struct { /* :BtToken */
     untt tp : 6;
     Int tokenInd;
@@ -216,57 +216,55 @@ typedef struct { /* :Token */
 #define tokInt          0
 #define tokLong         1
 #define tokDouble       2
-#define tokBool         3    // pl2 = value (1 or 0)
+#define tokBool         3    /* pl2 = value (1 or 0) */
 #define tokString       4
-#define tokTilde        5    // used to mark up to 2 anonymous params in a function. pl1 = count
+#define tokTilde        5    /* marks up to 2 anonymous params in a lambda. pl1 = tilde count */
 #define tokNull         6
 #define tokUnderscore   7
 
-#define tokWord         8    // pl2 = index in the string table
-#define tokTypeName     9    // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
-#define tokKwArg       10    // pl2 = same as tokWord. The ":argName"
-#define tokDotWord     11    // pl2 = same as tokWord. The ".structField"
-#define tokOperator    12    // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    13    // pl1 = see "tkAcc" consts. Either an ".accessor" or a `_smth`
+#define tokWord         8    /* pl2 = index in the string table */
+#define tokTypeName     9    /* pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord */
+#define tokKwArg       10    /* pl2 = same as tokWord. The ":argName" */
+#define tokDotWord     11    /* pl2 = same as tokWord. The ".structField" */
+#define tokOperator    12    /* pl1 = OperatorToken, one of the "opT" constants below */
+#define tokAccessor    13    /* pl1 = see "tkAcc" consts. Either an ".accessor" or a `_smth` */
 #define tokArrow       14
 #define tokPub         15
 
-// Single-statement token types
-#define tokStmt        16    // firstSpanTokenType
-#define tokParens      17    // subexpressions and struct/sum type instances
-#define tokPrefixCall  18    // pl1 = nameId, index in the string table
-#define tokInfixCall   19    // pl1 = nameId, index in the string table
-#define tokTypeCall    20    // pl1 = nameId
-#define tokList        21    // pl1 = 1 iff it's an array
-#define tokHashmap     22
-#define tokBrackets    23
-#define tokAssignment  24
-#define tokReassign    25    // `<-` 
-#define tokMutation    26    // `+=`. pl1 = (6 bits opType, 26 bits startBt of the operator symbol)
-#define tokAlias       27
-#define tokAssert      28
-#define tokBreakCont   29    // pl1 = BIG iff it's a continue
-#define tokEmbed       30    // Embed a text/binary file as a string literal/binary resource
-#define tokIface       31
-#define tokImport      32
-#define tokReturn      33
-#define tokTry         34    // early exit
-#define tokElse        35    // not a real span, but placed here so the parser can dispatch on it
+/* Single-statement token types */
+#define tokStmt        16    /* firstSpanTokenType */
+#define tokParens      17    /* subexpressions and struct/sum type instances */
+#define tokPrefixCall  18    /* pl1 = nameId, index in the string table */
+#define tokInfixCall   19    /* pl1 = nameId, index in the string table */
+#define tokTypeCall    20    /* pl1 = nameId */
+#define tokTypeCon     21    /* Built-in types initializers. pl1 = typeId */
+#define tokAssignment  22    /* `=` */
+#define tokReassign    23    /* `<-`  */
+#define tokMutation    24    /* `+=`. pl1 = (6 bits opType, 26 bits startBt of the operator symbol) */
+#define tokAlias       25
+#define tokAssert      26
+#define tokBreakCont   27    /* pl1 = BIG iff it's a continue */
+#define tokIface       29
+#define tokImport      30    /* For test files and package decls */
+#define tokReturn      31
 
-// Parenthesized (multi-statement) token types. pl1 = spanLevel, see "sl" constants
-#define tokScope       36    // denoted by {}. firstParenSpanTokenType
-#define tokFn          37    // `{^ a Int => String;; body}`
-#define tokCatch       38    // paren `catch(e: print(e))`
-#define tokFinally     39    // paren `catch(e: print(e))`
-#define tokMeta        40
+/* Bracketed (multi-statement) token types. pl1 = spanLevel, see "sl" constants */
+#define tokScope       32    /* denoted by {}. firstParenSpanTokenType */
+#define tokFn          33    /* `{^ a Int => String;; body}` */
+#define tokTry         34    /* early exit */
+#define tokCatch       35    /* `catch MyExc e {` */
+#define tokFinally     36    /* `finally { ` */
+#define tokMeta        37    /* `[[` */
 
-// Resumable core forms
-#define tokIf          41    // `if ... {`
-#define tokIfPr        42    // like if, but every branch is a value compared using custom predicate
-#define tokMatch       43    // "match ... {" pattern matching on sum type tag
-#define tokImpl        44
-#define tokFor         45
-#define tokForeach     46
+/* Resumable core forms */
+#define tokIf          38    /* `if ... {` */
+#define tokIfPr        39    /* like if, but every branch is a value compared using custom predicate */
+#define tokMatch       40    /* "match ... {" pattern matching on sum type tag */
+#define tokElseIf      41    /* `ei ... {` */
+#define tokElse        42    /* `else {` */
+#define tokImpl        43
+#define tokFor         44
+#define tokForeach     45
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType    tokString
@@ -274,41 +272,39 @@ typedef struct { /* :Token */
 #define firstParenSpanTokenType tokScope
 #define firstResumableSpanTokenType tokIf
 
-/// List of keywords that don't correspond directly to a token.
-/// All these numbers must be below firstKeywordToken to avoid any clashes
+/* List of keywords that don't correspond directly to a token.
+ All these numbers must be below firstKeywordToken to avoid any clashes */
 #define keywTrue        1
 #define keywFalse       2
-#define keywArray       3
-#define keywBreak       4
-#define keywContinue    5
+#define keywBreak       3
+#define keywContinue    4
 
-/// AST nodes
-#define nodId           7    // pl1 = index of entity, pl2 = index of name
-#define nodCall         8    // pl1 = index of entity, pl2 = arity
-#define nodBinding      9    // pl1 = index of entity, pl2 = 1 if it's a type binding
+/* AST nodes */
+#define nodId           7    /* pl1 = index of entity, pl2 = index of name */
+#define nodCall         8    /* pl1 = index of entity, pl2 = arity */
+#define nodBinding      9    /* pl1 = index of entity, pl2 = 1 if it's a type binding */
 
 // Punctuation (inner node)
-#define nodScope       10     // This syntax form is resumable but trivially so,
-                              // that's why it's not grouped with the others
+#define nodScope       10     /* This syntax form is resumable but trivially so,
+                               that's why it's not grouped with the others */
 #define nodExpr        11
 #define nodAssignment  12
-#define nodReassign    13     // :=
-#define nodAccessor    14     // pl1 = "acc" constants
+#define nodReassign    13     /* := */
+#define nodAccessor    14     /* pl1 = "acc" constants */
 
 // Single-shot core syntax forms
 #define nodAlias       15
-#define nodAssert      16     // pl1 = 1 iff it's a debug assert
-#define nodBreakCont   17     // pl1 = number of label to break or continue to, -1 if none needed
-                              // It's a continue iff it's >= BIG.
-#define nodCatch       18     // "(catch e: print e)"
+#define nodAssert      16     /* pl1 = 1 iff it's a debug assert */
+#define nodBreakCont   17     /* pl1 = number of label to break or continue to, -1 if none needed
+                               It's a continue iff it's >= BIG. */
+#define nodCatch       18     /* "catch e {` */
 #define nodDefer       19
-#define nodEmbed       20     // Embed a text file as a string literal, or a binary resource file
-#define nodImport      21     // This is for test files only, no need to import anything in main
+#define nodImport      21     /* This is for test files only, no need to import anything in main */
 #define nodFnDef       22     /* pl1 = entityId */
 #define nodIface       23
 #define nodMeta        24
 #define nodReturn      25
-#define nodTry         26     /* the Rust kind of "try" (early return from current function) */
+#define nodTry         26
 #define nodIfClause    27
 #define nodWhile       28     /* pl1 = id of loop (unique within a function) if it needs to
                                have a label in codegen */
@@ -448,8 +444,8 @@ typedef struct { /* :ParseFrame */
     untt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
-    Int typeId;            // valid only for fnDef, if, loopCond and the like
-    void* scopeStackFrame; // only for tp = scope or expr
+    Int typeId;            /* valid only for fnDef, if, loopCond and the like */
+    void* scopeStackFrame; /* only for tp = scope or expr */
 } ParseFrame;
 
 
@@ -463,13 +459,13 @@ typedef struct { /* :ParseFrame */
 #define emitPrefixShielded 3  /* a native name in need of shielding from target reserved word 
                                  (by appending a "_") */
 #define emitPrefixExternal 4  /* prefix names that are emitted differently than in source code */
-#define emitInfix          5  // infix operators that match between source code and target (e.g. +)
-#define emitInfixExternal  6  // infix operators that have a separate external name
-#define emitField          7  // emitted as field accesses, like ".length"
-#define emitInfixDot       8  // emitted as a "dot-call", like ".toString()"
-#define emitNop            9  // for unary operators that don't need to be emitted, like ","
+#define emitInfix          5  /* infix operators that match between source code and target (e.g. +) */
+#define emitInfixExternal  6  /* infix operators that have a separate external name */
+#define emitField          7  /* emitted as field accesses, like ".length" */
+#define emitInfixDot       8  /* emitted as a "dot-call", like ".toString()" */
+#define emitNop            9  /* for unary operators that don't need to be emitted, like "," */
 
-typedef struct { //:Entity
+typedef struct { /* :Entity */
     Int typeId;
     Int name;
     uint16_t externalNameId;
@@ -482,15 +478,15 @@ typedef struct { //:Entity
 typedef struct {
     untt name;  /* 8 bits of length, 24 bits or nameId */
     Int externalNameId; /* index in the "codegenText" */
-    Int typeInd; // index in the intermediary array of types that is imported alongside
+    Int typeInd; /* index in the intermediary array of types that is imported alongside */
 } EntityImport;
 
-typedef struct { // :Toplevel
-    /// Toplevel definitions (functions, variables, types) for parsing order and name searchability
+typedef struct { /* :Toplevel */
+    /* Toplevel definitions (functions, variables, types) for parsing order and name searchability */
     Int indToken;
     Int sentinelToken;
     untt name;
-    Int entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
+    Int entityId; /* if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities] */
     bool isFunction;
 } Toplevel;
 
@@ -581,7 +577,7 @@ struct Compiler { /* :Compiler */
 #define slSubexpr     4 /* parens and the like: newlines have no effect, dots error out */
 
 
-//}}}
+/*}}}*/
 //{{{ Types
 
 /// see the Type layout chapter in the docs
@@ -598,7 +594,7 @@ typedef struct { // :TypeHeader
     untt nameAndLen;
 } TypeHeader;
 
-//}}}
+/*}}}*/
 //{{{ Generics
 
 #define pop(X) _Generic((X),\
@@ -636,5 +632,5 @@ typedef struct { // :TypeHeader
     StackNode*: hasValuesNode\
     )(X)
 
-//}}}
+/*}}}*/
 

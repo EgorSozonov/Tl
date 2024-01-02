@@ -1029,33 +1029,31 @@ const int operatorStartSymbols[13] = {
 /*  The standard text prepended to all source code inputs and the hash table to provide a built-in
 string set. Tl's reserved words must be at the start and be sorted alphabetically on the first letter.
 Also they must agree with the "Standard strings" in tl.internal.h */
-const char standardText[] = "aaliasassertbreakcatchcontinuedoelseembedfalseffinallyfor"
-                            "foreachhififPrimplimportinterfacelmatchmetapubreturntruetry"
+const char standardText[] = "aliasassertbreakcatchcontinueeielsefalsefinallyfor"
+                            "foreachififPrimplimportifacematchpubreturntruetry"
                             /* reserved words end here */
-                            "IntLongDoubleBoolStringVoidFLAHTulencapf1f2printprintErr"
+                            "IntLongDoubleBoolStringVoidFLADTulencapf1f2printprintErr"
                             "math:pimath:eTU";
 
 const Int standardStrings[] = {
-      0,   1,   6,  12, /*     catch */17,
-     22,  30,  32,  36, /*     false */41,
-     46,  47,  54,  57, /*         h */64,
-     65,  67,  71,  75, /* interface */81,
-     90,  91,  96, 100, /*   return */103,
-    109, 113,           /*   Int */116,
-    119, 123, 129, 133, /*  Void */139,
-    143, 144, 145, 146, /*    Tu */147,
-    149, 152, 155, 157, /* print */159,
-    164, 172, 179, 185, /*     U */186,
-    187
+      0,   5,  11,  16, /*  continue */21,
+     29,  31,  35,  40, /*       for */47,
+     50,  57,  59,  63, /*    import */67,
+     73,  78,  83,  86, /*      true */92,
+    /* try */96,
+    99,  102, 106, 112, /* String */116,
+    122, 126, 127, 128, /* D(ict) */129,
+    130, 132, 135, 138, /* f2 */140,
+    142, 147, 155, 162, /* T */ 168,
+    169, 170
 };
 
 const Int standardKeywords[] = {
-    keywArray,    tokAlias,   tokAssert, keywBreak,  tokCatch,
-    keywContinue, tokScope,   tokElse,   tokEmbed,   keywFalse,
-    tokFn,        tokFinally, tokFor,    tokForeach, tokHashmap,
-    tokIf,        tokIfPr,    tokImpl,   tokImport,  tokIface,
-    tokList,      tokMatch,   tokMeta,   tokPub,     tokReturn,
-    keywTrue,     tokTry
+    tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue,
+    tokElseIf,    tokElse,    keywFalse,  tokFinally, tokFor,
+    tokForeach,   tokIf,      tokIfPr,    tokImpl,    tokImport,
+    tokIface,     tokMatch,   tokPub,     tokReturn,  keywTrue,
+    tokTry
 };
 
 #define maxWordLength 255
@@ -1623,47 +1621,50 @@ private void wordNormal(untt wordType, Int startBt, Int realStartBt, bool wasCap
                         Int lenString, Arr(Byte) source, Compiler* lx) {
     Int uniqueStringInd = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
     Int lenBts = lx->i - realStartBt;
+    Token newToken = (Token){ .pl2 = uniqueStringInd, .startBt = realStartBt, .lenBts = lenBts };
+
     if (lx->i < lx->inpLength && CURR_BT == aParenLeft) { /* A prefix, infix or type call */
         VALIDATEL(wordType == tokWord || (wordType == tokAccessor && !wasCapitalized),
                 errWordWrongCall)
-        Int callType;
         if (wordType == tokWord) {
-            callType = wasCapitalized ? tokTypeCall : tokPrefixCall;
+            newToken.tp = wasCapitalized ? tokTypeCon : tokPrefixCall;
         } else {
-            callType = tokInfixCall;
+            newToken.tp = tokInfixCall;
         }
-        push(((BtToken){ .tp = callType,
-                    .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
+        push(((BtToken){ .tp = newToken.tp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
-        pushIntokens((Token){ .tp = callType, .pl1 = uniqueStringInd,
-                     .startBt = realStartBt, .lenBts = lenBts }, lx);
         ++lx->i; /* CONSUME the opening "(" of the call */
+    } else if (lx->i < lx->inpLength && CURR_BT == aBracketLeft) {
+        VALIDATEL(wordType == tokWord && wasCapitalized,  errWordWrongCall)
+        newToken.tp = tokTypeCall;
+        push(((BtToken){ .tp = newToken.tp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
+             lx->lexBtrack);
+        ++lx->i; /* CONSUME the opening "[" of the call */
     } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
         VALIDATEL(wasCapitalized, errTypeOnlyTypesArity)
-        pushIntokens((Token){ .tp = tokTypeName, .pl1 = 1, .pl2 = uniqueStringInd,
-                     .startBt = realStartBt, .lenBts = lenBts }, lx);
+        newToken.tp = tokTypeName;
+        newToken.pl1 = 1;
         ++lx->i; /* CONSUME the "/" in the type func arity spec */
     } else if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
-        pushIntokens((Token){ .tp = (wasCapitalized ? tokTypeName : tokWord), .pl2 = uniqueStringInd,
-                     .startBt = realStartBt, .lenBts = lenBts }, lx);
+        newToken.tp = (wasCapitalized ? tokTypeName : tokWord);
     } else if (wordType == tokAccessor) {
         /* What looks like an accessor "a.x" may actually be a struct field ("(.id 5 .name `f`") */
         if (lx->tokens.len > 0) {
             Token prevToken = lx->tokens.cont[lx->tokens.len - 1];
             if (prevToken.startBt + prevToken.lenBts < realStartBt) {
-                pushIntokens((Token){ .tp = tokDotWord, .pl2 = uniqueStringInd,
-                             .startBt = realStartBt, .lenBts = lenBts }, lx);
+                newToken.tp = tokDotWord;
+                pushIntokens(newToken, lx);
                 return;
             }
         }
         wrapInAStatementStarting(startBt, source, lx);
-        pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccDot, .pl2 = uniqueStringInd,
-                     .startBt = realStartBt, .lenBts = lenBts }, lx);
+        newToken.tp = tokAccessor;
+        newToken.pl1 = tkAccDot;
     } else if (wordType == tokKwArg) {
-        pushIntokens((Token){ .tp = tokKwArg, .pl2 = uniqueStringInd,
-                     .startBt = realStartBt, .lenBts = lenBts }, lx);
+        newToken.tp = tokKwArg;
     }
+    pushIntokens(newToken, lx);
 }
 
 private void wordReserved(untt wordType, Int keywordTp, Int startBt, Int realStartBt,
@@ -1732,12 +1733,6 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
         );
     }
     if (mbReserved > -1) {
-        if ((mbReserved == keywArray || mbReserved == tokList
-            || mbReserved == tokFn || mbReserved == tokHashmap)
-          && (lx->i == lx->inpLength || CURR_BT != aParenLeft)) {
-             /* words like "l", "a" etc are only reserved when in front of a paren */
-            wordNormal(wordType, startBt, realStartBt, wasCapitalized, lenString, source, lx);
-        }
         wordReserved(wordType, mbReserved, startBt, realStartBt, source, lx);
     } else {
         wordNormal(wordType, startBt, realStartBt, wasCapitalized, lenString, source, lx);
@@ -1977,8 +1972,6 @@ private void lexDivBy(Arr(Byte) source, Compiler* lx) {
 }
 
 private void lexParenLeft(Arr(Byte) source, Compiler* lx) {
-    print("paren left at %d", pos(lx));
-    printLexBtrack(lx);
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     wrapInAStatement(source, lx);
@@ -1988,10 +1981,8 @@ private void lexParenLeft(Arr(Byte) source, Compiler* lx) {
 
 
 private void lexParenRight(Arr(Byte) source, Compiler* lx) {
-    print("paren right at %d", pos(lx));
-    printLexBtrack(lx);
     Int startInd = lx->i;
-    
+
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
@@ -2012,24 +2003,7 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
-    /* TODO how to approach square brackets */
-    Int j = lx->i + 1;
-    VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
-    wrapInAStatement(source, lx);
-    if (j < lx->inpLength && NEXT_BT == aBracketRight) {
-        pushIntokens((Token){.tp = tokNull, .startBt = lx->i, .lenBts = 2}, lx);
-        lx->i += 2; /* CONSUME the [] (aka null) */
-    } else {
-        openPunctuation(tokBrackets, slSubexpr, lx->i, lx);
-        ++lx->i; /* CONSUME the left bracket */
-    }
-}
-
-
 private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
-    print("curly left at %d", pos(lx));
-    printLexBtrack(lx);
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     if (j < lx->inpLength && NEXT_BT == aCaret) {
@@ -2037,15 +2011,12 @@ private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
         lx->i += 2; /* CONSUME the `{^` */
     } else {
         openPunctuation(tokScope, slScope, lx->i, lx);
-        print("opened scope"); 
         ++lx->i; /* CONSUME the left bracket */
     }
 }
 
 
 private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
-    print("curly right at %d", pos(lx));
-    printLexBtrack(lx);
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
@@ -2501,7 +2472,7 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(indBody < sentinel, errLoopEmptyBody);
 
     /* loop condition */
-    push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.len, 
+    push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.len,
                 .sentinelToken = condSent }), cm->backtrack);
     pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = condSent - condInd,
                        .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
@@ -3095,7 +3066,6 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokAssert]     = &parseAssert;
     p[tokBreakCont]  = &parseBreakCont;
     p[tokCatch]      = &parseAlias;
-    p[tokEmbed]      = &parseAlias;
     p[tokFn]         = &parseAlias;
     p[tokFinally]    = &parseAlias;
     p[tokIface]      = &parseAlias;
@@ -3457,7 +3427,7 @@ private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
 testable Int addConcreteFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
     /* Function types are stored as: (length, return type, paramType1, paramType2, ...) */
     Int newInd = cm->types.len;
-    pushIntypes(arity + 3, cm); /* +3 because the header takes 2 ints 
+    pushIntypes(arity + 3, cm); /* +3 because the header takes 2 ints
                                    + 1 more for the return typeId */
     typeAddHeader(
         (TypeHeader){.sort = sorFunction, .arity = 0, .depth = arity + 1, .nameAndLen = -1}, cm);
@@ -4563,7 +4533,7 @@ Returns the typeId of the new typeId */
     printIntArray(exp->len, exp->cont);
 #endif
     if (nameAndLen > 0) {
-        /* at this point, exp must contain just a single struct with its fields 
+        /* at this point, exp must contain just a single struct with its fields
          followed by just typeIds */
         Int lengthNewStruct = exp->cont[1]*4; /* *4 because for every field there are 4 ints */
         return typeCreateStruct(exp, 2, lengthNewStruct, params, nameAndLen, cm);
@@ -4745,10 +4715,12 @@ Precondition: we are 1 past the assignment token */
     VALIDATEP(cm->i < sentinel && toks[cm->i].tp == tokParens, errTypeDefError)
     ++cm->i; /* CONSUME the parens token */
     Token firstTok = toks[cm->i];
+    /*
     if (firstTok.tp == tokBrackets) {
-        ++cm->i; /* CONSUME the brackets token */
+        ++cm->i; /* CONSUME the brackets token /
         typeDefReadParams(firstTok, params, cm);
     }
+    */
     if (isFunction) {
         push(tyeFunction, cm->tempStack);
         push(sentinel, cm->tempStack);
@@ -4936,7 +4908,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     Int j = cm->expStack->len - 1;
     Arr(Int) cont = st->cont;
     while (j > -1) {
-        if (cont[j] < BIG) { /* it's not a function call because function call indicators 
+        if (cont[j] < BIG) { /* it's not a function call because function call indicators
                                 have BIG in them */
             --j;
             continue;
@@ -4978,7 +4950,7 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            VALIDATEP(cm->types.cont[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload) 
+            VALIDATEP(cm->types.cont[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload)
                 /* first parm matches, but not arity */
 
             for (int k = j + 3; k < j + arity + 2; k++) {
@@ -5231,7 +5203,7 @@ Int pos(Compiler* lx) {
 void printLexBtrack(Compiler* lx) {
     printf("[");
     StackBtToken* bt = lx->lexBtrack;
-    
+
     for (Int k = 0; k < bt->len; k++) {
         printf("%s ", tokNames[bt->cont[k].tp]);
     }
