@@ -1547,11 +1547,14 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
         } else {
             newToken.tp = tokInfixCall;
         }
+        newToken.pl1 = uniqueStringId;
+        newToken.pl2 = 0;
         push(((BtToken){ .tp = newToken.tp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
         ++lx->i; /* CONSUME the opening "(" of the call */
     } else if (lx->i < lx->inpLength && CURR_BT == aBracketLeft) {
         VALIDATEL(wordType == tokWord && wasCapitalized,  errWordWrongCall)
+        newToken.pl1 = uniqueStringId;
         newToken.tp = tokTypeCall;
         push(((BtToken){ .tp = newToken.tp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
@@ -1644,6 +1647,7 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
     if (uniqueStringId - countOperators < strFirstNonReserved)  {
         wordReserved(wordType, uniqueStringId - countOperators, startBt, realStartBt, source, lx);
     } else {
+        wrapInAStatementStarting(startBt, source, lx);
         wordNormal(wordType, uniqueStringId, startBt, realStartBt, wasCapitalized, source, lx);
     }
 }
@@ -1658,8 +1662,9 @@ private void lexDot(Arr(Byte) source, Compiler* lx) {
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
         ++lx->i; /* CONSUME the dot */
         wordInternal(tokAccessor, source, lx);
+    } else {
+        throwExcLexer(errUnexpectedToken);
     }
-    throwExcLexer(errUnexpectedToken);
 }
 
 
@@ -1939,6 +1944,37 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
 }
 
 
+private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
+    Int j = lx->i + 1;
+    VALIDATEL(j < lx->inpLength && NEXT_BT == aBracketLeft, errUnrecognizedByte)
+    openPunctuation(tokMeta, slScope, lx->i, lx);
+    lx->i += 2; /* CONSUME the `[[` */
+}
+
+
+private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
+/* A closing bracket may close 
+1. a type call, like `L[Int]`
+2. a metainformation piece, like `[[asdf]]` */
+    Int startInd = lx->i;
+    StackBtToken* bt = lx->lexBtrack;
+    VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
+    BtToken top = pop(bt);
+    Int consumedChars = 1; 
+    if (top.tp == tokTypeCall) {
+    } else if (top.tp == tokMeta) {
+        Int j = startInd + 1; 
+        VALIDATEL(j < lx->inpLength && NEXT_BT == aBracketRight, errPunctuationUnmatched);
+        consumedChars = 2;
+    } else {
+        throwExcLexer(errPunctuationUnmatched);
+    }
+    setSpanLengthLexer(top.tokenInd, lx);
+    lx->i += consumedChars; /* CONSUME the `]` or `]]` */ 
+    if (hasValues(lx->lexBtrack)) { lx->lastClosingPunctInd = startInd; }
+}
+
+
 private void lexCaret(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
     if (j < lx->inpLength && NEXT_BT == aCurlyLeft) {
@@ -1960,12 +1996,17 @@ private void lexComma(Arr(Byte) source, Compiler* lx) {
 
 private void lexPipe(Arr(Byte) source, Compiler* lx) {
 /* Closes the current statement and changes its type to tokParamList */
-    BtToken top = peek(lx->lexBtrack);
-    VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
-    setStmtSpanLength(top.tokenInd, lx);
-    lx->tokens.cont[top.tokenInd].tp = tokParamList; 
-    pop(lx->lexBtrack);
-    lx->i++; /* CONSUME the `|` */ 
+    Int j = lx->i + 1;
+    if (j < lx->inpLength && NEXT_BT == aPipe) {
+        lexOperator(source, lx); 
+    } else {
+        BtToken top = peek(lx->lexBtrack);
+        VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
+        setStmtSpanLength(top.tokenInd, lx);
+        lx->tokens.cont[top.tokenInd].tp = tokParamList; 
+        pop(lx->lexBtrack);
+        lx->i++; /* CONSUME the `|` */ 
+    }
 }
 
 
@@ -1996,7 +2037,6 @@ private void lexStringLiteral(Arr(Byte) source, Compiler* lx) {
 
 
 private void lexUnexpectedSymbol(Arr(Byte) source, Compiler* lx) {
-    printString(lx->sourceCode);
     throwExcLexer(errUnrecognizedByte);
 }
 
@@ -2038,6 +2078,8 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aParenRight] = &lexParenRight;
     p[aCurlyLeft] = &lexCurlyLeft;
     p[aCurlyRight] = &lexCurlyRight;
+    p[aBracketLeft] = &lexBracketLeft;
+    p[aBracketRight] = &lexBracketRight;
     p[aCaret] = &lexCaret; /* to handle the functions `^{}` */
     p[aComma] = &lexComma;
     p[aPipe] = &lexPipe;

@@ -161,7 +161,7 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
 
 
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first differing token otherwise */
-int equalityParser(Compiler a, Compiler b) {
+int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b) {
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
@@ -176,10 +176,11 @@ int equalityParser(Compiler a, Compiler b) {
             if (nodA.tp != nodB.tp) {
                 printf("Diff in tp, %d but was expected %d\n", nodA.tp, nodB.tp);
             }
-            if (nodA.lenBts != nodB.lenBts) {
+            /* In a parser test, we don't always care about the bytes, which is marked by 0 vals */
+            if (nodB.lenBts > 0 && nodA.lenBts != nodB.lenBts) {
                 printf("Diff in lenBts, %d but was expected %d\n", nodA.lenBts, nodB.lenBts);
             }
-            if (nodA.startBt != nodB.startBt) {
+            if (nodB.startBt > 0 && nodA.startBt != nodB.startBt) {
                 printf("Diff in startBt, %d but was expected %d\n", nodA.startBt, nodB.startBt);
             }
             if (nodA.pl1 != nodB.pl1) {

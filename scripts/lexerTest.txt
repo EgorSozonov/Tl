@@ -5,5 +5,5 @@ gcc -g3 --std=c2x -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-er
 -Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
 -iquote src -iquote test test/lexerTest.c src/tl.c \
 -o _bin/lexerTest \
--DLEXER_TEST -DTEST -DTRACE \
+-DLEXER_TEST -DTEST \
 -lm && _bin/lexerTest
