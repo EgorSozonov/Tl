@@ -929,7 +929,8 @@ const char errNumericMultipleDots[]        = "Multiple dots in numeric literals 
 const char errNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
 const char errPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errPunctuationExtraClosing[]    = "Extra closing punctuation";
-const char errPunctuationOnlyInMultiline[] = "The dot separator is not allowed inside expressions!";
+const char errPunctuationOnlyInMultiline[] = "The statement separator is not allowed inside expressions!";
+const char errPunctuationParamList[]       = "The param list separator `|` must be directly in a statement";
 const char errPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errOperatorUnknown[]            = "Unknown operator";
@@ -1021,10 +1022,10 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = { 9, 0, 0, 7, 1, 9, 9, 2
 
 
 /* Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
-"=" - by lexEqual, "<" by lexLT */
-const int operatorStartSymbols[13] = {
+"=" - by lexEqual, "<" by lexLT, "^" by lexCaret, "|" by lexPipe */
+const int operatorStartSymbols[11] = {
     aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus,
-    aDivBy, aGT, aQuestion, aCaret, aPipe
+    aDivBy, aGT, aQuestion
 };
 
 /*  The standard text prepended to all source code inputs and the hash table to provide a built-in
@@ -1175,7 +1176,7 @@ _Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compi
     longjmp(excBuf, 1);
 }
 
-#define throwExcLexer(msg, lx) throwExcLexer0(msg, __LINE__, lx)
+#define throwExcLexer(msg) throwExcLexer0(msg, __LINE__, lx)
 
 /*}}}*/
 /*{{{ Lexer proper */
@@ -1195,12 +1196,15 @@ Called when the matching closer is lexed. */
 private void setStmtSpanLength(Int tokenInd, Compiler* lx) {
 /* Correctly calculates the lenBts for a single-line, statement-type span */
     Token lastToken = lx->tokens.cont[lx->tokens.len - 1];
-    Int ByteAfterLastToken = lastToken.startBt + lastToken.lenBts;
+    Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
 
     /* This is for correctly calculating lengths of statements when they are ended by parens in
-     case of a gap before ")" */
-    Int ByteAfterLastPunct = lx->lastClosingPunctInd + 1;
-    Int lenBts = (ByteAfterLastPunct > ByteAfterLastToken ? ByteAfterLastPunct : ByteAfterLastToken)
+     case of a gap before "}", for example:
+      ` { asdf    <- statement actually ended here
+        }`        <- but we are in this position now
+       */
+    Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
+    Int lenBts = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken)
                     - lx->tokens.cont[tokenInd].startBt;
 
     lx->tokens.cont[tokenInd].lenBts = lenBts;
@@ -1312,7 +1316,7 @@ TODO add floating-pointt literals like 0x12FA. */
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
             pushInnumeric(cByte - aAUpper + 10, lx);
         } else if (cByte == aApostrophe && (j == lx->inpLength - 1 || isHexDigit(source[j + 1]))) {
-            throwExcLexer(errNumericEndUnderscore, lx);
+            throwExcLexer(errNumericEndUnderscore);
         } else {
             break;
         }
@@ -1472,8 +1476,7 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 /* Adds a token which serves punctuation purposes, i.e. either a ( or  a [
 These tokens are used to define the structure, that is, nesting within the AST.
 Upon addition, they are saved to the backtracking stack to be updated with their length
-once it is known.
-Consumes no bytes. */
+once it is known. Consumes no bytes. */
     push(((BtToken){ .tp = tType, .tokenInd = lx->tokens.len, .spanLevel = spanLevel}), lx->lexBtrack);
     pushIntokens((Token) {.tp = tType, .pl1 = (tType < firstScopeTokenType) ? 0 : spanLevel,
                           .startBt = startBt }, lx);
@@ -1486,14 +1489,13 @@ private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
 Precondition: we are looking at the character immediately after the keyword */
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= firstScopeTokenType) {
-        print("here res type %d", reservedWordType);
         if (hasValues(lx->lexBtrack)) {
             BtToken top = peek(lx->lexBtrack);
             VALIDATEL(top.spanLevel == slScope && top.tp != tokStmt, errPunctuationScope)
         }
         push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len,
                     .spanLevel = slDoubleScope }), lx->lexBtrack);
-        pushIntokens((Token){ .tp = reservedWordType, .pl1 = slScope,
+        pushIntokens((Token){ .tp = reservedWordType, .pl1 = slDoubleScope,
             .startBt = startBt, .lenBts = lenBts }, lx);
     } else if (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
@@ -1639,7 +1641,7 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
     Int uniqueStringId = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
-    if (uniqueStringId - countOperators < strSentinel)  {
+    if (uniqueStringId - countOperators < strFirstNonReserved)  {
         wordReserved(wordType, uniqueStringId - countOperators, startBt, realStartBt, source, lx);
     } else {
         wordNormal(wordType, uniqueStringId, startBt, realStartBt, wasCapitalized, source, lx);
@@ -1656,10 +1658,8 @@ private void lexDot(Arr(Byte) source, Compiler* lx) {
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
         ++lx->i; /* CONSUME the dot */
         wordInternal(tokAccessor, source, lx);
-    } else if (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).spanLevel != slScope) {
-        closeStatement(lx);
-        ++lx->i;  /* CONSUME the dot */
     }
+    throwExcLexer(errUnexpectedToken);
 }
 
 
@@ -1670,9 +1670,9 @@ mutType = 0 if it's immutable assignment, 1 if it's "<-", 2 if it's a regular op
     BtToken currSpan = peek(lx->lexBtrack);
 
     if (currSpan.tp == tokAssignment || currSpan.tp == tokReassign || currSpan.tp == tokMutation) {
-        throwExcLexer(errOperatorMultipleAssignment, lx);
+        throwExcLexer(errOperatorMultipleAssignment);
     } else if (currSpan.spanLevel != slStmt) {
-        throwExcLexer(errOperatorAssignmentPunct, lx);
+        throwExcLexer(errOperatorAssignmentPunct);
     }
     Int tokenInd = currSpan.tokenInd;
     Token* tok = (lx->tokens.cont + tokenInd);
@@ -1699,7 +1699,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) {
             return;
         }
     }
-    throwExcLexer(errOperatorUnknown, lx);
+    throwExcLexer(errOperatorUnknown);
 }
 
 
@@ -1906,13 +1906,8 @@ private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     closeStatement(lx);
-    if (j < lx->inpLength && NEXT_BT == aCaret) {
-        openPunctuation(tokFn, slScope, lx->i, lx);
-        lx->i += 2; /* CONSUME the `{^` */
-    } else {
-        openPunctuation(tokScope, slScope, lx->i, lx);
-        ++lx->i; /* CONSUME the left bracket */
-    }
+    openPunctuation(tokScope, slScope, lx->i, lx);
+    ++lx->i; /* CONSUME the left bracket */
 }
 
 
@@ -1944,6 +1939,36 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
 }
 
 
+private void lexCaret(Arr(Byte) source, Compiler* lx) {
+    Int j = lx->i + 1;
+    if (j < lx->inpLength && NEXT_BT == aCurlyLeft) {
+        push(((BtToken){ .tp = tokFn, .tokenInd = lx->tokens.len, .spanLevel = slScope }), 
+                lx->lexBtrack);
+        pushIntokens((Token){ .tp = tokFn, .pl1 = slScope, .startBt = lx->i, .lenBts = 0 }, lx);
+        lx->i += 2; /* CONSUME the `^{` */ 
+    } else {
+        lexOperator(source, lx);
+    }
+}
+
+
+private void lexComma(Arr(Byte) source, Compiler* lx) {
+    pushIntokens((Token){ .tp = tokComma, .startBt = lx->i, .lenBts = 1 }, lx);
+    lx->i++; /* CONSUME the `,` */ 
+}
+
+
+private void lexPipe(Arr(Byte) source, Compiler* lx) {
+/* Closes the current statement and changes its type to tokParamList */
+    BtToken top = peek(lx->lexBtrack);
+    VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
+    setStmtSpanLength(top.tokenInd, lx);
+    lx->tokens.cont[top.tokenInd].tp = tokParamList; 
+    pop(lx->lexBtrack);
+    lx->i++; /* CONSUME the `|` */ 
+}
+
+
 private void lexUnderscore(Arr(Byte) source, Compiler* lx) {
 /* The "_" symbol that is used for accessing arrays, lists, dictionaries */
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
@@ -1972,11 +1997,11 @@ private void lexStringLiteral(Arr(Byte) source, Compiler* lx) {
 
 private void lexUnexpectedSymbol(Arr(Byte) source, Compiler* lx) {
     printString(lx->sourceCode);
-    throwExcLexer(errUnrecognizedByte, lx);
+    throwExcLexer(errUnrecognizedByte);
 }
 
 private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) {
-    throwExcLexer(errNonAscii, lx);
+    throwExcLexer(errNonAscii);
 }
 
 
@@ -2002,24 +2027,27 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aUnderscore] = &lexUnderscore;
     p[aDot] = &lexDot;
     p[aEqual] = &lexEqual;
-    p[aLT] = &lexLT;
+    p[aLT] = &lexLT; /* to handle the reassignment `<-` */
     p[aTilde] = &lexTilde;
 
     for (Int i = sizeof(operatorStartSymbols)/4 - 1; i > -1; i--) {
         p[operatorStartSymbols[i]] = &lexOperator;
     }
-    p[aMinus] = &lexMinus;
+    p[aMinus] = &lexMinus; /* to handle literal negation */
     p[aParenLeft] = &lexParenLeft;
     p[aParenRight] = &lexParenRight;
     p[aCurlyLeft] = &lexCurlyLeft;
     p[aCurlyRight] = &lexCurlyRight;
-    p[aDivBy] = &lexDivBy;
-    p[aColon] = &lexColon;
-    p[aSemicolon] = &lexSemicolon;
+    p[aCaret] = &lexCaret; /* to handle the functions `^{}` */
+    p[aComma] = &lexComma;
+    p[aPipe] = &lexPipe;
+    p[aDivBy] = &lexDivBy; /* to handle the comments `/ *` */
+    p[aColon] = &lexColon; /* to handle keyword args `:a` */
+    p[aSemicolon] = &lexSemicolon; /* the statement terminator */
 
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
-    p[aNewline] = &lexNewline;
+    p[aNewline] = &lexNewline; /* to make the newline a statement terminator sometimes */
     p[aBacktick] = &lexStringLiteral;
     return result;
 }
@@ -5041,6 +5069,8 @@ Warning: assumes that typeId points to a concrete type, and genericId to a parti
 
 #ifdef TEST
 
+/*{{{ General utils */
+
 void printIntArray(Int count, Arr(Int) arr) {
     printf("[");
     for (Int k = 0; k < count; k++) {
@@ -5063,13 +5093,14 @@ private void printExpSt(StackInt* st) {
     printIntArray(st->len, st->cont);
 }
 
+/*}}}*/
 /*{{{ Lexer testing */
 
 
 /* Must agree in order with token types in tl.internal.h */
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "~", "_",
-    "word", "Type", ":kwarg", ".strFld", "operator", "_acc", "=>", "pub",
+    "word", "Type", ":kwarg", ".strFld", "operator", "_acc", ",", "=>", "pub",
     "stmt", "()", "prefixCall", ".infixCall", "TypeCall", "TypeCon", "paramList",
     "=", "<-", "*=", "alias", "assert", "breakCont",
     "iface", "import", "return",
@@ -5079,6 +5110,11 @@ const char* tokNames[] = {
 
 Int pos(Compiler* lx) {
     return lx->i - sizeof(standardText) + 1;
+}
+
+
+Int posInd(Int ind) {
+    return ind - sizeof(standardText) + 1;
 }
 
 
@@ -5114,7 +5150,8 @@ differing token otherwise */
                 printf("Diff in lenBts, %d but was expected %d\n", tokA.lenBts, tokB.lenBts);
             }
             if (tokA.startBt != tokB.startBt) {
-                printf("Diff in startBt, %d but was expected %d\n", tokA.startBt, tokB.startBt);
+                printf("Diff in startBt, %d but was expected %d\n", 
+                        posInd(tokA.startBt), posInd(tokB.startBt));
             }
             if (tokA.pl1 != tokB.pl1) {
                 printf("Diff in pl1, %d but was expected %d\n", tokA.pl1, tokB.pl1);

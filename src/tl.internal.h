@@ -137,7 +137,7 @@ typedef struct {
 /*}}}*/
 /*{{{ Lexer */
 
-/*{{{ Standard strings */
+/*{{{ Standard strings :standardStr */
 
 #define strAlias      0
 #define strAssert     1
@@ -222,44 +222,45 @@ typedef struct { /* :Token */
 #define tokDotWord     10    /* pl2 = same as tokWord. The ".structField" */
 #define tokOperator    11    /* pl1 = OperatorToken, one of the "opT" constants below */
 #define tokAccessor    12    /* pl1 = see "tkAcc" consts. Either an ".accessor" or a `_smth` */
-#define tokArrow       13
-#define tokPub         14
+#define tokComma       13
+#define tokArrow       14
+#define tokPub         15
 
 /* Single-statement token types */
-#define tokStmt        15    /* firstSpanTokenType */
-#define tokParens      16    /* subexpressions and struct/sum type instances */
-#define tokPrefixCall  17    /* pl1 = nameId, index in the string table */
-#define tokInfixCall   18    /* pl1 = nameId, index in the string table */
-#define tokTypeCall    19    /* pl1 = nameId */
-#define tokTypeCon     20    /* Built-in type initializers. pl1 = typeId */
-#define tokParamList   21    /* Parameter lists, ended with `|` */
-#define tokAssignment  22    /* `=` */
-#define tokReassign    23    /* `<-`  */
-#define tokMutation    24    /* `+=`. pl1 = (6 bits opType, 26 bits startBt of the operator symbol) */
-#define tokAlias       25
-#define tokAssert      26
-#define tokBreakCont   27    /* pl1 = BIG iff it's a continue */
-#define tokIface       28
-#define tokImport      29    /* For test files and package decls */
-#define tokReturn      30
+#define tokStmt        16    /* firstSpanTokenType */
+#define tokParens      17    /* subexpressions and struct/sum type instances */
+#define tokPrefixCall  18    /* pl1 = nameId, index in the string table */
+#define tokInfixCall   19    /* pl1 = nameId, index in the string table */
+#define tokTypeCall    20    /* pl1 = nameId */
+#define tokTypeCon     21    /* Built-in type initializers. pl1 = typeId */
+#define tokParamList   22    /* Parameter lists, ended with `|` */
+#define tokAssignment  23    /* `=` */
+#define tokReassign    24    /* `<-`  */
+#define tokMutation    25    /* `+=`. pl1 = (6 bits opType, 26 bits startBt of the operator symbol) */
+#define tokAlias       26
+#define tokAssert      27
+#define tokBreakCont   28    /* pl1 = BIG iff it's a continue */
+#define tokIface       29
+#define tokImport      30    /* For test files and package decls */
+#define tokReturn      31
 
 /* Bracketed (multi-statement) token types. pl1 = spanLevel, see "sl" constants */
-#define tokScope       31    /* denoted by {}. firstScopeTokenType */
-#define tokFn          32    /* `{^ a Int => String;; body}` */
-#define tokTry         33    /* early exit */
-#define tokCatch       34    /* `catch MyExc e {` */
-#define tokFinally     35    /* `finally { ` */
-#define tokMeta        36    /* `[[` */
+#define tokScope       32    /* denoted by {}. firstScopeTokenType */
+#define tokFn          33    /* `{^ a Int => String;; body}` */
+#define tokTry         34    /* early exit */
+#define tokCatch       35    /* `catch MyExc e {` */
+#define tokFinally     36    /* `finally { ` */
+#define tokMeta        37    /* `[[` */
 
 /* Resumable core forms */
-#define tokIf          37    /* `if ... {` */
-#define tokIfPr        38    /* like if, but every branch is a value compared using custom predicate */
-#define tokMatch       39    /* "match ... {" pattern matching on sum type tag */
-#define tokElseIf      40    /* `ei ... {` */
-#define tokElse        41    /* `else {` */
-#define tokImpl        42
-#define tokFor         43
-#define tokForeach     44
+#define tokIf          38    /* `if ... {` */
+#define tokIfPr        39    /* like if, but every branch is a value compared using custom predicate */
+#define tokMatch       40    /* "match ... {" pattern matching on sum type tag */
+#define tokElseIf      41    /* `ei ... {` */
+#define tokElse        42    /* `else {` */
+#define tokImpl        43
+#define tokFor         44
+#define tokForeach     45
 
 #define topVerbatimTokenVariant tokUnderscore
 #define topVerbatimType    tokString

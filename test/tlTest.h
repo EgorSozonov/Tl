@@ -57,6 +57,7 @@ extern const char errNumericIntWidthExceeded[];
 extern const char errPunctuationExtraOpening[];
 extern const char errPunctuationExtraClosing[];
 extern const char errPunctuationOnlyInMultiline[];
+extern const char errPunctuationParamList[];
 extern const char errPunctuationUnmatched[];
 extern const char errPunctuationWrongCall[];
 extern const char errPunctuationScope[];
