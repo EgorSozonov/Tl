@@ -14,6 +14,7 @@
     #define testable static
 #endif
 
+#define BIG 70000000
 #define LOWER24BITS 0x00FFFFFF
 #define LOWER26BITS 0x03FFFFFF
 #define LOWER16BITS 0x0000FFFF
@@ -214,55 +215,53 @@ typedef struct { /* :Token */
 #define tokBool         3    /* pl2 = value (1 or 0) */
 #define tokString       4
 #define tokTilde        5    /* marks up to 2 anonymous params in a lambda. pl1 = tilde count */
-#define tokUnderscore   6
+#define tokMisc         6    /* pl1 = see the misc* constants */
 
-#define tokWord         7    /* pl2 = index in the string table */
+#define tokWord         7    /* pl2 = nameId (index in the string table) */
 #define tokTypeName     8    /* pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord */
 #define tokKwArg        9    /* pl2 = same as tokWord. The ":argName" */
 #define tokDotWord     10    /* pl2 = same as tokWord. The ".structField" */
 #define tokOperator    11    /* pl1 = OperatorToken, one of the "opT" constants below */
 #define tokAccessor    12    /* pl1 = see "tkAcc" consts. Either an ".accessor" or a `_smth` */
-#define tokComma       13
-#define tokArrow       14
-#define tokPub         15
 
 /* Single-statement token types */
-#define tokStmt        16    /* firstSpanTokenType */
-#define tokParens      17    /* subexpressions and struct/sum type instances */
-#define tokPrefixCall  18    /* pl1 = nameId, index in the string table */
-#define tokInfixCall   19    /* pl1 = nameId, index in the string table */
-#define tokTypeCall    20    /* pl1 = nameId */
-#define tokTypeCon     21    /* Built-in type initializers. pl1 = typeId */
-#define tokParamList   22    /* Parameter lists, ended with `|` */
-#define tokAssignment  23    /* `=` */
-#define tokReassign    24    /* `<-`  */
-#define tokMutation    25    /* `+=`. pl1 = (6 bits opType, 26 bits startBt of the operator symbol) */
-#define tokAlias       26
-#define tokAssert      27
-#define tokBreakCont   28    /* pl1 = BIG iff it's a continue */
-#define tokIface       29
-#define tokImport      30    /* For test files and package decls */
-#define tokReturn      31
+#define tokStmt        13    /* firstSpanTokenType */
+#define tokParens      14    /* subexpressions and struct/sum type instances */
+#define tokPrefixCall  15    /* pl1 = nameId, index in the string table */
+#define tokInfixCall   16    /* pl1 = nameId, index in the string table */
+#define tokTypeCall    17    /* pl1 = nameId */
+#define tokTypeCon     18    /* Built-in type initializers. pl1 = nameId of type */
+#define tokParamList   19    /* Parameter lists, ended with `|` */
+#define tokAssignLeft  20    /* pl1 == 1 iff reassignment. pl1 == (BIG + opType) iff mutation. If
+                                pl2 == 0 then pl1 = nameId for the single word on the left (and
+                                also it's an assignment, not reassignment/mutation */
+#define tokAssignRight 21    /* Right-hand side of assignment */
+#define tokAlias       22
+#define tokAssert      23
+#define tokBreakCont   24    /* pl1 >= BIG iff it's a continue */
+#define tokIface       25
+#define tokImport      26    /* For test files and package decls */
+#define tokReturn      27
 
 /* Bracketed (multi-statement) token types. pl1 = spanLevel, see "sl" constants */
-#define tokScope       32    /* denoted by {}. firstScopeTokenType */
-#define tokFn          33    /* `{^ a Int => String;; body}` */
-#define tokTry         34    /* early exit */
-#define tokCatch       35    /* `catch MyExc e {` */
-#define tokFinally     36    /* `finally { ` */
-#define tokMeta        37    /* `[[` */
+#define tokScope       28    /* denoted by {}. firstScopeTokenType */
+#define tokFn          29    /* `^{ a Int => String | body}` */
+#define tokTry         30    /* `try {` */
+#define tokCatch       31    /* `catch MyExc e {` */
+#define tokFinally     32    /* `finally { ` */
+#define tokMeta        33    /* `[[` */
 
 /* Resumable core forms */
-#define tokIf          38    /* `if ... {` */
-#define tokIfPr        39    /* like if, but every branch is a value compared using custom predicate */
-#define tokMatch       40    /* "match ... {" pattern matching on sum type tag */
-#define tokElseIf      41    /* `ei ... {` */
-#define tokElse        42    /* `else {` */
-#define tokImpl        43
-#define tokFor         44
-#define tokForeach     45
+#define tokIf          34    /* `if ... {` */
+#define tokIfPr        35    /* like if, but every branch is a value compared using custom predicate */
+#define tokMatch       36    /* "match ... {" pattern matching on sum type tag */
+#define tokElseIf      37    /* `ei ... {` */
+#define tokElse        38    /* `else {` */
+#define tokImpl        39
+#define tokFor         40
+#define tokForeach     41
 
-#define topVerbatimTokenVariant tokUnderscore
+#define topVerbatimTokenVariant tokMisc
 #define topVerbatimType    tokString
 #define firstSpanTokenType tokStmt
 #define firstScopeTokenType tokScope
@@ -275,6 +274,11 @@ typedef struct { /* :Token */
 #define keywBreak       3
 #define keywContinue    4
 
+#define miscPub   0     /* pub. It must be 0 because it's the only one denoted by a keyword */
+#define miscEmpty 1     /* null, written as `[]` */
+#define miscComma 2     /* , */
+#define miscArrow 3     /* => */
+
 /* AST nodes */
 #define nodId           7    /* pl1 = index of entity, pl2 = index of name */
 #define nodCall         8    /* pl1 = index of entity, pl2 = arity */
@@ -285,7 +289,7 @@ typedef struct { /* :Token */
                                that's why it's not grouped with the others */
 #define nodExpr        11
 #define nodAssignment  12
-#define nodReassign    13     /* := */
+#define nodReassign    13     /* <- */
 #define nodAccessor    14     /* pl1 = "acc" constants */
 
 /* Single-shot core syntax forms */
@@ -401,9 +405,10 @@ typedef struct { /* :OpDef */
 typedef struct Compiler Compiler;
 
 
-/* Subclasses of the data accessor tokens/nodes */
+/* Subclasses of the data accessor tokens */
 #define tkAccDot     1
 #define tkAccArray   2
+/* Subclasses of the data accessor nodes? */
 #define accField     1 /* field accessor in a struct, like "foo.field". pl2 = nameId of the string */
 #define accArrayInd  2 /* single-integer array access, like "arr_5". pl2 = int value of the ind */
 #define accArrayWord 3 /* single-variable array access, like "arr_i". pl2 = nameId of the string */

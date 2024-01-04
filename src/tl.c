@@ -934,10 +934,9 @@ const char errPunctuationParamList[]       = "The param list separator `|` must 
 const char errPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errOperatorUnknown[]            = "Unknown operator";
-const char errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name!";
+const char errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name(s) or l-value!";
 const char errToplevelAssignment[]         = "Toplevel assignments must have only single word on the left!";
 const char errOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
-const char errOperatorMultipleAssignment[] = "Multiple assignment / type declaration operators within one statement are not allowed!";
 const char errCoreNotInsideStmt[]          = "Core form must be directly inside statement";
 const char errCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
 const char errCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace immediately after keyword!";
@@ -1054,7 +1053,7 @@ const Int standardKeywords[] = {
     tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue,
     tokElseIf,    tokElse,    keywFalse,  tokFinally, tokFor,
     tokForeach,   tokIf,      tokIfPr,    tokImpl,    tokImport,
-    tokIface,     tokMatch,   tokPub,     tokReturn,  keywTrue,
+    tokIface,     tokMatch,   tokMisc,    tokReturn,  keywTrue,
     tokTry
 };
 
@@ -1186,6 +1185,7 @@ private void checkPrematureEnd(Int requiredSymbols, Compiler* lx) {
     VALIDATEL(lx->i + requiredSymbols <= lx->inpLength, errPrematureEndOfInput)
 }
 
+
 private void setSpanLengthLexer(Int tokenInd, Compiler* lx) {
 /* Finds the top-level punctuation opener by its index, and sets its lengths.
 Called when the matching closer is lexed. */
@@ -1193,20 +1193,18 @@ Called when the matching closer is lexed. */
     lx->tokens.cont[tokenInd].pl2 = lx->tokens.len - tokenInd - 1;
 }
 
+
 private void setStmtSpanLength(Int tokenInd, Compiler* lx) {
-/* Correctly calculates the lenBts for a single-line, statement-type span */
+/* Correctly calculates the lenBts for a single-line, statement-type span
+This is for correctly calculating lengths of statements when they are ended by parens in
+case of a gap before "}", for example:
+  ` { asdf    <- statement actually ended here
+    }`        <- but we are in this position now */
     Token lastToken = lx->tokens.cont[lx->tokens.len - 1];
     Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
-
-    /* This is for correctly calculating lengths of statements when they are ended by parens in
-     case of a gap before "}", for example:
-      ` { asdf    <- statement actually ended here
-        }`        <- but we are in this position now
-       */
     Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
     Int lenBts = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken)
                     - lx->tokens.cont[tokenInd].startBt;
-
     lx->tokens.cont[tokenInd].lenBts = lenBts;
     lx->tokens.cont[tokenInd].pl2 = lx->tokens.len - tokenInd - 1;
 }
@@ -1568,7 +1566,8 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
         wrapInAStatementStarting(startBt, source, lx);
         newToken.tp = (wasCapitalized ? tokTypeName : tokWord);
     } else if (wordType == tokAccessor) {
-        /* What looks like an accessor "a.x" may actually be a struct field ("(.id 5 .name `f`") */
+        /* What looks like an accessor "a.x" may actually be a struct field ("(.id 5 .name `f`)")
+           So we check the previous token */
         if (lx->tokens.len > 0) {
             Token prevToken = lx->tokens.cont[lx->tokens.len - 1];
             if (prevToken.startBt + prevToken.lenBts < realStartBt) {
@@ -1669,28 +1668,32 @@ private void lexDot(Arr(Byte) source, Compiler* lx) {
 
 
 private void processAssignment(Int mutType, untt opType, Compiler* lx) {
-/* Handles the "=", "<-" and "+=" tokens.
-Changes existing tokens and parent span to accout for the fact that we met an assignment operator
-mutType = 0 if it's immutable assignment, 1 if it's "<-", 2 if it's a regular operator mut "+=" */
+/* Handles the "=", "<-" and "+=" tokens. Changes existing stmt token into tokAssignLeft and opens
+up a new tokAssignRight span. Doesn't consume anything */
     BtToken currSpan = peek(lx->lexBtrack);
+    VALIDATEL(currSpan.tp == tokStmt, errOperatorAssignmentPunct);
 
-    if (currSpan.tp == tokAssignment || currSpan.tp == tokReassign || currSpan.tp == tokMutation) {
-        throwExcLexer(errOperatorMultipleAssignment);
-    } else if (currSpan.spanLevel != slStmt) {
-        throwExcLexer(errOperatorAssignmentPunct);
-    }
-    Int tokenInd = currSpan.tokenInd;
-    Token* tok = (lx->tokens.cont + tokenInd);
-    if (mutType == 0) {
-        tok->tp = tokAssignment;
-    } else if (mutType == 1) {
-        tok->tp = tokReassign;
+    Int assignmentStartInd = currSpan.tokenInd;
+    Token* tok = (lx->tokens.cont + assignmentStartInd);
+    tok->tp = tokAssignLeft;
+    if (assignmentStartInd == (lx->tokens.len - 2) && mutType == 0)  {
+        Token wordTk = lx->tokens.cont[assignmentStartInd + 1];
+        VALIDATEL(wordTk.tp == tokWord, errAssignment);
+        tok->pl1 = wordTk.pl2; /*nameId*/
+        tok->startBt = wordTk.startBt;
+        tok->lenBts = wordTk.lenBts;
+        lx->tokens.len--; /* delete the word token because its data now lives in tokAssignLeft */
     } else {
-        tok->tp = tokMutation;
-        tok->pl1 = (Int)((untt)((opType << 26) + lx->i));
+        if (mutType == 1) {
+            tok->pl1 = 1;
+        } else if (mutType == 2) {
+            tok->pl1 = BIG + opType;
+        }
     }
-    lx->lexBtrack->cont[lx->lexBtrack->len - 1] = (BtToken){ .tp = tok->tp, .spanLevel = slStmt,
-        .tokenInd = tokenInd };
+    setStmtSpanLength(assignmentStartInd, lx);
+    lx->lexBtrack->cont[lx->lexBtrack->len - 1] = (BtToken){ .tp = tokAssignRight, .spanLevel = slStmt,
+        .tokenInd = lx->tokens.len };
+    pushIntokens((Token){ .tp = tokAssignRight, .startBt = lx->i }, lx);
 }
 
 
@@ -1789,7 +1792,7 @@ or an arrow "=>" */
     if (nextBt == aEqual) {
         lexOperator(source, lx); /* == */
     } else if (nextBt == aGT) {
-        pushIntokens((Token){ .tp = tokArrow, .startBt = lx->i, .lenBts = 2 }, lx);
+        pushIntokens((Token){ .tp = tokMisc, .pl1 = miscArrow, .startBt = lx->i, .lenBts = 2 }, lx);
         lx->i += 2;  /* CONSUME the arrow "=>" */
     } else {
         processAssignment(0, 0, lx);
@@ -1946,31 +1949,39 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
 
 private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
-    VALIDATEL(j < lx->inpLength && NEXT_BT == aBracketLeft, errUnrecognizedByte)
-    openPunctuation(tokMeta, slScope, lx->i, lx);
-    lx->i += 2; /* CONSUME the `[[` */
+    VALIDATEL(j < lx->inpLength, errPrematureEndOfInput)
+    Byte nextBt = NEXT_BT;
+    if (nextBt == aBracketRight) {
+        pushIntokens((Token){ .tp = tokMisc, .pl1 = miscEmpty, .startBt = lx->i, .lenBts = 2 }, lx);
+        lx->i += 2; /* CONSUME the `[]` */
+    } else if (nextBt == aBracketLeft) {
+        openPunctuation(tokMeta, slScope, lx->i, lx);
+        lx->i += 2; /* CONSUME the `[[` */
+    } else {
+        throwExcLexer(errUnrecognizedByte);
+    }
 }
 
 
 private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
-/* A closing bracket may close 
+/* A closing bracket may close
 1. a type call, like `L[Int]`
 2. a metainformation piece, like `[[asdf]]` */
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
-    Int consumedChars = 1; 
+    Int consumedChars = 1;
     if (top.tp == tokTypeCall) {
     } else if (top.tp == tokMeta) {
-        Int j = startInd + 1; 
+        Int j = startInd + 1;
         VALIDATEL(j < lx->inpLength && NEXT_BT == aBracketRight, errPunctuationUnmatched);
         consumedChars = 2;
     } else {
         throwExcLexer(errPunctuationUnmatched);
     }
     setSpanLengthLexer(top.tokenInd, lx);
-    lx->i += consumedChars; /* CONSUME the `]` or `]]` */ 
+    lx->i += consumedChars; /* CONSUME the `]` or `]]` */
     if (hasValues(lx->lexBtrack)) { lx->lastClosingPunctInd = startInd; }
 }
 
@@ -1978,10 +1989,10 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
 private void lexCaret(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
     if (j < lx->inpLength && NEXT_BT == aCurlyLeft) {
-        push(((BtToken){ .tp = tokFn, .tokenInd = lx->tokens.len, .spanLevel = slScope }), 
+        push(((BtToken){ .tp = tokFn, .tokenInd = lx->tokens.len, .spanLevel = slScope }),
                 lx->lexBtrack);
         pushIntokens((Token){ .tp = tokFn, .pl1 = slScope, .startBt = lx->i, .lenBts = 0 }, lx);
-        lx->i += 2; /* CONSUME the `^{` */ 
+        lx->i += 2; /* CONSUME the `^{` */
     } else {
         lexOperator(source, lx);
     }
@@ -1989,8 +2000,8 @@ private void lexCaret(Arr(Byte) source, Compiler* lx) {
 
 
 private void lexComma(Arr(Byte) source, Compiler* lx) {
-    pushIntokens((Token){ .tp = tokComma, .startBt = lx->i, .lenBts = 1 }, lx);
-    lx->i++; /* CONSUME the `,` */ 
+    pushIntokens((Token){ .tp = tokMisc, .pl1 = miscComma, .startBt = lx->i, .lenBts = 1 }, lx);
+    lx->i++; /* CONSUME the `,` */
 }
 
 
@@ -1998,14 +2009,14 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) {
 /* Closes the current statement and changes its type to tokParamList */
     Int j = lx->i + 1;
     if (j < lx->inpLength && NEXT_BT == aPipe) {
-        lexOperator(source, lx); 
+        lexOperator(source, lx);
     } else {
         BtToken top = peek(lx->lexBtrack);
         VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
         setStmtSpanLength(top.tokenInd, lx);
-        lx->tokens.cont[top.tokenInd].tp = tokParamList; 
+        lx->tokens.cont[top.tokenInd].tp = tokParamList;
         pop(lx->lexBtrack);
-        lx->i++; /* CONSUME the `|` */ 
+        lx->i++; /* CONSUME the `|` */
     }
 }
 
@@ -2208,7 +2219,6 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
 private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
 private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm);
 
-#define BIG 70000000
 
 _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
     cm->wasError = true;
@@ -2281,7 +2291,7 @@ private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler
     pushLexScope(cm->scopeStack);
 }
 
-private void parseSkip(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseMisc(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
@@ -2304,7 +2314,8 @@ private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
-    VALIDATEP(tokens[leftSentinel].tp == tokArrow, errIfMalformed)
+    VALIDATEP(tokens[leftSentinel].tp == tokMisc && tokens[leftSentinel].pl1 == miscArrow,
+            errIfMalformed)
     Int typeLeft = exprAfterHead(tok, tokens, cm);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
@@ -2323,7 +2334,7 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
 /* Returns to parsing within an if (either the beginning of a clause or an "else" block) */
-    if (tok->tp == tokArrow || tok->tp == tokElse) {
+    if (tok->tp == tokMisc || tok->tp == tokElse) {
         ++cm->i; /* CONSUME the "=>" or "else" */
         *tok = tokens[cm->i];
         Int sentinel = calcSentinel(*tok, cm->i);
@@ -2389,7 +2400,7 @@ be a scope or contain any loops, or recursion will ensue */
     }
 }
 
-private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseAssignLeft(Token tok, Arr(Token) tokens, Compiler* cm) {
     assignmentWorker(tok, false, tokens, cm);
 }
 
@@ -2416,11 +2427,11 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
     cm->i = condSent;
     while (cm->i < sentinel) {
         Token tok = tokens[cm->i];
-        if (tok.tp != tokAssignment) {
+        if (tok.tp != tokAssignLeft) {
             break;
         }
         ++cm->i; /* CONSUME the assignment span marker */
-        parseAssignment(tok, tokens, cm);
+        parseAssignLeft(tok, tokens, cm);
         maybeCloseSpans(cm);
     }
     Int indBody = cm->i;
@@ -2719,7 +2730,7 @@ private void setClassToMutated(Int bindingId, Compiler* cm) {
 }
 
 
-private void parseReassignment(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseAssignRight(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int rLen = tok.pl2 - 1;
     VALIDATEP(rLen >= 1, errAssignment)
 
@@ -2766,7 +2777,7 @@ with .pl2 increased by + 2 */
     }
 }
 
-
+/* TODO
 private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     untt encodedInfo = (untt)(tok.pl1);
     Int opType = (Int)(encodedInfo >> 26);
@@ -2788,7 +2799,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     bool foundOv = findOverload(leftType, cm->activeBindings[opType], &operatorOv, cm);
     Int opTypeInd = cm->entities.cont[operatorOv].typeId;
     VALIDATEP(foundOv && cm->types.cont[opTypeInd] == 3, errTypeNoMatchingOverload);
-    /* operator must be binary */
+    /* operator must be binary /
 
 #ifdef SAFETY
     VALIDATEP(cm->types.cont[opTypeInd] == 3 && cm->types.cont[opTypeInd + 2] == leftType
@@ -2798,10 +2809,10 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     push(((ParseFrame){.tp = nodReassign, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     pushInnodes((Node){.tp = nodBinding, .pl1 = leftEntityId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-    ++cm->i; /* CONSUME the binding word */
+    ++cm->i; /* CONSUME the binding word /
 
     Int ind = cm->nodes.len;
-    /* space for the operator and left side */
+    /* space for the operator and left side /
     pushInnodes(((Node){0}), cm);
     pushInnodes(((Node){0}), cm);
 
@@ -2815,6 +2826,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
                                        .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts};
     setClassToMutated(leftEntityId, cm);
 }
+*/
 
 private void parseAlias(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
@@ -3009,29 +3021,28 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
         p[i] = &parseErrorBareAtom;
         i++;
     }
-    p[tokScope]      = &parseScope;
-    p[tokStmt]       = &parseExpr;
-    p[tokParens]     = &parseErrorBareAtom;
-    p[tokAssignment] = &parseAssignment;
-    p[tokReassign]   = &parseReassignment;
-    p[tokMutation]   = &parseMutation;
-    p[tokArrow]      = &parseSkip;
+    p[tokScope]       = &parseScope;
+    p[tokStmt]        = &parseExpr;
+    p[tokParens]      = &parseErrorBareAtom;
+    p[tokAssignLeft]  = &parseAssignLeft;
+    p[tokAssignRight] = &parseAssignRight;
+    p[tokMisc]        = &parseMisc;
 
-    p[tokAlias]      = &parseAlias;
-    p[tokAssert]     = &parseAssert;
-    p[tokBreakCont]  = &parseBreakCont;
-    p[tokCatch]      = &parseAlias;
-    p[tokFn]         = &parseAlias;
-    p[tokFinally]    = &parseAlias;
-    p[tokIface]      = &parseAlias;
-    p[tokImport]     = &parseAlias;
-    p[tokMeta]       = &parseAlias;
-    p[tokReturn]     = &parseReturn;
-    p[tokTry]        = &parseAlias;
+    p[tokAlias]       = &parseAlias;
+    p[tokAssert]      = &parseAssert;
+    p[tokBreakCont]   = &parseBreakCont;
+    p[tokCatch]       = &parseAlias;
+    p[tokFn]          = &parseAlias;
+    p[tokFinally]     = &parseAlias;
+    p[tokIface]       = &parseAlias;
+    p[tokImport]      = &parseAlias;
+    p[tokMeta]        = &parseAlias;
+    p[tokReturn]      = &parseReturn;
+    p[tokTry]         = &parseAlias;
 
-    p[tokIf]         = &parseIf;
-    p[tokFor]        = &parseFor;
-    p[tokForeach]    = &parseAlias;
+    p[tokIf]          = &parseIf;
+    p[tokFor]         = &parseFor;
+    p[tokForeach]     = &parseAlias;
     return result;
 }
 
@@ -3379,7 +3390,7 @@ testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
 
 testable Int addConcreteFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
-    /* Function types are stored as: (length, return type, paramType1, paramType2, ...) */
+/* Function types are stored as: (length, return type, paramType1, paramType2, ...) */
     Int newInd = cm->types.len;
     pushIntypes(arity + 3, cm); /* +3 because the header takes 2 ints
                                    + 1 more for the return typeId */
@@ -3604,9 +3615,9 @@ private void createBuiltins(Compiler* cm) {
 private void importPrelude(Compiler* cm) {
 /* Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase */
     buildPreludeTypes(cm);
-    Int strToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokString}, cm);
-    Int intToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokInt}, cm);
-    Int floatToVoid = addConcreteFunctionType(1, (Int[]){tokUnderscore, tokDouble}, cm);
+    Int strToVoid = addConcreteFunctionType(1, (Int[]){tokMisc, tokString}, cm);
+    Int intToVoid = addConcreteFunctionType(1, (Int[]){tokMisc, tokInt}, cm);
+    Int floatToVoid = addConcreteFunctionType(1, (Int[]){tokMisc, tokDouble}, cm);
     Int flOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokDouble}, cm);
     Int intOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokInt}, cm);
 
@@ -3855,7 +3866,7 @@ their bindings to the scope */
     const Int len = cm->tokens.len;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignment && toks[cm->i + 1].tp == tokTypeName) {
+        if (tok.tp == tokAssignLeft && toks[cm->i + 1].tp == tokTypeName) {
             ++cm->i; /* CONSUME the assignment token */
             typeDef(tok, false, toks, cm);
         } else {
@@ -3871,7 +3882,7 @@ private void parseToplevelConstants(Compiler* cm) {
     const Int len = cm->tokens.len;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignment && (cm->i + 2) < len
+        if (tok.tp == tokAssignLeft && (cm->i + 2) < len
            && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp != tokFn) {
             parseUpTo(cm->i + tok.pl2, toks, cm);
         } else {
@@ -3917,7 +3928,7 @@ private void validateOverloadsFull(Compiler* cm) {
 
 testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler* cm) {
 /* Parses a function signature. Emits no nodes, adds data to [toplevels], [functions], [overloads].
-Pre-condition: we are 1 token past the tokAssignment. */
+Pre-condition: we are 1 token past the tokAssignLeft. */
     Int fnStartTokenId = cm->i - 1;
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
 
@@ -3935,7 +3946,7 @@ Pre-condition: we are 1 token past the tokAssignment. */
 
         cm->i++; /* CONSUME the function return type token */
     } else {
-        pushIntypes(tokUnderscore, cm); /* underscore stands for the Void type */
+        pushIntypes(tokMisc, cm); /* Misc stands for the Void type */
     }
     VALIDATEP(cm->tokens.cont[cm->i].tp == tokParens, errFnNameAndParams)
 
@@ -4036,7 +4047,7 @@ Result: the overload counts and the list of toplevel functions to parse */
     Int len = cm->inpLength;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignment && (cm->i + 2) < len
+        if (tok.tp == tokAssignLeft && (cm->i + 2) < len
            && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp == tokFn) {
             Int sentinel = calcSentinel(tok, cm->i);
             parseUpTo(cm->i + tok.pl2, toks, cm);
@@ -4250,7 +4261,7 @@ Precondition: we are pointing 1 past the type call */
     while (j < sentinelToken) {
         Token tok = tokens[j];
 
-        if (tok.tp == tokArrow) {
+        if (tok.tp == tokMisc && tok.pl1 == miscArrow) {
             metArrow = true;
             ++j;
         } else {
@@ -4619,7 +4630,7 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
             Token nextTk = cm->tokens.cont[cm->i];
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall || nextTk.tp == tokParens,
                       errTypeDefError)
-        } else if (cTk.tp == tokArrow) {
+        } else if (cTk.tp == tokMisc && cTk.pl1 == miscArrow) {
             VALIDATEP(cm->tempStack->len >= 2, errTypeDefError)
             Int penult = penultimate(cm->tempStack);
 #if defined(TEST) && defined(TRACE)
@@ -5141,10 +5152,10 @@ private void printExpSt(StackInt* st) {
 
 /* Must agree in order with token types in tl.internal.h */
 const char* tokNames[] = {
-    "Int", "Long", "Double", "Bool", "String", "~", "_",
-    "word", "Type", ":kwarg", ".strFld", "operator", "_acc", ",", "=>", "pub",
+    "Int", "Long", "Double", "Bool", "String", "~", "misc",
+    "word", "Type", ":kwarg", ".strFld", "operator", "_acc",
     "stmt", "()", "prefixCall", ".infixCall", "TypeCall", "TypeCon", "paramList",
-    "=", "<-", "*=", "alias", "assert", "breakCont",
+    "...=", "=...", "alias", "assert", "breakCont",
     "iface", "import", "return",
     "{}", "{^}", "try{", "catch{", "finally{", "meta",
     "if{", "ifPr{", "match{", "ei", "else", "impl(", "for{", "foreach{"
@@ -5192,7 +5203,7 @@ differing token otherwise */
                 printf("Diff in lenBts, %d but was expected %d\n", tokA.lenBts, tokB.lenBts);
             }
             if (tokA.startBt != tokB.startBt) {
-                printf("Diff in startBt, %d but was expected %d\n", 
+                printf("Diff in startBt, %d but was expected %d\n",
                         posInd(tokA.startBt), posInd(tokB.startBt));
             }
             if (tokA.pl1 != tokB.pl1) {

@@ -64,7 +64,6 @@ extern const char errPunctuationScope[];
 extern const char errOperatorUnknown[];
 extern const char errOperatorAssignmentPunct[];
 extern const char errOperatorTypeDefPunct[];
-extern const char errOperatorMultipleAssignment[];
 extern const char errOperatorMutableDef[];
 extern const char errCoreNotInsideStmt[];
 extern const char errCoreMisplacedElse[];
