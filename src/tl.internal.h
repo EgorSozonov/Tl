@@ -5,6 +5,7 @@
 #define InListUns InListuint32_t
 #define private static
 #define Byte unsigned char
+#define Bool bool
 #define Arr(T) T*
 #define untt uint32_t
 #define null nullptr
@@ -50,7 +51,7 @@ typedef struct { /* :Arena */
         T* cont;\
     } Stack##T;\
     testable Stack ## T * createStack ## T (Int initCapacity, Arena* a);\
-    testable bool hasValues ## T (Stack ## T * st);\
+    testable Bool hasValues ## T (Stack ## T * st);\
     testable T pop ## T (Stack ## T * st);\
     testable T peek ## T(Stack ## T * st);\
     testable T penultimate ## T(Stack ## T * st);\
@@ -222,7 +223,8 @@ typedef struct { /* :Token */
 #define tokKwArg        9    /* pl2 = same as tokWord. The ":argName" */
 #define tokDotWord     10    /* pl2 = same as tokWord. The ".structField" */
 #define tokOperator    11    /* pl1 = OperatorToken, one of the "opT" constants below */
-#define tokAccessor    12    /* pl1 = see "tkAcc" consts. Either an ".accessor" or a `_smth` */
+#define tokAccessor    12    /* pl1 = see "tkAcc" consts. If pl1 == tkAccDot, then pl2 = nameId
+                                Either an ".accessor" or a `_smth` */
 
 /* Single-statement token types */
 #define tokStmt        13    /* firstSpanTokenType */
@@ -232,9 +234,10 @@ typedef struct { /* :Token */
 #define tokTypeCall    17    /* pl1 = nameId */
 #define tokTypeCon     18    /* Built-in type initializers. pl1 = nameId of type */
 #define tokParamList   19    /* Parameter lists, ended with `|` */
-#define tokAssignLeft  20    /* pl1 == 1 iff reassignment. pl1 == (BIG + opType) iff mutation. If
-                                pl2 == 0 then pl1 = nameId for the single word on the left (and
-                                also it's an assignment, not reassignment/mutation */
+#define tokAssignLeft  20    /* pl1 == 1 iff reassignment, pl1 == 2 iff type assignment,
+                                pl1 == (BIG + opType) iff mutation. If pl2 == 0 then pl1 = nameId for 
+                                the single word on the left (and it's an assignment of a var => not
+                                reassignment/mut, not type) */
 #define tokAssignRight 21    /* Right-hand side of assignment */
 #define tokAlias       22
 #define tokAssert      23
@@ -279,17 +282,21 @@ typedef struct { /* :Token */
 #define miscComma 2     /* , */
 #define miscArrow 3     /* => */
 
+#define assiDefinition 0
+#define assiReassign   1
+#define assiType       2
+
+
 /* AST nodes */
 #define nodId           7    /* pl1 = index of entity, pl2 = index of name */
 #define nodCall         8    /* pl1 = index of entity, pl2 = arity */
 #define nodBinding      9    /* pl1 = index of entity, pl2 = 1 if it's a type binding */
 
 /* Punctuation (inner node) */
-#define nodScope       10     /* This syntax form is resumable but trivially so,
-                               that's why it's not grouped with the others */
+#define nodScope       10
 #define nodExpr        11
-#define nodAssignment  12
-#define nodReassign    13     /* <- */
+#define nodAssignLeft  12
+#define nodAssignRight 13
 #define nodAccessor    14     /* pl1 = "acc" constants */
 
 /* Single-shot core syntax forms */
@@ -299,24 +306,21 @@ typedef struct { /* :Token */
                                It's a continue iff it's >= BIG. */
 #define nodCatch       18     /* "catch e {` */
 #define nodDefer       19
-#define nodImport      21     /* This is for test files only, no need to import anything in main */
-#define nodFnDef       22     /* pl1 = entityId */
-#define nodIface       23
+#define nodImport      20     /* This is for test files only, no need to import anything in main */
+#define nodFnDef       21     /* pl1 = entityId */
+#define nodIface       22
 #define nodMeta        24
 #define nodReturn      25
 #define nodTry         26
-#define nodIfClause    27
-#define nodWhile       28     /* pl1 = id of loop (unique within a function) if it needs to
+#define nodFor         28     /* pl1 = id of loop (unique within a function) if it needs to
                                have a label in codegen */
-#define nodWhileCond   29
+#define nodForCond     29
 
-/* Resumable core forms */
 #define nodIf          30
+#define nodElseIf      30
 #define nodImpl        31
 #define nodMatch       32     /* pattern matching on sum type tag */
 
-#define firstResumableForm nodIf
-#define countResumableForms (nodMatch - nodIf + 1)
 #define countSpanForms (nodMatch - nodScope + 1)
 
 #define metaDoc         1     /* Doc comments */
@@ -357,9 +361,9 @@ typedef struct { /* :OpDef */
 /* :OperatorType
  Values must exactly agree in order with the operatorSymbols array in the tl.c file.
  The order is defined by ASCII. Operator is bitwise <=> it ends wih dot */
-#define opBitwiseNegation   0 /* !. bitwise negation */
+#define opBitwiseNeg        0 /* !. bitwise negation */
 #define opNotEqual          1 /* != */
-#define opBoolNegation      2 /* ! */
+#define opBoolNeg           2 /* ! */
 #define opSize              3 /* ## */
 #define opToString          4 /* $ */
 #define opRemainder         5 /* % */
@@ -376,21 +380,21 @@ typedef struct { /* :OpDef */
 #define opMinusExt         16 /* -: */
 #define opMinus            17 /* - */
 #define opDivByExt         18 /* /: */
-#define opIntersection     19 /* /| */
+#define opIntersect        19 /* /| */
 #define opDivBy            20 /* / */
-#define opBitShiftLeft     21 /* <<. */
+#define opBitShiftL        21 /* <<. */
 #define opLTEQ             22 /* <= */
 #define opComparator       23 /* <> */
-#define opLessThan         24 /* < */
+#define opLessTh           24 /* < */
 #define opRefEquality      25 /* === */
 #define opEquality         26 /* == */
-#define opIntervalBoth     27 /* >=<= inclusive interval check */
-#define opIntervalRight    28 /* ><=  right-inclusive interval check */
-#define opIntervalLeft     29 /* >=<  left-inclusive interval check */
-#define opBitShiftRight    30 /* >>.  unsigned right bit shift */
-#define opIntervalExcl     31 /* ><   exclusive interval check */
+#define opIntervalBo       27 /* >=<= inclusive interval check */
+#define opIntervalR        28 /* ><=  right-inclusive interval check */
+#define opIntervalL        29 /* >=<  left-inclusive interval check */
+#define opBitShiftR        30 /* >>.  unsigned right bit shift */
+#define opIntervalEx       31 /* ><   exclusive interval check */
 #define opGTEQ             32 /* >= */
-#define opGreaterThan      33 /* > */
+#define opGreaterTh        33 /* > */
 #define opNullCoalesce     34 /* ?:   null coalescing operator */
 #define opQuestionMark     35 /* ?    nullable type operator */
 #define opBitwiseXor       36 /* ^.   bitwise XOR */
@@ -419,13 +423,11 @@ typedef struct Compiler Compiler;
 
 typedef void (*LexerFunc)(Arr(Byte), Compiler*); /* LexerFunc = &(Lexer* => void) */
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
-typedef void (*ResumeFunc)(Token*, Arr(Token), Compiler*);
 
 typedef struct { /* :LanguageDefinition */
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
-    ParserFunc (*nonResumableTable)[countSyntaxForms];
-    ResumeFunc (*resumableTable)[countResumableForms];
+    ParserFunc (*parserTable)[countSyntaxForms];
 } LanguageDefinition;
 
 
@@ -473,7 +475,7 @@ typedef struct { /* :Entity */
 } Entity;
 
 typedef struct {
-    untt name;  /* 8 bits of length, 24 bits or nameId */
+    untt name;  /* 8 bits of length, 24 bits of nameId */
     Int externalNameId; /* index in the "codegenText" */
     Int typeInd; /* index in the intermediary array of types that is imported alongside */
 } EntityImport;

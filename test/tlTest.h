@@ -83,6 +83,7 @@ void createCompiler(Compiler* lx, Arena* a);
 void parseMain(Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Int len, Compiler* cm);
 void printParser(Compiler* cm, Arena* a);
+bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm);
 
 extern const char errBareAtom[];
 extern const char errImportsNonUnique[];
@@ -124,6 +125,7 @@ extern const char errIncorrectPrefixSequence[];
 extern const char errOperatorUsedInappropriately[];
 extern const char errAssignment[];
 extern const char errAssignmentShadowing[];
+extern const char errAssignmentLeftSide[];
 extern const char errMutation[];
 extern const char errReturn[];
 extern const char errScope[];

@@ -977,6 +977,7 @@ const char errOperatorUsedInappropriately[] = "Operator used in an inappropriate
 const char errAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
 const char errMutation[]                    = "Cannot parse mutation, it must look like `freshIdentifier` += `expression`";
 const char errAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
+const char errAssignmentLeftSide[]          = "Assignment error: left side must be a var name, a type name, or an existing var with one or more accessors";
 const char errAssignmentAccessOnToplevel[]  = "Accessor on the left side of an assignment at toplevel";
 const char errReturn[]                      = "Cannot parse return statement, it must look like `return ` {expression}";
 const char errScope[]                       = "A scope may consist only of expressions, assignments, function definitions and other scopes!";
@@ -1668,15 +1669,15 @@ private void lexDot(Arr(Byte) source, Compiler* lx) {
 
 
 private void processAssignment(Int mutType, untt opType, Compiler* lx) {
-/* Handles the "=", "<-" and "+=" tokens. Changes existing stmt token into tokAssignLeft and opens
-up a new tokAssignRight span. Doesn't consume anything */
+/// Params: Handles the "=", "<-" and "+=" tokens. Changes existing stmt 
+/// token into tokAssignLeft and opens up a new tokAssignRight span. Doesn't consume anything
     BtToken currSpan = peek(lx->lexBtrack);
     VALIDATEL(currSpan.tp == tokStmt, errOperatorAssignmentPunct);
 
     Int assignmentStartInd = currSpan.tokenInd;
     Token* tok = (lx->tokens.cont + assignmentStartInd);
     tok->tp = tokAssignLeft;
-    if (assignmentStartInd == (lx->tokens.len - 2) && mutType == 0)  {
+    if (assignmentStartInd == (lx->tokens.len - 2) && mutType == 0)  { // only one token on the left
         Token wordTk = lx->tokens.cont[assignmentStartInd + 1];
         VALIDATEL(wordTk.tp == tokWord, errAssignment);
         tok->pl1 = wordTk.pl2; /*nameId*/
@@ -1684,8 +1685,10 @@ up a new tokAssignRight span. Doesn't consume anything */
         tok->lenBts = wordTk.lenBts;
         lx->tokens.len--; /* delete the word token because its data now lives in tokAssignLeft */
     } else {
-        if (mutType == 1) {
-            tok->pl1 = 1;
+        if (lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
+            tok->pl1 = assiType; 
+        } else if (mutType == 1) {
+            tok->pl1 = assiReassign;
         } else if (mutType == 2) {
             tok->pl1 = BIG + opType;
         }
@@ -2217,7 +2220,7 @@ private Int importAndActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
-private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm);
+private Int parseExpr(Token tk, Arr(Token) tokens, Compiler* cm);
 
 
 _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
@@ -2232,8 +2235,9 @@ _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Comp
 #define throwExcParser(errMsg, cm) throwExcParser0(errMsg, __LINE__, cm)
 
 private Int getActiveVar(Int nameId, Compiler* cm) {
+/* Resolves an active bindings, throws if it's not active */
     Int rawValue = cm->activeBindings[nameId];
-    VALIDATEP(rawValue > -1 && rawValue < BIG, errUnknownFunction)
+    VALIDATEP(rawValue > -1 && rawValue < BIG, errUnknownBinding)
     return rawValue;
 }
 
@@ -2273,6 +2277,11 @@ testable void printName(Int name, Compiler* cm) {
     Int startBt = cm->stringTable->cont[nameId];
     fwrite(cm->sourceCode->cont + startBt, 1, len, stdout);
     printf("\n");
+}
+
+Node trivialNode(untt tp, Token tk) {
+    return 
+        (Node){ .tp = tp, .pl1 = tk.pl1, .pl2 = tk.pl2, .startBt = tk.startBt, .lenBts = tk.pl2 };
 }
 
 /*}}}*/
@@ -2316,7 +2325,7 @@ private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
     VALIDATEP(tokens[leftSentinel].tp == tokMisc && tokens[leftSentinel].pl1 == miscArrow,
             errIfMalformed)
-    Int typeLeft = exprAfterHead(tok, tokens, cm);
+    Int typeLeft = parseExpr(tok, tokens, cm);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
 
@@ -2332,44 +2341,8 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
     ifLeftSide(stmtTok, tokens, cm);
 }
 
-private void resumeIf(Token* tok, Arr(Token) tokens, Compiler* cm) {
-/* Returns to parsing within an if (either the beginning of a clause or an "else" block) */
-    if (tok->tp == tokMisc || tok->tp == tokElse) {
-        ++cm->i; /* CONSUME the "=>" or "else" */
-        *tok = tokens[cm->i];
-        Int sentinel = calcSentinel(*tok, cm->i);
-        VALIDATEP(cm->i < cm->inpLength, errPrematureEndOfTokens)
-        if (tok->tp == tokElse) {
-            VALIDATEP(sentinel = peek(cm->backtrack).sentinelToken, errIfElseMustBeLast);
-        }
-
-        push(((ParseFrame){ .tp = nodIfClause, .startNodeInd = cm->nodes.len,
-                            .sentinelToken = sentinel}), cm->backtrack);
-        pushInnodes((Node){.tp = nodIfClause, .startBt = tok->startBt, .lenBts = tok->lenBts }, cm);
-        ++cm->i; /* CONSUME the first token of what follows */
-    } else {
-        ++cm->i; /* CONSUME the stmt token */
-        ifLeftSide(*tok, tokens, cm);
-        *tok = tokens[cm->i];
-    }
-}
-
-private void assignmentWordLeftSide(Token tk, Arr(Token) tokens, Compiler* cm) {
-/* Parses an assignment's left side that starts with a word, including accessor strips
-like "x.foo.bar" or "y@+(x 1)" */
-    if (tokens[cm->i + 1].tp != tokAccessor) {
-        Int newEntityId = createEntity(nameOfToken(tk), cm);
-        pushInnodes((Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = tk.startBt,
-                           .lenBts = tk.lenBts}, cm);
-        cm->i++; /* CONSUME the word token before the assignment sign */
-        return;
-    }
-
-}
-
+/*
 private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Compiler* cm) {
-/* Parses an assignment like "x = 5 or Foo = (.id Int)". The right side must never
-be a scope or contain any loops, or recursion will ensue */
     Int sentinelToken = cm->i + tok.pl2;
     VALIDATEP(sentinelToken >= cm->i + 2, errAssignment)
     Token bindingTk = tokens[cm->i];
@@ -2383,7 +2356,6 @@ be a scope or contain any loops, or recursion will ensue */
         Token rTk = tokens[cm->i];
         Int rightType = -1;
         if (rTk.tp == tokFn) {
-            /* TODO newFnId = parseFnDef(&rightType, cm); */
         } else {
             rightType = exprHeadless(sentinelToken, rTk.startBt,
                                        tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
@@ -2399,10 +2371,132 @@ be a scope or contain any loops, or recursion will ensue */
         throwExcParser(errAssignment, cm);
     }
 }
+*/
 
-private void parseAssignLeft(Token tok, Arr(Token) tokens, Compiler* cm) {
-    assignmentWorker(tok, false, tokens, cm);
+private void assignmentComplexLeftSide(Int start, Int sentinel, Arr(Token) tokens, Compiler* cm) {
+/* A left side with more than one token must consist of a known var with a series of accessors.
+It gets transformed like this: 
+arr_i_(j*2)_(k + 3) ==> _ _ _ arr i (* j 2) (+ k 3) */
+    Token firstTk = tokens[start];
+    VALIDATEP(firstTk.tp == tokWord, errAssignmentLeftSide)
+    Int leftEntityId = getActiveVar(firstTk.pl2, cm);
+    Int j = start + 1;
+    
+    StackInt* sc = cm->tempStack;
+    clearint32_t(sc);
+    
+    while (j < sentinel) {
+        Token accessorTk = tokens[j]; 
+        VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
+        if (accessorTk.pl1 == tkAccDot) {
+            j++; 
+        } else { // tkAccArray
+#ifdef SAFETY
+            VALIDATEI(j + 1 < sentinel, iErrorInconsistentSpans)
+#endif
+            Token accessTk = tokens[j + 1]; 
+            VALIDATEP(accessTk.tp == tokInt || accessTk.tp == tokWord 
+                      || accessTk.tp == tokParens, errAssignmentLeftSide)
+            if (accessTk.tp == tokParens) {
+                j += accessTk.pl2 + 1;
+            } else {
+                j++;
+            }
+        }
+        push(j, sc);
+    }
+    
+    // Add the "_ _ _" part using the stack of accessor operators
+    j = sc->len - 1;
+    while (j > -1) {
+        Token accessorTk = tokens[sc->cont[j]]; 
+        pushInnodes((Node){ .tp = nodAccessor, .pl1 = accessorTk.pl1, 
+                            .startBt = accessorTk.startBt, .lenBts = accessorTk.lenBts }, cm);
+    }
+    
+    // The collection name part
+    pushInnodes((Node){ .tp = nodId, .pl1 = leftEntityId, .pl2 = firstTk.pl2,
+                        .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, cm);
+    // The accessor expression parts
+    while (j < sentinel) {
+        Token accessorTk = tokens[j]; 
+        VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
+        if (accessorTk.pl1 == tkAccDot) {
+            j++; 
+        } else { // tkAccArray
+            Token accessTk = tokens[j + 1]; 
+            if (accessTk.tp == tokParens) {
+                cm->i = j + 2; // CONSUME up to the subexpression start
+                Int subexprSentinel = cm->i + accessTk.pl2 + 1; 
+                exprHeadless(subexprSentinel, accessTk.startBt, accessTk.lenBts, tokens, cm);
+                j = cm->i;
+            } else if (accessTk.tp == tokInt || accessTk.tp == tokString) {
+                pushInnodes(trivialNode(accessTk.tp, accessTk), cm);
+                j++;
+            } else { // tokWord
+                Int accessEntityId = getActiveVar(accessTk.pl2, cm);
+                pushInnodes((Node){ .tp = nodId, .pl1 = accessEntityId, .pl2 = accessTk.pl2, 
+                                    .startBt = accessTk.startBt, .lenBts = accessTk.lenBts }, cm);
+                j++; 
+            }
+        }
+    }
+    clearint32_t(sc); 
 }
+
+
+private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
+    Int countLeftSide = tok.pl2;
+    Token rightTk = tokens[cm->i + countLeftSide]; 
+#ifdef SAFETY
+    VALIDATEI(rightTk.tp == tokAssignRight, iErrorInconsistentSpans)
+#endif
+
+    Bool complexLeft = false;
+    if (tok.pl1 == assiType) {
+        VALIDATEP(countLeftSide == 1, errAssignmentLeftSide) 
+        typeDef(tok, false, tokens, cm);
+        return; 
+    } else if (countLeftSide > 1) {
+        complexLeft = true; 
+        VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
+        assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, tokens, cm); 
+    }
+    cm->i += countLeftSide; // CONSUME the left side of an assignment 
+    push(((ParseFrame){.tp = nodAssignRight, .startNodeInd = cm->nodes.len,
+                       .sentinelToken = cm->i + rightTk.pl2 + 1 }), cm->backtrack);
+    pushInnodes((Node){.tp = nodAssignRight, .startBt = rightTk.startBt, .lenBts = rightTk.lenBts},
+                        cm);
+    
+    
+    // TODO handle mutation
+    
+    Int rightType = exprHeadless(sentinelToken, rTk.startBt,
+                               tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    VALIDATEP(rightType != -2, errAssignment)
+    if (tok.pl1 == 0) { // a new var being defined
+        Int newBindingId = createEntity(nameOfToken(bindingTk), cm);
+        if (rightType > -1) {
+            cm->entities.cont[newBindingId].typeId = rightType;
+        }
+    }
+    
+    
+        
+    
+    if (tok.pl2 == 0) {
+        Int nameId = tok.pl1; 
+        pushInnodes((Node){ .tp = nodAssignLeft, .startBt = tok.startBt, .lenBts = tok.lenBts });
+        cm->i++; /* CONSUME the left assignment token */ 
+    } else {
+    
+        push(((ParseFrame){.tp = nodAssignLeft, .startNodeInd = cm->nodes.len,
+                           .sentinelToken = sentinelToken }), cm->backtrack);
+        pushInnodes((Node){.tp = nodAssignLeft, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+        assignmentWorker(tok, false, tokens, cm);
+    }
+}
+
 
 private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
 /* For loops. Look like "for(x = 0. x < 100: x += 1: ...)" */
@@ -2444,24 +2538,12 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
                        .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
     cm->i = condInd + 1; /* + 1 because the expression parser needs to be 1 past the expr/token */
 
-    Int condTypeId = exprAfterHead(tokens[condInd], tokens, cm);
+    Int condTypeId = parseExpr(tokens[condInd], tokens, cm);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
 
     cm->i = indBody; /* CONSUME the for token, its condition and variable inits (if any) */
 }
 
-
-private void resumeIfPr(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-private void resumeImpl(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-private void resumeMatch(Token* tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
 
 private void setSpanLengthParser(Int nodeInd, Compiler* cm) {
 /* Finds the top-level punctuation opener by its index, and sets its node length.
@@ -2581,9 +2663,9 @@ or an operand. Consumes no tokens. */
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
-/* General "big" expression parser. Parses an expression whether there is a token or not.
+/* The general "big" expression parser. Parses an expression whether there is a token or not.
 Starts from cm->i and goes up to the sentinel token. Returns the expression's type
-Precondition: we are looking 1 past the tokExpr. */
+Precondition: we are looking 1 past the tokExpr or tokParens */
     Int arity = 0;
     Int startNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = sentinelToken }),
@@ -2636,9 +2718,10 @@ Returns the type of parsed expression. */
     return exprUpTo(sentinel, startBt, lenBts, tokens, cm);
 }
 
-private Int exprAfterHead(Token tk, Arr(Token) tokens, Compiler* cm) {
-/* Precondition: we are looking 1 past the first token of expr, which is the first parameter. Consumes 1
-or more tokens. Returns the type of parsed expression. */
+
+private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
+// Precondition: we are looking 1 past the first token of expr, which is the first parameter. Consumes 1
+// or more tokens. Handles single items also Returns the type of parsed expression
     if (tk.tp == tokStmt || tk.tp == tokParens) {
         if (tk.pl2 == 1) {
             Token singleToken = tokens[cm->i];
@@ -2652,12 +2735,6 @@ or more tokens. Returns the type of parsed expression. */
     } else {
         return exprSingleItem(tk, cm);
     }
-}
-
-private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
-/* Parses an expression from an actual token. Precondition: we are 1 past that token. Handles statements
-only, not single items. */
-    exprAfterHead(tok, tokens, cm);
 }
 
 private void maybeCloseSpans(Compiler* cm) {
@@ -2688,12 +2765,7 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
         untt contextType = peek(cm->backtrack).tp;
         /* Pre-parse hooks that let contextful syntax forms (e.g. "if")
          detect parsing errors and maintain their state */
-        if (contextType >= firstResumableForm) {
-            ((*cm->langDef->resumableTable)[contextType - firstResumableForm])(&currTok, tokens, cm);
-        } else {
-            cm->i++; /* CONSUME any span token */
-        }
-        ((*cm->langDef->nonResumableTable)[currTok.tp])(currTok, tokens, cm);
+        ((*cm->langDef->parserTable)[currTok.tp])(currTok, tokens, cm);
 
         maybeCloseSpans(cm);
     }
@@ -3013,7 +3085,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int
     cm->countNonparsedEntities = cm->entities.len;
 }
 
-private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
+private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] {
     ParserFunc (*result)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
     ParserFunc* p = *result;
     int i = 0;
@@ -3024,8 +3096,7 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
     p[tokScope]       = &parseScope;
     p[tokStmt]        = &parseExpr;
     p[tokParens]      = &parseErrorBareAtom;
-    p[tokAssignLeft]  = &parseAssignLeft;
-    p[tokAssignRight] = &parseAssignRight;
+    p[tokAssignLeft]  = &parseAssignment;
     p[tokMisc]        = &parseMisc;
 
     p[tokAlias]       = &parseAlias;
@@ -3047,23 +3118,13 @@ private ParserFunc (*tabulateNonresumableDispatch(Arena* a))[countSyntaxForms] {
 }
 
 
-private ResumeFunc (*tabulateResumableDispatch(Arena* a))[countResumableForms] {
-    ResumeFunc (*result)[countResumableForms] = allocateOnArena(countResumableForms*sizeof(ResumeFunc), a);
-    ResumeFunc* p = *result;
-    p[nodIf    - firstResumableForm] = &resumeIf;
-    p[nodImpl  - firstResumableForm] = &resumeImpl;
-    p[nodMatch - firstResumableForm] = &resumeMatch;
-    return result;
-}
-
 testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 /* Definition of the operators, lexer dispatch and parser dispatch tables for the compiler. */
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
     (*result) = (LanguageDefinition) {
         .dispatchTable = tabulateDispatch(a),
         .operators = tabulateOperators(a),
-        .nonResumableTable = tabulateNonresumableDispatch(a),
-        .resumableTable = tabulateResumableDispatch(a)
+        .parserTable = tabulateParserDispatch(a)
     };
     return result;
 }
@@ -3520,90 +3581,91 @@ private void buildOperators(Compiler* cm) {
 /* Operators are the first-ever functions to be defined. This function builds their [types],
 [functions] and overload counts. The order must agree with the order of operator
 definitions in tl.internal.h, and every operator must have at least one function defined. */
-    Int boolOfIntInt = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
+    Int boolOfIntInt    = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     Int boolOfIntIntInt = addConcreteFunctionType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
-    Int boolOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
-    Int boolOfFlFlFl = addConcreteFunctionType(3, (Int[]){ tokDouble, tokDouble, tokDouble, tokBool}, cm);
-    Int boolOfStrStr = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokBool}, cm);
-    Int boolOfBool = addConcreteFunctionType(1, (Int[]){ tokBool, tokBool, tokBool}, cm);
-    Int boolOfBoolBool = addConcreteFunctionType(2, (Int[]){ tokBool, tokBool, tokBool}, cm);
-    Int intOfStr = addConcreteFunctionType(1, (Int[]){ tokString, tokInt}, cm);
-    Int intOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokInt}, cm);
-    Int intOfIntInt = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokInt}, cm);
-    Int intOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokInt}, cm);
-    Int intOfStrStr = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokInt}, cm);
-    Int strOfInt = addConcreteFunctionType(1, (Int[]){ tokInt, tokString}, cm);
-    Int strOfFloat = addConcreteFunctionType(1, (Int[]){ tokDouble, tokString}, cm);
-    Int strOfBool = addConcreteFunctionType(1, (Int[]){ tokBool, tokString}, cm);
-    Int strOfStrStr = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokString}, cm);
-    Int flOfFlFl = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
-    Int flOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
+    Int boolOfFlFl      = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
+    Int boolOfFlFlFl    = addConcreteFunctionType(3, 
+                            (Int[]){ tokDouble, tokDouble, tokDouble, tokBool}, cm);
+    Int boolOfStrStr    = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokBool}, cm);
+    Int boolOfBool      = addConcreteFunctionType(1, (Int[]){ tokBool, tokBool, tokBool}, cm);
+    Int boolOfBoolBool  = addConcreteFunctionType(2, (Int[]){ tokBool, tokBool, tokBool}, cm);
+    Int intOfStr        = addConcreteFunctionType(1, (Int[]){ tokString, tokInt}, cm);
+    Int intOfInt        = addConcreteFunctionType(1, (Int[]){ tokInt, tokInt}, cm);
+    Int intOfIntInt     = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokInt}, cm);
+    Int intOfFlFl       = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokInt}, cm);
+    Int intOfStrStr     = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokInt}, cm);
+    Int strOfInt        = addConcreteFunctionType(1, (Int[]){ tokInt, tokString}, cm);
+    Int strOfFloat      = addConcreteFunctionType(1, (Int[]){ tokDouble, tokString}, cm);
+    Int strOfBool       = addConcreteFunctionType(1, (Int[]){ tokBool, tokString}, cm);
+    Int strOfStrStr     = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokString}, cm);
+    Int flOfFlFl        = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
+    Int flOfFl          = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
 
-    buildOperator(opBitwiseNegation, boolOfBool, emitPrefix, 0, cm); /* dummy */
-    buildOperator(opNotEqual, boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opNotEqual, boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opNotEqual, boolOfStrStr, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opBoolNegation, boolOfBool, emitPrefix, 0, cm);
-    buildOperator(opSize,     intOfStr, emitField, cgStrLength, cm);
-    buildOperator(opSize,     intOfInt, emitPrefixExternal, cgStrAbsolute, cm);
-    buildOperator(opToString,     strOfInt, emitPrefixExternal, 0, cm);
-    buildOperator(opToString,     strOfBool, emitPrefixExternal, 0, cm);
-    buildOperator(opToString,     strOfFloat, emitPrefixExternal, 0, cm);
-    buildOperator(opRemainder, intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opBitwiseNeg, boolOfBool, emitPrefix, 0, cm); /* dummy */
+    buildOperator(opNotEqual,   boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
+    buildOperator(opNotEqual,   boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
+    buildOperator(opNotEqual,   boolOfStrStr, emitInfixExternal, cgStrNotEqual, cm);
+    buildOperator(opBoolNeg,    boolOfBool, emitPrefix, 0, cm);
+    buildOperator(opSize,       intOfStr, emitField, cgStrLength, cm);
+    buildOperator(opSize,       intOfInt, emitPrefixExternal, cgStrAbsolute, cm);
+    buildOperator(opToString,   strOfInt, emitPrefixExternal, 0, cm);
+    buildOperator(opToString,   strOfBool, emitPrefixExternal, 0, cm);
+    buildOperator(opToString,   strOfFloat, emitPrefixExternal, 0, cm);
+    buildOperator(opRemainder,  intOfIntInt, emitInfix, 0, cm);
     buildOperator(opBitwiseAnd, boolOfBoolBool, 0, 0, cm); /* dummy */
     buildOperator(opBoolAnd,    boolOfBoolBool, emitInfixExternal, cgStrLogicalAnd, cm);
-    buildOperator(opPtr,       boolOfBoolBool, emitPrefixExternal, cgStrLogicalAnd, cm); /* dummy */
-    buildOperator(opIsNull,    boolOfBoolBool, 0, 0, cm); /* dummy */
-    buildOperator(opTimesExt,  flOfFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opTimes,     intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTimes,     flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opIncrement, intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opPlusExt,   strOfStrStr, 0, 0, cm); /* dummy */
-    buildOperator(opPlus,      intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opPlus,      flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opPlus,      strOfStrStr, emitInfix, 0, cm);
+    buildOperator(opPtr,        boolOfBoolBool, emitPrefixExternal, cgStrLogicalAnd, cm); /* dummy */
+    buildOperator(opIsNull,     boolOfBoolBool, 0, 0, cm); /* dummy */
+    buildOperator(opTimesExt,   flOfFlFl, 0, 0, cm); /* dummy */
+    buildOperator(opTimes,      intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opTimes,      flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opIncrement,  intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opPlusExt,    strOfStrStr, 0, 0, cm); /* dummy */
+    buildOperator(opPlus,       intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opPlus,       flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opPlus,       strOfStrStr, emitInfix, 0, cm);
     buildOperator(opDecrement,  intOfIntInt, emitInfix, 0, cm); /* dummy */
-    buildOperator(opMinusExt,  intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opMinus,     intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opMinus,     flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opDivByExt,  intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntersection,  intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opDivBy,     intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opDivBy,     flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opBitShiftLeft,     intOfFlFl, 0, 0, cm);  /* dummy */
-    buildOperator(opLTEQ, boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opLTEQ, boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opLTEQ, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opMinusExt,   intOfIntInt, 0, 0, cm); /* dummy */
+    buildOperator(opMinus,      intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opMinus,      flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opDivByExt,   intOfIntInt, 0, 0, cm); /* dummy */
+    buildOperator(opIntersect,  intOfIntInt, 0, 0, cm); /* dummy */
+    buildOperator(opDivBy,      intOfIntInt, emitInfix, 0, cm);
+    buildOperator(opDivBy,      flOfFlFl, emitInfix, 0, cm);
+    buildOperator(opBitShiftL,  intOfFlFl, 0, 0, cm);  /* dummy */
+    buildOperator(opLTEQ,       boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opLTEQ,       boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opLTEQ,       boolOfStrStr, emitInfix, 0, cm);
     buildOperator(opComparator, intOfIntInt, 0, 0, cm);  /* dummy */
     buildOperator(opComparator, intOfFlFl, 0, 0, cm);  /* dummy */
     buildOperator(opComparator, intOfStrStr, 0, 0, cm);  /* dummy */
-    buildOperator(opLessThan, boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opLessThan, boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opLessThan, boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opRefEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm); /* dummy */
-    buildOperator(opEquality,    boolOfIntInt, emitInfixExternal, cgStrEquality, cm);
-    buildOperator(opIntervalBoth, boolOfIntIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalBoth, boolOfFlFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalRight, boolOfIntIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalRight, boolOfFlFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalLeft, boolOfIntIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalLeft, boolOfFlFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opBitShiftRight, boolOfBoolBool, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalExcl, boolOfIntIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalExcl, boolOfFlFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opGTEQ, boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opGTEQ, boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opGTEQ, boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opGreaterThan, boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opGreaterThan, boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opGreaterThan, boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opLessTh,     boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opLessTh,     boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opLessTh,     boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opRefEquality, boolOfIntInt, emitInfixExternal, cgStrEquality, cm); /* dummy */
+    buildOperator(opEquality,   boolOfIntInt, emitInfixExternal, cgStrEquality, cm);
+    buildOperator(opIntervalBo, boolOfIntIntInt, 0, 0, cm); /* dummy */
+    buildOperator(opIntervalBo, boolOfFlFlFl, 0, 0, cm); /* dummy */
+    buildOperator(opIntervalR,  boolOfIntIntInt, 0, 0, cm); /* dummy */
+    buildOperator(opIntervalR,  boolOfFlFlFl, 0, 0, cm); /* dummy */
+    buildOperator(opIntervalL,  boolOfIntIntInt, 0, 0, cm); /* dummy */
+    buildOperator(opIntervalL,  boolOfFlFlFl, 0, 0, cm); /* dummy */
+    buildOperator(opBitShiftR,  boolOfBoolBool, 0, 0, cm); /* dummy */
+    buildOperator(opIntervalEx, boolOfIntIntInt, 0, 0, cm); /* dummy */
+    buildOperator(opIntervalEx, boolOfFlFlFl, 0, 0, cm); /* dummy */
+    buildOperator(opGTEQ,       boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opGTEQ,       boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opGTEQ,       boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opGreaterTh,  boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opGreaterTh,  boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opGreaterTh,  boolOfStrStr, emitInfix, 0, cm);
     buildOperator(opNullCoalesce, intOfIntInt, 0, 0, cm); /* dummy */
     buildOperator(opQuestionMark, intOfIntInt, 0, 0, cm); /* dummy */
     buildOperator(opBitwiseXor, intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opExponent, intOfIntInt, emitPrefixExternal, cgStrExpon, cm);
-    buildOperator(opExponent, flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
+    buildOperator(opExponent,  intOfIntInt, emitPrefixExternal, cgStrExpon, cm);
+    buildOperator(opExponent,  flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
     buildOperator(opBitwiseOr, intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opBoolOr, flOfFl, 0, 0, cm); /* dummy */
+    buildOperator(opBoolOr,    flOfFl, 0, 0, cm); /* dummy */
 }
 
 private void createBuiltins(Compiler* cm) {
@@ -3882,7 +3944,9 @@ private void parseToplevelConstants(Compiler* cm) {
     const Int len = cm->tokens.len;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignLeft && (cm->i + 2) < len
+        if (tok.tp == tokAssignLeft) {
+            Token firstOnRightTk = toks[cm->i + tok.pl2 + 2];
+            if (toks[cm->i + 1].tp != firstOnRightTk.tp != tokFn) { 
            && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp != tokFn) {
             parseUpTo(cm->i + tok.pl2, toks, cm);
         } else {
@@ -3893,8 +3957,8 @@ private void parseToplevelConstants(Compiler* cm) {
 
 #ifdef SAFETY
 private void validateOverloadsFull(Compiler* cm) {
-    Int lenTypes = cm->types.len;
-    Int lenEntities = cm->entities.len;
+/*
+    Int lenTypes = cm->types.len; Int lenEntities = cm->entities.len;
     for (Int i = 1; i < cm->overloadIds.len; i++) {
         Int currInd = cm->overloadIds.cont[i - 1];
         Int nextInd = cm->overloadIds.cont[i];
@@ -3923,6 +3987,7 @@ private void validateOverloadsFull(Compiler* cm) {
             }
         }
     }
+*/
 }
 #endif
 
@@ -4358,7 +4423,9 @@ Returns the typeId of the new type */
     for (Int j = startInd + 1; j < sentinel; j += 4) {
         /* names of fields */
 #ifdef SAFETY
-        VALIDATEP(exp->cont[j - 1] == tydField, "not a field")
+/*
+        VALIDATEP(exp->cont[j - 1] == tyeField, "not a field")
+*/ 
 #endif
         pushIntypes(exp->cont[j], cm);
     }
@@ -4436,7 +4503,9 @@ Returns the typeId of the new type */
     for (Int j = startInd + 1; j < sentinel; j += 4) {
         /* names of fields */
 #ifdef SAFETY
+/*
         VALIDATEP(exp->cont[j - 1] == tydField, "not a field")
+*/ 
 #endif
         pushIntypes(exp->cont[j], cm);
     }
@@ -4666,7 +4735,7 @@ Uses cm->expStack to build a "type expression" and cm->params for the type param
 Produces no AST nodes, but potentially lots of new types
 Consumes the whole type assignment, or the whole function signature
 Data format: see "Type expression data format"
-Precondition: we are 1 past the assignment token */
+Precondition: we are 1 past the assignment left token */
     StackInt* exp = cm->expStack;
     StackInt* params = cm->typeStack;
     exp->len = 0;
