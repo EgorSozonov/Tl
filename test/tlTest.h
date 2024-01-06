@@ -84,6 +84,7 @@ void parseMain(Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Int len, Compiler* cm);
 void printParser(Compiler* cm, Arena* a);
 bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm);
+Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringDict* hm);
 
 extern const char errBareAtom[];
 extern const char errImportsNonUnique[];

@@ -674,8 +674,8 @@ private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, untt hash,
     }
 }
 
-private Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringDict* hm) {
-/* Unique'ing of symbols within source code */
+testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringDict* hm) {
+// Unique'ing of symbols within source code
     untt hash = hashCode(text + startBt, lenBts);
     Int hashOffset = hash % (hm->dictSize);
     Int newIndString;
@@ -1669,7 +1669,7 @@ private void lexDot(Arr(Byte) source, Compiler* lx) {
 
 
 private void processAssignment(Int mutType, untt opType, Compiler* lx) {
-/// Params: Handles the "=", "<-" and "+=" tokens. Changes existing stmt 
+/// Params: Handles the "=", "<-" and "+=" tokens. Changes existing stmt
 /// token into tokAssignLeft and opens up a new tokAssignRight span. Doesn't consume anything
     BtToken currSpan = peek(lx->lexBtrack);
     VALIDATEL(currSpan.tp == tokStmt, errOperatorAssignmentPunct);
@@ -1686,7 +1686,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
         lx->tokens.len--; /* delete the word token because its data now lives in tokAssignLeft */
     } else {
         if (lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
-            tok->pl1 = assiType; 
+            tok->pl1 = assiType;
         } else if (mutType == 1) {
             tok->pl1 = assiReassign;
         } else if (mutType == 2) {
@@ -2220,7 +2220,8 @@ private Int importAndActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
-private Int parseExpr(Token tk, Arr(Token) tokens, Compiler* cm);
+private void parseExpr(Token tk, Arr(Token) tokens, Compiler* cm);
+private Int parseExprWorker(Token tk, Arr(Token) tokens, Compiler* cm);
 
 
 _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
@@ -2280,7 +2281,7 @@ testable void printName(Int name, Compiler* cm) {
 }
 
 Node trivialNode(untt tp, Token tk) {
-    return 
+    return
         (Node){ .tp = tp, .pl1 = tk.pl1, .pl2 = tk.pl2, .startBt = tk.startBt, .lenBts = tk.pl2 };
 }
 
@@ -2325,7 +2326,7 @@ private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
     VALIDATEP(tokens[leftSentinel].tp == tokMisc && tokens[leftSentinel].pl1 == miscArrow,
             errIfMalformed)
-    Int typeLeft = parseExpr(tok, tokens, cm);
+    Int typeLeft = parseExprWorker(tok, tokens, cm);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
 
@@ -2375,27 +2376,27 @@ private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Com
 
 private void assignmentComplexLeftSide(Int start, Int sentinel, Arr(Token) tokens, Compiler* cm) {
 /* A left side with more than one token must consist of a known var with a series of accessors.
-It gets transformed like this: 
+It gets transformed like this:
 arr_i_(j*2)_(k + 3) ==> _ _ _ arr i (* j 2) (+ k 3) */
     Token firstTk = tokens[start];
     VALIDATEP(firstTk.tp == tokWord, errAssignmentLeftSide)
     Int leftEntityId = getActiveVar(firstTk.pl2, cm);
     Int j = start + 1;
-    
+
     StackInt* sc = cm->tempStack;
     clearint32_t(sc);
-    
+
     while (j < sentinel) {
-        Token accessorTk = tokens[j]; 
+        Token accessorTk = tokens[j];
         VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
         if (accessorTk.pl1 == tkAccDot) {
-            j++; 
+            j++;
         } else { // tkAccArray
 #ifdef SAFETY
             VALIDATEI(j + 1 < sentinel, iErrorInconsistentSpans)
 #endif
-            Token accessTk = tokens[j + 1]; 
-            VALIDATEP(accessTk.tp == tokInt || accessTk.tp == tokWord 
+            Token accessTk = tokens[j + 1];
+            VALIDATEP(accessTk.tp == tokInt || accessTk.tp == tokWord
                       || accessTk.tp == tokParens, errAssignmentLeftSide)
             if (accessTk.tp == tokParens) {
                 j += accessTk.pl2 + 1;
@@ -2405,29 +2406,29 @@ arr_i_(j*2)_(k + 3) ==> _ _ _ arr i (* j 2) (+ k 3) */
         }
         push(j, sc);
     }
-    
+
     // Add the "_ _ _" part using the stack of accessor operators
     j = sc->len - 1;
     while (j > -1) {
-        Token accessorTk = tokens[sc->cont[j]]; 
-        pushInnodes((Node){ .tp = nodAccessor, .pl1 = accessorTk.pl1, 
+        Token accessorTk = tokens[sc->cont[j]];
+        pushInnodes((Node){ .tp = nodAccessor, .pl1 = accessorTk.pl1,
                             .startBt = accessorTk.startBt, .lenBts = accessorTk.lenBts }, cm);
     }
-    
+
     // The collection name part
     pushInnodes((Node){ .tp = nodId, .pl1 = leftEntityId, .pl2 = firstTk.pl2,
                         .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, cm);
     // The accessor expression parts
     while (j < sentinel) {
-        Token accessorTk = tokens[j]; 
+        Token accessorTk = tokens[j];
         VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
         if (accessorTk.pl1 == tkAccDot) {
-            j++; 
+            j++;
         } else { // tkAccArray
-            Token accessTk = tokens[j + 1]; 
+            Token accessTk = tokens[j + 1];
             if (accessTk.tp == tokParens) {
                 cm->i = j + 2; // CONSUME up to the subexpression start
-                Int subexprSentinel = cm->i + accessTk.pl2 + 1; 
+                Int subexprSentinel = cm->i + accessTk.pl2 + 1;
                 exprHeadless(subexprSentinel, accessTk.startBt, accessTk.lenBts, tokens, cm);
                 j = cm->i;
             } else if (accessTk.tp == tokInt || accessTk.tp == tokString) {
@@ -2435,65 +2436,50 @@ arr_i_(j*2)_(k + 3) ==> _ _ _ arr i (* j 2) (+ k 3) */
                 j++;
             } else { // tokWord
                 Int accessEntityId = getActiveVar(accessTk.pl2, cm);
-                pushInnodes((Node){ .tp = nodId, .pl1 = accessEntityId, .pl2 = accessTk.pl2, 
+                pushInnodes((Node){ .tp = nodId, .pl1 = accessEntityId, .pl2 = accessTk.pl2,
                                     .startBt = accessTk.startBt, .lenBts = accessTk.lenBts }, cm);
-                j++; 
+                j++;
             }
         }
     }
-    clearint32_t(sc); 
+    clearint32_t(sc);
 }
 
 
 private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int countLeftSide = tok.pl2;
-    Token rightTk = tokens[cm->i + countLeftSide]; 
+    Token rightTk = tokens[cm->i + countLeftSide];
 #ifdef SAFETY
     VALIDATEI(rightTk.tp == tokAssignRight, iErrorInconsistentSpans)
 #endif
 
     Bool complexLeft = false;
     if (tok.pl1 == assiType) {
-        VALIDATEP(countLeftSide == 1, errAssignmentLeftSide) 
+        VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
         typeDef(tok, false, tokens, cm);
-        return; 
+        return;
     } else if (countLeftSide > 1) {
-        complexLeft = true; 
+        complexLeft = true;
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
-        assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, tokens, cm); 
+        assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, tokens, cm);
     }
-    cm->i += countLeftSide; // CONSUME the left side of an assignment 
+    cm->i += countLeftSide; // CONSUME the left side of an assignment
     push(((ParseFrame){.tp = nodAssignRight, .startNodeInd = cm->nodes.len,
                        .sentinelToken = cm->i + rightTk.pl2 + 1 }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignRight, .startBt = rightTk.startBt, .lenBts = rightTk.lenBts},
                         cm);
-    
-    
+
+
     // TODO handle mutation
-    
-    Int rightType = exprHeadless(sentinelToken, rTk.startBt,
-                               tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    Int sentinel = cm->i + rightTk.pl2 + 1;
+    Int rightType = exprHeadless(sentinel, rightTk.startBt,
+                               tok.lenBts - rightTk.startBt + tok.startBt, tokens, cm);
     VALIDATEP(rightType != -2, errAssignment)
     if (tok.pl1 == 0) { // a new var being defined
-        Int newBindingId = createEntity(nameOfToken(bindingTk), cm);
+        Int newBindingId = createEntity(nameOfToken(tok), cm);
         if (rightType > -1) {
             cm->entities.cont[newBindingId].typeId = rightType;
         }
-    }
-    
-    
-        
-    
-    if (tok.pl2 == 0) {
-        Int nameId = tok.pl1; 
-        pushInnodes((Node){ .tp = nodAssignLeft, .startBt = tok.startBt, .lenBts = tok.lenBts });
-        cm->i++; /* CONSUME the left assignment token */ 
-    } else {
-    
-        push(((ParseFrame){.tp = nodAssignLeft, .startNodeInd = cm->nodes.len,
-                           .sentinelToken = sentinelToken }), cm->backtrack);
-        pushInnodes((Node){.tp = nodAssignLeft, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-        assignmentWorker(tok, false, tokens, cm);
     }
 }
 
@@ -2510,9 +2496,9 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
     Int condSent = calcSentinel(condTk, condInd);
     Int startBtScope = tokens[condSent].startBt;
 
-    push(((ParseFrame){ .tp = nodWhile, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
+    push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->loopCounter }), cm->backtrack);
-    pushInnodes((Node){.tp = nodWhile,  .startBt = forTk.startBt, .lenBts = forTk.lenBts}, cm);
+    pushInnodes((Node){.tp = nodFor,  .startBt = forTk.startBt, .lenBts = forTk.lenBts}, cm);
 
     addParsedScope(sentinel, startBtScope, forTk.lenBts - startBtScope + forTk.startBt, cm);
 
@@ -2525,20 +2511,20 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
             break;
         }
         ++cm->i; /* CONSUME the assignment span marker */
-        parseAssignLeft(tok, tokens, cm);
+        parseAssignment(tok, tokens, cm);
         maybeCloseSpans(cm);
     }
     Int indBody = cm->i;
     VALIDATEP(indBody < sentinel, errLoopEmptyBody);
 
     /* loop condition */
-    push(((ParseFrame){.tp = nodWhileCond, .startNodeInd = cm->nodes.len,
+    push(((ParseFrame){.tp = nodForCond, .startNodeInd = cm->nodes.len,
                 .sentinelToken = condSent }), cm->backtrack);
-    pushInnodes((Node){.tp = nodWhileCond, .pl1 = slStmt, .pl2 = condSent - condInd,
+    pushInnodes((Node){.tp = nodForCond, .pl1 = slStmt, .pl2 = condSent - condInd,
                        .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
     cm->i = condInd + 1; /* + 1 because the expression parser needs to be 1 past the expr/token */
 
-    Int condTypeId = parseExpr(tokens[condInd], tokens, cm);
+    Int condTypeId = parseExprWorker(tokens[condInd], tokens, cm);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
 
     cm->i = indBody; /* CONSUME the for token, its condition and variable inits (if any) */
@@ -2719,11 +2705,11 @@ Returns the type of parsed expression. */
 }
 
 
-private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
+private Int parseExprWorker(Token tok, Arr(Token) tokens, Compiler* cm) {
 // Precondition: we are looking 1 past the first token of expr, which is the first parameter. Consumes 1
 // or more tokens. Handles single items also Returns the type of parsed expression
-    if (tk.tp == tokStmt || tk.tp == tokParens) {
-        if (tk.pl2 == 1) {
+    if (tok.tp == tokStmt || tok.tp == tokParens) {
+        if (tok.pl2 == 1) {
             Token singleToken = tokens[cm->i];
             if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
                 /* [stmt 1, tokInt] */
@@ -2731,11 +2717,17 @@ private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
                 return exprSingleItem(singleToken, cm);
             }
         }
-        return exprUpTo(cm->i + tk.pl2, tk.startBt, tk.lenBts, tokens, cm);
+        return exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, tokens, cm);
     } else {
-        return exprSingleItem(tk, cm);
+        return exprSingleItem(tok, cm);
     }
 }
+
+
+private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
+    parseExprWorker(tok, tokens, cm);
+}
+
 
 private void maybeCloseSpans(Compiler* cm) {
 /* When we are at the end of a function parsing a parse frame, we might be at the end of said frame
@@ -2762,7 +2754,6 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
 /* Parses anything from current cm->i to "sentinelToken" */
     while (cm->i < sentinelToken) {
         Token currTok = tokens[cm->i];
-        untt contextType = peek(cm->backtrack).tp;
         /* Pre-parse hooks that let contextful syntax forms (e.g. "if")
          detect parsing errors and maintain their state */
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, tokens, cm);
@@ -2801,31 +2792,6 @@ private void setClassToMutated(Int bindingId, Compiler* cm) {
     }
 }
 
-
-private void parseAssignRight(Token tok, Arr(Token) tokens, Compiler* cm) {
-    Int rLen = tok.pl2 - 1;
-    VALIDATEP(rLen >= 1, errAssignment)
-
-    Int sentinelToken = cm->i + tok.pl2;
-
-    Token bindingTk = tokens[cm->i];
-    Int varId = getActiveVar(bindingTk.pl2, cm);
-    Entity ent = cm->entities.cont[varId];
-    VALIDATEP(ent.class < classImmutable, errCannotMutateImmutable)
-
-    push(((ParseFrame){ .tp = nodReassign, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }), cm->backtrack);
-    pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    pushInnodes((Node){.tp = nodBinding, .pl1 = varId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-
-    cm->i++; /* CONSUME the word token before the assignment sign */
-
-    Int typeId = cm->entities.cont[varId].typeId;
-    Token rTk = tokens[cm->i];
-    Int rightTypeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
-
-    VALIDATEP(rightTypeId == typeId, errTypeMismatch)
-    setClassToMutated(varId, cm);
-}
 
 testable bool findOverload(Int typeId, Int start, Int* entityId, Compiler* cm);
 
@@ -2937,7 +2903,7 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
     Int j = cm->backtrack->len;
     while (j > -1) {
         Int pfType = cm->backtrack->cont[j].tp;
-        if (pfType == nodWhile) {
+        if (pfType == nodFor) {
             --unwindLevel;
             if (unwindLevel == 0) {
                 ParseFrame loopFrame = cm->backtrack->cont[j];
@@ -3584,7 +3550,7 @@ definitions in tl.internal.h, and every operator must have at least one function
     Int boolOfIntInt    = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     Int boolOfIntIntInt = addConcreteFunctionType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     Int boolOfFlFl      = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
-    Int boolOfFlFlFl    = addConcreteFunctionType(3, 
+    Int boolOfFlFlFl    = addConcreteFunctionType(3,
                             (Int[]){ tokDouble, tokDouble, tokDouble, tokBool}, cm);
     Int boolOfStrStr    = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokBool}, cm);
     Int boolOfBool      = addConcreteFunctionType(1, (Int[]){ tokBool, tokBool, tokBool}, cm);
@@ -3944,11 +3910,8 @@ private void parseToplevelConstants(Compiler* cm) {
     const Int len = cm->tokens.len;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignLeft) {
-            Token firstOnRightTk = toks[cm->i + tok.pl2 + 2];
-            if (toks[cm->i + 1].tp != firstOnRightTk.tp != tokFn) { 
-           && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp != tokFn) {
-            parseUpTo(cm->i + tok.pl2, toks, cm);
+        if (tok.tp == tokAssignLeft && tok.pl2 == 0) {
+            parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, toks, cm);
         } else {
             cm->i += (tok.pl2 + 1);
         }
@@ -4425,7 +4388,7 @@ Returns the typeId of the new type */
 #ifdef SAFETY
 /*
         VALIDATEP(exp->cont[j - 1] == tyeField, "not a field")
-*/ 
+*/
 #endif
         pushIntypes(exp->cont[j], cm);
     }
@@ -4505,7 +4468,7 @@ Returns the typeId of the new type */
 #ifdef SAFETY
 /*
         VALIDATEP(exp->cont[j - 1] == tydField, "not a field")
-*/ 
+*/
 #endif
         pushIntypes(exp->cont[j], cm);
     }

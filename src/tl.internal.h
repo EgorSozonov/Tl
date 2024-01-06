@@ -474,7 +474,7 @@ typedef struct { /* :Entity */
     bool hasExceptionHandler;
 } Entity;
 
-typedef struct {
+typedef struct { // :EntityImport
     untt name;  /* 8 bits of length, 24 bits of nameId */
     Int externalNameId; /* index in the "codegenText" */
     Int typeInd; /* index in the intermediary array of types that is imported alongside */
@@ -491,7 +491,7 @@ typedef struct { /* :Toplevel */
 
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
-struct ScopeChunk {
+struct ScopeChunk { // :ScopeChunk
     ScopeChunk *next;
     int len; /* length is divisible by 4 */
     Int cont[];

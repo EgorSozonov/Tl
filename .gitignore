@@ -4,6 +4,8 @@ target/*
 _bin/*
 .packages
 
+a.out
+
 docs/architecture.svg
 *.tar.xz
 !/docs/architecture.tar.xz
