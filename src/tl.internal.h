@@ -453,51 +453,42 @@ typedef struct { /* :ParseFrame */
 #define classMutableNullable   3
 #define classMutatedNullable   4
 #define classImmutable         5
-#define emitPrefix         1  /* normal singular native names */
-#define emitOverloaded     2  /* normal singular native names */
-#define emitPrefixShielded 3  /* a native name in need of shielding from target reserved word 
-                                 (by appending a "_") */
-#define emitPrefixExternal 4  /* prefix names that are emitted differently than in source code */
-#define emitInfix          5  /* infix operators that match between source code and target (e.g. +) */
-#define emitInfixExternal  6  /* infix operators that have a separate external name */
-#define emitField          7  /* emitted as field accesses, like ".length" */
-#define emitInfixDot       8  /* emitted as a "dot-call", like ".toString()" */
-#define emitNop            9  /* for unary operators that don't need to be emitted, like "," */
+
 
 typedef struct { /* :Entity */
     Int typeId;
     Int name;
-    uint16_t externalNameId;
     uint8_t class;
-    uint8_t emit;
     bool isPublic;
     bool hasExceptionHandler;
 } Entity;
 
+
 typedef struct { // :EntityImport
-    untt name;  /* 8 bits of length, 24 bits of nameId */
-    Int externalNameId; /* index in the "codegenText" */
-    Int typeInd; /* index in the intermediary array of types that is imported alongside */
+    untt name;   // 8 bits of length, 24 bits of nameId
+    Int typeInd; // index in the intermediary array of types that is imported alongside
 } EntityImport;
 
-typedef struct { /* :Toplevel */
-    /* Toplevel definitions (functions, variables, types) for parsing order and name searchability */
+
+typedef struct { // :Toplevel
+    // Toplevel definitions (functions, variables, types) for parsing order and name searchability
     Int indToken;
     Int sentinelToken;
     untt name;
-    Int entityId; /* if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities] */
+    Int entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
     bool isFunction;
 } Toplevel;
+
 
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
 struct ScopeChunk { // :ScopeChunk
     ScopeChunk *next;
-    int len; /* length is divisible by 4 */
+    int len; // length is divisible by 4
     Int cont[];
 };
 
-typedef struct { /* :ScopeStack */
+typedef struct { // :ScopeStack
     /* Either currChunk->next == NULL or currChunk->next->next == NULL */
     ScopeChunk* firstChunk;
     ScopeChunk* currChunk;

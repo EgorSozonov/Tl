@@ -1326,7 +1326,7 @@ TODO add floating-pointt literals like 0x12FA. */
     pushIntokens((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS,
                 .startBt = lx->i, .lenBts = j - lx->i }, lx);
     lx->numeric.cont = 0;
-    lx->i = j; /* CONSUME the hex number */
+    lx->i = j; // CONSUME the hex number */
 }
 
 private Int calcFloating(double* result, Int powerOfTen, Arr(Byte) source, Compiler* lx) {
@@ -1448,7 +1448,7 @@ TODO: add support for the '1.23E4' format */
         pushIntokens((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS,
                 .startBt = lx->i, .lenBts = j - lx->i }, lx);
     }
-    lx->i = j; /* CONSUME the decimal number */
+    lx->i = j; // CONSUME the decimal number */
 }
 
 
@@ -1457,7 +1457,7 @@ private void lexNumber(Arr(Byte) source, Compiler* lx) {
     Byte cByte = CURR_BT;
     if (lx->i == lx->inpLength - 1 && isDigit(cByte)) {
         pushIntokens((Token){ .tp = tokInt, .pl2 = cByte - aDigit0, .startBt = lx->i, .lenBts = 1 }, lx);
-        lx->i++; /* CONSUME the single-digit number */
+        lx->i++; // CONSUME the single-digit number */
         return;
     }
 
@@ -1514,9 +1514,9 @@ if there are no minuses). Returns True if the lexed chunk was capitalized */
         result = true;
     } else VALIDATEL(isLowercaseLetter(currBt), errWordChunkStart)
 
-    lx->i++; /* CONSUME the first letter of the word */
+    lx->i++; // CONSUME the first letter of the word */
     while (lx->i < lx->inpLength && isAlphanumeric(CURR_BT)) {
-        lx->i++; /* CONSUME alphanumeric characters */
+        lx->i++; // CONSUME alphanumeric characters */
     }
     return result;
 }
@@ -1550,19 +1550,19 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
         newToken.pl2 = 0;
         push(((BtToken){ .tp = newToken.tp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
-        ++lx->i; /* CONSUME the opening "(" of the call */
+        ++lx->i; // CONSUME the opening "(" of the call */
     } else if (lx->i < lx->inpLength && CURR_BT == aBracketLeft) {
         VALIDATEL(wordType == tokWord && wasCapitalized,  errWordWrongCall)
         newToken.pl1 = uniqueStringId;
         newToken.tp = tokTypeCall;
         push(((BtToken){ .tp = newToken.tp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
-        ++lx->i; /* CONSUME the opening "[" of the call */
+        ++lx->i; // CONSUME the opening "[" of the call */
     } else if (lx->i < lx->inpLength && CURR_BT == aDivBy) {
         VALIDATEL(wasCapitalized, errTypeOnlyTypesArity)
         newToken.tp = tokTypeName;
         newToken.pl1 = 1;
-        ++lx->i; /* CONSUME the "/" in the type func arity spec */
+        ++lx->i; // CONSUME the "/" in the type func arity spec */
     } else if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
         newToken.tp = (wasCapitalized ? tokTypeName : tokWord);
@@ -1627,7 +1627,7 @@ Examples of unacceptable words: 1asdf23, ab:cd_45 */
         if (currBt == aColon) {
             Byte nextBt = NEXT_BT;
             if (isLetter(nextBt)) {
-                lx->i++; /* CONSUME the minus */
+                lx->i++; // CONSUME the minus */
                 bool isCurrCapitalized = wordChunk(source, lx);
                 VALIDATEL(!wasCapitalized, errWordCapitalizationOrder)
                 wasCapitalized = isCurrCapitalized;
@@ -1660,7 +1660,7 @@ private void lexWord(Arr(Byte) source, Compiler* lx) {
 private void lexDot(Arr(Byte) source, Compiler* lx) {
 /* The dot is a start of a field accessor */
     if (lx->i < lx->inpLength - 1 && isLetter(NEXT_BT)) {
-        ++lx->i; /* CONSUME the dot */
+        ++lx->i; // CONSUME the dot */
         wordInternal(tokAccessor, source, lx);
     } else {
         throwExcLexer(errUnexpectedToken);
@@ -1705,7 +1705,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) {
     if (lx->i < lx->inpLength - 1) {
         Byte nextBt = NEXT_BT;
         if (isLowercaseLetter(nextBt)) {
-            ++lx->i; /* CONSUME the ":" */
+            ++lx->i; // CONSUME the ":" */
             wordInternal(tokKwArg, source, lx);
             return;
         }
@@ -1717,7 +1717,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) {
 private void lexSemicolon(Arr(Byte) source, Compiler* lx) {
     if (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).spanLevel != slScope) {
         closeStatement(lx);
-        ++lx->i;  /* CONSUME the ; */
+        ++lx->i;  // CONSUME the ; */
     }
 }
 
@@ -1774,13 +1774,13 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) {
             push(((BtToken){ .tp = tokOperator, .tokenInd = lx->tokens.len,
                         .spanLevel = slSubexpr }), lx->lexBtrack);
             pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i }, lx);
-            ++j; /* CONSUME the opening "(" of the operator call */
+            ++j; // CONSUME the opening "(" of the operator call */
         } else {
             pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i,
                          .lenBts = j - lx->i}, lx);
         }
     }
-    lx->i = j; /* CONSUME the operator */
+    lx->i = j; // CONSUME the operator */
 }
 
 private bool isOperatorTypeful(Int opType) {
@@ -1796,10 +1796,10 @@ or an arrow "=>" */
         lexOperator(source, lx); /* == */
     } else if (nextBt == aGT) {
         pushIntokens((Token){ .tp = tokMisc, .pl1 = miscArrow, .startBt = lx->i, .lenBts = 2 }, lx);
-        lx->i += 2;  /* CONSUME the arrow "=>" */
+        lx->i += 2;  // CONSUME the arrow "=>" */
     } else {
         processAssignment(0, 0, lx);
-        lx->i++; /* CONSUME the = */
+        lx->i++; // CONSUME the = */
     }
 }
 
@@ -1808,7 +1808,7 @@ private void lexLT(Arr(Byte) source, Compiler* lx) {
 /* Handles "<-" (reassignment) as well as operators */
     if ((lx->i + 1 < lx->inpLength) && NEXT_BT == aMinus) {
         processAssignment(1, 0, lx);
-        lx->i += 2; /* CONSUME the "<-" */
+        lx->i += 2; // CONSUME the "<-" */
     } else {
         lexOperator(source, lx);
     }
@@ -1817,10 +1817,10 @@ private void lexLT(Arr(Byte) source, Compiler* lx) {
 private void lexTilde(Arr(Byte) source, Compiler* lx) {
     if ((lx->i < lx->inpLength - 1) && NEXT_BT == aTilde) {
         pushIntokens((Token){ .tp = tokTilde, .pl1 = 2, .startBt = lx->i - 1, .lenBts = 2 }, lx);
-        lx->i += 2; /* CONSUME the "~~" */
+        lx->i += 2; // CONSUME the "~~" */
     } else {
         pushIntokens((Token){ .tp = tokTilde, .pl1 = 1, .startBt = lx->i - 1, .lenBts = 2 }, lx);
-        ++lx->i; /* CONSUME the "~" */
+        ++lx->i; // CONSUME the "~" */
     }
 }
 
@@ -1830,18 +1830,18 @@ the current statement unless it's inside an inline span (i.e. parens or accessor
     pushInnewlines(lx->i, lx);
     maybeBreakStatement(lx);
 
-    lx->i++;     /* CONSUME the LF */
+    lx->i++;     // CONSUME the LF */
     while (lx->i < lx->inpLength) {
         if (CURR_BT != aSpace && CURR_BT != aTab && CURR_BT != aCarrReturn) {
             break;
         }
-        lx->i++; /* CONSUME a space or tab */
+        lx->i++; // CONSUME a space or tab */
     }
 }
 
 private void lexComment(Arr(Byte) source, Compiler* lx) {
 /* All comments are of the / * comm * / form like in old-school C. */
-    lx->i += 2; /* CONSUME the "/ *" */
+    lx->i += 2; // CONSUME the "/ *" */
     if (lx->i >= lx->inpLength) {
         return;
     }
@@ -1850,13 +1850,13 @@ private void lexComment(Arr(Byte) source, Compiler* lx) {
     while (j < lx->inpLength) {
         Byte cByte = source[j];
         if (cByte == aTimes && j + 1 < lx->inpLength && NEXT_BT == aDivBy) {
-            lx->i = j + 1; /* CONSUME the comment */
+            lx->i = j + 1; // CONSUME the comment */
             return;
         } else {
             j++;
         }
     }
-    lx->i = j;  /* CONSUME the comment */
+    lx->i = j;  // CONSUME the comment */
 }
 
 private void lexMinus(Arr(Byte) source, Compiler* lx) {
@@ -1894,7 +1894,7 @@ private void lexParenLeft(Arr(Byte) source, Compiler* lx) {
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     wrapInAStatement(source, lx);
     openPunctuation(tokParens, slSubexpr, lx->i, lx);
-    lx->i++; /* CONSUME the left parenthesis */
+    lx->i++; // CONSUME the left parenthesis */
 }
 
 
@@ -1906,7 +1906,7 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) {
     BtToken top = pop(bt);
 
     setSpanLengthLexer(top.tokenInd, lx);
-    lx->i++; /* CONSUME the closing ")" */
+    lx->i++; // CONSUME the closing ")" */
 
     if (!hasValues(lx->lexBtrack)) return;
     lx->lastClosingPunctInd = startInd;
@@ -1918,7 +1918,7 @@ private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     closeStatement(lx);
     openPunctuation(tokScope, slScope, lx->i, lx);
-    ++lx->i; /* CONSUME the left bracket */
+    ++lx->i; // CONSUME the left bracket */
 }
 
 
@@ -1946,7 +1946,7 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
     }
 
     if (hasValues(bt)) { lx->lastClosingPunctInd = startInd; }
-    lx->i++; /* CONSUME the closing "}" */
+    lx->i++; // CONSUME the closing "}" */
 }
 
 
@@ -1956,10 +1956,10 @@ private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
     Byte nextBt = NEXT_BT;
     if (nextBt == aBracketRight) {
         pushIntokens((Token){ .tp = tokMisc, .pl1 = miscEmpty, .startBt = lx->i, .lenBts = 2 }, lx);
-        lx->i += 2; /* CONSUME the `[]` */
+        lx->i += 2; // CONSUME the `[]` */
     } else if (nextBt == aBracketLeft) {
         openPunctuation(tokMeta, slScope, lx->i, lx);
-        lx->i += 2; /* CONSUME the `[[` */
+        lx->i += 2; // CONSUME the `[[` */
     } else {
         throwExcLexer(errUnrecognizedByte);
     }
@@ -1984,7 +1984,7 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
         throwExcLexer(errPunctuationUnmatched);
     }
     setSpanLengthLexer(top.tokenInd, lx);
-    lx->i += consumedChars; /* CONSUME the `]` or `]]` */
+    lx->i += consumedChars; // CONSUME the `]` or `]]` */
     if (hasValues(lx->lexBtrack)) { lx->lastClosingPunctInd = startInd; }
 }
 
@@ -1995,7 +1995,7 @@ private void lexCaret(Arr(Byte) source, Compiler* lx) {
         push(((BtToken){ .tp = tokFn, .tokenInd = lx->tokens.len, .spanLevel = slScope }),
                 lx->lexBtrack);
         pushIntokens((Token){ .tp = tokFn, .pl1 = slScope, .startBt = lx->i, .lenBts = 0 }, lx);
-        lx->i += 2; /* CONSUME the `^{` */
+        lx->i += 2; // CONSUME the `^{` */
     } else {
         lexOperator(source, lx);
     }
@@ -2004,7 +2004,7 @@ private void lexCaret(Arr(Byte) source, Compiler* lx) {
 
 private void lexComma(Arr(Byte) source, Compiler* lx) {
     pushIntokens((Token){ .tp = tokMisc, .pl1 = miscComma, .startBt = lx->i, .lenBts = 1 }, lx);
-    lx->i++; /* CONSUME the `,` */
+    lx->i++; // CONSUME the `,` */
 }
 
 
@@ -2019,7 +2019,7 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) {
         setStmtSpanLength(top.tokenInd, lx);
         lx->tokens.cont[top.tokenInd].tp = tokParamList;
         pop(lx->lexBtrack);
-        lx->i++; /* CONSUME the `|` */
+        lx->i++; // CONSUME the `|` */
     }
 }
 
@@ -2028,14 +2028,14 @@ private void lexUnderscore(Arr(Byte) source, Compiler* lx) {
 /* The "_" symbol that is used for accessing arrays, lists, dictionaries */
     VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
     pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccArray, .startBt = lx->i, .lenBts = 1 }, lx);
-    ++lx->i; /* CONSUME the "_" sign */
+    ++lx->i; // CONSUME the "_" sign */
 }
 
 
 private void lexSpace(Arr(Byte) source, Compiler* lx) {
-    lx->i++; /* CONSUME the space */
+    lx->i++; // CONSUME the space */
     while (lx->i < lx->inpLength && CURR_BT == aSpace) {
-        lx->i++; /* CONSUME a space */
+        lx->i++; // CONSUME a space */
     }
 }
 
@@ -2046,7 +2046,7 @@ private void lexStringLiteral(Arr(Byte) source, Compiler* lx) {
     for (; j < lx->inpLength && source[j] != aBacktick; j++);
     VALIDATEL(j != lx->inpLength, errPrematureEndOfInput)
     pushIntokens((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
-    lx->i = j + 1; /* CONSUME the string literal, including the closing quote character */
+    lx->i = j + 1; // CONSUME the string literal, including the closing quote character */
 }
 
 
@@ -2255,7 +2255,7 @@ and adds it to the current scope */
     /* if it's a binding, it should be -1, and if overload, < -1 */
 
     Int newEntityId = cm->entities.len;
-    pushInentities(((Entity){.emit = emitPrefix, .name = name, .class = classMutableGuaranteed}), cm);
+    pushInentities(((Entity){ .name = name, .class = classMutableGuaranteed }), cm);
 
     if (nameId > -1) { /* nameId == -1 only for the built-in operators */
         if (cm->scopeStack->len > 0) {
@@ -2338,7 +2338,7 @@ private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes((Node){.tp = nodIf, .pl1 = tok.pl1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
 
     Token stmtTok = tokens[cm->i];
-    ++cm->i; /* CONSUME the stmt token */
+    ++cm->i; // CONSUME the stmt token */
     ifLeftSide(stmtTok, tokens, cm);
 }
 
@@ -2450,10 +2450,12 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int countLeftSide = tok.pl2;
     Token rightTk = tokens[cm->i + countLeftSide];
 #ifdef SAFETY
+    print("looking for ass right at %d count left %d", cm->i + countLeftSide, countLeftSide);
     VALIDATEI(rightTk.tp == tokAssignRight, iErrorInconsistentSpans)
 #endif
 
     Bool complexLeft = false;
+    Int mbNewBinding = -1;
     if (tok.pl1 == assiType) {
         VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
         typeDef(tok, false, tokens, cm);
@@ -2462,24 +2464,26 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
         complexLeft = true;
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
         assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, tokens, cm);
+    } else if (tok.pl2 == 0) { // a new var being defined
+        mbNewBinding = createEntity(nameOfToken(tok), cm);
+        pushInnodes((Node){.tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0,
+                .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     }
-    cm->i += countLeftSide; // CONSUME the left side of an assignment
+    cm->i += countLeftSide + 1; // CONSUME the left side of an assignment
     push(((ParseFrame){.tp = nodAssignRight, .startNodeInd = cm->nodes.len,
-                       .sentinelToken = cm->i + rightTk.pl2 + 1 }), cm->backtrack);
+                       .sentinelToken = cm->i + rightTk.pl2 }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignRight, .startBt = rightTk.startBt, .lenBts = rightTk.lenBts},
                         cm);
 
 
     // TODO handle mutation
-    Int sentinel = cm->i + rightTk.pl2 + 1;
+    Int sentinel = cm->i + rightTk.pl2;
+    print("here i %d", cm->i)
     Int rightType = exprHeadless(sentinel, rightTk.startBt,
                                tok.lenBts - rightTk.startBt + tok.startBt, tokens, cm);
     VALIDATEP(rightType != -2, errAssignment)
-    if (tok.pl1 == 0) { // a new var being defined
-        Int newBindingId = createEntity(nameOfToken(tok), cm);
-        if (rightType > -1) {
-            cm->entities.cont[newBindingId].typeId = rightType;
-        }
+    if (tok.pl1 == 0 && rightType > -1) {
+        cm->entities.cont[mbNewBinding].typeId = rightType;
     }
 }
 
@@ -2510,7 +2514,7 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
         if (tok.tp != tokAssignLeft) {
             break;
         }
-        ++cm->i; /* CONSUME the assignment span marker */
+        ++cm->i; // CONSUME the assignment span marker */
         parseAssignment(tok, tokens, cm);
         maybeCloseSpans(cm);
     }
@@ -2527,7 +2531,7 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
     Int condTypeId = parseExprWorker(tokens[condInd], tokens, cm);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
 
-    cm->i = indBody; /* CONSUME the for token, its condition and variable inits (if any) */
+    cm->i = indBody; // CONSUME the for token, its condition and variable inits (if any) */
 }
 
 
@@ -2621,7 +2625,7 @@ TODO: allow for core forms (but not scopes!) */
         pushInnodes((Node){.tp = nodCall, .pl1 = mbBnd, .pl2 = *arity,
                            .startBt = firstTk.startBt, .lenBts = firstTk.lenBts}, cm);
         *arity = 0;
-        cm->i++; /* CONSUME the function or operator call token */
+        cm->i++; // CONSUME the function or operator call token */
     }
 }
 
@@ -2665,13 +2669,13 @@ Precondition: we are looking 1 past the tokExpr or tokParens */
         untt tokType = cTk.tp;
 
         if (tokType == tokParens) {
-            cm->i++; /* CONSUME the parens token */
+            cm->i++; // CONSUME the parens token */
             exprSubexpr(cm->i + cTk.pl2, &arity, tokens, cm);
         } else VALIDATEP(tokType < firstSpanTokenType, errExpressionCannotContain)
         else if (tokType <= topVerbatimTokenVariant) {
             pushInnodes((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
                                 .startBt = cTk.startBt, .lenBts = cTk.lenBts }, cm);
-            cm->i++; /* CONSUME the verbatim token */
+            cm->i++; // CONSUME the verbatim token */
         } else {
             if (tokType == tokWord) {
                 Int varId = getActiveVar(cTk.pl2, cm);
@@ -2680,7 +2684,7 @@ Precondition: we are looking 1 past the tokExpr or tokParens */
             } else if (tokType == tokOperator) {
                 exprOperator(cTk, tokens, cm);
             }
-            cm->i++; /* CONSUME any leaf token */
+            cm->i++; // CONSUME any leaf token */
         }
     }
 
@@ -2694,10 +2698,11 @@ private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) token
 /* Precondition: we are looking at the first token of expr which does not have a tokStmt/tokParens header.
 Consumes 1 or more tokens.
 Returns the type of parsed expression. */
+    print("headless expr i %d sentinel %d", cm->i, sentinel);
     if (cm->i + 1 == sentinel) { /* the [stmt 1, tokInt] case */
         Token singleToken = tokens[cm->i];
         if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
-            cm->i += 1; /* CONSUME the single literal */
+            cm->i += 1; // CONSUME the single literal */
             return exprSingleItem(singleToken, cm);
         }
     }
@@ -2713,7 +2718,7 @@ private Int parseExprWorker(Token tok, Arr(Token) tokens, Compiler* cm) {
             Token singleToken = tokens[cm->i];
             if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
                 /* [stmt 1, tokInt] */
-                ++cm->i; /* CONSUME the single literal token */
+                ++cm->i; // CONSUME the single literal token */
                 return exprSingleItem(singleToken, cm);
             }
         }
@@ -2751,11 +2756,10 @@ It also always handles updating all inner frames with consumed tokens. */
 }
 
 private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
-/* Parses anything from current cm->i to "sentinelToken" */
+// Parses anything from current cm->i to "sentinelToken"
     while (cm->i < sentinelToken) {
         Token currTok = tokens[cm->i];
-        /* Pre-parse hooks that let contextful syntax forms (e.g. "if")
-         detect parsing errors and maintain their state */
+        cm->i++;
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, tokens, cm);
 
         maybeCloseSpans(cm);
@@ -2763,8 +2767,8 @@ private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
 }
 
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
-/* Consumes 0 or 1 tokens. Returns the type of what it parsed, including -1 if unknown.
-Returns -2 if didn't parse. */
+// Consumes 0 or 1 tokens. Returns the type of what it parsed, including -1 if unknown.
+// Returns -2 if didn't parse
     Int typeId = -1;
     if (tok.tp <= topVerbatimTokenVariant) {
         parseVerbatim(tok, cm);
@@ -2779,12 +2783,12 @@ Returns -2 if didn't parse. */
     } else {
         return -2;
     }
-    cm->i++; /* CONSUME the literal or ident token */
+    cm->i++; // CONSUME the literal or ident token
     return typeId;
 }
 
 private void setClassToMutated(Int bindingId, Compiler* cm) {
-/* Changes a mutable variable to mutated. Throws an exception for an immutable one */
+// Changes a mutable variable to mutated. Throws an exception for an immutable one
     Int class = cm->entities.cont[bindingId].class;
     VALIDATEP(class < classImmutable, errCannotMutateImmutable);
     if (class % 2 == 0) {
@@ -2847,7 +2851,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     push(((ParseFrame){.tp = nodReassign, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     pushInnodes((Node){.tp = nodBinding, .pl1 = leftEntityId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-    ++cm->i; /* CONSUME the binding word /
+    ++cm->i; // CONSUME the binding word /
 
     Int ind = cm->nodes.len;
     /* space for the operator and left side /
@@ -2894,7 +2898,7 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
         VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errBreakContinueInvalidDepth)
 
         unwindLevel = nextTok.pl2;
-        ++(*sentinel); /* CONSUME the Int after the "break" */
+        ++(*sentinel); // CONSUME the Int after the "break" */
     }
     if (unwindLevel == 1) {
         return -1;
@@ -2922,12 +2926,12 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
 private void parseBreakCont(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int sentinel = cm->i;
     Int loopId = breakContinue(tok, &sentinel, tokens, cm);
-    if (tok.pl1 > 0) { /* continue */
+    if (tok.pl1 > 0) { // continue
         loopId += BIG;
     }
     pushInnodes((Node){.tp = nodBreakCont, .pl1 = loopId,
                        .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    cm->i = sentinel; /* CONSUME the whole break statement */
+    cm->i = sentinel; // CONSUME the whole break statement */
 }
 
 
@@ -3045,8 +3049,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int
         EntityImport impt = impts[j];
         Int typeInd = typeIds[impt.typeInd];
         importAndActivateEntity((Entity){
-            .name = impt.name, .class = classImmutable, .typeId = typeInd, .emit = emitPrefixExternal,
-            .externalNameId = impt.externalNameId }, cm);
+            .name = impt.name, .class = classImmutable, .typeId = typeInd }, cm);
     }
     cm->countNonparsedEntities = cm->entities.len;
 }
@@ -3430,50 +3433,6 @@ testable Int addConcreteFunctionType(Int arity, Arr(Int) paramsAndReturn, Compil
     return mergeType(newInd, cm);
 }
 
-/*{{{ Browser codegen constants */
-
-const char codegenText[] = "returnifelsefunctionwhileconstletbreakcontinuetruefalseconsole.logfor"
-                           "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertlo";
-const Int codegenStrings[] = {
-    0,     6,   8,  12,  20, /*function */
-    25,   30,  33,  38,  46, /*continue */
-    50,   55,  66,  69,  77, /*toString */
-    85,   92,  98, 101, 107, /*length */
-    115, 117, 119, 122, 127, /*alert */
-    129
-};
-
-#define cgStrReturn      0
-#define cgStrIf          1
-#define cgStrElse        2
-#define cgStrFunction    3
-#define cgStrWhile       4
-
-#define cgStrConst       5
-#define cgStrLet         6
-#define cgStrBreak       7
-#define cgStrContinue    8
-#define cgStrTrue        9
-
-#define cgStrFalse      10
-#define cgStrConsoleLog 11
-#define cgStrFor        12
-#define cgStrToStr      13
-#define cgStrExpon      14
-
-#define cgStrPi         15
-#define cgStrE          16
-#define cgStrNotEqual   17
-#define cgStrLength     18
-#define cgStrAbsolute   19
-
-#define cgStrLogicalAnd 20
-#define cgStrLogicalOr  21
-#define cgStrEquality   22
-#define cgStrAlert      23
-#define cgStrLo         24
-
-/*}}}*/
 
 private void buildStandardStrings(Compiler* lx) {
 /* Inserts all strings from the standardText into the string table and the hash table
@@ -3535,18 +3494,18 @@ private void buildPreludeTypes(Compiler* cm) {
     cm->activeBindings[stToNameId(strTu)] = typeIndTu;
 }
 
-private void buildOperator(Int operId, Int typeId, uint8_t emitAs, uint16_t externalNameId, Compiler* cm) {
-/* Creates an entity, pushes it to [rawOverloads] and activates its name */
+
+private void buildOperator(Int operId, Int typeId, Compiler* cm) {
+// Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
-    pushInentities((Entity){
-        .typeId = typeId, .emit = emitAs, .class = classImmutable, .externalNameId = externalNameId}, cm);
+    pushInentities((Entity){ .typeId = typeId, .class = classImmutable }, cm);
     addRawOverload(operId, getFirstParamType(typeId, cm), newEntityId, cm);
 }
 
 private void buildOperators(Compiler* cm) {
-/* Operators are the first-ever functions to be defined. This function builds their [types],
-[functions] and overload counts. The order must agree with the order of operator
-definitions in tl.internal.h, and every operator must have at least one function defined. */
+// Operators are the first-ever functions to be defined. This function builds their [types],
+// [functions] and overload counts. The order must agree with the order of operator
+// definitions in tl.internal.h, and every operator must have at least one function defined
     Int boolOfIntInt    = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     Int boolOfIntIntInt = addConcreteFunctionType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     Int boolOfFlFl      = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
@@ -3567,81 +3526,81 @@ definitions in tl.internal.h, and every operator must have at least one function
     Int flOfFlFl        = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     Int flOfFl          = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
 
-    buildOperator(opBitwiseNeg, boolOfBool, emitPrefix, 0, cm); /* dummy */
-    buildOperator(opNotEqual,   boolOfIntInt, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opNotEqual,   boolOfFlFl, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opNotEqual,   boolOfStrStr, emitInfixExternal, cgStrNotEqual, cm);
-    buildOperator(opBoolNeg,    boolOfBool, emitPrefix, 0, cm);
-    buildOperator(opSize,       intOfStr, emitField, cgStrLength, cm);
-    buildOperator(opSize,       intOfInt, emitPrefixExternal, cgStrAbsolute, cm);
-    buildOperator(opToString,   strOfInt, emitPrefixExternal, 0, cm);
-    buildOperator(opToString,   strOfBool, emitPrefixExternal, 0, cm);
-    buildOperator(opToString,   strOfFloat, emitPrefixExternal, 0, cm);
-    buildOperator(opRemainder,  intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opBitwiseAnd, boolOfBoolBool, 0, 0, cm); /* dummy */
-    buildOperator(opBoolAnd,    boolOfBoolBool, emitInfixExternal, cgStrLogicalAnd, cm);
-    buildOperator(opPtr,        boolOfBoolBool, emitPrefixExternal, cgStrLogicalAnd, cm); /* dummy */
-    buildOperator(opIsNull,     boolOfBoolBool, 0, 0, cm); /* dummy */
-    buildOperator(opTimesExt,   flOfFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opTimes,      intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opTimes,      flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opIncrement,  intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opPlusExt,    strOfStrStr, 0, 0, cm); /* dummy */
-    buildOperator(opPlus,       intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opPlus,       flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opPlus,       strOfStrStr, emitInfix, 0, cm);
-    buildOperator(opDecrement,  intOfIntInt, emitInfix, 0, cm); /* dummy */
-    buildOperator(opMinusExt,   intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opMinus,      intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opMinus,      flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opDivByExt,   intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntersect,  intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opDivBy,      intOfIntInt, emitInfix, 0, cm);
-    buildOperator(opDivBy,      flOfFlFl, emitInfix, 0, cm);
-    buildOperator(opBitShiftL,  intOfFlFl, 0, 0, cm);  /* dummy */
-    buildOperator(opLTEQ,       boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opLTEQ,       boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opLTEQ,       boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opComparator, intOfIntInt, 0, 0, cm);  /* dummy */
-    buildOperator(opComparator, intOfFlFl, 0, 0, cm);  /* dummy */
-    buildOperator(opComparator, intOfStrStr, 0, 0, cm);  /* dummy */
-    buildOperator(opLessTh,     boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opLessTh,     boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opLessTh,     boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opRefEquality, boolOfIntInt, emitInfixExternal, cgStrEquality, cm); /* dummy */
-    buildOperator(opEquality,   boolOfIntInt, emitInfixExternal, cgStrEquality, cm);
-    buildOperator(opIntervalBo, boolOfIntIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalBo, boolOfFlFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalR,  boolOfIntIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalR,  boolOfFlFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalL,  boolOfIntIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalL,  boolOfFlFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opBitShiftR,  boolOfBoolBool, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalEx, boolOfIntIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opIntervalEx, boolOfFlFlFl, 0, 0, cm); /* dummy */
-    buildOperator(opGTEQ,       boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opGTEQ,       boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opGTEQ,       boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opGreaterTh,  boolOfIntInt, emitInfix, 0, cm);
-    buildOperator(opGreaterTh,  boolOfFlFl, emitInfix, 0, cm);
-    buildOperator(opGreaterTh,  boolOfStrStr, emitInfix, 0, cm);
-    buildOperator(opNullCoalesce, intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opQuestionMark, intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opBitwiseXor, intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opExponent,  intOfIntInt, emitPrefixExternal, cgStrExpon, cm);
-    buildOperator(opExponent,  flOfFlFl, emitPrefixExternal, cgStrExpon, cm);
-    buildOperator(opBitwiseOr, intOfIntInt, 0, 0, cm); /* dummy */
-    buildOperator(opBoolOr,    flOfFl, 0, 0, cm); /* dummy */
+    buildOperator(opBitwiseNeg,   boolOfBool, cm); /* dummy */
+    buildOperator(opNotEqual,     boolOfIntInt, cm);
+    buildOperator(opNotEqual,     boolOfFlFl, cm);
+    buildOperator(opNotEqual,     boolOfStrStr, cm);
+    buildOperator(opBoolNeg,      boolOfBool, cm);
+    buildOperator(opSize,         intOfStr, cm);
+    buildOperator(opSize,         intOfInt, cm);
+    buildOperator(opToString,     strOfInt, cm);
+    buildOperator(opToString,     strOfBool, cm);
+    buildOperator(opToString,     strOfFloat, cm);
+    buildOperator(opRemainder,    intOfIntInt, cm);
+    buildOperator(opBitwiseAnd,   boolOfBoolBool, cm); /* dummy */
+    buildOperator(opBoolAnd,      boolOfBoolBool, cm);
+    buildOperator(opPtr,          boolOfBoolBool, cm); /* dummy */
+    buildOperator(opIsNull,       boolOfBoolBool, cm); /* dummy */
+    buildOperator(opTimesExt,     flOfFlFl, cm); /* dummy */
+    buildOperator(opTimes,        intOfIntInt, cm);
+    buildOperator(opTimes,        flOfFlFl, cm);
+    buildOperator(opIncrement,    intOfIntInt, cm);
+    buildOperator(opPlusExt,      strOfStrStr, cm); /* dummy */
+    buildOperator(opPlus,         intOfIntInt, cm);
+    buildOperator(opPlus,         flOfFlFl, cm);
+    buildOperator(opPlus,         strOfStrStr, cm);
+    buildOperator(opDecrement,    intOfIntInt, cm); /* dummy */
+    buildOperator(opMinusExt,     intOfIntInt, cm); /* dummy */
+    buildOperator(opMinus,        intOfIntInt, cm);
+    buildOperator(opMinus,        flOfFlFl, cm);
+    buildOperator(opDivByExt,     intOfIntInt, cm); /* dummy */
+    buildOperator(opIntersect,    intOfIntInt, cm); /* dummy */
+    buildOperator(opDivBy,        intOfIntInt, cm);
+    buildOperator(opDivBy,        flOfFlFl, cm);
+    buildOperator(opBitShiftL,    intOfFlFl, cm);  /* dummy */
+    buildOperator(opLTEQ,         boolOfIntInt, cm);
+    buildOperator(opLTEQ,         boolOfFlFl, cm);
+    buildOperator(opLTEQ,         boolOfStrStr, cm);
+    buildOperator(opComparator,   intOfIntInt, cm);  /* dummy */
+    buildOperator(opComparator,   intOfFlFl, cm);  /* dummy */
+    buildOperator(opComparator,   intOfStrStr, cm);  /* dummy */
+    buildOperator(opLessTh,       boolOfIntInt, cm);
+    buildOperator(opLessTh,       boolOfFlFl, cm);
+    buildOperator(opLessTh,       boolOfStrStr, cm);
+    buildOperator(opRefEquality,  boolOfIntInt, cm); /* dummy */
+    buildOperator(opEquality,     boolOfIntInt, cm);
+    buildOperator(opIntervalBo,   boolOfIntIntInt, cm); /* dummy */
+    buildOperator(opIntervalBo,   boolOfFlFlFl, cm); /* dummy */
+    buildOperator(opIntervalR,    boolOfIntIntInt, cm); /* dummy */
+    buildOperator(opIntervalR,    boolOfFlFlFl, cm); /* dummy */
+    buildOperator(opIntervalL,    boolOfIntIntInt, cm); /* dummy */
+    buildOperator(opIntervalL,    boolOfFlFlFl, cm); /* dummy */
+    buildOperator(opBitShiftR,    boolOfBoolBool, cm); /* dummy */
+    buildOperator(opIntervalEx,   boolOfIntIntInt, cm); /* dummy */
+    buildOperator(opIntervalEx,   boolOfFlFlFl, cm); /* dummy */
+    buildOperator(opGTEQ,         boolOfIntInt, cm);
+    buildOperator(opGTEQ,         boolOfFlFl, cm);
+    buildOperator(opGTEQ,         boolOfStrStr, cm);
+    buildOperator(opGreaterTh,    boolOfIntInt, cm);
+    buildOperator(opGreaterTh,    boolOfFlFl, cm);
+    buildOperator(opGreaterTh,    boolOfStrStr, cm);
+    buildOperator(opNullCoalesce, intOfIntInt, cm); /* dummy */
+    buildOperator(opQuestionMark, intOfIntInt, cm); /* dummy */
+    buildOperator(opBitwiseXor,   intOfIntInt, cm); /* dummy */
+    buildOperator(opExponent,     intOfIntInt, cm);
+    buildOperator(opExponent,     flOfFlFl, cm);
+    buildOperator(opBitwiseOr,    intOfIntInt, cm); /* dummy */
+    buildOperator(opBoolOr,       flOfFl, cm); /* dummy */
 }
 
 private void createBuiltins(Compiler* cm) {
-/* Entities and functions for the built-in operators, types and functions */
+// Entities and functions for the built-in operators, types and functions
     buildStandardStrings(cm);
     buildOperators(cm);
 }
 
 private void importPrelude(Compiler* cm) {
-/* Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase */
+// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
     Int strToVoid = addConcreteFunctionType(1, (Int[]){tokMisc, tokString}, cm);
     Int intToVoid = addConcreteFunctionType(1, (Int[]){tokMisc, tokInt}, cm);
@@ -3650,22 +3609,16 @@ private void importPrelude(Compiler* cm) {
     Int intOfFl = addConcreteFunctionType(1, (Int[]){ tokDouble, tokInt}, cm);
 
     EntityImport imports[6] =  {
-        (EntityImport) { .name = nameOfStandard(strMathPi), .externalNameId = cgStrPi,
-            .typeInd = 0},
-        (EntityImport) { .name = nameOfStandard(strMathE), .externalNameId = cgStrE,
-            .typeInd = 0},
-        (EntityImport) { .name = nameOfStandard(strPrint), .externalNameId = cgStrConsoleLog,
-            .typeInd = 1},
-        (EntityImport) { .name = nameOfStandard(strPrint), .externalNameId = cgStrConsoleLog,
-            .typeInd = 2},
-        (EntityImport) { .name = nameOfStandard(strPrint), .externalNameId = cgStrConsoleLog,
-            .typeInd = 3},
-        (EntityImport) { .name = nameOfStandard(strPrintErr), .externalNameId = cgStrAlert,
-            .typeInd = 1}
-           /* TODO functions for casting (int, double, unsigned) */
+        (EntityImport) { .name = nameOfStandard(strMathPi), .typeInd = 0},
+        (EntityImport) { .name = nameOfStandard(strMathE), .typeInd = 0},
+        (EntityImport) { .name = nameOfStandard(strPrint), .typeInd = 1},
+        (EntityImport) { .name = nameOfStandard(strPrint), .typeInd = 2},
+        (EntityImport) { .name = nameOfStandard(strPrint), .typeInd = 3},
+        (EntityImport) { .name = nameOfStandard(strPrintErr), .typeInd = 1}
+           // TODO functions for casting (int, double, unsigned)
     };
-    /* These base types occupy the first places in the stringTable and in the types table.
-     So for them nameId == typeId, unlike type funcs like L(ist) and A(rray) */
+    // These base types occupy the first places in the stringTable and in the types table.
+    // So for them nameId == typeId, unlike type funcs like L(ist) and A(rray)
     for (Int j = strInt; j <= strVoid; j++) {
         cm->activeBindings[j - strInt + countOperators] = j - strInt;
     }
@@ -3677,12 +3630,12 @@ private void importPrelude(Compiler* cm) {
 }
 
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
-/* A proto compiler contains just the built-in definitions and tables. This fn copies it and
-performs initialization. Post-condition: i has been incremented by the standardText size */
+// A proto compiler contains just the built-in definitions and tables. This fn copies it and
+// performs initialization. Post-condition: i has been incremented by the standardText size
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
-        /* this assumes that the source code is prefixed with the "standardText" */
+        // this assumes that the source code is prefixed with the "standardText"
         .i = sizeof(standardText) - 1, .langDef = proto->langDef,
         .sourceCode = prepareInput((const char *)sourceCode->cont, a),
         .inpLength = sourceCode->len + sizeof(standardText) - 1,
@@ -3699,7 +3652,7 @@ performs initialization. Post-condition: i has been incremented by the standardT
 }
 
 testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
-/* Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done */
+// Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
     if (lx->wasError) {
         return;
     }
@@ -3761,21 +3714,21 @@ private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) {
 }
 
 private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scratch, Compiler* cm) {
-/* Validates the overloads for a name for non-intersecting via their outer types and full types
-1. For parameter outer types, their arities must be unique and not match any other outer types
-2. A zero-arity function, if any, must be unique
-3. For any run of types with same outerType, all refs must be either to concrete entities or
-   to [monoIds] (no mixing within same outerType)
-4. For refs to concrete entities, full types (which are concrete) must be different
-5. outerTypes with refs to [monoIds] must not intersect amongst themselves */
+// Validates the overloads for a name for non-intersecting via their outer types and full types
+// 1. For parameter outer types, their arities must be unique and not match any other outer types
+// 2. A zero-arity function, if any, must be unique
+// 3. For any run of types with same outerType, all refs must be either to concrete entities or
+//    to [monoIds] (no mixing within same outerType)
+// 4. For refs to concrete entities, full types (which are concrete) must be different
+// 5. outerTypes with refs to [monoIds] must not intersect amongst themselves
     Arr(Int) ov = cm->overloads.cont;
     Int start = listId + 1;
     Int outerSentinel = start + countOverloads;
     Int prevParamOuter = -1;
     Int o = start;
     for (; o < outerSentinel && ov[o] < -1; o++) {
-        /* These are the param outer types, like the outer of "[U/1]U(Int)". The values are
-         (-arity - 1) */
+        // These are the param outer types, like the outer of "[U/1]U(Int)". The values are
+        // (-arity - 1)
         VALIDATEP(ov[o] != prevParamOuter, errTypeOverloadsIntersect)
         prevParamOuter = ov[o];
     }
@@ -3862,12 +3815,12 @@ Precondition: [rawOverloads] contain twoples of (typeId ref) (yes, "twople" = tu
 }
 
 testable void createOverloads(Compiler* cm) {
-/* Fills [overloads] from [rawOverloads]. Replaces all indices in
-[activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously) */
+// Fills [overloads] from [rawOverloads]. Replaces all indices in
+// [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
     StackInt* scratch = createStackint32_t(16, cm->aTmp);
     cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4, cm->a);
-    /* Each overload requires 3x4 = 12 bytes for the triple of (outerType typeId entityId).
-     Plus you need an int per overloaded name to hold the length of the overloads for that name. */
+    // Each overload requires 3x4 = 12 bytes for the triple of (outerType typeId entityId).
+    // Plus you need an int per overloaded name to hold the length of the overloads for that name
 
     cm->overloads.len = cm->countOverloads;
     for (Int j = 0; j < countOperators; j++) {
@@ -3895,7 +3848,7 @@ their bindings to the scope */
     while (cm->i < len) {
         Token tok = toks[cm->i];
         if (tok.tp == tokAssignLeft && toks[cm->i + 1].tp == tokTypeName) {
-            ++cm->i; /* CONSUME the assignment token */
+            ++cm->i; // CONSUME the assignment token */
             typeDef(tok, false, toks, cm);
         } else {
             cm->i += (tok.pl2 + 1);
@@ -3955,13 +3908,13 @@ private void validateOverloadsFull(Compiler* cm) {
 #endif
 
 testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Compiler* cm) {
-/* Parses a function signature. Emits no nodes, adds data to [toplevels], [functions], [overloads].
-Pre-condition: we are 1 token past the tokAssignLeft. */
+// Parses a function signature. Emits no nodes, adds data to [toplevels], [functions], [overloads].
+// Pre-condition: we are 1 token past the tokAssignLeft
     Int fnStartTokenId = cm->i - 1;
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
 
     Int fnNameId = name & LOWER24BITS;
-    cm->i++; /* CONSUME the function name token */
+    cm->i++; // CONSUME the function name token */
 
     Int tentativeTypeInd = cm->types.len;
     pushIntypes(0, cm); /* will overwrite it with the type's length once we know it */
@@ -3972,7 +3925,7 @@ Pre-condition: we are 1 token past the tokAssignLeft. */
         VALIDATEP(returnTypeId > -1, errUnknownType)
         pushIntypes(returnTypeId, cm);
 
-        cm->i++; /* CONSUME the function return type token */
+        cm->i++; // CONSUME the function return type token */
     } else {
         pushIntypes(tokMisc, cm); /* Misc stands for the Void type */
     }
@@ -3981,7 +3934,7 @@ Pre-condition: we are 1 token past the tokAssignLeft. */
     Int paramsTokenInd = cm->i;
     Token parens = cm->tokens.cont[paramsTokenInd];
     Int paramsSentinel = cm->i + parens.pl2 + 1;
-    cm->i++; /* CONSUME the parens token for the param list */
+    cm->i++; // CONSUME the parens token for the param list */
 
     Int fnEntityId = cm->entities.len;
 
@@ -3990,7 +3943,7 @@ Pre-condition: we are 1 token past the tokAssignLeft. */
     while (cm->i < paramsSentinel) {
         Token paramName = cm->tokens.cont[cm->i];
         VALIDATEP(paramName.tp == tokWord, errFnNameAndParams)
-        ++cm->i; /* CONSUME a param name */
+        ++cm->i; // CONSUME a param name */
         ++arity;
 
         VALIDATEP(cm->i < paramsSentinel, errFnNameAndParams)
@@ -4004,15 +3957,14 @@ Pre-condition: we are 1 token past the tokAssignLeft. */
             firstParamType = paramTypeId;
         }
 
-        ++cm->i; /* CONSUME the param's type name */
+        ++cm->i; // CONSUME the param's type name */
     }
 
     cm->types.cont[tentativeTypeInd] = arity + 1;
 
     Int uniqueTypeId = mergeType(tentativeTypeInd, cm);
 
-    pushInentities(((Entity){.emit = emitOverloaded, .class = classImmutable,
-                            .typeId = uniqueTypeId}), cm);
+    pushInentities(((Entity){ .class = classImmutable, .typeId = uniqueTypeId}), cm);
     addRawOverload(fnNameId, firstParamType, fnEntityId, cm);
 
     pushIntoplevels((Toplevel){.indToken = fnStartTokenId, .sentinelToken = fnSentinelToken,
@@ -4041,21 +3993,21 @@ The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... )
     addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
 
     Int paramsSentinel = cm->i + fnTk.pl2 + 1;
-    cm->i++; /* CONSUME the parens token for the param list */
+    cm->i++; // CONSUME the parens token for the param list */
     while (cm->i < paramsSentinel) {
         Token paramName = toks[cm->i];
         Int newEntityId = createEntity(nameOfToken(paramName), cm);
-        ++cm->i; /* CONSUME the param name */
+        ++cm->i; // CONSUME the param name */
         Int typeId = cm->activeBindings[paramName.pl2];
         cm->entities.cont[newEntityId].typeId = typeId;
 
         Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId, .startBt = paramName.startBt, .lenBts = paramName.lenBts };
 
-        ++cm->i; /* CONSUME the param's type name */
+        ++cm->i; // CONSUME the param's type name */
         pushInnodes(paramNode, cm);
     }
 
-    ++cm->i; /* CONSUME the "=" sign */
+    ++cm->i; // CONSUME the "=" sign */
     parseUpTo(fnSentinel, toks, cm);
 }
 
@@ -4085,20 +4037,19 @@ Result: the overload counts and the list of toplevel functions to parse */
             parseFnSignature(tok, true, name, cm);
             cm->i = sentinel;
         } else {
-            cm->i += (tok.pl2 + 1);  /* CONSUME the whole non-function span */
+            cm->i += (tok.pl2 + 1);  // CONSUME the whole non-function span */
         }
     }
 }
 
 /* Must agree in order with node types in tl.internal.h */
 const char* nodeNames[] = {
-    "[]", "Int", "Long", "Double", "Bool", "String", "~", "_",
+    "[]", "Int", "Long", "Double", "Bool", "String", "~", "misc",
     "id", "call", "binding",
-    "(:", "expr", "assign", ":=",
-    "alias", "assert", "assertDbg", "await", "break", "catch", "continue",
-    "defer", "embed", "export", "import", "fnDef", "interface",
-    "lambda", "meta", "package", "return", "try", "yield",
-    "ifClause", "while", "whileCond", "if", "impl", "match"
+    "{}", "expr", "...=", "=...", "_",
+    "alias", "assert", "breakCont", "catch", "defer",
+    "import", "^{}", "iface", "[[]]", "return", "try",
+    "for", "forCond", "if", "ei", "impl", "match"
 };
 
 
@@ -4123,39 +4074,6 @@ private void printType(Int typeInd, Compiler* cm) {
     print(")");
 }
 
-
-testable void printParser(Compiler* cm, Arena* a) {
-    if (cm->wasError) {
-        printf("Error: ");
-        printString(cm->errMsg);
-    }
-    Int indent = 0;
-    Stackint32_t* sentinels = createStackint32_t(16, a);
-    for (int i = 0; i < cm->nodes.len; i++) {
-        Node nod = cm->nodes.cont[i];
-        for (int m = sentinels->len - 1; m > -1 && sentinels->cont[m] == i; m--) {
-            popint32_t(sentinels);
-            indent--;
-        }
-        if (i < 10) printf(" ");
-        printf("%d: ", i);
-        for (int j = 0; j < indent; j++) {
-            printf("  ");
-        }
-        if (nod.tp == nodCall) {
-            printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
-            printType(cm->entities.cont[nod.pl1].typeId, cm);
-        } else if (nod.pl1 != 0 || nod.pl2 != 0) {
-            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
-        } else {
-            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt, nod.lenBts);
-        }
-        if (nod.tp >= nodScope && nod.pl2 > 0) {
-            pushint32_t(i + nod.pl2 + 1, sentinels);
-            indent++;
-        }
-    }
-}
 
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
@@ -4184,8 +4102,8 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
     return parseMain(cm, a);
 }
 
-/*}}}*/
-/*{{{ Types */
+//}}}
+//{{{ Types
 /*{{{ Type utils */
 
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
@@ -4604,7 +4522,7 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
     StackInt* params = cm->typeStack;
     while (cm->i < sentinel) {
         Token cTk = cm->tokens.cont[cm->i];
-        ++cm->i; /* CONSUME the current token */
+        ++cm->i; // CONSUME the current token */
         if (cTk.tp == tokParens) {
             /* TODO sum types */
             Int countFields = typeCountFieldsInStruct(cTk.pl2, cm);
@@ -4706,14 +4624,14 @@ Precondition: we are 1 past the assignment left token */
 
     Int sentinel = cm->i + assignTk.pl2;
     Token nameTk = toks[cm->i];
-    ++cm->i; /* CONSUME the type name */
+    ++cm->i; // CONSUME the type name */
 
     VALIDATEP(cm->i < sentinel && toks[cm->i].tp == tokParens, errTypeDefError)
-    ++cm->i; /* CONSUME the parens token */
+    ++cm->i; // CONSUME the parens token */
     /*
     Token firstTok = toks[cm->i];
     if (firstTok.tp == tokBrackets) {
-        ++cm->i; /* CONSUME the brackets token /
+        ++cm->i; // CONSUME the brackets token /
         typeDefReadParams(firstTok, params, cm);
     }
     */
@@ -4731,15 +4649,15 @@ Precondition: we are 1 past the assignment left token */
 }
 
 /*}}}*/
-/*{{{ Overloads, type check & resolve */
+//{{{ Overloads, type check & resolve
 
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
 
 private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
-/* Gets the type of the first param of a function */
+// Gets the type of the first param of a function
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
 
-    return cm->types.cont[funcTypeId + 3 + hdr.arity]; /* +3 skips the type length, type tag and name */
+    return cm->types.cont[funcTypeId + 3 + hdr.arity]; // +3 skips the type length, type tag and name
 }
 
 private bool isFunctionWithParams(Int typeId, Compiler* cm) {
@@ -4748,8 +4666,8 @@ private bool isFunctionWithParams(Int typeId, Compiler* cm) {
 
 private Int overloadOnPlateau(Int outerType, Int ind, Int typeId, Int ovInd, Int countOvs,
                                   Compiler* cm) {
-/* Find the inclusive left and right indices of a plateau (same outer type) in [overloads].
-Returns index of the reference in [overloads], or -1 if not match was found */
+// Find the inclusive left and right indices of a plateau (same outer type) in [overloads].
+// Returns index of the reference in [overloads], or -1 if not match was found
     Arr(Int) overs = cm->overloads.cont;
     Int j = ind - 1;
     while (j > ovInd && overs[j] == outerType) {
@@ -5288,7 +5206,44 @@ testable void printLexer(Compiler* lx) {
 }
 
 /*}}}*/
-/*{{{ Types testing */
+//{{{ Parser testing
+
+testable void printParser(Compiler* cm, Arena* a) {
+    if (cm->wasError) {
+        printf("Error: ");
+        printString(cm->errMsg);
+    }
+    Int indent = 0;
+    Stackint32_t* sentinels = createStackint32_t(16, a);
+    for (int i = 0; i < cm->nodes.len; i++) {
+        Node nod = cm->nodes.cont[i];
+        for (int m = sentinels->len - 1; m > -1 && sentinels->cont[m] == i; m--) {
+            popint32_t(sentinels);
+            indent--;
+        }
+        if (i < 10) printf(" ");
+        printf("%d: ", i);
+        for (int j = 0; j < indent; j++) {
+            printf("  ");
+        }
+        if (nod.tp == nodCall) {
+            printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
+            printType(cm->entities.cont[nod.pl1].typeId, cm);
+        } else if (nod.pl1 != 0 || nod.pl2 != 0) {
+            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
+        } else {
+            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt, nod.lenBts);
+        }
+        if (nod.tp >= nodScope && nod.pl2 > 0) {
+            pushint32_t(i + nod.pl2 + 1, sentinels);
+            indent++;
+        }
+    }
+}
+
+//}}}
+//{{{ Types testing
+
 private void typePrintGenElt(Int v) {
     Int upper = (v >> 24) & 0xFF;
     Int lower = v & LOWER24BITS;

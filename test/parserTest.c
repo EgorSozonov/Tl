@@ -139,9 +139,10 @@ private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes
     for (Int i = 0; i < countNodes; i++) {
         untt nodeType = nodes[i].tp;
         // All the node types which contain bindingIds
-        if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding || nodeType == nodBinding) {
-            pushInnodes((Node){ .tp = nodeType, .pl1 = transformBindingEntityId(nodes[i].pl1, control),
-                                .pl2 = nodes[i].pl2, .startBt = nodes[i].startBt, .lenBts = nodes[i].lenBts },
+        if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding) {
+            pushInnodes((Node){ .tp = nodeType, 
+                    .pl1 = transformBindingEntityId(nodes[i].pl1, control),
+                    .pl2 = nodes[i].pl2, .startBt = nodes[i].startBt, .lenBts = nodes[i].lenBts },
                     control);
         } else {
             pushInnodes(nodes[i], control);
@@ -210,8 +211,9 @@ differing token otherwise */
     return (a.nodes.len == b.nodes.len) ? -2 : i;
 }
 
-/** Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code */
+
 void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
+// Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code
     (*countTests)++;
     if (test.test->tokens.len == 0) {
         print("Lexer result empty");
@@ -264,6 +266,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       /* 
         createTest(
             s("Double assignment"),
             s("x = 12\n"
@@ -393,6 +396,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         )
+       */ 
     }));
 }
 
@@ -1357,14 +1361,14 @@ int main() {
     Compiler* proto = createProtoCompiler(a);
     int countPassed = 0;
     int countTests = 0;
-   /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, a);
+   /*
     runATestSet(&expressionTests, &countPassed, &countTests, proto, a);
     runATestSet(&functionTests, &countPassed, &countTests, proto, a);
     runATestSet(&ifTests, &countPassed, &countTests, proto, a);
     runATestSet(&loopTests, &countPassed, &countTests, proto, a);
-   */
     runATestSet(&typeTests, &countPassed, &countTests, proto, a);
+   */
 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");

@@ -1,8 +1,9 @@
 clear
-gcc -g3 --std=c2x -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
+gcc -g3 --std=c2x -o $DEBUGDIR/tl/parserTest \
+-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=int-conversion -Werror=implicit-int \
 -Werror=incompatible-pointer-types \
 -iquote src -iquote test  \
 test/parserTest.c src/tl.c \
--DPARSER_TEST -DTEST -DSAFETY \
--lm
+-DPARSER_TEST -DTEST -DSAFETY -DTRACE \
+-lm && $DEBUGDIR/tl/parserTest
