@@ -2236,7 +2236,7 @@ _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Comp
 #define throwExcParser(errMsg, cm) throwExcParser0(errMsg, __LINE__, cm)
 
 private Int getActiveVar(Int nameId, Compiler* cm) {
-/* Resolves an active bindings, throws if it's not active */
+// Resolves an active bindings, throws if it's not active
     Int rawValue = cm->activeBindings[nameId];
     VALIDATEP(rawValue > -1 && rawValue < BIG, errUnknownBinding)
     return rawValue;
@@ -2246,9 +2246,10 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
     return cm->entities.cont[varId].typeId;
 }
 
+
 private Int createEntity(untt name, Compiler* cm) {
-/* Validates a new binding (that it is unique), creates an entity for it,
-and adds it to the current scope */
+// Validates a new binding (that it is unique), creates an entity for it,
+// and adds it to the current scope
     Int nameId = name & LOWER24BITS;
     Int mbBinding = cm->activeBindings[nameId];
     VALIDATEP(mbBinding < 0, errAssignmentShadowing)
@@ -2267,9 +2268,10 @@ and adds it to the current scope */
 }
 
 private Int calcSentinel(Token tok, Int tokInd) {
-/* Calculates the sentinel token for a token at a specific index */
+// Calculates the sentinel token for a token at a specific index
     return (tok.tp >= firstSpanTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
+
 
 testable void printName(Int name, Compiler* cm) {
     untt unsign = (untt)name;
@@ -2450,10 +2452,8 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
     Int countLeftSide = tok.pl2;
     Token rightTk = tokens[cm->i + countLeftSide];
 #ifdef SAFETY
-    print("looking for ass right at %d count left %d", cm->i + countLeftSide, countLeftSide);
     VALIDATEI(rightTk.tp == tokAssignRight, iErrorInconsistentSpans)
 #endif
-
     Bool complexLeft = false;
     Int mbNewBinding = -1;
     if (tok.pl1 == assiType) {
@@ -2465,8 +2465,9 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
         assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, tokens, cm);
     } else if (tok.pl2 == 0) { // a new var being defined
-        mbNewBinding = createEntity(nameOfToken(tok), cm);
-        pushInnodes((Node){.tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0,
+        untt newName = ((untt)tok.lenBts << 24) + (untt)tok.pl1;
+        mbNewBinding = createEntity(newName, cm);
+        pushInnodes((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0,
                 .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     }
     cm->i += countLeftSide + 1; // CONSUME the left side of an assignment
@@ -2478,7 +2479,6 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
 
     // TODO handle mutation
     Int sentinel = cm->i + rightTk.pl2;
-    print("here i %d", cm->i)
     Int rightType = exprHeadless(sentinel, rightTk.startBt,
                                tok.lenBts - rightTk.startBt + tok.startBt, tokens, cm);
     VALIDATEP(rightType != -2, errAssignment)
@@ -2646,16 +2646,17 @@ or an operand. Consumes no tokens. */
         pushInnodes((Node){ .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1,
                             .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     } else {
-        pushInnodes((Node){ .tp = nodId, .pl1 = -bindingId - 2, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+        pushInnodes((Node){ .tp = nodId, .pl1 = -bindingId - 2, 
+                            .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     }
 }
 
 testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
-/* The general "big" expression parser. Parses an expression whether there is a token or not.
-Starts from cm->i and goes up to the sentinel token. Returns the expression's type
-Precondition: we are looking 1 past the tokExpr or tokParens */
+// The general "big" expression parser. Parses an expression whether there is a token or not.
+// Starts from cm->i and goes up to the sentinel token. Returns the expression's type
+// Precondition: we are looking 1 past the tokExpr or tokParens
     Int arity = 0;
     Int startNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = sentinelToken }),
@@ -2695,11 +2696,10 @@ Precondition: we are looking 1 past the tokExpr or tokParens */
 }
 
 private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
-/* Precondition: we are looking at the first token of expr which does not have a tokStmt/tokParens header.
-Consumes 1 or more tokens.
-Returns the type of parsed expression. */
-    print("headless expr i %d sentinel %d", cm->i, sentinel);
-    if (cm->i + 1 == sentinel) { /* the [stmt 1, tokInt] case */
+// Precondition: we are looking at the first token of expr which does not have a tokStmt/tokParens header.
+// Consumes 1 or more tokens.
+// Returns the type of parsed expression
+    if (cm->i + 1 == sentinel) { // the [stmt 1, tokInt] case
         Token singleToken = tokens[cm->i];
         if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
             cm->i += 1; // CONSUME the single literal */
@@ -2717,7 +2717,7 @@ private Int parseExprWorker(Token tok, Arr(Token) tokens, Compiler* cm) {
         if (tok.pl2 == 1) {
             Token singleToken = tokens[cm->i];
             if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
-                /* [stmt 1, tokInt] */
+                // [stmt 1, tokInt]
                 ++cm->i; // CONSUME the single literal token */
                 return exprSingleItem(singleToken, cm);
             }
@@ -4044,7 +4044,7 @@ Result: the overload counts and the list of toplevel functions to parse */
 
 /* Must agree in order with node types in tl.internal.h */
 const char* nodeNames[] = {
-    "[]", "Int", "Long", "Double", "Bool", "String", "~", "misc",
+    "Int", "Long", "Double", "Bool", "String", "~", "misc",
     "id", "call", "binding",
     "{}", "expr", "...=", "=...", "_",
     "alias", "assert", "breakCont", "catch", "defer",
@@ -5068,7 +5068,7 @@ Warning: assumes that typeId points to a concrete type, and genericId to a parti
 /*{{{ Interpreter */
 
 /*}}}*/
-/*{{{ Utils for tests & debugging */
+//{{{ Utils for tests & debugging
 
 #ifdef TEST
 
@@ -5215,6 +5215,7 @@ testable void printParser(Compiler* cm, Arena* a) {
     }
     Int indent = 0;
     Stackint32_t* sentinels = createStackint32_t(16, a);
+    StandardText stText = getStandardTextLength();
     for (int i = 0; i < cm->nodes.len; i++) {
         Node nod = cm->nodes.cont[i];
         for (int m = sentinels->len - 1; m > -1 && sentinels->cont[m] == i; m--) {
@@ -5230,9 +5231,10 @@ testable void printParser(Compiler* cm, Arena* a) {
             printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
             printType(cm->entities.cont[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
-            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.startBt, nod.lenBts);
+            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, 
+                    nod.startBt - stText.len, nod.lenBts);
         } else {
-            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt, nod.lenBts);
+            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt - stText.len, nod.lenBts);
         }
         if (nod.tp >= nodScope && nod.pl2 > 0) {
             pushint32_t(i + nod.pl2 + 1, sentinels);

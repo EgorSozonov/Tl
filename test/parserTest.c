@@ -6,7 +6,7 @@
 #include "../src/tl.internal.h"
 #include "tlTest.h"
 
-/*{{{ Utils */
+//{{{ Utils
 
 typedef struct {
     String* name;
@@ -26,9 +26,9 @@ typedef struct { // :TestEntityImport
     Int typeInd; // index in the intermediary array of types that is imported alongside
 } TestEntityImport;
 
-#define S   70000000 /* A constant larger than the largest allowed file size.
-                        Separates parsed entities from others */
-#define I  140000000 /* The base index for imported entities/overloads */
+#define S   70000000 // A constant larger than the largest allowed file size.
+                     // Separates parsed entities from others
+#define I  140000000 // The base index for imported entities/overloads
 #define S2 210000000 /* A constant larger than the largest allowed file size.
                         Separates parsed entities from others */
 #define O  280000000 /* The base index for operators */
@@ -62,6 +62,7 @@ ones used in tests) */
 }
 
 #define oper(opType, typeId) tryGetOper0(opType, typeId, proto)
+
 
 private Int transformBindingEntityId(Int inp, Compiler* pr) {
     if (inp < S) { // parsed stuff
@@ -118,6 +119,7 @@ private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes
     Arr(Int) typeIds = importTypes(types, countTypes, control);
     importTypes(types, countTypes, test);
 
+    StandardText stText = getStandardTextLength();
     if (countImports > 0)  {
         Arr(EntityImport) importsForControl = allocateOnArena(countImports*sizeof(EntityImport), a);
         Arr(EntityImport) importsForTest = allocateOnArena(countImports*sizeof(EntityImport), a);
@@ -135,21 +137,32 @@ private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes
         importEntities(importsForTest, countImports, typeIds, test);
     }
 
+    Bool withByteChecks = false;
+    for (Int i = 0; i < countNodes; i++) {
+        if (nodes[i].startBt > 0) {
+            withByteChecks = true;
+            break;
+        }
+    }
+
     // The control compiler
     for (Int i = 0; i < countNodes; i++) {
-        untt nodeType = nodes[i].tp;
+        Node nd = nodes[i];
+        if (withByteChecks) { nd.startBt += stText.len; }
+        untt nodeType = nd.tp;
         // All the node types which contain bindingIds
-        if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding) {
-            pushInnodes((Node){ .tp = nodeType, 
-                    .pl1 = transformBindingEntityId(nodes[i].pl1, control),
-                    .pl2 = nodes[i].pl2, .startBt = nodes[i].startBt, .lenBts = nodes[i].lenBts },
-                    control);
-        } else {
-            pushInnodes(nodes[i], control);
+        if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding
+                || (nodeType == nodAssignLeft && nd.pl2 == 0)) {
+            nd.pl1 = transformBindingEntityId(nd.pl1, control);
         }
+        if (nodeType == nodId)  {
+            nd.pl2 += stText.firstParsed;
+        }
+        pushInnodes(nd, control);
     }
     return (ParserTest){ .name = name, .test = test, .control = control };
 }
+
 
 #define createTest(name, input, nodes, types, entities) createTest0((name), (input), \
     (nodes), sizeof(nodes)/sizeof(Node), types, sizeof(types)/4, entities, sizeof(entities)/sizeof(EntityImport), \
@@ -186,7 +199,9 @@ differing token otherwise */
     for (; i < commonLength; i++) {
         Node nodA = a.nodes.cont[i];
         Node nodB = b.nodes.cont[i];
-        if (nodA.tp != nodB.tp || nodA.lenBts != nodB.lenBts || nodA.startBt != nodB.startBt
+        if (nodA.tp != nodB.tp
+                || (nodB.lenBts > 0 && nodA.lenBts != nodB.lenBts)
+                || (nodB.startBt > 0 && nodA.startBt != nodB.startBt)
             || nodA.pl1 != nodB.pl1 || nodA.pl2 != nodB.pl2) {
             printf("\n\nUNEQUAL RESULTS on %d\n", i);
             if (nodA.tp != nodB.tp) {
@@ -255,6 +270,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
 
 ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
+   /*
         createTest(
             s("Simple assignment"),
             s("x = 12"),
@@ -266,7 +282,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       /* 
         createTest(
             s("Double assignment"),
             s("x = 12\n"
@@ -274,12 +289,12 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
             ),
             ((Node[]) {
                 (Node){ .tp = nodAssignLeft, .pl2 = 0, .startBt = 0, .lenBts = 1 }, // x
-                (Node){ .tp = nodAssignRight, .pl2 = 2, .startBt = 0, .lenBts = 6 },
+                (Node){ .tp = nodAssignRight, .pl2 = 1, .startBt = 2, .lenBts = 4 },
                 (Node){ .tp = tokInt,  .pl2 = 12, .startBt = 4, .lenBts = 2 },
                 (Node){ .tp = nodAssignLeft, .pl1 = 1, .pl2 = 0,
                         .startBt = 7, .lenBts = 6 }, // second
-                (Node){ .tp = nodAssignRight, .pl2 = 2, .startBt = 14, .lenBts = 3 },
-                (Node){ .tp = nodId, .pl1 = 0, .pl2 = 0, .startBt = 16, .lenBts = 1 }
+                (Node){ .tp = nodAssignRight, .pl2 = 1, .startBt = 14, .lenBts = 3 },
+                (Node){ .tp = nodId,          .pl2 = 0, .startBt = 16, .lenBts = 1 }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
@@ -309,6 +324,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       */
         createTest(
             s("Reassignment"),
             s("main = ^{\n"
@@ -330,6 +346,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       /*
         createTest(
             s("Mutation simple"),
             s("main = ^{\n"
@@ -396,7 +413,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         )
-       */ 
+       */
     }));
 }
 

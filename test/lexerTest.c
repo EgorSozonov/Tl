@@ -20,10 +20,10 @@ typedef struct {
     LexerTest* tests;
 } LexerTestSet;
 
+//{{{ Code
+
 #define S   70000000 /* A constant larger than the largest allowed file size. Separates parsed
                       names from others */
-
-/*{{{ Code*/
 
 private Compiler* buildExpectedLexer(Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
     Compiler* result = createLexerFromProto(&empty, proto, a);
