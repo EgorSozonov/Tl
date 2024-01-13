@@ -328,10 +328,13 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
         createTest(
             s("Reassignment"),
             s("main = ^{\n"
-                   "x = `foo`\n"
-                   "x <- `bar`}"
+              "x = `foo`\n"
+              "x <- `bar`}"
             ),
             ((Node[]) {
+                (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0 },
+
+                (Node){ .tp = nodAssignRight, .pl1 = 0, .pl2 = 10 },
                 (Node){ .tp = nodFnDef,           .pl2 = 8 },
                 (Node){ .tp = nodBinding, .pl1 = 0         },
                 (Node){ .tp = nodScope,           .pl2 = 6 },

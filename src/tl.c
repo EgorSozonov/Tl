@@ -1019,7 +1019,7 @@ const Byte maxInt[19] = {
 };
 
 /* 2**53 */
-const Byte maximumPreciselyRepresentedFloatingInt[16] = { 
+const Byte maximumPreciselyRepresentedFloatingInt[16] = {
     9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
 
 
@@ -1044,7 +1044,7 @@ const Int standardStringLens[] = {
      4, 2, 4, 5, 7, // finally
      3, 2, 4, 6, 5, // iface
      5, 3, 6, 4, 3, // try
-     // reserved words end here 
+     // reserved words end here
      3, 4, 6, 4, 6, // String
      4, 1, 1, 1, 1, // D
      2, 3, 3, 2, 2, // f2
@@ -1054,8 +1054,8 @@ const Int standardStringLens[] = {
 
 const Int standardKeywords[] = {
     tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue,
-    tokEach,      tokElseIf,  tokElse,    keywFalse,  tokFinally, 
-    tokFor,       tokIf,      tokImpl,    tokImport,  tokIface,     
+    tokEach,      tokElseIf,  tokElse,    keywFalse,  tokFinally,
+    tokFor,       tokIf,      tokImpl,    tokImport,  tokIface,
     tokMatch,     tokMisc,    tokReturn,  keywTrue,   tokTry
 };
 
@@ -1483,7 +1483,7 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 These tokens are used to define the structure, that is, nesting within the AST.
 Upon addition, they are saved to the backtracking stack to be updated with their length
 once it is known. Consumes no bytes. */
-    push(((BtToken){ .tp = tType, .tokenInd = lx->tokens.len, .spanLevel = spanLevel}), 
+    push(((BtToken){ .tp = tType, .tokenInd = lx->tokens.len, .spanLevel = spanLevel}),
             lx->lexBtrack);
     pushIntokens((Token) {.tp = tType, .pl1 = (tType < firstScopeTokenType) ? 0 : spanLevel,
                           .startBt = startBt }, lx);
@@ -1544,10 +1544,10 @@ private void closeStatement(Compiler* lx) {
 private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
                         bool wasCapitalized, Arr(Byte) source, Compiler* lx) {
     Int lenBts = lx->i - realStartBt;
-    Token newToken = (Token){ .tp = wordType, .pl2 = uniqueStringId, 
+    Token newToken = (Token){ .tp = wordType, .pl2 = uniqueStringId,
                              .startBt = realStartBt, .lenBts = lenBts };
 
-    if (lx->i < lx->inpLength && CURR_BT == aParenLeft && wordType == tokWord) { 
+    if (lx->i < lx->inpLength && CURR_BT == aParenLeft && wordType == tokWord) {
         // A prefix function call or a type call/constructor (only the parser can distinguish)
         newToken.tp = wasCapitalized ? tokTypeCall : tokCall;
         newToken.pl1 = uniqueStringId;
@@ -1628,7 +1628,7 @@ private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) {
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
     Int uniqueStringId = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
     if (getLexContext(lx).tp == tokMeta) {
-        VALIDATEL(wordType == tokWord, errWordInMeta) 
+        VALIDATEL(wordType == tokWord, errWordInMeta)
         wordNormal(tokWord, uniqueStringId, startBt, realStartBt, wasCapitalized, source, lx);
     } else if (uniqueStringId - countOperators < strFirstNonReserved)  {
         wordReserved(wordType, uniqueStringId - countOperators, startBt, realStartBt, source, lx);
@@ -1655,7 +1655,7 @@ private void lexDot(Arr(Byte) source, Compiler* lx) {
     } else {
         wordInternal(tokCall, source, lx);
     }
-    
+
 }
 
 
@@ -2099,27 +2099,27 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[ 7] = (OpDef){ .arity=2, .bytes={ aAmp, aAmp, 0, 0 }, .assignable=true }; // &&
     p[ 8] = (OpDef){ .arity=1, .bytes={ aAmp, 0, 0, 0 }, .isTypelevel=true }; // &
     p[ 9] = (OpDef){ .arity=1, .bytes={ aApostrophe, 0, 0, 0 } }; // '
-    p[10] = (OpDef){ .arity=2, .bytes={ aTimes, aColon, 0, 0}, 
-                                        .assignable = true, .overloadable = true}; // *:
-    p[11] = (OpDef){ .arity=2, .bytes={ aTimes, 0, 0, 0 }, 
-                                        .assignable = true, .overloadable = true}; // *
-    p[12] = (OpDef){ .arity=1, .bytes={ aPlus, aPlus, 0, 0 }, 
-                                        .assignable = false, .overloadable = true}; // ++
-    p[13] = (OpDef){ .arity=2, .bytes={ aPlus, aColon, 0, 0 }, 
-                                        .assignable = true, .overloadable = true}; // +:
+    p[10] = (OpDef){ .arity=2, .bytes={ aTimes, aColon, 0, 0},
+                     .assignable = true, .overloadable = true}; // *:
+    p[11] = (OpDef){ .arity=2, .bytes={ aTimes, 0, 0, 0 },
+                     .assignable = true, .overloadable = true}; // *
+    p[12] = (OpDef){ .arity=1, .bytes={ aPlus, aPlus, 0, 0 },
+                     .assignable = false, .overloadable = true}; // ++
+    p[13] = (OpDef){ .arity=2, .bytes={ aPlus, aColon, 0, 0 },
+                     .assignable = true, .overloadable = true}; // +:
     p[14] = (OpDef){ .arity=2, .bytes={ aPlus, 0, 0, 0 },
-                                        .assignable = true, .overloadable = true}; // +
+                     .assignable = true, .overloadable = true}; // +
     p[15] = (OpDef){ .arity=1, .bytes={ aMinus, aMinus, 0, 0 },
-                                        .assignable = false, .overloadable = true}; // --
+                     .assignable = false, .overloadable = true}; // --
     p[16] = (OpDef){ .arity=2, .bytes={ aMinus, aColon, 0, 0},
-                                        .assignable = true, .overloadable = true}; // -:
+                     .assignable = true, .overloadable = true}; // -:
     p[17] = (OpDef){ .arity=2, .bytes={ aMinus, 0, 0, 0},
-                                        .assignable = true, .overloadable = true }; // -
+                     .assignable = true, .overloadable = true }; // -
     p[18] = (OpDef){ .arity=2, .bytes={ aDivBy, aColon, 0, 0},
-                                        .assignable = true, .overloadable = true}; // /:
+                     .assignable = true, .overloadable = true}; // /:
     p[19] = (OpDef){ .arity=2, .bytes={ aDivBy, aPipe, 0, 0}, .isTypelevel = true}; // /|
     p[20] = (OpDef){ .arity=2, .bytes={ aDivBy, 0, 0, 0},
-                .assignable = true, .overloadable = true}; // /
+                     .assignable = true, .overloadable = true}; // /
     p[21] = (OpDef){ .arity=2, .bytes={ aLT, aLT, aDot, 0} }; // <<.
     p[22] = (OpDef){ .arity=2, .bytes={ aLT, aEqual, 0, 0} }; // <=
     p[23] = (OpDef){ .arity=2, .bytes={ aLT, aGT, 0, 0} }; // <>
@@ -2137,7 +2137,7 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     p[35] = (OpDef){ .arity=1, .bytes={ aQuestion, 0, 0, 0 }, .isTypelevel=true }; // ?
     p[36] = (OpDef){ .arity=2, .bytes={ aCaret, aDot, 0, 0} }; // ^.
     p[37] = (OpDef){ .arity=2, .bytes={ aCaret, 0, 0, 0},
-                       .assignable=true, .overloadable = true}; // ^
+                     .assignable=true, .overloadable = true}; // ^
     p[38] = (OpDef){ .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }; // ||.
     p[39] = (OpDef){ .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true }; // ||
     for (Int k = 0; k < countOperators; k++) {
@@ -2147,6 +2147,7 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
     }
     return result;
 }
+
 //}}}
 
 //}}}
@@ -2418,15 +2419,17 @@ private void parseAssignment(Token tok, Arr(Token) tokens, Compiler* cm) {
                        .sentinelToken = cm->i + rightTk.pl2 }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignRight, .startBt = rightTk.startBt, .lenBts = rightTk.lenBts},
                         cm);
-
-
-    // TODO handle mutation
-    Int sentinel = cm->i + rightTk.pl2;
-    Int rightType = exprHeadless(sentinel, rightTk.startBt,
-                               tok.lenBts - rightTk.startBt + tok.startBt, tokens, cm);
-    VALIDATEP(rightType != -2, errAssignment)
-    if (tok.pl1 == 0 && rightType > -1) {
-        cm->entities.cont[mbNewBinding].typeId = rightType;
+    if (rightTk.tp == tokFn) {
+        parseFnDef(rightTk, tokens, cm);
+    } else {
+        // TODO handle mutation
+        Int sentinel = cm->i + rightTk.pl2;
+        Int rightType = exprHeadless(sentinel, rightTk.startBt,
+                                   tok.lenBts - rightTk.startBt + tok.startBt, tokens, cm);
+        VALIDATEP(rightType != -2, errAssignment)
+        if (tok.pl1 == 0 && rightType > -1) {
+            cm->entities.cont[mbNewBinding].typeId = rightType;
+        }
     }
 }
 
@@ -2589,7 +2592,7 @@ or an operand. Consumes no tokens. */
         pushInnodes((Node){ .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1,
                             .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     } else {
-        pushInnodes((Node){ .tp = nodId, .pl1 = -bindingId - 2, 
+        pushInnodes((Node){ .tp = nodId, .pl1 = -bindingId - 2,
                             .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
     }
 }
@@ -2898,7 +2901,8 @@ private void parseExposePrivates(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
+    pushInnodes((Node){.tp = nodFnDef, .pl1 = loopId,
+                       .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
 }
 
 
@@ -3384,7 +3388,7 @@ the lx->stringTable contains zeros in those places) */
     for (Int j = 0; j < countOperators; j++) {
         push(0, lx->stringTable);
     }
-    int startBt = 0; 
+    int startBt = 0;
     for (Int i = strAlias; i < strSentinel; i++) {
         addStringDict(lx->sourceCode->cont, startBt, standardStringLens[i],
                       lx->stringTable, lx->stringDict);
@@ -3977,7 +3981,7 @@ Result: the overload counts and the list of toplevel functions to parse */
             parseUpTo(cm->i + tok.pl2, toks, cm);
             Token nameTk = toks[cm->i + 1];
 
-            untt name =  ((untt)nameTk.lenBts << 24) + (untt)nameTk.pl2;
+            untt name = ((untt)nameTk.lenBts << 24) + (untt)nameTk.pl2;
             parseFnSignature(tok, true, name, cm);
             cm->i = sentinel;
         } else {
@@ -5175,7 +5179,7 @@ testable void printParser(Compiler* cm, Arena* a) {
             printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
             printType(cm->entities.cont[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
-            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, 
+            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2,
                     nod.startBt - stText.len, nod.lenBts);
         } else {
             printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt - stText.len, nod.lenBts);

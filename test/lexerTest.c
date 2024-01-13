@@ -874,7 +874,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 15, .lenBts = 4 },
                  (Token){ .tp = tokBool,  .pl2 = 1, .startBt = 15, .lenBts = 4 },
 
-                 (Token){ .tp = tokElse, .pl1 = slDoubleScope, .pl2 = 3, 
+                 (Token){ .tp = tokElse, .pl1 = slDoubleScope, .pl2 = 3,
                           .startBt = 21, .lenBts = 11 },
                  (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 2, .startBt = 25, .lenBts = 7 },
                  (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 26, .lenBts = 5 },
@@ -896,7 +896,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokStmt,      .pl2 = 1, .startBt = 15, .lenBts = 1 },
                 (Token){ .tp = tokInt,       .pl2 = 5, .startBt = 15, .lenBts = 1 },
 
-                (Token){ .tp = tokElseIf, .pl1 = slDoubleScope, .pl2 = 9, 
+                (Token){ .tp = tokElseIf, .pl1 = slDoubleScope, .pl2 = 9,
                          .startBt = 18, .lenBts = 18 },
                 (Token){ .tp = tokStmt,      .pl2 = 5, .startBt = 21, .lenBts = 10 },
                 (Token){ .tp = tokWord,                .startBt = 21, .lenBts = 1 }, // x
@@ -909,7 +909,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 33, .lenBts = 2 },
                 (Token){ .tp = tokInt,  .pl2 = 11,.startBt = 33, .lenBts = 2 },
 
-                (Token){ .tp = tokElse, .pl1 = slDoubleScope, .pl2 = 3, 
+                (Token){ .tp = tokElse, .pl1 = slDoubleScope, .pl2 = 3,
                          .startBt = 37, .lenBts = 10 },
                 (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 2, .startBt = 41, .lenBts = 6 },
                 (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 42, .lenBts = 4 },
@@ -918,7 +918,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
          (LexerTest) { .name = s("Function simple 1"),
              .input = s("foo = ^{ x Int, y Int => Int | x - y}"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokAssignLeft,         .pl2 = 0, 
+                 (Token){ .tp = tokAssignLeft,         .pl2 = 0,
                           .startBt = 0, .lenBts = 3 }, // foo
                  (Token){ .tp = tokAssignRight,              .pl2 = 13,
                           .startBt = 4, .lenBts = 33 },

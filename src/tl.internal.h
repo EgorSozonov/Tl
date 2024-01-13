@@ -295,29 +295,29 @@ typedef struct { /* :Token */
 // Single-shot core syntax forms
 #define nodAlias       15
 #define nodAssert      16     // pl1 = 1 iff it's a debug assert
-#define nodBreakCont   17     /* pl1 = number of label to break or continue to, -1 if none needed
-                               It's a continue iff it's >= BIG. */
-#define nodCatch       18     /* "catch e {` */
+#define nodBreakCont   17     // pl1 = number of label to break or continue to, -1 if none needed
+                              // It's a continue iff it's >= BIG
+#define nodCatch       18     // `catch e {`
 #define nodDefer       19
-#define nodImport      20     /* This is for test files only, no need to import anything in main */
-#define nodFnDef       21     /* pl1 = entityId */
+#define nodImport      20     // This is for test files only, no need to import anything in main
+#define nodFnDef       21     // pl1 = entityId
 #define nodIface       22
 #define nodMeta        24
 #define nodReturn      25
 #define nodTry         26
-#define nodFor         28     /* pl1 = id of loop (unique within a function) if it needs to
-                               have a label in codegen */
+#define nodFor         28     // pl1 = id of loop (unique within a function) if it needs to
+                              // have a label in codegen
 #define nodForCond     29
 
 #define nodIf          30
 #define nodElseIf      30
 #define nodImpl        31
-#define nodMatch       32     /* pattern matching on sum type tag */
+#define nodMatch       32     // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 
-#define metaDoc         1     /* Doc comments */
-#define metaDefault     2     /* Default values for type arguments */
+#define metaDoc         1     // Doc comments
+#define metaDefault     2     // Default values for type arguments
 
 
 /**
