@@ -140,49 +140,47 @@ typedef struct {
 /*{{{ Lexer */
 
 /*{{{ Standard strings :standardStr */
-
 #define strAlias      0
 #define strAssert     1
 #define strBreak      2
 #define strCatch      3
 #define strContinue   4
-#define strElseIf     5
-#define strElse       6
-#define strFalse      7
-#define strFinally    8
-#define strFor        9
-#define strForeach   10
+#define strEach       5
+#define strElseIf     6
+#define strElse       7
+#define strFalse      8
+#define strFinally    9
+#define strFor       10
 #define strIf        11
-#define strIfPr      12
-#define strImpl      13
-#define strImport    14
-#define strInterface 15
-#define strMatch     16
-#define strPub       17
-#define strReturn    18
-#define strTrue      19
-#define strTry       20
-#define strFirstNonReserved 21
+#define strImpl      12
+#define strImport    13
+#define strInterface 14
+#define strMatch     15
+#define strPub       16
+#define strReturn    17
+#define strTrue      18
+#define strTry       19
+#define strFirstNonReserved 20
 #define strInt       strFirstNonReserved
-#define strLong      22
-#define strDouble    23
-#define strBool      24
-#define strString    25
-#define strVoid      26
-#define strF         27 /* F(unction type) */
-#define strL         28 /* List */
-#define strA         29 /* Array */
-#define strD         30 /* Dictionary */
-#define strTu        31 /* Tu(ple) */
-#define strLen       32
-#define strCap       33
-#define strF1        34
-#define strF2        35
-#define strPrint     36
-#define strPrintErr  37
-#define strMathPi    38
-#define strMathE     39
-#define strSentinel  40
+#define strLong      21
+#define strDouble    22
+#define strBool      23
+#define strString    24
+#define strVoid      25
+#define strF         26 /* F(unction type) */
+#define strL         27 /* List */
+#define strA         28 /* Array */
+#define strD         29 /* Dictionary */
+#define strTu        30 /* Tu(ple) */
+#define strLen       31
+#define strCap       32
+#define strF1        33
+#define strF2        34
+#define strPrint     35
+#define strPrintErr  36
+#define strMathPi    37
+#define strMathE     38
+#define strSentinel  39
 
 /*}}}*/
 
@@ -190,7 +188,6 @@ typedef struct {
 typedef struct { /* :BtToken */
     untt tp : 6;
     Int tokenInd;
-    Int countClauses;
     untt spanLevel : 3;
 } BtToken;
 
@@ -221,48 +218,44 @@ typedef struct { /* :Token */
 #define tokWord         7    /* pl2 = nameId (index in the string table) */
 #define tokTypeName     8    /* pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord */
 #define tokKwArg        9    /* pl2 = same as tokWord. The ":argName" */
-#define tokDotWord     10    /* pl2 = same as tokWord. The ".structField" */
-#define tokOperator    11    /* pl1 = OperatorToken, one of the "opT" constants below */
-#define tokAccessor    12    /* pl1 = see "tkAcc" consts. If pl1 == tkAccDot, then pl2 = nameId
+#define tokOperator    10    /* pl1 = OperatorToken, one of the "opT" constants below */
+#define tokAccessor    11    /* pl1 = see "tkAcc" consts. If pl1 == tkAccDot, then pl2 = nameId
                                 Either an ".accessor" or a `_smth` */
 
-/* Single-statement token types */
-#define tokStmt        13    /* firstSpanTokenType */
-#define tokParens      14    /* subexpressions and struct/sum type instances */
-#define tokPrefixCall  15    /* pl1 = nameId, index in the string table */
-#define tokInfixCall   16    /* pl1 = nameId, index in the string table */
-#define tokTypeCall    17    /* pl1 = nameId */
-#define tokTypeCon     18    /* Built-in type initializers. pl1 = nameId of type */
-#define tokParamList   19    /* Parameter lists, ended with `|` */
-#define tokAssignLeft  20    /* pl1 == 1 iff reassignment, pl1 == 2 iff type assignment,
-                                pl1 == (BIG + opType) iff mutation. If pl2 == 0 then pl1 = nameId for 
-                                the single word on the left (and it's an assignment of a var => not
-                                reassignment/mut, not type) */
-#define tokAssignRight 21    /* Right-hand side of assignment */
-#define tokAlias       22
-#define tokAssert      23
-#define tokBreakCont   24    /* pl1 >= BIG iff it's a continue */
-#define tokIface       25
-#define tokImport      26    /* For test files and package decls */
-#define tokReturn      27
+// Single-statement token types
+#define tokStmt        12    /* firstSpanTokenType */
+#define tokParens      13    /* subexpressions and struct/sum type instances */
+#define tokCall        14    /* pl1 = nameId, index in the string table */
+#define tokTypeCall    15    // pl1 = nameId of type. Either a type call or a type constructor
+#define tokParamList   16    /* Parameter lists, ended with `|` */
+#define tokAssignLeft  17    /* pl1 == 1 iff reassignment, pl1 == 2 iff type assignment,
+                                pl1 == (BIG + opType) iff mutation. If pl2 == 0 then 
+                                pl1 = nameId for the single word on the left (and it's an 
+                                assignment of a var => not reassignment/mut, not type) */
+#define tokAssignRight 18    /* Right-hand side of assignment */
+#define tokAlias       19
+#define tokAssert      20
+#define tokBreakCont   21    /* pl1 >= BIG iff it's a continue */
+#define tokIface       22
+#define tokImport      23    /* For test files and package decls */
+#define tokReturn      24
 
 /* Bracketed (multi-statement) token types. pl1 = spanLevel, see "sl" constants */
-#define tokScope       28    /* denoted by {}. firstScopeTokenType */
-#define tokFn          29    /* `^{ a Int => String | body}` */
-#define tokTry         30    /* `try {` */
-#define tokCatch       31    /* `catch MyExc e {` */
-#define tokFinally     32    /* `finally { ` */
-#define tokMeta        33    /* `[[` */
+#define tokScope       25    /* denoted by {}. firstScopeTokenType */
+#define tokFn          26    /* `^{ a Int => String | body}` */
+#define tokTry         27    /* `try {` */
+#define tokCatch       28    /* `catch MyExc e {` */
+#define tokFinally     29    /* `finally { ` */
+#define tokMeta        30    /* `[` */
 
 /* Resumable core forms */
-#define tokIf          34    /* `if ... {` */
-#define tokIfPr        35    /* like if, but every branch is a value compared using custom predicate */
-#define tokMatch       36    /* "match ... {" pattern matching on sum type tag */
-#define tokElseIf      37    /* `ei ... {` */
-#define tokElse        38    /* `else {` */
-#define tokImpl        39
-#define tokFor         40
-#define tokForeach     41
+#define tokIf          31    /* `if ... {` */
+#define tokMatch       32    /* "match ... {" pattern matching on sum type tag */
+#define tokElseIf      33    /* `ei ... {` */
+#define tokElse        34    /* `else {` */
+#define tokImpl        35
+#define tokFor         36
+#define tokEach        37
 
 #define topVerbatimTokenVariant tokMisc
 #define topVerbatimType    tokString
@@ -287,21 +280,21 @@ typedef struct { /* :Token */
 #define assiType       2
 
 
-/* AST nodes */
+// AST nodes
 #define nodId           7    /* pl1 = index of entity, pl2 = index of name */
 #define nodCall         8    /* pl1 = index of entity, pl2 = arity */
 #define nodBinding      9    /* pl1 = index of entity, pl2 = 1 if it's a type binding */
 
-/* Punctuation (inner node) */
+// Punctuation (inner node)
 #define nodScope       10
 #define nodExpr        11
 #define nodAssignLeft  12
 #define nodAssignRight 13
-#define nodAccessor    14     /* pl1 = "acc" constants */
+#define nodAccessor    14     // pl1 = "acc" constants
 
-/* Single-shot core syntax forms */
+// Single-shot core syntax forms
 #define nodAlias       15
-#define nodAssert      16     /* pl1 = 1 iff it's a debug assert */
+#define nodAssert      16     // pl1 = 1 iff it's a debug assert
 #define nodBreakCont   17     /* pl1 = number of label to break or continue to, -1 if none needed
                                It's a continue iff it's >= BIG. */
 #define nodCatch       18     /* "catch e {` */
@@ -340,98 +333,90 @@ typedef struct { /* :Token */
  Plus, many have automatic assignment counterparts.
  For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
 */
-typedef struct { /* :OpDef */
+typedef struct { // :OpDef
     Byte bytes[4];
     Int arity;
-    /* Whether this operator permits defining overloads as well as extended operators (e.g. +.= ) */
+    // Whether this operator permits defining overloads as well as extended operators (e.g. +.= )
     bool overloadable;
     bool assignable;
     bool isTypelevel;
-    Byte prece;
     int8_t lenBts;
 } OpDef;
 
-#define preceEquality 1
-#define preceAdd 2
-#define preceMultiply 3
-#define preceExponent 4
-#define preceFn 5
-#define precePrefix 6
-
-/* :OperatorType
- Values must exactly agree in order with the operatorSymbols array in the tl.c file.
- The order is defined by ASCII. Operator is bitwise <=> it ends wih dot */
-#define opBitwiseNeg        0 /* !. bitwise negation */
-#define opNotEqual          1 /* != */
-#define opBoolNeg           2 /* ! */
-#define opSize              3 /* ## */
-#define opToString          4 /* $ */
-#define opRemainder         5 /* % */
-#define opBitwiseAnd        6 /* &&. bitwise and */
-#define opBoolAnd           7 /* && logical and */
-#define opPtr               8 /* & pointers/values at type level */
-#define opIsNull            9 /* ' */
-#define opTimesExt         10 /* *: */
-#define opTimes            11 /* * */
-#define opIncrement        12 /* ++ */
-#define opPlusExt          13 /* +: */
-#define opPlus             14 /* + */
-#define opDecrement        15 /* -- */
-#define opMinusExt         16 /* -: */
-#define opMinus            17 /* - */
-#define opDivByExt         18 /* /: */
-#define opIntersect        19 /* /| */
-#define opDivBy            20 /* / */
-#define opBitShiftL        21 /* <<. */
-#define opLTEQ             22 /* <= */
-#define opComparator       23 /* <> */
-#define opLessTh           24 /* < */
-#define opRefEquality      25 /* === */
-#define opEquality         26 /* == */
-#define opIntervalBo       27 /* >=<= inclusive interval check */
-#define opIntervalR        28 /* ><=  right-inclusive interval check */
-#define opIntervalL        29 /* >=<  left-inclusive interval check */
-#define opBitShiftR        30 /* >>.  unsigned right bit shift */
-#define opIntervalEx       31 /* ><   exclusive interval check */
-#define opGTEQ             32 /* >= */
-#define opGreaterTh        33 /* > */
-#define opNullCoalesce     34 /* ?:   null coalescing operator */
-#define opQuestionMark     35 /* ?    nullable type operator */
-#define opBitwiseXor       36 /* ^.   bitwise XOR */
-#define opExponent         37 /* ^    exponentiation */
-#define opBitwiseOr        38 /* ||.  bitwise or */
-#define opBoolOr           39 /* ||   logical or */
+// :OperatorType
+// Values must exactly agree in order with the operatorSymbols array in the tl.c file.
+// The order is defined by ASCII. Operator is bitwise <=> it ends wih dot
+#define opBitwiseNeg        0 // !. bitwise negation
+#define opNotEqual          1 // !=
+#define opBoolNeg           2 // !
+#define opSize              3 // ##
+#define opToString          4 // $
+#define opRemainder         5 // %
+#define opBitwiseAnd        6 // &&. bitwise "and"
+#define opBoolAnd           7 // && logical "and"
+#define opPtr               8 // & pointers/values at type level
+#define opIsNull            9 // '
+#define opTimesExt         10 // *:
+#define opTimes            11 // *
+#define opIncrement        12 // ++
+#define opPlusExt          13 // +:
+#define opPlus             14 // +
+#define opDecrement        15 // --
+#define opMinusExt         16 // -:
+#define opMinus            17 // -
+#define opDivByExt         18 // /:
+#define opIntersect        19 // /|
+#define opDivBy            20 // /
+#define opBitShiftL        21 // <<.
+#define opLTEQ             22 // <=
+#define opComparator       23 // <>
+#define opLessTh           24 // <
+#define opRefEquality      25 // ===
+#define opEquality         26 // ==
+#define opIntervalBo       27 // >=<= inclusive interval check
+#define opIntervalR        28 // ><=  right-inclusive interval check
+#define opIntervalL        29 // >=<  left-inclusive interval check
+#define opBitShiftR        30 // >>.  unsigned right bit shift
+#define opIntervalEx       31 // ><   exclusive interval check
+#define opGTEQ             32 // >=
+#define opGreaterTh        33 // >
+#define opNullCoalesce     34 // ?:   null coalescing operator
+#define opQuestionMark     35 // ?    nullable type operator
+#define opBitwiseXor       36 // ^.   bitwise XOR
+#define opExponent         37 // ^    exponentiation
+#define opBitwiseOr        38 // ||.  bitwise or
+#define opBoolOr           39 // ||   logical or
 
 #define countOperators     40
 
-#define countSyntaxForms (tokForeach + 1)
+#define countSyntaxForms (tokEach + 1)
 
 typedef struct Compiler Compiler;
 
 
-/* Subclasses of the data accessor tokens */
+// Subclasses of the data accessor tokens
 #define tkAccDot     1
 #define tkAccArray   2
-/* Subclasses of the data accessor nodes? */
-#define accField     1 /* field accessor in a struct, like "foo.field". pl2 = nameId of the string */
-#define accArrayInd  2 /* single-integer array access, like "arr_5". pl2 = int value of the ind */
-#define accArrayWord 3 /* single-variable array access, like "arr_i". pl2 = nameId of the string */
-#define accString    4 /* string-based access inside hashmap, like "map_`foo`". pl2 = 0 */
-#define accExpr      5 /* expr array access, like "arr_(i + 1)". pl2 = number of tokens/nodes */
-#define accUndef     6 /* undefined after lexing (to be determined by the parser) */
+// Subclasses of the data accessor nodes?
+#define accField     1 // field accessor in a struct, like "foo.field". pl2 = nameId of the string
+#define accArrayInd  2 // single-integer array access, like "arr_5". pl2 = int value of the ind
+#define accArrayWord 3 // single-variable array access, like "arr_i". pl2 = nameId of the string
+#define accString    4 // string-based access inside hashmap, like "map_`foo`". pl2 = 0
+#define accExpr      5 // expr array access, like "arr_(i + 1)". pl2 = number of tokens/nodes
+#define accUndef     6 // undefined after lexing (to be determined by the parser)
 
 
-typedef void (*LexerFunc)(Arr(Byte), Compiler*); /* LexerFunc = &(Lexer* => void) */
+typedef void (*LexerFunc)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void)
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 
-typedef struct { /* :LanguageDefinition */
+typedef struct { // :LanguageDefinition
     OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ParserFunc (*parserTable)[countSyntaxForms];
 } LanguageDefinition;
 
 
-typedef struct { /* :Node */
+typedef struct { // :Node
     untt tp : 6;
     untt lenBts: 26;
     untt startBt;
@@ -439,12 +424,12 @@ typedef struct { /* :Node */
     Int pl2;
 } Node;
 
-typedef struct { /* :ParseFrame */
+typedef struct { // :ParseFrame
     untt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
-    Int typeId;            /* valid only for fnDef, if, loopCond and the like */
-    void* scopeStackFrame; /* only for tp = scope or expr */
+    Int typeId;            // valid only for fnDef, if, loopCond and the like
+    void* scopeStackFrame; // only for tp = scope or expr
 } ParseFrame;
 
 
@@ -455,7 +440,7 @@ typedef struct { /* :ParseFrame */
 #define classImmutable         5
 
 
-typedef struct { /* :Entity */
+typedef struct { // :Entity
     Int typeId;
     Int name;
     uint8_t class;
@@ -489,13 +474,13 @@ struct ScopeChunk { // :ScopeChunk
 };
 
 typedef struct { // :ScopeStack
-    /* Either currChunk->next == NULL or currChunk->next->next == NULL */
+    // Either currChunk->next == NULL or currChunk->next->next == NULL
     ScopeChunk* firstChunk;
     ScopeChunk* currChunk;
     ScopeChunk* lastChunk;
     ScopeStackFrame* topScope;
     Int len;
-    int nextInd; /* next ind inside currChunk, unit of measurement is 4 Bytes */
+    int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
 } ScopeStack;
 
 DEFINE_STACK_HEADER(ParseFrame)
@@ -513,28 +498,28 @@ DEFINE_INTERNAL_LIST_TYPE(uint32_t)
 
 DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 
-struct Compiler { /* :Compiler */
-    /* See docs/compiler.txt, docs/architecture.svgz */
+struct Compiler { // :Compiler
+    // See docs/compiler.txt, docs/architecture.svgz
     LanguageDefinition* langDef;
 
-    /* LEXING */
+    // LEXING
     String* sourceCode;
     Int inpLength;
     InListToken tokens;
     InListInt newlines;
     Int indentation;
-    InListInt numeric;          /* [aTmp] */
-    StackBtToken* lexBtrack;    /* [aTmp] */
+    InListInt numeric;          // [aTmp]
+    StackBtToken* lexBtrack;    // [aTmp]
     Stackint32_t* stringTable;
     StringDict* stringDict;
     Int lastClosingPunctInd;
 
-    /* PARSING */
+    // PARSING
     InListToplevel toplevels;
     InListInt imports;
-    StackParseFrame* backtrack; /* [aTmp] */
+    StackParseFrame* backtrack; // [aTmp]
     ScopeStack* scopeStack;
-    Arr(Int) activeBindings;    /* [aTmp] */
+    Arr(Int) activeBindings;    // [aTmp]
     Int loopCounter;
     InListNode nodes;
     InListNode monoCode;
@@ -544,14 +529,14 @@ struct Compiler { /* :Compiler */
     InListInt types;
     StringDict* typesDict;
     Int countNonparsedEntities;
-    StackInt* expStack;   /* [aTmp] */
-    StackInt* typeStack;  /* [aTmp] */
-    StackInt* tempStack;  /* [aTmp] */
+    StackInt* expStack;   // [aTmp]
+    StackInt* typeStack;  // [aTmp]
+    StackInt* tempStack;  // [aTmp]
     Int countOverloads;
     Int countOverloadedNames;
-    MultiAssocList* rawOverloads; /* [aTmp] */
+    MultiAssocList* rawOverloads; // [aTmp]
 
-    /* GENERAL STATE */
+    // GENERAL STATE
     Int i;
     bool wasError;
     String* errMsg;
@@ -560,15 +545,15 @@ struct Compiler { /* :Compiler */
 };
 
 
-/** Span levels */
-#define slScope       1 /* scopes (denoted by brackets): newlines and commas have no effect there */
-#define slDoubleScope 2 /* double scopes like `if`, `for` etc. They last until the first 
-                           {} span gets closed */
-#define slStmt        3 /* single-line statements: newlines and semicolons break 'em */
-#define slSubexpr     4 /* parenthesized forms: newlines have no effect, semi-colons error out */
+// Span levels, must all be more than 0
+#define slScope       1 // scopes (denoted by brackets): newlines and commas have no effect there
+#define slDoubleScope 2 // double scopes like `if`, `for` etc. They last until the first 
+                        // {} span gets closed
+#define slStmt        3 // single-line statements: newlines and semicolons break 'em
+#define slSubexpr     4 // parenthesized forms: newlines have no effect, semi-colons error out
 
 
-/*}}}*/
+//}}}
 /*{{{ Types */
 
 /* see the Type layout chapter in the docs */

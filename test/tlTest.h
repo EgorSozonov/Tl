@@ -47,6 +47,7 @@ extern const char errWordWrongAccessor[];
 extern const char errWordLengthExceeded[];
 extern const char errWordWrongCall[];
 extern const char errWordReservedWithDot[];
+extern const char errWordInMeta[];
 extern const char errNumericEndUnderscore[];
 extern const char errNumericWidthExceeded[];
 extern const char errNumericBinWidthExceeded[];
