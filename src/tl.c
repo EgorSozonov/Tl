@@ -2151,7 +2151,7 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
 //}}}
 
 //}}}
-/*{{{ Parser */
+//{{{ Parser
 /*{{{ Parser utils */
 
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
@@ -2232,14 +2232,17 @@ Node trivialNode(untt tp, Token tk) {
 }
 
 /*}}}*/
+//{{{ Forward decls
 
 testable void pushLexScope(ScopeStack* scopeStack);
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler* cm);
+private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* cm);
 
+//}}}
 
 private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
-/* Performs coordinated insertions to start a scope within the parser */
+// Performs coordinated insertions to start a scope within the parser
     push(((ParseFrame){
             .tp = nodScope, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }),
         cm->backtrack);
@@ -2265,7 +2268,7 @@ private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
-/* Precondition: we are 1 past the "stmt" token, which is the first parameter */
+// Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
@@ -2605,8 +2608,8 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
 // Precondition: we are looking 1 past the tokExpr or tokParens
     Int arity = 0;
     Int startNodeInd = cm->nodes.len;
-    push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd, .sentinelToken = sentinelToken }),
-         cm->backtrack);
+    push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd,
+                .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
 
     exprSubexpr(sentinelToken, &arity, tokens, cm);
@@ -2901,8 +2904,7 @@ private void parseExposePrivates(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 
 private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* cm) {
-    pushInnodes((Node){.tp = nodFnDef, .pl1 = loopId,
-                       .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
+    throwExcParser(errTemp, cm);
 }
 
 
@@ -3766,7 +3768,8 @@ testable void createOverloads(Compiler* cm) {
 // Fills [overloads] from [rawOverloads]. Replaces all indices in
 // [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
     StackInt* scratch = createStackint32_t(16, cm->aTmp);
-    cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4, cm->a);
+    cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4,
+                                         cm->a);
     // Each overload requires 3x4 = 12 bytes for the triple of (outerType typeId entityId).
     // Plus you need an int per overloaded name to hold the length of the overloads for that name
 
@@ -3788,8 +3791,8 @@ testable void createOverloads(Compiler* cm) {
 }
 
 private void parseToplevelTypes(Compiler* cm) {
-/* Parses top-level types but not functions. Writes them to the types table and adds
-their bindings to the scope */
+// Parses top-level types but not functions. Writes them to the types table and adds
+// their bindings to the scope
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
     const Int len = cm->tokens.len;
@@ -3805,14 +3808,20 @@ their bindings to the scope */
 }
 
 private void parseToplevelConstants(Compiler* cm) {
-/* Parses top-level constants but not functions, and adds their bindings to the scope */
+// Parses top-level constants but not functions, and adds their bindings to the scope
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
     const Int len = cm->tokens.len;
     while (cm->i < len) {
         Token tok = toks[cm->i];
         if (tok.tp == tokAssignLeft && tok.pl2 == 0) {
-            parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, toks, cm);
+            Token rightTk = toks[cm->i + 2];
+            if (rightTk.tp != tokFn) {
+                cm->i += 2; // CONSUME the left and right assignment
+                parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, toks, cm);
+            } else {
+                cm->i += (tok.pl2 + 1);
+            }
         } else {
             cm->i += (tok.pl2 + 1);
         }
@@ -3968,22 +3977,28 @@ private void parseFunctionBodies(Arr(Token) toks, Compiler* cm) {
 }
 
 private void parseToplevelSignatures(Compiler* cm) {
-/* Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
-Result: the overload counts and the list of toplevel functions to parse */
+// Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
+// Result: the overload counts and the list of toplevel functions to parse
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
     Int len = cm->inpLength;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignLeft && (cm->i + 2) < len
-           && toks[cm->i + 1].tp == tokWord && toks[cm->i + 2].tp == tokFn) {
-            Int sentinel = calcSentinel(tok, cm->i);
-            parseUpTo(cm->i + tok.pl2, toks, cm);
-            Token nameTk = toks[cm->i + 1];
+        if (tok.tp == tokAssignLeft) {
+            Token rightTk = toks[cm->i + tok.pl2 + 2]; // the token after tokAssignRight
+            print("sign rightTk %d", rightTk.tp);
+            if (rightTk.tp == tokFn) {
+                Int sentinel = calcSentinel(tok, cm->i);
+                print("parsing signature with i %d sentinel %d", cm->i, sentinel);
+                parseUpTo(cm->i + tok.pl2, toks, cm);
+                Token nameTk = toks[cm->i + 1];
 
-            untt name = ((untt)nameTk.lenBts << 24) + (untt)nameTk.pl2;
-            parseFnSignature(tok, true, name, cm);
-            cm->i = sentinel;
+                untt name = ((untt)nameTk.lenBts << 24) + (untt)nameTk.pl2;
+                parseFnSignature(tok, true, name, cm);
+                cm->i = sentinel;
+            } else {
+                cm->i += (tok.pl2 + 1);  // CONSUME the whole non-function span */
+            }
         } else {
             cm->i += (tok.pl2 + 1);  // CONSUME the whole non-function span */
         }
@@ -4026,14 +4041,16 @@ private void printType(Int typeInd, Compiler* cm) {
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
         parseToplevelTypes(cm);
-
         /* This gives us the semi-complete overloads & overloadIds tables (with only the
          built-ins and imports) */
         parseToplevelConstants(cm);
 
+        print("p2");
         /* This gives the complete overloads & overloadIds tables + list of toplevel functions */
         parseToplevelSignatures(cm);
+        print("p2");
         createOverloads(cm);
+        print("p4");
 
 #ifdef SAFETY
         validateOverloadsFull(cm);
