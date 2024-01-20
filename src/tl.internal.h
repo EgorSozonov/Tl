@@ -24,7 +24,7 @@
 #define THIRTYFIRSTBIT 0x40000000
 #define MAXTOKENLEN 67108864 // 2^26
 #define SIXTEENPLUSONE 65537 // 2^16 + 1
-#define LEXER_INIT_SIZE 2000
+#define LEXER_INIT_SIZE 1000
 #define print(...) \
   printf(__VA_ARGS__);\
   printf("\n");
@@ -504,6 +504,7 @@ struct Compiler { // :Compiler
     String* sourceCode;
     Int inpLength;
     InListToken tokens;
+    InListToken metas; // TODO - metas with links back into parent span tokens
     InListInt newlines;
     Int indentation;
     InListInt numeric;          // [aTmp]
