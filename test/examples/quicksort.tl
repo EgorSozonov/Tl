@@ -1,9 +1,10 @@
-swap = f: [E] Int, Int, L(E)=>. i, j, arr.
+swap = ^{ E | i Int j Int arr L(E) => |
     tmp = arr_i
     arr_i = arr_j
     arr_j = tmp
+} 
 
-quickSort = n: [E] L(E) =>. arr.
+quickSort = ^{ [E] L(E) =>. arr.
     stack = l(L Int)
     i = 0
     j = #arr
@@ -11,6 +12,7 @@ quickSort = n: [E] L(E) =>. arr.
         if: arr_i < arr_j =>
             arr_i > arr_j =>
             else
+} 
 
 print = f: L(Int) =>. lst.
     printNoLn `[`

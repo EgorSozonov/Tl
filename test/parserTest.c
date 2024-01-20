@@ -29,9 +29,9 @@ typedef struct { // :TestEntityImport
 #define S   70000000 // A constant larger than the largest allowed file size.
                      // Separates parsed entities from others
 #define I  140000000 // The base index for imported entities/overloads
-#define S2 210000000 /* A constant larger than the largest allowed file size.
-                        Separates parsed entities from others */
-#define O  280000000 /* The base index for operators */
+#define S2 210000000 // A constant larger than the largest allowed file size.
+                     //  Separates parsed entities from others
+#define O  280000000 // The base index for operators
 
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
@@ -50,8 +50,8 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(ParserTest), tests)
 
 private Int tryGetOper0(Int opType, Int typeId, Compiler* proto) {
-/** Try and convert test value to operator entityId (not all operators are supported, only the
-ones used in tests) */
+// Try and convert test value to operator entityId (not all operators are supported, only the
+// ones used in tests)
     Int entityId;
     bool foundOv = findOverload(typeId, proto->activeBindings[opType], &entityId, proto);
     if (foundOv)  {
@@ -103,15 +103,15 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
 }
 
 
+private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes, Int countNodes,
+                               Arr(Int) types, Int countTypes, Arr(TestEntityImport) imports,
+                               Int countImports, Compiler* proto, Arena* a) {
 /** Creates a test with two parsers: one is the init parser (contains all the "imported" bindings and
 pre-defined nodes), and the other is the output parser (with all the stuff parsed from source code).
 When the test is run, the init parser will parse the tokens and then will be compared to the
 expected output parser.
 Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in nodBinding is 1,
 it will be inserted as 1 + (the number of built-in bindings) etc */
-private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes, Int countNodes,
-                               Arr(Int) types, Int countTypes, Arr(TestEntityImport) imports,
-                               Int countImports, Compiler* proto, Arena* a) {
     Compiler* test = lexicallyAnalyze(sourceCode, proto, a);
     Compiler* control = lexicallyAnalyze(sourceCode, proto, a);
     initializeParser(control, proto, a);
@@ -266,7 +266,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
         printParser(test.test, a);
     }
 }
-/*}}}*/
+//}}}
 
 ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){

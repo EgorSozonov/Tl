@@ -1,4 +1,4 @@
-/*{{{ Utils */
+//{{{ Utils
 
 #define Int int32_t
 #define StackInt Stackint32_t
@@ -22,8 +22,8 @@
 #define LOWER32BITS 0x00000000FFFFFFFF
 #define PENULTIMATE8BITS 0xFF00
 #define THIRTYFIRSTBIT 0x40000000
-#define MAXTOKENLEN 67108864 /* 2^26 */
-#define SIXTEENPLUSONE 65537 /* 2^16 + 1 */
+#define MAXTOKENLEN 67108864 // 2^26
+#define SIXTEENPLUSONE 65537 // 2^16 + 1
 #define LEXER_INIT_SIZE 2000
 #define print(...) \
   printf(__VA_ARGS__);\
@@ -34,10 +34,10 @@ typedef struct ArenaChunk ArenaChunk;
 struct ArenaChunk {
     size_t size;
     ArenaChunk* next;
-    char memory[]; /* flexible array member */
+    char memory[]; // flexible array member
 };
 
-typedef struct { /* :Arena */
+typedef struct { // :Arena
     ArenaChunk* firstChunk;
     ArenaChunk* currChunk;
     int currInd;
@@ -70,11 +70,11 @@ typedef struct {\
     void pushIn ## fieldName (T newItem, Compiler* cm);
 
 
-/* A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse
-old allocations via an intrusive free list.
-Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
-Units of measurement of len and cap are 1's. I.e. len can never be = 1, it starts with 2. */
-typedef struct { /* :MultiAssocList */
+// A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse
+// old allocations via an intrusive free list.
+// Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
+// Units of measurement of len and cap are 1's. I.e. len can never be = 1, it starts with 2
+typedef struct { // :MultiAssocList
     Int len;
     Int cap;
     Int freeList;
@@ -83,7 +83,7 @@ typedef struct { /* :MultiAssocList */
 } MultiAssocList;
 
 
-typedef struct { /* :String */
+typedef struct { // :String
     int len;
     Byte cont[];
 } String;
@@ -97,13 +97,13 @@ testable bool endsWith(String* a, String* b);
 #define s(lit) str(lit, a)
 
 typedef struct {
-    Int len; /* length of standardText */
-    Int firstParsed; /* the nameId for the first parsed word */
-    Int firstBuiltin; /* the nameId for the first built-in word in standardStrings */
+    Int len; // length of standardText
+    Int firstParsed; // the nameId for the first parsed word
+    Int firstBuiltin; // the nameId for the first built-in word in standardStrings
 } StandardText;
 
-/*}}}*/
-/*{{{ Int Hashmap */
+//}}}
+//{{{ Int Hashmap
 
 DEFINE_STACK_HEADER(int32_t)
 typedef struct {
@@ -113,10 +113,10 @@ typedef struct {
     Arena* a;
 } IntMap;
 
-/*}}}*/
-/*{{{ String Hashmap */
+//}}}
+//{{{ String Hashmap
 
-/* Reference to first occurrence of a string identifier within input text */
+// Reference to first occurrence of a string identifier within input text
 typedef struct {
     untt hash;
     Int indString;
@@ -128,7 +128,7 @@ typedef struct {
     StringValue cont[];
 } Bucket;
 
-/* Hash map of all words/identifiers encountered in a source module */
+// Hash map of all words/identifiers encountered in a source module
 typedef struct {
     Arr(Bucket*) dict;
     int dictSize;
@@ -136,10 +136,10 @@ typedef struct {
     Arena* a;
 } StringDict;
 
-/*}}}*/
-/*{{{ Lexer */
+//}}}
+//{{{ Lexer
 
-/*{{{ Standard strings :standardStr */
+//{{{ Standard strings :standardStr
 #define strAlias      0
 #define strAssert     1
 #define strBreak      2
@@ -167,11 +167,11 @@ typedef struct {
 #define strBool      23
 #define strString    24
 #define strVoid      25
-#define strF         26 /* F(unction type) */
-#define strL         27 /* List */
-#define strA         28 /* Array */
-#define strD         29 /* Dictionary */
-#define strTu        30 /* Tu(ple) */
+#define strF         26 // F(unction type)
+#define strL         27 // L(ist)
+#define strA         28 // A(rray)
+#define strD         29 // D(ictionary)
+#define strTu        30 // Tu(ple)
 #define strLen       31
 #define strCap       32
 #define strF1        33
@@ -182,10 +182,10 @@ typedef struct {
 #define strMathE     38
 #define strSentinel  39
 
-/*}}}*/
+//}}}
 
-/* Backtrack token, used during lexing to keep track of all the nested stuff */
-typedef struct { /* :BtToken */
+// Backtrack token, used during lexing to keep track of all the nested stuff
+typedef struct { // :BtToken
     untt tp : 6;
     Int tokenInd;
     untt spanLevel : 3;
@@ -193,7 +193,7 @@ typedef struct { /* :BtToken */
 
 DEFINE_STACK_HEADER(BtToken)
 
-typedef struct { /* :Token */
+typedef struct { // :Token
     untt tp : 6;
     untt lenBts: 26;
     untt startBt;
@@ -203,56 +203,56 @@ typedef struct { /* :Token */
 
 #define maxWordLength 255
 
-/* Regular (leaf) Token types
- The following group of variants are transferred to the AST byte for byte, with no analysis
- Their values must exactly correspond with the initial group of variants in "RegularAST"
- The largest value must be stored in "topVerbatimTokenVariant" constant */
+// Regular (leaf) Token types
+// The following group of variants are transferred to the AST byte for byte, with no analysis
+// Their values must exactly correspond with the initial group of variants in "RegularAST"
+// The largest value must be stored in "topVerbatimTokenVariant" constant
 #define tokInt          0
 #define tokLong         1
 #define tokDouble       2
-#define tokBool         3    /* pl2 = value (1 or 0) */
+#define tokBool         3  // pl2 = value (1 or 0)
 #define tokString       4
-#define tokTilde        5    /* marks up to 2 anonymous params in a lambda. pl1 = tilde count */
-#define tokMisc         6    /* pl1 = see the misc* constants */
+#define tokTilde        5  // marks up to 2 anonymous params in a lambda. pl1 = tilde count
+#define tokMisc         6  // pl1 = see the misc* constants
 
-#define tokWord         7    /* pl2 = nameId (index in the string table) */
-#define tokTypeName     8    /* pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord */
-#define tokKwArg        9    /* pl2 = same as tokWord. The ":argName" */
-#define tokOperator    10    /* pl1 = OperatorToken, one of the "opT" constants below */
-#define tokAccessor    11    /* pl1 = see "tkAcc" consts. If pl1 == tkAccDot, then pl2 = nameId
-                                Either an ".accessor" or a `_smth` */
+#define tokWord         7  // pl2 = nameId (index in the string table)
+#define tokTypeName     8  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
+#define tokKwArg        9  // pl2 = same as tokWord. The ":argName"
+#define tokOperator    10  // pl1 = OperatorToken, one of the "opT" constants below
+#define tokAccessor    11  // pl1 = see "tkAcc" consts. If pl1 == tkAccDot, then pl2 = nameId
+                           // Either an ".accessor" or a `_smth`
 
 // Single-statement token types
-#define tokStmt        12    /* firstSpanTokenType */
-#define tokParens      13    /* subexpressions and struct/sum type instances */
-#define tokCall        14    /* pl1 = nameId, index in the string table */
-#define tokTypeCall    15    // pl1 = nameId of type. Either a type call or a type constructor
-#define tokParamList   16    /* Parameter lists, ended with `|` */
-#define tokAssignLeft  17    /* pl1 == 1 iff reassignment, pl1 == 2 iff type assignment,
-                                pl1 == (BIG + opType) iff mutation. If pl2 == 0 then 
-                                pl1 = nameId for the single word on the left (and it's an 
-                                assignment of a var => not reassignment/mut, not type) */
-#define tokAssignRight 18    /* Right-hand side of assignment */
+#define tokStmt        12  // firstSpanTokenType
+#define tokParens      13  // subexpressions and struct/sum type instances */
+#define tokCall        14  // pl1 = nameId, index in the string table */
+#define tokTypeCall    15  // pl1 = nameId of type. Either a type call or a type constructor
+#define tokParamList   16  // Parameter lists, ended with `|` */
+#define tokAssignLeft  17  // pl1 == 1 iff reassignment, pl1 == 2 iff type assignment,
+                           // pl1 == (BIG + opType) iff mutation. If pl2 == 0 then
+                           // pl1 = nameId for the single word on the left (and it's an
+                           // assignment of a var, i.e. neither reassignment/mut nor type)
+#define tokAssignRight 18  // Right-hand side of assignment
 #define tokAlias       19
 #define tokAssert      20
-#define tokBreakCont   21    /* pl1 >= BIG iff it's a continue */
+#define tokBreakCont   21  // pl1 >= BIG iff it's a continue
 #define tokIface       22
-#define tokImport      23    /* For test files and package decls */
+#define tokImport      23  // For test files and package decls
 #define tokReturn      24
 
-/* Bracketed (multi-statement) token types. pl1 = spanLevel, see "sl" constants */
-#define tokScope       25    /* denoted by {}. firstScopeTokenType */
-#define tokFn          26    /* `^{ a Int => String | body}` */
-#define tokTry         27    /* `try {` */
-#define tokCatch       28    /* `catch MyExc e {` */
-#define tokFinally     29    /* `finally { ` */
-#define tokMeta        30    /* `[` */
+// Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
+#define tokScope       25  // denoted by {}. firstScopeTokenType
+#define tokFn          26  // `^{ a Int => String | body}`
+#define tokTry         27  // `try {`
+#define tokCatch       28  // `catch MyExc e {`
+#define tokFinally     29  // `finally { `
+#define tokMeta        30  // `[`
 
-/* Resumable core forms */
-#define tokIf          31    /* `if ... {` */
-#define tokMatch       32    /* "match ... {" pattern matching on sum type tag */
-#define tokElseIf      33    /* `ei ... {` */
-#define tokElse        34    /* `else {` */
+// Resumable core forms
+#define tokIf          31  // `if ... {`
+#define tokMatch       32  // `match ... {` pattern matching on sum type tag
+#define tokElseIf      33  // `ei ... {`
+#define tokElse        34  // `else {`
 #define tokImpl        35
 #define tokFor         36
 #define tokEach        37
@@ -263,17 +263,17 @@ typedef struct { /* :Token */
 #define firstScopeTokenType tokScope
 #define firstResumableSpanTokenType tokIf
 
-/* List of keywords that don't correspond directly to a token.
- All these numbers must be below firstKeywordToken to avoid any clashes */
+// List of keywords that don't correspond directly to a token.
+// All these numbers must be below firstKeywordToken to avoid any clashes
 #define keywTrue        1
 #define keywFalse       2
 #define keywBreak       3
 #define keywContinue    4
 
-#define miscPub   0     /* pub. It must be 0 because it's the only one denoted by a keyword */
-#define miscEmpty 1     /* null, written as `[]` */
-#define miscComma 2     /* , */
-#define miscArrow 3     /* => */
+#define miscPub   0     // pub. It must be 0 because it's the only one denoted by a keyword
+#define miscEmpty 1     // null, written as `[]`
+#define miscComma 2     // ,
+#define miscArrow 3     // =>
 
 #define assiDefinition 0
 #define assiReassign   1
@@ -281,58 +281,56 @@ typedef struct { /* :Token */
 
 
 // AST nodes
-#define nodId           7    /* pl1 = index of entity, pl2 = index of name */
-#define nodCall         8    /* pl1 = index of entity, pl2 = arity */
-#define nodBinding      9    /* pl1 = index of entity, pl2 = 1 if it's a type binding */
+#define nodId           7  // pl1 = index of entity, pl2 = index of name
+#define nodCall         8  // pl1 = index of entity, pl2 = arity
+#define nodBinding      9  // pl1 = index of entity, pl2 = 1 if it's a type binding
 
 // Punctuation (inner node)
 #define nodScope       10
 #define nodExpr        11
 #define nodAssignLeft  12
 #define nodAssignRight 13
-#define nodAccessor    14     // pl1 = "acc" constants
+#define nodAccessor    14  // pl1 = "acc" constants
 
 // Single-shot core syntax forms
 #define nodAlias       15
-#define nodAssert      16     // pl1 = 1 iff it's a debug assert
-#define nodBreakCont   17     // pl1 = number of label to break or continue to, -1 if none needed
-                              // It's a continue iff it's >= BIG
-#define nodCatch       18     // `catch e {`
+#define nodAssert      16  // pl1 = 1 iff it's a debug assert
+#define nodBreakCont   17  // pl1 = number of label to break or continue to, -1 if none needed
+                           // It's a continue iff it's >= BIG
+#define nodCatch       18  // `catch e {`
 #define nodDefer       19
-#define nodImport      20     // This is for test files only, no need to import anything in main
-#define nodFnDef       21     // pl1 = entityId
+#define nodImport      20  // This is for test files only, no need to import anything in main
+#define nodFnDef       21  // pl1 = entityId
 #define nodIface       22
 #define nodMeta        24
 #define nodReturn      25
 #define nodTry         26
-#define nodFor         28     // pl1 = id of loop (unique within a function) if it needs to
-                              // have a label in codegen
+#define nodFor         28  // pl1 = id of loop (unique within a function) if it needs to
+                           // have a label in codegen
 #define nodForCond     29
 
 #define nodIf          30
 #define nodElseIf      30
 #define nodImpl        31
-#define nodMatch       32     // pattern matching on sum type tag
+#define nodMatch       32  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 
-#define metaDoc         1     // Doc comments
-#define metaDefault     2     // Default values for type arguments
+#define metaDoc         1  // Doc comments
+#define metaDefault     2  // Default values for type arguments
 
 
-/**
- There is a closed set of operators in the language.
- 
- For added flexibility, some operators may be extended into one more planes,
- for example '+' may be extended into '+.', while '/' may be extended into '/.'.
- These extended operators are declared by the language, and may be defined
- for any type by the user, with the return type being arbitrary.
- For example, the type of 3D vectors may have two different multiplication
- operators: *. for vector product and * for scalar product.
- 
- Plus, many have automatic assignment counterparts.
- For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
-*/
+// There is a closed set of operators in the language.
+//
+// For added flexibility, some operators may be extended into one more planes,
+// e.g. (+) may be extended into (+.), while (/) may be extended into (/.).
+// These extended operators are declared by the language, and may be defined
+// for any type by the user, with the return type being arbitrary.
+// For example, the type of 3D vectors may have two different multiplication
+// operators: *. for vector product and * for scalar product.
+//
+// Plus, many have automatic assignment counterparts.
+// For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
 typedef struct { // :OpDef
     Byte bytes[4];
     Int arity;
@@ -547,31 +545,31 @@ struct Compiler { // :Compiler
 
 // Span levels, must all be more than 0
 #define slScope       1 // scopes (denoted by brackets): newlines and commas have no effect there
-#define slDoubleScope 2 // double scopes like `if`, `for` etc. They last until the first 
+#define slDoubleScope 2 // double scopes like `if`, `for` etc. They last until the first
                         // {} span gets closed
 #define slStmt        3 // single-line statements: newlines and semicolons break 'em
 #define slSubexpr     4 // parenthesized forms: newlines have no effect, semi-colons error out
 
 
 //}}}
-/*{{{ Types */
+//{{{ Types
 
-/* see the Type layout chapter in the docs */
+// see the Type layout chapter in the docs
 #define sorStruct       1
 #define sorSum          2
 #define sorFunction     3
-#define sorPartial      4 /* Partially applied type */
-#define sorConcrete     5 /* Fully applied type (no type params) */
+#define sorPartial      4 // Partially applied type
+#define sorConcrete     5 // Fully applied type (no type params)
 
-typedef struct { /* :TypeHeader */
+typedef struct { // :TypeHeader
     Byte sort;
     Byte arity;
     Byte depth;
     untt nameAndLen;
 } TypeHeader;
 
-/*}}}*/
-/*{{{ Generics */
+//}}}
+//{{{ Generics
 
 #define pop(X) _Generic((X),\
     StackBtToken*: popBtToken,\
@@ -608,5 +606,5 @@ typedef struct { /* :TypeHeader */
     StackNode*: hasValuesNode\
     )(X)
 
-/*}}}*/
+//}}}
 

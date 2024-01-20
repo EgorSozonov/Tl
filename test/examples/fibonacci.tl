@@ -1,4 +1,4 @@
-fibonacci = { n Int => Int;;
+fibonacci = { n Int => Int |
      if n <= 0 { return 0 }
      ei n == 1 { return 1 }
 
@@ -14,6 +14,6 @@ fibonacci = { n Int => Int;;
 }
 
 main = {
-    fib = 6.fibonacci()
-    fib.print()
+    fib = fibonacci(6)
+    fib .print
 }

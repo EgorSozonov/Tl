@@ -127,6 +127,7 @@ extern const char errIncorrectPrefixSequence[];
 extern const char errOperatorUsedInappropriately[];
 extern const char errAssignment[];
 extern const char errAssignmentShadowing[];
+extern const char errAssignmentToplevelFn[];
 extern const char errAssignmentLeftSide[];
 extern const char errMutation[];
 extern const char errReturn[];
