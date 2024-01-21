@@ -477,7 +477,7 @@ LexerTestSet* stringTests(Compiler* proto, Arena* a) {
     }));
 }
 
-
+/*
 LexerTestSet* metaTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Metaexpressions lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Comment simple"),
@@ -490,6 +490,7 @@ LexerTestSet* metaTests(Compiler* proto, Arena* a) {
             }
     }));
 }
+*/
 
 LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Punctuation lexer tests"), a, ((LexerTest[]) {
@@ -1053,7 +1054,7 @@ int main() {
     int countTests = 0;
     runATestSet(&wordTests, &countPassed, &countTests, proto, a);
     runATestSet(&stringTests, &countPassed, &countTests, proto, a);
-    runATestSet(&metaTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&metaTests, &countPassed, &countTests, proto, a);
     runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
     runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
     runATestSet(&numericTests, &countPassed, &countTests, proto, a);

@@ -1632,10 +1632,7 @@ private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) {
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
     Int uniqueStringId = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
-    if (getLexContext(lx).tp == tokMeta) {
-        VALIDATEL(wordType == tokWord, errWordInMeta)
-        wordNormal(tokWord, uniqueStringId, startBt, realStartBt, wasCapitalized, source, lx);
-    } else if (uniqueStringId - countOperators < strFirstNonReserved)  {
+    if (uniqueStringId - countOperators < strFirstNonReserved)  {
         wordReserved(wordType, uniqueStringId - countOperators, startBt, realStartBt, source, lx);
     } else {
         wrapInAStatementStarting(startBt, source, lx);
@@ -1835,25 +1832,31 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) {
     }
 }
 
-private void lexComment(Arr(Byte) source, Compiler* lx) {
-// All comments are of the / * comm * / form like in old-school C
+private void lexElision(Arr(Byte) source, Compiler* lx) {
+// Tl separates between comments for documentation (which live in meta info and are
+// spelt as [`comment`]) and elisions for, well, temporarily eliding code
+// Elisions are of the / * comm * / form like in old-school C, except they are also nestable
     lx->i += 2; // CONSUME the "/ *"
-    if (lx->i >= lx->inpLength) {
-        return;
-    }
+    Int elisionLevel = 1;
 
     Int j = lx->i;
-    while (j < lx->inpLength) {
+    while (j < lx->inpLength - 1) {
         Byte cByte = source[j];
-        if (cByte == aTimes && j + 1 < lx->inpLength && NEXT_BT == aDivBy) {
-            lx->i = j + 1; // CONSUME the comment
-            return;
+        if (cByte == aTimes && NEXT_BT == aDivBy) {
+            --elisionLevel;
+            if (elisionLevel == 0)  {
+                lx->i = j + 2; // CONSUME the elision
+                return;
+            }
+        } else if (cByte == aDivBy && NEXT_BT == aTimes) {
+            ++elisionLevel;
         } else {
             j++;
         }
     }
-    lx->i = j;  // CONSUME the comment
+    throwExcLexer(errPrematureEndOfInput);
 }
+
 
 private void lexMinus(Arr(Byte) source, Compiler* lx) {
 // Handles the binary operator as well as the unary negation operator
@@ -1871,26 +1874,23 @@ private void lexMinus(Arr(Byte) source, Compiler* lx) {
     }
 }
 
+
 private void lexDivBy(Arr(Byte) source, Compiler* lx) {
-// Handles the binary operator as well as the unary negation operator and the comments
-    if (lx->i == lx->inpLength - 1) {
-        lexOperator(source, lx);
+// Handles the binary operator as well as the elisions
+    if (lx->i + 1 < lx->inpLength && NEXT_BT == aTimes) {
+        lexElision(source, lx);
     } else {
-        Byte nextBt = NEXT_BT;
-        if (nextBt == aTimes) {
-            lexComment(source, lx);
-        } else {
-            lexOperator(source, lx);
-        }
+        lexOperator(source, lx);
     }
 }
+
 
 private void lexParenLeft(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
     VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
     wrapInAStatement(source, lx);
     openPunctuation(tokParens, slSubexpr, lx->i, lx);
-    lx->i++; // CONSUME the left parenthesis
+    ++lx->i; // CONSUME the left parenthesis
 }
 
 
@@ -1947,12 +1947,16 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
 
 private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
     wrapInAStatement(source, lx);
-    openPunctuation(tokMeta, slSubexpr, lx->i, lx);
+    // TODO openPunctuation(tokMeta, slSubexpr, lx->i, lx);
     lx->i++; // CONSUME the `[`
 }
 
 
 private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
+    // TODO
+    ++lx->i;
+    return;
+   /*
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
@@ -1963,6 +1967,7 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
     setSpanLengthLexer(top.tokenInd, lx);
     lx->i++; // CONSUME the `]`
     if (hasValues(lx->lexBtrack)) { lx->lastClosingPunctInd = startInd; }
+   */
 }
 
 
@@ -2700,6 +2705,7 @@ private void maybeCloseSpans(Compiler* cm) {
 // (otherwise => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
 // in which case this function handles all the corresponding stack poppin'.
 // It also always handles updating all inner frames with consumed tokens
+// This is safe to call anywhere, pretty much
     while (hasValues(cm->backtrack)) { // loop over subscopes and expressions inside FunctionDef
         ParseFrame frame = peek(cm->backtrack);
         if (cm->i < frame.sentinelToken) {
@@ -2719,7 +2725,9 @@ private void maybeCloseSpans(Compiler* cm) {
 private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
 // Parses anything from current cm->i to "sentinelToken"
     while (cm->i < sentinelToken) {
+
         Token currTok = tokens[cm->i];
+        print("i %d tok %d", cm->i, currTok.tp)
         cm->i++;
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, tokens, cm);
 
@@ -3036,7 +3044,6 @@ private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] {
     p[tokFinally]     = &parseAlias;
     p[tokIface]       = &parseAlias;
     p[tokImport]      = &parseAlias;
-    p[tokMeta]        = &parseAlias;
     p[tokReturn]      = &parseReturn;
     p[tokTry]         = &parseAlias;
 
@@ -3326,7 +3333,8 @@ private void addRawOverload(Int nameId, Int firstParamType, Int entityId, Compil
         cm->activeBindings[nameId] = -newListId - 2;
         ++cm->countOverloadedNames;
     } else {
-        Int updatedListId = addMultiAssocList(firstParamType, entityId, mbListId, cm->rawOverloads);
+        Int updatedListId = addMultiAssocList(firstParamType, entityId, mbListId,
+                                              cm->rawOverloads);
         if (updatedListId != -1) {
             cm->activeBindings[nameId] = -updatedListId - 2;
         }
@@ -3375,9 +3383,15 @@ testable Int mergeType(Int startInd, Compiler* cm) {
     return mergeTypeWorker(startInd, lenInts, cm);
 }
 
+//{{{ Forw decls
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
+private Int getFirstParamType(Int funcTypeId, Compiler* cm);
+private bool isFunctionWithParams(Int typeId, Compiler* cm);
+private Int typeGetOuter(Int typeId, Compiler* cm);
+private Int typeGetArity(Int typeId, Compiler* cm);
+//}}}
 
 
 testable Int addConcreteFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
@@ -3462,6 +3476,7 @@ private void buildOperator(Int operId, Int typeId, Compiler* cm) {
     pushInentities((Entity){ .typeId = typeId, .class = classImmutable }, cm);
     addRawOverload(operId, getFirstParamType(typeId, cm), newEntityId, cm);
 }
+
 
 private void buildOperators(Compiler* cm) {
 // Operators are the first-ever functions to be defined. This function builds their [types],
@@ -3613,6 +3628,8 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
         .wasError = false, .errMsg = &empty,
         .a = a, .aTmp = aTmp
     };
+    print("create from proto")
+    print("overs %d", lx->overloads.len);
     return lx;
 }
 
@@ -3664,10 +3681,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     importPrelude(cm);
 }
 
-private Int getFirstParamType(Int funcTypeId, Compiler* cm);
-private bool isFunctionWithParams(Int typeId, Compiler* cm);
-private Int typeGetOuter(Int typeId, Compiler* cm);
-private Int typeGetArity(Int typeId, Compiler* cm);
 
 private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) {
     if (st.len + neededSpace >= st.cap) {
@@ -3678,28 +3691,27 @@ private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) {
     }
 }
 
-private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scratch, Compiler* cm) {
-// Validates the overloads for a name for non-intersecting via their outer types and full types
+
+private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm) {
+// Validates the overloads for a name for non-intersecting via their outer types
 // 1. For parameter outer types, their arities must be unique and not match any other outer types
 // 2. A zero-arity function, if any, must be unique
-// 3. For any run of types with same outerType, all refs must be either to concrete entities or
-//    to [monoIds] (no mixing within same outerType)
+// 3. For concrete outer types, there must be only one ref
 // 4. For refs to concrete entities, full types (which are concrete) must be different
-// 5. outerTypes with refs to [monoIds] must not intersect amongst themselves
     Arr(Int) ov = cm->overloads.cont;
     Int start = listId + 1;
     Int outerSentinel = start + countOverloads;
     Int prevParamOuter = -1;
     Int o = start;
     for (; o < outerSentinel && ov[o] < -1; o++) {
-        // These are the param outer types, like the outer of "[U/1]U(Int)". The values are
+        // These are the param outer types, like the outer of "U | U(Int)". Their values are
         // (-arity - 1)
         VALIDATEP(ov[o] != prevParamOuter, errTypeOverloadsIntersect)
         prevParamOuter = ov[o];
     }
     if (o > start) {
         // Since we have some param outer types, we need to check every positive outer type, and -1
-        // The simple (though rough) criterion is they must not have the same arity as any param outer
+        // The rough simple criterion is they must not have the same arity as any param outer
         for (Int k = o; k < outerSentinel; k++) {
             if (ov[k] == -1) {
                 continue;
@@ -3711,20 +3723,29 @@ private void validateNameOverloads(Int listId, Int countOverloads, StackInt* scr
     }
     if (o + 1 < outerSentinel && ov[o] == -1) {
         VALIDATEP(ov[o + 1] > -1, errTypeOverloadsOnlyOneZero)
+        ++o;
     }
-    // Validate every pocket of nonnegative outerType for: 1) homogeneity (either all concrete or
-    // all generic types) 2) non-intersection (for concrete types it's uniqueness,
-    // for generics non-intersection)
+    if (o == outerSentinel) {
+        return;
+    }
+    // Validate that all nonnegative outerTypes are distinct
+    Int prevOuter = ov[o];
+    for (Int k = o + 1; k < outerSentinel; k++)  {
+        VALIDATEP(ov[k] != prevOuter, errTypeOverloadsIntersect)
+        prevOuter = ov[k];
+    }
 }
 
 #ifdef TEST
 void printIntArray(Int count, Arr(Int) arr);
 #endif
 
-testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
-// Creates a final overloads table for a name and returns its index
-// Precondition: [rawOverloads] contain twoples of (typeId ref) (yes, "twople" = tuple of two)
-    scratch->len = 0;
+
+testable Int createNameOverloads(Int nameId, Compiler* cm) {
+// Creates a final subtable in [overloads] for a name and returns the index of said subtable
+// Precondition: [rawOverloads] contain twoples of (typeId ref)
+// (typeId = the full type of a function)(ref = entityId or monoId)(yes, "twople" = tuple of two)
+// Postcondition: [overloads] will contain a subtable of: length(outerTypeId)(ref)
     Arr(Int) raw = cm->rawOverloads->cont;
     Int listId = -cm->activeBindings[nameId] - 2;
     Int rawStart = listId + 2;
@@ -3733,77 +3754,58 @@ testable Int createNameOverloads(Int nameId, StackInt* scratch, Compiler* cm) {
     VALIDATEI(rawStart != -1, iErrorImportedFunctionNotInScope)
 #endif
 
+    Int countOverloads = raw[listId]/2;
+    print("countOverloads %d name %d", countOverloads, nameId)
     Int rawSentinel = rawStart + raw[listId];
-
-    for (Int j = rawStart; j < rawSentinel; j += 2) {
-        Int outerType = typeGetOuter(raw[j], cm);
-        push(outerType, scratch);
-        push(j, scratch);  // we need the index to get the original items after sorting
-    }
-    // Scratch contains twoples of (outerType indexInRaw)
-
-    Int countOverloads = scratch->len/2;
-    sortPairs(0, scratch->len, scratch->cont); // sort by outerType ASC
 
     Arr(Int) ov = cm->overloads.cont;
     Int newInd = cm->overloads.len;
-    ov[newInd] = 3*countOverloads;
-    cm->overloads.len += 3*countOverloads + 1;
+    ov[newInd] = 2*countOverloads; // length of the subtable for this name
+    cm->overloads.len += 2*countOverloads + 1;
+    Int indDiff = newInd - rawStart;
 
-    for (Int j = 0; j < countOverloads; j++) {
-        ov[newInd + j + 1] = scratch->cont[2*j]; // outerTypeId
-        scratch->cont[j*2] = raw[j*2]; // typeId
-    }
-    // outerTypes part is filled in, and scratch contains twoples of (typeId ind)
-
-    // Now to sort every plateau of outerType, but in the scratch list
-    Int prevOuter = -1;
-    Int prevInd = 0;
-    Int j = 0;
-    for (; j < countOverloads; j++) {
-        Int currOuter = ov[newInd + j + 1];
-        if (currOuter != prevOuter) {
-            prevOuter = currOuter;
-            sortPairsDistant(prevInd, j - 1, countOverloads, scratch->cont);
-            prevInd = j;
-        }
+    for (Int j = rawStart; j < rawSentinel; j += 2) {
+        Int outerType = typeGetOuter(raw[j], cm);
+        ov[j + indDiff] = outerType;
+        ov[j + indDiff + countOverloads] = raw[j + 1]; // entityId
     }
 
-    // Scratch consists of sorted plateaus. Finally we can fill the remaining 2/3 of [overloads]
-    for (Int k = 0; k < countOverloads; k++) {
-        Int indexInRaw = scratch->cont[2*k + 1];
-        ov[newInd + k + 1 + countOverloads] = raw[indexInRaw]; // typeId
-        ov[newInd + k + 1 + 2*countOverloads] = raw[indexInRaw + 1]; // ref
-    }
-    validateNameOverloads(newInd, countOverloads, scratch, cm);
+    sortPairsDistant(newInd + 1, newInd + 1 + 2*countOverloads, countOverloads, ov);
+
+    validateNameOverloads(newInd, countOverloads, cm);
     return newInd;
 }
+
 
 testable void createOverloads(Compiler* cm) {
 // Fills [overloads] from [rawOverloads]. Replaces all indices in
 // [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
-    StackInt* scratch = createStackint32_t(16, cm->aTmp);
+    print("create over l")
     cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4,
                                          cm->a);
-    // Each overload requires 3x4 = 12 bytes for the triple of (outerType typeId entityId).
+    // Each overload requires 2x4 = 8 bytes for the pair of (outerType entityId).
     // Plus you need an int per overloaded name to hold the length of the overloads for that name
 
     cm->overloads.len = cm->countOverloads;
     for (Int j = 0; j < countOperators; j++) {
-        Int newIndex = createNameOverloads(j, scratch, cm);
+        Int newIndex = createNameOverloads(j, cm);
         cm->activeBindings[j] = -newIndex - 2;
     }
+    print("p1");
     for (Int j = 0; j < cm->imports.len; j++) {
         Int nameId = cm->imports.cont[j];
-        Int newIndex = createNameOverloads(nameId, scratch, cm);
+        Int newIndex = createNameOverloads(nameId, cm);
         cm->activeBindings[nameId] = -newIndex - 2;
     }
+    print("p2");
     for (Int j = 0; j < cm->toplevels.len; j++) {
         Int nameId = cm->toplevels.cont[j].name & LOWER24BITS;
-        Int newIndex = createNameOverloads(nameId, scratch, cm);
+        Int newIndex = createNameOverloads(nameId, cm);
         cm->activeBindings[nameId] = -newIndex - 2;
     }
+    print("p3");
 }
+
 
 private void parseToplevelTypes(Compiler* cm) {
 // Parses top-level types but not functions. Writes them to the types table and adds
@@ -3822,6 +3824,7 @@ private void parseToplevelTypes(Compiler* cm) {
     }
 }
 
+
 private void parseToplevelConstants(Compiler* cm) {
 // Parses top-level constants but not functions, and adds their bindings to the scope
     cm->i = 0;
@@ -3832,8 +3835,10 @@ private void parseToplevelConstants(Compiler* cm) {
         if (tok.tp == tokAssignLeft && tok.pl2 == 0) {
             Token rightTk = toks[cm->i + 2];
             if (rightTk.tp != tokFn) {
-                cm->i += 2; // CONSUME the left and right assignment
-                parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, toks, cm);
+                cm->i += 1; // CONSUME the left and right assignment
+                parseAssignment(tok, toks, cm);
+                maybeCloseSpans(cm);
+                //parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, toks, cm);
             } else {
                 cm->i += (tok.pl2 + 1);
             }
@@ -3842,6 +3847,7 @@ private void parseToplevelConstants(Compiler* cm) {
         }
     }
 }
+
 
 #ifdef SAFETY
 private void validateOverloadsFull(Compiler* cm) {
@@ -3947,7 +3953,7 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Int void
     Arr(Token) toks = cm->tokens.cont;
 
     Int uniqueTypeId = voidToVoid;
-    Int firstParamType = -1;
+    Int firstParamType = -1; // default for nullary functions
     if (toks[cm->i].tp == tokParamList) {
         Token paramListTk = toks[cm->i];
         cm->i++;
@@ -4018,6 +4024,7 @@ private void parseFunctionBodies(Arr(Token) toks, Compiler* cm) {
     }
 }
 
+
 private void parseToplevelSignatures(Compiler* cm) {
 // Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
 // Result: the overload counts and the list of toplevel functions to parse. No nodes emitted
@@ -4049,6 +4056,7 @@ private void parseToplevelSignatures(Compiler* cm) {
         parseFnSignature(rightTk, true, name, voidToVoid, cm);
     }
 }
+
 
 // Must agree in order with node types in tl.internal.h
 const char* nodeNames[] = {
@@ -4085,17 +4093,16 @@ private void printType(Int typeInd, Compiler* cm) {
 
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
+        print("parseMain")
         parseToplevelTypes(cm);
         // This gives us the semi-complete overloads & overloadIds tables (with only the
         // built-ins and imports)
         parseToplevelConstants(cm);
 
-        print("p2");
+        print("toplevel consts");
         // This gives the complete overloads & overloadIds tables + list of toplevel functions
         parseToplevelSignatures(cm);
-        print("p3");
         createOverloads(cm);
-        print("p4");
 
 #ifdef SAFETY
         validateOverloadsFull(cm);
@@ -4105,6 +4112,7 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) {
     }
     return cm;
 }
+
 
 testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 // Parses a single file in 4 passes, see docs/parser.txt
@@ -4147,6 +4155,10 @@ private Int typeGetArity(Int typeId, Compiler* cm) {
 
 
 private Int typeGetOuter(Int typeId, Compiler* cm) {
+// A         => A  (concrete types)
+// A(B)      => A  (concrete generic types)
+// A | A(B)  => -2 (param generic types)
+// F(A => B) => F(A => B)
     if (typeId <= topVerbatimType) {
         return typeId;
     }
@@ -4165,6 +4177,7 @@ private Int typeGetOuter(Int typeId, Compiler* cm) {
         return cm->types.cont[typeId + hdr.arity + 3] & LOWER24BITS;
     }
 }
+
 
 private Int isFunction(Int typeId, Compiler* cm) {
 // Returns the function's depth (count of args) if the type is a function type, -1 otherwise
@@ -4187,6 +4200,7 @@ testable void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm) {
 // Known type fn call
     pushIntypes((arity << 24) + typeInd, cm);
 }
+
 
 testable Int typeSingleItem(Token tk, Compiler* cm) {
 // A single-item type, like "Int". Consumes no tokens.
@@ -4663,46 +4677,13 @@ private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
 // Gets the type of the first param of a function
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
 
-    return cm->types.cont[funcTypeId + 3 + hdr.arity]; // +3 skips the type length, type tag and name
+    return cm->types.cont[funcTypeId + 3 + hdr.arity]; // +3 skips the type length, type tag & name
 }
 
 private bool isFunctionWithParams(Int typeId, Compiler* cm) {
     return cm->types.cont[typeId] > 1;
 }
 
-
-private Int overloadOnPlateau(Int outerType, Int ind, Int typeId, Int ovInd, Int countOvs,
-                                  Compiler* cm) {
-// Find the inclusive left and right indices of a plateau (same outer type) in [overloads].
-// Returns index of the reference in [overloads], or -1 if not match was found
-    Arr(Int) overs = cm->overloads.cont;
-    Int j = ind - 1;
-    while (j > ovInd && overs[j] == outerType) {
-        --j;
-    }
-    Int plateauLeft = j + 1 + countOvs;
-    j = ind + 1;
-    Int sentinel = ovInd + countOvs + 1;
-    while (j < sentinel && overs[j] == outerType) {
-        ++j;
-    }
-    Int plateauRight = j - 1 + countOvs;
-    // We've found the plateau in the outer types, now to search the full types
-    // They may contain either only negative values (for generic function's first parameter) or only
-    // non-negative values (for concrete fn param)
-    bool genericMode = overs[plateauLeft] < 0;
-    if (genericMode) {
-        for (Int k = plateauLeft; k <= plateauRight; k++) {
-            if (typeSatisfiesGeneric(typeId, -overs[k] - 1, cm)) {
-                return k + countOvs;
-            }
-        }
-    } else {
-        Int indFullType = binarySearch(typeId, plateauLeft, plateauRight, overs);
-        return indFullType > -1 ? (indFullType + countOvs) : -1;
-    }
-    return -1;
-}
 
 testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
 // Params: typeId = type of the first function parameter, or -1 if it's 0-arity
@@ -4715,59 +4696,52 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
 // 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1
     Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
-    Int countOvs = overs[ovInd];
-    Int sentinel = ovInd + countOvs + 1;
+    print("ovInd %d overs len %d", ovInd, cm->overloads.len)
+    Int countOverloads = overs[ovInd];
+    Int sentinel = ovInd + countOverloads + 1;
     if (typeId == -1) { // scenario 2
         Int j = 0;
         while (j < sentinel && overs[j] < 0) {
             if (overs[j] == -1) {
-                (*entityId) = overs[j + 2*countOvs];
+                (*entityId) = overs[j + countOverloads];
                 return true;
             }
             ++j;
         }
         throwExcParser(errTypeNoMatchingOverload, cm);
-    } else {
-        Int outerType = typeGetOuter(typeId, cm);
-        Int mbFuncArity = isFunction(typeId, cm);
-        if (mbFuncArity > -1) { // scenario 4
-            mbFuncArity += BIG;
-            Int j = sentinel - 1;
-            for (; j > start && overs[j] > BIG; j--) {
-                if (overs[j] != mbFuncArity) {
-                    continue;
-                }
-                Int res = overloadOnPlateau(mbFuncArity, j, typeId, ovInd, countOvs, cm);
-                if (res > -1) {
-                    (*entityId) = overs[res];
-                    return true;
-                }
-            }
-        } else { // scenarios 1 or 3
-            Int j = start;
-            for (; j < sentinel && overs[j] < 0; j++); // scenario 1
+    }
 
-            Int k = sentinel - 1;
-            while (k > j && overs[k] >= BIG) {
-                --k;
-            }
-
-            if (k < j) {
-                return false;
-            }
-
-            // scenario 3
-            Int ind = binarySearch(outerType, j, k, overs);
-            if (ind == -1) {
-                return false;
-            }
-
-            Int res = overloadOnPlateau(outerType, ind, typeId, ovInd, countOvs, cm);
-            if (res > -1) {
-                (*entityId) = overs[res];
+    Int outerType = typeGetOuter(typeId, cm);
+    Int mbFuncArity = isFunction(typeId, cm);
+    if (mbFuncArity > -1) { // scenario 4
+        mbFuncArity += BIG;
+        Int j = sentinel - 1;
+        for (; j > start && overs[j] > BIG; j--) {
+            if (overs[j] == mbFuncArity) {
+                (*entityId) = overs[j + countOverloads];
                 return true;
             }
         }
+    } else { // scenarios 1 or 3
+        Int firstNonneg = start;
+        for (; firstNonneg < sentinel && overs[firstNonneg] < 0; firstNonneg++); // scenario 1
+
+        Int k = sentinel - 1;
+        while (k > firstNonneg && overs[k] >= BIG) {
+            --k;
+        }
+        if (k < firstNonneg) {
+            return false;
+        }
+
+        // scenario 3
+        Int ind = binarySearch(outerType, firstNonneg, k, overs);
+        if (ind == -1) {
+            return false;
+        }
+
+        (*entityId) = overs[ind + countOverloads];
+        return true;
     }
     return false;
 }
@@ -5024,7 +4998,7 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
             Int concreteElt = nod1 & LOWER24BITS;
             if (paramArgcount > 0) {
                 // A param that is being called must correspond to a concrete type being called
-                // E.g. for type = L(Int), gen = [U/1 V]U(V), param U = L, not L(Int)
+                // E.g. for type = L(Int), gen = U(1) V | U(V), param U = L, not L(Int)
                 if (paramArgcount != concreteArgcount) {
                     return null;
                 }
@@ -5037,8 +5011,8 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
                 ++i2;
             } else {
                 // A param not being called may correspond to a simple type, a type call or a
-                // callable type. E.g. for a generic type G = [U/1] U(Int), concrete type G(L),
-                // generic type [T/1] G(T): we will have T = L, even though the type param T is
+                // callable type. E.g. for a generic type G = U(1) | U(Int), concrete type G(L),
+                // generic type T(1) | G(T): we will have T = L, even though the type param T is
                 // not being called in generic type
                 Int declaredArity = cm->types.cont[genericId + 3 + paramId];
                 Int typeFromConcrete = -1;
@@ -5113,7 +5087,7 @@ const char* tokNames[] = {
     "stmt", "()", ".call", "TypeCall", "paramList",
     "...=", "=...", "alias", "assert", "breakCont",
     "iface", "import", "return",
-    "{}", "^{}", "try{", "catch{", "finally{", "[]",
+    "{}", "^{}", "try{", "catch{", "finally{",
     "if{", "match{", "ei", "else", "impl{", "for{", "each{"
 };
 
@@ -5357,7 +5331,7 @@ void printOverloads(Int nameId, Compiler* cm) {
         return;
     }
     Arr(Int) overs = cm->overloads.cont;
-    Int countOverloads = overs[listId]/3;
+    Int countOverloads = overs[listId]/2;
     printf("%d overloads:\n", countOverloads);
     printf("[outer types, %d]\n", countOverloads);
     Int sentinel = listId + countOverloads + 1;

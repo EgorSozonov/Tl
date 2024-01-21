@@ -246,16 +246,15 @@ typedef struct { // :Token
 #define tokTry         27  // `try {`
 #define tokCatch       28  // `catch MyExc e {`
 #define tokFinally     29  // `finally { `
-#define tokMeta        30  // `[`
 
 // Resumable core forms
-#define tokIf          31  // `if ... {`
-#define tokMatch       32  // `match ... {` pattern matching on sum type tag
-#define tokElseIf      33  // `ei ... {`
-#define tokElse        34  // `else {`
-#define tokImpl        35
-#define tokFor         36
-#define tokEach        37
+#define tokIf          30  // `if ... {`
+#define tokMatch       31  // `match ... {` pattern matching on sum type tag
+#define tokElseIf      32  // `ei ... {`
+#define tokElse        33  // `else {`
+#define tokImpl        34
+#define tokFor         35
+#define tokEach        36
 
 #define topVerbatimTokenVariant tokMisc
 #define topVerbatimType    tokString
