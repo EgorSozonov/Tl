@@ -3328,6 +3328,9 @@ private Int isFunction(Int typeId, Compiler* cm);
 private void addRawOverload(Int nameId, Int firstParamType, Int entityId, Compiler* cm) {
 // Adds an overload of a function to the [rawOverloads] and activates it, if needed
     Int mbListId = -cm->activeBindings[nameId] - 2;
+    if (nameId == opSize) {
+        print("firstParam %d entityId %d mblist %d", firstParamType, entityId, mbListId)
+    }
     if (mbListId == -1) {
         Int newListId = listAddMultiAssocList(firstParamType, entityId, cm->rawOverloads);
         cm->activeBindings[nameId] = -newListId - 2;
@@ -3474,7 +3477,7 @@ private void buildOperator(Int operId, Int typeId, Compiler* cm) {
 // Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
     pushInentities((Entity){ .typeId = typeId, .class = classImmutable }, cm);
-    addRawOverload(operId, getFirstParamType(typeId, cm), newEntityId, cm);
+    addRawOverload(operId, typeId, newEntityId, cm);
 }
 
 
@@ -3628,8 +3631,6 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
         .wasError = false, .errMsg = &empty,
         .a = a, .aTmp = aTmp
     };
-    print("create from proto")
-    print("overs %d", lx->overloads.len);
     return lx;
 }
 
@@ -3731,6 +3732,7 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
     // Validate that all nonnegative outerTypes are distinct
     Int prevOuter = ov[o];
     for (Int k = o + 1; k < outerSentinel; k++)  {
+        print("ov[k] %d prevOuter %d k %d count %d o %d outerSent %d", ov[k], prevOuter, k, countOverloads, o, outerSentinel)
         VALIDATEP(ov[k] != prevOuter, errTypeOverloadsIntersect)
         prevOuter = ov[k];
     }
@@ -3755,7 +3757,6 @@ testable Int createNameOverloads(Int nameId, Compiler* cm) {
 #endif
 
     Int countOverloads = raw[listId]/2;
-    print("countOverloads %d name %d", countOverloads, nameId)
     Int rawSentinel = rawStart + raw[listId];
 
     Arr(Int) ov = cm->overloads.cont;
@@ -3780,7 +3781,6 @@ testable Int createNameOverloads(Int nameId, Compiler* cm) {
 testable void createOverloads(Compiler* cm) {
 // Fills [overloads] from [rawOverloads]. Replaces all indices in
 // [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
-    print("create over l")
     cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4,
                                          cm->a);
     // Each overload requires 2x4 = 8 bytes for the pair of (outerType entityId).
@@ -3791,19 +3791,16 @@ testable void createOverloads(Compiler* cm) {
         Int newIndex = createNameOverloads(j, cm);
         cm->activeBindings[j] = -newIndex - 2;
     }
-    print("p1");
     for (Int j = 0; j < cm->imports.len; j++) {
         Int nameId = cm->imports.cont[j];
         Int newIndex = createNameOverloads(nameId, cm);
         cm->activeBindings[nameId] = -newIndex - 2;
     }
-    print("p2");
     for (Int j = 0; j < cm->toplevels.len; j++) {
         Int nameId = cm->toplevels.cont[j].name & LOWER24BITS;
         Int newIndex = createNameOverloads(nameId, cm);
         cm->activeBindings[nameId] = -newIndex - 2;
     }
-    print("p3");
 }
 
 
@@ -4696,7 +4693,7 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
 // 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1
     Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
-    print("ovInd %d overs len %d", ovInd, cm->overloads.len)
+    print("ovInd %d overs len %d %d", ovInd, cm->overloads.len, cm->countOverloads)
     Int countOverloads = overs[ovInd];
     Int sentinel = ovInd + countOverloads + 1;
     if (typeId == -1) { // scenario 2

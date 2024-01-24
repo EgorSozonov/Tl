@@ -532,7 +532,7 @@ struct Compiler { // :Compiler
     StackInt* tempStack;  // [aTmp]
     Int countOverloads;
     Int countOverloadedNames;
-    MultiAssocList* rawOverloads; // [aTmp]
+    MultiAssocList* rawOverloads; // [aTmp] (funcTypeId entityId)
 
     // GENERAL STATE
     Int i;

@@ -51,8 +51,7 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(ParserTest), tests)
 
 private Int tryGetOper0(Int opType, Int typeId, Compiler* proto) {
-// Try and convert test value to operator entityId (not all operators are supported, only the
-// ones used in tests)
+// Try and convert test value to operator entityId
     Int entityId;
     bool foundOv = findOverload(typeId, proto->activeBindings[opType], &entityId, proto);
     if (foundOv)  {
@@ -113,11 +112,8 @@ When the test is run, the init parser will parse the tokens and then will be com
 expected output parser.
 Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in nodBinding is 1,
 it will be inserted as 1 + (the number of built-in bindings) etc */
-    print("here")
     Compiler* test = lexicallyAnalyze(sourceCode, proto, a);
-    print("created one lexers")
     Compiler* control = lexicallyAnalyze(sourceCode, proto, a);
-    print("created two lexers")
     initializeParser(control, proto, a);
     initializeParser(test, proto, a);
     Arr(Int) typeIds = importTypes(types, countTypes, control);
@@ -1360,6 +1356,7 @@ int main() {
     printf("----------------------------\n");
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
+    createOverloads(proto);
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, a);

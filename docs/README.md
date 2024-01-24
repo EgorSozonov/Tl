@@ -1,7 +1,7 @@
 # Tl
 ### A new programming language for the browser
 
-Goal: a practical web development language that doesn't suck
+Goal: a practical embedded scripting language that doesn't suck
 
 
 ### Language features
@@ -49,15 +49,17 @@ use "za" to toggle a fold, and "zm" to close them en masse.
 #### version 0.3.0
 * more developed static type system (structs, arrays)
 * generic types and overloading for them
-* exceptions
 * new and final syntax 
+* interpreter
 
 #### version 0.4.0
-* nullability tracking (a.k.a. flow typing)
-* "foreach" loops
+* exceptions
+* lambdas
+* "each" loops
 * better error reporting
     
 #### version 0.5.0
+* nullability tracking (a.k.a. flow typing)
 * sum types
 * pattern matching
 * "ifPr" syntax form
