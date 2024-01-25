@@ -219,10 +219,10 @@ private void multiListDoubleCap(MultiAssocList* ml) {
     ml->cont = newAlloc;
 }
 
+
 testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocList* ml) {
-// Add a new key-value pair to a particular list within the MultiAssocList. Returns the new index for
-// this list in case it had to be reallocated, -1 if not.
-// Throws an exception if key already exists
+// Add a new key-value pair to a particular list within the MultiAssocList. Returns the new index 
+// for this list in case it had to be reallocated, -1 if not. Throws exception if key already exists
     Int listLen = ml->cont[listInd];
     Int listCap = ml->cont[listInd + 1];
     ml->cont[listInd + listLen + 2] = newKey;
@@ -255,6 +255,7 @@ testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocLi
     return newListInd;
 }
 
+
 testable Int listAddMultiAssocList(Int newKey, Int newVal, MultiAssocList* ml) {
 // Adds a new list to the MultiAssocList and populates it with one key-value pair.
 // Returns its index
@@ -274,6 +275,7 @@ testable Int listAddMultiAssocList(Int newKey, Int newVal, MultiAssocList* ml) {
     ml->cont[newInd + 3] = newVal;
     return newInd;
 }
+
 
 testable Int searchMultiAssocList(Int searchKey, Int listInd, MultiAssocList* ml) {
 // Search for a key in a particular list within the MultiAssocList. Returns the value if found,
@@ -339,7 +341,7 @@ DEFINE_INTERNAL_LIST(entities, Entity, a)
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int)
 DEFINE_INTERNAL_LIST(newlines, Int, a)
 DEFINE_INTERNAL_LIST(numeric, Int, a)
-DEFINE_INTERNAL_LIST(imports, Int, a)
+DEFINE_INTERNAL_LIST(importNames, Int, a)
 DEFINE_INTERNAL_LIST(overloads, Int, a)
 DEFINE_INTERNAL_LIST(types, Int, a)
 
@@ -858,6 +860,7 @@ testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) a
     return true;
 }
 
+
 private bool binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
     if (end <= start) {
         return -1;
@@ -885,6 +888,38 @@ private bool binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
         }
     }
     return -1;
+}
+
+
+private void removeDuplicatesInList(InListInt* list) {
+// Remove duplicates from an internal list of integers
+    Int initLen = list->len;
+    if (initLen < 2) {
+        return;
+    } 
+
+    for (Int i = 0; i < initLen; i++) {
+        Int minValue = arr[i];
+        Int minInd = i;
+        for (Int j = i + 1; j < keyEnd; j++) {
+            if (arr[j] < minValue) {
+                minValue = arr[j];
+                minInd = j;
+            }
+        }
+        if (minInd == i) {
+            continue;
+        }
+
+        // swap the keys
+        Int tmp = arr[i];
+        arr[i] = arr[minInd];
+        arr[minInd] = tmp;
+        // swap the corresponding values
+        tmp = arr[i + countPairs];
+        arr[i + countPairs] = arr[minInd + countPairs];
+        arr[minInd + countPairs] = tmp;
+    }
 }
 
 //}}}
@@ -1035,7 +1070,7 @@ const int operatorStartSymbols[11] = {
     aDivBy, aGT, aQuestion
 };
 
-// The standard text prepended to all source code inputs and the hash table to provide a built-in
+// The :standardText prepended to all source code inputs and the hash table to provide a built-in
 // string set. Tl's reserved words must be at the start and sorted lexicographically.
 // Also they must agree with the "standardStr" in tl.internal.h
 const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinallyfor"
@@ -1054,7 +1089,7 @@ const Int standardStringLens[] = {
      4, 1, 1, 1, 1, // D
      2, 3, 3, 2, 2, // f2
      5, 8, 7, 6, 1, // T
-     1
+     1 // U
 };
 
 const Int standardKeywords[] = {
@@ -3003,8 +3038,8 @@ private Int importAndActivateEntity(Entity ent, Compiler* cm) {
     Int nameId = ent.name & LOWER24BITS;
 
     if (isAFunc > -1) {
-        addRawOverload(nameId, getFirstParamType(ent.typeId, cm), newEntityId, cm);
-        pushInimports(nameId, cm);
+        addRawOverload(nameId, ent.typeId, newEntityId, cm);
+        pushInimportNames(nameId, cm);
     } else {
         cm->activeBindings[nameId] = newEntityId;
     }
@@ -3021,6 +3056,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int
     }
     cm->countNonparsedEntities = cm->entities.len;
 }
+
 
 private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] {
     ParserFunc (*result)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
@@ -3328,9 +3364,6 @@ private Int isFunction(Int typeId, Compiler* cm);
 private void addRawOverload(Int nameId, Int firstParamType, Int entityId, Compiler* cm) {
 // Adds an overload of a function to the [rawOverloads] and activates it, if needed
     Int mbListId = -cm->activeBindings[nameId] - 2;
-    if (nameId == opSize) {
-        print("firstParam %d entityId %d mblist %d", firstParamType, entityId, mbListId)
-    }
     if (mbListId == -1) {
         Int newListId = listAddMultiAssocList(firstParamType, entityId, cm->rawOverloads);
         cm->activeBindings[nameId] = -newListId - 2;
@@ -3641,7 +3674,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     }
 
     Compiler* cm = lx;
-
     Int initNodeCap = lx->tokens.len > 64 ? lx->tokens.len : 64;
     cm->scopeStack = createScopeStack();
     cm->backtrack = createStackParseFrame(16, lx->aTmp);
@@ -3650,11 +3682,13 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiAssocList(a);
+    
     cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
-    memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators);
+    memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators); // operators only
+    
     Int extraActive = lx->stringTable->len - countOperators;
     if (extraActive > 0) {
         memset(cm->activeBindings + countOperators, 0xFF, extraActive*4);
@@ -3663,7 +3697,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     memcpy(cm->entities.cont, proto->entities.cont, proto->entities.len*sizeof(Entity));
     cm->entities.len = proto->entities.len;
     cm->entities.cap = proto->entities.cap;
-
 
     cm->types.cont = allocateOnArena(proto->types.cap*8, a);
     memcpy(cm->types.cont, proto->types.cont, proto->types.len*4);
@@ -3678,7 +3711,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->typeStack = createStackint32_t(16, cm->aTmp);
     cm->tempStack = createStackint32_t(16, cm->aTmp);
     cm->scopeStack = createScopeStack();
-
     importPrelude(cm);
 }
 
@@ -3732,7 +3764,8 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
     // Validate that all nonnegative outerTypes are distinct
     Int prevOuter = ov[o];
     for (Int k = o + 1; k < outerSentinel; k++)  {
-        print("ov[k] %d prevOuter %d k %d count %d o %d outerSent %d", ov[k], prevOuter, k, countOverloads, o, outerSentinel)
+            
+            print("validate ov[k] %d prevOuter %d k %d count %d o %d outerSent %d", ov[k], prevOuter, k, countOverloads, o, outerSentinel)
         VALIDATEP(ov[k] != prevOuter, errTypeOverloadsIntersect)
         prevOuter = ov[k];
     }
@@ -3747,7 +3780,7 @@ testable Int createNameOverloads(Int nameId, Compiler* cm) {
 // Creates a final subtable in [overloads] for a name and returns the index of said subtable
 // Precondition: [rawOverloads] contain twoples of (typeId ref)
 // (typeId = the full type of a function)(ref = entityId or monoId)(yes, "twople" = tuple of two)
-// Postcondition: [overloads] will contain a subtable of: length(outerTypeId)(ref)
+// Postcondition: [overloads] will contain a subtable of length(outerTypeIds)(refs)
     Arr(Int) raw = cm->rawOverloads->cont;
     Int listId = -cm->activeBindings[nameId] - 2;
     Int rawStart = listId + 2;
@@ -3772,7 +3805,7 @@ testable Int createNameOverloads(Int nameId, Compiler* cm) {
     }
 
     sortPairsDistant(newInd + 1, newInd + 1 + 2*countOverloads, countOverloads, ov);
-
+    print("validatin %d", nameId) 
     validateNameOverloads(newInd, countOverloads, cm);
     return newInd;
 }
@@ -3781,11 +3814,12 @@ testable Int createNameOverloads(Int nameId, Compiler* cm) {
 testable void createOverloads(Compiler* cm) {
 // Fills [overloads] from [rawOverloads]. Replaces all indices in
 // [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
-    cm->overloads.cont = allocateOnArena(cm->countOverloads*12 + cm->countOverloadedNames*4,
+    cm->overloads.cont = allocateOnArena(cm->countOverloads*8 + cm->countOverloadedNames*4,
                                          cm->a);
     // Each overload requires 2x4 = 8 bytes for the pair of (outerType entityId).
     // Plus you need an int per overloaded name to hold the length of the overloads for that name
-
+    printIntArray(cm->imports.len, cm->imports.cont); 
+    
     cm->overloads.len = cm->countOverloads;
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, cm);
@@ -3793,9 +3827,11 @@ testable void createOverloads(Compiler* cm) {
     }
     for (Int j = 0; j < cm->imports.len; j++) {
         Int nameId = cm->imports.cont[j];
+        print("create name %d at import %d", nameId, j) 
         Int newIndex = createNameOverloads(nameId, cm);
         cm->activeBindings[nameId] = -newIndex - 2;
     }
+    print("after builtins") 
     for (Int j = 0; j < cm->toplevels.len; j++) {
         Int nameId = cm->toplevels.cont[j].name & LOWER24BITS;
         Int newIndex = createNameOverloads(nameId, cm);
@@ -3950,18 +3986,16 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Int void
     Arr(Token) toks = cm->tokens.cont;
 
     Int uniqueTypeId = voidToVoid;
-    Int firstParamType = -1; // default for nullary functions
+    Int newFnTypeId = -1; // default for nullary functions
     if (toks[cm->i].tp == tokParamList) {
         Token paramListTk = toks[cm->i];
         cm->i++;
-        uniqueTypeId = typeDef(paramListTk, true, toks, cm);
-        firstParamType = getFirstParamType(uniqueTypeId, cm);
-        //uniqueTypeId = parseFnParamList(paramListTk, cm);
+        newFnTypeId = typeDef(paramListTk, true, toks, cm);
     }
 
     Int newFnEntityId = cm->entities.len;
     pushInentities(((Entity){ .class = classImmutable, .typeId = uniqueTypeId}), cm);
-    addRawOverload(fnNameId, firstParamType, newFnEntityId, cm);
+    addRawOverload(fnNameId, newFnTypeId, newFnEntityId, cm);
 
     pushIntoplevels((Toplevel){.indToken = fnStartTokenId, .sentinelToken = fnSentinelToken,
             .name = name, .entityId = newFnEntityId }, cm);
@@ -4090,13 +4124,11 @@ private void printType(Int typeInd, Compiler* cm) {
 
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
-        print("parseMain")
         parseToplevelTypes(cm);
         // This gives us the semi-complete overloads & overloadIds tables (with only the
         // built-ins and imports)
         parseToplevelConstants(cm);
 
-        print("toplevel consts");
         // This gives the complete overloads & overloadIds tables + list of toplevel functions
         parseToplevelSignatures(cm);
         createOverloads(cm);
@@ -4693,7 +4725,7 @@ testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
 // 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1
     Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
-    print("ovInd %d overs len %d %d", ovInd, cm->overloads.len, cm->countOverloads)
+    print("ovInd %d overs %p len %d %d", ovInd, cm->overloads.cont, cm->overloads.len, cm->countOverloads)
     Int countOverloads = overs[ovInd];
     Int sentinel = ovInd + countOverloads + 1;
     if (typeId == -1) { // scenario 2

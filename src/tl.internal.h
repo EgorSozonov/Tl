@@ -140,6 +140,7 @@ typedef struct {
 //{{{ Lexer
 
 //{{{ Standard strings :standardStr
+
 #define strAlias      0
 #define strAssert     1
 #define strBreak      2
@@ -180,7 +181,9 @@ typedef struct {
 #define strPrintErr  36
 #define strMathPi    37
 #define strMathE     38
-#define strSentinel  39
+#define strTypeVarT  39
+#define strTypeVarU  40
+#define strSentinel  41
 
 //}}}
 
@@ -514,7 +517,7 @@ struct Compiler { // :Compiler
 
     // PARSING
     InListToplevel toplevels;
-    InListInt imports;
+    InListInt importNames;
     StackParseFrame* backtrack; // [aTmp]
     ScopeStack* scopeStack;
     Arr(Int) activeBindings;    // [aTmp]

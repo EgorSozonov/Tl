@@ -35,7 +35,6 @@ typedef struct { // :TestEntityImport
 
 
 private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
-    print("creating test set")
     ParserTestSet* result = allocateOnArena(sizeof(ParserTestSet), a);
     result->name = name;
     result->totalTests = count;
@@ -50,10 +49,12 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
 
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(ParserTest), tests)
 
-private Int tryGetOper0(Int opType, Int typeId, Compiler* proto) {
+
+private Int tryGetOper0(Int opType, Int typeId, Compiler* protoOvs) {
 // Try and convert test value to operator entityId
     Int entityId;
-    bool foundOv = findOverload(typeId, proto->activeBindings[opType], &entityId, proto);
+    Int ovInd = -protoOvs->activeBindings[opType] - 2;
+    bool foundOv = findOverload(typeId, ovInd, &entityId, protoOvs);
     if (foundOv)  {
         return entityId;
     } else {
@@ -61,7 +62,7 @@ private Int tryGetOper0(Int opType, Int typeId, Compiler* proto) {
     }
 }
 
-#define oper(opType, typeId) tryGetOper0(opType, typeId, proto)
+#define oper(opType, typeId) tryGetOper0(opType, typeId, protoOvs)
 
 
 private Int transformBindingEntityId(Int inp, Compiler* pr) {
@@ -114,8 +115,11 @@ Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in no
 it will be inserted as 1 + (the number of built-in bindings) etc */
     Compiler* test = lexicallyAnalyze(sourceCode, proto, a);
     Compiler* control = lexicallyAnalyze(sourceCode, proto, a);
+    print("p1")
     initializeParser(control, proto, a);
+    print("p2")
     initializeParser(test, proto, a);
+    print("p3")
     Arr(Int) typeIds = importTypes(types, countTypes, control);
     importTypes(types, countTypes, test);
 
@@ -269,7 +273,7 @@ void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a)
 //}}}
 //{{{ Assignment tests
 
-ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
+ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
    /*
         createTest(
@@ -419,7 +423,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Arena* a) {
 }
 //}}}
 //{{{ Other tests
-ParserTestSet* expressionTests(Compiler* proto, Arena* a) {
+ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function call"),
@@ -644,7 +648,7 @@ ParserTestSet* expressionTests(Compiler* proto, Arena* a) {
     //~ );
 //~ }
 
-ParserTestSet* functionTests(Compiler* proto, Arena* a) {
+ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function definition 1"),
@@ -865,7 +869,7 @@ ParserTestSet* functionTests(Compiler* proto, Arena* a) {
 }
 
 
-ParserTestSet* ifTests(Compiler* proto, Arena* a) {
+ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("If test set"), a, ((ParserTest[]){
         createTest(
             s("Simple if"),
@@ -989,7 +993,7 @@ ParserTestSet* ifTests(Compiler* proto, Arena* a) {
 }
 
 
-ParserTestSet* loopTests(Compiler* proto, Arena* a) {
+ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
         createTest(
             s("Simple loop 1"),
@@ -1302,7 +1306,7 @@ ParserTestSet* loopTests(Compiler* proto, Arena* a) {
 }
 
 
-ParserTestSet* typeTests(Compiler* proto, Arena* a) {
+ParserTestSet* typeTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Types test set"), a, ((ParserTest[]){
         createTest(
             s("Simple type 1"),
@@ -1340,9 +1344,9 @@ ParserTestSet* typeTests(Compiler* proto, Arena* a) {
 //}}}
 
 
-void runATestSet(ParserTestSet* (*testGenerator)(Compiler*, Arena*), int* countPassed, int* countTests,
-                 Compiler* proto, Arena* a) {
-    ParserTestSet* testSet = (testGenerator)(proto, a);
+void runATestSet(ParserTestSet* (*testGenerator)(Compiler*, Compiler*, Arena*), int* countPassed,
+                 int* countTests, Compiler* proto, Compiler* protoOvs, Arena* a) {
+    ParserTestSet* testSet = (testGenerator)(proto, protoOvs, a);
     for (int j = 0; j < testSet->totalTests; j++) {
         ParserTest test = testSet->tests[j];
         runParserTest(test, countPassed, countTests, a);
@@ -1356,16 +1360,17 @@ int main() {
     printf("----------------------------\n");
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
-    createOverloads(proto);
+    Compiler* protoOvs = createProtoCompiler(a);
+    createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&assignmentTests, &countPassed, &countTests, proto, a);
+    runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
    /*
-    runATestSet(&expressionTests, &countPassed, &countTests, proto, a);
-    runATestSet(&functionTests, &countPassed, &countTests, proto, a);
-    runATestSet(&ifTests, &countPassed, &countTests, proto, a);
-    runATestSet(&loopTests, &countPassed, &countTests, proto, a);
-    runATestSet(&typeTests, &countPassed, &countTests, proto, a);
+    runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
+    runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
+    runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
+    runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
+    runATestSet(&typeTests, &countPassed, &countTests, proto, protoOvs, a);
    */
 
     if (countTests == 0) {
