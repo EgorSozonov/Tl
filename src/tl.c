@@ -221,7 +221,7 @@ private void multiListDoubleCap(MultiAssocList* ml) {
 
 
 testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocList* ml) {
-// Add a new key-value pair to a particular list within the MultiAssocList. Returns the new index 
+// Add a new key-value pair to a particular list within the MultiAssocList. Returns the new index
 // for this list in case it had to be reallocated, -1 if not. Throws exception if key already exists
     Int listLen = ml->cont[listInd];
     Int listCap = ml->cont[listInd + 1];
@@ -892,34 +892,24 @@ private bool binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
 
 
 private void removeDuplicatesInList(InListInt* list) {
-// Remove duplicates from an internal list of integers
+// [55 55 55 56] => [55 56]
+// Precondition: the list must be sorted
     Int initLen = list->len;
     if (initLen < 2) {
         return;
-    } 
-
-    for (Int i = 0; i < initLen; i++) {
-        Int minValue = arr[i];
-        Int minInd = i;
-        for (Int j = i + 1; j < keyEnd; j++) {
-            if (arr[j] < minValue) {
-                minValue = arr[j];
-                minInd = j;
-            }
-        }
-        if (minInd == i) {
-            continue;
-        }
-
-        // swap the keys
-        Int tmp = arr[i];
-        arr[i] = arr[minInd];
-        arr[minInd] = tmp;
-        // swap the corresponding values
-        tmp = arr[i + countPairs];
-        arr[i + countPairs] = arr[minInd + countPairs];
-        arr[minInd + countPairs] = tmp;
     }
+    Int prevInd = 0;
+    Int prevVal = list->cont[0];
+
+
+    for (Int i = 1; i < initLen; i++) {
+        Int currVal = list->cont[i];
+        if (currVal != prevVal) {
+            prevInd++;
+            list->cont[prevInd] = currVal;
+        }
+    }
+    list->len = prevInd + 1;
 }
 
 //}}}
@@ -2205,7 +2195,7 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
-private Int importAndActivateEntity(Entity ent, Compiler* cm);
+private EntityId importAndActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
@@ -2225,7 +2215,7 @@ _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Comp
 #define throwExcParser(errMsg, cm) throwExcParser0(errMsg, __LINE__, cm)
 
 private Int getActiveVar(Int nameId, Compiler* cm) {
-// Resolves an active bindings, throws if it's not active
+// Resolves an active binding, throws if it's not active. Returns an entityId
     Int rawValue = cm->activeBindings[nameId];
     VALIDATEP(rawValue > -1 && rawValue < BIG, errUnknownBinding)
     return rawValue;
@@ -2283,6 +2273,7 @@ testable void pushLexScope(ScopeStack* scopeStack);
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler* cm);
 private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* cm);
+testable bool findOverload(FirstArgTypeId typeId, Int start, EntityId* entityId, Compiler* cm);
 
 //}}}
 
@@ -2448,6 +2439,8 @@ private void parseAssignment(Token tok, Arr(Token) toks, Compiler* cm) {
 #endif
     Bool complexLeft = false;
     Int mbNewBinding = -1;
+    Token mbOldBinding = (Token){.tp = 0 };
+    Bool isMutation = tok.pl1 >= BIG;
     if (tok.pl1 == assiType) {
         VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
         typeDef(tok, false, toks, cm);
@@ -2461,27 +2454,43 @@ private void parseAssignment(Token tok, Arr(Token) toks, Compiler* cm) {
         mbNewBinding = createEntity(newName, cm);
         pushInnodes((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0,
                 .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    } else if (tok.pl1 == assiReassign) {
+    } else if (tok.pl1 == assiReassign || isMutation) {
         pushInnodes((Node){ .tp = nodAssignLeft, .pl1 = assiReassign, .pl2 = 1,
                 .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-        Token oldBindingTk = toks[cm->i];
-        Int oldBinding = getActiveVar(oldBindingTk.pl2, cm);
-        pushInnodes((Node){ .tp = nodBinding, .pl1 = oldBinding, .pl2 = 0,
-                .startBt = oldBindingTk.startBt, .lenBts = oldBindingTk.lenBts}, cm);
+        mbOldBinding = toks[cm->i];
+        mbOldBinding.pl1 = getActiveVar(mbOldBinding.pl2, cm);
+        pushInnodes((Node){ .tp = nodBinding, .pl1 = mbOldBinding.pl1, .pl2 = 0,
+                .startBt = mbOldBinding.startBt, .lenBts = mbOldBinding.lenBts}, cm);
     }
     cm->i += countLeftSide + 1; // CONSUME the left side of an assignment
     push(((ParseFrame){.tp = nodAssignRight, .startNodeInd = cm->nodes.len,
                        .sentinelToken = cm->i + rightTk.pl2 }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignRight, .startBt = rightTk.startBt, .lenBts = rightTk.lenBts},
-                        cm);
+                cm);
+
+    if (isMutation) {
+        pushInnodes((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0,
+                .startBt = mbOldBinding.startBt, .lenBts = mbOldBinding.lenBts}, cm);
+    }
     if (rightTk.tp == tokFn) {
         parseFnDef(rightTk, toks, cm);
     } else {
         // TODO handle mutation
         Int sentinel = cm->i + rightTk.pl2;
         Int rightType = exprHeadless(sentinel, rightTk.startBt,
-                                   tok.lenBts - rightTk.startBt + tok.startBt, toks, cm);
+                                     tok.lenBts - rightTk.startBt + tok.startBt, toks, cm);
         VALIDATEP(rightType != -2, errAssignment)
+        if (isMutation) {
+            Int leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
+            Int operatorEntity = -1;
+            Int opType = tok.pl1 - BIG;
+            Int ovInd = -cm->activeBindings[opType] - 2;
+            bool foundOv = findOverload(leftSideType, ovInd, &operatorEntity, cm);
+            VALIDATEP(foundOv, errTypeNoMatchingOverload)
+            pushInnodes((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2,
+                    .startBt = rightTk.startBt,
+                    .lenBts = cm->langDef->operators[opType]->lenBts}, cm);
+        }
         if (tok.pl1 == 0 && rightType > -1) {
             cm->entities.cont[mbNewBinding].typeId = rightType;
         }
@@ -2760,9 +2769,7 @@ private void maybeCloseSpans(Compiler* cm) {
 private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
 // Parses anything from current cm->i to "sentinelToken"
     while (cm->i < sentinelToken) {
-
         Token currTok = tokens[cm->i];
-        print("i %d tok %d", cm->i, currTok.tp)
         cm->i++;
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, tokens, cm);
 
@@ -2801,7 +2808,6 @@ private void setClassToMutated(Int bindingId, Compiler* cm) {
 }
 
 
-testable bool findOverload(Int typeId, Int start, Int* entityId, Compiler* cm);
 
 private void mutationTwiddle(Int ind, Token mutTk, Compiler* cm) {
 // Performs some AST twiddling to turn a mutation into a reassignment:
@@ -3023,12 +3029,14 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-private Int isFunction(Int typeId, Compiler* cm);
-private void addRawOverload(Int nameId, Int typeId, Int entityId, Compiler* cm);
+private Int isFunction(FirstArgTypeId typeId, Compiler* cm);
+private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm);
 private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 
-private Int importAndActivateEntity(Entity ent, Compiler* cm) {
+
+private EntityId importAndActivateEntity(Entity ent, Compiler* cm) {
 // Adds an import to the entities table, activates it and, if function, adds its overload
+    print("here")
     Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
     Int isAFunc = isFunction(ent.typeId, cm);
     VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
@@ -3047,12 +3055,13 @@ private Int importAndActivateEntity(Entity ent, Compiler* cm) {
 }
 
 
-testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Int) typeIds, Compiler* cm) {
+testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(TypeId) typeIds,
+                             Compiler* cm) {
     for (int j = 0; j < countEntities; j++) {
         EntityImport impt = impts[j];
-        Int typeInd = typeIds[impt.typeInd];
-        importAndActivateEntity((Entity){
-            .name = impt.name, .class = classImmutable, .typeId = typeInd }, cm);
+        TypeId typeId = typeIds[impt.typeInd];
+        importAndActivateEntity(
+                (Entity){.name = impt.name, .class = classImmutable, .typeId = typeId }, cm);
     }
     cm->countNonparsedEntities = cm->entities.len;
 }
@@ -3358,12 +3367,12 @@ private void popScopeFrame(Compiler* cm) {
     scopeStack->len--;
 }
 
-private Int isFunction(Int typeId, Compiler* cm);
 
-
-private void addRawOverload(Int nameId, Int firstParamType, Int entityId, Compiler* cm) {
+private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm) {
 // Adds an overload of a function to the [rawOverloads] and activates it, if needed
+    print("add raw overload name %d type %d", nameId, typeId)
     Int mbListId = -cm->activeBindings[nameId] - 2;
+    FirstArgTypeId firstParamType = getFirstParamType(typeId, cm);
     if (mbListId == -1) {
         Int newListId = listAddMultiAssocList(firstParamType, entityId, cm->rawOverloads);
         cm->activeBindings[nameId] = -newListId - 2;
@@ -3379,7 +3388,7 @@ private void addRawOverload(Int nameId, Int firstParamType, Int entityId, Compil
 }
 
 
-private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
+private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
     Byte* types = (Byte*)cm->types.cont;
     StringDict* hm = cm->typesDict;
     Int startBt = startInd*4;
@@ -3411,7 +3420,7 @@ private Int mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
     return startInd;
 }
 
-testable Int mergeType(Int startInd, Compiler* cm) {
+testable TypeId mergeType(Int startInd, Compiler* cm) {
 // Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its
 // tail. Returns the resulting index of this type and updates the length of cm->types if
 // appropriate
@@ -3419,18 +3428,20 @@ testable Int mergeType(Int startInd, Compiler* cm) {
     return mergeTypeWorker(startInd, lenInts, cm);
 }
 
-//{{{ Forw decls
+//{{{ Forward decls
+
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
-private Int getFirstParamType(Int funcTypeId, Compiler* cm);
-private bool isFunctionWithParams(Int typeId, Compiler* cm);
-private Int typeGetOuter(Int typeId, Compiler* cm);
-private Int typeGetArity(Int typeId, Compiler* cm);
+private Int getFirstParamType(TypeId funcTypeId, Compiler* cm);
+private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
+private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
+private Int typeGetArity(TypeId typeId, Compiler* cm);
+
 //}}}
 
 
-testable Int addConcreteFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
+testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
 // Function types are stored as: (length, paramType1, paramType2, ..., returnType)
     Int newInd = cm->types.len;
     pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
@@ -3459,10 +3470,11 @@ private void buildStandardStrings(Compiler* lx) {
     }
 }
 
-testable Int stToNameId(Int a) {
+testable NameId stToNameId(Int a) {
 // Converts a standard string to its nameId. Doesn't work for reserved words, obviously
     return a - strFirstNonReserved + countOperators;
 }
+
 
 private void buildPreludeTypes(Compiler* cm) {
 // Creates the built-in types in the proto compiler
@@ -3506,7 +3518,7 @@ private void buildPreludeTypes(Compiler* cm) {
 }
 
 
-private void buildOperator(Int operId, Int typeId, Compiler* cm) {
+private void buildOperator(Int operId, TypeId typeId, Compiler* cm) {
 // Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
     pushInentities((Entity){ .typeId = typeId, .class = classImmutable }, cm);
@@ -3518,25 +3530,25 @@ private void buildOperators(Compiler* cm) {
 // Operators are the first-ever functions to be defined. This function builds their [types],
 // [functions] and overload counts. The order must agree with the order of operator
 // definitions in tl.internal.h, and every operator must have at least one function defined
-    Int boolOfIntInt    = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
-    Int boolOfIntIntInt = addConcreteFunctionType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
-    Int boolOfFlFl      = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
-    Int boolOfFlFlFl    = addConcreteFunctionType(3,
+    TypeId boolOfIntInt    = addConcrFnType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
+    TypeId boolOfIntIntInt = addConcrFnType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
+    TypeId boolOfFlFl      = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
+    TypeId boolOfFlFlFl    = addConcrFnType(3,
                             (Int[]){ tokDouble, tokDouble, tokDouble, tokBool}, cm);
-    Int boolOfStrStr    = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokBool}, cm);
-    Int boolOfBool      = addConcreteFunctionType(1, (Int[]){ tokBool, tokBool}, cm);
-    Int boolOfBoolBool  = addConcreteFunctionType(2, (Int[]){ tokBool, tokBool, tokBool}, cm);
-    Int intOfStr        = addConcreteFunctionType(1, (Int[]){ tokString, tokInt}, cm);
-    Int intOfInt        = addConcreteFunctionType(1, (Int[]){ tokInt, tokInt}, cm);
-    Int intOfIntInt     = addConcreteFunctionType(2, (Int[]){ tokInt, tokInt, tokInt}, cm);
-    Int intOfFlFl       = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokInt}, cm);
-    Int intOfStrStr     = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokInt}, cm);
-    Int strOfInt        = addConcreteFunctionType(1, (Int[]){ tokInt, tokString}, cm);
-    Int strOfFloat      = addConcreteFunctionType(1, (Int[]){ tokDouble, tokString}, cm);
-    Int strOfBool       = addConcreteFunctionType(1, (Int[]){ tokBool, tokString}, cm);
-    Int strOfStrStr     = addConcreteFunctionType(2, (Int[]){ tokString, tokString, tokString}, cm);
-    Int flOfFlFl        = addConcreteFunctionType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
-    Int flOfFl          = addConcreteFunctionType(1, (Int[]){ tokDouble, tokDouble}, cm);
+    TypeId boolOfStrStr    = addConcrFnType(2, (Int[]){ tokString, tokString, tokBool}, cm);
+    TypeId boolOfBool      = addConcrFnType(1, (Int[]){ tokBool, tokBool}, cm);
+    TypeId boolOfBoolBool  = addConcrFnType(2, (Int[]){ tokBool, tokBool, tokBool}, cm);
+    TypeId intOfStr        = addConcrFnType(1, (Int[]){ tokString, tokInt}, cm);
+    TypeId intOfInt        = addConcrFnType(1, (Int[]){ tokInt, tokInt}, cm);
+    TypeId intOfIntInt     = addConcrFnType(2, (Int[]){ tokInt, tokInt, tokInt}, cm);
+    TypeId intOfFlFl       = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokInt}, cm);
+    TypeId intOfStrStr     = addConcrFnType(2, (Int[]){ tokString, tokString, tokInt}, cm);
+    TypeId strOfInt        = addConcrFnType(1, (Int[]){ tokInt, tokString}, cm);
+    TypeId strOfFloat      = addConcrFnType(1, (Int[]){ tokDouble, tokString}, cm);
+    TypeId strOfBool       = addConcrFnType(1, (Int[]){ tokBool, tokString}, cm);
+    TypeId strOfStrStr     = addConcrFnType(2, (Int[]){ tokString, tokString, tokString}, cm);
+    TypeId flOfFlFl        = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
+    TypeId flOfFl          = addConcrFnType(1, (Int[]){ tokDouble, tokDouble}, cm);
 
     buildOperator(opBitwiseNeg,   boolOfBool, cm); // dummy
     buildOperator(opNotEqual,     boolOfIntInt, cm);
@@ -3616,11 +3628,11 @@ private void createBuiltins(Compiler* cm) {
 private void importPrelude(Compiler* cm) {
 // Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
-    Int strToVoid = addConcreteFunctionType(1, (Int[]){ tokString, tokMisc }, cm);
-    Int intToVoid = addConcreteFunctionType(1, (Int[]){ tokInt, tokMisc }, cm);
-    Int floatToVoid = addConcreteFunctionType(1, (Int[]){ tokDouble, tokMisc }, cm);
-    Int intToDoub = addConcreteFunctionType(1, (Int[]){ tokInt, tokDouble}, cm);
-    Int doubToInt = addConcreteFunctionType(1, (Int[]){ tokDouble, tokInt}, cm);
+    TypeId strToVoid = addConcrFnType(1, (Int[]){ tokString, tokMisc }, cm);
+    TypeId intToVoid = addConcrFnType(1, (Int[]){ tokInt, tokMisc }, cm);
+    TypeId floatToVoid = addConcrFnType(1, (Int[]){ tokDouble, tokMisc }, cm);
+    TypeId intToDoub = addConcrFnType(1, (Int[]){ tokInt, tokDouble}, cm);
+    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
 
     EntityImport imports[6] =  {
         (EntityImport) { .name = nameOfStandard(strMathPi), .typeInd = 0},
@@ -3667,6 +3679,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
     return lx;
 }
 
+
 testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 // Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
     if (lx->wasError) {
@@ -3682,13 +3695,13 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiAssocList(a);
-    
+
     cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
     memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators); // operators only
-    
+
     Int extraActive = lx->stringTable->len - countOperators;
     if (extraActive > 0) {
         memset(cm->activeBindings + countOperators, 0xFF, extraActive*4);
@@ -3705,7 +3718,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 
     cm->typesDict = copyStringDict(proto->typesDict, a);
 
-    cm->imports = createInListInt(8, lx->aTmp);
+    cm->importNames = createInListInt(8, lx->aTmp);
 
     cm->expStack = createStackint32_t(16, cm->aTmp);
     cm->typeStack = createStackint32_t(16, cm->aTmp);
@@ -3731,6 +3744,7 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
 // 2. A zero-arity function, if any, must be unique
 // 3. For concrete outer types, there must be only one ref
 // 4. For refs to concrete entities, full types (which are concrete) must be different
+    print("count ov %d", countOverloads)
     Arr(Int) ov = cm->overloads.cont;
     Int start = listId + 1;
     Int outerSentinel = start + countOverloads;
@@ -3764,8 +3778,6 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
     // Validate that all nonnegative outerTypes are distinct
     Int prevOuter = ov[o];
     for (Int k = o + 1; k < outerSentinel; k++)  {
-            
-            print("validate ov[k] %d prevOuter %d k %d count %d o %d outerSent %d", ov[k], prevOuter, k, countOverloads, o, outerSentinel)
         VALIDATEP(ov[k] != prevOuter, errTypeOverloadsIntersect)
         prevOuter = ov[k];
     }
@@ -3776,7 +3788,7 @@ void printIntArray(Int count, Arr(Int) arr);
 #endif
 
 
-testable Int createNameOverloads(Int nameId, Compiler* cm) {
+testable Int createNameOverloads(NameId nameId, Compiler* cm) {
 // Creates a final subtable in [overloads] for a name and returns the index of said subtable
 // Precondition: [rawOverloads] contain twoples of (typeId ref)
 // (typeId = the full type of a function)(ref = entityId or monoId)(yes, "twople" = tuple of two)
@@ -3799,13 +3811,14 @@ testable Int createNameOverloads(Int nameId, Compiler* cm) {
     Int indDiff = newInd - rawStart;
 
     for (Int j = rawStart; j < rawSentinel; j += 2) {
-        Int outerType = typeGetOuter(raw[j], cm);
+        FirstArgTypeId firstParamType = getFirstParamType(raw[j], cm);
+        OuterTypeId outerType = typeGetOuter(firstParamType, cm);
         ov[j + indDiff] = outerType;
         ov[j + indDiff + countOverloads] = raw[j + 1]; // entityId
     }
 
     sortPairsDistant(newInd + 1, newInd + 1 + 2*countOverloads, countOverloads, ov);
-    print("validatin %d", nameId) 
+    print("validatin name %d", nameId)
     validateNameOverloads(newInd, countOverloads, cm);
     return newInd;
 }
@@ -3818,20 +3831,19 @@ testable void createOverloads(Compiler* cm) {
                                          cm->a);
     // Each overload requires 2x4 = 8 bytes for the pair of (outerType entityId).
     // Plus you need an int per overloaded name to hold the length of the overloads for that name
-    printIntArray(cm->imports.len, cm->imports.cont); 
-    
+
     cm->overloads.len = cm->countOverloads;
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, cm);
         cm->activeBindings[j] = -newIndex - 2;
     }
-    for (Int j = 0; j < cm->imports.len; j++) {
-        Int nameId = cm->imports.cont[j];
-        print("create name %d at import %d", nameId, j) 
+    removeDuplicatesInList(&(cm->importNames));
+    printIntArray(cm->importNames.len, cm->importNames.cont);
+    for (Int j = 0; j < cm->importNames.len; j++) {
+        Int nameId = cm->importNames.cont[j];
         Int newIndex = createNameOverloads(nameId, cm);
         cm->activeBindings[nameId] = -newIndex - 2;
     }
-    print("after builtins") 
     for (Int j = 0; j < cm->toplevels.len; j++) {
         Int nameId = cm->toplevels.cont[j].name & LOWER24BITS;
         Int newIndex = createNameOverloads(nameId, cm);
@@ -3979,22 +3991,19 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Int void
     Int fnStartTokenId = cm->i - 1;
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
 
-    Int fnNameId = name & LOWER24BITS;
+    NameId fnNameId = name & LOWER24BITS;
 
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
 
-    Arr(Token) toks = cm->tokens.cont;
-
-    Int uniqueTypeId = voidToVoid;
-    Int newFnTypeId = -1; // default for nullary functions
+    Arr(Token) toks = cm->tokens.cont; TypeId newFnTypeId = -1; // default for nullary functions
     if (toks[cm->i].tp == tokParamList) {
         Token paramListTk = toks[cm->i];
         cm->i++;
         newFnTypeId = typeDef(paramListTk, true, toks, cm);
     }
 
-    Int newFnEntityId = cm->entities.len;
-    pushInentities(((Entity){ .class = classImmutable, .typeId = uniqueTypeId}), cm);
+    EntityId newFnEntityId = cm->entities.len;
+    pushInentities(((Entity){ .class = classImmutable, .typeId = newFnTypeId }), cm);
     addRawOverload(fnNameId, newFnTypeId, newFnEntityId, cm);
 
     pushIntoplevels((Toplevel){.indToken = fnStartTokenId, .sentinelToken = fnSentinelToken,
@@ -4063,7 +4072,7 @@ private void parseToplevelSignatures(Compiler* cm) {
     Arr(Token) toks = cm->tokens.cont;
     Int len = cm->tokens.len;
 
-    Int voidToVoid = addConcreteFunctionType(1, (Int[]){ tokMisc, tokMisc}, cm);
+    Int voidToVoid = addConcrFnType(1, (Int[]){ tokMisc, tokMisc}, cm);
     Int nextI = cm->i;
     for (Token tok = toks[cm->i]; cm->i < len; cm->i = nextI, tok = toks[nextI]) {
         if (tok.tp != tokAssignLeft) {
@@ -4183,7 +4192,7 @@ private Int typeGetArity(Int typeId, Compiler* cm) {
 }
 
 
-private Int typeGetOuter(Int typeId, Compiler* cm) {
+private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) {
 // A         => A  (concrete types)
 // A(B)      => A  (concrete generic types)
 // A | A(B)  => -2 (param generic types)
@@ -4208,7 +4217,7 @@ private Int typeGetOuter(Int typeId, Compiler* cm) {
 }
 
 
-private Int isFunction(Int typeId, Compiler* cm) {
+private Int isFunction(FirstArgTypeId typeId, Compiler* cm) {
 // Returns the function's depth (count of args) if the type is a function type, -1 otherwise
     if (typeId < topVerbatimType) {
         return -1;
@@ -4333,7 +4342,7 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
 private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm);
 
 
-private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* params,
+private TypeId typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* params,
                              untt nameAndLen, Compiler* cm) {
 // Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
 // in "params". The sequence must be flat, i.e. not include any nested structs.
@@ -4377,7 +4386,7 @@ private Int typeCreateStruct(StackInt* exp, Int startInd, Int length, StackInt* 
 }
 
 
-private Int typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt* params,
+private TypeId typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt* params,
                                bool isFunction, Compiler* cm) {
 // Creates/merges a new type call from a sequence of pairs in "exp" and a list of type params
 // in "params". Handles both ordinary type calls and function types.
@@ -4415,8 +4424,8 @@ private Int typeCreateTypeCall(StackInt* exp, Int startInd, Int length, StackInt
 }
 
 
-private Int typeCreateFnSignature(StackInt* exp, Int startInd, Int length, StackInt* params,
-                             untt nameAndLen, Compiler* cm) {
+private TypeId typeCreateFnSignature(StackInt* exp, Int startInd, Int length, StackInt* params,
+                                     untt nameAndLen, Compiler* cm) {
 // Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
 // in "params". The sequence must be flat, i.e. not include any nested structs.
 // Returns the typeId of the new type
@@ -4702,22 +4711,21 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
 
 
-private Int getFirstParamType(Int funcTypeId, Compiler* cm) {
+private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) {
 // Gets the type of the first param of a function
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
-
     return cm->types.cont[funcTypeId + 3 + hdr.arity]; // +3 skips the type length, type tag & name
 }
 
-private bool isFunctionWithParams(Int typeId, Compiler* cm) {
+private bool isFunctionWithParams(TypeId typeId, Compiler* cm) {
     return cm->types.cont[typeId] > 1;
 }
 
 
-testable bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm) {
+testable bool findOverload(FirstArgTypeId typeId, Int ovInd, EntityId* entityId, Compiler* cm) {
 // Params: typeId = type of the first function parameter, or -1 if it's 0-arity
-//           ovInd = ind in [overloads]
-//           entityId = address where to store the result, if successful
+//         ovInd = ind in [overloads], which is found via [activeBindings]
+//         entityId = address where to store the result, if successful
 // We have 4 scenarios here, sorted from left to right in the outerType part of [overloads]:
 // 1. outerType < -1: non-function generic types with outer generic, e.g. "U(Int)" => -2
 // 2. outerType = -1: 0-arity function

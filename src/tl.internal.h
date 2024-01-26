@@ -9,6 +9,11 @@
 #define Arr(T) T*
 #define untt uint32_t
 #define null nullptr
+#define NameId int32_t
+#define EntityId int32_t
+#define TypeId int32_t
+#define FirstArgTypeId int32_t
+#define OuterTypeId int32_t
 #ifdef TEST
     #define testable
 #else
@@ -535,7 +540,7 @@ struct Compiler { // :Compiler
     StackInt* tempStack;  // [aTmp]
     Int countOverloads;
     Int countOverloadedNames;
-    MultiAssocList* rawOverloads; // [aTmp] (funcTypeId entityId)
+    MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
 
     // GENERAL STATE
     Int i;

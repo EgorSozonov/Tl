@@ -350,7 +350,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       */
+       */ 
         createTest(
             s("Mutation simple"),
             s("main = ^{\n"
@@ -376,7 +376,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       /*
+       /* 
         createTest(
             s("Mutation complex"),
             s("main = ^{ \n"
@@ -404,6 +404,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+        
         createTest(
             s("Complex left side"),
             s("arr_i <- 5"
