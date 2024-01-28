@@ -2275,6 +2275,10 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
 private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* cm);
 testable bool findOverload(FirstArgTypeId typeId, Int start, EntityId* entityId, Compiler* cm);
 
+#ifdef TEST
+void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
+#endif
+
 //}}}
 
 private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
@@ -3036,7 +3040,6 @@ private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 
 private EntityId importAndActivateEntity(Entity ent, Compiler* cm) {
 // Adds an import to the entities table, activates it and, if function, adds its overload
-    print("here")
     Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
     Int isAFunc = isFunction(ent.typeId, cm);
     VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
@@ -3370,7 +3373,6 @@ private void popScopeFrame(Compiler* cm) {
 
 private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm) {
 // Adds an overload of a function to the [rawOverloads] and activates it, if needed
-    print("add raw overload name %d type %d", nameId, typeId)
     Int mbListId = -cm->activeBindings[nameId] - 2;
     FirstArgTypeId firstParamType = getFirstParamType(typeId, cm);
     if (mbListId == -1) {
@@ -3433,7 +3435,7 @@ testable TypeId mergeType(Int startInd, Compiler* cm) {
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
-private Int getFirstParamType(TypeId funcTypeId, Compiler* cm);
+private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
 private Int typeGetArity(TypeId typeId, Compiler* cm);
@@ -3744,7 +3746,6 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
 // 2. A zero-arity function, if any, must be unique
 // 3. For concrete outer types, there must be only one ref
 // 4. For refs to concrete entities, full types (which are concrete) must be different
-    print("count ov %d", countOverloads)
     Arr(Int) ov = cm->overloads.cont;
     Int start = listId + 1;
     Int outerSentinel = start + countOverloads;
@@ -3776,7 +3777,7 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
         return;
     }
     // Validate that all nonnegative outerTypes are distinct
-    Int prevOuter = ov[o];
+    OuterTypeId prevOuter = ov[o];
     for (Int k = o + 1; k < outerSentinel; k++)  {
         VALIDATEP(ov[k] != prevOuter, errTypeOverloadsIntersect)
         prevOuter = ov[k];
@@ -3808,17 +3809,21 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) {
     Int newInd = cm->overloads.len;
     ov[newInd] = 2*countOverloads; // length of the subtable for this name
     cm->overloads.len += 2*countOverloads + 1;
-    Int indDiff = newInd - rawStart;
 
-    for (Int j = rawStart; j < rawSentinel; j += 2) {
-        FirstArgTypeId firstParamType = getFirstParamType(raw[j], cm);
+    if (nameId == 81)  {
+        print("newInd for 81 %d count ov %d", newInd, countOverloads)
+    }
+    for (Int j = rawStart, k = newInd + 1; j < rawSentinel; j += 2, k++) {
+        FirstArgTypeId firstParamType = raw[j];
+        if (nameId == 81)  {
+            print("first %d its outer %d", firstParamType)
+        }
         OuterTypeId outerType = typeGetOuter(firstParamType, cm);
-        ov[j + indDiff] = outerType;
-        ov[j + indDiff + countOverloads] = raw[j + 1]; // entityId
+        ov[k] = outerType;
+        ov[k + countOverloads] = raw[j + 1]; // entityId
     }
 
     sortPairsDistant(newInd + 1, newInd + 1 + 2*countOverloads, countOverloads, ov);
-    print("validatin name %d", nameId)
     validateNameOverloads(newInd, countOverloads, cm);
     return newInd;
 }
@@ -3995,7 +4000,8 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Int void
 
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
 
-    Arr(Token) toks = cm->tokens.cont; TypeId newFnTypeId = -1; // default for nullary functions
+    Arr(Token) toks = cm->tokens.cont;
+    TypeId newFnTypeId = voidToVoid; // default for nullary functions
     if (toks[cm->i].tp == tokParamList) {
         Token paramListTk = toks[cm->i];
         cm->i++;
@@ -4018,7 +4024,6 @@ private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Comp
     Int fnSentinel = toplevelSignature.sentinelToken;
 
     cm->i = fnStartInd; // tokFn
-    print("toplevelbody %d", cm->i);
     Int startBt = toks[fnStartInd + 1].startBt;
     Token fnTk = toks[cm->i];
 

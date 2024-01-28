@@ -446,7 +446,7 @@ typedef struct { // :ParseFrame
 
 
 typedef struct { // :Entity
-    Int typeId;
+    TypeId typeId;
     Int name;
     uint8_t class;
     bool isPublic;

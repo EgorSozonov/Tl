@@ -371,7 +371,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodExpr,            .pl2 = 3 },
                 (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 2 },
                 (Node){ .tp = nodId,   .pl1 = 1,  .pl2 = 1 },
-                (Node){ .tp = tokInt,              .pl2 = 3  }
+                (Node){ .tp = tokInt,             .pl2 = 3  }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
