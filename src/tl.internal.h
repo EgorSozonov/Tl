@@ -232,8 +232,8 @@ typedef struct { // :Token
 
 // Single-statement token types
 #define tokStmt        12  // firstSpanTokenType
-#define tokParens      13  // subexpressions and struct/sum type instances */
-#define tokCall        14  // pl1 = nameId, index in the string table */
+#define tokParens      13  // subexpressions and struct/sum type instances
+#define tokCall        14  // pl1 = nameId, index in the string table. pl2 > 0 if prefix call
 #define tokTypeCall    15  // pl1 = nameId of type. Either a type call or a type constructor
 #define tokParamList   16  // Parameter lists, ended with `|` */
 #define tokAssignLeft  17  // pl1 == 1 iff reassignment, pl1 == 2 iff type assignment,
@@ -487,6 +487,21 @@ typedef struct { // :ScopeStack
     int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
 } ScopeStack;
 
+typedef struct {  // :ExprFrame
+    Int tp;
+    Int startInd; // node index where this expression frame started
+    Int sentinel; // token sentinel
+    Int arity;
+    Int startBt;
+    Int lenBts;
+    Int entityId;
+    Bool isPrefix;
+} ExprFrame;
+
+#define exfrParens 1
+#define exfrCall   2
+#define exfrData   3 // Data constructors like lists, arrays or struct initializations
+
 DEFINE_STACK_HEADER(ParseFrame)
 DEFINE_STACK_HEADER(Node)
 
@@ -496,6 +511,7 @@ DEFINE_INTERNAL_LIST_TYPE(Node)
 DEFINE_INTERNAL_LIST_TYPE(Entity)
 
 DEFINE_INTERNAL_LIST_TYPE(Toplevel)
+DEFINE_INTERNAL_LIST_TYPE(ExprFrame)
 DEFINE_INTERNAL_LIST_TYPE(Int)
 
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
@@ -527,9 +543,12 @@ struct Compiler { // :Compiler
     Arr(Int) activeBindings;    // [aTmp]
     Int loopCounter;
     InListNode nodes;
-    InListNode monoCode;
+    InListNode monoCode; // code for monorphizations of generic functions
+    InListNode scratchNodes;
+    InListExprFrame expFrames;
     MultiAssocList* monoIds;
     InListEntity entities;
+    MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
     InListInt overloads;
     InListInt types;
     StringDict* typesDict;
@@ -539,7 +558,6 @@ struct Compiler { // :Compiler
     StackInt* tempStack;  // [aTmp]
     Int countOverloads;
     Int countOverloadedNames;
-    MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
 
     // GENERAL STATE
     Int i;

@@ -1089,7 +1089,7 @@ const char errTypeFnSingleReturnType[]      = "More than one return type in a fu
 //}}}
 //{{{ Forward decls
 
-private void subexprClose(Arr(Token) tokens, Compiler* cm);
+private void subexprClose(Arr(Token) toks, Compiler* cm);
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
@@ -2252,20 +2252,20 @@ private void tabulateOperators() {
 //{{{ Parser utils
 
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
+#define P_CT Arr(Token) toks, Compiler* cm // parser context type fragment
+#define P_C toks, cm // parser context args fragment
 
-private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
+private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
-private EntityId importAndActivateEntity(Entity ent, Compiler* cm);
+private EntityId importActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
-private void exprSpanless(Int sentinel, Int startBt, Int lenBts,
-                            Arr(Token) tokens, Compiler* cm);
-private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts,
-                            Arr(Token) tokens, Compiler* cm);
-private void pExpr(Token tk, Arr(Token) tokens, Compiler* cm);
-private Int pExprWorker(Token tk, Arr(Token) tokens, Compiler* cm);
+private void exprSpanless(Int sentinel, Int startBt, Int lenBts, P_CT);
+private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT);
+private void pExpr(Token tk, P_CT);
+private Int pExprWorker(Token tk, P_CT);
 
 
 _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
@@ -2279,8 +2279,9 @@ _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Comp
 
 #define throwExcParser(errMsg, cm) throwExcParser0(errMsg, __LINE__, cm)
 
-private Int getActiveVar(Int nameId, Compiler* cm) {
-// Resolves an active binding, throws if it's not active. Returns an entityId
+
+private EntityId getActiveVar(Int nameId, Compiler* cm) { //:getActiveVar
+// Resolves an active binding, throws if it's not active
     Int rawValue = cm->activeBindings[nameId];
     VALIDATEP(rawValue > -1 && rawValue < BIG, errUnknownBinding)
     return rawValue;
@@ -2311,7 +2312,7 @@ private Int createEntity(untt name, Compiler* cm) {
     return newEntityId;
 }
 
-private Int calcSentinel(Token tok, Int tokInd) {
+private Int calcSentinel(Token tok, Int tokInd) { //:calcSentinel
 // Calculates the sentinel token for a token at a specific index
     return (tok.tp >= firstSpanTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
@@ -2337,7 +2338,7 @@ Node trivialNode(untt tp, Token tk) {
 testable void pushLexScope(ScopeStack* scopeStack);
 private Int parseLiteralOrIdentifier(Token tok, Compiler* cm);
 testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler* cm);
-private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* cm);
+private void parseFnDef(Token tok, P_CT);
 testable bool findOverload(FirstArgTypeId typeId, Int start, EntityId* entityId, Compiler* cm);
 
 #ifdef TEST
@@ -2355,49 +2356,49 @@ private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler
     pushLexScope(cm->scopeStack);
 }
 
-private void parseMisc(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseMisc(Token tok, P_CT) {
 }
 
 
-private void pScope(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void pScope(Token tok, P_CT) {
     addParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
 }
 
-private void parseTry(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseTry(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseYield(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseYield(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
-private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void ifLeftSide(Token tok, P_CT) {
 // Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
-    VALIDATEP(tokens[leftSentinel].tp == tokMisc && tokens[leftSentinel].pl1 == miscArrow,
+    VALIDATEP(toks[leftSentinel].tp == tokMisc && toks[leftSentinel].pl1 == miscArrow,
             errIfMalformed)
-    Int typeLeft = pExprWorker(tok, tokens, cm);
+    Int typeLeft = pExprWorker(tok, P_C);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
 
 
-private void parseIf(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseIf(Token tok, P_CT) {
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.len,
             .sentinelToken = cm->i + tok.pl2 };
     push(newParseFrame, cm->backtrack);
     pushInnodes((Node){.tp = nodIf, .pl1 = tok.pl1, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
 
-    Token stmtTok = tokens[cm->i];
+    Token stmtTok = toks[cm->i];
     ++cm->i; // CONSUME the stmt token
-    ifLeftSide(stmtTok, tokens, cm);
+    ifLeftSide(stmtTok, P_C);
 }
 
 /*
-private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Compiler* cm) {
+private void assignmentWorker(Token tok, bool isToplevel, P_CT) {
     Int sentinelToken = cm->i + tok.pl2;
     VALIDATEP(sentinelToken >= cm->i + 2, errAssignment)
     Token bindingTk = tokens[cm->i];
@@ -2406,14 +2407,14 @@ private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Com
                            .sentinelToken = sentinelToken }), cm->backtrack);
         pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
 
-        assignmentWordLeftSide(bindingTk, tokens, cm);
+        assignmentWordLeftSide(bindingTk, P_C);
 
         Token rTk = tokens[cm->i];
         Int rightType = -1;
         if (rTk.tp == tokFn) {
         } else {
             rightType = exprHeadless(sentinelToken, rTk.startBt,
-                                       tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+                                       tok.lenBts - rTk.startBt + tok.startBt, P_C);
             Int newBindingId = createEntity(nameOfToken(bindingTk), cm);
             VALIDATEP(rightType != -2, errAssignment)
             if (rightType > -1) {
@@ -2421,27 +2422,27 @@ private void assignmentWorker(Token tok, bool isToplevel, Arr(Token) tokens, Com
             }
         }
     } else if (bindingTk.tp == tokTypeName) {
-        typeDef(bindingTk, false, tokens, cm);
+        typeDef(bindingTk, false, P_C);
     } else {
         throwExcParser(errAssignment, cm);
     }
 }
 */
 
-private void assignmentComplexLeftSide(Int start, Int sentinel, Arr(Token) tokens, Compiler* cm) {
+private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
 // A left side with more than one token must consist of a known var with a series of accessors.
 // It gets transformed like this:
 // arr_i_(j*2)_(k + 3) ==> _ _ _ arr i (* j 2) (+ k 3)
-    Token firstTk = tokens[start];
+    Token firstTk = toks[start];
     VALIDATEP(firstTk.tp == tokWord, errAssignmentLeftSide)
-    Int leftEntityId = getActiveVar(firstTk.pl2, cm);
+    EntityId leftEntityId = getActiveVar(firstTk.pl2, cm);
     Int j = start + 1;
 
     StackInt* sc = cm->tempStack;
     clearint32_t(sc);
 
     while (j < sentinel) {
-        Token accessorTk = tokens[j];
+        Token accessorTk = toks[j];
         VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
         if (accessorTk.pl1 == tkAccDot) {
             j++;
@@ -2449,7 +2450,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, Arr(Token) token
 #ifdef SAFETY
             VALIDATEI(j + 1 < sentinel, iErrorInconsistentSpans)
 #endif
-            Token accessTk = tokens[j + 1];
+            Token accessTk = toks[j + 1];
             VALIDATEP(accessTk.tp == tokInt || accessTk.tp == tokWord
                       || accessTk.tp == tokParens, errAssignmentLeftSide)
             if (accessTk.tp == tokParens) {
@@ -2464,7 +2465,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, Arr(Token) token
     // Add the "_ _ _" part using the stack of accessor operators
     j = sc->len - 1;
     while (j > -1) {
-        Token accessorTk = tokens[sc->cont[j]];
+        Token accessorTk = toks[sc->cont[j]];
         pushInnodes((Node){ .tp = nodAccessor, .pl1 = accessorTk.pl1,
                             .startBt = accessorTk.startBt, .lenBts = accessorTk.lenBts }, cm);
     }
@@ -2474,16 +2475,16 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, Arr(Token) token
                         .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, cm);
     // The accessor expression parts
     while (j < sentinel) {
-        Token accessorTk = tokens[j];
+        Token accessorTk = toks[j];
         VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
         if (accessorTk.pl1 == tkAccDot) {
             j++;
         } else { // tkAccArray
-            Token accessTk = tokens[j + 1];
+            Token accessTk = toks[j + 1];
             if (accessTk.tp == tokParens) {
                 cm->i = j + 2; // CONSUME up to the subexpression start
                 Int subexprSentinel = cm->i + accessTk.pl2 + 1;
-                exprHeadless(subexprSentinel, accessTk.startBt, accessTk.lenBts, tokens, cm);
+                exprHeadless(subexprSentinel, accessTk.startBt, accessTk.lenBts, P_C);
                 j = cm->i;
             } else if (accessTk.tp == tokInt || accessTk.tp == tokString) {
                 pushInnodes(trivialNode(accessTk.tp, accessTk), cm);
@@ -2514,12 +2515,12 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
     Bool isMutation = tok.pl1 >= BIG;
     if (tok.pl1 == assiType) {
         VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
-        typeDef(tok, false, toks, cm);
+        typeDef(tok, false, P_C);
         return;
     } else if (countLeftSide > 1) {
         complexLeft = true;
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
-        assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, toks, cm);
+        assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, P_C);
     } else if (tok.pl2 == 0) { // a new var being defined
         untt newName = ((untt)tok.lenBts << 24) + (untt)tok.pl1;
         mbNewBinding = createEntity(newName, cm);
@@ -2546,7 +2547,7 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
         pushInnodes((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0,
                 .startBt = mbOldBinding.startBt, .lenBts = mbOldBinding.lenBts}, cm);
 
-        exprSpanless(sentinel, rightTk.startBt, lenBytes, toks, cm);
+        exprSpanless(sentinel, rightTk.startBt, lenBytes, P_C);
 
         TypeId leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
         Int operatorEntity = -1;
@@ -2562,14 +2563,12 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
 #ifdef SAFETY
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
 #endif
-        subexprClose(toks, cm);
+        subexprClose(P_C);
 
     } else if (rightTk.tp == tokFn) {
-        parseFnDef(rightTk, toks, cm);
+        parseFnDef(rightTk, P_C);
     } else {
-        print("cm->i before %d sentinel %d", cm->i, sentinel)
-        Int rightType = exprHeadless(sentinel, rightTk.startBt, lenBytes, toks, cm);
-        print("cm->i after %d", cm->i)
+        Int rightType = exprHeadless(sentinel, rightTk.startBt, lenBytes, P_C);
         VALIDATEP(rightType != -2, errAssignment)
 
         if (tok.pl1 == 0 && rightType > -1) {
@@ -2579,17 +2578,17 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
 }
 
 
-private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
+private void parseFor(Token forTk, P_CT) {
 // For loops. Look like "for x = 0; x < 100; x++ { ... }"
     ++cm->loopCounter;
     Int sentinel = cm->i + forTk.pl2;
 
     Int condInd = cm->i;
-    Token condTk = tokens[condInd];
+    Token condTk = toks[condInd];
     VALIDATEP(condTk.tp == tokStmt, errLoopSyntaxError)
 
     Int condSent = calcSentinel(condTk, condInd);
-    Int startBtScope = tokens[condSent].startBt;
+    Int startBtScope = toks[condSent].startBt;
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->loopCounter }), cm->backtrack);
@@ -2601,12 +2600,12 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
 
     cm->i = condSent;
     while (cm->i < sentinel) {
-        Token tok = tokens[cm->i];
+        Token tok = toks[cm->i];
         if (tok.tp != tokAssignLeft) {
             break;
         }
         ++cm->i; // CONSUME the assignment span marker
-        pAssignment(tok, tokens, cm);
+        pAssignment(tok, P_C);
         maybeCloseSpans(cm);
     }
     Int indBody = cm->i;
@@ -2619,7 +2618,7 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
                        .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
     cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/token
 
-    Int condTypeId = pExprWorker(tokens[condInd], tokens, cm);
+    Int condTypeId = pExprWorker(toks[condInd], P_C);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
 
     cm->i = indBody; // CONSUME the for token, its condition and variable inits (if any)
@@ -2637,7 +2636,7 @@ private void parseVerbatim(Token tok, Compiler* cm) {
         .tp = tok.tp, .startBt = tok.startBt, .lenBts = tok.lenBts, .pl1 = tok.pl1, .pl2 = tok.pl2}, cm);
 }
 
-private void parseErrorBareAtom(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseErrorBareAtom(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
@@ -2650,6 +2649,7 @@ private ParseFrame popFrame(Compiler* cm) {
     setSpanLengthParser(frame.startNodeInd, cm);
     return frame;
 }
+
 
 private Int exprSingleItem(Token tk, Compiler* cm) {
 // A single-item expression, like "foo". Consumes no tokens.
@@ -2678,31 +2678,17 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
     return typeId;
 }
 
-private void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
-// Counts the arity of the call, including skipping unary operators. Consumes no tokens.
-// Precondition:
-    Token firstTok = tokens[cm->i];
-    Int j = calcSentinel(firstTok, cm->i);
-    while (j < sentinelToken) {
-        Token tok = tokens[j];
-        j += (tok.tp < firstSpanTokenType) ? 1 : (tok.pl2 + 1);
-        if (tok.tp != tokOperator || (TL_OPERATORS)[tok.pl1].arity > 1) {
-            (*arity)++;
-        }
-    }
-}
 
-private void exprSubexpr(Int sentinelToken, Int* arity, Arr(Token) tokens, Compiler* cm) {
+private void exprSubexpr(Int sentinelToken, Int* arity, P_CT) { //:exprSubexpr
 // Parses a subexpression within an expression.
 // Precondition: the current token must be 1 past the opening paren / statement token
-// Examples: `foo 5 a`
-//           `+ 5 !a`
+// Examples: `foo(5 a)`
+//           `5 + ##a`
 
 // Consumes 1 or 2 tokens
 //TODO: allow for core forms (but not scopes!)
-    Token firstTk = tokens[cm->i];
+    Token firstTk = toks[cm->i];
 
-    exprCountArity(arity, sentinelToken, tokens, cm);
     if (firstTk.tp == tokWord || firstTk.tp == tokOperator) {
         Int mbBnd = -1;
         if (firstTk.tp == tokWord) {
@@ -2720,62 +2706,88 @@ private void exprSubexpr(Int sentinelToken, Int* arity, Arr(Token) tokens, Compi
     }
 }
 
-private void subexprClose(Arr(Token) tokens, Compiler* cm) { //:subexprClose
+
+private void subexprClose(InListExprFrame scr, P_CT) { //:subexprClose
 // Flushes the finished subexpr frames from the top of the funcall stack
-    while (cm->scopeStack->len > 0 && cm->i == peek(cm->backtrack).sentinelToken) {
-        popFrame(cm);
-    }
-}
-
-private void exprOperator(Token tok, Arr(Token) tokens, Compiler* cm) {
-// An operator token in non-initial position is either a funcall (if unary)
-// or an operand. Consumes no tokens
-    Int bindingId = tok.pl1;
-    OpDef operDefinition = (TL_OPERATORS)[bindingId];
-
-    if (operDefinition.arity == 1) {
-        pushInnodes((Node){ .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1,
-                            .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    } else {
-        pushInnodes((Node){ .tp = nodId, .pl1 = -bindingId - 2,
-                            .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    }
-}
-
-
-private void exprSpanless(Int sentinelToken, Int startBt, Int lenBts,
-                     Arr(Token) tokens, Compiler* cm) { //:exprSpanless
-    Int arity = 0;
-    exprSubexpr(sentinelToken, &arity, tokens, cm);
-    while (cm->i < sentinelToken) {
-        subexprClose(tokens, cm);
-        Token cTk = tokens[cm->i];
-        untt tokType = cTk.tp;
-
-        if (tokType == tokParens) {
-            cm->i++; // CONSUME the parens token
-            exprSubexpr(cm->i + cTk.pl2, &arity, tokens, cm);
-        } else VALIDATEP(tokType < firstSpanTokenType, errExpressionCannotContain)
-        else if (tokType <= topVerbatimTokenVariant) {
-            pushInnodes((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
-                                .startBt = cTk.startBt, .lenBts = cTk.lenBts }, cm);
-            cm->i++; // CONSUME the verbatim token
+    while (cm->exprFrames.len > 0 && cm->i == peek(cm->backtrack).sentinel) {
+        ExprFrame eFr = popFrame(cm);
+        if (eFr.tp == exfrParens) {
+            scr.cont[eFr.startInd].pl2 = scr.len - eFr.startInd - 1;
+        } else if (eFr.tp == exfrCall) {
+            pushInexprFrames((Node){ .tp = nodCall, .pl1 = , .pl2 = eFr.arity,
+                    .startBt = , .lenBts = , }, scr);
         } else {
-            if (tokType == tokWord) {
-                Int varId = getActiveVar(cTk.pl2, cm);
-                pushInnodes((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2,
-                                    .startBt = cTk.startBt, .lenBts = cTk.lenBts}, cm);
-            } else if (tokType == tokOperator) {
-                exprOperator(cTk, tokens, cm);
-            }
-            cm->i++; // CONSUME any leaf token
+            // TODO data
         }
     }
 }
 
 
-private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts,
-                     Arr(Token) tokens, Compiler* cm) { //:exprUpTo
+private ExprFrame exprGetTopSubexpr(InListExprFrame scr) { //:exprGetTopSubexpr
+    Int i = scr.len - 1;
+    while (i > -1 && scr.cont[i].tp != exfrParens) { i--; }
+    VALIDATEI(i > -1, iErrorInconsistentSpans) 
+    return scr.cont[i]; 
+}
+
+
+private void exprCopyFromScratch(InListExprFrame scr, Compiler* cm) {
+    // ensure enough space
+    // copy
+}
+
+
+private void exprSpanless(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprSpanless
+    Int arity = 0;
+    pushInexprFrames((ExprFrame){ .tp = exfrParens, .sentinel = sentinelToken}, cm);
+    InListExprFrame scr = cm->scratchNodes; 
+    scr.len = 0;        
+    while (cm->i < sentinelToken) {
+        subexprClose(P_C);
+        Token cTk = toks[cm->i];
+        untt tokType = cTk.tp;
+
+        if (tokType <= topVerbatimTokenVariant) {
+            pushInscratchNodes((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
+                                .startBt = cTk.startBt, .lenBts = cTk.lenBts }, cm);
+            cm->i++; // CONSUME the verbatim token
+        } else  if (tokType == tokWord) {
+            EntityId varId = getActiveVar(cTk.pl2, cm);
+            pushInscratchNodes((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2,
+                                .startBt = cTk.startBt, .lenBts = cTk.lenBts}, cm);
+        } else if (tokType == tokParens) {
+            cm->i++; // CONSUME the parens token
+            pushInexprFrames((ExprFrame){ .tp = exfrParens, .sentinel = cm->i + cTk.pl2}, cm);
+        } else if (tokType == tokOperator) {
+            Int bindingId = tok.pl1;
+            OpDef operDefinition = TL_OPERATORS[bindingId];
+            
+            pushInexprFrames((ExprFrame){ 
+                    .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1,
+                    .startBt = tok.startBt, .lenBts = tok.lenBts,
+                    .isPrefix = operDefinition.arity == 1
+            }, cm);
+        } else if (tokType == tokCall) {
+            if (cTk.pl2 > 0) { // prefix calls like `foo()`
+                
+                pushInexprFrames((ExprFrame){ .tp = exfrCall, .arity = 0,
+                        .sentinel = calcSentinel(cTk) }, cm);
+            } else { // infix calls like ` .foo`
+                ExprFrame topSubexpr = exprGetTopSubexpr(scr); 
+                Int startArity = (scr.len > topSubexpr.startNodeInd) ? 1 : 0;
+                pushInexprFrames((ExprFrame){ .tp = exfrCall, .arity = startArity,
+                        .sentinel = topSubexpr.sentinel }, cm);
+            }
+        } else {
+            throwExcParser( errExpressionCannotContain);
+        } 
+        cm->i++; // CONSUME any token
+    }
+    exprCopyFromScratch(scr, cm); 
+}
+
+
+private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprUpTo
 // The main "big" expression parser. Parses an expression whether there is a token or not.
 // Starts from cm->i and goes up to the sentinel token. Returns the expression's type
 // Precondition: we are looking 1 past the tokExpr or tokParens
@@ -2784,54 +2796,53 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts,
                 .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
 
-    exprSpanless(sentinelToken, startBt, lenBts, tokens, cm);
+    exprSpanless(sentinelToken, startBt, lenBts, P_C);
 
-    subexprClose(tokens, cm);
+    subexprClose(P_C);
 
     Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
     return exprType;
 }
 
 
-private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts,
-                         Arr(Token) tokens, Compiler* cm) { //:exprHeadless
+private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT) { //:exprHeadless
 // Precondition: we are looking at the first token of expr which does not have a
 // tokStmt/tokParens header. If "omitSpan" is set, this function will not emit a nodExpr nor
 // create a ParseFrame.
 // Consumes 1 or more tokens. Returns the type of parsed expression
     if (cm->i + 1 == sentinel) { // the [stmt 1, tokInt] case
-        Token singleToken = tokens[cm->i];
+        Token singleToken = toks[cm->i];
         if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
             cm->i += 1; // CONSUME the single literal
             return exprSingleItem(singleToken, cm);
         }
     }
-    return exprUpTo(sentinel, startBt, lenBts, tokens, cm);
+    return exprUpTo(sentinel, startBt, lenBts, P_C);
 }
 
 
-private Int pExprWorker(Token tok, Arr(Token) tokens, Compiler* cm) {
+private Int pExprWorker(Token tok, P_CT) {
 // Precondition: we are looking 1 past the first token of expr, which is the first parameter.
 // Consumes 1
 // or more tokens. Handles single items also Returns the type of parsed expression
     if (tok.tp == tokStmt || tok.tp == tokParens) {
         if (tok.pl2 == 1) {
-            Token singleToken = tokens[cm->i];
+            Token singleToken = toks[cm->i];
             if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
                 // [stmt 1, tokInt]
                 ++cm->i; // CONSUME the single literal token
                 return exprSingleItem(singleToken, cm);
             }
         }
-        return exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, tokens, cm);
+        return exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, P_C);
     } else {
         return exprSingleItem(tok, cm);
     }
 }
 
 
-private void pExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
-    pExprWorker(tok, tokens, cm);
+private void pExpr(Token tok, P_CT) {
+    pExprWorker(tok, P_C);
 }
 
 
@@ -2857,13 +2868,13 @@ private void maybeCloseSpans(Compiler* cm) {
     }
 }
 
-private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) { //:parseUpTo
+private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
 // Parses anything from current cm->i to "sentinelToken"
     while (cm->i < sentinelToken) {
         print("parsing tok i %d", cm->i)
-        Token currTok = tokens[cm->i];
+        Token currTok = toks[cm->i];
         cm->i++;
-        ((*cm->langDef->parserTable)[currTok.tp])(currTok, tokens, cm);
+        ((*cm->langDef->parserTable)[currTok.tp])(currTok, P_C);
 
         maybeCloseSpans(cm);
     }
@@ -2921,7 +2932,7 @@ private void mutationTwiddle(Int ind, Token mutTk, Compiler* cm) {
 }
 
 /* TODO
-private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseMutation(Token tok, P_CT) {
     untt encodedInfo = (untt)(tok.pl1);
     Int opType = (Int)(encodedInfo >> 26);
     Int operStartBt = (Int)(encodedInfo & LOWER26BITS);
@@ -2960,7 +2971,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     pushInnodes(((Node){0}), cm);
 
     Token rTk = tokens[cm->i];
-    Int rightType = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    Int rightType = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, P_C);
     VALIDATEP(rightType == cm->types.cont[opTypeInd + 3], errTypeNoMatchingOverload)
 
     mutationTwiddle(ind, tok, cm);
@@ -2971,31 +2982,31 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 */
 
-private void pAlias(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void pAlias(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
-private void parseAssert(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-
-private void parseAssertDbg(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseAssert(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseAwait(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseAssertDbg(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler* cm) {
+private void parseAwait(Token tok, P_CT) {
+    throwExcParser(errTemp, cm);
+}
+
+
+private Int breakContinue(Token tok, Int* sentinel, P_CT) {
     VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
     Int unwindLevel = 1;
     *sentinel = cm->i;
     if (tok.pl2 == 1) {
-        Token nextTok = tokens[cm->i];
+        Token nextTok = toks[cm->i];
         VALIDATEP(nextTok.tp == tokInt && nextTok.pl1 == 0 && nextTok.pl2 > 0, errBreakContinueInvalidDepth)
 
         unwindLevel = nextTok.pl2;
@@ -3024,9 +3035,9 @@ private Int breakContinue(Token tok, Int* sentinel, Arr(Token) tokens, Compiler*
 }
 
 
-private void parseBreakCont(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseBreakCont(Token tok, P_CT) {
     Int sentinel = cm->i;
-    Int loopId = breakContinue(tok, &sentinel, tokens, cm);
+    Int loopId = breakContinue(tok, &sentinel, P_C);
     if (tok.pl1 > 0) { // continue
         loopId += BIG;
     }
@@ -3036,61 +3047,61 @@ private void parseBreakCont(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-private void parseCatch(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseCatch(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
-private void parseDefer(Token tok, Arr(Token) tokens, Compiler* cm) {
-    throwExcParser(errTemp, cm);
-}
-
-
-private void parseDispose(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseDefer(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseExposePrivates(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseDispose(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseFnDef(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseExposePrivates(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseInterface(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseFnDef(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseImpl(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseInterface(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseLambda(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseImpl(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseLambda1(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseLambda(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseLambda2(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseLambda1(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parseLambda3(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseLambda2(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
 
-private void parsePackage(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseLambda3(Token tok, P_CT) {
+    throwExcParser(errTemp, cm);
+}
+
+
+private void parsePackage(Token tok, P_CT) {
     throwExcParser(errTemp, cm);
 }
 
@@ -3105,15 +3116,16 @@ private void typecheckFnReturn(Int typeId, Compiler* cm) {
 }
 
 
-private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void parseReturn(Token tok, P_CT) {
     Int lenTokens = tok.pl2;
     Int sentinelToken = cm->i + lenTokens;
 
-    push(((ParseFrame){ .tp = nodReturn, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }), cm->backtrack);
+    push(((ParseFrame){ .tp = nodReturn, .startNodeInd = cm->nodes.len, 
+                        .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReturn, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
 
-    Token rTk = tokens[cm->i];
-    Int typeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, tokens, cm);
+    Token rTk = toks[cm->i];
+    Int typeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, P_C);
     VALIDATEP(typeId > -1, errReturn)
     if (typeId > -1) {
         typecheckFnReturn(typeId, cm);
@@ -3125,7 +3137,7 @@ private Int isFunction(FirstArgTypeId typeId, Compiler* cm);
 private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm);
 
 
-private EntityId importAndActivateEntity(Entity ent, Compiler* cm) {
+private EntityId importActivateEntity(Entity ent, Compiler* cm) { //:importActivateEntity
 // Adds an import to the entities table, activates it and, if function, adds its overload
     Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
     Int isAFunc = isFunction(ent.typeId, cm);
@@ -3150,7 +3162,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(Typ
     for (int j = 0; j < countEntities; j++) {
         EntityImport impt = impts[j];
         TypeId typeId = typeIds[impt.typeInd];
-        importAndActivateEntity(
+        importActivateEntity(
                 (Entity){.name = impt.name, .class = classImmutable, .typeId = typeId }, cm);
     }
     cm->countNonparsedEntities = cm->entities.len;
@@ -3410,6 +3422,7 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
     }
 }
 
+
 private void addBinding(int nameId, int bindingId, Compiler* cm) {
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
@@ -3419,6 +3432,7 @@ private void addBinding(int nameId, int bindingId, Compiler* cm) {
 
     cm->activeBindings[nameId] = bindingId;
 }
+
 
 private void popScopeFrame(Compiler* cm) {
 // Pops a frame from the ScopeStack. For a scope type of frame, also deactivates its bindings.
@@ -3772,6 +3786,8 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiAssocList(a);
+    cm->scratchNodes = createInListNode(16, a);
+    cm->exprFrames = createInListExprFrame(16, a);
 
     cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
@@ -3942,7 +3958,7 @@ private void pToplevelTypes(Compiler* cm) {
         Token tok = toks[cm->i];
         if (tok.tp == tokAssignLeft && toks[cm->i + 1].tp == tokTypeName) {
             ++cm->i; // CONSUME the assignment token
-            typeDef(tok, false, toks, cm);
+            typeDef(tok, false, P_C);
         } else {
             cm->i += (tok.pl2 + 1);
         }
@@ -3961,9 +3977,9 @@ private void pToplevelConstants(Compiler* cm) {
             Token rightTk = toks[cm->i + 2];
             if (rightTk.tp != tokFn) {
                 cm->i += 1; // CONSUME the left and right assignment
-                pAssignment(tok, toks, cm);
+                pAssignment(tok, P_C);
                 maybeCloseSpans(cm);
-                //parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, toks, cm);
+                //parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, P_C);
             } else {
                 cm->i += (tok.pl2 + 1);
             }
@@ -4080,7 +4096,7 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Int void
     if (toks[cm->i].tp == tokParamList) {
         Token paramListTk = toks[cm->i];
         cm->i++;
-        newFnTypeId = typeDef(paramListTk, true, toks, cm);
+        newFnTypeId = typeDef(paramListTk, true, P_C);
     }
 
     EntityId newFnEntityId = cm->entities.len;
@@ -4132,7 +4148,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     }
 
     ++cm->i; // CONSUME the "=" sign
-    parseUpTo(fnSentinel, toks, cm);
+    parseUpTo(fnSentinel, P_C);
 }
 
 
@@ -4140,7 +4156,7 @@ private void pFunctionBodies(Arr(Token) toks, Compiler* cm) {
 // Parses top-level function params and bodies
     for (int j = 0; j < cm->toplevels.len; j++) {
         cm->loopCounter = 0;
-        pToplevelBody(cm->toplevels.cont[j], toks, cm);
+        pToplevelBody(cm->toplevels.cont[j], P_C);
     }
 }
 
@@ -4167,7 +4183,7 @@ private void pToplevelSignatures(Compiler* cm) {
         }
 
         //Int sentinel = calcSentinel(tok, cm->i);
-        //parseUpTo(cm->i + tok.pl2, toks, cm);
+        //parseUpTo(cm->i + tok.pl2, P_C);
 
         // since this is an immutable definition tokAssignLeft, its pl1 is the nameId and
         // its bytes are same as the var name in source code
@@ -4340,14 +4356,14 @@ testable Int typeSingleItem(Token tk, Compiler* cm) {
 }
 
 
-private Int typeCountArgs(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
+private Int typeCountArgs(Int sentinelToken, P_CT) {
 // Counts the arity of a type call. Consumes no tokens.
 // Precondition: we are pointing 1 past the type call
     Int arity = 0;
     Int j = cm->i;
     bool metArrow = false;
     while (j < sentinelToken) {
-        Token tok = tokens[j];
+        Token tok = toks[j];
 
         if (tok.tp == tokMisc && tok.pl1 == miscArrow) {
             metArrow = true;

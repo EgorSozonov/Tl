@@ -87,13 +87,11 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
         j += types[j] + 1;
     }
     Arr(TypeId) typeIds = allocateOnArena(countImportedTypes*4, cm->aTmp);
-    print("count imported %d", countImportedTypes)
     j = 0;
     Int t = 0;
     while (j < countTypes) {
         Int sentinel = j + types[j] + 1;
         TypeId initTypeId = cm->types.len;
-        print("init type %d seninel %d", initTypeId, sentinel) 
 
         for (Int k = j; k < sentinel; k++) {
             pushIntypes(types[k], cm);
@@ -109,7 +107,7 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
 
 private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes, Int countNodes,
                                Arr(Int) types, Int countTypes, Arr(TestEntityImport) imports,
-                               Int countImports, Compiler* proto, Arena* a) {
+                               Int countImports, Compiler* proto, Arena* a) { //:createTest0
 /** Creates a test with two parsers: one is the init parser (contains all the "imported" bindings and
 pre-defined nodes), and the other is the output parser (with all the stuff parsed from source code).
 When the test is run, the init parser will parse the tokens and then will be compared to the
@@ -125,8 +123,11 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
 
     StandardText stText = getStandardTextLength();
     if (countImports > 0)  {
+        print("p1")
         Arr(EntityImport) importsForControl = allocateOnArena(countImports*sizeof(EntityImport), a);
+        print("p2")
         Arr(EntityImport) importsForTest = allocateOnArena(countImports*sizeof(EntityImport), a);
+        print("p3")
 
         for (Int j = 0; j < countImports; j++)  {
             String* nameImp = imports[j].name;
@@ -350,7 +351,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       */ 
+       */
         createTest(
             s("Mutation simple"),
             s("main = ^{\n"
@@ -376,7 +377,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       /* 
+       /*
         createTest(
             s("Mutation complex"),
             s("main = ^{ \n"
@@ -404,7 +405,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-        
+
         createTest(
             s("Complex left side"),
             s("arr_i <- 5"
@@ -427,11 +428,11 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
     TestEntityImport arr[] = { (TestEntityImport){ .name = s("foo"), .typeInd = 0} };
-    print("%d elt size %d", sizeof(arr), sizeof(TestEntityImport)) 
+    print("%d elt size %d", sizeof(arr), sizeof(TestEntityImport))
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function call"),
-            s("x = 10 .foo 2 3"),
+            s("x = 10 .foo 2 `hw`"),
             (((Node[]) {
                 (Node){ .tp = nodAssignLeft, .pl2 = 6, .startBt = 0, .lenBts = 14 },
                 // " + 1" because the first binding is taken up by the "imported" function, "foo"
@@ -442,10 +443,10 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = tokInt, .pl2 = 3,            .startBt = 13, .lenBts = 1 },
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 } // foo
             })),
-            ((Int[]) { 4, tokInt, tokInt, tokInt, tokDouble }),
+            ((Int[]) { 4, tokInt, tokInt, tokString, tokDouble }),
             ((TestEntityImport[]) {{ .name = s("foo"), .typeInd = 0 }})
         ),
-       /* 
+       /*
         createTest(
             s("Nested function call 1"),
             s("x = 10 .foo bar() 3"),
@@ -1370,6 +1371,7 @@ int main() {
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
+    print("sizeof compiler %d", sizeof(Compiler))
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
    /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
