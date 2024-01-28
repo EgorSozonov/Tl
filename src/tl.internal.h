@@ -294,7 +294,7 @@ typedef struct { // :Token
 
 // Punctuation (inner node)
 #define nodScope       10
-#define nodExpr        11
+#define nodExpr        11  // pl1 = 1 iff it's a composite expression (has internal var decls)
 #define nodAssignLeft  12
 #define nodAssignRight 13
 #define nodAccessor    14  // pl1 = "acc" constants
@@ -415,7 +415,6 @@ typedef void (*LexerFunc)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
 
 typedef struct { // :LanguageDefinition
-    OpDef (*operators)[countOperators];
     LexerFunc (*dispatchTable)[256];
     ParserFunc (*parserTable)[countSyntaxForms];
 } LanguageDefinition;

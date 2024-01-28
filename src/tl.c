@@ -10,6 +10,107 @@
 #include <setjmp.h>
 #include "tl.internal.h"
 //}}}
+//{{{ Language definition
+//{{{ Text encoding
+
+#define aALower       97
+#define aFLower      102
+#define aILower      105
+#define aWLower      119
+#define aXLower      120
+#define aYLower      121
+#define aZLower      122
+#define aAUpper       65
+#define aFUpper       70
+#define aZUpper       90
+#define aDigit0       48
+#define aDigit9       57
+
+#define aPlus         43
+#define aMinus        45
+#define aTimes        42
+#define aDivBy        47
+#define aDot          46
+#define aPercent      37
+
+#define aParenLeft    40
+#define aParenRight   41
+#define aBracketLeft  91
+#define aBracketRight 93
+#define aCurlyLeft   123
+#define aCurlyRight  125
+#define aPipe        124
+#define aAmp          38
+#define aTilde       126
+#define aBackslash    92
+
+#define aSpace        32
+#define aNewline      10
+#define aCarrReturn   13
+#define aTab           9
+
+#define aApostrophe   39
+#define aBacktick     96
+#define aSharp        35
+#define aDollar       36
+#define aUnderscore   95
+#define aCaret        94
+#define aAt           64
+#define aColon        58
+#define aSemicolon    59
+#define aExclamation  33
+#define aQuestion     63
+#define aComma        44
+#define aEqual        61
+#define aLT           60
+#define aGT           62
+
+//}}}
+
+static OpDef TL_OPERATORS[countOperators] = {
+    { .arity=1, .bytes={ aExclamation, aDot, 0, 0 } }, // !.
+    { .arity=2, .bytes={ aExclamation, aEqual, 0, 0 } }, // !=
+    { .arity=1, .bytes={ aExclamation, 0, 0, 0 } }, // !
+    { .arity=1, .bytes={ aSharp, aSharp, 0, 0 }, .overloadable=true }, // ##
+    { .arity=1, .bytes={ aDollar, 0, 0, 0 } }, // $
+    { .arity=2, .bytes={ aPercent, 0, 0, 0 } }, // %
+    { .arity=2, .bytes={ aAmp, aAmp, aDot, 0 } }, // &&.
+    { .arity=2, .bytes={ aAmp, aAmp, 0, 0 }, .assignable=true }, // &&
+    { .arity=1, .bytes={ aAmp, 0, 0, 0 }, .isTypelevel=true }, // &
+    { .arity=1, .bytes={ aApostrophe, 0, 0, 0 } }, // '
+    { .arity=2, .bytes={ aTimes, aColon, 0, 0}, .assignable = true, .overloadable = true}, // *:
+    { .arity=2, .bytes={ aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true}, // *
+    { .arity=1, .bytes={ aPlus, aPlus, 0, 0 }, .assignable = false, .overloadable = true}, // ++
+    { .arity=2, .bytes={ aPlus, aColon, 0, 0 }, .assignable = true, .overloadable = true}, // +:
+    { .arity=2, .bytes={ aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true}, // +
+    { .arity=1, .bytes={ aMinus, aMinus, 0, 0 }, .assignable = false, .overloadable = true}, // --
+    { .arity=2, .bytes={ aMinus, aColon, 0, 0}, .assignable = true, .overloadable = true}, // -:
+    { .arity=2, .bytes={ aMinus, 0, 0, 0}, .assignable = true, .overloadable = true }, // -
+    { .arity=2, .bytes={ aDivBy, aColon, 0, 0}, .assignable = true, .overloadable = true}, // /:
+    { .arity=2, .bytes={ aDivBy, aPipe, 0, 0}, .isTypelevel = true}, // /|
+    { .arity=2, .bytes={ aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true}, // /
+    { .arity=2, .bytes={ aLT, aLT, aDot, 0} }, // <<.
+    { .arity=2, .bytes={ aLT, aEqual, 0, 0} }, // <=
+    { .arity=2, .bytes={ aLT, aGT, 0, 0} }, // <>
+    { .arity=2, .bytes={ aLT, 0, 0, 0 } }, // <
+    { .arity=2, .bytes={ aEqual, aEqual, aEqual, 0 } }, // ===
+    { .arity=2, .bytes={ aEqual, aEqual, 0, 0 } }, // ==
+    { .arity=3, .bytes={ aGT, aEqual, aLT, aEqual } }, // >=<=
+    { .arity=3, .bytes={ aGT, aLT, aEqual, 0 } }, // ><=
+    { .arity=3, .bytes={ aGT, aEqual, aLT, 0 } }, // >=<
+    { .arity=2, .bytes={ aGT, aGT, aDot, 0}, .assignable=true, .overloadable = true}, // >>.
+    { .arity=3, .bytes={ aGT, aLT, 0, 0 } }, // ><
+    { .arity=2, .bytes={ aGT, aEqual, 0, 0 } }, // >=
+    { .arity=2, .bytes={ aGT, 0, 0, 0 } }, // >
+    { .arity=2, .bytes={ aQuestion, aColon, 0, 0 } }, // ?:
+    { .arity=1, .bytes={ aQuestion, 0, 0, 0 }, .isTypelevel=true }, // ?
+    { .arity=2, .bytes={ aCaret, aDot, 0, 0} }, // ^.
+    { .arity=2, .bytes={ aCaret, 0, 0, 0}, .assignable=true, .overloadable = true}, // ^
+    { .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }, // ||.
+    { .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true } // ||
+};
+
+//}}}
 //{{{ Utils
 
 jmp_buf excBuf;
@@ -350,58 +451,6 @@ DEFINE_INTERNAL_LIST(types, Int, a)
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
-#define aALower       97
-#define aFLower      102
-#define aILower      105
-#define aWLower      119
-#define aXLower      120
-#define aYLower      121
-#define aZLower      122
-#define aAUpper       65
-#define aFUpper       70
-#define aZUpper       90
-#define aDigit0       48
-#define aDigit9       57
-
-#define aPlus         43
-#define aMinus        45
-#define aTimes        42
-#define aDivBy        47
-#define aDot          46
-#define aPercent      37
-
-#define aParenLeft    40
-#define aParenRight   41
-#define aBracketLeft  91
-#define aBracketRight 93
-#define aCurlyLeft   123
-#define aCurlyRight  125
-#define aPipe        124
-#define aAmp          38
-#define aTilde       126
-#define aBackslash    92
-
-#define aSpace        32
-#define aNewline      10
-#define aCarrReturn   13
-#define aTab           9
-
-#define aApostrophe   39
-#define aBacktick     96
-#define aSharp        35
-#define aDollar       36
-#define aUnderscore   95
-#define aCaret        94
-#define aAt           64
-#define aColon        58
-#define aSemicolon    59
-#define aExclamation  33
-#define aQuestion     63
-#define aComma        44
-#define aEqual        61
-#define aLT           60
-#define aGT           62
-
 testable String* str(const char* content, Arena* a) {
 // Allocates a C string literal into an arena. The length of the literal is determined in O(N)
     if (content == null) return null;
@@ -1038,8 +1087,20 @@ const char errTypeFnSingleReturnType[]      = "More than one return type in a fu
 //}}}
 
 //}}}
-//{{{ Lexer
+//{{{ Forward decls
 
+private void subexprClose(Arr(Token) tokens, Compiler* cm);
+testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
+testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
+private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
+private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm);
+private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
+private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
+private Int typeGetArity(TypeId typeId, Compiler* cm);
+testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
+
+//}}}
+//{{{ Lexer
 //{{{ LexerConstants
 
 // The ASCII notation for the highest signed 64-bit integer abs value, 9_223_372_036_854_775_807
@@ -1749,12 +1810,12 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) {
     Byte fourthSymbol = (lx->inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
     Int k = 0;
     Int opType = -1; // corresponds to the op... operator types
-    OpDef (*operators)[countOperators] = lx->langDef->operators;
-    while (k < countOperators && (*operators)[k].bytes[0] < firstSymbol) {
+    //OpDef (*operators)[countOperators] = lx->langDef->operators;
+    while (k < countOperators && TL_OPERATORS[k].bytes[0] < firstSymbol) {
         k++;
     }
-    while (k < countOperators && (*operators)[k].bytes[0] == firstSymbol) {
-        OpDef opDef = (*operators)[k];
+    while (k < countOperators && TL_OPERATORS[k].bytes[0] == firstSymbol) {
+        OpDef opDef = TL_OPERATORS[k];
         Byte secondTentative = opDef.bytes[1];
         if (secondTentative != 0 && secondTentative != secondSymbol) {
             k++;
@@ -1775,7 +1836,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) {
     }
     VALIDATEL(opType > -1, errOperatorUnknown)
 
-    OpDef opDef = (*operators)[opType];
+    OpDef opDef = TL_OPERATORS[opType];
     bool isAssignment = false;
 
     Int lengthOfBaseOper = (opDef.bytes[1] == 0) ? 1
@@ -2116,8 +2177,9 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
 }
 
 
-private OpDef (*tabulateOperators(Arena* a))[countOperators] {
+private void tabulateOperators() {
 // The set of operators in the language. Must agree in order with tl.internal.h
+    /*
     OpDef (*result)[countOperators] = allocateOnArena(countOperators*sizeof(OpDef), a);
     OpDef* p = *result;
 
@@ -2175,12 +2237,12 @@ private OpDef (*tabulateOperators(Arena* a))[countOperators] {
                      .assignable=true, .overloadable = true}; // ^
     p[38] = (OpDef){ .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }; // ||.
     p[39] = (OpDef){ .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true }; // ||
+   */
     for (Int k = 0; k < countOperators; k++) {
         Int m = 0;
-        for (; m < 4 && p[k].bytes[m] > 0; m++) {}
-        p[k].lenBts = m;
+        for (; m < 4 && TL_OPERATORS[k].bytes[m] > 0; m++) {}
+        TL_OPERATORS[k].lenBts = m;
     }
-    return result;
 }
 
 //}}}
@@ -2198,9 +2260,12 @@ private void popScopeFrame(Compiler* cm);
 private EntityId importAndActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
-private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm);
-private void parseExpr(Token tk, Arr(Token) tokens, Compiler* cm);
-private Int parseExprWorker(Token tk, Arr(Token) tokens, Compiler* cm);
+private void exprSpanless(Int sentinel, Int startBt, Int lenBts,
+                            Arr(Token) tokens, Compiler* cm);
+private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts,
+                            Arr(Token) tokens, Compiler* cm);
+private void pExpr(Token tk, Arr(Token) tokens, Compiler* cm);
+private Int pExprWorker(Token tk, Arr(Token) tokens, Compiler* cm);
 
 
 _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
@@ -2294,7 +2359,7 @@ private void parseMisc(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-private void parseScope(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void pScope(Token tok, Arr(Token) tokens, Compiler* cm) {
     addParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
 }
 
@@ -2315,7 +2380,7 @@ private void ifLeftSide(Token tok, Arr(Token) tokens, Compiler* cm) {
     VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
     VALIDATEP(tokens[leftSentinel].tp == tokMisc && tokens[leftSentinel].pl1 == miscArrow,
             errIfMalformed)
-    Int typeLeft = parseExprWorker(tok, tokens, cm);
+    Int typeLeft = pExprWorker(tok, tokens, cm);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
 
@@ -2435,12 +2500,14 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, Arr(Token) token
 }
 
 
-private void parseAssignment(Token tok, Arr(Token) toks, Compiler* cm) {
+private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignment
     Int countLeftSide = tok.pl2;
     Token rightTk = toks[cm->i + countLeftSide];
+
 #ifdef SAFETY
     VALIDATEI(rightTk.tp == tokAssignRight, iErrorInconsistentSpans)
 #endif
+
     Bool complexLeft = false;
     Int mbNewBinding = -1;
     Token mbOldBinding = (Token){.tp = 0 };
@@ -2467,34 +2534,44 @@ private void parseAssignment(Token tok, Arr(Token) toks, Compiler* cm) {
                 .startBt = mbOldBinding.startBt, .lenBts = mbOldBinding.lenBts}, cm);
     }
     cm->i += countLeftSide + 1; // CONSUME the left side of an assignment
+    Int sentinel = cm->i + rightTk.pl2;
     push(((ParseFrame){.tp = nodAssignRight, .startNodeInd = cm->nodes.len,
                        .sentinelToken = cm->i + rightTk.pl2 }), cm->backtrack);
     pushInnodes((Node){.tp = nodAssignRight, .startBt = rightTk.startBt, .lenBts = rightTk.lenBts},
                 cm);
 
+    Int lenBytes = tok.lenBts - rightTk.startBt + tok.startBt;
     if (isMutation) {
+        Int startNodeInd = cm->nodes.len;
         pushInnodes((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0,
                 .startBt = mbOldBinding.startBt, .lenBts = mbOldBinding.lenBts}, cm);
-    }
-    if (rightTk.tp == tokFn) {
+
+        exprSpanless(sentinel, rightTk.startBt, lenBytes, toks, cm);
+
+        TypeId leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
+        Int operatorEntity = -1;
+        Int opType = tok.pl1 - BIG;
+        Int ovInd = -cm->activeBindings[opType] - 2;
+        bool foundOv = findOverload(leftSideType, ovInd, &operatorEntity, cm);
+        VALIDATEP(foundOv, errTypeNoMatchingOverload)
+        pushInnodes((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2,
+                .startBt = rightTk.startBt,
+                .lenBts = TL_OPERATORS[opType].lenBts}, cm);
+        TypeId rightType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
+
+#ifdef SAFETY
+        VALIDATEP(rightType == leftSideType, errTypeMismatch)
+#endif
+        subexprClose(toks, cm);
+
+    } else if (rightTk.tp == tokFn) {
         parseFnDef(rightTk, toks, cm);
     } else {
-        // TODO handle mutation
-        Int sentinel = cm->i + rightTk.pl2;
-        Int rightType = exprHeadless(sentinel, rightTk.startBt,
-                                     tok.lenBts - rightTk.startBt + tok.startBt, toks, cm);
+        print("cm->i before %d sentinel %d", cm->i, sentinel)
+        Int rightType = exprHeadless(sentinel, rightTk.startBt, lenBytes, toks, cm);
+        print("cm->i after %d", cm->i)
         VALIDATEP(rightType != -2, errAssignment)
-        if (isMutation) {
-            Int leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
-            Int operatorEntity = -1;
-            Int opType = tok.pl1 - BIG;
-            Int ovInd = -cm->activeBindings[opType] - 2;
-            bool foundOv = findOverload(leftSideType, ovInd, &operatorEntity, cm);
-            VALIDATEP(foundOv, errTypeNoMatchingOverload)
-            pushInnodes((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2,
-                    .startBt = rightTk.startBt,
-                    .lenBts = cm->langDef->operators[opType]->lenBts}, cm);
-        }
+
         if (tok.pl1 == 0 && rightType > -1) {
             cm->entities.cont[mbNewBinding].typeId = rightType;
         }
@@ -2529,7 +2606,7 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
             break;
         }
         ++cm->i; // CONSUME the assignment span marker
-        parseAssignment(tok, tokens, cm);
+        pAssignment(tok, tokens, cm);
         maybeCloseSpans(cm);
     }
     Int indBody = cm->i;
@@ -2542,7 +2619,7 @@ private void parseFor(Token forTk, Arr(Token) tokens, Compiler* cm) {
                        .startBt = condTk.startBt, .lenBts = condTk.lenBts}, cm);
     cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/token
 
-    Int condTypeId = parseExprWorker(tokens[condInd], tokens, cm);
+    Int condTypeId = pExprWorker(tokens[condInd], tokens, cm);
     VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
 
     cm->i = indBody; // CONSUME the for token, its condition and variable inits (if any)
@@ -2586,7 +2663,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) {
                            .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
     } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
-        OpDef operDefinition = (*cm->langDef->operators)[operBindingId];
+        OpDef operDefinition = TL_OPERATORS[operBindingId];
         VALIDATEP(operDefinition.arity == 1, errOperatorWrongArity)
         pushInnodes((Node){ .tp = nodId, .pl1 = operBindingId, .startBt = tk.startBt,
                 .lenBts = tk.lenBts}, cm);
@@ -2609,7 +2686,7 @@ private void exprCountArity(Int* arity, Int sentinelToken, Arr(Token) tokens, Co
     while (j < sentinelToken) {
         Token tok = tokens[j];
         j += (tok.tp < firstSpanTokenType) ? 1 : (tok.pl2 + 1);
-        if (tok.tp != tokOperator || (*cm->langDef->operators)[tok.pl1].arity > 1) {
+        if (tok.tp != tokOperator || (TL_OPERATORS)[tok.pl1].arity > 1) {
             (*arity)++;
         }
     }
@@ -2631,7 +2708,7 @@ private void exprSubexpr(Int sentinelToken, Int* arity, Arr(Token) tokens, Compi
         if (firstTk.tp == tokWord) {
             mbBnd = cm->activeBindings[firstTk.pl2];
         } else if (firstTk.tp == tokOperator) {
-            VALIDATEP(*arity == (*cm->langDef->operators)[firstTk.pl1].arity, errOperatorWrongArity)
+            VALIDATEP(*arity == (TL_OPERATORS)[firstTk.pl1].arity, errOperatorWrongArity)
             mbBnd = -firstTk.pl1 - 2;
         }
         VALIDATEP(mbBnd != -1, errUnknownFunction)
@@ -2643,7 +2720,7 @@ private void exprSubexpr(Int sentinelToken, Int* arity, Arr(Token) tokens, Compi
     }
 }
 
-private void subexprClose(Arr(Token) tokens, Compiler* cm) {
+private void subexprClose(Arr(Token) tokens, Compiler* cm) { //:subexprClose
 // Flushes the finished subexpr frames from the top of the funcall stack
     while (cm->scopeStack->len > 0 && cm->i == peek(cm->backtrack).sentinelToken) {
         popFrame(cm);
@@ -2654,7 +2731,7 @@ private void exprOperator(Token tok, Arr(Token) tokens, Compiler* cm) {
 // An operator token in non-initial position is either a funcall (if unary)
 // or an operand. Consumes no tokens
     Int bindingId = tok.pl1;
-    OpDef operDefinition = (*cm->langDef->operators)[bindingId];
+    OpDef operDefinition = (TL_OPERATORS)[bindingId];
 
     if (operDefinition.arity == 1) {
         pushInnodes((Node){ .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1,
@@ -2665,18 +2742,10 @@ private void exprOperator(Token tok, Arr(Token) tokens, Compiler* cm) {
     }
 }
 
-testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 
-private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
-// The general "big" expression parser. Parses an expression whether there is a token or not.
-// Starts from cm->i and goes up to the sentinel token. Returns the expression's type
-// Precondition: we are looking 1 past the tokExpr or tokParens
+private void exprSpanless(Int sentinelToken, Int startBt, Int lenBts,
+                     Arr(Token) tokens, Compiler* cm) { //:exprSpanless
     Int arity = 0;
-    Int startNodeInd = cm->nodes.len;
-    push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd,
-                .sentinelToken = sentinelToken }), cm->backtrack);
-    pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
-
     exprSubexpr(sentinelToken, &arity, tokens, cm);
     while (cm->i < sentinelToken) {
         subexprClose(tokens, cm);
@@ -2702,6 +2771,20 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
             cm->i++; // CONSUME any leaf token
         }
     }
+}
+
+
+private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts,
+                     Arr(Token) tokens, Compiler* cm) { //:exprUpTo
+// The main "big" expression parser. Parses an expression whether there is a token or not.
+// Starts from cm->i and goes up to the sentinel token. Returns the expression's type
+// Precondition: we are looking 1 past the tokExpr or tokParens
+    Int startNodeInd = cm->nodes.len;
+    push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd,
+                .sentinelToken = sentinelToken }), cm->backtrack);
+    pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
+
+    exprSpanless(sentinelToken, startBt, lenBts, tokens, cm);
 
     subexprClose(tokens, cm);
 
@@ -2709,10 +2792,13 @@ private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, Arr(Token) toke
     return exprType;
 }
 
-private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) tokens, Compiler* cm) {
-// Precondition: we are looking at the first token of expr which does not have a tokStmt/tokParens header.
-// Consumes 1 or more tokens.
-// Returns the type of parsed expression
+
+private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts,
+                         Arr(Token) tokens, Compiler* cm) { //:exprHeadless
+// Precondition: we are looking at the first token of expr which does not have a
+// tokStmt/tokParens header. If "omitSpan" is set, this function will not emit a nodExpr nor
+// create a ParseFrame.
+// Consumes 1 or more tokens. Returns the type of parsed expression
     if (cm->i + 1 == sentinel) { // the [stmt 1, tokInt] case
         Token singleToken = tokens[cm->i];
         if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
@@ -2724,8 +2810,9 @@ private Int exprHeadless(Int sentinel, Int startBt, Int lenBts, Arr(Token) token
 }
 
 
-private Int parseExprWorker(Token tok, Arr(Token) tokens, Compiler* cm) {
-// Precondition: we are looking 1 past the first token of expr, which is the first parameter. Consumes 1
+private Int pExprWorker(Token tok, Arr(Token) tokens, Compiler* cm) {
+// Precondition: we are looking 1 past the first token of expr, which is the first parameter.
+// Consumes 1
 // or more tokens. Handles single items also Returns the type of parsed expression
     if (tok.tp == tokStmt || tok.tp == tokParens) {
         if (tok.pl2 == 1) {
@@ -2743,8 +2830,8 @@ private Int parseExprWorker(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 
 
-private void parseExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
-    parseExprWorker(tok, tokens, cm);
+private void pExpr(Token tok, Arr(Token) tokens, Compiler* cm) {
+    pExprWorker(tok, tokens, cm);
 }
 
 
@@ -2770,9 +2857,10 @@ private void maybeCloseSpans(Compiler* cm) {
     }
 }
 
-private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) {
+private void parseUpTo(Int sentinelToken, Arr(Token) tokens, Compiler* cm) { //:parseUpTo
 // Parses anything from current cm->i to "sentinelToken"
     while (cm->i < sentinelToken) {
+        print("parsing tok i %d", cm->i)
         Token currTok = tokens[cm->i];
         cm->i++;
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, tokens, cm);
@@ -2837,7 +2925,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
     untt encodedInfo = (untt)(tok.pl1);
     Int opType = (Int)(encodedInfo >> 26);
     Int operStartBt = (Int)(encodedInfo & LOWER26BITS);
-    Int operLenBts = (*cm->langDef->operators)[opType].lenBts;
+    Int operLenBts = (TL_OPERATORS)[opType].lenBts;
     Int sentinelToken = cm->i + tok.pl2;
     Token bindingTk = tokens[cm->i];
 
@@ -2883,7 +2971,7 @@ private void parseMutation(Token tok, Arr(Token) tokens, Compiler* cm) {
 }
 */
 
-private void parseAlias(Token tok, Arr(Token) tokens, Compiler* cm) {
+private void pAlias(Token tok, Arr(Token) tokens, Compiler* cm) {
     throwExcParser(errTemp, cm);
 }
 
@@ -3035,7 +3123,6 @@ private void parseReturn(Token tok, Arr(Token) tokens, Compiler* cm) {
 
 private Int isFunction(FirstArgTypeId typeId, Compiler* cm);
 private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm);
-private Int getFirstParamType(Int funcTypeId, Compiler* cm);
 
 
 private EntityId importAndActivateEntity(Entity ent, Compiler* cm) {
@@ -3078,36 +3165,36 @@ private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] {
         p[i] = &parseErrorBareAtom;
         i++;
     }
-    p[tokScope]       = &parseScope;
-    p[tokStmt]        = &parseExpr;
+    p[tokScope]       = &pScope;
+    p[tokStmt]        = &pExpr;
     p[tokParens]      = &parseErrorBareAtom;
-    p[tokAssignLeft]  = &parseAssignment;
+    p[tokAssignLeft]  = &pAssignment;
     p[tokMisc]        = &parseMisc;
 
-    p[tokAlias]       = &parseAlias;
+    p[tokAlias]       = &pAlias;
     p[tokAssert]      = &parseAssert;
     p[tokBreakCont]   = &parseBreakCont;
-    p[tokCatch]       = &parseAlias;
-    p[tokFn]          = &parseAlias;
-    p[tokFinally]     = &parseAlias;
-    p[tokIface]       = &parseAlias;
-    p[tokImport]      = &parseAlias;
+    p[tokCatch]       = &pAlias;
+    p[tokFn]          = &pAlias;
+    p[tokFinally]     = &pAlias;
+    p[tokIface]       = &pAlias;
+    p[tokImport]      = &pAlias;
     p[tokReturn]      = &parseReturn;
-    p[tokTry]         = &parseAlias;
+    p[tokTry]         = &pAlias;
 
     p[tokIf]          = &parseIf;
     p[tokFor]         = &parseFor;
-    p[tokElse]     = &parseAlias;
+    p[tokElse]     = &pAlias;
     return result;
 }
 
 
 testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 // Definition of the operators, lexer dispatch and parser dispatch tables for the compiler
+    tabulateOperators();
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
     (*result) = (LanguageDefinition) {
         .dispatchTable = tabulateDispatch(a),
-        .operators = tabulateOperators(a),
         .parserTable = tabulateParserDispatch(a)
     };
     return result;
@@ -3372,7 +3459,7 @@ private void popScopeFrame(Compiler* cm) {
 
 
 private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm) {
-// Adds an overload of a function to the [rawOverloads] and activates it, if needed
+//:addRawOverload Adds an overload of a function to the [rawOverloads] and activates it, if needed
     Int mbListId = -cm->activeBindings[nameId] - 2;
     FirstArgTypeId firstParamType = getFirstParamType(typeId, cm);
     if (mbListId == -1) {
@@ -3422,26 +3509,13 @@ private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
     return startInd;
 }
 
-testable TypeId mergeType(Int startInd, Compiler* cm) {
+testable TypeId mergeType(Int startInd, Compiler* cm) { //:mergeType
 // Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its
 // tail. Returns the resulting index of this type and updates the length of cm->types if
 // appropriate
     Int lenInts = cm->types.cont[startInd] + 1; // +1 for the type length
     return mergeTypeWorker(startInd, lenInts, cm);
 }
-
-//{{{ Forward decls
-
-testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
-testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
-private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
-private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm);
-private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
-private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
-private Int typeGetArity(TypeId typeId, Compiler* cm);
-
-//}}}
-
 
 testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
 // Function types are stored as: (length, paramType1, paramType2, ..., returnType)
@@ -3532,6 +3606,7 @@ private void buildOperators(Compiler* cm) {
 // Operators are the first-ever functions to be defined. This function builds their [types],
 // [functions] and overload counts. The order must agree with the order of operator
 // definitions in tl.internal.h, and every operator must have at least one function defined
+    print("buildOp")
     TypeId boolOfIntInt    = addConcrFnType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     TypeId boolOfIntIntInt = addConcrFnType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     TypeId boolOfFlFl      = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
@@ -3857,7 +3932,7 @@ testable void createOverloads(Compiler* cm) {
 }
 
 
-private void parseToplevelTypes(Compiler* cm) {
+private void pToplevelTypes(Compiler* cm) {
 // Parses top-level types but not functions. Writes them to the types table and adds
 // their bindings to the scope
     cm->i = 0;
@@ -3875,7 +3950,7 @@ private void parseToplevelTypes(Compiler* cm) {
 }
 
 
-private void parseToplevelConstants(Compiler* cm) {
+private void pToplevelConstants(Compiler* cm) {
 // Parses top-level constants but not functions, and adds their bindings to the scope
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
@@ -3886,7 +3961,7 @@ private void parseToplevelConstants(Compiler* cm) {
             Token rightTk = toks[cm->i + 2];
             if (rightTk.tp != tokFn) {
                 cm->i += 1; // CONSUME the left and right assignment
-                parseAssignment(tok, toks, cm);
+                pAssignment(tok, toks, cm);
                 maybeCloseSpans(cm);
                 //parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, toks, cm);
             } else {
@@ -4017,7 +4092,7 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Int void
 }
 
 
-private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
+private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
 // Parses a top-level function.
 // The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... )
     Int fnStartInd = toplevelSignature.indToken;
@@ -4061,16 +4136,16 @@ private void parseToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Comp
 }
 
 
-private void parseFunctionBodies(Arr(Token) toks, Compiler* cm) {
+private void pFunctionBodies(Arr(Token) toks, Compiler* cm) {
 // Parses top-level function params and bodies
     for (int j = 0; j < cm->toplevels.len; j++) {
         cm->loopCounter = 0;
-        parseToplevelBody(cm->toplevels.cont[j], toks, cm);
+        pToplevelBody(cm->toplevels.cont[j], toks, cm);
     }
 }
 
 
-private void parseToplevelSignatures(Compiler* cm) {
+private void pToplevelSignatures(Compiler* cm) {
 // Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
 // Result: the overload counts and the list of toplevel functions to parse. No nodes emitted
     cm->i = 0;
@@ -4109,7 +4184,7 @@ const char* nodeNames[] = {
     "id", "call", "binding",
     "{}", "expr", "...=", "=...", "_",
     "alias", "assert", "breakCont", "catch", "defer",
-    "import", "^{}", "iface", "[[]]", "return", "try",
+    "import", "^{}", "iface", "[]", "return", "try",
     "for", "forCond", "if", "ei", "impl", "match"
 };
 
@@ -4138,20 +4213,20 @@ private void printType(Int typeInd, Compiler* cm) {
 
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
-        parseToplevelTypes(cm);
+        pToplevelTypes(cm);
         // This gives us the semi-complete overloads & overloadIds tables (with only the
         // built-ins and imports)
-        parseToplevelConstants(cm);
+        pToplevelConstants(cm);
 
         // This gives the complete overloads & overloadIds tables + list of toplevel functions
-        parseToplevelSignatures(cm);
+        pToplevelSignatures(cm);
         createOverloads(cm);
 
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
         // The main parse (all top-level function bodies)
-        parseFunctionBodies(cm->tokens.cont, cm);
+        pFunctionBodies(cm->tokens.cont, cm);
     }
     return cm;
 }
@@ -4171,7 +4246,7 @@ private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((untt)(sort << 16) + (depth << 8) + arity);
 }
 
-testable void typeAddHeader(TypeHeader hdr, Compiler* cm) {
+testable void typeAddHeader(TypeHeader hdr, Compiler* cm) { //:typeAddHeader
 // Writes the bytes for the type header to the tail of the cm->types table.
 // Adds two 4-byte elements
     pushIntypes((Int)((untt)((untt)hdr.sort << 16) + ((untt)hdr.depth << 8) + hdr.arity), cm);
@@ -4188,7 +4263,7 @@ testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
 }
 
 
-private Int typeGetArity(Int typeId, Compiler* cm) {
+private Int typeGetArity(Int typeId, Compiler* cm) { //:typeGetArity
     if (cm->types.cont[typeId] == 0) {
         return 0;
     }
@@ -4197,7 +4272,7 @@ private Int typeGetArity(Int typeId, Compiler* cm) {
 }
 
 
-private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) {
+private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeGetOuter
 // A         => A  (concrete types)
 // A(B)      => A  (concrete generic types)
 // A | A(B)  => -2 (param generic types)
@@ -4234,7 +4309,7 @@ private Int isFunction(FirstArgTypeId typeId, Compiler* cm) {
 //}}}
 //{{{ Parsing type names
 
-testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) {
+testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) { //:typeAddTypeParam
 // Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call
     pushIntypes((0xFF << 24) + (paramInd << 8) + arity, cm);
 }
@@ -4716,13 +4791,13 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
 
 
-private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) {
+private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) { //:getFirstParamType
 // Gets the type of the first param of a function
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
     return cm->types.cont[funcTypeId + 3 + hdr.arity]; // +3 skips the type length, type tag & name
 }
 
-private bool isFunctionWithParams(TypeId typeId, Compiler* cm) {
+private bool isFunctionWithParams(TypeId typeId, Compiler* cm) { //:isFunctionWithParams
     return cm->types.cont[typeId] > 1;
 }
 
@@ -4833,8 +4908,8 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
 #endif
 }
 
-testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
-// Typechecks and resolves overloads in a single expression
+testable TypeId typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
+//:typeCheckResolveExpr Typechecks and resolves overloads in a single expression
     Int currAhead = 0; // how many elements ahead we are compared to the token array (because
                        // of extra call indicators)
     StackInt* st = cm->expStack;
@@ -4894,7 +4969,8 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
                 // We know the type of the function, now to validate arg types against param types
                 // Loop init is not "k = j + 2" because we've already checked the first param
                 if (cont[k] > -1) {
-                    VALIDATEP(cont[k] == cm->types.cont[typeOfFunc + k - j], errTypeWrongArgumentType)
+                    VALIDATEP(cont[k] == cm->types.cont[typeOfFunc + k - j],
+                              errTypeWrongArgumentType)
                 } else {
                     Int argBindingId = cm->nodes.cont[indExpr + k - currAhead].pl1;
                     cm->entities.cont[argBindingId].typeId = cm->types.cont[typeOfFunc + k - j];
@@ -5231,6 +5307,7 @@ testable void printLexer(Compiler* lx) {
 //{{{ Parser testing
 
 testable void printParser(Compiler* cm, Arena* a) {
+    print("p0")
     if (cm->wasError) {
         printf("Error: ");
         printString(cm->errMsg);
@@ -5244,6 +5321,7 @@ testable void printParser(Compiler* cm, Arena* a) {
             popint32_t(sentinels);
             indent--;
         }
+
         if (i < 10) printf(" ");
         printf("%d: ", i);
         for (int j = 0; j < indent; j++) {
@@ -5251,7 +5329,7 @@ testable void printParser(Compiler* cm, Arena* a) {
         }
         if (nod.tp == nodCall) {
             printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
-            printType(cm->entities.cont[nod.pl1].typeId, cm);
+            //printType(cm->entities.cont[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2,
                     nod.startBt - stText.len, nod.lenBts);
@@ -5263,6 +5341,8 @@ testable void printParser(Compiler* cm, Arena* a) {
             indent++;
         }
     }
+
+    print("p1")
 }
 
 //}}}

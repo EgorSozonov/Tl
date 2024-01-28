@@ -82,7 +82,7 @@ LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int equalityParser(Compiler a, Compiler b);
 void createCompiler(Compiler* lx, Arena* a);
 void parseMain(Compiler* cm, Arena* a);
-Int mergeType(Int startInd, Int len, Compiler* cm);
+Int mergeType(Int startInd, Compiler* cm);
 void printParser(Compiler* cm, Arena* a);
 bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm);
 Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringDict* hm);
