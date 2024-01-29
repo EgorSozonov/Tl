@@ -527,7 +527,7 @@ struct Compiler { // :Compiler
     Int loopCounter;
     InListNode nodes;
     InListNode monoCode; // code for monorphizations of generic functions
-    InListNode scratchCode; // temporary node list for parsing expressions
+    StackNode* scratchCode; // temporary node list for parsing expressions
     MultiAssocList* monoIds;
     InListEntity entities;
     MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
@@ -581,6 +581,7 @@ typedef struct { // :TypeHeader
 #define pop(X) _Generic((X),\
     StackBtToken*: popBtToken,\
     StackParseFrame*: popParseFrame,\
+    StackExprFrame*: popExprFrame,\
     Stackint32_t*: popint32_t,\
     StackNode*: popNode\
     )(X)
@@ -588,6 +589,7 @@ typedef struct { // :TypeHeader
 #define peek(X) _Generic((X),\
     StackBtToken*: peekBtToken,\
     StackParseFrame*: peekParseFrame,\
+    StackExprFrame*: peekExprFrame,\
     Stackint32_t*: peekint32_t,\
     StackNode*: peekNode\
     )(X)
@@ -602,6 +604,7 @@ typedef struct { // :TypeHeader
 #define push(A, X) _Generic((X),\
     StackBtToken*: pushBtToken,\
     StackParseFrame*: pushParseFrame,\
+    StackExprFrame*: pushExprFrame,\
     Stackint32_t*: pushint32_t,\
     StackNode*: pushNode\
     )(A, X)

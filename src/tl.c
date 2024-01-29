@@ -1091,7 +1091,6 @@ const char errTypeFnSingleReturnType[]      = "More than one return type in a fu
 //}}}
 //{{{ Forward decls
 
-private void subexprClose(Arr(Token) toks, Compiler* cm);
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
@@ -1116,12 +1115,12 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = {
 // 2**53
 
 
-const int operatorStartSymbols[11] = {
+const int operatorStartSymbols[12] = {
     aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus,
     aDivBy, aGT, aQuestion, aUnderscore
+    // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
+    // "=" - by lexEqual, "<" by lexLT, "^" by lexCaret, "|" by lexPipe
 };
-// Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
-// "=" - by lexEqual, "<" by lexLT, "^" by lexCaret, "|" by lexPipe
 
 const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinallyfor"
                             "ifimplimportifacematchpubreturntruetry"
@@ -2143,7 +2142,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     for (Int i = aAUpper; i <= aZUpper; i++) {
         p[i] = &lexWord;
     }
-    p[aUnderscore] = &lexUnderscore;
     p[aDot] = &lexDot;
     p[aEqual] = &lexEqual;
     p[aLT] = &lexLT; // to handle the reassignment `<-`
@@ -2253,13 +2251,14 @@ private void tabulateOperators() {
 #define P_C toks, cm // parser context args fragment
 
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
+private void subexprClose(StackNode* scr, StackExprFrame* frames, P_CT);
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
 private EntityId importActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
-private void exprSpanless(Int sentinel, Int startBt, Int lenBts, P_CT);
+private void exprCore(Int sentinel, Int startBt, Int lenBts, P_CT);
 private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT);
 private void pExpr(Token tk, P_CT);
 private Int pExprWorker(Token tk, P_CT);
@@ -2274,7 +2273,7 @@ _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Comp
     longjmp(excBuf, 1);
 }
 
-#define throwExcParser(errMsg, cm) throwExcParser0(errMsg, __LINE__, cm)
+#define throwExcParser(errMsg) throwExcParser0(errMsg, __LINE__, cm)
 
 
 private EntityId getActiveVar(Int nameId, Compiler* cm) { //:getActiveVar
@@ -2362,12 +2361,12 @@ private void pScope(Token tok, P_CT) {
 }
 
 private void parseTry(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseYield(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 private void ifLeftSide(Token tok, P_CT) {
@@ -2410,21 +2409,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
     while (j < sentinel) {
         Token accessorTk = toks[j];
         VALIDATEP(accessorTk.tp == tokFieldAcc, errAssignmentLeftSide)
-        if (accessorTk.pl1 == tkAccDot) {
-            j++;
-        } else { // tkAccArray
-#ifdef SAFETY
-            VALIDATEI(j + 1 < sentinel, iErrorInconsistentSpans)
-#endif
-            Token accessTk = toks[j + 1];
-            VALIDATEP(accessTk.tp == tokInt || accessTk.tp == tokWord
-                      || accessTk.tp == tokParens, errAssignmentLeftSide)
-            if (accessTk.tp == tokParens) {
-                j += accessTk.pl2 + 1;
-            } else {
-                j++;
-            }
-        }
+        j++;
         push(j, sc);
     }
 
@@ -2442,8 +2427,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
     // The accessor expression parts
     while (j < sentinel) {
         Token accessorTk = toks[j];
-        VALIDATEP(accessorTk.tp == tokFieldAcc, errAssignmentLeftSide)
-        if (accessorTk.pl1 == tkAccDot) {
+        if (accessorTk.tp == tokFieldAcc) {
             j++;
         } else { // tkAccArray
             Token accessTk = toks[j + 1];
@@ -2509,11 +2493,14 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
 
     Int lenBytes = tok.lenBts - rightTk.startBt + tok.startBt;
     if (isMutation) {
+        StackExprFrame* exprFrames = cm->exprFrames;
+        StackNode* scr = cm->scratchCode;
+
         Int startNodeInd = cm->nodes.len;
         pushInnodes((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0,
                 .startBt = mbOldBinding.startBt, .lenBts = mbOldBinding.lenBts}, cm);
 
-        exprSpanless(sentinel, rightTk.startBt, lenBytes, P_C);
+        exprCore(sentinel, rightTk.startBt, lenBytes, P_C);
 
         TypeId leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
         Int operatorEntity = -1;
@@ -2526,7 +2513,7 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
                 .lenBts = TL_OPERATORS[opType].lenBts}, cm);
         TypeId rightType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
-        subexprClose(P_C);
+        subexprClose(scr, exprFrames, P_C);
     } else if (rightTk.tp == tokFn) {
         parseFnDef(rightTk, P_C);
     } else {
@@ -2600,7 +2587,7 @@ private void parseVerbatim(Token tok, Compiler* cm) {
 }
 
 private void parseErrorBareAtom(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
@@ -2636,7 +2623,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
                            .startBt = tk.startBt, .lenBts = tk.lenBts }, cm);
         typeId = tk.tp;
     } else {
-        throwExcParser(errUnexpectedToken, cm);
+        throwExcParser(errUnexpectedToken);
     }
     return typeId;
 }
@@ -2670,31 +2657,24 @@ private void exprSubexpr(Int sentinelToken, Int* arity, P_CT) { //:exprSubexpr
 }
 
 
-private void subexprClose(InListExprFrame scr, P_CT) { //:subexprClose
+private void subexprClose(StackNode* scr, StackExprFrame* frames, P_CT) { //:subexprClose
 // Flushes the finished subexpr frames from the top of the funcall stack
-    while (cm->exprFrames.len > 0 && cm->i == peek(cm->backtrack).sentinel) {
-        ExprFrame eFr = popFrame(cm);
-        if (eFr.tp == exfrParens) {
-            scr.cont[eFr.startInd].pl2 = scr.len - eFr.startInd - 1;
-        } else if (eFr.tp == exfrCall) {
-            pushInexprFrames((Node){ .tp = nodCall, .pl1 = , .pl2 = eFr.arity,
-                    .startBt = , .lenBts = , }, scr);
-        } else {
-            // TODO data
-        }
+    while (frames->len > 0 && cm->i == peek(frames).sentinel) {
+        ExprFrame eFr = pop(frames);
+        //scr->cont[eFr.startInd].pl2 = scr.len - eFr.startInd - 1;
     }
 }
 
 
-private ExprFrame exprGetTopSubexpr(InListExprFrame scr) { //:exprGetTopSubexpr
-    Int i = scr.len - 1;
-    while (i > -1 && scr.cont[i].tp != exfrParens) { i--; }
-    VALIDATEI(i > -1, iErrorInconsistentSpans)
-    return scr.cont[i];
+private ExprFrame exprGetTopSubexpr(StackExprFrame* scr) { //:exprGetTopSubexpr
+    Int i = scr->len - 1;
+    //while (i > -1 && scr->cont[i].tp != exfrParens) { i--; }
+    //VALIDATEI(i > -1, iErrorInconsistentSpans)
+    return scr->cont[i];
 }
 
 
-private void exprCopyFromScratch(InListExprFrame scr, Compiler* cm) {
+private void exprCopyFromScratch(StackNode* scr, Compiler* cm) {
     // ensure enough space
     // copy
 }
@@ -2709,45 +2689,43 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
     scr->len = 0;
 
     push((ExprFrame){ .sentinel = sentinelToken}, frames);
-    scr.len = 0;
+    scr->len = 0;
     while (cm->i < sentinelToken) {
-        subexprClose(P_C);
+        subexprClose(scr, frames, P_C);
         Token cTk = toks[cm->i];
         untt tokType = cTk.tp;
 
         if (tokType <= topVerbatimTokenVariant) {
-            pushInscratchNodes((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
-                                .startBt = cTk.startBt, .lenBts = cTk.lenBts }, cm);
+            push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
+                                .startBt = cTk.startBt, .lenBts = cTk.lenBts }), scr);
             cm->i++; // CONSUME the verbatim token
         } else  if (tokType == tokWord) {
             EntityId varId = getActiveVar(cTk.pl2, cm);
-            pushInscratchNodes((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2,
-                                .startBt = cTk.startBt, .lenBts = cTk.lenBts}, cm);
+            push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2,
+                                .startBt = cTk.startBt, .lenBts = cTk.lenBts}), scr);
         } else if (tokType == tokParens) {
             cm->i++; // CONSUME the parens token
-            pushInexprFrames((ExprFrame){ .tp = exfrParens, .sentinel = cm->i + cTk.pl2}, cm);
+            push(((ExprFrame){ .sentinel = cm->i + cTk.pl2}), frames);
         } else if (tokType == tokOperator) {
-            Int bindingId = tok.pl1;
+            Int bindingId = cTk.pl1;
             OpDef operDefinition = TL_OPERATORS[bindingId];
 
-            pushInexprFrames((ExprFrame){
-                    .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1,
-                    .startBt = tok.startBt, .lenBts = tok.lenBts,
+            push(((ExprFrame){
                     .isPrefix = operDefinition.arity == 1
-            }, cm);
+            }), frames);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
 
-                pushInexprFrames((ExprFrame){ .tp = exfrCall, .arity = 0,
-                        .sentinel = calcSentinel(cTk) }, cm);
+                push(((ExprFrame){ .arity = 0,
+                        .sentinel = calcSentinel(cTk, cm->i) }), frames);
             } else { // infix calls like ` .foo`
-                ExprFrame topSubexpr = exprGetTopSubexpr(scr);
-                Int startArity = (scr.len > topSubexpr.startNodeInd) ? 1 : 0;
-                pushInexprFrames((ExprFrame){ .tp = exfrCall, .arity = startArity,
-                        .sentinel = topSubexpr.sentinel }, cm);
+                ExprFrame topSubexpr = exprGetTopSubexpr(frames);
+                Int startArity = (scr->len > 0) ? 1 : 0;
+                push(((ExprFrame){ .arity = startArity,
+                        .sentinel = topSubexpr.sentinel }), frames);
             }
         } else {
-            throwExcParser( errExpressionCannotContain);
+            throwExcParser(errExpressionCannotContain);
         }
         cm->i++; // CONSUME any token
     }
@@ -2766,7 +2744,7 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
 
     exprCore(sentinelToken, startBt, lenBts, P_C);
 
-    subexprClose(P_C);
+    subexprClose(cm->scratchCode, cm->exprFrames, P_C);
 
     Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
     return exprType;
@@ -2881,21 +2859,21 @@ private void setClassToMutated(Int bindingId, Compiler* cm) { //:setClassToMutat
 
 
 private void pAlias(Token tok, P_CT) { //:pAlias
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 private void parseAssert(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseAssertDbg(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseAwait(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
@@ -2928,7 +2906,7 @@ private Int breakContinue(Token tok, Int* sentinel, P_CT) { //:breakContinue
         }
         --j;
     }
-    throwExcParser(errBreakContinueInvalidDepth, cm);
+    throwExcParser(errBreakContinueInvalidDepth);
 
 }
 
@@ -2946,61 +2924,61 @@ private void pBreakCont(Token tok, P_CT) { //:pBreakCont
 
 
 private void parseCatch(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 private void parseDefer(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseDispose(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseExposePrivates(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseFnDef(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseInterface(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseImpl(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseLambda(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseLambda1(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseLambda2(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parseLambda3(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
 private void parsePackage(Token tok, P_CT) {
-    throwExcParser(errTemp, cm);
+    throwExcParser(errTemp);
 }
 
 
@@ -3689,7 +3667,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiAssocList(a);
-    cm->scratchCode = createInListNode(16, a);
+    cm->scratchCode = createStackNode(16*sizeof(Node), a);
 
     cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
@@ -4253,7 +4231,7 @@ testable Int typeSingleItem(Token tk, Compiler* cm) {
         }
         return typeId;
     } else {
-        throwExcParser(errUnexpectedToken, cm);
+        throwExcParser(errUnexpectedToken);
     }
 }
 
@@ -4410,7 +4388,7 @@ private TypeId typeCreateTypeCall(StackInt* exp, Int startInd, Int length, Stack
         } else if (tye == tyeType) {
             pushIntypes(exp->cont[j], cm);
         } else {
-            throwExcParser("not a type", cm);
+            throwExcParser("not a type");
         }
     }
     if (!metRetType) {
@@ -4571,7 +4549,7 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
         } else if (nextTk.tp == tokTypeName) {
             ++j;
         } else {
-            throwExcParser(errTypeDefCannotContain, cm);
+            throwExcParser(errTypeDefCannotContain);
         }
         ++count;
     }
@@ -4654,7 +4632,7 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
             push(0, exp);
         } else {
             print("erroneous type %d", cTk.tp)
-            throwExcParser(errTypeDefError, cm);
+            throwExcParser(errTypeDefError);
         }
         while (cm->tempStack->len > 0) {
             if (peek(cm->tempStack) != cm->i) {
@@ -4743,7 +4721,7 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, EntityId* entityId,
             }
             ++j;
         }
-        throwExcParser(errTypeNoMatchingOverload, cm);
+        throwExcParser(errTypeNoMatchingOverload);
     }
 
     Int outerType = typeGetOuter(typeId, cm);
