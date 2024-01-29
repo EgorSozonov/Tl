@@ -106,6 +106,7 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=1, .bytes={ aQuestion, 0, 0, 0 }, .isTypelevel=true }, // ?
     { .arity=2, .bytes={ aCaret, aDot, 0, 0} }, // ^.
     { .arity=2, .bytes={ aCaret, 0, 0, 0}, .assignable=true, .overloadable = true}, // ^
+    { .arity=2, .bytes={ aUnderscore, 0, 0, 0}, .overloadable = true}, // _
     { .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }, // ||.
     { .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true } // ||
 };
@@ -426,6 +427,7 @@ void printRawOverload(Int listInd, Compiler* cm) {
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
 DEFINE_STACK(ParseFrame)
+DEFINE_STACK(ExprFrame)
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Token)
 DEFINE_INTERNAL_LIST(tokens, Token, a)
@@ -1103,32 +1105,32 @@ testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
 //{{{ Lexer
 //{{{ LexerConstants
 
-// The ASCII notation for the highest signed 64-bit integer abs value, 9_223_372_036_854_775_807
 const Byte maxInt[19] = {
     9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
     8, 5, 4, 7, 7, 5, 8, 0, 7
 };
+// The ASCII notation for the highest signed 64-bit integer abs value, 9_223_372_036_854_775_807
 
-// 2**53
 const Byte maximumPreciselyRepresentedFloatingInt[16] = {
     9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
+// 2**53
 
 
-// Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
-// "=" - by lexEqual, "<" by lexLT, "^" by lexCaret, "|" by lexPipe
 const int operatorStartSymbols[11] = {
     aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus,
-    aDivBy, aGT, aQuestion
+    aDivBy, aGT, aQuestion, aUnderscore
 };
+// Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
+// "=" - by lexEqual, "<" by lexLT, "^" by lexCaret, "|" by lexPipe
 
-// The :standardText prepended to all source code inputs and the hash table to provide a built-in
-// string set. Tl's reserved words must be at the start and sorted lexicographically.
-// Also they must agree with the "standardStr" in tl.internal.h
 const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinallyfor"
                             "ifimplimportifacematchpubreturntruetry"
                             // reserved words end here
                             "IntLongDoubleBoolStringVoidFLADTulencapf1f2printprintErr"
                             "math:pimath:eTU";
+// The :standardText prepended to all source code inputs and the hash table to provide a built-in
+// string set. Tl's reserved words must be at the start and sorted lexicographically.
+// Also they must agree with the "standardStr" in tl.internal.h
 
 const Int standardStringLens[] = {
      5, 6, 5, 5, 8, // continue
@@ -1312,7 +1314,8 @@ private void setStmtSpanLength(Int tokenInd, Compiler* lx) {
 
 
 private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
-    push(((BtToken){ .tp = stmtType, .tokenInd = lx->tokens.len, .spanLevel = slStmt }), lx->lexBtrack);
+    push(((BtToken){ .tp = stmtType, .tokenInd = lx->tokens.len, .spanLevel = slStmt }),
+                    lx->lexBtrack);
     pushIntokens((Token){ .tp = stmtType, .startBt = startBt, .lenBts = 0 }, lx);
 }
 
@@ -1395,6 +1398,7 @@ private int64_t calcHexNumber(Compiler* lx) {
     return result;
 }
 
+
 private void hexNumber(Arr(Byte) source, Compiler* lx) {
 // Lexes a hexadecimal numeric literal (integer or floating-point)
 // Examples of accepted expressions: 0xCAFE_BABE, 0xdeadbeef, 0x123_45A
@@ -1426,6 +1430,7 @@ private void hexNumber(Arr(Byte) source, Compiler* lx) {
     lx->numeric.cont = 0;
     lx->i = j; // CONSUME the hex number
 }
+
 
 private Int calcFloating(double* result, Int powerOfTen, Arr(Byte) source, Compiler* lx) {
 // Parses the floating-point numbers using just the "fast path" of David Gay's "strtod" function,
@@ -1653,9 +1658,8 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
         wrapInAStatementStarting(startBt, source, lx);
         newToken.pl1 = uniqueStringId;
         newToken.pl2 = 0;
-    } else if (wordType == tokAccessor) {
+    } else if (wordType == tokFieldAcc) {
         wrapInAStatementStarting(startBt, source, lx);
-        newToken.pl1 = tkAccDot;
     }
     pushIntokens(newToken, lx);
 }
@@ -1665,7 +1669,7 @@ private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartB
                           Arr(Byte) source, Compiler* lx) {
     Int lenBts = lx->i - startBt;
     Int keywordTp = standardKeywords[wordId];
-    VALIDATEL(wordType != tokAccessor, errWordReservedWithDot)
+    VALIDATEL(wordType != tokFieldAcc, errWordReservedWithDot)
     if (keywordTp < firstSpanTokenType) {
         if (keywordTp == keywTrue) {
             wrapInAStatementStarting(startBt, source, lx);
@@ -1739,7 +1743,7 @@ private void lexDot(Arr(Byte) source, Compiler* lx) {
     Token prevTok = lx->tokens.cont[lx->tokens.len - 1];
     ++lx->i; // CONSUME the dot
     if (prevTok.tp == tokWord && lx->i == (prevTok.startBt + prevTok.lenBts + 1))  {
-        wordInternal(tokAccessor, source, lx);
+        wordInternal(tokFieldAcc, source, lx);
     } else {
         wordInternal(tokCall, source, lx);
     }
@@ -1779,7 +1783,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
 }
 
 
-private void lexColon(Arr(Byte) source, Compiler* lx) {
+private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
 // Handles keyword arguments ":asdf"
     if (lx->i < lx->inpLength - 1) {
         Byte nextBt = NEXT_BT;
@@ -1801,7 +1805,7 @@ private void lexSemicolon(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexOperator(Arr(Byte) source, Compiler* lx) {
+private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     wrapInAStatement(source, lx);
 
     Byte firstSymbol = CURR_BT;
@@ -1866,7 +1870,8 @@ private bool isOperatorTypeful(Int opType) {
     return false;
 }
 
-private void lexEqual(Arr(Byte) source, Compiler* lx) {
+
+private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
 // The humble "=" can be the definition statement, a marker that separates signature from definition,
 // or an arrow "=>"
     checkPrematureEnd(2, lx);
@@ -1883,7 +1888,7 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexLT(Arr(Byte) source, Compiler* lx) {
+private void lexLT(Arr(Byte) source, Compiler* lx) { //:lexLT
 // Handles "<-" (reassignment) as well as operators
     if ((lx->i + 1 < lx->inpLength) && NEXT_BT == aMinus) {
         processAssignment(1, 0, lx);
@@ -1893,7 +1898,7 @@ private void lexLT(Arr(Byte) source, Compiler* lx) {
     }
 }
 
-private void lexTilde(Arr(Byte) source, Compiler* lx) {
+private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
     if ((lx->i < lx->inpLength - 1) && NEXT_BT == aTilde) {
         pushIntokens((Token){ .tp = tokTilde, .pl1 = 2, .startBt = lx->i - 1, .lenBts = 2 }, lx);
         lx->i += 2; // CONSUME the "~~"
@@ -1903,7 +1908,7 @@ private void lexTilde(Arr(Byte) source, Compiler* lx) {
     }
 }
 
-private void lexNewline(Arr(Byte) source, Compiler* lx) {
+private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
 // Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes
 // the current statement unless it's inside an inline span (i.e. parens or accessor parens)
     pushInnewlines(lx->i, lx);
@@ -2089,14 +2094,6 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) {
         pop(lx->lexBtrack);
         lx->i++; // CONSUME the `|`
     }
-}
-
-
-private void lexUnderscore(Arr(Byte) source, Compiler* lx) {
-// The "_" symbol that is used for accessing arrays, lists, dictionaries
-    VALIDATEL(lx->i < lx->inpLength, errPrematureEndOfInput)
-    pushIntokens((Token){ .tp = tokAccessor, .pl1 = tkAccArray, .startBt = lx->i, .lenBts = 1 }, lx);
-    ++lx->i; // CONSUME the "_" sign
 }
 
 
@@ -2386,7 +2383,7 @@ private void ifLeftSide(Token tok, P_CT) {
 }
 
 
-private void parseIf(Token tok, P_CT) {
+private void pIf(Token tok, P_CT) { //:pIf
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.len,
             .sentinelToken = cm->i + tok.pl2 };
     push(newParseFrame, cm->backtrack);
@@ -2397,37 +2394,6 @@ private void parseIf(Token tok, P_CT) {
     ifLeftSide(stmtTok, P_C);
 }
 
-/*
-private void assignmentWorker(Token tok, bool isToplevel, P_CT) {
-    Int sentinelToken = cm->i + tok.pl2;
-    VALIDATEP(sentinelToken >= cm->i + 2, errAssignment)
-    Token bindingTk = tokens[cm->i];
-    if (bindingTk.tp == tokWord) {
-        push(((ParseFrame){.tp = nodAssignment, .startNodeInd = cm->nodes.len,
-                           .sentinelToken = sentinelToken }), cm->backtrack);
-        pushInnodes((Node){.tp = nodAssignment, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-
-        assignmentWordLeftSide(bindingTk, P_C);
-
-        Token rTk = tokens[cm->i];
-        Int rightType = -1;
-        if (rTk.tp == tokFn) {
-        } else {
-            rightType = exprHeadless(sentinelToken, rTk.startBt,
-                                       tok.lenBts - rTk.startBt + tok.startBt, P_C);
-            Int newBindingId = createEntity(nameOfToken(bindingTk), cm);
-            VALIDATEP(rightType != -2, errAssignment)
-            if (rightType > -1) {
-                cm->entities.cont[newBindingId].typeId = rightType;
-            }
-        }
-    } else if (bindingTk.tp == tokTypeName) {
-        typeDef(bindingTk, false, P_C);
-    } else {
-        throwExcParser(errAssignment, cm);
-    }
-}
-*/
 
 private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
 // A left side with more than one token must consist of a known var with a series of accessors.
@@ -2443,7 +2409,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
 
     while (j < sentinel) {
         Token accessorTk = toks[j];
-        VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
+        VALIDATEP(accessorTk.tp == tokFieldAcc, errAssignmentLeftSide)
         if (accessorTk.pl1 == tkAccDot) {
             j++;
         } else { // tkAccArray
@@ -2466,7 +2432,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
     j = sc->len - 1;
     while (j > -1) {
         Token accessorTk = toks[sc->cont[j]];
-        pushInnodes((Node){ .tp = nodAccessor, .pl1 = accessorTk.pl1,
+        pushInnodes((Node){ .tp = nodFieldAcc, .pl1 = accessorTk.pl1,
                             .startBt = accessorTk.startBt, .lenBts = accessorTk.lenBts }, cm);
     }
 
@@ -2476,7 +2442,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
     // The accessor expression parts
     while (j < sentinel) {
         Token accessorTk = toks[j];
-        VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
+        VALIDATEP(accessorTk.tp == tokFieldAcc, errAssignmentLeftSide)
         if (accessorTk.pl1 == tkAccDot) {
             j++;
         } else { // tkAccArray
@@ -2559,12 +2525,8 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
                 .startBt = rightTk.startBt,
                 .lenBts = TL_OPERATORS[opType].lenBts}, cm);
         TypeId rightType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
-
-#ifdef SAFETY
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
-#endif
         subexprClose(P_C);
-
     } else if (rightTk.tp == tokFn) {
         parseFnDef(rightTk, P_C);
     } else {
@@ -2578,7 +2540,7 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
 }
 
 
-private void parseFor(Token forTk, P_CT) {
+private void pFor(Token forTk, P_CT) { //:pFor
 // For loops. Look like "for x = 0; x < 100; x++ { ... }"
     ++cm->loopCounter;
     Int sentinel = cm->i + forTk.pl2;
@@ -2631,6 +2593,7 @@ private void setSpanLengthParser(Int nodeInd, Compiler* cm) {
     cm->nodes.cont[nodeInd].pl2 = cm->nodes.len - nodeInd - 1;
 }
 
+
 private void parseVerbatim(Token tok, Compiler* cm) {
     pushInnodes((Node){
         .tp = tok.tp, .startBt = tok.startBt, .lenBts = tok.lenBts, .pl1 = tok.pl1, .pl2 = tok.pl2}, cm);
@@ -2651,7 +2614,7 @@ private ParseFrame popFrame(Compiler* cm) {
 }
 
 
-private Int exprSingleItem(Token tk, Compiler* cm) {
+private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
 // A single-item expression, like "foo". Consumes no tokens.
 // Pre-condition: we are 1 token past the token we're parsing.
 // Returns the type of the single item
@@ -2726,8 +2689,8 @@ private void subexprClose(InListExprFrame scr, P_CT) { //:subexprClose
 private ExprFrame exprGetTopSubexpr(InListExprFrame scr) { //:exprGetTopSubexpr
     Int i = scr.len - 1;
     while (i > -1 && scr.cont[i].tp != exfrParens) { i--; }
-    VALIDATEI(i > -1, iErrorInconsistentSpans) 
-    return scr.cont[i]; 
+    VALIDATEI(i > -1, iErrorInconsistentSpans)
+    return scr.cont[i];
 }
 
 
@@ -2737,11 +2700,16 @@ private void exprCopyFromScratch(InListExprFrame scr, Compiler* cm) {
 }
 
 
-private void exprSpanless(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprSpanless
+private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprCore
+// The core code of the general, long expression parser
     Int arity = 0;
-    pushInexprFrames((ExprFrame){ .tp = exfrParens, .sentinel = sentinelToken}, cm);
-    InListExprFrame scr = cm->scratchNodes; 
-    scr.len = 0;        
+    StackNode* scr = cm->scratchCode;
+    StackExprFrame* frames = cm->exprFrames;
+    frames->len = 0;
+    scr->len = 0;
+
+    push((ExprFrame){ .sentinel = sentinelToken}, frames);
+    scr.len = 0;
     while (cm->i < sentinelToken) {
         subexprClose(P_C);
         Token cTk = toks[cm->i];
@@ -2761,29 +2729,29 @@ private void exprSpanless(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //
         } else if (tokType == tokOperator) {
             Int bindingId = tok.pl1;
             OpDef operDefinition = TL_OPERATORS[bindingId];
-            
-            pushInexprFrames((ExprFrame){ 
+
+            pushInexprFrames((ExprFrame){
                     .tp = nodCall, .pl1 = -bindingId - 2, .pl2 = 1,
                     .startBt = tok.startBt, .lenBts = tok.lenBts,
                     .isPrefix = operDefinition.arity == 1
             }, cm);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
-                
+
                 pushInexprFrames((ExprFrame){ .tp = exfrCall, .arity = 0,
                         .sentinel = calcSentinel(cTk) }, cm);
             } else { // infix calls like ` .foo`
-                ExprFrame topSubexpr = exprGetTopSubexpr(scr); 
+                ExprFrame topSubexpr = exprGetTopSubexpr(scr);
                 Int startArity = (scr.len > topSubexpr.startNodeInd) ? 1 : 0;
                 pushInexprFrames((ExprFrame){ .tp = exfrCall, .arity = startArity,
                         .sentinel = topSubexpr.sentinel }, cm);
             }
         } else {
             throwExcParser( errExpressionCannotContain);
-        } 
+        }
         cm->i++; // CONSUME any token
     }
-    exprCopyFromScratch(scr, cm); 
+    exprCopyFromScratch(scr, cm);
 }
 
 
@@ -2796,7 +2764,7 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
                 .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
 
-    exprSpanless(sentinelToken, startBt, lenBts, P_C);
+    exprCore(sentinelToken, startBt, lenBts, P_C);
 
     subexprClose(P_C);
 
@@ -2821,7 +2789,7 @@ private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT) { //:ex
 }
 
 
-private Int pExprWorker(Token tok, P_CT) {
+private Int pExprWorker(Token tok, P_CT) { //:pExprWorker
 // Precondition: we are looking 1 past the first token of expr, which is the first parameter.
 // Consumes 1
 // or more tokens. Handles single items also Returns the type of parsed expression
@@ -2846,7 +2814,7 @@ private void pExpr(Token tok, P_CT) {
 }
 
 
-private void maybeCloseSpans(Compiler* cm) {
+private void maybeCloseSpans(Compiler* cm) { //:maybeCloseSpans
 // When we are at the end of a function parsing a parse frame, we might be at the end of said frame
 // (otherwise => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
 // in which case this function handles all the corresponding stack poppin'.
@@ -2901,7 +2869,8 @@ private Int parseLiteralOrIdentifier(Token tok, Compiler* cm) {
     return typeId;
 }
 
-private void setClassToMutated(Int bindingId, Compiler* cm) {
+
+private void setClassToMutated(Int bindingId, Compiler* cm) { //:setClassToMutated
 // Changes a mutable variable to mutated. Throws an exception for an immutable one
     Int class = cm->entities.cont[bindingId].class;
     VALIDATEP(class < classImmutable, errCannotMutateImmutable);
@@ -2911,78 +2880,7 @@ private void setClassToMutated(Int bindingId, Compiler* cm) {
 }
 
 
-
-private void mutationTwiddle(Int ind, Token mutTk, Compiler* cm) {
-// Performs some AST twiddling to turn a mutation into a reassignment:
-// 1. [.    .]
-// 2. [.    .      Expr     ...]
-// 3. [Expr OpCall LeftSide ...]
-// The end result is an expression that is the right side but wrapped in another binary call,
-// with .pl2 increased by + 2
-    Node rNd = cm->nodes.cont[ind + 2];
-    if (rNd.tp == nodExpr) {
-        cm->nodes.cont[ind] = (Node){.tp = nodExpr, .pl2 = rNd.pl2 + 2, .startBt = mutTk.startBt, .lenBts = mutTk.lenBts};
-    } else {
-        // right side is single-node, so current AST is [ . . singleNode]
-        pushInnodes((cm->nodes.cont[cm->nodes.len - 1]), cm);
-        // now it's [ . . singleNode singleNode]
-
-        cm->nodes.cont[ind] = (Node){.tp = nodExpr, .pl2 = 3, .startBt = mutTk.startBt, .lenBts = mutTk.lenBts};
-    }
-}
-
-/* TODO
-private void parseMutation(Token tok, P_CT) {
-    untt encodedInfo = (untt)(tok.pl1);
-    Int opType = (Int)(encodedInfo >> 26);
-    Int operStartBt = (Int)(encodedInfo & LOWER26BITS);
-    Int operLenBts = (TL_OPERATORS)[opType].lenBts;
-    Int sentinelToken = cm->i + tok.pl2;
-    Token bindingTk = tokens[cm->i];
-
-#ifdef SAFETY
-    VALIDATEP(bindingTk.tp == tokWord, errMutation);
-#endif
-    Int leftEntityId = getActiveVar(bindingTk.pl2, cm);
-    Int leftType = getTypeOfVar(leftEntityId, cm);
-    Entity leftEntity = cm->entities.cont[leftEntityId];
-    VALIDATEP(leftEntityId > -1 && leftEntity.typeId > -1, errUnknownBinding);
-    VALIDATEP(leftEntity.class < classImmutable, errCannotMutateImmutable);
-
-    Int operatorOv;
-    bool foundOv = findOverload(leftType, cm->activeBindings[opType], &operatorOv, cm);
-    Int opTypeInd = cm->entities.cont[operatorOv].typeId;
-    VALIDATEP(foundOv && cm->types.cont[opTypeInd] == 3, errTypeNoMatchingOverload);
-    // operator must be binary
-
-#ifdef SAFETY
-    VALIDATEP(cm->types.cont[opTypeInd] == 3 && cm->types.cont[opTypeInd + 2] == leftType
-                && cm->types.cont[opTypeInd + 2] == leftType, errTypeNoMatchingOverload)
-#endif
-
-    push(((ParseFrame){.tp = nodReassign, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }), cm->backtrack);
-    pushInnodes((Node){.tp = nodReassign, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
-    pushInnodes((Node){.tp = nodBinding, .pl1 = leftEntityId, .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts}, cm);
-    ++cm->i; // CONSUME the binding word
-
-    Int ind = cm->nodes.len;
-    // space for the operator and left side
-    pushInnodes(((Node){0}), cm);
-    pushInnodes(((Node){0}), cm);
-
-    Token rTk = tokens[cm->i];
-    Int rightType = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, P_C);
-    VALIDATEP(rightType == cm->types.cont[opTypeInd + 3], errTypeNoMatchingOverload)
-
-    mutationTwiddle(ind, tok, cm);
-    cm->nodes.cont[ind + 1] = (Node){.tp = nodCall, .pl1 = operatorOv, .pl2 = 2, .startBt = operStartBt, .lenBts = operLenBts};
-    cm->nodes.cont[ind + 2] = (Node){.tp = nodId, .pl1 = leftEntityId, .pl2 = bindingTk.pl2,
-                                       .startBt = bindingTk.startBt, .lenBts = bindingTk.lenBts};
-    setClassToMutated(leftEntityId, cm);
-}
-*/
-
-private void pAlias(Token tok, P_CT) {
+private void pAlias(Token tok, P_CT) { //:pAlias
     throwExcParser(errTemp, cm);
 }
 
@@ -3001,7 +2899,7 @@ private void parseAwait(Token tok, P_CT) {
 }
 
 
-private Int breakContinue(Token tok, Int* sentinel, P_CT) {
+private Int breakContinue(Token tok, Int* sentinel, P_CT) { //:breakContinue
     VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
     Int unwindLevel = 1;
     *sentinel = cm->i;
@@ -3035,7 +2933,7 @@ private Int breakContinue(Token tok, Int* sentinel, P_CT) {
 }
 
 
-private void parseBreakCont(Token tok, P_CT) {
+private void pBreakCont(Token tok, P_CT) { //:pBreakCont
     Int sentinel = cm->i;
     Int loopId = breakContinue(tok, &sentinel, P_C);
     if (tok.pl1 > 0) { // continue
@@ -3106,7 +3004,7 @@ private void parsePackage(Token tok, P_CT) {
 }
 
 
-private void typecheckFnReturn(Int typeId, Compiler* cm) {
+private void typecheckFnReturn(Int typeId, Compiler* cm) { //:typecheckFnReturn
     Int j = cm->backtrack->len - 1;
     while (j > -1 && cm->backtrack->cont[j].tp != nodFnDef) {
         --j;
@@ -3116,11 +3014,11 @@ private void typecheckFnReturn(Int typeId, Compiler* cm) {
 }
 
 
-private void parseReturn(Token tok, P_CT) {
+private void pReturn(Token tok, P_CT) { //:pReturn
     Int lenTokens = tok.pl2;
     Int sentinelToken = cm->i + lenTokens;
 
-    push(((ParseFrame){ .tp = nodReturn, .startNodeInd = cm->nodes.len, 
+    push(((ParseFrame){ .tp = nodReturn, .startNodeInd = cm->nodes.len,
                         .sentinelToken = sentinelToken }), cm->backtrack);
     pushInnodes((Node){.tp = nodReturn, .startBt = tok.startBt, .lenBts = tok.lenBts}, cm);
 
@@ -3158,7 +3056,7 @@ private EntityId importActivateEntity(Entity ent, Compiler* cm) { //:importActiv
 
 
 testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(TypeId) typeIds,
-                             Compiler* cm) {
+                             Compiler* cm) { //:importEntities
     for (int j = 0; j < countEntities; j++) {
         EntityImport impt = impts[j];
         TypeId typeId = typeIds[impt.typeInd];
@@ -3185,17 +3083,17 @@ private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] {
 
     p[tokAlias]       = &pAlias;
     p[tokAssert]      = &parseAssert;
-    p[tokBreakCont]   = &parseBreakCont;
+    p[tokBreakCont]   = &pBreakCont;
     p[tokCatch]       = &pAlias;
     p[tokFn]          = &pAlias;
     p[tokFinally]     = &pAlias;
     p[tokIface]       = &pAlias;
     p[tokImport]      = &pAlias;
-    p[tokReturn]      = &parseReturn;
+    p[tokReturn]      = &pReturn;
     p[tokTry]         = &pAlias;
 
-    p[tokIf]          = &parseIf;
-    p[tokFor]         = &parseFor;
+    p[tokIf]          = &pIf;
+    p[tokFor]         = &pFor;
     p[tokElse]     = &pAlias;
     return result;
 }
@@ -3246,7 +3144,7 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) {
     return result;
 }
 
-testable Compiler* createProtoCompiler(Arena* a) {
+testable Compiler* createProtoCompiler(Arena* a) { //:createProtoCompiler
 // Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned
 // for every source code module. The proto-compiler contains the following data:
 // - langDef with operators
@@ -3268,7 +3166,7 @@ testable Compiler* createProtoCompiler(Arena* a) {
     return proto;
 }
 
-private void finalizeLexer(Compiler* lx) {
+private void finalizeLexer(Compiler* lx) { //:finalizeLexer
 // Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and
 // an open statement, if any
     if (!hasValues(lx->lexBtrack)) {
@@ -3280,8 +3178,9 @@ private void finalizeLexer(Compiler* lx) {
     setStmtSpanLength(top.tokenInd, lx);
 }
 
+
 testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* a) {
-// Main lexer function. Precondition: the input Byte array has been prepended with StandardText
+//:lexicallyAnalyze Main lexer function. Precondition: the input Byte array has been prepended with StandardText
     Compiler* lx = createLexerFromProto(sourceCode, proto, a);
     Int inpLength = lx->inpLength;
     Arr(Byte) inp = lx->sourceCode->cont;
@@ -3304,6 +3203,7 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
     }
     return lx;
 }
+
 
 struct ScopeStackFrame {
 // This frame corresponds either to a lexical scope or a subexpression.
@@ -3362,7 +3262,7 @@ testable ScopeStack* createScopeStack(void) {
     return result;
 }
 
-private void mbNewChunk(ScopeStack* scopeStack) {
+private void mbNewChunk(ScopeStack* scopeStack) { //:mbNewChunk
     if (scopeStack->currChunk->next != null) {
         return;
     }
@@ -3405,7 +3305,8 @@ testable void pushLexScope(ScopeStack* scopeStack) {
 }
 
 
-private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope, ScopeStack* scopeStack) {
+private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope,
+                                         ScopeStack* scopeStack) { //:resizeScopeArrayIfNecessary
     int newLength = scopeStack->topScope->len + 1;
     if (newLength == initLength) {
         int remainingSpace = scopeStack->currChunk->len - scopeStack->nextInd + 1;
@@ -3423,7 +3324,7 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
 }
 
 
-private void addBinding(int nameId, int bindingId, Compiler* cm) {
+private void addBinding(int nameId, int bindingId, Compiler* cm) { //:addBinding
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
 
@@ -3434,7 +3335,7 @@ private void addBinding(int nameId, int bindingId, Compiler* cm) {
 }
 
 
-private void popScopeFrame(Compiler* cm) {
+private void popScopeFrame(Compiler* cm) { //:popScopeFrame
 // Pops a frame from the ScopeStack. For a scope type of frame, also deactivates its bindings.
 // Returns pointer to previous frame (which will be top after this call) or null if there isn't any
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
@@ -3491,7 +3392,7 @@ private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Com
 }
 
 
-private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) {
+private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mergeTypeWorker
     Byte* types = (Byte*)cm->types.cont;
     StringDict* hm = cm->typesDict;
     Int startBt = startInd*4;
@@ -3531,8 +3432,9 @@ testable TypeId mergeType(Int startInd, Compiler* cm) { //:mergeType
     return mergeTypeWorker(startInd, lenInts, cm);
 }
 
+
 testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
-// Function types are stored as: (length, paramType1, paramType2, ..., returnType)
+//:addConcrFnType Function types are stored as: (length, paramType1, paramType2, ..., returnType)
     Int newInd = cm->types.len;
     pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
     typeAddHeader(
@@ -3545,7 +3447,7 @@ testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm
 }
 
 
-private void buildStandardStrings(Compiler* lx) {
+private void buildStandardStrings(Compiler* lx) { //:buildStandardStrings
 // Inserts all strings from the standardText into the string table and the hash table
 // But first inserts a reservation for every operator symbol ("countOperators" nameIds in all,
 // the lx->stringTable contains zeros in those places)
@@ -3560,13 +3462,13 @@ private void buildStandardStrings(Compiler* lx) {
     }
 }
 
-testable NameId stToNameId(Int a) {
+testable NameId stToNameId(Int a) { //:stToNameId
 // Converts a standard string to its nameId. Doesn't work for reserved words, obviously
     return a - strFirstNonReserved + countOperators;
 }
 
 
-private void buildPreludeTypes(Compiler* cm) {
+private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
 // Creates the built-in types in the proto compiler
     for (int i = strInt; i <= strVoid; i++) {
         pushIntypes(0, cm);
@@ -3608,7 +3510,7 @@ private void buildPreludeTypes(Compiler* cm) {
 }
 
 
-private void buildOperator(Int operId, TypeId typeId, Compiler* cm) {
+private void buildOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildOperator
 // Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
     pushInentities((Entity){ .typeId = typeId, .class = classImmutable }, cm);
@@ -3616,11 +3518,10 @@ private void buildOperator(Int operId, TypeId typeId, Compiler* cm) {
 }
 
 
-private void buildOperators(Compiler* cm) {
+private void buildOperators(Compiler* cm) { //:buildOperators
 // Operators are the first-ever functions to be defined. This function builds their [types],
 // [functions] and overload counts. The order must agree with the order of operator
 // definitions in tl.internal.h, and every operator must have at least one function defined
-    print("buildOp")
     TypeId boolOfIntInt    = addConcrFnType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     TypeId boolOfIntIntInt = addConcrFnType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     TypeId boolOfFlFl      = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
@@ -3709,14 +3610,14 @@ private void buildOperators(Compiler* cm) {
 }
 
 
-private void createBuiltins(Compiler* cm) {
+private void createBuiltins(Compiler* cm) { //:createBuiltins
 // Entities and functions for the built-in operators, types and functions
     buildStandardStrings(cm);
     buildOperators(cm);
 }
 
 
-private void importPrelude(Compiler* cm) {
+private void importPrelude(Compiler* cm) { //:importPrelude
 // Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
     TypeId strToVoid = addConcrFnType(1, (Int[]){ tokString, tokMisc }, cm);
@@ -3748,8 +3649,9 @@ private void importPrelude(Compiler* cm) {
 
 
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
-// A proto compiler contains just the built-in definitions and tables. This fn copies it and
-// performs initialization. Post-condition: i has been incremented by the standardText size
+//:createLexerFromProto A proto compiler contains just the built-in definitions and tables. This fn
+// copies it and performs initialization. Post-condition: i has been incremented by the
+// standardText size
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
@@ -3771,7 +3673,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
 }
 
 
-testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
+testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:initializeParser
 // Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
     if (lx->wasError) {
         return;
@@ -3780,14 +3682,14 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
     Compiler* cm = lx;
     Int initNodeCap = lx->tokens.len > 64 ? lx->tokens.len : 64;
     cm->scopeStack = createScopeStack();
+    cm->exprFrames = createStackExprFrame(16*sizeof(ExprFrame), a);
     cm->backtrack = createStackParseFrame(16, lx->aTmp);
     cm->i = 0;
     cm->loopCounter = 0;
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiAssocList(a);
-    cm->scratchNodes = createInListNode(16, a);
-    cm->exprFrames = createInListExprFrame(16, a);
+    cm->scratchCode = createInListNode(16, a);
 
     cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
@@ -3821,7 +3723,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) {
 }
 
 
-private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) {
+private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) { //:reserveSpaceInList
     if (st.len + neededSpace >= st.cap) {
         Arr(Int) newContent = allocateOnArena(8*(st.cap), cm->a);
         memcpy(newContent, st.cont, st.len*4);

@@ -227,8 +227,7 @@ typedef struct { // :Token
 #define tokTypeName     8  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg        9  // pl2 = same as tokWord. The ":argName"
 #define tokOperator    10  // pl1 = OperatorToken, one of the "opT" constants below
-#define tokAccessor    11  // pl1 = see "tkAcc" consts. If pl1 == tkAccDot, then pl2 = nameId
-                           // Either an ".accessor" or a `_smth`
+#define tokFieldAcc    11  // pl2 = nameId
 
 // Single-statement token types
 #define tokStmt        12  // firstSpanTokenType
@@ -291,13 +290,13 @@ typedef struct { // :Token
 #define nodId           7  // pl1 = index of entity, pl2 = index of name
 #define nodCall         8  // pl1 = index of entity, pl2 = arity
 #define nodBinding      9  // pl1 = index of entity, pl2 = 1 if it's a type binding
+#define nodFieldAcc    10  // pl1 = nameId; after type resolution pl1 = offset
 
 // Punctuation (inner node)
-#define nodScope       10
-#define nodExpr        11  // pl1 = 1 iff it's a composite expression (has internal var decls)
-#define nodAssignLeft  12
-#define nodAssignRight 13
-#define nodAccessor    14  // pl1 = "acc" constants
+#define nodScope       11
+#define nodExpr        12  // pl1 = 1 iff it's a composite expression (has internal var decls)
+#define nodAssignLeft  13
+#define nodAssignRight 14
 
 // Single-shot core syntax forms
 #define nodAlias       15
@@ -389,26 +388,15 @@ typedef struct { // :OpDef
 #define opQuestionMark     35 // ?    nullable type operator
 #define opBitwiseXor       36 // ^.   bitwise XOR
 #define opExponent         37 // ^    exponentiation
-#define opBitwiseOr        38 // ||.  bitwise or
-#define opBoolOr           39 // ||   logical or
+#define opDataAcc          38 // _    data accessor
+#define opBitwiseOr        39 // ||.  bitwise or
+#define opBoolOr           40 // ||   logical or
 
-#define countOperators     40
+#define countOperators     41
 
 #define countSyntaxForms (tokEach + 1)
 
 typedef struct Compiler Compiler;
-
-
-// Subclasses of the data accessor tokens
-#define tkAccDot     1
-#define tkAccArray   2
-// Subclasses of the data accessor nodes?
-#define accField     1 // field accessor in a struct, like "foo.field". pl2 = nameId of the string
-#define accArrayInd  2 // single-integer array access, like "arr_5". pl2 = int value of the ind
-#define accArrayWord 3 // single-variable array access, like "arr_i". pl2 = nameId of the string
-#define accString    4 // string-based access inside hashmap, like "map_`foo`". pl2 = 0
-#define accExpr      5 // expr array access, like "arr_(i + 1)". pl2 = number of tokens/nodes
-#define accUndef     6 // undefined after lexing (to be determined by the parser)
 
 
 typedef void (*LexerFunc)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void)
@@ -477,6 +465,7 @@ struct ScopeChunk { // :ScopeChunk
     Int cont[];
 };
 
+
 typedef struct { // :ScopeStack
     // Either currChunk->next == NULL or currChunk->next->next == NULL
     ScopeChunk* firstChunk;
@@ -487,22 +476,16 @@ typedef struct { // :ScopeStack
     int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
 } ScopeStack;
 
+
 typedef struct {  // :ExprFrame
-    Int tp;
-    Int startInd; // node index where this expression frame started
+    Int startInd; // index of corresponding node in [scratchCode]. -1 for parens
     Int sentinel; // token sentinel
-    Int arity;
-    Int startBt;
-    Int lenBts;
-    Int entityId;
+    Int arity;    // accumulated number of arguments. 0 for parens
     Bool isPrefix;
 } ExprFrame;
 
-#define exfrParens 1
-#define exfrCall   2
-#define exfrData   3 // Data constructors like lists, arrays or struct initializations
-
 DEFINE_STACK_HEADER(ParseFrame)
+DEFINE_STACK_HEADER(ExprFrame)
 DEFINE_STACK_HEADER(Node)
 
 DEFINE_INTERNAL_LIST_TYPE(Token)
@@ -511,7 +494,6 @@ DEFINE_INTERNAL_LIST_TYPE(Node)
 DEFINE_INTERNAL_LIST_TYPE(Entity)
 
 DEFINE_INTERNAL_LIST_TYPE(Toplevel)
-DEFINE_INTERNAL_LIST_TYPE(ExprFrame)
 DEFINE_INTERNAL_LIST_TYPE(Int)
 
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
@@ -539,13 +521,13 @@ struct Compiler { // :Compiler
     InListToplevel toplevels;
     InListInt importNames;
     StackParseFrame* backtrack; // [aTmp]
+    StackExprFrame* exprFrames; // [aTmp]
     ScopeStack* scopeStack;
     Arr(Int) activeBindings;    // [aTmp]
     Int loopCounter;
     InListNode nodes;
     InListNode monoCode; // code for monorphizations of generic functions
-    InListNode scratchNodes;
-    InListExprFrame expFrames;
+    InListNode scratchCode; // temporary node list for parsing expressions
     MultiAssocList* monoIds;
     InListEntity entities;
     MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
