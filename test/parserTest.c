@@ -428,7 +428,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
     TestEntityImport arr[] = { (TestEntityImport){ .name = s("foo"), .typeInd = 0} };
-    print("%d elt size %d", sizeof(arr), sizeof(TestEntityImport))
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function call"),

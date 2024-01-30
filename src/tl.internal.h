@@ -477,13 +477,6 @@ typedef struct { // :ScopeStack
 } ScopeStack;
 
 
-typedef struct {  // :ExprFrame
-    Int startInd; // index of corresponding node in [scratchCode]. -1 for parens
-    Int sentinel; // token sentinel
-    Int arity;    // accumulated number of arguments. 0 for parens
-    Bool isPrefix;
-} ExprFrame;
-
 DEFINE_STACK_HEADER(ParseFrame)
 DEFINE_STACK_HEADER(ExprFrame)
 DEFINE_STACK_HEADER(Node)
@@ -499,6 +492,19 @@ DEFINE_INTERNAL_LIST_TYPE(Int)
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
 
 DEFINE_INTERNAL_LIST_TYPE(EntityImport)
+
+
+typedef struct {  // :ExprFrame
+    Int sentinel; // token sentinel
+    Int argCount;    // accumulated number of arguments. 0 for parens
+    Bool isPrefix;
+} ExprFrame;
+
+typedef struct {
+    StackExprFrame* exprFrames;
+    StackNode* scratchCode;
+    StackNode* calls; 
+} StateForExprs;
 
 struct Compiler { // :Compiler
     // See docs/compiler.txt, docs/architecture.svgz
@@ -521,23 +527,22 @@ struct Compiler { // :Compiler
     InListToplevel toplevels;
     InListInt importNames;
     StackParseFrame* backtrack; // [aTmp]
-    StackExprFrame* exprFrames; // [aTmp]
     ScopeStack* scopeStack;
+    StateForExprs* stateForExprs; // [aTmp]
     Arr(Int) activeBindings;    // [aTmp]
     Int loopCounter;
     InListNode nodes;
     InListNode monoCode; // code for monorphizations of generic functions
-    StackNode* scratchCode; // temporary node list for parsing expressions
     MultiAssocList* monoIds;
     InListEntity entities;
     MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
     InListInt overloads;
     InListInt types;
     StringDict* typesDict;
-    Int countNonparsedEntities;
     StackInt* expStack;   // [aTmp]
     StackInt* typeStack;  // [aTmp]
     StackInt* tempStack;  // [aTmp]
+    Int countNonparsedEntities;
     Int countOverloads;
     Int countOverloadedNames;
 

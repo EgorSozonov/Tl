@@ -2251,7 +2251,7 @@ private void tabulateOperators() {
 #define P_C toks, cm // parser context args fragment
 
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
-private void subexprClose(StackNode* scr, StackExprFrame* frames, P_CT);
+private void subexprClose(P_CT);
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
@@ -2451,7 +2451,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
 }
 
 
-private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignment
+private void pAssignment(Token tok, P_CT) { //:pAssignment
     Int countLeftSide = tok.pl2;
     Token rightTk = toks[cm->i + countLeftSide];
 
@@ -2493,8 +2493,9 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
 
     Int lenBytes = tok.lenBts - rightTk.startBt + tok.startBt;
     if (isMutation) {
-        StackExprFrame* exprFrames = cm->exprFrames;
-        StackNode* scr = cm->scratchCode;
+        StackExprFrame* exprFrames = cm->stateForExprs->exprFrames;
+        StackNode* scr = cm->stateForExprs->scratchCode;
+        StackNode* calls = cm->stateForExprs->calls;
 
         Int startNodeInd = cm->nodes.len;
         pushInnodes((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0,
@@ -2508,12 +2509,12 @@ private void pAssignment(Token tok, Arr(Token) toks, Compiler* cm) { //:pAssignm
         Int ovInd = -cm->activeBindings[opType] - 2;
         bool foundOv = findOverload(leftSideType, ovInd, &operatorEntity, cm);
         VALIDATEP(foundOv, errTypeNoMatchingOverload)
-        pushInnodes((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2,
+        push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2,
                 .startBt = rightTk.startBt,
-                .lenBts = TL_OPERATORS[opType].lenBts}, cm);
+                .lenBts = TL_OPERATORS[opType].lenBts}), scr);
         TypeId rightType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
-        subexprClose(scr, exprFrames, P_C);
+        subexprClose(P_C);
     } else if (rightTk.tp == tokFn) {
         parseFnDef(rightTk, P_C);
     } else {
@@ -2657,11 +2658,15 @@ private void exprSubexpr(Int sentinelToken, Int* arity, P_CT) { //:exprSubexpr
 }
 
 
-private void subexprClose(StackNode* scr, StackExprFrame* frames, P_CT) { //:subexprClose
+private void subexprClose(P_CT) { //:subexprClose
 // Flushes the finished subexpr frames from the top of the funcall stack
+    StackExprFrame* frames = cm->stateForExprs->exprFrames;
     while (frames->len > 0 && cm->i == peek(frames).sentinel) {
         ExprFrame eFr = pop(frames);
-        //scr->cont[eFr.startInd].pl2 = scr.len - eFr.startInd - 1;
+        while (frames->len > 0 && peek(frames).isPrefix) {
+            ExprFrame prefixFrame = pop(frames);
+            push((pop(cm->stateForExpr->calls)), cm->stateForExpr->scratchCode);
+        }
     }
 }
 
@@ -2683,15 +2688,16 @@ private void exprCopyFromScratch(StackNode* scr, Compiler* cm) {
 private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprCore
 // The core code of the general, long expression parser
     Int arity = 0;
-    StackNode* scr = cm->scratchCode;
-    StackExprFrame* frames = cm->exprFrames;
+    StackNode* scr = cm->stateForExprs->scratchCode;
+    StackNode* calls = cm->stateForExprs->calls;
+    StackExprFrame* frames = cm->stateForExprs->exprFrames;
     frames->len = 0;
     scr->len = 0;
 
     push((ExprFrame){ .sentinel = sentinelToken}, frames);
     scr->len = 0;
     while (cm->i < sentinelToken) {
-        subexprClose(scr, frames, P_C);
+        subexprClose(P_C);
         Token cTk = toks[cm->i];
         untt tokType = cTk.tp;
 
@@ -2705,24 +2711,41 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
                                 .startBt = cTk.startBt, .lenBts = cTk.lenBts}), scr);
         } else if (tokType == tokParens) {
             cm->i++; // CONSUME the parens token
-            push(((ExprFrame){ .sentinel = cm->i + cTk.pl2}), frames);
+            Int parensSentinel = cm->i + cTk.pl2;
+            push(((ExprFrame){ .sentinel = parensSentinel }), frames);
+            if (cm->i < sentinelToken)  {
+                Token firstTk = toks[cm->i];
+                if ((firstTk.tp == tokCall || firstTk.tp == tokOper) && firstTk.pl2 == 0) {
+                    // `(.call 1 2)`
+                    push(
+                        ((ExprFrame) { .sentinel = parensSentinel, .argCount = 0,
+                    .isPrefix = (firstTk.tp == tokOper && TL_OPERATORS[firstTk.pl1].arity == 1) },
+                     frames);
+                    push(((Node)) { .tp = nodCall,
+                            .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
+                    ++cm->i; // CONSUME the parens-initial call node
+                }
+            }
         } else if (tokType == tokOperator) {
             Int bindingId = cTk.pl1;
             OpDef operDefinition = TL_OPERATORS[bindingId];
-
+            Bool isPrefix = TL_OPERATORS[bindingId].arity == 1;
             push(((ExprFrame){
-                    .isPrefix = operDefinition.arity == 1
+                    .isPrefix = isPrefix, .sentinel = -1, .argCount = isPrefix ? 0 : 1
             }), frames);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
-
-                push(((ExprFrame){ .arity = 0,
-                        .sentinel = calcSentinel(cTk, cm->i) }), frames);
+                push(
+                    ((ExprFrame) { .sentinel = calcSentinel(cTk, cm->i), .argCount = 0,
+                                   .isPrefix = false }, frames);
+                push(((Node)) { .tp = nodCall,
+                        .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
             } else { // infix calls like ` .foo`
-                ExprFrame topSubexpr = exprGetTopSubexpr(frames);
-                Int startArity = (scr->len > 0) ? 1 : 0;
-                push(((ExprFrame){ .arity = startArity,
-                        .sentinel = topSubexpr.sentinel }), frames);
+                push(
+                    ((ExprFrame) { .sentinel = -1, .argCount = 1,
+                                   .isPrefix = false }, frames);
+                push(((Node)) { .tp = nodCall,
+                        .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
             }
         } else {
             throwExcParser(errExpressionCannotContain);
@@ -2744,7 +2767,7 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
 
     exprCore(sentinelToken, startBt, lenBts, P_C);
 
-    subexprClose(cm->scratchCode, cm->exprFrames, P_C);
+    subexprClose(P_C);
 
     Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
     return exprType;
@@ -3660,14 +3683,20 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     Compiler* cm = lx;
     Int initNodeCap = lx->tokens.len > 64 ? lx->tokens.len : 64;
     cm->scopeStack = createScopeStack();
-    cm->exprFrames = createStackExprFrame(16*sizeof(ExprFrame), a);
     cm->backtrack = createStackParseFrame(16, lx->aTmp);
     cm->i = 0;
     cm->loopCounter = 0;
     cm->nodes = createInListNode(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiAssocList(a);
-    cm->scratchCode = createStackNode(16*sizeof(Node), a);
+
+    StateForExprs* stForExprs = allocateOnArena(sizeof(StateForExprs), a);
+    (*stForExprs) = (StateForExprs) {
+        .exprFrames = createStackExprFrame(16*sizeof(ExprFrame), a),
+        .scratchCode = createStackNode(16*sizeof(Node), a),
+        .calls = createStackNode(16*sizeof(Node), a)
+    };
+    cm->stateForExprs = stForExprs;
 
     cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
