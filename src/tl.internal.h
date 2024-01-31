@@ -226,13 +226,14 @@ typedef struct { // :Token
 #define tokWord         7  // pl2 = nameId (index in the string table)
 #define tokTypeName     8  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg        9  // pl2 = same as tokWord. The ":argName"
-#define tokOperator    10  // pl1 = OperatorToken, one of the "opT" constants below
+#define tokPrefixOper  10  // pl1 = OperatorType, one of the "opT" constants below
 #define tokFieldAcc    11  // pl2 = nameId
 
 // Single-statement token types
 #define tokStmt        12  // firstSpanTokenType
 #define tokParens      13  // subexpressions and struct/sum type instances
-#define tokCall        14  // pl1 = nameId, index in the string table. pl2 > 0 if prefix call
+#define tokCall        14  // pl1 = nameId, index in the string table. pl2 > 0 if prefix call.
+                           // Includes non-prefix operators: for them, pl1 = opT and pl2 = 0
 #define tokTypeCall    15  // pl1 = nameId of type. Either a type call or a type constructor
 #define tokParamList   16  // Parameter lists, ended with `|` */
 #define tokAssignLeft  17  // pl1 == 1 iff reassignment, pl1 == 2 iff type assignment,
@@ -478,7 +479,6 @@ typedef struct { // :ScopeStack
 
 
 DEFINE_STACK_HEADER(ParseFrame)
-DEFINE_STACK_HEADER(ExprFrame)
 DEFINE_STACK_HEADER(Node)
 
 DEFINE_INTERNAL_LIST_TYPE(Token)
@@ -497,14 +497,16 @@ DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 typedef struct {  // :ExprFrame
     Int sentinel; // token sentinel
     Int argCount; // accumulated number of arguments. 0 for parens
-    Bool isPrefix;
-    Bool isCall; 
+    Bool isPrefixOper;
+    Bool isCall;
 } ExprFrame;
+
+DEFINE_STACK_HEADER(ExprFrame)
 
 typedef struct {
     StackExprFrame* exprFrames;
     StackNode* scratchCode;
-    StackNode* calls; 
+    StackNode* calls;
 } StateForExprs;
 
 struct Compiler { // :Compiler

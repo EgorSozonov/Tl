@@ -252,17 +252,17 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
     testable T peekIn##fieldName(Compiler* cm) {             \
         return cm->fieldName.cont[cm->fieldName.len - 1];    \
     }                                                          \
-    testable void pushIn##fieldName(T newItem, Compiler* cm) { \
-        if (cm->fieldName.len < cm->fieldName.cap) {    \
-            memcpy((T*)(cm->fieldName.cont) + (cm->fieldName.len), &newItem, sizeof(T)); \
-        } else {                                                                               \
-            T* newContent = allocateOnArena(2*(cm->fieldName.cap)*sizeof(T), cm->aName);  \
-            memcpy(newContent, cm->fieldName.cont, cm->fieldName.len*sizeof(T));         \
-            memcpy((T*)(newContent) + (cm->fieldName.len), &newItem, sizeof(T));            \
-            cm->fieldName.cap *= 2;                                                       \
-            cm->fieldName.cont = newContent;                                                \
-        }                                                                                      \
-        cm->fieldName.len++;                                                                \
+    testable void pushIn##fieldName(T newItem, Compiler* cm) {\
+        if (cm->fieldName.len < cm->fieldName.cap) {\
+            memcpy((T*)(cm->fieldName.cont) + (cm->fieldName.len), &newItem, sizeof(T));\
+        } else {\
+            T* newContent = allocateOnArena(2*(cm->fieldName.cap)*sizeof(T), cm->aName);\
+            memcpy(newContent, cm->fieldName.cont, cm->fieldName.len*sizeof(T));\
+            memcpy((T*)(newContent) + (cm->fieldName.len), &newItem, sizeof(T));\
+            cm->fieldName.cap *= 2;\
+            cm->fieldName.cont = newContent;\
+        }\
+        cm->fieldName.len++;\
     }
 //}}}
 //{{{ AssocList
@@ -1853,15 +1853,8 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     if (isAssignment) { // mutation operators like "*=" or "*.="
         processAssignment(2, opType, lx);
     } else {
-        if (j < lx->inpLength && source[j] == aParenLeft) {
-            push(((BtToken){ .tp = tokOperator, .tokenInd = lx->tokens.len,
-                        .spanLevel = slSubexpr }), lx->lexBtrack);
-            pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i }, lx);
-            ++j; // CONSUME the opening "(" of the operator call
-        } else {
-            pushIntokens((Token){ .tp = tokOperator, .pl1 = opType, .startBt = lx->i,
-                         .lenBts = j - lx->i}, lx);
-        }
+        pushIntokens((Token){ .tp = (opDef.arity == 1 ? tokPrefixOper : tokCall), .pl1 = opType,
+                    .pl2 = 0, .startBt = lx->i, .lenBts = j - lx->i}, lx);
     }
     lx->i = j; // CONSUME the operator
 }
@@ -2615,7 +2608,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
         typeId = getTypeOfVar(varId, cm);
         pushInnodes((Node){.tp = nodId, .pl1 = varId, .pl2 = tk.pl2,
                            .startBt = tk.startBt, .lenBts = tk.lenBts}, cm);
-    } else if (tk.tp == tokOperator) {
+    } else if (tk.tp == tokPrefixOper) {
         Int operBindingId = tk.pl1;
         OpDef operDefinition = TL_OPERATORS[operBindingId];
         VALIDATEP(operDefinition.arity == 1, errOperatorWrongArity)
@@ -2643,11 +2636,11 @@ private void exprSubexpr(Int sentinelToken, Int* arity, P_CT) { //:exprSubexpr
 //TODO: allow for core forms (but not scopes!)
     Token firstTk = toks[cm->i];
 
-    if (firstTk.tp == tokWord || firstTk.tp == tokOperator) {
+    if (firstTk.tp == tokWord || firstTk.tp == tokPrefixOper) {
         Int mbBnd = -1;
         if (firstTk.tp == tokWord) {
             mbBnd = cm->activeBindings[firstTk.pl2];
-        } else if (firstTk.tp == tokOperator) {
+        } else if (firstTk.tp == tokPrefixOper) {
             VALIDATEP(*arity == (TL_OPERATORS)[firstTk.pl1].arity, errOperatorWrongArity)
             mbBnd = -firstTk.pl1 - 2;
         }
@@ -2666,9 +2659,9 @@ private void subexprClose(P_CT) { //:subexprClose
     StackExprFrame* frames = cm->stateForExprs->exprFrames;
     while (frames->len > 0 && cm->i == peek(frames).sentinel) {
         ExprFrame eFr = pop(frames);
-        while (frames->len > 0 && peek(frames).isPrefix) {
+        while (frames->len > 0 && peek(frames).isPrefixOper) {
             ExprFrame prefixFrame = pop(frames);
-            push((pop(cm->stateForExpr->calls)), cm->stateForExpr->scratchCode);
+            push((pop(cm->stateForExprs->calls)), cm->stateForExprs->scratchCode);
         }
     }
 }
@@ -2676,20 +2669,27 @@ private void subexprClose(P_CT) { //:subexprClose
 
 private ExprFrame exprGetTopSubexpr(StackExprFrame* scr) { //:exprGetTopSubexpr
     Int i = scr->len - 1;
-    //while (i > -1 && scr->cont[i].tp != exfrParens) { i--; }
-    //VALIDATEI(i > -1, iErrorInconsistentSpans)
     return scr->cont[i];
 }
 
 
 private void exprCopyFromScratch(StackNode* scr, Compiler* cm) {
-    // ensure enough space
-    // copy
+    if (cm->nodes.len + scr->len + 1 < cm->nodes.cap) {
+        memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
+    } else {
+        Int newCap = 2*(cm->nodes.cap) + scr->len;
+        Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
+        memcpy(newContent, cm->nodes.cont, cm->nodes.len*sizeof(Node));
+        memcpy((Node*)(newContent) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
+        cm->nodes.cap = newCap;
+        cm->nodes.cont = newContent;
+    }
+    cm->nodes.len += scr->len;
 }
 
 
-private exprClosePrefixes(E_CT) {
-    while (frames->len > 0 && peek(frames).isPrefix) {
+private void exprClosePrefixes(E_CT) {
+    while (frames->len > 0 && peek(frames).isPrefixOper) {
         ExprFrame eFr = pop(frames);
         push(pop(calls), scr);
     }
@@ -2712,83 +2712,76 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
         Token cTk = toks[cm->i];
         untt tokType = cTk.tp;
 
-        ExprFrame* parent = frames.cont + (frames.len - 1);
-        if (tokType <= topVerbatimTokenVariant) {
-            if (parent->isPrefix)  {
+        ExprFrame* parent = frames->cont + (frames->len - 1);
+        if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
+            if (parent->isPrefixOper)  {
                 exprClosePrefixes(E_C);
-                parent = frames.cont + (frames.len - 1);
+                parent = frames->cont + (frames->len - 1);
             }
             if (parent->isCall)  {
                 ++parent->argCount;
             }
-            push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
-                                .startBt = cTk.startBt, .lenBts = cTk.lenBts }), scr);
-            ++cm->i; // CONSUME the verbatim token
-        } else  if (tokType == tokWord) {
-            if (parent->isPrefix)  {
-                exprClosePrefixes(E_C);
-                parent = frames.cont + (frames.len - 1);
+            if (tokType == tokWord)  {
+                EntityId varId = getActiveVar(cTk.pl2, cm);
+                push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2,
+                              .startBt = cTk.startBt, .lenBts = cTk.lenBts}), scr);
+            } else {
+                push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
+                              .startBt = cTk.startBt, .lenBts = cTk.lenBts }), scr);
             }
-            if (parent->isCall)  {
-                ++parent->argCount;
-            }
-            EntityId varId = getActiveVar(cTk.pl2, cm);
-            push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2,
-                                .startBt = cTk.startBt, .lenBts = cTk.lenBts}), scr);
         } else if (tokType == tokParens) {
-            ++cm->i; // CONSUME the parens token
+            if (parent->isCall) {
+                ++parent->argCount;
+            }
             Int parensSentinel = cm->i + cTk.pl2;
             push(((ExprFrame){ .sentinel = parensSentinel, .isCall = false }), frames);
-            if (cm->i < sentinelToken)  {
-                Token firstTk = toks[cm->i];
-                if ((firstTk.tp == tokCall || firstTk.tp == tokOper) && firstTk.pl2 == 0) {
+            if (cm->i + 1 < sentinelToken)  {
+                Token firstTk = toks[cm->i + 1];
+                if ((firstTk.tp == tokCall && firstTk.pl2 == 0) || firstTk.tp == tokPrefixOper) {
                     // `(.call 1 2)`
                     push(
                         ((ExprFrame) { .sentinel = parensSentinel, .argCount = 0,
-                    .isPrefix = (firstTk.tp == tokOper && TL_OPERATORS[firstTk.pl1].arity == 1),
-                    .isCall = true },
+                        .isPrefixOper = firstTk.tp == tokPrefixOper, .isCall = true }),
                      frames);
-                    push(((Node)) { .tp = nodCall,
-                            .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
-                    ++cm->i; // CONSUME the parens-initial call node
+                    push(((Node) { .tp = nodCall,
+                            .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }), calls);
+                    ++cm->i; // CONSUME the parens token
                 }
             }
-        } else if (tokType == tokOperator) {
+        } else if (tokType == tokPrefixOper) { // prefix operators
             Int bindingId = cTk.pl1;
-            OpDef operDefinition = TL_OPERATORS[bindingId];
-            Bool isPrefix = TL_OPERATORS[bindingId].arity == 1;
             push(((ExprFrame){
-                    .isPrefix = isPrefix, .sentinel = -1, .argCount = isPrefix ? 0 : 1, .isCall = true
-            }), frames);
-            push(((Node)) { .tp = nodCall,
-                    .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
+                    .isPrefixOper = true, .sentinel = parent->sentinel, .argCount = 0, .isCall = true
+                }), frames);
+            push(((Node) { .tp = nodCall,
+                    .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
 
-                if (parent->isPrefix)  {
+                if (parent->isPrefixOper)  {
                     exprClosePrefixes(E_C);
-                    parent = frames.cont + (frames.len - 1);
+                    parent = frames->cont + (frames->len - 1);
                 }
                 if (parent->isCall)  {
                     ++parent->argCount;
                 }
                 push(
                     ((ExprFrame) { .sentinel = calcSentinel(cTk, cm->i), .argCount = 0,
-                                   .isPrefix = false }, frames);
-                push(((Node)) { .tp = nodCall,
-                        .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
+                                   .isPrefixOper = false }), frames);
+                push(((Node) { .tp = nodCall,
+                        .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
             } else { // infix calls like ` .foo`
-                VALIDATEP(!parent->isPrefix, errExpressionInfixAfterPrefix)
+                VALIDATEP(!parent->isPrefixOper, errExpressionInfixAfterPrefix)
                 if (parent->isCall) {
                     push(pop(calls), scr);
                     pop(frames);
-                    parent = frames.cont + (frames.len - 1);
+                    parent = frames->cont + (frames->len - 1);
                 }
                 push(
-                    ((ExprFrame) { .sentinel = parent.sentinel, .argCount = 1,
-                                   .isPrefix = false, .isCall = true }, frames);
-                push(((Node)) { .tp = nodCall,
-                        .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
+                    ((ExprFrame) { .sentinel = parent->sentinel, .argCount = 1,
+                                   .isPrefixOper = false, .isCall = true }), frames);
+                push(((Node) { .tp = nodCall,
+                        .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
             }
         } else {
             throwExcParser(errExpressionCannotContain);
