@@ -68,12 +68,12 @@
 //}}}
 
 static OpDef TL_OPERATORS[countOperators] = {
-    { .arity=1, .bytes={ aExclamation, aDot, 0, 0 } }, // !.
+    { .arity=1, .bytes={ aExclamation, aDot, 0, 0 } },   // !.
     { .arity=2, .bytes={ aExclamation, aEqual, 0, 0 } }, // !=
-    { .arity=1, .bytes={ aExclamation, 0, 0, 0 } }, // !
+    { .arity=1, .bytes={ aExclamation, 0, 0, 0 } },      // !
     { .arity=1, .bytes={ aSharp, aSharp, 0, 0 }, .overloadable=true }, // ##
-    { .arity=1, .bytes={ aDollar, 0, 0, 0 } }, // $
-    { .arity=2, .bytes={ aPercent, 0, 0, 0 } }, // %
+    { .arity=1, .bytes={ aDollar, 0, 0, 0 } },    // $
+    { .arity=2, .bytes={ aPercent, 0, 0, 0 } },   // %
     { .arity=2, .bytes={ aAmp, aAmp, aDot, 0 } }, // &&.
     { .arity=2, .bytes={ aAmp, aAmp, 0, 0 }, .assignable=true }, // &&
     { .arity=1, .bytes={ aAmp, 0, 0, 0 }, .isTypelevel=true }, // &
@@ -91,17 +91,17 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true}, // /
     { .arity=2, .bytes={ aLT, aLT, aDot, 0} }, // <<.
     { .arity=2, .bytes={ aLT, aEqual, 0, 0} }, // <=
-    { .arity=2, .bytes={ aLT, aGT, 0, 0} }, // <>
-    { .arity=2, .bytes={ aLT, 0, 0, 0 } }, // <
+    { .arity=2, .bytes={ aLT, aGT, 0, 0} },    // <>
+    { .arity=2, .bytes={ aLT, 0, 0, 0 } },     // <
     { .arity=2, .bytes={ aEqual, aEqual, aEqual, 0 } }, // ===
-    { .arity=2, .bytes={ aEqual, aEqual, 0, 0 } }, // ==
+    { .arity=2, .bytes={ aEqual, aEqual, 0, 0 } },      // ==
     { .arity=3, .bytes={ aGT, aEqual, aLT, aEqual } }, // >=<=
     { .arity=3, .bytes={ aGT, aLT, aEqual, 0 } }, // ><=
     { .arity=3, .bytes={ aGT, aEqual, aLT, 0 } }, // >=<
     { .arity=2, .bytes={ aGT, aGT, aDot, 0}, .assignable=true, .overloadable = true}, // >>.
-    { .arity=3, .bytes={ aGT, aLT, 0, 0 } }, // ><
+    { .arity=3, .bytes={ aGT, aLT, 0, 0 } },    // ><
     { .arity=2, .bytes={ aGT, aEqual, 0, 0 } }, // >=
-    { .arity=2, .bytes={ aGT, 0, 0, 0 } }, // >
+    { .arity=2, .bytes={ aGT, 0, 0, 0 } },      // >
     { .arity=2, .bytes={ aQuestion, aColon, 0, 0 } }, // ?:
     { .arity=1, .bytes={ aQuestion, 0, 0, 0 }, .isTypelevel=true }, // ?
     { .arity=2, .bytes={ aCaret, aDot, 0, 0} }, // ^.
@@ -1045,10 +1045,11 @@ const char errBreakContinueTooComplex[]    = "This statement is too complex! Con
 const char errBreakContinueInvalidDepth[]  = "Invalid depth of break/continue! It must be a positive 32-bit integer!";
 const char errDuplicateFunction[]          = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
 const char errExpressionInfixNotSecond[]   = "An infix expression must have the infix operator in second position (not counting possible prefix operators)!";
+const char errExpressionInfixAfterPrefix[] = "An infix call cannot act on a prefix operator!";
 const char errExpressionError[]             = "Cannot parse expression!";
 const char errExpressionCannotContain[]     = "Expressions cannot contain scopes or statements!";
 const char errExpressionFunctionless[]      = "Functionless expression!";
-const char errTypeDefCannotContain[]       = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
+const char errTypeDefCannotContain[]        = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
 const char errTypeDefError[]               = "Cannot parse type declaration!";
 const char errTypeDefParamsError[]         = "Error parsing type params. Should look like this: [T U/2]";
 const char errOperatorWrongArity[]          = "Wrong number of arguments for operator!";
@@ -2247,8 +2248,10 @@ private void tabulateOperators() {
 //{{{ Parser utils
 
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
-#define P_CT Arr(Token) toks, Compiler* cm // parser context type fragment
+#define P_CT Arr(Token) toks, Compiler* cm // parser context signature fragment
 #define P_C toks, cm // parser context args fragment
+#define E_CT StackExprFrame* frames, StackNode* scr, StackNode* calls // expr signature fragment
+#define E_C frames, scr, calls // expr args fragment
 
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
 private void subexprClose(P_CT);
@@ -2685,6 +2688,14 @@ private void exprCopyFromScratch(StackNode* scr, Compiler* cm) {
 }
 
 
+private exprClosePrefixes(E_CT) {
+    while (frames->len > 0 && peek(frames).isPrefix) {
+        ExprFrame eFr = pop(frames);
+        push(pop(calls), scr);
+    }
+}
+
+
 private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprCore
 // The core code of the general, long expression parser
     Int arity = 0;
@@ -2701,25 +2712,41 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
         Token cTk = toks[cm->i];
         untt tokType = cTk.tp;
 
+        ExprFrame* parent = frames.cont + (frames.len - 1);
         if (tokType <= topVerbatimTokenVariant) {
+            if (parent->isPrefix)  {
+                exprClosePrefixes(E_C);
+                parent = frames.cont + (frames.len - 1);
+            }
+            if (parent->isCall)  {
+                ++parent->argCount;
+            }
             push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
                                 .startBt = cTk.startBt, .lenBts = cTk.lenBts }), scr);
-            cm->i++; // CONSUME the verbatim token
+            ++cm->i; // CONSUME the verbatim token
         } else  if (tokType == tokWord) {
+            if (parent->isPrefix)  {
+                exprClosePrefixes(E_C);
+                parent = frames.cont + (frames.len - 1);
+            }
+            if (parent->isCall)  {
+                ++parent->argCount;
+            }
             EntityId varId = getActiveVar(cTk.pl2, cm);
             push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2,
                                 .startBt = cTk.startBt, .lenBts = cTk.lenBts}), scr);
         } else if (tokType == tokParens) {
-            cm->i++; // CONSUME the parens token
+            ++cm->i; // CONSUME the parens token
             Int parensSentinel = cm->i + cTk.pl2;
-            push(((ExprFrame){ .sentinel = parensSentinel }), frames);
+            push(((ExprFrame){ .sentinel = parensSentinel, .isCall = false }), frames);
             if (cm->i < sentinelToken)  {
                 Token firstTk = toks[cm->i];
                 if ((firstTk.tp == tokCall || firstTk.tp == tokOper) && firstTk.pl2 == 0) {
                     // `(.call 1 2)`
                     push(
                         ((ExprFrame) { .sentinel = parensSentinel, .argCount = 0,
-                    .isPrefix = (firstTk.tp == tokOper && TL_OPERATORS[firstTk.pl1].arity == 1) },
+                    .isPrefix = (firstTk.tp == tokOper && TL_OPERATORS[firstTk.pl1].arity == 1),
+                    .isCall = true },
                      frames);
                     push(((Node)) { .tp = nodCall,
                             .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
@@ -2731,19 +2758,35 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
             OpDef operDefinition = TL_OPERATORS[bindingId];
             Bool isPrefix = TL_OPERATORS[bindingId].arity == 1;
             push(((ExprFrame){
-                    .isPrefix = isPrefix, .sentinel = -1, .argCount = isPrefix ? 0 : 1
+                    .isPrefix = isPrefix, .sentinel = -1, .argCount = isPrefix ? 0 : 1, .isCall = true
             }), frames);
+            push(((Node)) { .tp = nodCall,
+                    .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
+
+                if (parent->isPrefix)  {
+                    exprClosePrefixes(E_C);
+                    parent = frames.cont + (frames.len - 1);
+                }
+                if (parent->isCall)  {
+                    ++parent->argCount;
+                }
                 push(
                     ((ExprFrame) { .sentinel = calcSentinel(cTk, cm->i), .argCount = 0,
                                    .isPrefix = false }, frames);
                 push(((Node)) { .tp = nodCall,
                         .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
             } else { // infix calls like ` .foo`
+                VALIDATEP(!parent->isPrefix, errExpressionInfixAfterPrefix)
+                if (parent->isCall) {
+                    push(pop(calls), scr);
+                    pop(frames);
+                    parent = frames.cont + (frames.len - 1);
+                }
                 push(
-                    ((ExprFrame) { .sentinel = -1, .argCount = 1,
-                                   .isPrefix = false }, frames);
+                    ((ExprFrame) { .sentinel = parent.sentinel, .argCount = 1,
+                                   .isPrefix = false, .isCall = true }, frames);
                 push(((Node)) { .tp = nodCall,
                         .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }, calls);
             }

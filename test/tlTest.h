@@ -113,6 +113,7 @@ extern const char errBreakContinueTooComplex[];
 extern const char errBreakContinueInvalidDepth[];
 extern const char errDuplicateFunction[];
 extern const char errExpressionInfixNotSecond[];
+extern const char errExpressionInfixAfterPrefix[];
 extern const char errExpressionError[];
 extern const char errExpressionCannotContain[];
 extern const char errExpressionFunctionless[];

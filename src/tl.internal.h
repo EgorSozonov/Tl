@@ -496,8 +496,9 @@ DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 
 typedef struct {  // :ExprFrame
     Int sentinel; // token sentinel
-    Int argCount;    // accumulated number of arguments. 0 for parens
+    Int argCount; // accumulated number of arguments. 0 for parens
     Bool isPrefix;
+    Bool isCall; 
 } ExprFrame;
 
 typedef struct {
