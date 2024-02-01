@@ -3476,10 +3476,23 @@ testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm
     pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
     typeAddHeader(
         (TypeHeader){.sort = sorFunction, .arity = 0, .depth = arity + 1, .nameAndLen = -1}, cm);
-    for (Int k = 0; k < arity; k++) {
+    for (Int k = 0; k <= arity; k++) { // <= because there are (arity + 1) elts - the return type!
         pushIntypes(paramsAndReturn[k], cm);
     }
-    pushIntypes(paramsAndReturn[arity], cm);
+    return mergeType(newInd, cm);
+}
+
+
+testable TypeId addGenericFnType(Int arity, Int tyrity, Arr(Int) paramsAndReturn, Compiler* cm) {
+//:addGenericFnType Function types are stored as: (length, paramType1, paramType2, ..., returnType)
+// "tyrity" is type arity = the number of type parameters this function type has
+    Int newInd = cm->types.len;
+    pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
+    typeAddHeader(
+        (TypeHeader){.sort = sorFunction, .arity = tyrity, .depth = arity + 1, .nameAndLen = -1}, cm);
+    for (Int k = 0; k <= arity; k++) { // <= because there are (arity + 1) elts - the return type!
+        pushIntypes(paramsAndReturn[k], cm);
+    }
     return mergeType(newInd, cm);
 }
 
@@ -3578,7 +3591,8 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     TypeId strOfStrStr     = addConcrFnType(2, (Int[]){ tokString, tokString, tokString}, cm);
     TypeId flOfFlFl        = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     TypeId flOfFl          = addConcrFnType(1, (Int[]){ tokDouble, tokDouble}, cm);
-
+    TypeId array = cm->activeBindings[stToNameId(strA)];
+    TypeId dataAcc = addGenericFnType(2, (Int[]){ array, tokInt, -1} ); 
     buildOperator(opBitwiseNeg,   boolOfBool, cm); // dummy
     buildOperator(opNotEqual,     boolOfIntInt, cm);
     buildOperator(opNotEqual,     boolOfFlFl, cm);
@@ -3642,6 +3656,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opBitwiseXor,   intOfIntInt, cm); // dummy
     buildOperator(opExponent,     intOfIntInt, cm);
     buildOperator(opExponent,     flOfFlFl, cm);
+    buildOperator(opDataAcc,      dataAccessor, cm);
     buildOperator(opBitwiseOr,    intOfIntInt, cm); // dummy
     buildOperator(opBoolOr,       flOfFl, cm); // dummy
 }
