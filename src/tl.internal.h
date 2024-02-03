@@ -188,7 +188,11 @@ typedef struct {
 #define strMathE     38
 #define strTypeVarT  39
 #define strTypeVarU  40
+#ifndef TEST
 #define strSentinel  41
+#else
+#define strSentinel  44
+#endif
 
 //}}}
 
@@ -436,7 +440,7 @@ typedef struct { // :ParseFrame
 
 typedef struct { // :Entity
     TypeId typeId;
-    Int name;
+    untt name; // 8 bits of length, 24 bits of nameId
     uint8_t class;
     bool isPublic;
     bool hasExceptionHandler;
@@ -445,7 +449,7 @@ typedef struct { // :Entity
 
 typedef struct { // :EntityImport
     untt name;   // 8 bits of length, 24 bits of nameId
-    Int typeInd; // index in the intermediary array of types that is imported alongside
+    TypeId typeId;
 } EntityImport;
 
 
@@ -523,7 +527,7 @@ struct Compiler { // :Compiler
     Int indentation;
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
-    Stackint32_t* stringTable;
+    Stackint32_t* stringTable;  // operators, then standard strings, then imported ones, then parsed
     StringDict* stringDict;
     Int lastClosingPunctInd;
 

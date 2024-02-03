@@ -727,6 +727,7 @@ private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, untt hash,
     }
 }
 
+
 testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable,
                            StringDict* hm) { //:addStringDict
 // Unique'ing of symbols within source code
@@ -762,6 +763,7 @@ testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* st
     }
     return newIndString;
 }
+
 
 testable Int getStringDict(Byte* text, String* strToSearch, Stackint32_t* stringTable, StringDict* hm) {
 // Returns the index of a string within the string table, or -1 if it's not present
@@ -913,13 +915,13 @@ testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) a
 }
 
 
-private bool binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
+private Int binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
     if (end <= start) {
         return -1;
     }
     Int i = start;
     Int j = end - 1;
-    if (arr[i] == key) {
+    if (arr[start] == key) {
         return i;
     } else if (arr[j] == key) {
         return j;
@@ -1096,6 +1098,7 @@ const char errTypeFnSingleReturnType[]      = "More than one return type in a fu
 private Int isFunction(TypeId typeId, Compiler* cm);
 private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm);
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
+testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
 private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm);
@@ -1125,12 +1128,15 @@ const int operatorStartSymbols[12] = {
     // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
     // "=" - by lexEqual, "<" by lexLT, "^" by lexCaret, "|" by lexPipe
 };
-
 const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinallyfor"
                             "ifimplimportifacematchpubreturntruetry"
                             // reserved words end here
                             "IntLongDoubleBoolStringVoidFLADTulencapf1f2printprintErr"
-                            "math:pimath:eTU";
+                            "math:pimath:eTU"
+#ifdef TEST
+                            "foobarinner"
+#endif
+                            ;
 // The :standardText prepended to all source code inputs and the hash table to provide a built-in
 // string set. Tl's reserved words must be at the start and sorted lexicographically.
 // Also they must agree with the "standardStr" in tl.internal.h
@@ -1145,7 +1151,10 @@ const Int standardStringLens[] = {
      4, 1, 1, 1, 1, // D
      2, 3, 3, 2, 2, // f2
      5, 8, 7, 6, 1, // T
-     1 // U
+     1, // U
+#ifdef TEST
+     3, 3, 5
+#endif
 };
 
 const Int standardKeywords[] = {
@@ -1156,7 +1165,7 @@ const Int standardKeywords[] = {
 };
 
 
-StandardText getStandardTextLength(void) {
+StandardText getStandardTextLength(void) { //:getStandardTextLength
     return (StandardText){
         .len = sizeof(standardText) - 1,
         .firstParsed = (strSentinel + countOperators),
@@ -1223,6 +1232,7 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
     return result;
 }
 
+
 testable String* prepareInput(const char* content, Arena* a) {
 // Allocates a source code into an arena after prepending it with the standardText
     if (content == null) return null;
@@ -1245,10 +1255,10 @@ private untt nameOfToken(Token tk) {
 }
 
 
-private untt nameOfStandard(Int strId) {
+testable untt nameOfStandard(Int strId) { //:nameOfStandard
 // Builds a name (id + length) for a standardString after "strFirstNonreserved"
     Int length = standardStringLens[strId];
-    Int nameId = strId - strFirstNonReserved + countOperators;
+    Int nameId = strId + countOperators;
     return ((untt)length << 24) + (untt)(nameId);
 }
 
@@ -1725,7 +1735,6 @@ private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) {
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
     Int uniqueStringId = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
-    print("uniqu start %d len %d", startBt, lenString)
     if (uniqueStringId - countOperators < strFirstNonReserved)  {
         wordReserved(wordType, uniqueStringId - countOperators, startBt, realStartBt, source, lx);
     } else {
@@ -2472,7 +2481,6 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
         assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, P_C);
     } else if (tok.pl2 == 0) { // a new var being defined
-        print("here")
         untt newName = ((untt)tok.lenBts << 24) + (untt)tok.pl1;
         mbNewBinding = createEntity(newName, cm);
         pushInnodes((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0,
@@ -2684,7 +2692,6 @@ private ExprFrame exprGetTopSubexpr(StackExprFrame* scr) { //:exprGetTopSubexpr
 
 
 private void exprCopyFromScratch(StackNode* scr, Compiler* cm) {
-    print("copying %d nodes to main", scr->len)
     if (cm->nodes.len + scr->len + 1 < cm->nodes.cap) {
         memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
     } else {
@@ -2801,7 +2808,6 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
         }
         cm->i++; // CONSUME any token
     }
-    print("at end calls is %d", calls->len)
     subexprClose(cm->i, E_C);
     exprCopyFromScratch(scr, cm);
 }
@@ -3081,20 +3087,17 @@ private void pReturn(Token tok, P_CT) { //:pReturn
 }
 
 
-
-
 private EntityId importActivateEntity(Entity ent, Compiler* cm) { //:importActivateEntity
 // Adds an import to the entities table, activates it and, if function, adds its overload
-    Int existingBinding = cm->activeBindings[ent.name & LOWER24BITS];
+    Int nameId = ent.name & LOWER24BITS;
+    Int existingBinding = cm->activeBindings[nameId];
     Int isAFunc = isFunction(ent.typeId, cm);
     VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
 
     Int newEntityId = cm->entities.len;
     pushInentities(ent, cm);
-    Int nameId = ent.name & LOWER24BITS;
 
     if (isAFunc > -1) {
-        print("adding raw overl name %d entityId %d",  nameId, newEntityId)
         addRawOverload(nameId, ent.typeId, newEntityId, cm);
         pushInimportNames(nameId, cm);
     } else {
@@ -3104,14 +3107,12 @@ private EntityId importActivateEntity(Entity ent, Compiler* cm) { //:importActiv
 }
 
 
-testable void importEntities(Arr(EntityImport) impts, Int countEntities, Arr(TypeId) typeIds,
+testable void importEntities(Arr(EntityImport) impts, Int countEntities,
                              Compiler* cm) { //:importEntities
     for (int j = 0; j < countEntities; j++) {
         EntityImport impt = impts[j];
-        TypeId typeId = typeIds[impt.typeInd];
-        print("import name %d", impt.name)
         importActivateEntity(
-                (Entity){.name = impt.name, .class = classImmutable, .typeId = typeId }, cm);
+                (Entity){.name = impt.name, .class = classImmutable, .typeId = impt.typeId }, cm);
     }
     cm->countNonparsedEntities = cm->entities.len;
 }
@@ -3504,7 +3505,7 @@ private void buildStandardStrings(Compiler* lx) { //:buildStandardStrings
         push(0, lx->stringTable);
     }
     int startBt = 0;
-    for (Int i = strAlias; i < strSentinel; i++) {
+    for (Int i = 0; i < strSentinel; i++) {
         addStringDict(lx->sourceCode->cont, startBt, standardStringLens[i],
                       lx->stringTable, lx->stringDict);
         startBt += standardStringLens[i];
@@ -3676,12 +3677,12 @@ private void importPrelude(Compiler* cm) { //:importPrelude
     TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
 
     EntityImport imports[6] =  {
-        (EntityImport) { .name = nameOfStandard(strMathPi), .typeInd = 0},
-        (EntityImport) { .name = nameOfStandard(strMathE), .typeInd = 0},
-        (EntityImport) { .name = nameOfStandard(strPrint), .typeInd = 1},
-        (EntityImport) { .name = nameOfStandard(strPrint), .typeInd = 2},
-        (EntityImport) { .name = nameOfStandard(strPrint), .typeInd = 3},
-        (EntityImport) { .name = nameOfStandard(strPrintErr), .typeInd = 1}
+        (EntityImport) { .name = nameOfStandard(strMathPi), .typeId = tokDouble},
+        (EntityImport) { .name = nameOfStandard(strMathE), .typeId = tokDouble},
+        (EntityImport) { .name = nameOfStandard(strPrint), .typeId = strToVoid},
+        (EntityImport) { .name = nameOfStandard(strPrint), .typeId = intToVoid},
+        (EntityImport) { .name = nameOfStandard(strPrint), .typeId = floatToVoid},
+        (EntityImport) { .name = nameOfStandard(strPrintErr), .typeId = strToVoid}
            // TODO functions for casting (int, double, unsigned)
     };
     // These base types occupy the first places in the stringTable and in the types table.
@@ -3690,10 +3691,7 @@ private void importPrelude(Compiler* cm) { //:importPrelude
         cm->activeBindings[j - strInt + countOperators] = j - strInt;
     }
 
-    importEntities(imports, sizeof(imports)/sizeof(EntityImport),
-                   ((Int[]){ strDouble - strFirstNonReserved, strToVoid, intToVoid, floatToVoid,
-                             intToDoub, doubToInt }),
-                   cm);
+    importEntities(imports, sizeof(imports)/sizeof(EntityImport), cm);
 }
 
 
@@ -3799,6 +3797,9 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
     Int outerSentinel = start + countOverloads;
     Int prevParamOuter = -1;
     Int o = start;
+    if (listId == 430)  {
+        print("validating 430, count ovs %d", countOverloads)
+    }
     for (; o < outerSentinel && ov[o] < -1; o++) {
         // These are the param outer types, like the outer of "U | U(Int)". Their values are
         // (-arity - 1)
@@ -3851,6 +3852,9 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) {
 #endif
 
     Int countOverloads = raw[listId]/2;
+    if (nameId == 76) {
+        print("list id %d count ovs %d, raw %d", listId, countOverloads, raw[listId])
+    }
     Int rawSentinel = rawStart + raw[listId];
 
     Arr(Int) ov = cm->overloads.cont;
@@ -3858,14 +3862,8 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) {
     ov[newInd] = 2*countOverloads; // length of the subtable for this name
     cm->overloads.len += 2*countOverloads + 1;
 
-    if (nameId == 81)  {
-        print("newInd for 81 %d count ov %d", newInd, countOverloads)
-    }
     for (Int j = rawStart, k = newInd + 1; j < rawSentinel; j += 2, k++) {
         FirstArgTypeId firstParamType = raw[j];
-        if (nameId == 81)  {
-            print("first %d its outer %d", firstParamType)
-        }
         OuterTypeId outerType = typeGetOuter(firstParamType, cm);
         ov[k] = outerType;
         ov[k + countOverloads] = raw[j + 1]; // entityId
@@ -3891,6 +3889,7 @@ testable void createOverloads(Compiler* cm) { //:createOverloads
         cm->activeBindings[j] = -newIndex - 2;
     }
     removeDuplicatesInList(&(cm->importNames));
+    printIntArray(cm->importNames.len, cm->importNames.cont);
     for (Int j = 0; j < cm->importNames.len; j++) {
         Int nameId = cm->importNames.cont[j];
         Int newIndex = createNameOverloads(nameId, cm);
@@ -4161,38 +4160,42 @@ const char* nodeNames[] = {
 };
 
 
-private void printType(Int typeInd, Compiler* cm) {
+private void printType(TypeId typeInd, Compiler* cm) { //:printType
     if (typeInd < 5) {
         printf("%s\n", nodeNames[typeInd]);
         return;
     }
-    Int arity = cm->types.cont[typeInd] - 1;
-    Int retType = cm->types.cont[typeInd + 1];
-    if (retType < 5) {
-        printf("%s(", nodeNames[retType]);
-    } else {
-        printf("Void(");
-    }
-    for (Int j = typeInd + 2; j < typeInd + arity + 2; j++) {
-        Int tp = cm->types.cont[j];
-        if (tp < 5) {
-            printf("%s ", nodeNames[tp]);
+    TypeHeader header = typeReadHeader(typeInd, cm);
+    Int arity = header.depth;
+    if (header.sort == sorFunction)  {
+        Int retType = cm->types.cont[typeInd + 2 + header.arity + arity];
+        if (retType < 5) {
+            printf("%s(", nodeNames[retType]);
+        } else {
+            printf("Void(");
         }
+        Int sentinel = typeInd + cm->types.cont[typeInd] + 1;
+        for (Int j = typeInd + 2; j < sentinel; j++) {
+            Int tp = cm->types.cont[j];
+            if (tp < 5) {
+                printf("%s ", nodeNames[tp]);
+            }
+        }
+        print(")");
+    } else {
+        print("sort %d", header.sort);
     }
-    print(")");
 }
 
 
 testable Compiler* parseMain(Compiler* cm, Arena* a) {
     if (setjmp(excBuf) == 0) {
         pToplevelTypes(cm);
-        // This gives us the semi-complete overloads & overloadIds tables (with only the
-        // built-ins and imports)
-        pToplevelConstants(cm);
-
         // This gives the complete overloads & overloadIds tables + list of toplevel functions
         pToplevelSignatures(cm);
         createOverloads(cm);
+
+        pToplevelConstants(cm);
 
 #ifdef SAFETY
         validateOverloadsFull(cm);
@@ -4227,7 +4230,7 @@ testable void typeAddHeader(TypeHeader hdr, Compiler* cm) { //:typeAddHeader
 }
 
 
-testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
+testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm) { //:typeReadHeader
 // Reads a type header from the type array
     Int tag = cm->types.cont[typeId + 1];
     TypeHeader result = (TypeHeader){ .sort = ((untt)tag >> 16) & LOWER16BITS,
@@ -4237,7 +4240,7 @@ testable TypeHeader typeReadHeader(Int typeId, Compiler* cm) {
 }
 
 
-private Int typeGetArity(Int typeId, Compiler* cm) { //:typeGetArity
+private Int typeGetArity(TypeId typeId, Compiler* cm) { //:typeGetArity
     if (cm->types.cont[typeId] == 0) {
         return 0;
     }
@@ -4772,6 +4775,14 @@ private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) { //:g
     return cm->types.cont[funcTypeId + 3 + hdr.arity]; // +3 skips the type length, type tag & name
 }
 
+
+private Int getFirstParamInd(TypeId funcTypeId, Compiler* cm) { //:getFirstParamInd
+// Gets the ind of the first param of a function
+    TypeHeader hdr = typeReadHeader(funcTypeId, cm);
+    return funcTypeId + 3 + hdr.arity; // +3 skips the type length, type tag & name
+}
+
+
 private bool isFunctionWithParams(TypeId typeId, Compiler* cm) { //:isFunctionWithParams
     return cm->types.cont[typeId] > 1;
 }
@@ -4788,8 +4799,8 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, EntityId* entityId,
 // 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1
     Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
-    print("ovInd %d overs %p len %d %d", ovInd, cm->overloads.cont, cm->overloads.len, cm->countOverloads)
-    Int countOverloads = overs[ovInd];
+    Int countOverloads = overs[ovInd]/2;
+    print("ovInd %d  first arg %d countOvs %d", ovInd, typeId, countOverloads)
     Int sentinel = ovInd + countOverloads + 1;
     if (typeId == -1) { // scenario 2
         Int j = 0;
@@ -4827,11 +4838,10 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, EntityId* entityId,
         }
 
         // scenario 3
-        Int ind = binarySearch(outerType, firstNonneg, k, overs);
+        Int ind = binarySearch(outerType, firstNonneg, k + 1, overs);
         if (ind == -1) {
             return false;
         }
-
         (*entityId) = overs[ind + countOverloads];
         return true;
     }
@@ -4872,7 +4882,6 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
         } else if (nd.tp == nodCall) {
             Int argCount = nd.pl2;
             push(BIG + argCount, st); // signifies that it's a call, and its arity
-            print("pushing exp %d %d", nd.pl2, -nd.pl1 - 2)
             push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), st);
             // index into overloadIds, or entityId for 0-arity fns
 
@@ -4943,18 +4952,19 @@ testable TypeId typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            VALIDATEP(cm->types.cont[typeOfFunc] - 1 == arity, errTypeNoMatchingOverload)
+            print("typeof func %d first param ind ", typeOfFunc)
+            VALIDATEP(typeReadHeader(typeOfFunc, cm).depth == arity, errTypeNoMatchingOverload)
                 // first parm matches, but not arity
-
-            for (int k = j + 3; k < j + arity + 2; k++) {
+            Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
+            for (int k = j - arity + 1, l = firstParamInd + 1; k < j; k++, l++) {
                 // We know the type of the function, now to validate arg types against param types
-                // Loop init is not "k = j + 2" because we've already checked the first param
-                if (cont[k] > -1) {
-                    VALIDATEP(cont[k] == cm->types.cont[typeOfFunc + k - j],
+                // Loop init is "+1" because we've already checked the first param
+                if (cont[k] > -1) { // type of arg is known
+                    VALIDATEP(cont[k] == cm->types.cont[l],
                               errTypeWrongArgumentType)
-                } else {
+                } else { // it's not known, so we fill it in
                     Int argBindingId = cm->nodes.cont[indExpr + k - currAhead].pl1;
-                    cm->entities.cont[argBindingId].typeId = cm->types.cont[typeOfFunc + k - j];
+                    cm->entities.cont[argBindingId].typeId = cm->types.cont[l];
                 }
             }
             --currAhead;

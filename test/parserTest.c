@@ -22,7 +22,7 @@ typedef struct {
 } ParserTestSet;
 
 typedef struct { // :TestEntityImport
-    String* name;
+    Int nameInd; // 0, 1 or 2. Corresponds to the "foobarinner" in standardText
     Int typeInd; // index in the intermediary array of types that is imported alongside
 } TestEntityImport;
 
@@ -90,14 +90,15 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
     j = 0;
     Int t = 0;
     while (j < countTypes) {
-        Int arity = types[j];
-        Int sentinel = j + arity + 1;
+        Int importLen = types[j];
+        Int sentinel = j + importLen + 1;
         TypeId initTypeId = cm->types.len;
 
-        pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
+        pushIntypes(importLen + 3, cm); // +3 because the header takes 2 ints, 1 more for 
+                                        // the return typeId
         typeAddHeader(
-            (TypeHeader){.sort = sorFunction, .arity = 0, .depth = arity + 1, .nameAndLen = -1}, cm);
-        for (Int k = j; k < sentinel; k++) { // <= because there are (arity + 1) elts - the return type!
+           (TypeHeader){.sort = sorFunction, .arity = 0, .depth = importLen - 1, .nameAndLen = -1}, cm);
+        for (Int k = j + 1; k < sentinel; k++) { // <= because there are (arity + 1) elts - the return type!
             pushIntypes(types[k], cm);
         }
 
@@ -131,17 +132,15 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
         Arr(EntityImport) importsForTest = allocateOnArena(countImports*sizeof(EntityImport), a);
 
         for (Int j = 0; j < countImports; j++) {
-            String* nameImp = imports[j].name;
-            untt nameId = addStringDict(nameImp->cont, 0, nameImp->len, control->stringTable,
-                                        control->stringDict);
-            print("import name %d len %d but at 83 %d", nameId, nameImp->len, control->stringTable->cont[83]) 
-            importsForControl[j] = (EntityImport) { .name = nameId, .typeInd = imports[j].typeInd };
-            nameId = addStringDict(nameImp->cont, 0, nameImp->len, test->stringTable, 
-                                   test->stringDict);
-            importsForTest[j] = (EntityImport) { .name = nameId, .typeInd = imports[j].typeInd };
+            importsForControl[j] = (EntityImport) { 
+                .name = nameOfStandard(strSentinel - 3 + imports[j].nameInd), 
+                .typeId = typeIds[imports[j].typeInd] };
+            importsForTest[j] = (EntityImport) { 
+                .name = nameOfStandard(strSentinel - 3 + imports[j].nameInd), 
+                .typeId = typeIds[imports[j].typeInd] };
         }
-        importEntities(importsForControl, countImports, typeIds, control);
-        importEntities(importsForTest, countImports, typeIds, test);
+        importEntities(importsForControl, countImports, control);
+        importEntities(importsForTest, countImports, test);
     }
 
     Bool withByteChecks = false;
@@ -444,7 +443,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 } // foo
             })),
             ((Int[]) { 4, tokInt, tokInt, tokString, tokDouble }),
-            ((TestEntityImport[]) {{ .name = s("foo"), .typeInd = 0 }})
+            ((TestEntityImport[]) {{ .nameInd = 0, .typeInd = 0 }})
         ),
        /*
         createTest(
@@ -460,12 +459,12 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = tokInt, .pl2 = 3,   .startBt = 17, .lenBts = 1 }
             })),
             ((Int[]) {4, tokDouble, tokInt, tokDouble, tokInt, 1, tokDouble}),
-            ((TestEntityImport[]) {(TestEntityImport){ .name = s("foo"), .typeInd = 0},
-                               (TestEntityImport){ .name = s("bar"), .typeInd = 1}})
+            ((TestEntityImport[]) {(TestEntityImport){ .nameInd = 0, .typeInd = 0},
+                               (TestEntityImport){ .nameInd = 1, .typeInd = 1}})
         ),
         createTest(
             s("Nested function call 2"),
-            s("x =  10 .foo (3.4 .barr)"),
+            s("x =  10 .foo (3.4 .bar)"),
             (((Node[]) {
                 (Node){ .tp = nodAssignLeft,     .pl2 = 6,  .startBt = 0, .lenBts = 22 },
                 (Node){ .tp = nodBinding, .pl1 = 0,         .startBt = 0, .lenBts = 1 }, // x

@@ -24,6 +24,7 @@ StandardText getStandardTextLength();
 void typePrint(Int, Compiler*);
 void pushIntokens(Token, Compiler*);
 Int stToNameId(Int a);
+untt nameOfStandard(Int strId);
 void printRawOverload(Int listInd, Compiler* cm);
 void printName(Int name, Compiler* cm);
 
@@ -77,7 +78,7 @@ extern const char errIndentation[];
 #ifdef PARSER_TEST
 
 void addNode(Node n, Compiler* cm);
-void importEntities(Arr(EntityImport) impts, Int countBindings, Arr(Int) typeInds, Compiler* cm);
+void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* cm);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int equalityParser(Compiler a, Compiler b);
 void createCompiler(Compiler* lx, Arena* a);
