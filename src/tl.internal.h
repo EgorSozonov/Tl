@@ -229,7 +229,7 @@ typedef struct { // :Token
 #define tokPrefixOper  10  // pl1 = OperatorType, one of the "opT" constants below
 #define tokFieldAcc    11  // pl2 = nameId
 
-// Single-statement token types
+// Statement or subexpr span types. pl2 = count of inner tokens
 #define tokStmt        12  // firstSpanTokenType
 #define tokParens      13  // subexpressions and struct/sum type instances
 #define tokCall        14  // pl1 = nameId, index in the string table. pl2 > 0 if prefix call.
@@ -253,7 +253,7 @@ typedef struct { // :Token
 #define tokFn          26  // `^{ a Int => String | body}`
 #define tokTry         27  // `try {`
 #define tokCatch       28  // `catch MyExc e {`
-#define tokFinally     29  // `finally { `
+#define tokFinally     29  // `defer { `
 
 // Resumable core forms
 #define tokIf          30  // `if ... {`
@@ -270,6 +270,7 @@ typedef struct { // :Token
 #define firstScopeTokenType tokScope
 #define firstResumableSpanTokenType tokIf
 
+
 // List of keywords that don't correspond directly to a token.
 // All these numbers must be below firstKeywordToken to avoid any clashes
 #define keywTrue        1
@@ -278,7 +279,7 @@ typedef struct { // :Token
 #define keywContinue    4
 
 #define miscPub   0     // pub. It must be 0 because it's the only one denoted by a keyword
-#define miscEmpty 1     // null, written as `[]`
+#define miscEmpty 1     // null, written as `()`
 #define miscComma 2     // ,
 #define miscArrow 3     // =>
 
@@ -503,8 +504,8 @@ typedef struct {  // :ExprFrame
 
 DEFINE_STACK_HEADER(ExprFrame)
 
-typedef struct {
-    StackExprFrame* exprFrames;
+typedef struct { // :StateForExprs
+    StackExprFrame* frames;
     StackNode* scratchCode;
     StackNode* calls;
 } StateForExprs;

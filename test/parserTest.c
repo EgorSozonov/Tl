@@ -90,13 +90,17 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
     j = 0;
     Int t = 0;
     while (j < countTypes) {
-        Int sentinel = j + types[j] + 1;
+        Int arity = types[j];
+        Int sentinel = j + arity + 1;
         TypeId initTypeId = cm->types.len;
 
-        for (Int k = j; k < sentinel; k++) {
+        pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
+        typeAddHeader(
+            (TypeHeader){.sort = sorFunction, .arity = 0, .depth = arity + 1, .nameAndLen = -1}, cm);
+        for (Int k = j; k < sentinel; k++) { // <= because there are (arity + 1) elts - the return type!
             pushIntypes(types[k], cm);
         }
-        //printIntArrayOff(initTypeId, sentinel - j, cm->types.content);
+
         Int mergedTypeId = mergeType(initTypeId, cm);
         typeIds[t] = mergedTypeId;
         t++;
@@ -122,20 +126,18 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
     importTypes(types, countTypes, test);
 
     StandardText stText = getStandardTextLength();
-    if (countImports > 0)  {
-        print("p1")
+    if (countImports > 0) {
         Arr(EntityImport) importsForControl = allocateOnArena(countImports*sizeof(EntityImport), a);
-        print("p2")
         Arr(EntityImport) importsForTest = allocateOnArena(countImports*sizeof(EntityImport), a);
-        print("p3")
 
-        for (Int j = 0; j < countImports; j++)  {
+        for (Int j = 0; j < countImports; j++) {
             String* nameImp = imports[j].name;
-            untt nameId = addStringDict(nameImp->cont, 0, nameImp->len,
-                      control->stringTable, control->stringDict);
+            untt nameId = addStringDict(nameImp->cont, 0, nameImp->len, control->stringTable,
+                                        control->stringDict);
+            print("import name %d len %d but at 83 %d", nameId, nameImp->len, control->stringTable->cont[83]) 
             importsForControl[j] = (EntityImport) { .name = nameId, .typeInd = imports[j].typeInd };
-            nameId = addStringDict(nameImp->cont, 0, nameImp->len,
-                      test->stringTable, test->stringDict);
+            nameId = addStringDict(nameImp->cont, 0, nameImp->len, test->stringTable, 
+                                   test->stringDict);
             importsForTest[j] = (EntityImport) { .name = nameId, .typeInd = imports[j].typeInd };
         }
         importEntities(importsForControl, countImports, typeIds, control);
@@ -232,7 +234,7 @@ differing token otherwise */
 }
 
 
-void runParserTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
+void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
 // Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code
     (*countTests)++;
     if (test.test->tokens.len == 0) {
@@ -427,7 +429,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //{{{ Expression tests
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
-    TestEntityImport arr[] = { (TestEntityImport){ .name = s("foo"), .typeInd = 0} };
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTest(
             s("Simple function call"),
@@ -1355,7 +1356,7 @@ void runATestSet(ParserTestSet* (*testGenerator)(Compiler*, Compiler*, Arena*), 
     ParserTestSet* testSet = (testGenerator)(proto, protoOvs, a);
     for (int j = 0; j < testSet->totalTests; j++) {
         ParserTest test = testSet->tests[j];
-        runParserTest(test, countPassed, countTests, a);
+        runTest(test, countPassed, countTests, a);
     }
 }
 
@@ -1370,7 +1371,6 @@ int main() {
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
-    print("sizeof compiler %d", sizeof(Compiler))
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
    /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
