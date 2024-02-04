@@ -297,34 +297,35 @@ typedef struct { // :Token
 #define nodCall         8  // pl1 = index of entity, pl2 = arity
 #define nodBinding      9  // pl1 = index of entity, pl2 = 1 if it's a type binding
 #define nodFieldAcc    10  // pl1 = nameId; after type resolution pl1 = offset
+#define nodDataAlloc   11  // pl1 = typeId, pl2 = arity
 
 // Punctuation (inner node)
-#define nodScope       11
-#define nodExpr        12  // pl1 = 1 iff it's a composite expression (has internal var decls)
-#define nodAssignLeft  13
-#define nodAssignRight 14
+#define nodScope       12
+#define nodExpr        13  // pl1 = 1 iff it's a composite expression (has internal var decls)
+#define nodAssignLeft  14  // if pl2 = 0, then pl1 = entityId
+#define nodAssignRight 15  // same as nodExpr
 
 // Single-shot core syntax forms
-#define nodAlias       15
-#define nodAssert      16  // pl1 = 1 iff it's a debug assert
-#define nodBreakCont   17  // pl1 = number of label to break or continue to, -1 if none needed
+#define nodAlias       16
+#define nodAssert      17  // pl1 = 1 iff it's a debug assert
+#define nodBreakCont   18  // pl1 = number of label to break or continue to, -1 if none needed
                            // It's a continue iff it's >= BIG
-#define nodCatch       18  // `catch e {`
-#define nodDefer       19
-#define nodImport      20  // This is for test files only, no need to import anything in main
-#define nodFnDef       21  // pl1 = entityId
-#define nodIface       22
-#define nodMeta        24
-#define nodReturn      25
-#define nodTry         26
-#define nodFor         28  // pl1 = id of loop (unique within a function) if it needs to
+#define nodCatch       19  // `catch e {`
+#define nodDefer       20
+#define nodImport      21  // This is for test files only, no need to import anything in main
+#define nodFnDef       22  // pl1 = entityId
+#define nodIface       23
+#define nodMeta        25
+#define nodReturn      26
+#define nodTry         27
+#define nodFor         29  // pl1 = id of loop (unique within a function) if it needs to
                            // have a label in codegen
-#define nodForCond     29
+#define nodForCond     30
 
-#define nodIf          30
-#define nodElseIf      30
-#define nodImpl        31
-#define nodMatch       32  // pattern matching on sum type tag
+#define nodIf          31
+#define nodElseIf      31
+#define nodImpl        32
+#define nodMatch       33  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 
@@ -416,8 +417,7 @@ typedef struct { // :LanguageDefinition
 
 typedef struct { // :Node
     untt tp : 6;
-    untt lenBts: 26;
-    untt startBt;
+    untt pl3: 26;
     Int pl1;
     Int pl2;
 } Node;
@@ -508,7 +508,7 @@ DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 typedef struct {  // :ExprFrame
     Byte tp;
     Int sentinel; // token sentinel
-    Int argCount; // accumulated number of arguments. Used for exfrCall only
+    Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
     Int startNode; // used for exfrDataAlloc only
 } ExprFrame;
 

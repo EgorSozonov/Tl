@@ -54,9 +54,7 @@ private Int tryGetOper0(Int opType, Int typeId, Compiler* protoOvs) {
 // Try and convert test value to operator entityId
     Int entityId;
     Int ovInd = -protoOvs->activeBindings[opType] - 2;
-    print("a")
     bool foundOv = findOverload(typeId, ovInd, &entityId, protoOvs);
-    print("a2")
     if (foundOv)  {
         return entityId;
     } else {
@@ -71,7 +69,7 @@ private Int transformBindingEntityId(Int inp, Compiler* pr) {
     if (inp < S) { // parsed stuff
         return inp + pr->countNonparsedEntities;
     } else {
-        return inp - O;
+        return inp - I + pr->countNonparsedEntities;
     }
 }
 
@@ -94,7 +92,7 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
         Int sentinel = j + importLen + 1;
         TypeId initTypeId = cm->types.len;
 
-        pushIntypes(importLen + 3, cm); // +3 because the header takes 2 ints, 1 more for 
+        pushIntypes(importLen + 3, cm); // +3 because the header takes 2 ints, 1 more for
                                         // the return typeId
         typeAddHeader(
            (TypeHeader){.sort = sorFunction, .arity = 0, .depth = importLen - 1, .nameAndLen = -1}, cm);
@@ -132,11 +130,11 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
         Arr(EntityImport) importsForTest = allocateOnArena(countImports*sizeof(EntityImport), a);
 
         for (Int j = 0; j < countImports; j++) {
-            importsForControl[j] = (EntityImport) { 
-                .name = nameOfStandard(strSentinel - 3 + imports[j].nameInd), 
+            importsForControl[j] = (EntityImport) {
+                .name = nameOfStandard(strSentinel - 3 + imports[j].nameInd),
                 .typeId = typeIds[imports[j].typeInd] };
-            importsForTest[j] = (EntityImport) { 
-                .name = nameOfStandard(strSentinel - 3 + imports[j].nameInd), 
+            importsForTest[j] = (EntityImport) {
+                .name = nameOfStandard(strSentinel - 3 + imports[j].nameInd),
                 .typeId = typeIds[imports[j].typeInd] };
         }
         importEntities(importsForControl, countImports, control);
@@ -164,7 +162,7 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
         if (nodeType == nodId)  {
             nd.pl2 += stText.firstParsed;
         }
-        pushInnodes(nd, control);
+        addNode(nd, control);
     }
     return (ParserTest){ .name = name, .test = test, .control = control };
 }
@@ -246,6 +244,7 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
 #endif
     print("running test")
     parseMain(test.test, a);
+    print("count nonp %d", test.test->countNonparsedEntities)
 
     int equalityStatus = equalityParser(*test.test, *test.control);
     if (equalityStatus == -2) {
@@ -435,18 +434,35 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             s("x = 10 .foo 2 `hw`"),
             (((Node[]) {
                 (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0, .startBt = 0, .lenBts = 1 },
-                // " + 1" because the first binding is taken up by the "imported" function, "foo"
-                (Node){ .tp = nodAssignRight, .pl2 = 5, .startBt = 2, .lenBts = 16 },
-                (Node){ .tp = nodExpr,  .pl2 = 4,          .startBt = 4, .lenBts = 14 },
+                (Node){ .tp = nodAssignRight, .pl2 = 4, .startBt = 2, .lenBts = 16 },
                 (Node){ .tp = tokInt, .pl2 = 10,           .startBt = 4, .lenBts = 2 },
                 (Node){ .tp = tokInt, .pl2 = 2,            .startBt = 12, .lenBts = 1 },
                 (Node){ .tp = tokString,                   .startBt = 14, .lenBts = 4 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 7, .lenBts = 4 } // foo
+                (Node){ .tp = nodCall, .pl1 = I - 1, .pl2 = 3, .startBt = 7, .lenBts = 4 } // foo
             })),
             ((Int[]) { 4, tokInt, tokInt, tokString, tokDouble }),
             ((TestEntityImport[]) {{ .nameInd = 0, .typeInd = 0 }})
         ),
        /*
+        createTest(
+            s("Data allocation"),
+            s("x = L(1 2 3)"),
+            (((Node[]) {
+                (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodAssignRight, .pl2 = 5 },
+                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 7 },
+
+                (Node){ .tp = nodAssignLeft, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodAssignRight,          .pl2 = 4 },
+                (Node){ .tp = nodInt, .pl2 = 5 },
+                (Node){ .tp = nodInt, .pl2 = 5 },
+                (Node){ .tp = nodInt, .pl2 = 5 },
+                (Node){ .tp = nodDataAlloc, .pl1 = cm->activeBindings[stToNameId(strL)], .pl2 = 3 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = -1 } // the allocated array
+            })),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
         createTest(
             s("Nested function call 1"),
             s("x = 10 .foo bar() 3"),
@@ -1369,7 +1385,6 @@ int main() {
     Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);
     createOverloads(protoOvs);
-    print("created ovs for proto") 
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
