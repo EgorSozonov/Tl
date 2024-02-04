@@ -157,7 +157,7 @@ private size_t calculateChunkSize(size_t allocSize) {
 
 testable void* allocateOnArena(size_t allocSize, Arena* ar) {
 // Allocate memory in the arena, malloc'ing a new chunk if needed
-    if (ar->currInd + allocSize >= ar->currChunk->size) {
+    if ((size_t)ar->currInd + allocSize >= ar->currChunk->size) {
         size_t newSize = calculateChunkSize(allocSize);
 
         ArenaChunk* newChunk = malloc(newSize);
@@ -181,9 +181,8 @@ testable void* allocateOnArena(size_t allocSize, Arena* ar) {
 
 testable void deleteArena(Arena* ar) {
     ArenaChunk* curr = ar->firstChunk;
-    ArenaChunk* nextToFree = curr;
     while (curr != null) {
-        nextToFree = curr->next;
+        ArenaChunk* nextToFree = curr->next;
         free(curr);
         curr = nextToFree;
     }
@@ -1105,7 +1104,7 @@ private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
 private Int typeGetArity(TypeId typeId, Compiler* cm);
-testable Int typeCheckResolveExpr(Int indExpr, Int sentinel, Compiler* cm);
+testable Int typeCheckBigExpr(Int indExpr, Int sentinel, Compiler* cm);
 
 //}}}
 //{{{ Lexer
@@ -2260,7 +2259,7 @@ private void tabulateOperators() {
 #define E_C frames, scr, calls // expr args fragment
 
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
-private void subexprClose(Int i, E_CT);
+private void subexClose(E_CT, Compiler* cm);
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
@@ -2442,8 +2441,8 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
             Token accessTk = toks[j + 1];
             if (accessTk.tp == tokParens) {
                 cm->i = j + 2; // CONSUME up to the subexpression start
-                Int subexprSentinel = cm->i + accessTk.pl2 + 1;
-                exprHeadless(subexprSentinel, accessTk.startBt, accessTk.lenBts, P_C);
+                Int subexSentinel = cm->i + accessTk.pl2 + 1;
+                exprHeadless(subexSentinel, accessTk.startBt, accessTk.lenBts, P_C);
                 j = cm->i;
             } else if (accessTk.tp == tokInt || accessTk.tp == tokString) {
                 pushInnodes(trivialNode(accessTk.tp, accessTk), cm);
@@ -2500,7 +2499,9 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     pushInnodes((Node){.tp = nodAssignRight, .startBt = rightTk.startBt, .lenBts = rightTk.lenBts},
                 cm);
 
-    Int lenBytes = tok.lenBts - rightTk.startBt + tok.startBt;
+    Token firstInRightTk = toks[cm->i]; // first token inside the tokAssignmentRight
+    Int startBt = firstInRightTk.startBt;
+    Int lenBts = rightTk.startBt + rightTk.lenBts - startBt;
     if (isMutation) {
         StackExprFrame* frames = cm->stateForExprs->frames;
         StackNode* scr = cm->stateForExprs->scratchCode;
@@ -2510,7 +2511,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         pushInnodes((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0,
                 .startBt = mbOldBinding.startBt, .lenBts = mbOldBinding.lenBts}, cm);
 
-        exprCore(sentinel, rightTk.startBt, lenBytes, P_C);
+        exprCore(sentinel, startBt, lenBts, P_C);
 
         TypeId leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
         Int operatorEntity = -1;
@@ -2521,13 +2522,13 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2,
                 .startBt = rightTk.startBt,
                 .lenBts = TL_OPERATORS[opType].lenBts}), scr);
-        TypeId rightType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
+        TypeId rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
-        subexprClose(cm->i, E_C);
+        subexClose(E_C, cm);
     } else if (rightTk.tp == tokFn) {
         parseFnDef(rightTk, P_C);
     } else {
-        Int rightType = exprHeadless(sentinel, rightTk.startBt, lenBytes, P_C);
+        Int rightType = exprHeadless(sentinel, startBt, lenBts, P_C);
         VALIDATEP(rightType != -2, errAssignment)
 
         if (tok.pl1 == 0 && rightType > -1) {
@@ -2639,7 +2640,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
 }
 
 
-private void exprSubexpr(Int sentinelToken, Int* arity, P_CT) { //:exprSubexpr
+private void exprSubex(Int sentinelToken, Int* arity, P_CT) { //:exprSubex
 // Parses a subexpression within an expression.
 // Precondition: the current token must be 1 past the opening paren / statement token
 // Examples: `foo(5 a)`
@@ -2666,26 +2667,39 @@ private void exprSubexpr(Int sentinelToken, Int* arity, P_CT) { //:exprSubexpr
     }
 }
 
+private void subexDataAllocator(ExprFrame frame, StackNode* scr, Compiler* cm) {
+//:subexDataAllocator
 
-private void subexprClose(Int i, E_CT) { //:subexprClose
-// Flushes the finished subexpr frames from the top of the funcall stack
-    while (frames->len > 0 && i == peek(frames).sentinel) {
+}
+
+
+private void exprClosePrefixes(E_CT) {
+    while (frames->len > 0 && peek(frames).tp == exfrPrefixOper) {
+        pop(frames);
+        push(pop(calls), scr);
+    }
+}
+
+
+private void subexClose(E_CT, Compiler* cm) { //:subexClose
+// Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
+    while (frames->len > 0 && cm->i == peek(frames).sentinel) {
         ExprFrame frame = pop(frames);
-        if (frame.isCall)  {
+        if (frame.tp == exfrCall)  {
             Node call = pop(calls);
             call.pl2 = frame.argCount;
             push(call, scr);
-        } else { // flush all the prefix opers, for the `!(...)` case
-            while (frames->len > 0 && peek(frames).isPrefixOper) {
-                pop(frames);
-                push((pop(calls)), scr);
+        } else {
+            if (frame.tp == exfrDataAlloc)  {
+                subexDataAllocator(frame, scr, cm);
             }
+            exprClosePrefixes(E_C);
         }
     }
 }
 
 
-private ExprFrame exprGetTopSubexpr(StackExprFrame* scr) { //:exprGetTopSubexpr
+private ExprFrame exprGetTopSubex(StackExprFrame* scr) { //:exprGetTopSubex
     Int i = scr->len - 1;
     return scr->cont[i];
 }
@@ -2706,14 +2720,6 @@ private void exprCopyFromScratch(StackNode* scr, Compiler* cm) {
 }
 
 
-private void exprClosePrefixes(E_CT) {
-    while (frames->len > 0 && peek(frames).isPrefixOper) {
-        ExprFrame eFr = pop(frames);
-        Node call = pop(calls);
-        call.pl2 = eFr.argCount;
-        push(call, scr);
-    }
-}
 
 
 private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprCore
@@ -2724,20 +2730,16 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
     frames->len = 0;
     scr->len = 0;
 
-    push((ExprFrame){ .sentinel = sentinelToken}, frames);
+    push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinelToken}), frames);
     scr->len = 0;
     while (cm->i < sentinelToken) {
-        subexprClose(cm->i, E_C);
+        subexClose(E_C, cm);
         Token cTk = toks[cm->i];
         untt tokType = cTk.tp;
 
         ExprFrame* parent = frames->cont + (frames->len - 1);
         if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
-            if (parent->isPrefixOper)  {
-                exprClosePrefixes(E_C);
-                parent = frames->cont + (frames->len - 1);
-            }
-            if (parent->isCall)  {
+            if (parent->tp == exfrCall)  {
                 ++parent->argCount;
             }
             if (tokType == tokWord)  {
@@ -2748,19 +2750,23 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
                 push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
                               .startBt = cTk.startBt, .lenBts = cTk.lenBts }), scr);
             }
+            if (parent->tp == exfrPrefixOper) {
+                exprClosePrefixes(E_C);
+                parent = frames->cont + (frames->len - 1);
+            }
         } else if (tokType == tokParens) {
-            if (parent->isCall) {
+            if (parent->tp == exfrPrefixOper) {
                 ++parent->argCount;
             }
             Int parensSentinel = cm->i + cTk.pl2;
-            push(((ExprFrame){ .sentinel = parensSentinel, .isCall = false }), frames);
+            push(((ExprFrame){ .tp = exfrParen, .sentinel = parensSentinel }), frames);
             if (cm->i + 1 < sentinelToken)  {
                 Token firstTk = toks[cm->i + 1];
                 if ((firstTk.tp == tokCall && firstTk.pl2 == 0) || firstTk.tp == tokPrefixOper) {
                     // `(.call 1 2)`
                     push(
-                        ((ExprFrame) { .sentinel = parensSentinel, .argCount = 0,
-                        .isPrefixOper = firstTk.tp == tokPrefixOper, .isCall = true }),
+                        ((ExprFrame) { .tp = firstTk.tp == tokPrefixOper ? exfrPrefixOper : exfrCall,
+                         .sentinel = parensSentinel, .argCount = 0 }),
                      frames);
                     push(((Node) { .tp = nodCall,
                             .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }), calls);
@@ -2769,28 +2775,22 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
             }
         } else if (tokType == tokPrefixOper) { // prefix operators
             push(((ExprFrame){
-                    .isPrefixOper = true, .sentinel = parent->sentinel, .argCount = 0, .isCall = true
+                    .tp = exfrPrefixOper, .sentinel = parent->sentinel, .argCount = 0
                 }), frames);
             push(((Node) { .tp = nodCall, .pl1 = cTk.pl1,
                     .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
-
-                if (parent->isPrefixOper)  {
-                    exprClosePrefixes(E_C);
-                    parent = frames->cont + (frames->len - 1);
-                }
-                if (parent->isCall)  {
+                if (parent->tp == exfrCall) {
                     ++parent->argCount;
                 }
-                push(
-                    ((ExprFrame) { .sentinel = calcSentinel(cTk, cm->i), .argCount = 0,
-                                   .isPrefixOper = false }), frames);
+                push(((ExprFrame) { .tp = exfrCall, .sentinel = calcSentinel(cTk, cm->i),
+                                   .argCount = 0 }), frames);
                 push(((Node) { .tp = nodCall,
                         .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
             } else { // infix calls like ` .foo`
-                if (parent->isCall) {
-                    VALIDATEP(!parent->isPrefixOper, errExpressionInfixAfterPrefix)
+                if (parent->tp == exfrCall) {
+                    VALIDATEP(parent->tp != exfrPrefixOper, errExpressionInfixAfterPrefix)
                     ExprFrame callFrame = pop(frames);
                     Node call = pop(calls);
                     call.pl2 = callFrame.argCount;
@@ -2798,17 +2798,28 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
                     parent = frames->cont + (frames->len - 1);
                 }
                 push(
-                    ((ExprFrame) { .sentinel = parent->sentinel, .argCount = 1,
-                                   .isPrefixOper = false, .isCall = true }), frames);
+                    ((ExprFrame) { .tp = exfrCall, .sentinel = parent->sentinel, .argCount = 1
+                                   }), frames);
                 push(((Node) { .tp = nodCall, .pl1 = cTk.pl1,
                         .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
             }
+        } else if (tokType == tokTypeCall) { // the `L(1 2 3)`
+            // push to a frame
+            if (parent->tp == exfrCall)  {
+                ++parent->argCount;
+            }
+            push(
+                ((ExprFrame) { .tp = exfrDataAlloc, .startNode = scr->len,
+                               .sentinel = calcSentinel(cTk, cm->i)
+                               }), frames);
+            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1,
+                    .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
         } else {
             throwExcParser(errExpressionCannotContain);
         }
         cm->i++; // CONSUME any token
     }
-    subexprClose(cm->i, E_C);
+    subexClose(E_C, cm);
     exprCopyFromScratch(scr, cm);
 }
 
@@ -2823,8 +2834,7 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
     pushInnodes((Node){ .tp = nodExpr, .startBt = startBt, .lenBts = lenBts }, cm);
 
     exprCore(sentinelToken, startBt, lenBts, P_C);
-
-    Int exprType = typeCheckResolveExpr(startNodeInd, cm->nodes.len, cm);
+    Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
     return exprType;
 }
 
@@ -3673,8 +3683,8 @@ private void importPrelude(Compiler* cm) { //:importPrelude
     TypeId strToVoid = addConcrFnType(1, (Int[]){ tokString, tokMisc }, cm);
     TypeId intToVoid = addConcrFnType(1, (Int[]){ tokInt, tokMisc }, cm);
     TypeId floatToVoid = addConcrFnType(1, (Int[]){ tokDouble, tokMisc }, cm);
-    TypeId intToDoub = addConcrFnType(1, (Int[]){ tokInt, tokDouble}, cm);
-    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
+//    TypeId intToDoub = addConcrFnType(1, (Int[]){ tokInt, tokDouble}, cm);
+//    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
 
     EntityImport imports[6] =  {
         (EntityImport) { .name = nameOfStandard(strMathPi), .typeId = tokDouble},
@@ -3745,6 +3755,8 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     cm->stateForExprs = stForExprs;
 
     cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
+    cm->countOverloads = proto->countOverloads;
+    cm->countOverloadedNames = proto->countOverloadedNames;
     cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
@@ -3852,9 +3864,6 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) {
 #endif
 
     Int countOverloads = raw[listId]/2;
-    if (nameId == 76) {
-        print("list id %d count ovs %d, raw %d", listId, countOverloads, raw[listId])
-    }
     Int rawSentinel = rawStart + raw[listId];
 
     Arr(Int) ov = cm->overloads.cont;
@@ -3878,6 +3887,7 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) {
 testable void createOverloads(Compiler* cm) { //:createOverloads
 // Fills [overloads] from [rawOverloads]. Replaces all indices in
 // [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
+    print("allocatin count ovs %d count names %d", cm->countOverloads, cm->countOverloadedNames)
     cm->overloads.cont = allocateOnArena(cm->countOverloads*8 + cm->countOverloadedNames*4,
                                          cm->a);
     // Each overload requires 2x4 = 8 bytes for the pair of (outerType entityId).
@@ -4898,22 +4908,16 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
 }
 
 
-testable TypeId typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
-//:typeCheckResolveExpr Typechecks and resolves overloads in a single expression
-    Int currAhead = 0; // how many elements ahead we are compared to the token array (because
-                       // of extra call indicators)
-    StackInt* st = cm->expStack;
-
-    populateExpStack(indExpr, sentinelNode, &currAhead, cm);
-    printExpSt(st);
-    // now go from back to front: resolving the calls, typechecking & collapsing args, and replacing calls
-    // with their return types
-    Int j = cm->expStack->len - 1;
+testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler* cm) {
+//:typeCheckExpr Runs the typechecking "evaluation" on a pure expression, i.e. one that doesn't
+// contain any nested subexpressions (i.e. data allocations or lambdas)
+    // We go from left to right: resolving the calls, typechecking & collapsing args, and replacing
+    // calls with their return types
+    const Int expSentinel = cm->expStack->len - 1;
     Arr(Int) cont = st->cont;
-    while (j > -1) {
+    for (Int j = 0; j < expSentinel; ++j) {
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
-            --j;
             continue;
         }
 
@@ -4927,12 +4931,10 @@ testable TypeId typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm
 #ifdef SAFETY //{{{
             VALIDATEI(cm->types.cont[functionTypeInd] == 1, iErrorOverloadsIncoherent)
 #endif //}}}
-
             cont[j] = cm->types.cont[functionTypeInd + 1]; // write the return type
+            --(*currAhead);
             shiftTypeStackLeft(j + 2, 1, cm);
                 // the function returns nothing, so there's no return type to write
-
-            --currAhead;
 #if defined(TRACE) && defined(TEST) //{{{
             printExpSt(st);
 #endif //}}}
@@ -4956,19 +4958,18 @@ testable TypeId typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm
             VALIDATEP(typeReadHeader(typeOfFunc, cm).depth == arity, errTypeNoMatchingOverload)
                 // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
-            for (int k = j - arity + 1, l = firstParamInd + 1; k < j; k++, l++) {
+            for (int k = j - arity, l = firstParamInd; k < j; k++, l++) {
                 // We know the type of the function, now to validate arg types against param types
-                // Loop init is "+1" because we've already checked the first param
                 if (cont[k] > -1) { // type of arg is known
                     VALIDATEP(cont[k] == cm->types.cont[l],
                               errTypeWrongArgumentType)
                 } else { // it's not known, so we fill it in
-                    Int argBindingId = cm->nodes.cont[indExpr + k - currAhead].pl1;
+                    Int argBindingId = cm->nodes.cont[indExpr + k - (*currAhead)].pl1;
                     cm->entities.cont[argBindingId].typeId = cm->types.cont[l];
                 }
             }
-            --currAhead;
-            cm->nodes.cont[j + indExpr + 1 - currAhead].pl1 = entityId;
+            --(*currAhead);
+            cm->nodes.cont[j + indExpr + 1 - (*currAhead)].pl1 = entityId;
             // the type-resolved function of the call
             cont[j] = cm->types.cont[typeOfFunc + 1]; // the function return type
             shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
@@ -4976,8 +4977,21 @@ testable TypeId typeCheckResolveExpr(Int indExpr, Int sentinelNode, Compiler* cm
             printExpSt(st);
 #endif //}}}
         }
-        --j;
     }
+}
+
+
+testable TypeId typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
+//:typeCheckBigExpr Typechecks and resolves overloads in a single expression. "Big" refers to
+// the fact that this expr may contain sub-assignments for data allocation
+    StackInt* st = cm->expStack;
+
+    Int currAhead = 0; // how many elements ahead we are compared to the node array (because
+                       // of extra call indicators)
+    populateExpStack(indExpr, sentinelNode, &currAhead, cm);
+    printExpSt(st);
+
+    typeReduceExpr(st, indExpr, &currAhead, cm);
 
     if (st->len == 1) {
         return st->cont[0]; // the last remaining element is the type of the whole expression

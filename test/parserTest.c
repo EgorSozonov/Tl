@@ -244,6 +244,7 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
     printLexer(test.control);
     printf("\n");
 #endif
+    print("running test")
     parseMain(test.test, a);
 
     int equalityStatus = equalityParser(*test.test, *test.control);
@@ -433,14 +434,14 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             s("Simple function call"),
             s("x = 10 .foo 2 `hw`"),
             (((Node[]) {
-                (Node){ .tp = nodAssignLeft, .pl2 = 6, .startBt = 0, .lenBts = 14 },
+                (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0, .startBt = 0, .lenBts = 1 },
                 // " + 1" because the first binding is taken up by the "imported" function, "foo"
-                (Node){ .tp = nodBinding, .pl1 = 0,        .startBt = 0, .lenBts = 1 }, // x
-                (Node){ .tp = nodExpr,  .pl2 = 4,          .startBt = 4, .lenBts = 10 },
-                (Node){ .tp = tokInt, .pl2 = 10,           .startBt = 8, .lenBts = 2 },
-                (Node){ .tp = tokInt, .pl2 = 2,            .startBt = 11, .lenBts = 1 },
-                (Node){ .tp = tokInt, .pl2 = 3,            .startBt = 13, .lenBts = 1 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 } // foo
+                (Node){ .tp = nodAssignRight, .pl2 = 5, .startBt = 2, .lenBts = 16 },
+                (Node){ .tp = nodExpr,  .pl2 = 4,          .startBt = 4, .lenBts = 14 },
+                (Node){ .tp = tokInt, .pl2 = 10,           .startBt = 4, .lenBts = 2 },
+                (Node){ .tp = tokInt, .pl2 = 2,            .startBt = 12, .lenBts = 1 },
+                (Node){ .tp = tokString,                   .startBt = 14, .lenBts = 4 },
+                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 7, .lenBts = 4 } // foo
             })),
             ((Int[]) { 4, tokInt, tokInt, tokString, tokDouble }),
             ((TestEntityImport[]) {{ .nameInd = 0, .typeInd = 0 }})
@@ -1368,6 +1369,7 @@ int main() {
     Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);
     createOverloads(protoOvs);
+    print("created ovs for proto") 
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);

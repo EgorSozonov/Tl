@@ -36,7 +36,7 @@
 
 typedef struct ArenaChunk ArenaChunk;
 
-struct ArenaChunk {
+struct ArenaChunk { // :ArenaChunk
     size_t size;
     ArenaChunk* next;
     char memory[]; // flexible array member
@@ -422,6 +422,11 @@ typedef struct { // :Node
     Int pl2;
 } Node;
 
+typedef struct { // :SourceLoc
+    Int startBt;
+    Int lenBts;
+} SourceLoc;
+
 typedef struct { // :ParseFrame
     untt tp : 6;
     Int startNodeInd;
@@ -485,6 +490,7 @@ typedef struct { // :ScopeStack
 
 DEFINE_STACK_HEADER(ParseFrame)
 DEFINE_STACK_HEADER(Node)
+DEFINE_STACK_HEADER(SourceLoc)
 
 DEFINE_INTERNAL_LIST_TYPE(Token)
 DEFINE_INTERNAL_LIST_TYPE(Node)
@@ -500,11 +506,16 @@ DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 
 
 typedef struct {  // :ExprFrame
+    Byte tp;
     Int sentinel; // token sentinel
-    Int argCount; // accumulated number of arguments. 0 for parens
-    Bool isPrefixOper;
-    Bool isCall;
+    Int argCount; // accumulated number of arguments. Used for exfrCall only
+    Int startNode; // used for exfrDataAlloc only
 } ExprFrame;
+
+#define exfrParen      1
+#define exfrCall       2
+#define exfrPrefixOper 3
+#define exfrDataAlloc  4
 
 DEFINE_STACK_HEADER(ExprFrame)
 
@@ -524,6 +535,7 @@ struct Compiler { // :Compiler
     InListToken tokens;
     InListToken metas; // TODO - metas with links back into parent span tokens
     InListInt newlines;
+    StackSourceLoc* sourceLocs;
     Int indentation;
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
@@ -619,7 +631,8 @@ typedef struct { // :TypeHeader
     StackParseFrame*: pushParseFrame,\
     StackExprFrame*: pushExprFrame,\
     Stackint32_t*: pushint32_t,\
-    StackNode*: pushNode\
+    StackNode*: pushNode,\
+    StackSourceLoc*: pushSourceLoc\
     )(A, X)
 
 #define hasValues(X) _Generic((X),\
