@@ -2451,7 +2451,8 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
                 exprHeadless(subexSentinel, accessTk.startBt, accessTk.lenBts, P_C);
                 j = cm->i;
             } else if (accessTk.tp == tokInt || accessTk.tp == tokString) {
-                addNode((Node){ .tp = accessTk.tp, accessTk}), 0, 0, cm);
+                addNode(((Node){ .tp = accessTk.tp, .pl1 = accessTk.pl1, .pl2 = accessTk.pl2}),
+                        0, 0, cm);
                 j++;
             } else { // tokWord
                 Int accessEntityId = getActiveVar(accessTk.pl2, cm);
@@ -2524,9 +2525,9 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         Int ovInd = -cm->activeBindings[opType] - 2;
         bool foundOv = findOverload(leftSideType, ovInd, &operatorEntity, cm);
         VALIDATEP(foundOv, errTypeNoMatchingOverload)
-        push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2,
-                .startBt = rightTk.startBt,
-                .lenBts = TL_OPERATORS[opType].lenBts}), scr);
+        push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2 }), calls);
+        push(((SourceLoc){ .startBt = rightTk.startBt, .lenBts = TL_OPERATORS[opType].lenBts}),
+                    cm->stateForExprs->locsCalls);
         TypeId rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
         subexClose(E_C, cm);
@@ -2582,7 +2583,7 @@ private void pFor(Token forTk, P_CT) { //:pFor
     // loop condition
     push(((ParseFrame){.tp = nodForCond, .startNodeInd = cm->nodes.len,
                 .sentinelToken = condSent }), cm->backtrack);
-    addNode((Node){.tp = nodForCond, .pl1 = slStmt, .pl2 = condSent - condInd,
+    addNode((Node){.tp = nodForCond, .pl1 = slStmt, .pl2 = condSent - condInd },
                        condTk.startBt, condTk.lenBts, cm);
     cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/token
 
@@ -2731,6 +2732,8 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
 // The core code of the general, long expression parser
     StackNode* scr = cm->stateForExprs->scratchCode;
     StackNode* calls = cm->stateForExprs->calls;
+    StackSourceLoc* locsScr = cm->stateForExprs->locsScratch;
+    StackSourceLoc* locsCalls = cm->stateForExprs->locsCalls;
     StackExprFrame* frames = cm->stateForExprs->frames;
     frames->len = 0;
     scr->len = 0;
@@ -2749,12 +2752,11 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
             }
             if (tokType == tokWord)  {
                 EntityId varId = getActiveVar(cTk.pl2, cm);
-                push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2,
-                              .startBt = cTk.startBt, .lenBts = cTk.lenBts}), scr);
+                push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2 }), scr);
             } else {
-                push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2,
-                              .startBt = cTk.startBt, .lenBts = cTk.lenBts }), scr);
+                push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2 }), scr);
             }
+            push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScratch);
             if (parent->tp == exfrPrefixOper) {
                 exprClosePrefixes(E_C);
                 parent = frames->cont + (frames->len - 1);
@@ -2773,8 +2775,9 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
                         ((ExprFrame) { .tp = firstTk.tp == tokPrefixOper ? exfrPrefixOper : exfrCall,
                          .sentinel = parensSentinel, .argCount = 0 }),
                      frames);
-                    push(((Node) { .tp = nodCall,
-                            .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }), calls);
+                    push(((Node) { .tp = nodCall }), calls);
+                    push(((SourceLoc) { .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }),
+                            locsCalls);
                     ++cm->i; // CONSUME the parens token
                 }
             }
@@ -3734,7 +3737,9 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     (*stForExprs) = (StateForExprs) {
         .frames = createStackExprFrame(16*sizeof(ExprFrame), a),
         .scratchCode = createStackNode(16*sizeof(Node), a),
-        .calls = createStackNode(16*sizeof(Node), a)
+        .calls = createStackNode(16*sizeof(Node), a),
+        .locsScratch = createStackSourceLoc(16*sizeof(SourceLoc), a),
+        .locsCalls = createStackSourceLoc(16*sizeof(SourceLoc), a)
     };
     cm->stateForExprs = stForExprs;
 
@@ -4144,8 +4149,8 @@ private void pToplevelSignatures(Compiler* cm) {
 // Must agree in order with node types in tl.internal.h
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "~", "misc",
-    "id", "call", "binding", ".fld", "data()",
-    "{}", "expr", "...=", "=...",
+    "id", "call", "binding", ".fld",
+    "{}", "expr", "...=", "=...", "data()",
     "alias", "assert", "breakCont", "catch", "defer",
     "import", "^{}", "iface", "[]", "return", "try",
     "for", "forCond", "if", "ei", "impl", "match"

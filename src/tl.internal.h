@@ -297,13 +297,13 @@ typedef struct { // :Token
 #define nodCall         8  // pl1 = index of entity, pl2 = arity
 #define nodBinding      9  // pl1 = index of entity, pl2 = 1 if it's a type binding
 #define nodFieldAcc    10  // pl1 = nameId; after type resolution pl1 = offset
-#define nodDataAlloc   11  // pl1 = typeId, pl2 = arity
 
-// Punctuation (inner node)
-#define nodScope       12
-#define nodExpr        13  // pl1 = 1 iff it's a composite expression (has internal var decls)
-#define nodAssignLeft  14  // if pl2 = 0, then pl1 = entityId
-#define nodAssignRight 15  // same as nodExpr
+// Punctuation (inner node). pl2 = node count
+#define nodScope       11
+#define nodExpr        12  // pl1 = 1 iff it's a composite expression (has internal var decls)
+#define nodAssignLeft  13  // if pl2 = 0, then pl1 = entityId
+#define nodAssignRight 14  // same as nodExpr
+#define nodDataAlloc   15  // pl1 = typeId
 
 // Single-shot core syntax forms
 #define nodAlias       16
@@ -315,17 +315,17 @@ typedef struct { // :Token
 #define nodImport      21  // This is for test files only, no need to import anything in main
 #define nodFnDef       22  // pl1 = entityId
 #define nodIface       23
-#define nodMeta        25
-#define nodReturn      26
-#define nodTry         27
-#define nodFor         29  // pl1 = id of loop (unique within a function) if it needs to
+#define nodMeta        24
+#define nodReturn      25
+#define nodTry         26
+#define nodFor         27  // pl1 = id of loop (unique within a function) if it needs to
                            // have a label in codegen
-#define nodForCond     30
+#define nodForCond     28
 
-#define nodIf          31
-#define nodElseIf      31
-#define nodImpl        32
-#define nodMatch       33  // pattern matching on sum type tag
+#define nodIf          29
+#define nodElseIf      30
+#define nodImpl        31
+#define nodMatch       32  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 
@@ -523,6 +523,8 @@ typedef struct { // :StateForExprs
     StackExprFrame* frames;
     StackNode* scratchCode;
     StackNode* calls;
+    StackSourceLoc* locsScratch;
+    StackSourceLoc* locsCalls;
 } StateForExprs;
 
 struct Compiler { // :Compiler
