@@ -12,6 +12,7 @@ typedef struct {
     String* name;
     Compiler* test;
     Compiler* control;
+    Bool compareLocsToo; 
 } ParserTest;
 
 
@@ -153,9 +154,9 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
         if (nodeType == nodId)  {
             nd.pl2 += stText.firstParsed;
         }
-        addNode(nd, control);
+        addNode(nd, 0, 0, control);
     }
-    return (ParserTest){ .name = name, .test = test, .control = control };
+    return (ParserTest){ .name = name, .test = test, .control = control, .compareLocsToo = false };
 }
 
 #define createTest(name, input, nodes, types, entities) \
@@ -187,11 +188,13 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);
     StandardText stText = getStandardTextLength();
-    for (Int j = 0; j < countLocs; ++j)                                      {
+    print("len of locs %d count %d", theTest.control->sourceLocs->len, countLocs) 
+    for (Int j = 0; j < countLocs; ++j) {
         SourceLoc loc = locs[j];
         loc.startBt += stText.len;
-        push(loc, theTest.test->sourceLocs);
+        theTest.control->sourceLocs->cont[j] = loc; 
     }
+    theTest.compareLocsToo = true; 
     return theTest;
 }
 
@@ -201,7 +204,7 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
     locs, sizeof(locs)/sizeof(SourceLoc), proto, a)
 
 
-int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b) {
+int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool compareLocsToo) {
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
 differing token otherwise */
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
@@ -227,7 +230,7 @@ differing token otherwise */
             return i;
         }
     }
-    if (b.sourceLocs->len > 0)  {
+    if (compareLocsToo) {
         for (i = 0; i < commonLength; ++i) {
             SourceLoc locA = a.sourceLocs->cont[i];
             SourceLoc locB = b.sourceLocs->cont[i];
@@ -239,6 +242,7 @@ differing token otherwise */
                 if (locA.startBt != locB.startBt) {
                     printf("Diff in startBt, %d but was expected %d\n", locA.startBt, locB.startBt);
                 }
+                return i; 
             }
         }
     }
@@ -261,7 +265,7 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
     parseMain(test.test, a);
     print("count nonp %d", test.test->countNonparsedEntities)
 
-    int equalityStatus = equalityParser(*test.test, *test.control);
+    int equalityStatus = equalityParser(*test.test, *test.control, test.compareLocsToo);
     if (equalityStatus == -2) {
         (*countPassed)++;
         return;

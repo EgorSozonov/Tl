@@ -18,6 +18,7 @@ int64_t longOfDoubleBits(double d);
 void printIntArray(Int count, Arr(Int) arr);
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
 void initializeParser(Compiler* lx, Compiler* proto, Arena* a);
+void addNode(Node node, Int startBt, Int lenBts, Compiler* cm);
 Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* createProtoCompiler(Arena* a);
 StandardText getStandardTextLength();
@@ -77,10 +78,8 @@ extern const char errIndentation[];
 
 #ifdef PARSER_TEST
 
-void addNode(Node n, Compiler* cm);
 void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* cm);
 LanguageDefinition* buildLanguageDefinitions(Arena* a);
-int equalityParser(Compiler a, Compiler b);
 void createCompiler(Compiler* lx, Arena* a);
 void parseMain(Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Compiler* cm);

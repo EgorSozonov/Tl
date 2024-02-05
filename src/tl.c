@@ -2338,7 +2338,7 @@ Node trivialNode(untt tp, Token tk) {
 }
 
 
-void addNode(Node node, Int startBt, Int lenBts, Compiler* cm) { //:pushNode
+void addNode(Node node, Int startBt, Int lenBts, Compiler* cm) { //:addNode
     pushInnodes(node, cm);
     push(((SourceLoc) { .startBt = startBt, .lenBts = lenBts }), cm->sourceLocs);
 }
@@ -2677,9 +2677,10 @@ private void exprSubex(Int sentinelToken, Int* arity, P_CT) { //:exprSubex
 
 
 private void subexDataAllocator(ExprFrame frame, StackNode* scr, Compiler* cm) {
-//:subexDataAllocator Creates an assignment in main and copies the nodes from scratch to there,
-// then finishes it with an allocator node and replaces those nodes in scr with a link to a new
-// entity
+//:subexDataAllocator Creates an assignment in main. Then walks over the data allocator nodes
+// and counts elements that are subexpressions. Then copies the nodes from scratch to main,
+// careful to wrap subexpressions in a nodExpr. Finally, replaces the copied nodes in scr with
+// an id linked to the new entity
     EntityId newEntity = cm->entities.len;
     Int countNodes = scr->len - frame.startNode + 1;  // +1 for the nodDataAlloc
     addNode((Node){.tp = nodAssignLeft, .pl1 = newEntity, .pl2 = 0}, 0, 0, cm);
@@ -2713,9 +2714,11 @@ private void subexClose(E_CT, Compiler* cm) { //:subexClose
 }
 
 
-private void exprCopyFromScratch(StackNode* scr, Compiler* cm) {
+private void exprCopyFromScratch(StackNode* scr, StackNode* locs, Compiler* cm) {
     if (cm->nodes.len + scr->len + 1 < cm->nodes.cap) {
         memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
+        memcpy((SourceLoc*)(cm->sourceLocs.cont) + (cm->nodes.len), locs->cont, 
+                scr->len*sizeof(SourceLoc));
     } else {
         Int newCap = 2*(cm->nodes.cap) + scr->len;
         Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
@@ -2725,6 +2728,7 @@ private void exprCopyFromScratch(StackNode* scr, Compiler* cm) {
         cm->nodes.cont = newContent;
     }
     cm->nodes.len += scr->len;
+    cm->sourceLocs.len += scr->len;
 }
 
 
@@ -2756,7 +2760,7 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
             } else {
                 push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2 }), scr);
             }
-            push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScratch);
+            push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
             if (parent->tp == exfrPrefixOper) {
                 exprClosePrefixes(E_C);
                 parent = frames->cont + (frames->len - 1);
@@ -2785,8 +2789,8 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
             push(((ExprFrame){
                     .tp = exfrPrefixOper, .sentinel = parent->sentinel, .argCount = 0
                 }), frames);
-            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1,
-                    .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
+            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1 }), calls);
+            push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
                 if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
@@ -2794,8 +2798,8 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
                 }
                 push(((ExprFrame) { .tp = exfrCall, .sentinel = calcSentinel(cTk, cm->i),
                                    .argCount = 0 }), frames);
-                push(((Node) { .tp = nodCall,
-                        .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
+                push(((Node) { .tp = nodCall }), calls);
+                push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
             } else { // infix calls like ` .foo`
                 if (parent->tp == exfrCall) {
                     VALIDATEP(parent->tp != exfrPrefixOper, errExpressionInfixAfterPrefix)
@@ -2808,8 +2812,8 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
                 push(
                     ((ExprFrame) { .tp = exfrCall, .sentinel = parent->sentinel, .argCount = 1
                                    }), frames);
-                push(((Node) { .tp = nodCall, .pl1 = cTk.pl1,
-                        .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
+                push(((Node) { .tp = nodCall, .pl1 = cTk.pl1 }), calls);
+                push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
             }
         } else if (tokType == tokTypeCall) { // the `L(1 2 3)`
             // push to a frame
@@ -2820,8 +2824,8 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
                 ((ExprFrame) { .tp = exfrDataAlloc, .startNode = scr->len,
                                .sentinel = calcSentinel(cTk, cm->i)
                                }), frames);
-            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1,
-                    .startBt = cTk.startBt, .lenBts = cTk.lenBts }), calls);
+            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1 }), calls);
+            push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
         } else {
             throwExcParser(errExpressionCannotContain);
         }
@@ -5307,6 +5311,7 @@ testable void printParser(Compiler* cm, Arena* a) {
     StandardText stText = getStandardTextLength();
     for (int i = 0; i < cm->nodes.len; i++) {
         Node nod = cm->nodes.cont[i];
+        SourceLoc loc = cm->sourceLocs->cont[i]; 
         for (int m = sentinels->len - 1; m > -1 && sentinels->cont[m] == i; m--) {
             popint32_t(sentinels);
             indent--;
@@ -5318,13 +5323,13 @@ testable void printParser(Compiler* cm, Arena* a) {
             printf("  ");
         }
         if (nod.tp == nodCall) {
-            printf("Call %d [%d; %d] type = ", nod.pl1, nod.startBt, nod.lenBts);
+            printf("Call %d [%d; %d] type = ", nod.pl1, loc.startBt, loc.lenBts);
             //printType(cm->entities.cont[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2,
-                    nod.startBt - stText.len, nod.lenBts);
+                    loc.startBt - stText.len, loc.lenBts);
         } else {
-            printf("%s [%d; %d]\n", nodeNames[nod.tp], nod.startBt - stText.len, nod.lenBts);
+            printf("%s [%d; %d]\n", nodeNames[nod.tp], loc.startBt - stText.len, loc.lenBts);
         }
         if (nod.tp >= nodScope && nod.pl2 > 0) {
             pushint32_t(i + nod.pl2 + 1, sentinels);
