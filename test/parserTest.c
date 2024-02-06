@@ -12,7 +12,7 @@ typedef struct {
     String* name;
     Compiler* test;
     Compiler* control;
-    Bool compareLocsToo; 
+    Bool compareLocsToo;
 } ParserTest;
 
 
@@ -188,13 +188,13 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);
     StandardText stText = getStandardTextLength();
-    print("len of locs %d count %d", theTest.control->sourceLocs->len, countLocs) 
+    print("len of locs %d count %d", theTest.control->sourceLocs->len, countLocs)
     for (Int j = 0; j < countLocs; ++j) {
         SourceLoc loc = locs[j];
         loc.startBt += stText.len;
-        theTest.control->sourceLocs->cont[j] = loc; 
+        theTest.control->sourceLocs->cont[j] = loc;
     }
-    theTest.compareLocsToo = true; 
+    theTest.compareLocsToo = true;
     return theTest;
 }
 
@@ -242,7 +242,7 @@ differing token otherwise */
                 if (locA.startBt != locB.startBt) {
                     printf("Diff in startBt, %d but was expected %d\n", locA.startBt, locB.startBt);
                 }
-                return i; 
+                return i;
             }
         }
     }

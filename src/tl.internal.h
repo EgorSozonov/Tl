@@ -303,7 +303,7 @@ typedef struct { // :Token
 #define nodExpr        12  // pl1 = 1 iff it's a composite expression (has internal var decls)
 #define nodAssignLeft  13  // if pl2 = 0, then pl1 = entityId
 #define nodAssignRight 14  // same as nodExpr
-#define nodDataAlloc   15  // pl1 = typeId
+#define nodDataAlloc   15  // pl1 = typeId, pl3 = count of elements
 
 // Single-shot core syntax forms
 #define nodAlias       16
@@ -521,9 +521,9 @@ DEFINE_STACK_HEADER(ExprFrame)
 
 typedef struct { // :StateForExprs
     StackExprFrame* frames;
-    StackNode* scratchCode;
+    StackNode* scr;
+    StackSourceLoc* locsScr;
     StackNode* calls;
-    StackSourceLoc* locsScratch;
     StackSourceLoc* locsCalls;
 } StateForExprs;
 
@@ -610,7 +610,8 @@ typedef struct { // :TypeHeader
     StackParseFrame*: popParseFrame,\
     StackExprFrame*: popExprFrame,\
     Stackint32_t*: popint32_t,\
-    StackNode*: popNode\
+    StackNode*: popNode,\
+    StackSourceLoc*: popSourceLoc\
     )(X)
 
 #define peek(X) _Generic((X),\

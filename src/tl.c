@@ -2256,11 +2256,9 @@ private void tabulateOperators() {
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
 #define P_CT Arr(Token) toks, Compiler* cm // parser context signature fragment
 #define P_C toks, cm // parser context args fragment
-#define E_CT StackExprFrame* frames, StackNode* scr, StackNode* calls // expr signature fragment
-#define E_C frames, scr, calls // expr args fragment
 
 private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
-private void subexClose(E_CT, Compiler* cm);
+private void subexClose(StateForExprs* s, Compiler* cm);
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
@@ -2509,9 +2507,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     Int startBt = firstInRightTk.startBt;
     Int lenBts = rightTk.startBt + rightTk.lenBts - startBt;
     if (isMutation) {
-        StackExprFrame* frames = cm->stateForExprs->frames;
-        StackNode* scr = cm->stateForExprs->scratchCode;
-        StackNode* calls = cm->stateForExprs->calls;
+        StateForExprs* stEx = cm->stateForExprs;
 
         Int startNodeInd = cm->nodes.len;
         addNode((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0},
@@ -2525,12 +2521,12 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         Int ovInd = -cm->activeBindings[opType] - 2;
         bool foundOv = findOverload(leftSideType, ovInd, &operatorEntity, cm);
         VALIDATEP(foundOv, errTypeNoMatchingOverload)
-        push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2 }), calls);
+        push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2 }), stEx->calls);
         push(((SourceLoc){ .startBt = rightTk.startBt, .lenBts = TL_OPERATORS[opType].lenBts}),
-                    cm->stateForExprs->locsCalls);
+                    stEx->locsCalls);
         TypeId rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
-        subexClose(E_C, cm);
+        subexClose(stEx, cm);
     } else if (rightTk.tp == tokFn) {
         parseFnDef(rightTk, P_C);
     } else {
@@ -2676,49 +2672,78 @@ private void exprSubex(Int sentinelToken, Int* arity, P_CT) { //:exprSubex
 }
 
 
-private void subexDataAllocator(ExprFrame frame, StackNode* scr, Compiler* cm) {
+private void subexDataAllocator(ExprFrame frame, StateForExprs* stEx, Compiler* cm) {
 //:subexDataAllocator Creates an assignment in main. Then walks over the data allocator nodes
 // and counts elements that are subexpressions. Then copies the nodes from scratch to main,
 // careful to wrap subexpressions in a nodExpr. Finally, replaces the copied nodes in scr with
 // an id linked to the new entity
     EntityId newEntity = cm->entities.len;
-    Int countNodes = scr->len - frame.startNode + 1;  // +1 for the nodDataAlloc
+    StackInt* temp = cm->temp;  // ((ind in scr) (count of nodes in subexpr))
+    temp->len = 0;
+    Node rawNd = pop(stEx->calls);
+    SourceLoc rawLoc = pop(stEx->locsCalls);
+
+    Int countElements = 0;
+    Int countNodes = 0; // this is all nodes inside the data allocator, including exprs
+    Int j = scr->len - 1;
+    while (j >= frame.startNode)  {
+        Node nd = scr->cont[j];
+        ++countElements;
+        if (nd.tp == nodCall) {
+            countNodes += 2; // an extra node for the nodExpr to wrap this subexpression
+            j -= (nd.pl2 + 1); // skip the whole subexpression
+            push(j + 1, temp);  // first node belonging to the subexpression
+            push(nd.pl2 + 1, temp); // +1 for the call
+        } else {
+            ++countNodes;
+            --j;
+        }
+    }
+
     addNode((Node){.tp = nodAssignLeft, .pl1 = newEntity, .pl2 = 0}, 0, 0, cm);
-    addNode((Node){.tp = nodAssignRight, .pl1 = 0, .pl2 = countNodes}, 0, 0, cm);
+    addNode((Node){.tp = nodAssignRight, .pl1 = 0, .pl2 = countNodes + 1}, 0, 0, cm);
+    addNode((Node){.tp = nodDataAlloc, .pl1 = rawNd.pl1, .pl2 = countNodes, .pl3 = countElements },
+                   0, 0, cm);
+
+
+    stEx->scr->len = frame.startNode + 1;
+    stEx->locsScr->len = frame.startNode + 1;
+    stEx->scr->cont[frame.startNode] = (Node){ .tp = nodId, .pl1 = newEntityId, .pl2 = -1 };
 }
 
 
-private void exprClosePrefixes(E_CT) {
-    while (frames->len > 0 && peek(frames).tp == exfrPrefixOper) {
-        pop(frames);
-        push(pop(calls), scr);
+private void exprClosePrefixes(StateForExprs* stEx) {
+    while (stEx->frames->len > 0 && peek(stEx->frames).tp == exfrPrefixOper) {
+        pop(stEx->frames);
+        push(pop(stEx->calls), stEx->scr);
     }
 }
 
 
-private void subexClose(E_CT, Compiler* cm) { //:subexClose
+private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
-    while (frames->len > 0 && cm->i == peek(frames).sentinel) {
-        ExprFrame frame = pop(frames);
+    while (stEx->frames->len > 0 && cm->i == peek(stEx->frames).sentinel) {
+        ExprFrame frame = pop(stEx->frames);
         if (frame.tp == exfrCall)  {
-            Node call = pop(calls);
+            Node call = pop(stEx->calls);
             call.pl2 = frame.argCount;
-            push(call, scr);
+            push(call, stEx->scr);
+            push(pop(stEx->locsCalls), stEx->locsScr);
         } else {
             if (frame.tp == exfrDataAlloc)  {
-                subexDataAllocator(frame, scr, cm);
+                subexDataAllocator(frame, stEx->scr, cm);
             }
-            exprClosePrefixes(E_C);
+            exprClosePrefixes(stEx);
         }
     }
 }
 
 
-private void exprCopyFromScratch(StackNode* scr, StackNode* locs, Compiler* cm) {
+private void exprCopyFromScratch(StackNode* scr, StackSourceLoc* locs, Compiler* cm) {
     if (cm->nodes.len + scr->len + 1 < cm->nodes.cap) {
         memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
-        memcpy((SourceLoc*)(cm->sourceLocs.cont) + (cm->nodes.len), locs->cont, 
-                scr->len*sizeof(SourceLoc));
+        memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont,
+                locs->len*sizeof(SourceLoc));
     } else {
         Int newCap = 2*(cm->nodes.cap) + scr->len;
         Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
@@ -2726,17 +2751,25 @@ private void exprCopyFromScratch(StackNode* scr, StackNode* locs, Compiler* cm) 
         memcpy((Node*)(newContent) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
         cm->nodes.cap = newCap;
         cm->nodes.cont = newContent;
+
+        Arr(SourceLoc) newLocs = allocateOnArena(newCap*sizeof(SourceLoc), cm->a);
+        memcpy(newLocs, cm->sourceLocs->cont, cm->sourceLocs->len*sizeof(SourceLoc));
+        memcpy((SourceLoc*)(newLocs) + (cm->sourceLocs->len), locs->cont,
+                locs->len*sizeof(SourceLoc));
+        cm->sourceLocs->cap = newCap;
+        cm->sourceLocs->cont = newLocs;
     }
     cm->nodes.len += scr->len;
-    cm->sourceLocs.len += scr->len;
+    cm->sourceLocs->len += scr->len;
 }
 
 
 private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprCore
 // The core code of the general, long expression parser
-    StackNode* scr = cm->stateForExprs->scratchCode;
+    StateForExprs* stEx = cm->stateForExprs;
+    StackNode* scr = stEx->scr;
     StackNode* calls = cm->stateForExprs->calls;
-    StackSourceLoc* locsScr = cm->stateForExprs->locsScratch;
+    StackSourceLoc* locsScr = cm->stateForExprs->locsScr;
     StackSourceLoc* locsCalls = cm->stateForExprs->locsCalls;
     StackExprFrame* frames = cm->stateForExprs->frames;
     frames->len = 0;
@@ -2745,7 +2778,7 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
     push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinelToken}), frames);
     scr->len = 0;
     while (cm->i < sentinelToken) {
-        subexClose(E_C, cm);
+        subexClose(stEx, cm);
         Token cTk = toks[cm->i];
         untt tokType = cTk.tp;
 
@@ -2762,7 +2795,7 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
             }
             push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
             if (parent->tp == exfrPrefixOper) {
-                exprClosePrefixes(E_C);
+                exprClosePrefixes(stEx);
                 parent = frames->cont + (frames->len - 1);
             }
         } else if (tokType == tokParens) {
@@ -2831,8 +2864,8 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
         }
         cm->i++; // CONSUME any token
     }
-    subexClose(E_C, cm);
-    exprCopyFromScratch(scr, cm);
+    subexClose(stEx, cm);
+    exprCopyFromScratch(scr, locsScr, cm);
 }
 
 
@@ -3740,9 +3773,9 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     StateForExprs* stForExprs = allocateOnArena(sizeof(StateForExprs), a);
     (*stForExprs) = (StateForExprs) {
         .frames = createStackExprFrame(16*sizeof(ExprFrame), a),
-        .scratchCode = createStackNode(16*sizeof(Node), a),
+        .scr = createStackNode(16*sizeof(Node), a),
         .calls = createStackNode(16*sizeof(Node), a),
-        .locsScratch = createStackSourceLoc(16*sizeof(SourceLoc), a),
+        .locsScr = createStackSourceLoc(16*sizeof(SourceLoc), a),
         .locsCalls = createStackSourceLoc(16*sizeof(SourceLoc), a)
     };
     cm->stateForExprs = stForExprs;
@@ -5311,7 +5344,7 @@ testable void printParser(Compiler* cm, Arena* a) {
     StandardText stText = getStandardTextLength();
     for (int i = 0; i < cm->nodes.len; i++) {
         Node nod = cm->nodes.cont[i];
-        SourceLoc loc = cm->sourceLocs->cont[i]; 
+        SourceLoc loc = cm->sourceLocs->cont[i];
         for (int m = sentinels->len - 1; m > -1 && sentinels->cont[m] == i; m--) {
             popint32_t(sentinels);
             indent--;
