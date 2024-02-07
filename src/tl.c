@@ -191,6 +191,7 @@ testable void deleteArena(Arena* ar) {
 
 //}}}
 //{{{ Stack
+
 #define DEFINE_STACK(T)\
     testable Stack##T * createStack##T (int initCapacity, Arena* a) {\
         int capacity = initCapacity < 4 ? 4 : initCapacity;\
@@ -230,6 +231,32 @@ testable void deleteArena(Arena* ar) {
     testable void clear##T (Stack##T * st) {\
         st->len = 0;\
     }
+
+
+void pushBulk(StackNode* scr, StackSourceLoc* locs, Compiler* cm) {
+    if (dest.len + src->len + 1 < dest.cap) {
+        memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
+        memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont,
+                locs->len*sizeof(SourceLoc));
+    } else {
+        Int newCap = 2*(cm->nodes.cap) + scr->len;
+        Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
+        memcpy(newContent, cm->nodes.cont, cm->nodes.len*sizeof(Node));
+        memcpy((Node*)(newContent) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
+        cm->nodes.cap = newCap;
+        cm->nodes.cont = newContent;
+
+        Arr(SourceLoc) newLocs = allocateOnArena(newCap*sizeof(SourceLoc), cm->a);
+        memcpy(newLocs, cm->sourceLocs->cont, cm->sourceLocs->len*sizeof(SourceLoc));
+        memcpy((SourceLoc*)(newLocs) + (cm->sourceLocs->len), locs->cont,
+                locs->len*sizeof(SourceLoc));
+        cm->sourceLocs->cap = newCap;
+        cm->sourceLocs->cont = newLocs;
+    }
+    cm->nodes.len += scr->len;
+    cm->sourceLocs->len += scr->len;
+}
+
 //}}}
 //{{{ Internal list
 
@@ -2672,32 +2699,25 @@ private void exprSubex(Int sentinelToken, Int* arity, P_CT) { //:exprSubex
 }
 
 
-private void subexDataAllocator(ExprFrame frame, StateForExprs* stEx, Compiler* cm) {
-//:subexDataAllocator Creates an assignment in main. Then walks over the data allocator nodes
+private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler* cm) {
+//:subexDataAllocation Creates an assignment in main. Then walks over the data allocator nodes
 // and counts elements that are subexpressions. Then copies the nodes from scratch to main,
 // careful to wrap subexpressions in a nodExpr. Finally, replaces the copied nodes in scr with
 // an id linked to the new entity
     EntityId newEntityId = cm->entities.len;
-    StackInt* temp = cm->tempStack;  // ((ind in scr) (count of nodes in subexpr))
     StackNode* scr = stEx->scr;  // ((ind in scr) (count of nodes in subexpr))
-    temp->len = 0;
     Node rawNd = pop(stEx->calls);
     SourceLoc rawLoc = pop(stEx->locsCalls);
 
     Int countElements = 0;
-    Int countNodes = 0; // this is all nodes inside the data allocator, including exprs
-    Int j = scr->len - 1;
-    while (j >= frame.startNode)  {
+    Int countNodes = scr->len - frame.startNode;
+    for (Int j = frame.startNode; j < scr->len; ++j)  {
         Node nd = scr->cont[j];
         ++countElements;
-        if (nd.tp == nodCall) {
-            countNodes += 2; // an extra node for the nodExpr to wrap this subexpression
-            j -= (nd.pl2 + 1); // skip the whole subexpression
-            push(j + 1, temp);  // first node belonging to the subexpression
-            push(nd.pl2 + 1, temp); // +1 for the call
+        if (nd.tp == nodExpr) {
+            j += (nd.pl2 + 1);
         } else {
-            ++countNodes;
-            --j;
+            ++j;
         }
     }
 
@@ -2708,10 +2728,11 @@ private void subexDataAllocator(ExprFrame frame, StateForExprs* stEx, Compiler* 
     addNode((Node){.tp = nodDataAlloc, .pl1 = rawNd.pl1, .pl2 = countNodes, .pl3 = countElements },
             rawLoc.startBt, rawLoc.lenBts, cm);
 
+    pushBulk(scr, locsScr, cm);
 
-    stEx->scr->len = frame.startNode + 1;
+    scr->len = frame.startNode + 1;
     stEx->locsScr->len = frame.startNode + 1;
-    stEx->scr->cont[frame.startNode] = (Node){ .tp = nodId, .pl1 = newEntityId, .pl2 = -1 };
+    scr->cont[frame.startNode] = (Node){ .tp = nodId, .pl1 = newEntityId, .pl2 = -1 };
 }
 
 
@@ -2740,7 +2761,8 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
             push(pop(stEx->locsCalls), stEx->locsScr);
         } else {
             if (frame.tp == exfrDataAlloc)  {
-                subexDataAllocator(frame, stEx, cm);
+                stEx->metAnAllocation = true;
+                subexDataAllocation(frame, stEx, cm);
             } else if (frame.tp == exfrParen && scr->cont[frame.startNode].tp == nodExpr) {
                 // a parens inside a data allocator - need to set the nodExpr length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
@@ -2751,7 +2773,13 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 }
 
 
-private void exprCopyFromScratch(StackNode* scr, StackSourceLoc* locs, Compiler* cm) {
+private void exprCopyFromScratch(StateForExprs* stEx, Compiler* cm) {
+    StackNode* scr = stEx->scr;
+    StackSourceLoc* locs = stEx->locsScr;
+    if (stEx->metAnAllocation)  {
+        pushInnodes(((Node){.tp = nodExpr, .pl1 = 0, .pl2 = scr->len }), cm);
+    }
+
     if (cm->nodes.len + scr->len + 1 < cm->nodes.cap) {
         memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
         memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont,
@@ -2890,7 +2918,7 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
         cm->i++; // CONSUME any token
     }
     subexClose(stEx, cm);
-    exprCopyFromScratch(scr, locsScr, cm);
+    exprCopyFromScratch(stEx, cm);
 }
 
 
@@ -5384,8 +5412,13 @@ testable void printParser(Compiler* cm, Arena* a) {
             printf("Call %d [%d; %d] type = ", nod.pl1, loc.startBt, loc.lenBts);
             //printType(cm->entities.cont[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
-            printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2,
-                    loc.startBt - stText.len, loc.lenBts);
+            if (nod.pl3 != 0)  {
+                printf("%s %d %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.pl3,
+                        loc.startBt - stText.len, loc.lenBts);
+            } else {
+                printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2,
+                        loc.startBt - stText.len, loc.lenBts);
+            }
         } else {
             printf("%s [%d; %d]\n", nodeNames[nod.tp], loc.startBt - stText.len, loc.lenBts);
         }

@@ -525,6 +525,7 @@ typedef struct { // :StateForExprs
     StackSourceLoc* locsScr;
     StackNode* calls;
     StackSourceLoc* locsCalls;
+    Bool metAnAllocation; 
 } StateForExprs;
 
 struct Compiler { // :Compiler
