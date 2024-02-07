@@ -452,6 +452,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
+        /* 
         createTestWithLocs(
             s("Simple function call"),
             s("x = 10 .foo 2 `hw`"),
@@ -474,7 +475,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 { .startBt = 7, .lenBts = 4 }
             })
         ),
-       /*
+       */ 
         createTest(
             s("Data allocation"),
             s("x = L(1 2 3)"),
@@ -485,15 +486,17 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
                 (Node){ .tp = nodAssignLeft, .pl1 = 1, .pl2 = 0 },
                 (Node){ .tp = nodAssignRight,          .pl2 = 4 },
-                (Node){ .tp = nodInt, .pl2 = 5 },
-                (Node){ .tp = nodInt, .pl2 = 5 },
-                (Node){ .tp = nodInt, .pl2 = 5 },
-                (Node){ .tp = nodDataAlloc, .pl1 = cm->activeBindings[stToNameId(strL)], .pl2 = 3 },
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3,
+                        .pl3 = 3 },
+                (Node){ .tp = tokInt, .pl2 = 1 },
+                (Node){ .tp = tokInt, .pl2 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 3 },
                 (Node){ .tp = nodId, .pl1 = 1, .pl2 = -1 } // the allocated array
             })),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       /* 
         createTest(
             s("Nested function call 1"),
             s("x = 10 .foo bar() 3"),

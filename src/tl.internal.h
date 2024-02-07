@@ -509,7 +509,7 @@ typedef struct {  // :ExprFrame
     Byte tp;
     Int sentinel; // token sentinel
     Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
-    Int startNode; // used for exfrDataAlloc only
+    Int startNode; // used for all but exfrPrefixOper
 } ExprFrame;
 
 #define exfrParen      1
