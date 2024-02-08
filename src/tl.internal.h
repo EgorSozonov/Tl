@@ -301,31 +301,30 @@ typedef struct { // :Token
 // Punctuation (inner node). pl2 = node count
 #define nodScope       11
 #define nodExpr        12  // pl1 = 1 iff it's a composite expression (has internal var decls)
-#define nodAssignLeft  13  // if pl2 = 0, then pl1 = entityId
-#define nodAssignRight 14  // same as nodExpr
-#define nodDataAlloc   15  // pl1 = typeId, pl3 = count of elements
+#define nodAssignLeft  13  // if pl2 = 0, then pl1 = entityId. Always followed by a nodExpr
+#define nodDataAlloc   14  // pl1 = typeId, pl3 = count of elements
 
 // Single-shot core syntax forms
-#define nodAlias       16
-#define nodAssert      17  // pl1 = 1 iff it's a debug assert
-#define nodBreakCont   18  // pl1 = number of label to break or continue to, -1 if none needed
+#define nodAlias       15
+#define nodAssert      16  // pl1 = 1 iff it's a debug assert
+#define nodBreakCont   17  // pl1 = number of label to break or continue to, -1 if none needed
                            // It's a continue iff it's >= BIG
-#define nodCatch       19  // `catch e {`
-#define nodDefer       20
-#define nodImport      21  // This is for test files only, no need to import anything in main
-#define nodFnDef       22  // pl1 = entityId
-#define nodIface       23
-#define nodMeta        24
-#define nodReturn      25
-#define nodTry         26
-#define nodFor         27  // pl1 = id of loop (unique within a function) if it needs to
+#define nodCatch       18  // `catch e {`
+#define nodDefer       19
+#define nodImport      20  // This is for test files only, no need to import anything in main
+#define nodFnDef       21  // pl1 = entityId
+#define nodIface       22
+#define nodMeta        23
+#define nodReturn      24
+#define nodTry         25
+#define nodFor         26  // pl1 = id of loop (unique within a function) if it needs to
                            // have a label in codegen
-#define nodForCond     28
+#define nodForCond     27
 
-#define nodIf          29
-#define nodElseIf      30
-#define nodImpl        31
-#define nodMatch       32  // pattern matching on sum type tag
+#define nodIf          28
+#define nodElseIf      29
+#define nodImpl        30
+#define nodMatch       31  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 
@@ -525,7 +524,7 @@ typedef struct { // :StateForExprs
     StackSourceLoc* locsScr;
     StackNode* calls;
     StackSourceLoc* locsCalls;
-    Bool metAnAllocation; 
+    Bool metAnAllocation;
 } StateForExprs;
 
 struct Compiler { // :Compiler

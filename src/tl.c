@@ -233,8 +233,8 @@ testable void deleteArena(Arena* ar) {
     }
 
 
-void pushBulk(StackNode* scr, StackSourceLoc* locs, Compiler* cm) {
-    if (dest.len + src->len + 1 < dest.cap) {
+void pushBulk(StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:pushBulk
+    if (cm->nodes.len + scr->len + 1 < cm->nodes.cap) {
         memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
         memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont,
                 locs->len*sizeof(SourceLoc));
@@ -2292,7 +2292,7 @@ private void popScopeFrame(Compiler* cm);
 private EntityId importActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
-private void exprCore(Int sentinel, Int startBt, Int lenBts, P_CT);
+private void exprCore(Int sentinel, P_CT);
 private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT);
 private void pExpr(Token tk, P_CT);
 private Int pExprWorker(Token tk, P_CT);
@@ -2526,9 +2526,9 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     }
     cm->i += countLeftSide + 1; // CONSUME the left side of an assignment
     Int sentinel = cm->i + rightTk.pl2;
-    push(((ParseFrame){.tp = nodAssignRight, .startNodeInd = cm->nodes.len,
+    push(((ParseFrame){.tp = nodExpr, .startNodeInd = cm->nodes.len,
                        .sentinelToken = cm->i + rightTk.pl2 }), cm->backtrack);
-    addNode((Node){.tp = nodAssignRight}, rightTk.startBt, rightTk.lenBts, cm);
+    addNode((Node){.tp = nodExpr}, rightTk.startBt, rightTk.lenBts, cm);
 
     Token firstInRightTk = toks[cm->i]; // first token inside the tokAssignmentRight
     Int startBt = firstInRightTk.startBt;
@@ -2540,7 +2540,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         addNode((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0},
                 mbOldBinding.startBt, mbOldBinding.lenBts, cm);
 
-        exprCore(sentinel, startBt, lenBts, P_C);
+        exprCore(sentinel, P_C);
 
         TypeId leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
         Int operatorEntity = -1;
@@ -2559,7 +2559,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else {
         Int startNodeInd = cm->nodes.len - 1; // index of the nodAssignmentRight
 
-        exprCore(sentinel, startBt, lenBts, P_C);
+        exprCore(sentinel, P_C);
         Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType != -2, errAssignment)
 
@@ -2723,12 +2723,12 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
 
     addNode((Node){.tp = nodAssignLeft, .pl1 = newEntityId, .pl2 = 0},
             rawLoc.startBt, rawLoc.lenBts, cm);
-    addNode((Node){.tp = nodAssignRight, .pl1 = 0, .pl2 = countNodes + 1},
+    addNode((Node){.tp = nodExpr, .pl1 = 0, .pl2 = countNodes + 1},
             rawLoc.startBt, rawLoc.lenBts, cm);
     addNode((Node){.tp = nodDataAlloc, .pl1 = rawNd.pl1, .pl2 = countNodes, .pl3 = countElements },
             rawLoc.startBt, rawLoc.lenBts, cm);
 
-    pushBulk(scr, locsScr, cm);
+    pushBulk(scr, stEx->locsScr, cm);
 
     scr->len = frame.startNode + 1;
     stEx->locsScr->len = frame.startNode + 1;
@@ -2773,11 +2773,12 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 }
 
 
-private void exprCopyFromScratch(StateForExprs* stEx, Compiler* cm) {
+private void exprCopyFromScratch(Compiler* cm) { //:exprCopyFromScratch
+    StateForExprs* stEx = cm->stateForExprs;
     StackNode* scr = stEx->scr;
     StackSourceLoc* locs = stEx->locsScr;
     if (stEx->metAnAllocation)  {
-        pushInnodes(((Node){.tp = nodExpr, .pl1 = 0, .pl2 = scr->len }), cm);
+        pushInnodes(((Node){.tp = nodExpr, .pl1 = 1, .pl2 = scr->len }), cm);
     }
 
     if (cm->nodes.len + scr->len + 1 < cm->nodes.cap) {
@@ -2804,9 +2805,10 @@ private void exprCopyFromScratch(StateForExprs* stEx, Compiler* cm) {
 }
 
 
-private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprCore
+private void exprCore(Int sentinelToken, P_CT) { //:exprCore
 // The core code of the general, long expression parse
     StateForExprs* stEx = cm->stateForExprs;
+    stEx->metAnAllocation = false; 
     StackNode* scr = stEx->scr;
     StackNode* calls = cm->stateForExprs->calls;
     StackSourceLoc* locsScr = cm->stateForExprs->locsScr;
@@ -2918,7 +2920,6 @@ private void exprCore(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exp
         cm->i++; // CONSUME any token
     }
     subexClose(stEx, cm);
-    exprCopyFromScratch(stEx, cm);
 }
 
 
@@ -2931,7 +2932,9 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
                 .sentinelToken = sentinelToken }), cm->backtrack);
     addNode((Node){ .tp = nodExpr}, startBt, lenBts, cm);
 
-    exprCore(sentinelToken, startBt, lenBts, P_C);
+    exprCore(sentinelToken, P_C);
+    
+    exprCopyFromScratch(cm);
     Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
     return exprType;
 }
@@ -4240,7 +4243,7 @@ private void pToplevelSignatures(Compiler* cm) {
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "~", "misc",
     "id", "call", "binding", ".fld",
-    "{}", "expr", "...=", "=...", "data()",
+    "{}", "Expr", "...=", "data()",
     "alias", "assert", "breakCont", "catch", "defer",
     "import", "^{}", "iface", "[]", "return", "try",
     "for", "forCond", "if", "ei", "impl", "match"
