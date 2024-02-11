@@ -19,6 +19,7 @@
 #else
     #define testable static
 #endif
+#define OUT // the "out" parameters in functions
 
 #define BIG 70000000
 #define LOWER24BITS 0x00FFFFFF
@@ -301,7 +302,8 @@ typedef struct { // :Token
 // Punctuation (inner node). pl2 = node count
 #define nodScope       11
 #define nodExpr        12  // pl1 = 1 iff it's a composite expression (has internal var decls)
-#define nodAssignLeft  13  // if pl2 = 0, then pl1 = entityId. Always followed by a nodExpr
+#define nodAssignLeft  13  // if pl2 = 0, then pl1 = entityId. Next span is always a nodExpr or 
+                           // a nodDataAllocation
 #define nodDataAlloc   14  // pl1 = typeId, pl3 = count of elements
 
 // Single-shot core syntax forms
@@ -597,7 +599,7 @@ struct Compiler { // :Compiler
 
 typedef struct { // :TypeHeader
     Byte sort;
-    Byte arity;
+    Byte tyrity; // "tyrity" = type arity, the number of type parameters
     Byte depth;
     untt nameAndLen;
 } TypeHeader;
