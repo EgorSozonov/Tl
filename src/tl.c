@@ -139,7 +139,7 @@ testable Arena* mkArena(void) {
     return result;
 }
 
-private size_t calculateChunkSize(size_t allocSize) {
+private size_t calculateChunkSize(size_t allocSize) { //:calculateChunkSize
 // Calculates memory for a new chunk. Memory is quantized and is always 32 bytes less
 // 32 for any possible padding malloc might use internally,
 // so that the total allocation size is a good even number of OS memory pages
@@ -155,11 +155,10 @@ private size_t calculateChunkSize(size_t allocSize) {
     return mallocMemory - 32;
 }
 
-testable void* allocateOnArena(size_t allocSize, Arena* ar) {
+testable void* allocateOnArena(size_t allocSize, Arena* ar) { //:allocateOnArena
 // Allocate memory in the arena, malloc'ing a new chunk if needed
     if ((size_t)ar->currInd + allocSize >= ar->currChunk->size) {
         size_t newSize = calculateChunkSize(allocSize);
-
         ArenaChunk* newChunk = malloc(newSize);
         if (!newChunk) {
             perror("malloc error when allocating arena chunk");
@@ -175,11 +174,14 @@ testable void* allocateOnArena(size_t allocSize, Arena* ar) {
     }
     void* result = (void*)(ar->currChunk->memory + (ar->currInd));
     ar->currInd += allocSize;
+    if (allocSize % 4 != 0)  {
+        ar->currInd += (4 - (allocSize % 4));
+    }
     return result;
 }
 
 
-testable void deleteArena(Arena* ar) {
+testable void deleteArena(Arena* ar) { //:deleteArena
     ArenaChunk* curr = ar->firstChunk;
     while (curr != null) {
         ArenaChunk* nextToFree = curr->next;
@@ -2712,8 +2714,6 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     StackNode* scr = stEx->scr;  // ((ind in scr) (count of nodes in subexpr))
     Node rawNd = pop(stEx->calls);
     SourceLoc rawLoc = pop(stEx->locsCalls);
-    print("data alloc scr len %d", scr->len)
-    printStackNode(scr, cm->aTmp);
 
     EntityId newEntityId = cm->entities.len;
     pushInentities(((Entity) {.class = classImmutable, .typeId = rawNd.pl1 }), cm);
@@ -2857,10 +2857,8 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
 
             if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
                                                // be demarcated for typechecking & codegen
-                print("we are here inside alloc")
                 push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
                 push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-                printStackNode(scr, cm->aTmp);
             }
 
             if (cm->i + 1 < sentinelToken)  {
@@ -3941,11 +3939,11 @@ void printIntArray(Int count, Arr(Int) arr);
 #endif
 
 
-testable Int createNameOverloads(NameId nameId, Compiler* cm) {
-// Creates a final subtable in [overloads] for a name and returns the index of said subtable
-// Precondition: [rawOverloads] contain twoples of (typeId ref)
+testable Int createNameOverloads(NameId nameId, Compiler* cm) { //:createNameOverloads
+// Creates a final subtable in {overloads} for a name and returns the index of said subtable
+// Precondition: {rawOverloads} contain twoples of (typeId ref)
 // (typeId = the full type of a function)(ref = entityId or monoId)(yes, "twople" = tuple of two)
-// Postcondition: [overloads] will contain a subtable of length(outerTypeIds)(refs)
+// Postcondition: {overloads} will contain a subtable of length(outerTypeIds)(refs)
     Arr(Int) raw = cm->rawOverloads->cont;
     Int listId = -cm->activeBindings[nameId] - 2;
     Int rawStart = listId + 2;
@@ -3976,15 +3974,14 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) {
 
 
 testable void createOverloads(Compiler* cm) { //:createOverloads
-// Fills [overloads] from [rawOverloads]. Replaces all indices in
-// [activeBindings] to point to the new overloads table (they pointed to [rawOverloads] previously)
-    print("create overloads")
+// Fills {overloads} from {rawOverloads}. Replaces all indices in
+// {activeBindings} to point to the new overloads table (they pointed to {rawOverloads} previously)
     cm->overloads.cont = allocateOnArena(cm->countOverloads*8 + cm->countOverloadedNames*4,
                                          cm->a);
     // Each overload requires 2x4 = 8 bytes for the pair of (outerType entityId).
     // Plus you need an int per overloaded name to hold the length of the overloads for that name
 
-    cm->overloads.len = cm->countOverloads;
+    cm->overloads.len = 0;
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, cm);
         cm->activeBindings[j] = -newIndex - 2;
@@ -4899,7 +4896,6 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
     Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
     Int countOverloads = overs[ovInd]/2;
-    print("ovInd %d countov %d", ovInd, countOverloads)
     Int sentinel = ovInd + countOverloads + 1;
     if (typeId == -1) { // scenario 2
         Int j = 0;
@@ -5042,7 +5038,6 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            print("arity %d depth %d", arity,  typeReadHeader(typeOfFunc, cm).depth);
             VALIDATEP(typeReadHeader(typeOfFunc, cm).depth == arity + 1, errTypeNoMatchingOverload)
                 // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
@@ -5444,7 +5439,6 @@ testable void printParser(Compiler* cm, Arena* a) {
 private void printStackNode(StackNode* st, Arena* a) {
     Int indent = 0;
     Stackint32_t* sentinels = createStackint32_t(16, a);
-    StandardText stText = getStandardTextLength();
     for (int i = 0; i < st->len; i++) {
         Node nod = st->cont[i];
         for (int m = sentinels->len - 1; m > -1 && sentinels->cont[m] == i; m--) {

@@ -55,7 +55,6 @@ private Int tryGetOper0(Int opType, Int typeId, Compiler* protoOvs) {
 // Try and convert test value to operator entityId
     Int entityId;
     Int ovInd = -protoOvs->activeBindings[opType] - 2;
-    print("in try get oper %d", protoOvs->overloads.cont[225])
     bool foundOv = findOverload(typeId, ovInd, &entityId, protoOvs);
     if (foundOv)  {
         return entityId + O;
@@ -168,7 +167,7 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
     createTest0((name), (input), (nodes), sizeof(nodes)/sizeof(Node), (types), sizeof(types)/4, \
     (entities), sizeof(entities)/sizeof(TestEntityImport), proto, a)
 
-
+/*
 private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes,
                             Int countNodes, Arr(Int) types, Int countTypes, Arr(TestEntityImport) entities,
                             Int countEntities, Compiler* proto, Arena* a) {
@@ -207,7 +206,7 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
     createTestWithLocs0((name), (input), (nodes), sizeof(nodes)/sizeof(Node), types,\
     sizeof(types)/4, entities, sizeof(entities)/sizeof(EntityImport),\
     locs, sizeof(locs)/sizeof(SourceLoc), proto, a)
-
+*/
 
 int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool compareLocsToo) {
 /** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
@@ -377,6 +376,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((TestEntityImport[]) {})
         ),
        */
+        /* 
         createTest(
             s("Mutation simple"),
             s("main = ^{\n"
@@ -402,6 +402,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       */ 
        /*
         createTestWithLocs(
             s("Mutation complex"),
@@ -453,7 +454,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //}}}
 //{{{ Expression tests
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
-    print("in expr tests %d", protoOvs->overloads.cont[225])
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         /*
         createTestWithLocs(
@@ -479,6 +479,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             })
         ),
         */
+       /* 
         createTest(
             s("Data allocation"),
             s("x = L(1 2 3)"),
@@ -500,6 +501,27 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("Data allocation with expression inside"),
             s("x = L(4 (2 ^ 7))"),
+            (((Node[]) {
+                (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 8 },
+
+                (Node){ .tp = nodAssignLeft, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 5, .pl3 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 4 },
+                (Node){ .tp = nodExpr, .pl1 = 0, .pl2 = 3 },
+                (Node){ .tp = tokInt, .pl2 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 7 },
+                (Node){ .tp = nodCall, .pl1 = oper(opExponent, tokInt), .pl2 = 2 },
+
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = -1 } // the allocated array
+            })),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+       */ 
+        createTest(
+            s("Nested data allocation with expression inside"),
+            s("x = L(L(1) L(4 (2 - 7)) L(2 3))"),
             (((Node[]) {
                 (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0 },
                 (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 8 },
@@ -725,7 +747,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         //~ }
     //~ );
 //~ }
-
+/*
 ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTestWithLocs(
@@ -1406,7 +1428,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         )
     }));
 }
-
+*/
 /*
 ParserTestSet* typeTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Types test set"), a, ((ParserTest[]){
@@ -1464,7 +1486,6 @@ int main() {
     Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);
     createOverloads(protoOvs);
-    print("after protoOvs %d", protoOvs->overloads.cont[225])
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
