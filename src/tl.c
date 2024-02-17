@@ -235,28 +235,38 @@ testable void deleteArena(Arena* ar) { //:deleteArena
     }
 
 
-void pushBulk(StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:pushBulk
-    if (cm->nodes.len + scr->len + 1 < cm->nodes.cap) {
-        memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
-        memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont,
-                locs->len*sizeof(SourceLoc));
+#ifdef TEST
+private void printStackNode(StackNode*, Arena*);
+#endif
+
+void pushBulk(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:pushBulk
+// Pushes the tail of scratch space (from a specified index onward) into the main node list
+    const Int pushCount = scr->len - startInd;
+    if (pushCount == 0)  {
+        return;
+    }
+    if (cm->nodes.len + pushCount + 1 < cm->nodes.cap) {
+        memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont + startInd,
+                pushCount*sizeof(Node));
+        memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont + startInd,
+                pushCount*sizeof(SourceLoc));
     } else {
-        Int newCap = 2*(cm->nodes.cap) + scr->len;
+        Int newCap = 2*(cm->nodes.cap) + pushCount;
         Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
-        memcpy(newContent, cm->nodes.cont, cm->nodes.len*sizeof(Node));
-        memcpy((Node*)(newContent) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
+        memcpy(newContent,                  cm->nodes.cont + startInd, cm->nodes.len*sizeof(Node));
+        memcpy((Node*)(newContent) + (cm->nodes.len), scr->cont + startInd, pushCount*sizeof(Node));
         cm->nodes.cap = newCap;
         cm->nodes.cont = newContent;
 
         Arr(SourceLoc) newLocs = allocateOnArena(newCap*sizeof(SourceLoc), cm->a);
-        memcpy(newLocs, cm->sourceLocs->cont, cm->sourceLocs->len*sizeof(SourceLoc));
-        memcpy((SourceLoc*)(newLocs) + (cm->sourceLocs->len), locs->cont,
-                locs->len*sizeof(SourceLoc));
+        memcpy(newLocs, cm->sourceLocs->cont + startInd, pushCount*sizeof(SourceLoc));
+        memcpy((SourceLoc*)(newLocs) + (cm->sourceLocs->len), locs->cont + startInd,
+                pushCount*sizeof(SourceLoc));
         cm->sourceLocs->cap = newCap;
         cm->sourceLocs->cont = newLocs;
     }
-    cm->nodes.len += scr->len;
-    cm->sourceLocs->len += scr->len;
+    cm->nodes.len += pushCount;
+    cm->sourceLocs->len += pushCount;
 }
 
 //}}}
@@ -1136,9 +1146,6 @@ private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
 private Int typeGetArity(TypeId typeId, Compiler* cm);
 testable Int typeCheckBigExpr(Int indExpr, Int sentinel, Compiler* cm);
-#ifdef TEST
-private void printStackNode(StackNode*, Arena*);
-#endif
 
 //}}}
 //{{{ Lexer
@@ -1228,7 +1235,7 @@ typedef union {
 } FloatingBits;
 
 
-private String* readSourceFile(const Arr(char) fName, Arena* a) {
+private String* readSourceFile(const Arr(char) fName, Arena* a) { //:readSourceFile
     String* result = null;
     FILE *file = fopen(fName, "r");
     if (file == null) {
@@ -1266,7 +1273,7 @@ private String* readSourceFile(const Arr(char) fName, Arena* a) {
 }
 
 
-testable String* prepareInput(const char* content, Arena* a) {
+testable String* prepareInput(const char* content, Arena* a) { //:prepareInput
 // Allocates a source code into an arena after prepending it with the standardText
     if (content == null) return null;
     const char* ind = content;
@@ -2328,7 +2335,7 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
 }
 
 
-private Int createEntity(untt name, Compiler* cm) {
+private Int createEntity(untt name, Compiler* cm) { //:createEntity
 // Validates a new binding (that it is unique), creates an entity for it,
 // and adds it to the current scope
     Int nameId = name & LOWER24BITS;
@@ -2371,6 +2378,9 @@ Node trivialNode(untt tp, Token tk) {
 
 void addNode(Node node, Int startBt, Int lenBts, Compiler* cm) { //:addNode
     pushInnodes(node, cm);
+    if (cm->sourceLocs == null)  {
+        print("it's null!")
+    }
     push(((SourceLoc) { .startBt = startBt, .lenBts = lenBts }), cm->sourceLocs);
 }
 
@@ -2389,7 +2399,7 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
 //}}}
 
 private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
-// Performs coordinated insertions to start a scope within the parser
+//:addParsedScope Performs coordinated insertions to start a scope within the parser
     push(((ParseFrame){
             .tp = nodScope, .startNodeInd = cm->nodes.len, .sentinelToken = sentinelToken }),
         cm->backtrack);
@@ -2414,7 +2424,7 @@ private void parseYield(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
-private void ifLeftSide(Token tok, P_CT) {
+private void ifLeftSide(Token tok, P_CT) { //:ifLeftSide
 // Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
@@ -2439,7 +2449,7 @@ private void pIf(Token tok, P_CT) { //:pIf
 }
 
 
-private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) {
+private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assignmentComplexLeftSide
 // A left side with more than one token must consist of a known var with a series of accessors.
 // It gets transformed like this:
 // arr_i_(j*2)_(k + 3) ==> _ _ _ arr i (* j 2) (+ k 3)
@@ -2624,7 +2634,7 @@ private void pFor(Token forTk, P_CT) { //:pFor
 }
 
 
-private void setSpanLengthParser(Int nodeInd, Compiler* cm) {
+private void setSpanLengthParser(Int nodeInd, Compiler* cm) { //:setSpanLengthParser
 // Finds the top-level punctuation opener by its index, and sets its node length.
 // Called when the parsing of a span is finished
     cm->nodes.cont[nodeInd].pl2 = cm->nodes.len - nodeInd - 1;
@@ -2723,10 +2733,9 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     for (Int j = frame.startNode; j < scr->len; ++j)  {
         Node nd = scr->cont[j];
         ++countElements;
+
         if (nd.tp == nodExpr) {
-            j += (nd.pl2 + 1);
-        } else {
-            ++j;
+            j += nd.pl2;
         }
     }
 
@@ -2735,7 +2744,7 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     addNode((Node){.tp = nodDataAlloc, .pl1 = rawNd.pl1, .pl2 = countNodes, .pl3 = countElements },
             rawLoc.startBt, rawLoc.lenBts, cm);
 
-    pushBulk(scr, stEx->locsScr, cm);
+    pushBulk(frame.startNode, scr, stEx->locsScr, cm);
 
     scr->len = frame.startNode + 1;
     stEx->locsScr->len = frame.startNode + 1;
@@ -3214,9 +3223,9 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities,
 }
 
 
-private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] {
-    ParserFunc (*result)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
-    ParserFunc* p = *result;
+private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] { //:tabulateParserDispatch
+    ParserFunc (*res)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
+    ParserFunc* p = *res;
     int i = 0;
     while (i <= firstSpanTokenType) {
         p[i] = &parseErrorBareAtom;
@@ -3241,12 +3250,12 @@ private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] {
 
     p[tokIf]          = &pIf;
     p[tokFor]         = &pFor;
-    p[tokElse]     = &pAlias;
-    return result;
+    p[tokElse]        = &pAlias;
+    return res;
 }
 
 
-testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
+testable LanguageDefinition* buildLanguageDefinitions(Arena* a) { //:buildLanguageDefinitions
 // Definition of the operators, lexer dispatch and parser dispatch tables for the compiler
     tabulateOperators();
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
@@ -3258,7 +3267,7 @@ testable LanguageDefinition* buildLanguageDefinitions(Arena* a) {
 }
 
 
-private Stackint32_t* copyStringTable(Stackint32_t* table, Arena* a) {
+private Stackint32_t* copyStringTable(Stackint32_t* table, Arena* a) { //:copyStringTable
     Stackint32_t* result = createStackint32_t(table->cap, a);
     result->len = table->len;
     result->cap = table->cap;
@@ -3267,7 +3276,7 @@ private Stackint32_t* copyStringTable(Stackint32_t* table, Arena* a) {
 }
 
 
-private StringDict* copyStringDict(StringDict* from, Arena* a) {
+private StringDict* copyStringDict(StringDict* from, Arena* a) { //:copyStringDict
     StringDict* result = allocateOnArena(sizeof(StringDict), a);
     const Int dictSize = from->dictSize;
     Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*dictSize, a);
@@ -3291,6 +3300,7 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) {
     return result;
 }
 
+
 testable Compiler* createProtoCompiler(Arena* a) { //:createProtoCompiler
 // Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned
 // for every source code module. The proto-compiler contains the following data:
@@ -3312,6 +3322,7 @@ testable Compiler* createProtoCompiler(Arena* a) { //:createProtoCompiler
     createBuiltins(proto);
     return proto;
 }
+
 
 private void finalizeLexer(Compiler* lx) { //:finalizeLexer
 // Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and
@@ -4248,7 +4259,7 @@ private void pToplevelSignatures(Compiler* cm) {
 // Must agree in order with node types in tl.internal.h
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "~", "misc",
-    "id", "call", "binding", ".fld",
+    "id", "call", "binding", ".fld", "load", "store",
     "{}", "Expr", "...=", "data()",
     "alias", "assert", "breakCont", "catch", "defer",
     "import", "^{}", "iface", "[]", "return", "try",
@@ -5318,7 +5329,7 @@ void printLexBtrack(Compiler* lx) {
 }
 
 
-int equalityLexer(Compiler a, Compiler b) {
+int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
 // differing token otherwise
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
@@ -5355,7 +5366,7 @@ int equalityLexer(Compiler a, Compiler b) {
 }
 
 
-testable void printLexer(Compiler* lx) {
+testable void printLexer(Compiler* lx) { //:printLexer
     if (lx->wasError) {
         printf("Error: ");
         printString(lx->errMsg);
@@ -5394,7 +5405,7 @@ testable void printLexer(Compiler* lx) {
 //}}}
 //{{{ Parser testing
 
-testable void printParser(Compiler* cm, Arena* a) {
+testable void printParser(Compiler* cm, Arena* a) { //:printParser
     if (cm->wasError) {
         printf("Error: ");
         printString(cm->errMsg);
@@ -5436,7 +5447,7 @@ testable void printParser(Compiler* cm, Arena* a) {
     }
 }
 
-private void printStackNode(StackNode* st, Arena* a) {
+private void printStackNode(StackNode* st, Arena* a) { //:printStackNode
     Int indent = 0;
     Stackint32_t* sentinels = createStackint32_t(16, a);
     for (int i = 0; i < st->len; i++) {
@@ -5473,7 +5484,7 @@ private void printStackNode(StackNode* st, Arena* a) {
 //}}}
 //{{{ Types testing
 
-private void typePrintGenElt(Int v) {
+private void typePrintGenElt(Int v) { //:typePrintGenElt
     Int upper = (v >> 24) & 0xFF;
     Int lower = v & LOWER24BITS;
     if (upper == 0) {
@@ -5491,7 +5502,7 @@ private void typePrintGenElt(Int v) {
 }
 
 
-void typePrint(Int typeId, Compiler* cm) {
+void typePrint(Int typeId, Compiler* cm) { //:typePrint
     printf("Type [ind = %d, len = %d]\n", typeId, cm->types.cont[typeId]);
     Int sentinel = typeId + cm->types.cont[typeId] + 1;
     TypeHeader hdr = typeReadHeader(typeId, cm);
@@ -5571,7 +5582,7 @@ void typePrint(Int typeId, Compiler* cm) {
     print(")");
 }
 
-void printOverloads(Int nameId, Compiler* cm) {
+void printOverloads(Int nameId, Compiler* cm) { //:printOverloads
     Int listId = -cm->activeBindings[nameId] - 2;
     if (listId < 0) {
         print("Overloads for name %d not found", nameId)

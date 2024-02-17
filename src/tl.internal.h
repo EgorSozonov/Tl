@@ -298,35 +298,38 @@ typedef struct { // :Token
 #define nodCall         8  // pl1 = index of entity, pl2 = arity
 #define nodBinding      9  // pl1 = index of entity, pl2 = 1 if it's a type binding
 #define nodFieldAcc    10  // pl1 = nameId; after type resolution pl1 = offset
+#define nodLoad        11  // a read from memory (a reference or list, array etc)
+#define nodStore       12  // a store to memory
 
 // Punctuation (inner node). pl2 = node count
-#define nodScope       11
-#define nodExpr        12  // pl1 = 1 iff it's a composite expression (has internal var decls)
-#define nodAssignLeft  13  // if pl2 = 0, then pl1 = entityId. Next span is always a nodExpr or 
-                           // a nodDataAllocation
-#define nodDataAlloc   14  // pl1 = typeId, pl3 = count of elements
+#define nodScope       13
+#define nodExpr        14  // pl1 = 1 iff it's a composite expression (has internal var decls)
+#define nodAssignLeft  15  // if pl2 = 0, then pl1 = entityId. Next span is always a nodExpr or
+                           // a nodDataAlloc
+#define nodDataAlloc   16  // pl1 = typeId, pl3 = count of elements
 
 // Single-shot core syntax forms
-#define nodAlias       15
-#define nodAssert      16  // pl1 = 1 iff it's a debug assert
-#define nodBreakCont   17  // pl1 = number of label to break or continue to, -1 if none needed
+#define nodAlias       17
+#define nodAssert      18  // pl1 = 1 iff it's a debug assert
+#define nodBreakCont   19  // pl1 = number of label to break or continue to, -1 if none needed
                            // It's a continue iff it's >= BIG
-#define nodCatch       18  // `catch e {`
-#define nodDefer       19
-#define nodImport      20  // This is for test files only, no need to import anything in main
-#define nodFnDef       21  // pl1 = entityId
-#define nodIface       22
-#define nodMeta        23
-#define nodReturn      24
-#define nodTry         25
-#define nodFor         26  // pl1 = id of loop (unique within a function) if it needs to
+#define nodCatch       20  // `catch e {`
+#define nodDefer       21
+#define nodImport      22  // This is for test files only, no need to import anything in main
+#define nodFnDef       23  // pl1 = entityId
+#define nodIface       24
+#define nodMeta        25
+#define nodReturn      26
+#define nodTry         27
+#define nodFor         28  // pl1 = id of loop (unique within a function) if it needs to
                            // have a label in codegen
-#define nodForCond     27
+#define nodForCond     29
+#define nodForStep     30  // the "++i" of a for loop
 
-#define nodIf          28
-#define nodElseIf      29
-#define nodImpl        30
-#define nodMatch       31  // pattern matching on sum type tag
+#define nodIf          31
+#define nodElseIf      32
+#define nodImpl        33
+#define nodMatch       34  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 

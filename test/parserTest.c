@@ -8,7 +8,7 @@
 
 //{{{ Utils
 
-typedef struct {
+typedef struct { //:ParserTest
     String* name;
     Compiler* test;
     Compiler* control;
@@ -122,6 +122,10 @@ Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in no
 it will be inserted as 1 + (the number of built-in bindings) etc */
     Compiler* test = lexicallyAnalyze(sourceCode, proto, a);
     Compiler* control = lexicallyAnalyze(sourceCode, proto, a);
+    if (control->wasError)  {
+        return (ParserTest) {
+            .name = name, .test = test, .control = control, .compareLocsToo = false };
+    }
     initializeParser(control, proto, a);
     initializeParser(test, proto, a);
     Arr(Int) typeIds = importTypes(types, countTypes, control);
@@ -209,8 +213,8 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
 */
 
 int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool compareLocsToo) {
-/** Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
-differing token otherwise */
+// Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
+// differing token otherwise
     if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
@@ -220,7 +224,7 @@ differing token otherwise */
         Node nodA = a.nodes.cont[i];
         Node nodB = b.nodes.cont[i];
         if (nodA.tp != nodB.tp
-            || nodA.pl1 != nodB.pl1 || nodA.pl2 != nodB.pl2) {
+            || nodA.pl1 != nodB.pl1 || nodA.pl2 != nodB.pl2 || nodA.pl3 != nodB.pl3) {
             printf("\n\nUNEQUAL RESULTS on %d\n", i);
             if (nodA.tp != nodB.tp) {
                 printf("Diff in tp, %d but was expected %d\n", nodA.tp, nodB.tp);
@@ -230,6 +234,9 @@ differing token otherwise */
             }
             if (nodA.pl2 != nodB.pl2) {
                 printf("Diff in pl2, %d but was expected %d\n", nodA.pl2, nodB.pl2);
+            }
+            if (nodA.pl3 != nodB.pl3) {
+                printf("Diff in pl3, %d but was expected %d\n", nodA.pl3, nodB.pl3);
             }
             return i;
         }
@@ -259,6 +266,9 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
     (*countTests)++;
     if (test.test->tokens.len == 0) {
         print("Lexer result empty");
+        return;
+    } else if (test.control->wasError) {
+        print("Lexer error");
         return;
     }
 #ifdef TRACE
@@ -376,7 +386,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((TestEntityImport[]) {})
         ),
        */
-        /* 
+        /*
         createTest(
             s("Mutation simple"),
             s("main = ^{\n"
@@ -402,7 +412,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       */ 
+       */
        /*
         createTestWithLocs(
             s("Mutation complex"),
@@ -479,7 +489,6 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             })
         ),
         */
-       /* 
         createTest(
             s("Data allocation"),
             s("x = L(1 2 3)"),
@@ -518,23 +527,37 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       */ 
         createTest(
             s("Nested data allocation with expression inside"),
             s("x = L(L(1) L(4 (2 - 7)) L(2 3))"),
             (((Node[]) {
                 (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0 },
-                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 8 },
+                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 20 },
 
-                (Node){ .tp = nodAssignLeft, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodAssignLeft, .pl1 = 1, .pl2 = 0 }, // L(1)
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 1, .pl3 = 1 },
+                (Node){ .tp = tokInt, .pl2 = 1 },
+
+                (Node){ .tp = nodAssignLeft, .pl1 = 2, .pl2 = 0 }, // L(2 (2 - 7))
                 (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 5, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 4 },
                 (Node){ .tp = nodExpr, .pl1 = 0, .pl2 = 3 },
                 (Node){ .tp = tokInt, .pl2 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 7 },
-                (Node){ .tp = nodCall, .pl1 = oper(opExponent, tokInt), .pl2 = 2 },
+                (Node){ .tp = nodCall, .pl1 = oper(opMinus, tokInt), .pl2 = 2 },
 
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = -1 } // the allocated array
+                (Node){ .tp = nodAssignLeft, .pl1 = 3, .pl2 = 0 }, // L(2 3)
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 3 },
+
+                (Node){ .tp = nodAssignLeft, .pl1 = 4, .pl2 = 0 }, // L(2 3)
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3, .pl3 = 3 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = -1 },
+                (Node){ .tp = nodId, .pl1 = 2, .pl2 = -1 },
+                (Node){ .tp = nodId, .pl1 = 3, .pl2 = -1 },
+
+                (Node){ .tp = nodId, .pl1 = 4, .pl2 = -1 } // the allocated array
             })),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
