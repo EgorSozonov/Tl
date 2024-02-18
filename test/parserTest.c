@@ -197,7 +197,6 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);
     StandardText stText = getStandardTextLength();
-    print("len of locs %d count %d", theTest.control->sourceLocs->len, countLocs)
     for (Int j = 0; j < countLocs; ++j) {
         SourceLoc loc = locs[j];
         loc.startBt += stText.len;
@@ -271,10 +270,6 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
         print("Lexer error");
         return;
     }
-#ifdef TRACE
-    printLexer(test.control);
-    printf("\n");
-#endif
     parseMain(test.test, a);
 
     int equalityStatus = equalityParser(*test.test, *test.control, test.compareLocsToo);
@@ -472,7 +467,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //{{{ Expression tests
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
-    /* 
         createTestWithLocs(
             s("Simple function call"),
             s("x = 10 .foo 2 `hw`"),
@@ -585,7 +579,6 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((TestEntityImport[]) {(TestEntityImport){ .nameInd = 0, .typeInd = 0},
                                (TestEntityImport){ .nameInd = 1, .typeInd = 1}})
         ),
-       */ 
         createTest(
             s("Nested function call 2"),
             s("x =  10 .foo (3.4 .bar)"),

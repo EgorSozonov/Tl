@@ -2776,7 +2776,6 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
         if (frame.tp == exfrCall)  {
             Node call = pop(stEx->calls);
             call.pl2 = frame.argCount;
-            print("frame arg count %d", frame.argCount) 
             if (frame.startNode > -1 && scr->cont[frame.startNode].tp == nodExpr) {
                 // a prefix call inside a data allocator - need to set the nodExpr length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
@@ -2799,7 +2798,6 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFromScratch
     StateForExprs* stEx = cm->stateForExprs;
     StackNode* scr = stEx->scr;
-    print("scrr") 
     StackSourceLoc* locs = stEx->locsScr;
     if (stEx->metAnAllocation)  {
         cm->nodes.cont[startNodeInd].pl1 = 1;
@@ -2809,7 +2807,7 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
         memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
         memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont,
                 locs->len*sizeof(SourceLoc));
-                
+
     } else {
         Int newCap = 2*(cm->nodes.cap) + scr->len;
         Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
@@ -2827,7 +2825,6 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
     }
     cm->nodes.len += scr->len;
     cm->sourceLocs->len += scr->len;
-        printParser(cm, cm->aTmp);
 }
 
 
@@ -2906,7 +2903,7 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
                 if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
                     ++parent->argCount;
                 }
-                Int sentinel = cTk.pl2 == BIG ? (cm->i + 1) : calcSentinel(cTk, cm->i); 
+                Int sentinel = cTk.pl2 == BIG ? (cm->i + 1) : calcSentinel(cTk, cm->i);
                 push(((ExprFrame) { .tp = exfrCall, .startNode = scr->len,
                             .sentinel = sentinel, .argCount = 0 }), frames);
                 if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need
@@ -3034,7 +3031,6 @@ private void maybeCloseSpans(Compiler* cm) { //:maybeCloseSpans
 private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
 // Parses anything from current cm->i to "sentinelToken"
     while (cm->i < sentinelToken) {
-        print("parsing tok i %d", cm->i)
         Token currTok = toks[cm->i];
         cm->i++;
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, P_C);
@@ -3921,9 +3917,6 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
     Int outerSentinel = start + countOverloads;
     Int prevParamOuter = -1;
     Int o = start;
-    if (listId == 430)  {
-        print("validating 430, count ovs %d", countOverloads)
-    }
     for (; o < outerSentinel && ov[o] < -1; o++) {
         // These are the param outer types, like the outer of "U | U(Int)". Their values are
         // (-arity - 1)
@@ -3989,9 +3982,6 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) { //:createNameOve
             OuterTypeId outerType = typeGetOuter(firstParamType, cm);
             ov[k] = outerType;
         } else {
-            if (nameId == 83)   {
-                print("planting ov -1 into %d for 83", k)
-            }
             ov[k] = -1;
         }
         ov[k + countOverloads] = raw[j + 1]; // entityId
@@ -4020,9 +4010,6 @@ testable void createOverloads(Compiler* cm) { //:createOverloads
     for (Int j = 0; j < cm->importNames.len; j++) {
         Int nameId = cm->importNames.cont[j];
         Int newIndex = createNameOverloads(nameId, cm);
-        if (nameId == 83)  {
-            print("created overload ind %d", newIndex)    
-        }
         cm->activeBindings[nameId] = -newIndex - 2;
     }
     for (Int j = 0; j < cm->toplevels.len; j++) {
@@ -4403,7 +4390,7 @@ private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeG
 
 
 private Int isFunction(TypeId typeId, Compiler* cm) { //:isFunction
-// Returns the function's arity if the type is a function type, 
+// Returns the function's arity if the type is a function type,
 // -1 otherwise
     if (typeId < topVerbatimType) {
         return -1;
@@ -4660,9 +4647,6 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
 // Processes the "type expression" produced by "typeDef".
 // Returns the typeId of the new typeId
     Int j = exp->len - 2;
-#if defined(TEST) && defined(TRACE)
-    printIntArray(exp->len, exp->cont);
-#endif
     while (j > 0) {
         Int tyeContent = exp->cont[j];
         Int tye = (exp->cont[j] >> 24) & 0xFF;
@@ -4834,9 +4818,6 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
         } else if (cTk.tp == tokMisc && cTk.pl1 == miscArrow) {
             VALIDATEP(cm->tempStack->len >= 2, errTypeDefError)
             Int penult = penultimate(cm->tempStack);
-#if defined(TEST) && defined(TRACE)
-            printIntArray(cm->tempStack->len, cm->tempStack->cont);
-#endif
             VALIDATEP(penult == tyeFunction || penult == tyeFnType, errTypeDefError)
 
             push(tyeRetType, exp);
@@ -4882,10 +4863,6 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
         push(sentinel, cm->tempStack);
     }
     typeBuildExpr(exp, sentinel, cm);
-
-#if defined(TEST) && defined(TRACE)
-    printIntArray(exp->len, exp->cont);
-#endif
 
     Int newTypeId = typeEvalExpr(exp, params, ((untt)(nameTk.lenBts) << 24) + nameTk.pl2, cm);
     typeDefClearParams(params, cm);
@@ -4974,9 +4951,7 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
         }
 
         // scenario 3
-        print("findin overload for type Id %d outerType %d firstNoneg %d", typeId, outerType, firstNonneg) 
         Int ind = binarySearch(outerType, firstNonneg, k + 1, overs);
-        print("ind %d", ind) 
         if (ind == -1) {
             return false;
         }
@@ -5009,7 +4984,7 @@ private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) { //:
 }
 
 
-private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Compiler* cm) {
+private void populateExpStack(Int indExpr, Int sentinelNode, Compiler* cm) {
 //:populateExpStack Populates the expression's type stack with the operands and functions of an
 // expression
     StackInt* st = cm->expStack;
@@ -5024,31 +4999,25 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
             push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), st);
             // index into overloadIds, or entityId for 0-arity fns
 
-            ++(*currAhead);
         } else if (nd.pl1 > -1) { // entityId
             push(cm->entities.cont[nd.pl1].typeId, st);
         } else { // overloadId
             push(nd.pl1, st); // overloadId
         }
     }
-#if defined(TRACE) && defined(TEST)
-    printExpSt(st);
-#endif
 }
 
 
-testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler* cm) {
+testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
 //:typeReduceExpr Runs the typechecking "evaluation" on a pure expression, i.e. one that doesn't
 // contain any nested subexpressions (i.e. data allocations or lambdas)
     // We go from left to right: resolving the calls, typechecking & collapsing args, and replacing
     // calls with their return types
     Int expSentinel = cm->expStack->len;
     Arr(Int) cont = st->cont;
-    
-    print("init") 
-    printIntArray(st->len, cont); 
+    Int currAhead = 1; // 1 for the extra "BIG" element before the call in "st"
+
     for (Int j = 0; j < expSentinel; ++j) {
-        print("type red j %d", j) 
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
             continue;
@@ -5059,7 +5028,7 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler
         const Int o = cont[j + 1];
         if (arity == 0) {
             VALIDATEP(o > -1, errTypeOverloadsOnlyOneZero)
-            
+
             Int entityId;
             Int indOverl = -cm->activeBindings[o] - 2;
             bool ovFound = findOverload(-1, indOverl, &entityId, cm);
@@ -5070,21 +5039,13 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler
             }
 #endif //}}}
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
-            cm->nodes.cont[j + indExpr + 1].pl1 = entityId;
-            //--(*currAhead);
-            //cm->nodes.cont[j + indExpr + 2 - (*currAhead)].pl1 = entityId;
-            
+            cm->nodes.cont[j + indExpr + currAhead].pl1 = entityId;
+
             cont[j] = getFunctionReturnType(cm->entities.cont[entityId].typeId, cm);
-            shiftTypeStackLeft(j + 2, 1, cm);
-            --expSentinel; 
-            
-            
-            print("exp sentinel %d j %d", expSentinel, j); 
-            printIntArray(st->len, cont); 
+            shiftTypeStackLeft(j + 1, 1, cm);
+            --expSentinel;
+
             // the function returns nothing, so there's no return type to write
-#if defined(TRACE) && defined(TEST) //{{{
-            printExpSt(st);
-#endif //}}}
         } else {
             const Int tpFstArg = cont[j - arity];
 
@@ -5109,27 +5070,21 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler
                     VALIDATEP(cont[k] == cm->types.cont[l],
                               errTypeWrongArgumentType)
                 } else { // it's not known, so we fill it in
-                    Int argBindingId = cm->nodes.cont[indExpr + k - (*currAhead)].pl1;
+                    Int argBindingId = cm->nodes.cont[indExpr + k + (currAhead)].pl1;
                     cm->entities.cont[argBindingId].typeId = cm->types.cont[l];
                 }
             }
-            print("shifting by %d at j %d", arity + 1, j) 
-            printIntArray(st->len, cont); 
-            cm->nodes.cont[j + indExpr + 1].pl1 = entityId;
-            //--(*currAhead);
-            //cm->nodes.cont[j + indExpr + 1 - (*currAhead)].pl1 = entityId;
+
+
+            cm->nodes.cont[j + indExpr + (currAhead)].pl1 = entityId;
             // the type-resolved function of the call
-             
-            shiftTypeStackLeft(j - arity, arity + 1, cm);
-            --j; 
+
+            j -= arity;
+            currAhead += arity;
+            shiftTypeStackLeft(j, arity + 1, cm);
+
             cont[j] = getFunctionReturnType(typeOfFunc, cm); // the function return type
-            expSentinel -= (arity + 1); 
-            
-            print("exp sentinel %d j %d", expSentinel, j); 
-            printIntArray(st->len, cont); 
-#if defined(TRACE) && defined(TEST) //{{{
-            printExpSt(st);
-#endif //}}}
+            expSentinel -= (arity + 1);
         }
     }
 }
@@ -5141,11 +5096,9 @@ testable TypeId typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 // "indExpr" is the index of nodExpr or nodAssignmentRight
     StackInt* st = cm->expStack;
 
-    Int currAhead = 0; // how many elements ahead we are compared to the node array (because
-                       // of extra call indicators)
-    populateExpStack(indExpr, sentinelNode, &currAhead, cm);
+    populateExpStack(indExpr, sentinelNode, cm);
 
-    typeReduceExpr(st, indExpr, &currAhead, cm);
+    typeReduceExpr(st, indExpr, cm);
 
     if (st->len == 1) {
         return st->cont[0]; // the last remaining element is the type of the whole expression
