@@ -295,7 +295,7 @@ typedef struct { // :Token
 
 // AST nodes
 #define nodId           7  // pl1 = index of entity, pl2 = index of name
-#define nodCall         8  // pl1 = index of entity, pl2 = arity
+#define nodCall         8  // pl1 = index of entity, pl2 = arg count
 #define nodBinding      9  // pl1 = index of entity, pl2 = 1 if it's a type binding
 #define nodFieldAcc    10  // pl1 = nameId; after type resolution pl1 = offset
 #define nodLoad        11  // a read from memory (a reference or list, array etc)
@@ -603,7 +603,7 @@ struct Compiler { // :Compiler
 typedef struct { // :TypeHeader
     Byte sort;
     Byte tyrity; // "tyrity" = type arity, the number of type parameters
-    Byte depth;
+    Byte arity;  // for function types, equals arity. For structs, number of fields
     untt nameAndLen;
 } TypeHeader;
 

@@ -1142,10 +1142,14 @@ testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
 private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm);
+private TypeId getFunctionReturnType(TypeId funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
-private Int typeGetArity(TypeId typeId, Compiler* cm);
+private Int typeGetTyrity(TypeId typeId, Compiler* cm);
 testable Int typeCheckBigExpr(Int indExpr, Int sentinel, Compiler* cm);
+#ifdef TEST
+testable void printParser(Compiler* cm, Arena* a);
+#endif
 
 //}}}
 //{{{ Lexer
@@ -2039,6 +2043,10 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) {
     BtToken top = pop(bt);
 
     setSpanLengthLexer(top.tokenInd, lx);
+    if (top.tp == tokCall && lx->tokens.cont[top.tokenInd].pl2 == 0) {
+        // the `call()` - we need to distinguish this call from an infix one
+        lx->tokens.cont[top.tokenInd].pl2 = BIG;
+    }
     lx->i++; // CONSUME the closing ")"
 
     lx->lastClosingPunctInd = startInd;
@@ -2768,12 +2776,12 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
         if (frame.tp == exfrCall)  {
             Node call = pop(stEx->calls);
             call.pl2 = frame.argCount;
+            print("frame arg count %d", frame.argCount) 
             if (frame.startNode > -1 && scr->cont[frame.startNode].tp == nodExpr) {
                 // a prefix call inside a data allocator - need to set the nodExpr length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
             }
-
-            push(call, stEx->scr);
+            push(call, scr);
             push(pop(stEx->locsCalls), stEx->locsScr);
         } else {
             if (frame.tp == exfrDataAlloc)  {
@@ -2791,6 +2799,7 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFromScratch
     StateForExprs* stEx = cm->stateForExprs;
     StackNode* scr = stEx->scr;
+    print("scrr") 
     StackSourceLoc* locs = stEx->locsScr;
     if (stEx->metAnAllocation)  {
         cm->nodes.cont[startNodeInd].pl1 = 1;
@@ -2800,6 +2809,7 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
         memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
         memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont,
                 locs->len*sizeof(SourceLoc));
+                
     } else {
         Int newCap = 2*(cm->nodes.cap) + scr->len;
         Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
@@ -2817,6 +2827,7 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
     }
     cm->nodes.len += scr->len;
     cm->sourceLocs->len += scr->len;
+        printParser(cm, cm->aTmp);
 }
 
 
@@ -2875,9 +2886,9 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
                 if ((firstTk.tp == tokCall && firstTk.pl2 == 0) || firstTk.tp == tokPrefixOper) {
                     // `(.call 1 2)`
                     push(
-                        ((ExprFrame) { .tp = firstTk.tp == tokPrefixOper ? exfrPrefixOper : exfrCall,
+                        ((ExprFrame) {.tp = firstTk.tp == tokPrefixOper ? exfrPrefixOper : exfrCall,
                          .sentinel = parensSentinel, .argCount = 0 }),
-                     frames);
+                        frames);
                     push(((Node) { .tp = nodCall }), calls);
                     push(((SourceLoc) { .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }),
                             locsCalls);
@@ -2895,15 +2906,16 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
                 if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
                     ++parent->argCount;
                 }
+                Int sentinel = cTk.pl2 == BIG ? (cm->i + 1) : calcSentinel(cTk, cm->i); 
                 push(((ExprFrame) { .tp = exfrCall, .startNode = scr->len,
-                            .sentinel = calcSentinel(cTk, cm->i), .argCount = 0 }), frames);
+                            .sentinel = sentinel, .argCount = 0 }), frames);
                 if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need
                                                    // demarcation for typechecking & codegen
                     push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
                     push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
                 }
 
-                push(((Node) { .tp = nodCall }), calls);
+                push(((Node) { .tp = nodCall, .pl1 = cTk.pl1 }), calls);
                 push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
             } else { // infix calls like ` .foo`
                 if (parent->tp == exfrCall) {
@@ -3596,7 +3608,7 @@ testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm
     Int newInd = cm->types.len;
     pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
     typeAddHeader(
-        (TypeHeader){.sort = sorFunction, .tyrity = 0, .depth = arity + 1, .nameAndLen = -1}, cm);
+        (TypeHeader){.sort = sorFunction, .tyrity = 0, .arity = arity, .nameAndLen = -1}, cm);
     for (Int k = 0; k <= arity; k++) { // <= because there are (arity + 1) elts - the return type!
         pushIntypes(paramsAndReturn[k], cm);
     }
@@ -3634,7 +3646,7 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
     Int typeIndL = cm->types.len;
     pushIntypes(6, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (1 << 24) + stToNameId(strL),
-                                 .depth = 2, .tyrity = 1}, cm);
+                                 .arity = 2, .tyrity = 1}, cm);
     pushIntypes(0, cm); // the arity of the type param
     pushIntypes(stToNameId(strLen), cm);
     pushIntypes(stToNameId(strCap), cm);
@@ -3646,7 +3658,7 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
     Int typeIndA = cm->types.len;
     pushIntypes(4, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (1 << 24) + stToNameId(strA),
-                                 .depth = 1, .tyrity = 1}, cm);
+                                 .arity = 1, .tyrity = 1}, cm);
     pushIntypes(0, cm); // the arity of the type param
     pushIntypes(stToNameId(strLen), cm);
     pushIntypes(stToNameId(strInt), cm);
@@ -3656,7 +3668,7 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
     Int typeIndTu = cm->types.len;
     pushIntypes(6, cm);
     typeAddHeader((TypeHeader){.sort = sorStruct, .nameAndLen = (2 << 24) + stToNameId(strTu),
-                                 .depth = 2, .tyrity = 2}, cm);
+                                 .arity = 2, .tyrity = 2}, cm);
     pushIntypes(0, cm); // the arities of the type params
     pushIntypes(0, cm);
     pushIntypes(stToNameId(strF1), cm);
@@ -3925,7 +3937,7 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
             if (ov[k] == -1) {
                 continue;
             }
-            Int outerArityNegated = -typeGetArity(ov[k], cm) - 1;
+            Int outerArityNegated = -typeGetTyrity(ov[k], cm) - 1;
             VALIDATEP(binarySearch(outerArityNegated, start, o, ov) == -1,
                       errTypeOverloadsIntersect)
         }
@@ -3956,25 +3968,32 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) { //:createNameOve
 // (typeId = the full type of a function)(ref = entityId or monoId)(yes, "twople" = tuple of two)
 // Postcondition: {overloads} will contain a subtable of length(outerTypeIds)(refs)
     Arr(Int) raw = cm->rawOverloads->cont;
-    Int listId = -cm->activeBindings[nameId] - 2;
-    Int rawStart = listId + 2;
+    const Int listId = -cm->activeBindings[nameId] - 2;
+    const Int rawStart = listId + 2;
 
 #if defined(SAFETY) || defined(TEST)
     VALIDATEI(rawStart != -1, iErrorImportedFunctionNotInScope)
 #endif
 
-    Int countOverloads = raw[listId]/2;
-    Int rawSentinel = rawStart + raw[listId];
+    const Int countOverloads = raw[listId]/2;
+    const Int rawSentinel = rawStart + raw[listId];
 
     Arr(Int) ov = cm->overloads.cont;
-    Int newInd = cm->overloads.len;
+    const Int newInd = cm->overloads.len;
     ov[newInd] = 2*countOverloads; // length of the subtable for this name
     cm->overloads.len += 2*countOverloads + 1;
 
     for (Int j = rawStart, k = newInd + 1; j < rawSentinel; j += 2, k++) {
-        FirstArgTypeId firstParamType = raw[j];
-        OuterTypeId outerType = typeGetOuter(firstParamType, cm);
-        ov[k] = outerType;
+        const FirstArgTypeId firstParamType = raw[j];
+        if (firstParamType > -1) {
+            OuterTypeId outerType = typeGetOuter(firstParamType, cm);
+            ov[k] = outerType;
+        } else {
+            if (nameId == 83)   {
+                print("planting ov -1 into %d for 83", k)
+            }
+            ov[k] = -1;
+        }
         ov[k + countOverloads] = raw[j + 1]; // entityId
     }
 
@@ -4001,6 +4020,9 @@ testable void createOverloads(Compiler* cm) { //:createOverloads
     for (Int j = 0; j < cm->importNames.len; j++) {
         Int nameId = cm->importNames.cont[j];
         Int newIndex = createNameOverloads(nameId, cm);
+        if (nameId == 83)  {
+            print("created overload ind %d", newIndex)    
+        }
         cm->activeBindings[nameId] = -newIndex - 2;
     }
     for (Int j = 0; j < cm->toplevels.len; j++) {
@@ -4273,7 +4295,7 @@ private void printType(TypeId typeInd, Compiler* cm) { //:printType
         return;
     }
     TypeHeader header = typeReadHeader(typeInd, cm);
-    Int arity = header.depth;
+    Int arity = header.arity;
     if (header.sort == sorFunction)  {
         Int retType = cm->types.cont[typeInd + 2 + header.tyrity + arity];
         if (retType < 5) {
@@ -4332,7 +4354,7 @@ private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm) { //:typeAddHeader
 // Writes the bytes for the type header to the tail of the cm->types table.
 // Adds two 4-byte elements
-    pushIntypes((Int)((untt)((untt)hdr.sort << 16) + ((untt)hdr.depth << 8) + hdr.tyrity), cm);
+    pushIntypes((Int)((untt)((untt)hdr.sort << 16) + ((untt)hdr.arity << 8) + hdr.tyrity), cm);
     pushIntypes((Int)hdr.nameAndLen, cm);
 }
 
@@ -4340,14 +4362,13 @@ testable void typeAddHeader(TypeHeader hdr, Compiler* cm) { //:typeAddHeader
 testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm) { //:typeReadHeader
 // Reads a type header from the type array
     Int tag = cm->types.cont[typeId + 1];
-    TypeHeader result = (TypeHeader){ .sort = ((untt)tag >> 16) & LOWER16BITS,
-            .depth = (tag >> 8) & 0xFF, .tyrity = tag & 0xFF,
+    return (TypeHeader){ .sort = ((untt)tag >> 16) & LOWER16BITS,
+            .arity = (tag >> 8) & 0xFF, .tyrity = tag & 0xFF,
             .nameAndLen = (untt)cm->types.cont[typeId + 2] };
-    return result;
 }
 
 
-private Int typeGetArity(TypeId typeId, Compiler* cm) { //:typeGetArity
+private Int typeGetTyrity(TypeId typeId, Compiler* cm) { //:typeGetTyrity
     if (cm->types.cont[typeId] == 0) {
         return 0;
     }
@@ -4382,12 +4403,13 @@ private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeG
 
 
 private Int isFunction(TypeId typeId, Compiler* cm) { //:isFunction
-// Returns the function's depth (count of args) if the type is a function type, -1 otherwise
+// Returns the function's arity if the type is a function type, 
+// -1 otherwise
     if (typeId < topVerbatimType) {
         return -1;
     }
     TypeHeader hdr = typeReadHeader(typeId, cm);
-    return (hdr.sort == sorFunction) ? hdr.depth : -1;
+    return (hdr.sort == sorFunction) ? hdr.arity : -1;
 }
 
 //}}}
@@ -4523,7 +4545,7 @@ private TypeId typeCreateStruct(StackInt* exp, Int startInd, Int length, StackIn
 #endif
     Int countFields = (sentinel - startInd)/4;
     typeAddHeader((TypeHeader){
-        .sort = sorStruct, .tyrity = params->len/2, .depth = countFields,
+        .sort = sorStruct, .tyrity = params->len/2, .arity = countFields,
         .nameAndLen = nameAndLen}, cm);
     for (Int j = 1; j < params->len; j += 2) {
         pushIntypes(params->cont[j], cm);
@@ -4565,7 +4587,7 @@ private TypeId typeCreateTypeCall(StackInt* exp, Int startInd, Int length, Stack
         --countFnParams;
     }
     typeAddHeader((TypeHeader){
-        .sort = (isFunction ? sorFunction : sorPartial), .tyrity = params->len/2, .depth = countFnParams,
+        .sort = (isFunction ? sorFunction : sorPartial), .tyrity = params->len/2, .arity = countFnParams,
         .nameAndLen = 0}, cm);
     for (Int j = 1; j < params->len; j += 2) {
         pushIntypes(params->cont[j], cm);
@@ -4606,7 +4628,7 @@ private TypeId typeCreateFnSignature(StackInt* exp, Int startInd, Int length, St
 #endif
     Int countFields = (sentinel - startInd)/4;
     typeAddHeader((TypeHeader){
-        .sort = sorFunction, .tyrity = params->len/2, .depth = countFields,
+        .sort = sorFunction, .tyrity = params->len/2, .arity = countFields,
         .nameAndLen = nameAndLen}, cm);
     for (Int j = 1; j < params->len; j += 2) {
         pushIntypes(params->cont[j], cm);
@@ -4791,8 +4813,8 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
                 } else {
                     Int typeId = cm->activeBindings[nameId];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
-                    /* Int typeAr = typeGetArity(typeId, cm); */
-                    VALIDATEP(typeGetArity(typeId, cm) == countArgs, errTypeConstructorWrongArity)
+                    /* Int typeAr = typeGetTyrity(typeId, cm); */
+                    VALIDATEP(typeGetTyrity(typeId, cm) == countArgs, errTypeConstructorWrongArity)
                     push(((untt)tyeTypeCall << 24) + nameId, exp);
                     push(countArgs, exp);
                 }
@@ -4877,16 +4899,24 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
 
 
 private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) { //:getFirstParamType
-// Gets the type of the first param of a function
+// Gets the type of the first param of a function. Returns -1 iff it's zero arity
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
+    if (hdr.arity == 0) {
+        return -1;
+    }
     return cm->types.cont[funcTypeId + 3 + hdr.tyrity]; // +3 skips the type length, type tag & name
 }
 
-
 private Int getFirstParamInd(TypeId funcTypeId, Compiler* cm) { //:getFirstParamInd
-// Gets the ind of the first param of a function
+// Gets the ind of the first param of a function. Precondition: function has a non-zero arity!
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
     return funcTypeId + 3 + hdr.tyrity; // +3 skips the type length, type tag & name
+}
+
+
+private TypeId getFunctionReturnType(TypeId funcTypeId, Compiler* cm) {
+    TypeHeader hdr = typeReadHeader(funcTypeId, cm);
+    return cm->types.cont[funcTypeId + 3 + hdr.tyrity + hdr.arity];
 }
 
 
@@ -4904,12 +4934,12 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
 // 2. outerType = -1: 0-arity function
 // 3. outerType >=< 0 BIG: non-function types with outer concrete, e.g. "L(U)" => ind of L
 // 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1
-    Int start = ovInd + 1;
+    const Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
-    Int countOverloads = overs[ovInd]/2;
-    Int sentinel = ovInd + countOverloads + 1;
+    const Int countOverloads = overs[ovInd]/2;
+    const Int sentinel = ovInd + countOverloads + 1;
     if (typeId == -1) { // scenario 2
-        Int j = 0;
+        Int j = ovInd + 1;
         while (j < sentinel && overs[j] < 0) {
             if (overs[j] == -1) {
                 (*entityId) = overs[j + countOverloads];
@@ -4920,7 +4950,7 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
         throwExcParser(errTypeNoMatchingOverload);
     }
 
-    Int outerType = typeGetOuter(typeId, cm);
+    const Int outerType = typeGetOuter(typeId, cm);
     Int mbFuncArity = isFunction(typeId, cm);
     if (mbFuncArity > -1) { // scenario 4
         mbFuncArity += BIG;
@@ -4944,7 +4974,9 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
         }
 
         // scenario 3
+        print("findin overload for type Id %d outerType %d firstNoneg %d", typeId, outerType, firstNonneg) 
         Int ind = binarySearch(outerType, firstNonneg, k + 1, overs);
+        print("ind %d", ind) 
         if (ind == -1) {
             return false;
         }
@@ -4954,17 +4986,18 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
     return false;
 }
 
+
 #if defined(TRACE) && defined(TEST)
 private void printExpSt(StackInt* st);
 #endif
 
 
-private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) {
+private void shiftTypeStackLeft(Int startInd, Int byHowMany, Compiler* cm) { //:shiftTypeStackLeft
 // Shifts ints from start and until the end to the left.
 // E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
 // startInd and byHowMany are measured in units of Int
-    Int from = startInd;
-    Int to = startInd - byHowMany;
+    Int from = startInd + byHowMany;
+    Int to = startInd;
     Int sentinel = cm->expStack->len;
     while (from < sentinel) {
         Int pieceSize = MIN(byHowMany, sentinel - from);
@@ -5005,42 +5038,60 @@ private void populateExpStack(Int indExpr, Int sentinelNode, Int* currAhead, Com
 
 
 testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler* cm) {
-//:typeCheckExpr Runs the typechecking "evaluation" on a pure expression, i.e. one that doesn't
+//:typeReduceExpr Runs the typechecking "evaluation" on a pure expression, i.e. one that doesn't
 // contain any nested subexpressions (i.e. data allocations or lambdas)
     // We go from left to right: resolving the calls, typechecking & collapsing args, and replacing
     // calls with their return types
-    const Int expSentinel = cm->expStack->len - 1;
+    Int expSentinel = cm->expStack->len;
     Arr(Int) cont = st->cont;
+    
+    print("init") 
+    printIntArray(st->len, cont); 
     for (Int j = 0; j < expSentinel; ++j) {
+        print("type red j %d", j) 
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
             continue;
         }
 
         // A function call. cont[j] contains the arity, cont[j + 1] the index into {overloads}
-        Int arity = cont[j] - BIG;
-        Int o = cont[j + 1];
+        const Int arity = cont[j] - BIG;
+        const Int o = cont[j + 1];
         if (arity == 0) {
             VALIDATEP(o > -1, errTypeOverloadsOnlyOneZero)
+            
+            Int entityId;
+            Int indOverl = -cm->activeBindings[o] - 2;
+            bool ovFound = findOverload(-1, indOverl, &entityId, cm);
 
-            Int functionTypeInd = cm->entities.cont[o].typeId;
-#ifdef SAFETY //{{{
-            VALIDATEI(cm->types.cont[functionTypeInd] == 1, iErrorOverloadsIncoherent)
+#if defined(TRACE) && defined(TEST) //{{{
+            if (!ovFound) {
+                printExpSt(st);
+            }
 #endif //}}}
-            cont[j] = cm->types.cont[functionTypeInd + 1]; // write the return type
-            --(*currAhead);
+            VALIDATEP(ovFound, errTypeNoMatchingOverload)
+            cm->nodes.cont[j + indExpr + 1].pl1 = entityId;
+            //--(*currAhead);
+            //cm->nodes.cont[j + indExpr + 2 - (*currAhead)].pl1 = entityId;
+            
+            cont[j] = getFunctionReturnType(cm->entities.cont[entityId].typeId, cm);
             shiftTypeStackLeft(j + 2, 1, cm);
-                // the function returns nothing, so there's no return type to write
+            --expSentinel; 
+            
+            
+            print("exp sentinel %d j %d", expSentinel, j); 
+            printIntArray(st->len, cont); 
+            // the function returns nothing, so there's no return type to write
 #if defined(TRACE) && defined(TEST) //{{{
             printExpSt(st);
 #endif //}}}
         } else {
-            Int tpFstArg = cont[j - arity];
+            const Int tpFstArg = cont[j - arity];
 
             VALIDATEP(tpFstArg > -1, errTypeUnknownFirstArg)
             Int entityId;
             Int indOverl = -cm->activeBindings[-o - 2] - 2;
-            bool ovFound = findOverload(tpFstArg, indOverl, &entityId, cm);
+            const Bool ovFound = findOverload(tpFstArg, indOverl, &entityId, cm);
 #if defined(TRACE) && defined(TEST) //{{{
             if (!ovFound) {
                 printExpSt(st);
@@ -5049,8 +5100,8 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            VALIDATEP(typeReadHeader(typeOfFunc, cm).depth == arity + 1, errTypeNoMatchingOverload)
-                // first parm matches, but not arity
+            VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == arity, errTypeNoMatchingOverload)
+            // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
             for (int k = j - arity, l = firstParamInd; k < j; k++, l++) {
                 // We know the type of the function, now to validate arg types against param types
@@ -5062,11 +5113,20 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Int* currAhead, Compiler
                     cm->entities.cont[argBindingId].typeId = cm->types.cont[l];
                 }
             }
-            --(*currAhead);
-            cm->nodes.cont[j + indExpr + 1 - (*currAhead)].pl1 = entityId;
+            print("shifting by %d at j %d", arity + 1, j) 
+            printIntArray(st->len, cont); 
+            cm->nodes.cont[j + indExpr + 1].pl1 = entityId;
+            //--(*currAhead);
+            //cm->nodes.cont[j + indExpr + 1 - (*currAhead)].pl1 = entityId;
             // the type-resolved function of the call
-            cont[j] = cm->types.cont[typeOfFunc + 1]; // the function return type
-            shiftTypeStackLeft(j + arity + 2, arity + 1, cm);
+             
+            shiftTypeStackLeft(j - arity, arity + 1, cm);
+            --j; 
+            cont[j] = getFunctionReturnType(typeOfFunc, cm); // the function return type
+            expSentinel -= (arity + 1); 
+            
+            print("exp sentinel %d j %d", expSentinel, j); 
+            printIntArray(st->len, cont); 
 #if defined(TRACE) && defined(TEST) //{{{
             printExpSt(st);
 #endif //}}}
@@ -5463,7 +5523,7 @@ private void printStackNode(StackNode* st, Arena* a) { //:printStackNode
             printf("  ");
         }
         if (nod.tp == nodCall) {
-            printf("Call %d type = ", nod.pl1);
+            printf("Call %d type = \n", nod.pl1);
             //printType(cm->entities.cont[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             if (nod.pl3 != 0)  {
@@ -5541,12 +5601,12 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
         }
         printf("(");
         Int fieldsStart = typeId + hdr.tyrity + 3;
-        Int fieldsSentinel = fieldsStart + hdr.depth;
+        Int fieldsSentinel = fieldsStart + hdr.arity;
         for (Int j = fieldsStart; j < fieldsSentinel; j++) {
             printf("name %d ", cm->types.cont[j]);
         }
-        fieldsStart += hdr.depth;
-        fieldsSentinel += hdr.depth;
+        fieldsStart += hdr.arity;
+        fieldsSentinel += hdr.arity;
         for (Int j = fieldsStart; j < fieldsSentinel; j++) {
             typePrintGenElt(cm->types.cont[j]);
         }
@@ -5562,7 +5622,7 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
         }
         printf("(");
         Int fnParamsStart = typeId + hdr.tyrity + 3;
-        Int fnParamsSentinel = fnParamsStart + hdr.depth - 1;
+        Int fnParamsSentinel = fnParamsStart + hdr.arity - 1;
         for (Int j = fnParamsStart; j < fnParamsSentinel; j++) {
             typePrintGenElt(cm->types.cont[j]);
         }

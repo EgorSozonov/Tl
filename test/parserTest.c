@@ -69,7 +69,7 @@ private Int tryGetOper0(Int opType, Int typeId, Compiler* protoOvs) {
 private Int transformBindingEntityId(Int inp, Compiler* pr) {
     if (inp < S) { // parsed stuff
         return inp + pr->countNonparsedEntities;
-    } else if (inp < O){ // imported but not operators
+    } else if (inp < O){ // imported but not operators: "foo", "bar"
         return inp - I + pr->countNonparsedEntities;
     } else { // operators
         return inp - O;
@@ -91,15 +91,17 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
     j = 0;
     Int t = 0;
     while (j < countTypes) {
-        Int importLen = types[j];
-        Int sentinel = j + importLen + 1;
+        const Int importLen = types[j];
+        const Int sentinel = j + importLen + 1;
         TypeId initTypeId = cm->types.len;
 
         pushIntypes(importLen + 3, cm); // +3 because the header takes 2 ints, 1 more for
                                         // the return typeId
         typeAddHeader(
-           (TypeHeader){.sort = sorFunction, .tyrity = 0, .depth = importLen - 1, .nameAndLen = -1}, cm);
-        for (Int k = j + 1; k < sentinel; k++) { // <= because there are (arity + 1) elts - the return type!
+           (TypeHeader){.sort = sorFunction, .tyrity = 0, .arity = importLen - 1, 
+                        .nameAndLen = -1}, cm);
+        for (Int k = j + 1; k < sentinel; k++) { // <= because there are (arity + 1) elts - 
+                                                 // +1 for the return type!
             pushIntypes(types[k], cm);
         }
 
@@ -171,7 +173,6 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
     createTest0((name), (input), (nodes), sizeof(nodes)/sizeof(Node), (types), sizeof(types)/4, \
     (entities), sizeof(entities)/sizeof(TestEntityImport), proto, a)
 
-/*
 private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes,
                             Int countNodes, Arr(Int) types, Int countTypes, Arr(TestEntityImport) entities,
                             Int countEntities, Compiler* proto, Arena* a) {
@@ -210,7 +211,6 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
     createTestWithLocs0((name), (input), (nodes), sizeof(nodes)/sizeof(Node), types,\
     sizeof(types)/4, entities, sizeof(entities)/sizeof(EntityImport),\
     locs, sizeof(locs)/sizeof(SourceLoc), proto, a)
-*/
 
 int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool compareLocsToo) {
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
@@ -303,6 +303,13 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
         printParser(test.test, a);
     }
 }
+
+
+private Node doubleNd(double value) {
+    return (Node){ .tp = tokDouble, .pl1 = longOfDoubleBits(value) >> 32, 
+                                    .pl2 = longOfDoubleBits(value) & LOWER32BITS };
+}
+
 //}}}
 //{{{ Assignment tests
 
@@ -465,7 +472,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //{{{ Expression tests
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
-        /*
+    /* 
         createTestWithLocs(
             s("Simple function call"),
             s("x = 10 .foo 2 `hw`"),
@@ -488,7 +495,6 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 { .startBt = 7, .lenBts = 4 }
             })
         ),
-        */
         createTest(
             s("Data allocation"),
             s("x = L(1 2 3)"),
@@ -562,43 +568,44 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       /*
         createTest(
             s("Nested function call 1"),
             s("x = 10 .foo bar() 3"),
             (((Node[]) {
-                (Node){ .tp = nodAssignLeft, .pl2 = 6, .startBt = 0, .lenBts = 18 },
-                (Node){ .tp = nodExpr, .pl2 = 6, .startBt = 0, .lenBts = 18 },
-                (Node){ .tp = nodExpr,  .pl2 = 4, .startBt = 4, .lenBts = 14 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3, .startBt = 4, .lenBts = 3 }, // foo
-                (Node){ .tp = tokInt, .pl2 = 10,  .startBt = 8, .lenBts = 2 },
-                (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 0, .startBt = 12, .lenBts = 3 }, // bar
-                (Node){ .tp = tokInt, .pl2 = 3,   .startBt = 17, .lenBts = 1 }
+                (Node){ .tp = nodAssignLeft, .pl2 = 0},
+                (Node){ .tp = nodExpr, .pl2 = 4},
+                
+                (Node){ .tp = tokInt, .pl2 = 10},
+                (Node){ .tp = nodCall, .pl1 = I - 1, .pl2 = 0}, // bar
+                (Node){ .tp = tokInt, .pl2 = 3},
+                (Node){ .tp = nodCall, .pl1 = I - 2, .pl2 = 3}, // foo
             })),
-            ((Int[]) {4, tokDouble, tokInt, tokDouble, tokInt, 1, tokDouble}),
+            ((Int[]) {4, tokInt, tokDouble, tokInt, tokString, // Int Double Int -> String
+                      1, tokDouble}), // () -> Double
             ((TestEntityImport[]) {(TestEntityImport){ .nameInd = 0, .typeInd = 0},
                                (TestEntityImport){ .nameInd = 1, .typeInd = 1}})
         ),
+       */ 
         createTest(
             s("Nested function call 2"),
             s("x =  10 .foo (3.4 .bar)"),
             (((Node[]) {
-                (Node){ .tp = nodAssignLeft,     .pl2 = 6,  .startBt = 0, .lenBts = 22 },
-                (Node){ .tp = nodBinding, .pl1 = 0,         .startBt = 0, .lenBts = 1 }, // x
-                (Node){ .tp = nodExpr,           .pl2 = 4,  .startBt = 5, .lenBts = 17 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 2,  .startBt = 5, .lenBts = 3 },   // foo
-                (Node){ .tp = tokInt,            .pl2 = 10, .startBt = 9, .lenBts = 2 },
-
-                (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 1,
-                        .startBt = 13, .lenBts = 4 },  // barr
-                (Node){ .tp = tokDouble, .pl1 = longOfDoubleBits(3.4) >> 32,
-                                        .pl2 = longOfDoubleBits(3.4) & LOWER32BITS,
-                                        .startBt = 18, .lenBts = 3 }
+                (Node){ .tp = nodAssignLeft, .pl1 = 0 },
+                
+                (Node){ .tp = nodExpr,           .pl2 = 4  },
+                (Node){ .tp = tokInt,            .pl2 = 10 },
+                doubleNd(3.4), 
+                (Node){ .tp = nodCall, .pl1 = I - 1, .pl2 = 1 }, // bar
+                (Node){ .tp = nodCall, .pl1 = I - 2, .pl2 = 2 }  // foo
             })),
-            ((Int[]) {3, tokDouble, tokInt, tokBool, 2, tokBool, tokDouble}),
-            ((TestEntityImport[]) {(TestEntityImport){ .name = s("foo"), .typeInd = 0},
-                               (TestEntityImport){ .name = s("barr"), .typeInd = 1}})
+            ((Int[]) {3, tokInt, tokBool, tokBool, 
+                      2, tokDouble, tokBool }
+            ),
+            ((TestEntityImport[]) {(TestEntityImport){ .nameInd = 0, .typeInd = 0},
+                               (TestEntityImport){ .nameInd = 1, .typeInd = 1}}
+            )
         ),
+       /* 
         createTest(
             s("Triple function call"),
             s("x = 2 .buzz foo(inner(7 `hw`)) 4"),
