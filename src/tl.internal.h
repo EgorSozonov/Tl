@@ -575,7 +575,8 @@ struct Compiler { // :Compiler
 
     // GENERAL STATE
     Int i;
-    bool wasError;
+    Bool wasLexerError;
+    Bool wasError;
     String* errMsg;
     Arena* a;
     Arena* aTmp;

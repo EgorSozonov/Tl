@@ -1319,7 +1319,7 @@ _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* c
 
 _Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compiler* lx) {
 // Sets i to beyond input's length to communicate to callers that lexing is over
-    lx->wasError = true;
+    lx->wasLexerError = true;
 #ifdef TRACE
     printf("Error on code line %d, i = %d: %s\n", lineNumber, IND_BT, errMsg);
 #endif
@@ -3828,7 +3828,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
         .lexBtrack = createStackBtToken(16, aTmp),
         .stringTable = copyStringTable(proto->stringTable, a),
         .stringDict = copyStringDict(proto->stringDict, a),
-        .wasError = false, .errMsg = &empty,
+        .wasLexerError = false, .wasError = false, .errMsg = &empty,
         .a = a, .aTmp = aTmp
     };
     return lx;
@@ -3837,7 +3837,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
 
 testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:initializeParser
 // Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
-    if (lx->wasError) {
+    if (lx->wasLexerError) {
         return;
     }
 
@@ -5345,7 +5345,7 @@ void printLexBtrack(Compiler* lx) {
 int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
 // differing token otherwise
-    if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
+    if (a.wasLexerError != b.wasLexerError || (!endsWith(a.errMsg, b.errMsg))) {
         return -1;
     }
     int commonLength = a.tokens.len < b.tokens.len ? a.tokens.len : b.tokens.len;
@@ -5380,7 +5380,7 @@ int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
 
 
 testable void printLexer(Compiler* lx) { //:printLexer
-    if (lx->wasError) {
+    if (lx->wasLexerError) {
         printf("Error: ");
         printString(lx->errMsg);
     }
