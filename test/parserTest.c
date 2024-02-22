@@ -469,7 +469,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //{{{ Expression tests
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
-        /*
         createTestWithLocs(
             s("Simple function call"),
             s("x = 10 .foo 2 `hw`"),
@@ -603,29 +602,22 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Triple function call"),
-            s("x = 2 .buzz foo(inner(7 `hw`)) 4"),
+            s("x = 2 .bar foo(foo(`hw`)) 4"),
             (((Node[]) {
-                (Node){ .tp = nodAssignLeft,     .pl2 = 9 },
-                (Node){ .tp = nodBinding, .pl1 = 0 }, // x
-
-                (Node){ .tp = nodExpr,           .pl2 = 7 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 3 }, // buzz
+                (Node){ .tp = nodAssignLeft,     .pl2 = 0 },
+                (Node){ .tp = nodExpr,           .pl2 = 6 },
                 (Node){ .tp = tokInt,            .pl2 = 2 },
-
-                (Node){ .tp = nodCall, .pl1 = I + 1, .pl2 = 1 }, // foo
-                (Node){ .tp = nodCall, .pl1 = I + 2, .pl2 = 2 }, // inner
-                (Node){ .tp = tokInt,                .pl2 = 7 },
                 (Node){ .tp = tokString,                      },
+                (Node){ .tp = nodCall, .pl1 = I - 2, .pl2 = 1 }, // foo
+                (Node){ .tp = nodCall, .pl1 = I - 2, .pl2 = 1 }, // foo
                 (Node){ .tp = tokInt,                .pl2 = 4 },
+                (Node){ .tp = nodCall, .pl1 = I - 1, .pl2 = 3 } // bar
             })),
-            ((Int[]) {4, tokString, tokInt, tokBool, tokInt, // buzz (String <- Int Bool Int)
-                      2, tokBool, tokDouble, // foo (Bool <- Float)
-                      3, tokDouble, tokInt, tokString}), // inner (Float <- Int String)
-            ((TestEntityImport[]) {(TestEntityImport){ .name = s("buzz"), .typeInd = 0},
-                               (TestEntityImport){ .name = s("foo"), .typeInd = 1},
-                               (TestEntityImport){ .name = s("inner"), .typeInd = 2}})
+            ((Int[]) {4, tokInt, tokString, tokInt, tokDouble,
+                      2, tokString, tokString}),
+            ((TestEntityImport[]) {(TestEntityImport){ .nameInd = 0, .typeInd = 1},
+                               (TestEntityImport){ .nameInd = 1, .typeInd = 0}})
         ),
-
         createTest(
             s("Operators simple"),
             s("x = 1 + (9/3)"),
@@ -641,15 +633,17 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       */
         createTestWithError(
             s("Operator arity error"),
-            s(errOperatorWrongArity),
+            s(errTypeNoMatchingOverload),
             s("x = 1 + 20 100"),
             (((Node[]) {
                 (Node){ .tp = nodAssignLeft },
-                (Node){ .tp = nodBinding, .pl1 = 0 }, // x
-                (Node){ .tp = nodExpr }
+                (Node){ .tp = nodExpr },
+                (Node){ .tp = tokInt, .pl2 = 1 },
+                (Node){ .tp = tokInt, .pl2 = 20 },
+                (Node){ .tp = tokInt, .pl2 = 100 },
+                (Node){ .tp = nodCall, .pl1 = O + opPlus, .pl2 = 3 }
             })),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
@@ -773,6 +767,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         //~ }
     //~ );
 //~ }
+
 /*
 ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
@@ -1455,6 +1450,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     }));
 }
 */
+
 /*
 ParserTestSet* typeTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Types test set"), a, ((ParserTest[]){

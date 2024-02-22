@@ -231,7 +231,7 @@ typedef struct { // :Token
 #define tokWord         7  // pl2 = nameId (index in the string table)
 #define tokTypeName     8  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg        9  // pl2 = same as tokWord. The ":argName"
-#define tokPrefixOper  10  // pl1 = OperatorType, one of the "opT" constants below
+#define tokUnaryOper   10  // pl1 = OperatorType, one of the "opT" constants below
 #define tokFieldAcc    11  // pl2 = nameId
 
 // Statement or subexpr span types. pl2 = count of inner tokens
@@ -399,7 +399,7 @@ typedef struct { // :OpDef
 #define opQuestionMark     35 // ?    nullable type operator
 #define opBitwiseXor       36 // ^.   bitwise XOR
 #define opExponent         37 // ^    exponentiation
-#define opDataAcc          38 // _    data accessor
+#define opDataAcc          38 // _    array accessor
 #define opBitwiseOr        39 // ||.  bitwise or
 #define opBoolOr           40 // ||   logical or
 
@@ -518,8 +518,7 @@ typedef struct {  // :ExprFrame
 
 #define exfrParen      1
 #define exfrCall       2
-#define exfrPrefixOper 3
-#define exfrDataAlloc  4
+#define exfrDataAlloc  3
 
 DEFINE_STACK_HEADER(ExprFrame)
 

@@ -1910,7 +1910,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     if (isAssignment) { // mutation operators like "*=" or "*.="
         processAssignment(2, opType, lx);
     } else {
-        pushIntokens((Token){ .tp = (opDef.arity == 1 ? tokPrefixOper : tokCall), .pl1 = opType,
+        pushIntokens((Token){ .tp = (opDef.arity == 1 ? tokUnaryOper : tokCall), .pl1 = opType,
                     .pl2 = 0, .startBt = lx->i, .lenBts = j - lx->i}, lx);
     }
     lx->i = j; // CONSUME the operator
@@ -2679,7 +2679,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
         typeId = getTypeOfVar(varId, cm);
         addNode((Node){.tp = nodId, .pl1 = varId, .pl2 = tk.pl2},
                  tk.startBt, tk.lenBts, cm);
-    } else if (tk.tp == tokPrefixOper) {
+    } else if (tk.tp == tokUnaryOper) {
         Int operBindingId = tk.pl1;
         OpDef operDefinition = TL_OPERATORS[operBindingId];
         VALIDATEP(operDefinition.arity == 1, errOperatorWrongArity)
@@ -2706,11 +2706,11 @@ private void exprSubex(Int sentinelToken, Int* arity, P_CT) { //:exprSubex
 //TODO: allow for core forms (but not scopes!)
     Token firstTk = toks[cm->i];
 
-    if (firstTk.tp == tokWord || firstTk.tp == tokPrefixOper) {
+    if (firstTk.tp == tokWord || firstTk.tp == tokUnaryOper) {
         Int mbBnd = -1;
         if (firstTk.tp == tokWord) {
             mbBnd = cm->activeBindings[firstTk.pl2];
-        } else if (firstTk.tp == tokPrefixOper) {
+        } else if (firstTk.tp == tokUnaryOper) {
             VALIDATEP(*arity == (TL_OPERATORS)[firstTk.pl1].arity, errOperatorWrongArity)
             mbBnd = -firstTk.pl1 - 2;
         }
@@ -2760,14 +2760,6 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
 }
 
 
-private void exprClosePrefixes(StateForExprs* stEx) {
-    while (stEx->frames->len > 0 && peek(stEx->frames).tp == exfrPrefixOper) {
-        pop(stEx->frames);
-        push(pop(stEx->calls), stEx->scr);
-    }
-}
-
-
 private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
     StackNode* scr = stEx->scr;
@@ -2789,7 +2781,6 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
                 // a parens inside a data allocator - need to set the nodExpr length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
             }
-            exprClosePrefixes(stEx);
         }
     }
 }
@@ -2860,10 +2851,6 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
                 push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2 }), scr);
             }
             push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-            if (parent->tp == exfrPrefixOper) {
-                exprClosePrefixes(stEx);
-                parent = frames->cont + (frames->len - 1);
-            }
         } else if (tokType == tokParens) {
             if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
                 ++parent->argCount;
@@ -2880,11 +2867,10 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
 
             if (cm->i + 1 < sentinelToken)  {
                 Token firstTk = toks[cm->i + 1];
-                if ((firstTk.tp == tokCall && firstTk.pl2 == 0) || firstTk.tp == tokPrefixOper) {
+                if (firstTk.tp == tokCall && firstTk.pl2 == 0) {
                     // `(.call 1 2)`
                     push(
-                        ((ExprFrame) {.tp = firstTk.tp == tokPrefixOper ? exfrPrefixOper : exfrCall,
-                         .sentinel = parensSentinel, .argCount = 0 }),
+                        ((ExprFrame) {.tp = exfrCall, .sentinel = parensSentinel, .argCount = 0 }),
                         frames);
                     push(((Node) { .tp = nodCall }), calls);
                     push(((SourceLoc) { .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }),
@@ -2892,11 +2878,8 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
                     ++cm->i; // CONSUME the parens token
                 }
             }
-        } else if (tokType == tokPrefixOper) { // prefix operators
-            push(((ExprFrame){
-                    .tp = exfrPrefixOper, .sentinel = parent->sentinel, .argCount = 0
-                }), frames);
-            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1 }), calls);
+        } else if (tokType == tokUnaryOper) { // unary operators
+            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1, .pl2 = 1, }), calls);
             push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
@@ -2916,7 +2899,6 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
                 push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
             } else { // infix calls like ` .foo`
                 if (parent->tp == exfrCall) {
-                    VALIDATEP(parent->tp != exfrPrefixOper, errExpressionInfixAfterPrefix)
                     ExprFrame callFrame = pop(frames);
                     Node call = pop(calls);
                     call.pl2 = callFrame.argCount;
