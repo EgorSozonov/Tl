@@ -566,7 +566,7 @@ struct Compiler { // :Compiler
     InListInt types;
     StringDict* typesDict;
     StackInt* expStack;   // [aTmp]
-    StackInt* typeStack;  // [aTmp]
+    StackInt* typeParams;  // [aTmp]
     StackInt* tempStack;  // [aTmp]
     Int countNonparsedEntities;
     Int countOverloads;

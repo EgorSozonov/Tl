@@ -1093,8 +1093,8 @@ const char errExpressionError[]             = "Cannot parse expression!";
 const char errExpressionCannotContain[]     = "Expressions cannot contain scopes or statements!";
 const char errExpressionFunctionless[]      = "Functionless expression!";
 const char errTypeDefCannotContain[]        = "Type declarations may only contain types (like Int), type params (like A), type constructors (like List) and parentheses!";
-const char errTypeDefError[]               = "Cannot parse type declaration!";
-const char errTypeDefParamsError[]         = "Error parsing type params. Should look like this: [T U/2]";
+const char errTypeDefError[]                = "Cannot parse type declaration!";
+const char errTypeDefParamsError[]          = "Error parsing type params. Should look like this: [T U/2]";
 const char errOperatorWrongArity[]          = "Wrong number of arguments for operator!";
 const char errUnknownBinding[]              = "Unknown binding!";
 const char errUnknownFunction[]             = "Unknown function!";
@@ -2379,17 +2379,9 @@ testable void printName(Int name, Compiler* cm) {
     printf("\n");
 }
 
-Node trivialNode(untt tp, Token tk) {
-    return
-        (Node){ .tp = tp, .pl1 = tk.pl1, .pl2 = tk.pl2 };
-}
-
 
 void addNode(Node node, Int startBt, Int lenBts, Compiler* cm) { //:addNode
     pushInnodes(node, cm);
-    if (cm->sourceLocs == null)  {
-        print("it's null!")
-    }
     push(((SourceLoc) { .startBt = startBt, .lenBts = lenBts }), cm->sourceLocs);
 }
 
@@ -3875,7 +3867,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     cm->toplevels = createInListToplevel(8, lx->a);
 
     cm->expStack = createStackint32_t(16, cm->aTmp);
-    cm->typeStack = createStackint32_t(16, cm->aTmp);
+    cm->typeParams = createStackint32_t(16, cm->aTmp);
     cm->tempStack = createStackint32_t(16, cm->aTmp);
     cm->scopeStack = createScopeStack();
     importPrelude(cm);
@@ -4160,7 +4152,10 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
     if (toks[cm->i].tp == tokParamList) {
         Token paramListTk = toks[cm->i];
         cm->i++;
-        newFnTypeId = typeDef(paramListTk, true, P_C);
+        nameTypeList(sentinel, cm);
+        // assert there's an arrow now
+        // parse a type - the return type
+        // merge type
     }
 
     EntityId newFnEntityId = cm->entities.len;
@@ -4457,13 +4452,13 @@ private Int typeCountArgs(Int sentinelToken, P_CT) {
 
 
 testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) {
-// Performs a binary search of the binary params in cm->typeStack. Returns -1 if nothing is found
-    if (cm->typeStack->len == 0) {
+// Performs a binary search of the binary params in {typeParams}. Returns -1 if nothing is found
+    if (cm->typeParams->len == 0) {
         return -1;
     }
-    Arr(Int) st = cm->typeStack->cont;
+    Arr(Int) st = cm->typeParams->cont;
     Int i = 0;
-    Int j = cm->typeStack->len - 2;
+    Int j = cm->typeParams->len - 2;
     if (st[i] == nameIdToFind) {
         return i;
     } else if (st[j] == nameIdToFind) {
@@ -4639,8 +4634,9 @@ private TypeId typeCreateFnSignature(StackInt* exp, Int startInd, Int length, St
 
 
 private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compiler* cm) {
-// Processes the "type expression" produced by "typeDef".
-// Returns the typeId of the new typeId
+//:typeEvalExpr Processes the "type expression" produced by "typeDef".
+// Returns the typeId of the newly defined type
+// Example: ...
     Int j = exp->len - 2;
     while (j > 0) {
         Int tyeContent = exp->cont[j];
@@ -4675,7 +4671,7 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
         j -= 2;
     }
 #if defined(TEST) && defined(TRACE)
-    print("after processing")
+    print("after type def processing")
     printIntArray(exp->len, exp->cont);
 #endif
     if (nameAndLen > 0) {
@@ -4693,7 +4689,7 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
 
 
 private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) {
-// Precondition: we are pointing 1 past the bracket token
+//:typeDefReadParams Precondition: we are pointing 1 past the bracket token
     Int brackSentinel = cm->i + bracketTk.pl2;
     while (cm->i < brackSentinel) {
         Token tk = cm->tokens.cont[cm->i];
@@ -4717,7 +4713,7 @@ private void typeDefReadParams(Token bracketTk, StackInt* params, Compiler* cm) 
 }
 
 
-private void typeDefClearParams(StackInt* params, Compiler* cm) {
+private void typeDefClearParams(StackInt* params, Compiler* cm) { //:typeDefClearParams
     for (Int j = 0; j < params->len; j += 2) {
         cm->activeBindings[params->cont[j]] = -1;
     }
@@ -4725,7 +4721,7 @@ private void typeDefClearParams(StackInt* params, Compiler* cm) {
 }
 
 
-private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
+private Int typeCountFieldsInStruct(Int length, Compiler* cm) { //:typeCountFieldsInStruct
 // Returns the number of fields in struct definition. Precond: we are 1 past the parens token
     Int count = 0;
     Int j = cm->i;
@@ -4747,21 +4743,23 @@ private Int typeCountFieldsInStruct(Int length, Compiler* cm) {
 }
 
 
-private bool typeExprIsInside(Int tp, Compiler* cm) {
+private bool typeExprIsInside(Int tp, Compiler* cm) { //:typeExprIsInside
 // Is the current type expression inside e.g. a struct or a function
     return (cm->tempStack->len >= 2
             && penultimate(cm->tempStack) == tp);
 }
 
 
-private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
+private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) { //:typeBuildExpr
 // Precondition: exp->len == 0, params->len == 0, and we are looking at the first token in actual
-// type definition
-    StackInt* params = cm->typeStack;
+// type definition.
+    StackInt* params = cm->typeParams;
+    print("build expr %d %d", cm->i, sentinel)
     while (cm->i < sentinel) {
         Token cTk = cm->tokens.cont[cm->i];
+        print("buildexpr i %d entinel %d", cm->i, sentinel)
         ++cm->i; // CONSUME the current token
-        if (cTk.tp == tokParens) {
+        if (cTk.tp == tokParens) { // inline types, like `(id Int name String)`
             // TODO sum types
             Int countFields = typeCountFieldsInStruct(cTk.pl2, cm);
             push(tyeStruct, exp);
@@ -4772,6 +4770,7 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
         } else if (cTk.tp == tokTypeName) {
             Int mbParamId = typeParamBinarySearch(cTk.pl2, cm);
             if (mbParamId == -1) {
+                print("pushing concrete type %d", cm->i)
                 push(tyeType, exp);
                 push(cTk.pl2, exp);
             } else {
@@ -4803,8 +4802,8 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
                 push(countArgs, exp);
             }
         } else if (cTk.tp == tokWord) {
-            VALIDATEP(typeExprIsInside(tyeStruct, cm), errTypeDefError)
-
+            VALIDATEP(!hasValues(params) || typeExprIsInside(tyeStruct, cm), errTypeDefError)
+            print("pushinn mae %d", cm->i)
             push(tyeName, exp);
             push(cTk.pl2, exp);  // nameId
             Token nextTk = cm->tokens.cont[cm->i];
@@ -4832,7 +4831,13 @@ private void typeBuildExpr(StackInt* exp, Int sentinel, Compiler* cm) {
 }
 
 
-testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler* cm) {
+private void nameTypeList(Int sentinel, Compiler* cm) { //:nameTypeList
+// Parses a list like `a Bool b Double)` or `x Int y (id Int name String)`
+// Populates the temporary type stacks
+
+}
+
+testable Int typeDef(Token assignTk, Arr(Token) toks, Compiler* cm) { //:typeDef
 // Builds a type expression from a type definition or a function signature.
 // Example 1: `Foo = id Int name String`
 // Example 2: `a Double b Bool => String`
@@ -4844,11 +4849,11 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
 // Data format: see "Type expression data format"
 // Precondition: we are 1 past the tokAssignmentRight token, or tokParamList token
     StackInt* exp = cm->expStack;
-    StackInt* params = cm->typeStack;
+    StackInt* params = cm->typeParams;
     exp->len = 0;
     params->len = 0;
 
-    Int sentinel = cm->i + toks[cm->i + 1].pl2 + 2; // we get the length from the tokAssignmentRight
+    Int sentinel = cm->i + toks[cm->i - 1].pl2; // we get the length from the tokAssignmentRight
     Token nameTk = toks[cm->i];
     cm->i += 2; // CONSUME the type name and the tokAssignmentRight
 
@@ -4857,7 +4862,7 @@ testable Int typeDef(Token assignTk, bool isFunction, Arr(Token) toks, Compiler*
         push(tyeFunction, cm->tempStack);
         push(sentinel, cm->tempStack);
     }
-    typeBuildExpr(exp, sentinel, cm);
+    nameTypeList(sentinel, cm);
 
     Int newTypeId = typeEvalExpr(exp, params, ((untt)(nameTk.lenBts) << 24) + nameTk.pl2, cm);
     typeDefClearParams(params, cm);
@@ -4886,7 +4891,7 @@ private Int getFirstParamInd(TypeId funcTypeId, Compiler* cm) { //:getFirstParam
 }
 
 
-private TypeId getFunctionReturnType(TypeId funcTypeId, Compiler* cm) {
+private TypeId getFunctionReturnType(TypeId funcTypeId, Compiler* cm) { //:getFunctionReturnType
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
     return cm->types.cont[funcTypeId + 3 + hdr.tyrity + hdr.arity];
 }
@@ -5189,15 +5194,15 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm) {
 // Checks whether a concrete type satisfies a generic type. Returns a pointer to
-// cm->typeStack with the values of parameters if satisfies, null otherwise.
+// cm->typeParams with the values of parameters if satisfies, null otherwise.
 // Example: for typeId = L(L(Int)) and genericId = [T/1]L(T(Int)) returns Generic[L]
 // Warning: assumes that typeId points to a concrete type, and genericId to a partial one
-    StackInt* tStack = cm->typeStack;
+    StackInt* tStack = cm->typeParams;
     tStack->len = 0;
     TypeHeader genericHeader = typeReadHeader(genericId, cm);
     // yet-unknown values of the type parameters
     for (Int j = 0; j < genericHeader.tyrity; j++) {
-        push(-1, cm->typeStack);
+        push(-1, cm->typeParams);
     }
 
     Int i1 = typeId + 3; // +3 to skip the type length, type tag and name

@@ -125,7 +125,7 @@ Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in no
 it will be inserted as 1 + (the number of built-in bindings) etc */
     Compiler* test = lexicallyAnalyze(sourceCode, proto, a);
     Compiler* control = lexicallyAnalyze(sourceCode, proto, a);
-    if (control->wasError == true) {
+    if (control->wasLexerError == true) {
         return (ParserTest) {
             .name = name, .test = test, .control = control, .compareLocsToo = false };
     }
@@ -197,6 +197,9 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
 // Creates a test with two parsers where the source locs are specified (unlike most parser tests)
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);
+    if (theTest.control->wasLexerError) {
+        return theTest;
+    }
     StandardText stText = getStandardTextLength();
     for (Int j = 0; j < countLocs; ++j) {
         SourceLoc loc = locs[j];
@@ -675,7 +678,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple function definition 1"),
-            s("newFn = ^{x Int, y Int | a = x)"),
+            s("newFn = ^{x Int y Int | a = x}"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,             .pl2 = 7 },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
