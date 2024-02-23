@@ -829,7 +829,7 @@ testable Int getStringDict(Byte* text, String* strToSearch, Stackint32_t* string
 //}}}
 //{{{ Algorithms
 
-testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
+testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) { //:sortPairsDisjoint
 // Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
 // same swap on values is also performed.
 // Example of such a swap: [type1 type2 type3 entity1 entity2 entity3] ->
@@ -867,8 +867,8 @@ testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
 
 
 testable void sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) arr) {
-// Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
-// same swap on values is also performed.
+//:sortPairsDistant Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every
+// swap of keys, the same swap on values is also performed.
 // Example of such a swap: [type1 type2 type3 ... entity1 entity2 entity3 ...] ->
 //                         [type3 type1 type2 ... entity3 entity1 entity2 ...]
 // The ... is the same number of elements in both halves that don't participate in sorting
@@ -904,7 +904,7 @@ testable void sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) 
 }
 
 
-testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) {
+testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) { //:sortPairs
 // Performs an ASC sort for compact pairs (array-of-structs) by key:
 // Params: startInd = the first index of the overload (the one with the count of concrete overloads)
 //        endInd = the last index belonging to the overload (the one with the last entityId)
@@ -937,7 +937,8 @@ testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) {
 
 
 testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
-// For disjoint (struct-of-arrays) pairs, makes sure the keys are unique and sorted ascending
+//:verifyUniquenessPairsDisjoint For disjoint (struct-of-arrays) pairs, makes sure the keys are
+// unique and sorted ascending
 // Params: startInd = inclusive
 //         endInd = exclusive
 // Returns: true iff all's OK
@@ -954,7 +955,7 @@ testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) a
 }
 
 
-private Int binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
+private Int binarySearch(Int key, Int start, Int end, Arr(Int) arr) { //:binarySearch
     if (end <= start) {
         return -1;
     }
@@ -984,7 +985,7 @@ private Int binarySearch(Int key, Int start, Int end, Arr(Int) arr) {
 }
 
 
-private void removeDuplicatesInList(InListInt* list) {
+private void removeDuplicatesInList(InListInt* list) { //:removeDuplicatesInList
 // [55 55 55 56] => [55 56]
 // Precondition: the list must be sorted
     Int initLen = list->len;
@@ -2763,7 +2764,6 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
 private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
     StackNode* scr = stEx->scr;
-    print("subex close len %d", stEx->frames->len)
     while (stEx->frames->len > 0 && cm->i == peek(stEx->frames).sentinel) {
         ExprFrame frame = pop(stEx->frames);
         if (frame.tp == exfrCall)  {
@@ -2832,10 +2832,12 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
     StackExprFrame* frames = cm->stateForExprs->frames;
     frames->len = 0;
     scr->len = 0;
+    locsScr->len = 0;
+    locsCalls->len = 0;
 
     push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinelToken}), frames);
-    scr->len = 0;
     while (cm->i < sentinelToken) {
+
         subexClose(stEx, cm);
         Token cTk = toks[cm->i];
         untt tokType = cTk.tp;
@@ -3870,6 +3872,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     cm->typesDict = copyStringDict(proto->typesDict, a);
 
     cm->importNames = createInListInt(8, lx->aTmp);
+    cm->toplevels = createInListToplevel(8, lx->a);
 
     cm->expStack = createStackint32_t(16, cm->aTmp);
     cm->typeStack = createStackint32_t(16, cm->aTmp);
@@ -3985,9 +3988,15 @@ testable void createOverloads(Compiler* cm) { //:createOverloads
     // Plus you need an int per overloaded name to hold the length of the overloads for that name
 
     cm->overloads.len = 0;
+    if (cm->toplevels.len > 0)  {
+        print("create %d", cm->toplevels.cont[0].sentinelToken)
+    }
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, cm);
         cm->activeBindings[j] = -newIndex - 2;
+    }
+    if (cm->toplevels.len > 0)  {
+        print("create 2 %d", cm->toplevels.cont[0].sentinelToken)
     }
     removeDuplicatesInList(&(cm->importNames));
     for (Int j = 0; j < cm->importNames.len; j++) {
@@ -4135,8 +4144,8 @@ private Int parseFnParamList(Token paramListTk, Compiler* cm) {
 */
 
 
-testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVoid,
-                               Compiler* cm) {
+testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVoid,
+                               Compiler* cm) { //:pFnSignature
 // Parses a function signature. Emits no nodes, adds data to [toplevels], [functions], [overloads].
 // Pre-condition: we are 1 token past the tokFn
     Int fnStartTokenId = cm->i - 1;
@@ -4164,8 +4173,8 @@ testable void parseFnSignature(Token fnDef, bool isToplevel, untt name, Int void
 
 
 private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
-// Parses a top-level function.
-// The result is the AST ([] FnDef EntityName Scope EntityParam1 EntityParam2 ... )
+//:pToplevelBody Parses a top-level function. The result is the AST
+//L( FnDef EntityName Scope ParamList body... )
     Int fnStartInd = toplevelSignature.indToken;
     Int fnSentinel = toplevelSignature.sentinelToken;
 
@@ -4188,6 +4197,8 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
         Int paramsSentinel = cm->i + fnTk.pl2 + 1;
         cm->i++; // CONSUME the parens token for the param list
         while (cm->i < paramsSentinel) {
+            print("parsin' %d", cm->i)
+
             Token paramName = toks[cm->i];
             Int newEntityId = createEntity(nameOfToken(paramName), cm);
             ++cm->i; // CONSUME the param name
@@ -4202,6 +4213,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     }
 
     ++cm->i; // CONSUME the "=" sign
+    print("here i %d sent %d", cm->i, fnSentinel)
     parseUpTo(fnSentinel, P_C);
 }
 
@@ -4243,7 +4255,7 @@ private void pToplevelSignatures(Compiler* cm) {
         // its bytes are same as the var name in source code
         untt name =  ((untt)tok.lenBts << 24) + (untt)tok.pl1;
         cm->i += tok.pl2 + 3; // CONSUME the left side, tokAssignmentRight and tokFn
-        parseFnSignature(rightTk, true, name, voidToVoid, cm);
+        pFnSignature(rightTk, true, name, voidToVoid, cm);
     }
 }
 
@@ -4287,7 +4299,7 @@ private void printType(TypeId typeInd, Compiler* cm) { //:printType
 }
 
 
-testable Compiler* parseMain(Compiler* cm, Arena* a) {
+testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
     if (setjmp(excBuf) == 0) {
         pToplevelTypes(cm);
         // This gives the complete overloads & overloadIds tables + list of toplevel functions
@@ -5000,9 +5012,6 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
     Arr(Int) cont = st->cont;
     Int currAhead = 1; // 1 for the extra "BIG" element before the call in "st"
 
-    print("here")
-    printStackInt(st);
-
     for (Int j = 0; j < expSentinel; ++j) {
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
@@ -5047,8 +5056,6 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            print("found typeoffunc %d with arity %d expected %d", typeOfFunc,
-                    typeReadHeader(typeOfFunc, cm).arity, argCount);
             VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
             // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
@@ -5426,19 +5433,20 @@ testable void printParser(Compiler* cm, Arena* a) { //:printParser
         for (int j = 0; j < indent; j++) {
             printf("  ");
         }
+        Int startBt = loc.startBt - stText.len;
         if (nod.tp == nodCall) {
-            printf("Call %d [%d; %d] type = \n", nod.pl1, loc.startBt, loc.lenBts);
+            printf("Call %d [%d; %d] type = \n", nod.pl1, startBt, loc.lenBts);
             //printType(cm->entities.cont[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             if (nod.pl3 != 0)  {
                 printf("%s %d %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.pl3,
-                        loc.startBt - stText.len, loc.lenBts);
+                        startBt, loc.lenBts);
             } else {
                 printf("%s %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2,
-                        loc.startBt - stText.len, loc.lenBts);
+                        startBt, loc.lenBts);
             }
         } else {
-            printf("%s [%d; %d]\n", nodeNames[nod.tp], loc.startBt - stText.len, loc.lenBts);
+            printf("%s [%d; %d]\n", nodeNames[nod.tp], startBt, loc.lenBts);
         }
         if (nod.tp >= nodScope && nod.pl2 > 0) {
             pushint32_t(i + nod.pl2 + 1, sentinels);
