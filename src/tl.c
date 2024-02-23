@@ -2763,6 +2763,7 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
 private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
     StackNode* scr = stEx->scr;
+    print("subex close len %d", stEx->frames->len)
     while (stEx->frames->len > 0 && cm->i == peek(stEx->frames).sentinel) {
         ExprFrame frame = pop(stEx->frames);
         if (frame.tp == exfrCall)  {
@@ -2879,8 +2880,8 @@ private void exprCore(Int sentinelToken, P_CT) { //:exprCore
                 }
             }
         } else if (tokType == tokUnaryOper) { // unary operators
-            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1, .pl2 = 1, }), calls);
-            push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
+            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1, .pl2 = 1, }), scr);
+            push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
         } else if (tokType == tokCall) {
             if (cTk.pl2 > 0) { // prefix calls like `foo()`
                 if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
@@ -4945,7 +4946,7 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
 
 
 #if defined(TRACE) && defined(TEST)
-private void printExpSt(StackInt* st);
+private void printStackInt(StackInt* st);
 #endif
 
 
@@ -4999,16 +5000,19 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
     Arr(Int) cont = st->cont;
     Int currAhead = 1; // 1 for the extra "BIG" element before the call in "st"
 
+    print("here")
+    printStackInt(st);
+
     for (Int j = 0; j < expSentinel; ++j) {
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
             continue;
         }
 
-        // A function call. cont[j] contains the arity, cont[j + 1] the index into {overloads}
-        const Int arity = cont[j] - BIG;
+        // A function call. cont[j] contains the argument count, cont[j + 1] index in {overloads}
+        const Int argCount = cont[j] - BIG;
         const Int o = cont[j + 1];
-        if (arity == 0) {
+        if (argCount == 0) {
             VALIDATEP(o > -1, errTypeOverloadsOnlyOneZero)
 
             Int entityId;
@@ -5017,7 +5021,7 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
 
 #if defined(TRACE) && defined(TEST) //{{{
             if (!ovFound) {
-                printExpSt(st);
+                printStackInt(st);
             }
 #endif //}}}
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
@@ -5029,7 +5033,7 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
 
             // the function returns nothing, so there's no return type to write
         } else {
-            const Int tpFstArg = cont[j - arity];
+            const Int tpFstArg = cont[j - argCount];
 
             VALIDATEP(tpFstArg > -1, errTypeUnknownFirstArg)
             Int entityId;
@@ -5037,16 +5041,18 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
             const Bool ovFound = findOverload(tpFstArg, indOverl, &entityId, cm);
 #if defined(TRACE) && defined(TEST) //{{{
             if (!ovFound) {
-                printExpSt(st);
+                printStackInt(st);
             }
 #endif //}}}
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == arity, errTypeNoMatchingOverload)
+            print("found typeoffunc %d with arity %d expected %d", typeOfFunc,
+                    typeReadHeader(typeOfFunc, cm).arity, argCount);
+            VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
             // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
-            for (int k = j - arity, l = firstParamInd; k < j; k++, l++) {
+            for (int k = j - argCount, l = firstParamInd; k < j; k++, l++) {
                 // We know the type of the function, now to validate arg types against param types
                 if (cont[k] > -1) { // type of arg is known
                     VALIDATEP(cont[k] == cm->types.cont[l],
@@ -5061,12 +5067,12 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
             cm->nodes.cont[j + indExpr + (currAhead)].pl1 = entityId;
             // the type-resolved function of the call
 
-            j -= arity;
-            currAhead += arity;
-            shiftTypeStackLeft(j, arity + 1, cm);
+            j -= argCount;
+            currAhead += argCount;
+            shiftTypeStackLeft(j, argCount + 1, cm);
 
             cont[j] = getFunctionReturnType(typeOfFunc, cm); // the function return type
-            expSentinel -= (arity + 1);
+            expSentinel -= (argCount + 1);
         }
     }
 }
@@ -5266,7 +5272,7 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
 
 //{{{ General utils
 
-void printIntArray(Int count, Arr(Int) arr) {
+void printIntArray(Int count, Arr(Int) arr) { //:printIntArray
     printf("[");
     for (Int k = 0; k < count; k++) {
         printf("%d ", arr[k]);
@@ -5274,7 +5280,8 @@ void printIntArray(Int count, Arr(Int) arr) {
     printf("]\n");
 }
 
-void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
+
+void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) { //:printIntArrayOff
     printf("[...");
     for (Int k = 0; k < count; k++) {
         printf("%d ", arr[startInd + k]);
@@ -5282,9 +5289,7 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr) {
     printf("...]\n");
 }
 
-
-
-private void printExpSt(StackInt* st) {
+private void printStackInt(StackInt* st) { //:printStackInt
     printIntArray(st->len, st->cont);
 }
 

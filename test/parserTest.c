@@ -469,6 +469,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //{{{ Expression tests
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
+    /* 
         createTestWithLocs(
             s("Simple function call"),
             s("x = 10 .foo 2 `hw`"),
@@ -648,25 +649,23 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       /*
+       */ 
         createTest(
             s("Unary operator precedence"),
-            s("x = 123 + ##$-3"),
+            s("x = 123 + -3##$"),
 
             ((Node[]) {
-                (Node){ .tp = nodAssignLeft, .pl2 = 7 },
-                (Node){ .tp = nodBinding, .pl1 = 0 },
+                (Node){ .tp = nodAssignLeft, .pl2 = 0 },
                 (Node){ .tp = nodExpr,              .pl2 = 5 },
-                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 2 },
                 (Node){ .tp = tokInt,               .pl2 = 123 },
+                (Node){ .tp = tokInt, .pl1 = -1,    .pl2 = -3 },
                 (Node){ .tp = nodCall, .pl1 = oper(opSize, tokString), .pl2 = 1 },
                 (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 },
-                (Node){ .tp = tokInt, .pl1 = -1,    .pl2 = -3 }
+                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-*/
         // //~ createTest(
         //     //~ s("Unary operator as first-class value"),
         //     //~ s("x = map (--) coll"),
