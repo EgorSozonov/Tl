@@ -178,23 +178,26 @@ typedef struct {
 #define strL         27 // L(ist)
 #define strA         28 // A(rray)
 #define strD         29 // D(ictionary)
-#define strTu        30 // Tu(ple)
-#define strLen       31
-#define strCap       32
-#define strF1        33
-#define strF2        34
-#define strPrint     35
-#define strPrintErr  36
-#define strMathPi    37
-#define strMathE     38
-#define strTypeVarT  39
-#define strTypeVarU  40
+#define strRec       30 // Record
+#define strEnum      31 // Enum
+#define strTu        32 // Tu(ple)
+#define strLen       33
+#define strCap       34
+#define strF1        35
+#define strF2        36
+#define strPrint     37
+#define strPrintErr  38
+#define strMathPi    39
+#define strMathE     40
+#define strTypeVarT  41
+#define strTypeVarU  42
 #ifndef TEST
-#define strSentinel  41
+#define strSentinel  43
 #else
-#define strSentinel  44
+#define strSentinel  46
 #endif
 
+                            "IntLongDoubleBoolStrVoidFLADRecEnumTulencapf1f2printprintErr"
 //}}}
 
 // Backtrack token, used during lexing to keep track of all the nested stuff
@@ -510,10 +513,10 @@ DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 
 
 typedef struct {  // :ExprFrame
-    Byte tp;
+    Byte tp;      // "exfr" constants below
     Int sentinel; // token sentinel
     Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
-    Int startNode; // used for all but exfrPrefixOper
+    Int startNode; // used for all?
 } ExprFrame;
 
 #define exfrParen      1
@@ -530,6 +533,16 @@ typedef struct { // :StateForExprs
     StackSourceLoc* locsCalls;
     Bool metAnAllocation;
 } StateForExprs;
+
+
+typedef struct {  // :TypeFrame
+    Byte tp;      // "tye" constants in tl.c
+    Int sentinel; // token sentinel
+    Int argCount; // accumulated number of type arguments
+} TypeFrame;
+
+DEFINE_STACK_HEADER(TypeFrame)
+
 
 struct Compiler { // :Compiler
     // See docs/compiler.txt, docs/architecture.svgz
@@ -567,7 +580,7 @@ struct Compiler { // :Compiler
     StringDict* typesDict;
     StackInt* expStack;   // [aTmp]
     StackInt* typeParams;  // [aTmp]
-    StackInt* tempStack;  // [aTmp]
+    StackTypeFrame* typeStack;  // [aTmp]
     Int countNonparsedEntities;
     Int countOverloads;
     Int countOverloadedNames;

@@ -705,7 +705,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
        /*
         createTest(
             s("Simple function definition 2"),
-            s("newFn = ^{x String, y Float => String |\n"
+            s("newFn = ^{x Str, y Float => Str |\n"
               "    a = x\n"
               "    return a\n"
               "}"
@@ -728,7 +728,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTestWithError(
             s("Function definition wrong return type"),
             s(errTypeWrongReturnType),
-            s("newFn = ^{x Float, y Float => String|\n"
+            s("newFn = ^{x Float, y Float => Str|\n"
               "    a = x\n"
               "    return a\n"
               "}"
@@ -750,7 +750,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Function definition with complex return"),
-            s("newFn = {x Int, y Float => String | \n"
+            s("newFn = {x Int, y Float => Str | \n"
               "    return $(x.float() - y)}"
             ),
             ((Node[]) {
@@ -955,7 +955,7 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("If with else"),
-            s("f = fn(=> String:\n"
+            s("f = fn(=> Str:\n"
               "    if( >(5 3): `5` else `=)`\n"
               ")"
               ),
@@ -1366,7 +1366,7 @@ ParserTestSet* typeTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Types test set"), a, ((ParserTest[]){
         createTest(
             s("Simple type 1"),
-            s("Foo = (.id Int .name String)"),
+            s("Foo = (.id Int .name Str)"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 16 },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
