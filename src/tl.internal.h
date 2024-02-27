@@ -181,23 +181,23 @@ typedef struct {
 #define strRec       30 // Record
 #define strEnum      31 // Enum
 #define strTu        32 // Tu(ple)
-#define strLen       33
-#define strCap       34
-#define strF1        35
-#define strF2        36
-#define strPrint     37
-#define strPrintErr  38
-#define strMathPi    39
-#define strMathE     40
-#define strTypeVarT  41
-#define strTypeVarU  42
+#define strPromise   33 // Promise
+#define strLen       34
+#define strCap       35
+#define strF1        36
+#define strF2        37
+#define strPrint     38
+#define strPrintErr  39
+#define strMathPi    40
+#define strMathE     41
+#define strTypeVarT  42
+#define strTypeVarU  43
 #ifndef TEST
-#define strSentinel  43
+#define strSentinel  44
 #else
-#define strSentinel  46
+#define strSentinel  47
 #endif
 
-                            "IntLongDoubleBoolStrVoidFLADRecEnumTulencapf1f2printprintErr"
 //}}}
 
 // Backtrack token, used during lexing to keep track of all the nested stuff
@@ -252,7 +252,7 @@ typedef struct { // :Token
 #define tokAlias       19
 #define tokAssert      20
 #define tokBreakCont   21  // pl1 >= BIG iff it's a continue
-#define tokIface       22
+#define tokTrait       22
 #define tokImport      23  // For test files and package decls
 #define tokReturn      24
 
@@ -261,7 +261,7 @@ typedef struct { // :Token
 #define tokFn          26  // `^{ a Int => String | body}`
 #define tokTry         27  // `try {`
 #define tokCatch       28  // `catch MyExc e {`
-#define tokFinally     29  // `defer { `
+#define tokDefer       29  // `defer { `
 
 // Resumable core forms
 #define tokIf          30  // `if ... {`
@@ -320,7 +320,7 @@ typedef struct { // :Token
 #define nodDefer       21
 #define nodImport      22  // This is for test files only, no need to import anything in main
 #define nodFnDef       23  // pl1 = entityId
-#define nodIface       24
+#define nodTrait       24
 #define nodMeta        25
 #define nodReturn      26
 #define nodTry         27
@@ -613,6 +613,22 @@ struct Compiler { // :Compiler
 #define sorPartial      4 // Partially applied type
 #define sorConcrete     5 // Fully applied type (no type params)
 
+// Type expression data format: First element is the tag (one of the following
+// constants), second is payload. Type calls need to have an extra payload, so their tag
+// is (8 bits of "tye", 24 bits of typeId). Used in [expStack]
+#define tyeRecord     1 // payload: count of fields in the struct
+#define tyeEnum       2 // payload: count of variants
+#define tyeFunction   3 // payload: count of parameters. This is a function signature, not the F(...)
+#define tyeFnType     4 // payload: count of parameters. This is the F(...)
+#define tyeType       5 // payload: typeId
+#define tyeTypeCall   6 // payload: count of args. Payl in tag: nameId
+#define tyeParam      7 // payload: paramId
+#define tyeParamCall  8 // payload: count of args. Payl in tag: nameId
+#define tyeName       9 // payload: nameId. Used for struct fields, function params, sum variants
+#define tyeMeta      10 // payload: index of this meta's token
+#define tyeRetType   11 // payload: none
+
+
 typedef struct { // :TypeHeader
     Byte sort;
     Byte tyrity; // "tyrity" = type arity, the number of type parameters
@@ -627,6 +643,7 @@ typedef struct { // :TypeHeader
     StackBtToken*: popBtToken,\
     StackParseFrame*: popParseFrame,\
     StackExprFrame*: popExprFrame,\
+    StackTypeFrame*: popTypeFrame,\
     Stackint32_t*: popint32_t,\
     StackNode*: popNode,\
     StackSourceLoc*: popSourceLoc\
@@ -636,6 +653,7 @@ typedef struct { // :TypeHeader
     StackBtToken*: peekBtToken,\
     StackParseFrame*: peekParseFrame,\
     StackExprFrame*: peekExprFrame,\
+    StackTypeFrame*: peekTypeFrame,\
     Stackint32_t*: peekint32_t,\
     StackNode*: peekNode\
     )(X)
@@ -651,6 +669,7 @@ typedef struct { // :TypeHeader
     StackBtToken*: pushBtToken,\
     StackParseFrame*: pushParseFrame,\
     StackExprFrame*: pushExprFrame,\
+    StackTypeFrame*: pushTypeFrame,\
     Stackint32_t*: pushint32_t,\
     StackNode*: pushNode,\
     StackSourceLoc*: pushSourceLoc\
@@ -659,6 +678,7 @@ typedef struct { // :TypeHeader
 #define hasValues(X) _Generic((X),\
     StackBtToken*: hasValuesBtToken,\
     StackParseFrame*: hasValuesParseFrame,\
+    StackTypeFrame*: hasValuesTypeFrame,\
     Stackint32_t*:  hasValuesint32_t,\
     StackNode*: hasValuesNode\
     )(X)
