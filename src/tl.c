@@ -1149,6 +1149,8 @@ private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
 private Int typeGetTyrity(TypeId typeId, Compiler* cm);
 testable Int typeCheckBigExpr(Int indExpr, Int sentinel, Compiler* cm);
+private void typeDef(Int sentinel, StackInt* exp, Compiler* cm);
+private Int typeEvalExpr(StackInt* exp, StackInt* params, Int nameAndLen, Compiler* cm);
 #ifdef TEST
 testable void printParser(Compiler* cm, Arena* a);
 #endif
@@ -1296,7 +1298,7 @@ testable String* prepareInput(const char* content, Arena* a) { //:prepareInput
     return result;
 }
 
-private untt nameOfToken(Token tk) {
+private untt nameOfToken(Token tk) { //:nameOfToken
     return ((untt)tk.lenBts << 24) + (untt)tk.pl2;
 }
 
@@ -4152,11 +4154,12 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
     TypeId newFnTypeId = voidToVoid; // default for nullary functions
     if (toks[cm->i].tp == tokParamList) {
         Token paramListTk = toks[cm->i];
+        Int sentinel = calcSentinel(paramListTk, cm->i);
         cm->i++; // CONSUME the paramList
         cm->typeStack->len = 0;
         push(((TypeFrame) { .tp = tyeFunction, .sentinel = sentinel }), cm->typeStack);
-        typeDef(sentinel, cm->expStack, cm->tokens.cont, cm);
-        newFnTypeId = typeEvalExpr(exp, params, ((untt)(nameTk.lenBts) << 24) + nameTk.pl2, cm);
+        typeDef(sentinel, cm->expStack, cm);
+        newFnTypeId = typeEvalExpr(cm->expStack, cm->typeParams, -1, cm);
         // assert there's an arrow now
         // parse a type - the return type
         // merge type
@@ -4623,9 +4626,10 @@ private TypeId typeCreateFnSignature(StackInt* exp, Int startInd, Int length, St
 }
 
 
-private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compiler* cm) {
+private Int typeEvalExpr(StackInt* exp, StackInt* params, Int nameAndLen, Compiler* cm) {
 //:typeEvalExpr Processes the "type expression" produced by "pTypeDef".
 // Returns the typeId of the newly defined type
+// nameAndLen may be -1
 // Example: ...
     Int j = exp->len - 2;
     while (j > 0) {
@@ -4633,12 +4637,12 @@ private Int typeEvalExpr(StackInt* exp, StackInt* params, untt nameAndLen, Compi
         Int tye = (exp->cont[j] >> 24) & 0xFF;
         if (tye == 0)
             { tye = tyeContent; }
-        if (tye == tyeStruct) {
-            Int lengthStruct = exp->cont[j + 1]*4; // *4 because for every field there are 4 ints
-            Int typeNestedStruct = typeCreateStruct(exp, j + 2, lengthStruct, params, 0, cm);
+        if (tye == tyeRecord) {
+            Int lengthRecord = exp->cont[j + 1]*4; // *4 because for every field there are 4 ints
+            Int typeNestedStruct = typeCreateStruct(exp, j + 2, lengthRecord, params, 0, cm);
             exp->cont[j] = tyeType;
             exp->cont[j + 1] = typeNestedStruct;
-            shiftTypeStackLeft(j + 2 + lengthStruct, lengthStruct, cm);
+            shiftTypeStackLeft(j + 2 + lengthRecord, lengthRecord, cm);
 
 #if defined(TEST) && defined(TRACE)
             print("after struct shift:");
@@ -4874,7 +4878,7 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
     typeDef(sentinel, exp, cm);
 
 
-    Int newTypeId = typeEvalExpr(exp, params, ((untt)(nameTk.lenBts) << 24) + nameTk.pl2, cm);
+    Int newTypeId = typeEvalExpr(exp, params, nameOfToken(nameTk), cm);
     typeDefClearParams(params, cm);
     return newTypeId;
 }
