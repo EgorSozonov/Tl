@@ -1149,7 +1149,7 @@ private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
 private Int typeGetTyrity(TypeId typeId, Compiler* cm);
 testable Int typeCheckBigExpr(Int indExpr, Int sentinel, Compiler* cm);
-private void typeDef(Int sentinel, StackInt* exp, Compiler* cm);
+private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm);
 private Int typeEvalExpr(StackInt* exp, StackInt* params, Int nameAndLen, Compiler* cm);
 #ifdef TEST
 testable void printParser(Compiler* cm, Arena* a);
@@ -2317,7 +2317,7 @@ private void popScopeFrame(Compiler* cm);
 private EntityId importActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
-private void exprCore(Int sentinel, P_CT);
+private void exprLinearize(Int sentinel, P_CT);
 private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT);
 private void pExpr(Token tk, P_CT);
 private Int pExprWorker(Token tk, P_CT);
@@ -2560,7 +2560,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         addNode((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0},
                 mbOldBinding.startBt, mbOldBinding.lenBts, cm);
 
-        exprCore(sentinel, P_C);
+        exprLinearize(sentinel, P_C);
 
         TypeId leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
         Int operatorEntity = -1;
@@ -2579,7 +2579,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else {
         Int startNodeInd = cm->nodes.len - 1; // index of the nodExpr for the right side
 
-        exprCore(sentinel, P_C);
+        exprLinearize(sentinel, P_C);
         exprCopyFromScratch(startNodeInd, cm);
         Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType != -2, errAssignment)
@@ -2815,9 +2815,10 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
 }
 
 
-private void exprCore(Int sentinelToken, P_CT) { //:exprCore
+private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
 // The core code of the general, long expression parse. "startNodeInd" is the index of the
-// opening nodExpr, "sentinelToken" is the index where to stop reading tokens
+// opening nodExpr, "sentinelToken" is the index where to stop reading tokens.
+// Produces a linear sequence of operands and operators with arg counts in Reverse Polish Notation
     StateForExprs* stEx = cm->stateForExprs;
     stEx->metAnAllocation = false;
     StackNode* scr = stEx->scr;
@@ -2938,7 +2939,7 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
                 .sentinelToken = sentinelToken }), cm->backtrack);
     addNode((Node){ .tp = nodExpr}, startBt, lenBts, cm);
 
-    exprCore(sentinelToken, P_C);
+    exprLinearize(sentinelToken, P_C);
     exprCopyFromScratch(startNodeInd, cm);
     Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
     return exprType;
@@ -4158,7 +4159,7 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
         cm->i++; // CONSUME the paramList
         cm->typeStack->len = 0;
         push(((TypeFrame) { .tp = tyeFunction, .sentinel = sentinel }), cm->typeStack);
-        typeDef(sentinel, cm->expStack, cm);
+        typeLinearize(sentinel, cm->expStack, cm);
         newFnTypeId = typeEvalExpr(cm->expStack, cm->typeParams, -1, cm);
         // assert there's an arrow now
         // parse a type - the return type
@@ -4715,79 +4716,48 @@ private void typeDefClearParams(StackInt* params, Compiler* cm) { //:typeDefClea
 }
 
 
-/*
-private Int typeCountFieldsInStruct(Int length, Compiler* cm) { //:typeCountFieldsInStruct
-// Returns the number of fields in struct definition. Precond: we are 1 past the parens token
-    Int count = 0;
-    Int j = cm->i;
-    Int sentinel = j + length;
-    while (j < sentinel) {
-        VALIDATEP(cm->tokens.cont[j].tp == tokWord, errTypeDefCannotContain)
-        ++j;
-        Token nextTk = cm->tokens.cont[j];
-        if (nextTk.tp == tokTypeCall || nextTk.tp == tokParens) {
-            j += nextTk.pl2 + 1;
-        } else if (nextTk.tp == tokTypeName) {
-            ++j;
-        } else {
-            throwExcParser(errTypeDefCannotContain);
-        }
-        ++count;
-    }
-    return count;
-}
-*/
-
 private void tSubexClose(StackTypeFrame* frames, Compiler* cm) { //:tSubexClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
-    while (cm->typeStack->len > 0) {
-        if (peek(cm->typeStack).sentinel != cm->i) {
-            break;
-        }
-        pop(cm->typeStack);
-    }
-
-
-    StackNode* scr = stEx->scr;
-    while (stEx->frames->len > 0 && cm->i == peek(stEx->frames).sentinel) {
-        ExprFrame frame = pop(stEx->frames);
-        if (frame.tp == exfrCall)  {
-            Node call = pop(stEx->calls);
-            call.pl2 = frame.argCount;
-            if (frame.startNode > -1 && scr->cont[frame.startNode].tp == nodExpr) {
-                // a prefix call inside a data allocator - need to set the nodExpr length
-                scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
-            }
-            push(call, scr);
-            push(pop(stEx->locsCalls), stEx->locsScr);
-        } else {
-            if (frame.tp == exfrDataAlloc)  {
-                subexDataAllocation(frame, stEx, cm);
-            } else if (frame.tp == exfrParen && scr->cont[frame.startNode].tp == nodExpr) {
-                // a parens inside a data allocator - need to set the nodExpr length
-                scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
-            }
+    StackInt* exp = cm->expStack;
+    while (frames->len > 0 && peek(frames).sentinel == cm->i) {
+        TypeFrame frame = pop(cm->typeStack);
+        if (frame.tp == tyeFunction) {
+            push(((untt)tyeFnType << 24), exp);
+            push(frame.countArgs, exp);
+        } else if (frame.tp == tyeRecord) {
+            push(((untt)tyeRecord << 24), exp);
+            push(frame.countArgs, exp);
+        } else if (frame.tp == tyeTypeCall) {
+            TypeId typeId = frame.nameId;
+            VALIDATEP(typeGetTyrity(typeId, cm) == frame.countArgs, errTypeConstructorWrongArity)
+            push(((untt)tyeTypeCall << 24) + frame.nameId, exp);
+            push(frame.countArgs, exp);
+        } else { // tyeParamCall, a type call of a type which is a parameter
+            VALIDATEP(params->cont[mbParamId + 1] == frame.countArgs, errTypeConstructorWrongArity)
+            push(((untt)tyeParamCall << 24) + frame.nameId, exp);
+            push(frame.countArgs, exp);
         }
     }
 }
 
 
-private void typeDef(Int sentinel, StackInt* exp, Compiler* cm) { //:typeDef
+private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm) { //:typeLinearize
 // Parses a type definition like `Rec(id Int name Str)` or `a Double b Bool => String?`.
 // Precondition: we are looking at the first token in actual type definition.
-// {typeStack} may be non-empty (for example, when parsing a function signature
-// it will contain one element with .tp = tyeFunction).
+// {typeStack} may be non-empty (for example, when parsing a function signature,
+// it will contain one element with .tp = tyeFunction). Produces a linear, RPN sequence.
 // Usually this function should be followed by a call to "typeEvalExpr"
     StackInt* params = cm->typeParams;
+    StateForExprs* stEx = cm->stateForExprs;
     exp->len = 0;
     cm->typeParams->len = 0;
     while (cm->i < sentinel) {
-        tSubexClose(stEx, cm);
+        tSubexClose(cm->typeStack, cm);
 
         Token cTk = cm->tokens.cont[cm->i];
         ++cm->i; // CONSUME the current token
         if (hasValues(cm->typeStack)) {
-            cm->typeStack->cont[cm->typeStack->len - 1].argCount++;
+            cm->typeStack->cont[cm->typeStack->len - 1].countArgs++;
         }
 
         if (cTk.tp == tokTypeName) {
@@ -4808,29 +4778,16 @@ private void typeDef(Int sentinel, StackInt* exp, Compiler* cm) { //:typeDef
             if (mbParamId == -1) {
                 Int newSent = cm->i + cTk.pl2;
                 if (nameId == stToNameId(strF)) { // F(...)
-                    push(((untt)tyeFnType << 24) + nameId, exp);
-                    push(countArgs, exp);
-
                     push(((TypeFrame){ .tp = tyeFunction, .sentinel = newSent}), cm->typeStack);
                 } else if (nameId == stToNameId(strRec)) { // inline types, like `(id Int name String)`
-
-                    Int countFields = typeCountFieldsInStruct(cTk.pl2, cm);
-                    push(tyeStruct, exp);
-                    push(countFields, exp);
-
                     push(((TypeFrame){ .tp = tyeRecord, .sentinel = newSent}), cm->typeStack);
-                } else {
-                    Int typeId = cm->activeBindings[nameId];
+                } else { // ordinary type call
+                    Int typeId = cm->activeBindings[cTk.pl2];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
-                    /* Int typeAr = typeGetTyrity(typeId, cm); */
-                    VALIDATEP(typeGetTyrity(typeId, cm) == countArgs, errTypeConstructorWrongArity)
-                    push(((untt)tyeTypeCall << 24) + nameId, exp);
-                    push(countArgs, exp);
+                    push(((TypeFrame){ .tp = tyeTypeCall, .sentinel = newSent}), cm->typeStack);
                 }
             } else {
-                VALIDATEP(params->cont[mbParamId + 1] == countArgs, errTypeConstructorWrongArity)
-                push(((untt)tyeParamCall << 24) + nameId, exp);
-                push(countArgs, exp);
+                push(((TypeFrame){ .tp = tyeParamCall, .sentinel = newSent}), cm->typeStack);
             }
         } else if (cTk.tp == tokWord) {
             VALIDATEP(!hasValues(params) || typeExprIsInside(tyeStruct, cm), errTypeDefError)
@@ -4875,7 +4832,7 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
     cm->i += 2; // CONSUME the type name and the tokAssignmentRight
 
     VALIDATEP(cm->i < sentinel, errTypeDefError)
-    typeDef(sentinel, exp, cm);
+    typeLinearize(sentinel, exp, cm);
 
 
     Int newTypeId = typeEvalExpr(exp, params, nameOfToken(nameTk), cm);

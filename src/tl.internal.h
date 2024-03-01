@@ -538,7 +538,8 @@ typedef struct { // :StateForExprs
 typedef struct {  // :TypeFrame
     Byte tp;      // "tye" constants in tl.c
     Int sentinel; // token sentinel
-    Int argCount; // accumulated number of type arguments
+    Int countArgs; // accumulated number of type arguments
+    Int nameId; 
 } TypeFrame;
 
 DEFINE_STACK_HEADER(TypeFrame)
