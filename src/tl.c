@@ -3618,6 +3618,7 @@ testable NameId stToNameId(Int a) { //:stToNameId
 private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
 // Creates the built-in types in the proto compiler
     for (int i = strInt; i <= strVoid; i++) {
+        cm->activeBindings[stToNameId(i)] = cm->types.len;
         pushIntypes(0, cm);
     }
     // List
@@ -4754,6 +4755,9 @@ private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm) { //:typeL
     StackTypeFrame* tSt = cm->typeStack;
     exp->len = 0;
     params->len = 0;
+    Bool metArrow = false;
+    Bool isFuncSignature = hasValues(tSt) && peek(tSt).tp == tyeFunction;
+
     while (cm->i < sentinel) {
         tSubexClose(cm->typeStack, cm);
 
@@ -4767,7 +4771,7 @@ private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm) { //:typeL
             // arg count
             Int mbParamId = typeParamBinarySearch(cTk.pl2, cm);
             if (mbParamId == -1) {
-                print("pushing concrete type %d", cm->i)
+                print("pushing concrete type %d at %d", cTk.pl2, cm->i)
                 push(tyeType, exp);
                 push(cTk.pl2, exp);
             } else {
@@ -4805,15 +4809,22 @@ private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm) { //:typeL
                       errTypeDefError)
         } else if (cTk.tp == tokMisc && cTk.pl1 == miscArrow) {
             VALIDATEP(hasValues(cm->typeStack), errTypeDefError)
+            VALIDATEP(!metArrow, errTypeFnSingleReturnType)
             TypeFrame frame = peek(cm->typeStack);
             VALIDATEP(frame.tp == tyeFunction, errTypeDefError)
 
             push(tyeRetType, exp);
             push(0, exp);
+            metArrow = true;
         } else {
             print("erroneous type %d", cTk.tp)
             throwExcParser(errTypeDefError);
         }
+    }
+    if (isFuncSignature && !metArrow)  { // functions with no return types get the "Void" type
+        push(cm->activeBindings[stToNameId(strVoid)], exp);
+        push(0, exp);
+        cm->typeStack->cont[cm->typeStack->len - 1].countArgs++;
     }
     tSubexClose(tSt, cm);
 #ifdef TEST

@@ -168,7 +168,7 @@ typedef struct {
 #define strTrue      18
 #define strTry       19
 #define strFirstNonReserved 20
-#define strInt       strFirstNonReserved
+#define strInt       strFirstNonReserved // types must come first here?, see "buildPreludeTypes"
 #define strLong      21
 #define strDouble    22
 #define strBool      23
@@ -539,7 +539,7 @@ typedef struct {  // :TypeFrame
     Byte tp;      // "tye" constants in tl.c
     Int sentinel; // token sentinel
     Int countArgs; // accumulated number of type arguments
-    Int nameId; 
+    Int nameId;
 } TypeFrame;
 
 DEFINE_STACK_HEADER(TypeFrame)
