@@ -1153,6 +1153,7 @@ private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm);
 private Int typeEvalExpr(StackInt* exp, StackInt* params, Int nameAndLen, Compiler* cm);
 #ifdef TEST
 testable void printParser(Compiler* cm, Arena* a);
+private void printTypeExp(Compiler* cm);
 #endif
 
 //}}}
@@ -4629,8 +4630,9 @@ private TypeId typeCreateFnSignature(StackInt* exp, Int startInd, Int length, St
 
 private Int typeEvalExpr(StackInt* exp, StackInt* params, Int nameAndLen, Compiler* cm) {
 //:typeEvalExpr Processes the "type expression" produced by "pTypeDef".
+// Precondition: {expStack} must be populated with a linearized type expression, 2 ints per item.
+// nameAndLen may be -1.
 // Returns the typeId of the newly defined type
-// nameAndLen may be -1
 // Example: ...
     Int j = exp->len - 2;
     while (j > 0) {
@@ -4732,8 +4734,9 @@ private void tSubexClose(StackTypeFrame* frames, Compiler* cm) { //:tSubexClose
             VALIDATEP(typeGetTyrity(typeId, cm) == frame.countArgs, errTypeConstructorWrongArity)
             push(((untt)tyeTypeCall << 24) + frame.nameId, exp);
             push(frame.countArgs, exp);
-        } else { // tyeParamCall, a type call of a type which is a parameter
-            VALIDATEP(params->cont[mbParamId + 1] == frame.countArgs, errTypeConstructorWrongArity)
+        } else { // tyeParamCall, a call of a type which is a parameter
+            VALIDATEP(cm->typeParams->cont[frame.nameId + 1] == frame.countArgs,
+                      errTypeConstructorWrongArity)
             push(((untt)tyeParamCall << 24) + frame.nameId, exp);
             push(frame.countArgs, exp);
         }
@@ -4748,9 +4751,9 @@ private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm) { //:typeL
 // it will contain one element with .tp = tyeFunction). Produces a linear, RPN sequence.
 // Usually this function should be followed by a call to "typeEvalExpr"
     StackInt* params = cm->typeParams;
-    StateForExprs* stEx = cm->stateForExprs;
+    StackTypeFrame* tSt = cm->typeStack;
     exp->len = 0;
-    cm->typeParams->len = 0;
+    params->len = 0;
     while (cm->i < sentinel) {
         tSubexClose(cm->typeStack, cm);
 
@@ -4775,8 +4778,8 @@ private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm) { //:typeL
             //Int countArgs = typeCountArgs(calcSentinel(cTk, cm->i - 1), cm->tokens.cont, cm);
             Int nameId = cTk.pl1 & LOWER24BITS;
             Int mbParamId = typeParamBinarySearch(nameId, cm);
+            Int newSent = cm->i + cTk.pl2;
             if (mbParamId == -1) {
-                Int newSent = cm->i + cTk.pl2;
                 if (nameId == stToNameId(strF)) { // F(...)
                     push(((TypeFrame){ .tp = tyeFunction, .sentinel = newSent}), cm->typeStack);
                 } else if (nameId == stToNameId(strRec)) { // inline types, like `(id Int name String)`
@@ -4784,22 +4787,26 @@ private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm) { //:typeL
                 } else { // ordinary type call
                     Int typeId = cm->activeBindings[cTk.pl2];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
-                    push(((TypeFrame){ .tp = tyeTypeCall, .sentinel = newSent}), cm->typeStack);
+                    push(((TypeFrame){ .tp = tyeTypeCall, .nameId = typeId, .sentinel = newSent}),
+                         cm->typeStack);
                 }
             } else {
-                push(((TypeFrame){ .tp = tyeParamCall, .sentinel = newSent}), cm->typeStack);
+                push(((TypeFrame){ .tp = tyeParamCall, .nameId = mbParamId, .sentinel = newSent}),
+                      cm->typeStack);
             }
         } else if (cTk.tp == tokWord) {
-            VALIDATEP(!hasValues(params) || typeExprIsInside(tyeStruct, cm), errTypeDefError)
+            VALIDATEP(hasValues(tSt), errTypeDefError)
+            Int ctxType = peek(tSt).tp;
+            VALIDATEP(ctxType == tyeRecord || ctxType == tyeFunction, errTypeDefError)
             push(tyeName, exp);
             push(cTk.pl2, exp);  // nameId
             Token nextTk = cm->tokens.cont[cm->i];
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall || nextTk.tp == tokParens,
                       errTypeDefError)
         } else if (cTk.tp == tokMisc && cTk.pl1 == miscArrow) {
-            VALIDATEP(cm->tempStack->len >= 2, errTypeDefError)
+            VALIDATEP(hasValues(cm->typeStack), errTypeDefError)
             TypeFrame frame = peek(cm->typeStack);
-            VALIDATEP(frame.tp == tyfrFunction, errTypeDefError)
+            VALIDATEP(frame.tp == tyeFunction, errTypeDefError)
 
             push(tyeRetType, exp);
             push(0, exp);
@@ -4808,7 +4815,10 @@ private void typeLinearize(Int sentinel, StackInt* exp, Compiler* cm) { //:typeL
             throwExcParser(errTypeDefError);
         }
     }
-    tSubexClose(stEx, cm);
+    tSubexClose(tSt, cm);
+#ifdef TEST
+    printTypeExp(cm);
+#endif
 }
 
 
@@ -4825,7 +4835,7 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 // Precondition: we are 1 past the tokAssignmentRight token, or tokParamList token
     StackInt* exp = cm->expStack;
     StackInt* params = cm->typeParams;
-    cm->typeStack.len = 0;
+    cm->typeStack->len = 0;
 
     Int sentinel = cm->i + toks[cm->i - 1].pl2; // we get the length from the tokAssignmentRight
     Token nameTk = toks[cm->i];
@@ -5566,6 +5576,7 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
     print(")");
 }
 
+
 void printOverloads(Int nameId, Compiler* cm) { //:printOverloads
     Int listId = -cm->activeBindings[nameId] - 2;
     if (listId < 0) {
@@ -5593,6 +5604,23 @@ void printOverloads(Int nameId, Compiler* cm) { //:printOverloads
     }
     printf("]\n\n");
 }
+
+
+void printTypeExp(Compiler* cm) { //:printTypeExp
+    const Int len = cm->expStack->len;
+    if (len == 0) {
+        print("()\n");
+        return;
+    }
+    Arr(Int) cont = cm->expStack->cont;
+    printf("(");
+    for (Int i = 0; i < len - 2; i += 2)  {
+        printf(" %d %d,", cont[i], cont[i + 1]);
+    }
+    printf(" %d %d", cont[len - 2], cont[len - 1]);
+    printf(")\n");
+}
+
 //}}}
 
 #endif
