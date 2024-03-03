@@ -582,6 +582,7 @@ struct Compiler { // :Compiler
     StackInt* expStack;   // [aTmp]
     StackInt* typeParams;  // [aTmp]
     StackTypeFrame* typeStack;  // [aTmp]
+    StackInt* tempStack; // [aTmp]
     Int countNonparsedEntities;
     Int countOverloads;
     Int countOverloadedNames;
@@ -608,8 +609,8 @@ struct Compiler { // :Compiler
 //{{{ Types
 
 // see the Type layout chapter in the docs
-#define sorStruct       1
-#define sorSum          2
+#define sorRecord       1
+#define sorEnum         2
 #define sorFunction     3
 #define sorPartial      4 // Partially applied type
 #define sorConcrete     5 // Fully applied type (no type params)
