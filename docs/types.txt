@@ -71,7 +71,7 @@ where Ref1 is the typeInd of the type
 
 Type layout for types of the sort "partial":
 
-Max type arity = 254 (not 255!)
+Max tyrity = 254 (not 255!)
 
 [total size][tag][typeId/paramId]
 (Arities of type params, count = arity)(Full type expression in prefix form, with arities)

@@ -617,7 +617,7 @@ struct Compiler { // :Compiler
 
 // Type expression data format: First element is the tag (one of the following
 // constants), second is payload. Type calls need to have an extra payload, so their tag
-// is (8 bits of "tye", 24 bits of typeId). Used in [expStack]
+// is (8 bits of "tye", 24 bits of typeId). Used in @expStack
 #define tyeRecord     1 // payload: count of fields in the struct
 #define tyeEnum       2 // payload: count of variants
 #define tyeFunction   3 // payload: count of parameters. This is a function signature, not the F(...)
@@ -627,8 +627,6 @@ struct Compiler { // :Compiler
 #define tyeParam      7 // payload: paramId
 #define tyeParamCall  8 // payload: count of args. Payl in tag: nameId
 #define tyeName       9 // payload: nameId. Used for struct fields, function params, sum variants
-#define tyeMeta      10 // payload: index of this meta's token
-#define tyeRetType   11 // payload: none
 
 
 typedef struct { // :TypeHeader

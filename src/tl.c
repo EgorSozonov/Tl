@@ -834,7 +834,7 @@ testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) { //:sor
 // Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
 // same swap on values is also performed.
 // Example of such a swap: [type1 type2 type3 entity1 entity2 entity3] ->
-//                         [type3 type1 type2 entity3 entity1 entity2]
+//                         [type3 type2 type1 entity3 entity2 entity1]
 // Sorts only the concrete group of overloads, doesn't touch the generic part.
 // Params: startInd = inclusive
 //         endInd = exclusive
@@ -933,6 +933,27 @@ testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) { //:sortPairs
         tmp = arr[i + 1];
         arr[i + 1] = arr[minInd + 1];
         arr[minInd + 1] = tmp;
+    }
+}
+
+
+private void sortStackInts(StackInt* st) { //:sortStackInts
+// Performs an ASC sort
+    const Int len = st->len;
+    if (len == 2) return;
+    Arr(Int) arr = st->cont;
+    for (Int i = 0; i < len; i++) {
+        Int minValue = arr[i];
+        for (Int j = i + 1; j < len; j++) {
+            if (arr[j] < minValue) {
+                minValue = arr[j];
+                minInd = j;
+            }
+        }
+        // swap the keys
+        Int tmp = arr[i];
+        arr[i] = arr[minInd];
+        arr[minInd] = tmp;
     }
 }
 
@@ -1056,7 +1077,7 @@ const char errNumericIntWidthExceeded[]    = "Integer literals must be within th
 const char errPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errPunctuationExtraClosing[]    = "Extra closing punctuation";
 const char errPunctuationOnlyInMultiline[] = "The statement separator is not allowed inside expressions!";
-const char errPunctuationParamList[]       = "The param list separator `|` must be directly in a statement";
+const char errPunctuationParamList[]       = "The param list separator `=>` must be directly in a statement";
 const char errPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errOperatorUnknown[]            = "Unknown operator";
@@ -1081,9 +1102,10 @@ const char errIfRight[]                    = "A right-hand clause in an if can o
 const char errIfEmpty[]                    = "Empty `if` expression";
 const char errIfMalformed[]                = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
 const char errIfElseMustBeLast[]           = "An `else` subexpression must be the last thing in an `if`";
-const char errFnNameAndParams[]            = "Function signature must look like this: `^{x Type1 y Type 2 =>  ReturnType | body...}`";
+const char errFnNameAndParams[]            = "Function signature must look like this: `{x Type1 y Type 2 ->  ReturnType => body...}`";
+const char errFnDuplicateParams[]          = "Duplicate parameter names in a function are not allowed";
 const char errFnMissingBody[]              = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
-const char errLoopSyntaxError[]            = "A loop should look like `for x = 0; x < 101 { loopBody } `";
+const char errLoopSyntaxError[]            = "A loop should look like `for x = 0; x < 101; ( loopBody ) `";
 const char errLoopHeader[]                 = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
 const char errLoopEmptyBody[]              = "Empty loop body!";
 const char errBreakContinueTooComplex[]    = "This statement is too complex! Continues and breaks may contain one thing only: the postitive number of enclosing loops to continue/break!";
@@ -4499,11 +4521,25 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) { //:typePara
 //}}}
 //{{{ Type expressions
 
-
-private void tSubexValidateNamesUnique(StackInt* exp, Int startInd, StackInt* tempStack) {
+private void tSubexValidateNamesUnique(StackInt* exp, Int start, Int end, StackInt* tempStack) {
 //:tSubexValidateNamesUnique Validates that the names in a record or function are unique
+    if (end - start <= 4) {
+        return;
+    }
+    tempStack->len = 0;
 
+    for (Int j = start; j < end; j += 4) {
+        push(exp->cont[j], tempStack);
+    }
+    sortStackInts(exp);
+    NameId prev = exp->cont[0];
+    for (Int j = 1; j < exp->len; j++) {
+        if (exp->cont[j] == prev)  {
+            throwExcParser(errFnDuplicateParams);
+        }
+    }
 }
+
 
 private TypeId typeCreateRecord(StackInt* exp, Int startInd, StackInt* params,
                                 untt nameAndLen, Compiler* cm) { //:typeCreateRecord
@@ -4512,7 +4548,7 @@ private TypeId typeCreateRecord(StackInt* exp, Int startInd, StackInt* params,
 // final position of @exp. "nameAndLen" may be -1 if it's an anonymous record.
 // Returns the typeId of the new/existing type
 
-    tSubexValidateNamesUnique(exp, startInd, cm->tempStack);
+    tSubexValidateNamesUnique(exp, startInd, exp->len, cm->tempStack);
     Int tentativeTypeId = cm->types.len;
     pushIntypes(0, cm);
     Int sentinel = exp->len;
@@ -4551,7 +4587,7 @@ private TypeId typeCreateRecord(StackInt* exp, Int startInd, StackInt* params,
 
 
 private TypeId typeCreateTypeCall(StackInt* exp, Int startInd, StackInt* params,
-                                  TypeId typeId, Compiler* cm) {
+                                  TypeId typeId, Compiler* cm) { //:typeCreateTypeCall
 // Creates/merges a new type call from a sequence of pairs in "exp" and a list of type params
 // in "params". Handles ordinary type calls and function types.
 // Returns the typeId of the new type
@@ -4587,107 +4623,60 @@ private TypeId typeCreateTypeCall(StackInt* exp, Int startInd, StackInt* params,
     return mergeType(tentativeTypeId, cm);
 }
 
+private Int typeDetermineTyrity(StackInt* exp, Int startInd) {
+    Int result = 0;
+    Int paramsSentinel = exp->len - 2;
+    for (Int j = startInd + 2; j < paramsSentinel; j += 4) { // +2 to skip the name stuff
+
+    }
+    return result;
+}
+
 
 private TypeId typeCreateFnSignature(StackInt* exp, Int startInd, StackInt* params,
-                                     untt nameAndLen, Compiler* cm) {
+                                     untt nameAndLen, Compiler* cm) { //:typeCreateFnSignature
 // Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
 // in "params". The sequence must be flat, i.e. not include any nested structs.
 // Returns the typeId of the new type
 // Example input: exp () params ()
-    tSubexValidateNamesUnique(exp, startInd, cm->tempStack);
-    Int tentativeTypeId = cm->types.len;
-    pushIntypes(0, cm);
-    Int sentinel = exp->len;
-    print("startInd %d sentinel %d", startInd, sentinel)
-    printTypeExp(cm);
-
 #ifdef SAFETY
     VALIDATEP((sentinel - startInd) % 2 == 0, "typeCreateFnSignature error not divisible by 2")
 #endif
-    Int countFields = (sentinel - startInd)/4;
-    typeAddHeader((TypeHeader){
-        .sort = sorFunction, .tyrity = params->len/2, .arity = countFields,
-        .nameAndLen = nameAndLen}, cm);
-    for (Int j = 1; j < params->len; j += 2) {
-        pushIntypes(params->cont[j], cm);
-    }
 
-    for (Int j = startInd + 1; j < sentinel; j += 4) {
-        // names of fields
-#ifdef SAFETY
-/*
-        VALIDATEP(exp->cont[j - 1] == tydField, "not a field")
-*/
-#endif
-        pushIntypes(exp->cont[j], cm);
-    }
+    tSubexValidateNamesUnique(exp, startInd, exp->len - 2, cm->tempStack); // -2 for the return type
 
-    for (Int j = startInd + 3; j < sentinel; j += 4) {
-        // types of fields
-#ifdef SAFETY
-        VALIDATEP(exp->cont[j - 1] == tyeType, "not a type")
-#endif
-        pushIntypes(exp->cont[j], cm);
-    }
-    cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1; // set the type length
-    return mergeType(tentativeTypeId, cm);
-}
-
-/*
-private Int typeEvalExpr(StackInt* exp, StackInt* params, Int nameAndLen, Compiler* cm) {
-//:typeEvalExpr Processes the "type expression" produced by "pTypeDef".
-// Precondition: {expStack} must be populated with a linearized type expression, 2 ints per item.
-// nameAndLen may be -1.
-// Returns the typeId of the newly defined type
-// Example: ...
-    Int j = exp->len - 2;
-    while (j > 0) {
-        Int tyeContent = exp->cont[j];
-        Int tye = (exp->cont[j] >> 24) & 0xFF;
-        if (tye == 0)
-            { tye = tyeContent; }
-        if (tye == tyeRecord) {
-            Int lengthRecord = exp->cont[j + 1]*4; // *4 because for every field there are 4 ints
-            Int typeNestedStruct = typeCreateStruct(exp, j + 2, lengthRecord, params, 0, cm);
-            exp->cont[j] = tyeType;
-            exp->cont[j + 1] = typeNestedStruct;
-            shiftTypeStackLeft(j + 2 + lengthRecord, lengthRecord, cm);
-
-#if defined(TEST) && defined(TRACE)
-            print("after struct shift:");
-            printIntArray(exp->len, exp->cont);
-#endif
-        } else if (tye == tyeTypeCall || tye == tyeFnType) {
-            Int lengthFn = exp->cont[j + 1]*2;
-            Int typeFn = typeCreateTypeCall(exp, j + 2, lengthFn, params, tye == tyeFnType, cm);
-            exp->cont[j] = tyeType;
-            exp->cont[j + 1] = typeFn;
-            shiftTypeStackLeft(j + 2 + lengthFn, lengthFn, cm);
-
-#if defined(TEST) && defined(TRACE)
-            print("after typeCall/fnType shift:");
-            printIntArray(exp->len, exp->cont);
-#endif
-        } else if (tye == tyeParamCall) {
-
-        }
-        j -= 2;
-    }
-#if defined(TEST) && defined(TRACE)
-    print("after type def processing")
-    printIntArray(exp->len, exp->cont);
-#endif
-    if (nameAndLen > 0) {
-        // at this point, exp must contain just a single struct with its fields
-        // followed by just typeIds
-        Int lengthNewStruct = exp->cont[1]*4; // *4 because for every field there are 4 ints
-        return typeCreateStruct(exp, 2, lengthNewStruct, params, nameAndLen, cm);
+    const Int tyrity = typeDetermineTyrity(StackInt* exp, Int startInd);
+    if (tyrity > 0)  {
+        // create a generic function with this tyrity
+        // create a partial application of this function with the actual type params
     } else {
-        Int lengthNewSignature = exp->cont[1]*4; // *4 because for every field there are 4 ints
-        return typeCreateFnSignature(exp, 2, lengthNewSignature, params, 0, cm);
+        const Int tentativeTypeId = cm->types.len;
+        pushIntypes(0, cm);
+        Int sentinel = exp->len;
+
+        print("startInd %d sentinel %d", startInd, sentinel)
+        printTypeExp(cm);
+
+        Int countParams = (sentinel - 2 - startInd)/4;
+        typeAddHeader((TypeHeader){
+            .sort = sorFunction, .tyrity = params->len/2, .arity = countFields,
+            .nameAndLen = nameAndLen}, cm);
+        for (Int j = 1; j < params->len; j += 2) {
+            pushIntypes(params->cont[j], cm);
+        }
+
+        for (Int j = startInd + 3; j < sentinel; j += 4) {
+            // types of fields
+#ifdef SAFETY
+            VALIDATEP(exp->cont[j - 1] == tyeType, "not a type")
+#endif
+            pushIntypes(exp->cont[j], cm);
+        }
+        cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1; // set the type length
+        return mergeType(tentativeTypeId, cm);
     }
 }
-*/
+
 
 #define maxTypeParams 254
 

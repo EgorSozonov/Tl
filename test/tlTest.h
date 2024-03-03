@@ -106,6 +106,7 @@ extern const char errIfEmpty[];
 extern const char errIfMalformed[];
 extern const char errIfElseMustBeLast[];
 extern const char errFnNameAndParams[];
+extern const char errFnDuplicateParams[];
 extern const char errFnMissingBody[];
 extern const char errLoopSyntaxError[];
 extern const char errLoopHeader[];
