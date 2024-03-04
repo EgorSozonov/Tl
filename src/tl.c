@@ -3902,6 +3902,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     (*stForTypes) = (StateForTypes) {
         .frames = createStackTypeFrame(16*sizeof(TypeFrame), cm->aTmp),
         .params = createStackint32_t(16, cm->aTmp),
+        .subParams = createStackint32_t(16, cm->aTmp),
         .paramRenumberings = createStackint32_t(16, cm->aTmp),
         .temp = createStackint32_t(16, cm->aTmp)
     };
@@ -4630,11 +4631,16 @@ private TypeId typeCreateTypeCall(StateForTypes* st, Int startInd, TypeId typeId
 }
 
 
-private Int typeDetermineTyrity(const StackInt* exp, Int startInd) { //:typeDetermineTyrity
+private Int typeDetermineTyrityInDefinition(const StateForTypes* st, Int startInd) {
+//:typeDetermineTyrity Counts how many unique type parameters there are in a type def
+    TYPE_DEFINE_EXP;
     Int result = 0;
     Int paramsSentinel = exp->len - 2;
-    for (Int j = startInd + 2; j < paramsSentinel; j += 4) { // +2 to skip the name stuff
+    for (Int j = startInd; j < paramsSentinel; j += 2) { // +2 to skip the name stuff
+        Int c = exp->cont[j];
+        if (c == tyeParam) {
 
+        }
     }
     return result;
 }
@@ -4655,7 +4661,7 @@ private TypeId typeCreateFnSignature(StateForTypes* st, Int startInd,
 
     tSubexValidateNamesUnique(st, startInd, exp->len - 2, cm); // -2 for the return type
 
-    const Int tyrity = typeDetermineTyrity(exp, startInd);
+    const Int tyrity = typeDetermineTyrityInDefinition(st, startInd);
     if (tyrity > 0)  {
         // create a generic function with this tyrity
         // create a partial application of this function with the actual type params

@@ -547,7 +547,8 @@ DEFINE_STACK_HEADER(TypeFrame)
 
 typedef struct { // :StateForTypes
     StackInt* exp;   // [aTmp]
-    StackInt* params;  // [aTmp]
+    StackInt* params;  // [aTmp] Params of a whole type expression
+    StackInt* subParams;  // [aTmp] Type params of a subexpression
     StackInt* paramRenumberings;  // [aTmp]
     StackTypeFrame* frames;  // [aTmp]
     StackInt* temp; // [aTmp]

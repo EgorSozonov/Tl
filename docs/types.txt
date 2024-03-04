@@ -20,11 +20,12 @@ depth = count of func params + 1
 (function parameter types)|return type|
 
 Partial:
-(Arities of type params, count = arity)
-(Full type expression in prefix form, with arities)
+(typeId of the "parent" type)
+(Arities of type params, count = tyrity)
+(Full type expression in prefix form, with tyrities)
 
 Concrete:
-(Full type expression in prefix form, with arities)
+(Full type expression in prefix form, with tyrities)
 
 -----------------
 
