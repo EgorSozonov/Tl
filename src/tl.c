@@ -944,16 +944,18 @@ private void sortStackInts(StackInt* st) { //:sortStackInts
     Arr(Int) arr = st->cont;
     for (Int i = 0; i < len; i++) {
         Int minValue = arr[i];
+        Int minInd = i;
         for (Int j = i + 1; j < len; j++) {
             if (arr[j] < minValue) {
                 minValue = arr[j];
                 minInd = j;
             }
         }
-        // swap the keys
-        Int tmp = arr[i];
-        arr[i] = arr[minInd];
-        arr[minInd] = tmp;
+        if (minInd != i)  {
+            Int tmp = arr[i];
+            arr[i] = arr[minInd];
+            arr[minInd] = tmp;
+        }
     }
 }
 
@@ -1172,7 +1174,7 @@ private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
 private Int typeGetTyrity(TypeId typeId, Compiler* cm);
 testable Int typeCheckBigExpr(Int indExpr, Int sentinel, Compiler* cm);
-private TypeId typeDefinition(Int sentinel, StackInt* exp, Compiler* cm);
+private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 #ifdef TEST
 testable void printParser(Compiler* cm, Arena* a);
 private void printTypeExp(Compiler* cm);
@@ -1335,10 +1337,10 @@ testable untt nameOfStandard(Int strId) { //:nameOfStandard
 
 
 _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {
-    cm->wasError = true;
+    cm->stats.wasError = true;
     printf("Internal error %d at %d\n", errInd, lineNumber);
-    cm->errMsg = stringOfInt(errInd, cm->a);
-    printString(cm->errMsg);
+    cm->stats.errMsg = stringOfInt(errInd, cm->a);
+    printString(cm->stats.errMsg);
     longjmp(excBuf, 1);
 }
 
@@ -1346,11 +1348,11 @@ _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* c
 
 _Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compiler* lx) {
 // Sets i to beyond input's length to communicate to callers that lexing is over
-    lx->wasLexerError = true;
+    lx->stats.wasLexerError = true;
 #ifdef TRACE
     printf("Error on code line %d, i = %d: %s\n", lineNumber, IND_BT, errMsg);
 #endif
-    lx->errMsg = str(errMsg, lx->a);
+    lx->stats.errMsg = str(errMsg, lx->a);
     longjmp(excBuf, 1);
 }
 
@@ -1361,7 +1363,7 @@ _Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compi
 
 private void checkPrematureEnd(Int requiredSymbols, Compiler* lx) {
 // Checks that there are at least 'requiredSymbols' symbols left in the input
-    VALIDATEL(lx->i + requiredSymbols <= lx->inpLength, errPrematureEndOfInput)
+    VALIDATEL(lx->i + requiredSymbols <= lx->stats.inpLength, errPrematureEndOfInput)
 }
 
 
@@ -1389,7 +1391,7 @@ private void setStmtSpanLength(Int tokenInd, Compiler* lx) {
 //    }`        <- but we are in this position now
     Token lastToken = lx->tokens.cont[lx->tokens.len - 1];
     Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
-    Int byteAfterLastPunct = lx->lastClosingPunctInd + 1;
+    Int byteAfterLastPunct = lx->stats.lastClosingPunctInd + 1;
     Int lenBts = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken)
                     - lx->tokens.cont[tokenInd].startBt;
     lx->tokens.cont[tokenInd].lenBts = lenBts;
@@ -1492,7 +1494,7 @@ private void hexNumber(Arr(Byte) source, Compiler* lx) {
     checkPrematureEnd(2, lx);
     lx->numeric.len = 0;
     Int j = lx->i + 2;
-    while (j < lx->inpLength) {
+    while (j < lx->stats.inpLength) {
         Byte cByte = source[j];
         if (isDigit(cByte)) {
             pushInnumeric(cByte - aDigit0, lx);
@@ -1500,7 +1502,7 @@ private void hexNumber(Arr(Byte) source, Compiler* lx) {
             pushInnumeric(cByte - aALower + 10, lx);
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
             pushInnumeric(cByte - aAUpper + 10, lx);
-        } else if (cByte == aApostrophe && (j == lx->inpLength - 1 || isHexDigit(source[j + 1]))) {
+        } else if (cByte == aApostrophe && (j == lx->stats.inpLength - 1 || isHexDigit(source[j + 1]))) {
             throwExcLexer(errNumericEndUnderscore);
         } else {
             break;
@@ -1591,7 +1593,7 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) {
     Int digitsAfterDot = 0; // this is relative to first digit, so it includes the leading zeroes
     bool metDot = false;
     bool metNonzero = false;
-    Int maximumInd = (lx->i + 40 > lx->inpLength) ? (lx->i + 40) : lx->inpLength;
+    Int maximumInd = (lx->i + 40 > lx->stats.inpLength) ? (lx->i + 40) : lx->stats.inpLength;
     while (j < maximumInd) {
         Byte cByte = source[j];
 
@@ -1606,7 +1608,8 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) {
                 ++digitsAfterDot;
             }
         } else if (cByte == aApostrophe) {
-            VALIDATEL(j != (lx->inpLength - 1) && isDigit(source[j + 1]), errNumericEndUnderscore)
+            VALIDATEL(j != (lx->stats.inpLength - 1) && isDigit(source[j + 1]),
+                      errNumericEndUnderscore)
         } else if (cByte == aDot) {
             VALIDATEL(!metDot, errNumericMultipleDots)
             metDot = true;
@@ -1616,7 +1619,7 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) {
         j++;
     }
 
-    VALIDATEL(j >= lx->inpLength || !isDigit(source[j]), errNumericWidthExceeded)
+    VALIDATEL(j >= lx->stats.inpLength || !isDigit(source[j]), errNumericWidthExceeded)
 
     if (metDot) {
         double resultValue = 0;
@@ -1642,7 +1645,7 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) {
 private void lexNumber(Arr(Byte) source, Compiler* lx) {
     wrapInAStatement(source, lx);
     Byte cByte = CURR_BT;
-    if (lx->i == lx->inpLength - 1 && isDigit(cByte)) {
+    if (lx->i == lx->stats.inpLength - 1 && isDigit(cByte)) {
         pushIntokens((Token){ .tp = tokInt, .pl2 = cByte - aDigit0, .startBt = lx->i, .lenBts = 1 }, lx);
         lx->i++; // CONSUME the single-digit number
         return;
@@ -1703,7 +1706,7 @@ private bool wordChunk(Arr(Byte) source, Compiler* lx) { //:wordChunk
     } else VALIDATEL(isLowercaseLetter(currBt), errWordChunkStart)
 
     lx->i++; // CONSUME the first letter of the word
-    while (lx->i < lx->inpLength && isAlphanumeric(CURR_BT)) {
+    while (lx->i < lx->stats.inpLength && isAlphanumeric(CURR_BT)) {
         lx->i++; // CONSUME alphanumeric characters
     }
     return result;
@@ -1727,7 +1730,7 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
     Token newToken = (Token){ .tp = wordType, .pl2 = uniqueStringId,
                              .startBt = realStartBt, .lenBts = lenBts };
 
-    if (lx->i < lx->inpLength && CURR_BT == aParenLeft && wordType == tokWord) {
+    if (lx->i < lx->stats.inpLength && CURR_BT == aParenLeft && wordType == tokWord) {
         // A prefix function call or a type call/constructor (only the parser can distinguish)
         newToken.tp = wasCapitalized ? tokTypeCall : tokCall;
         newToken.pl1 = uniqueStringId;
@@ -1784,7 +1787,7 @@ private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) {
     Int startBt = lx->i;
     bool wasCapitalized = wordChunk(source, lx);
 
-    while (lx->i < (lx->inpLength - 1)) {
+    while (lx->i < (lx->stats.inpLength - 1)) {
         Byte currBt = CURR_BT;
         if (currBt == aColon) {
             Byte nextBt = NEXT_BT;
@@ -1822,7 +1825,7 @@ private void lexWord(Arr(Byte) source, Compiler* lx) {
 private void lexDot(Arr(Byte) source, Compiler* lx) {
 // The dot is a start of a field accessor or a function call
 
-    VALIDATEL(lx->i < lx->inpLength - 1 && isLetter(NEXT_BT) && lx->tokens.len > 0,
+    VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT) && lx->tokens.len > 0,
         errUnexpectedToken);
     Token prevTok = lx->tokens.cont[lx->tokens.len - 1];
     ++lx->i; // CONSUME the dot
@@ -1869,7 +1872,7 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) {
 
 private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
 // Handles keyword arguments ":asdf"
-    if (lx->i < lx->inpLength - 1) {
+    if (lx->i < lx->stats.inpLength - 1) {
         Byte nextBt = NEXT_BT;
         if (isLowercaseLetter(nextBt)) {
             ++lx->i; // CONSUME the ":"
@@ -1893,9 +1896,9 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     wrapInAStatement(source, lx);
 
     Byte firstSymbol = CURR_BT;
-    Byte secondSymbol = (lx->inpLength > lx->i + 1) ? source[lx->i + 1] : 0;
-    Byte thirdSymbol = (lx->inpLength > lx->i + 2) ? source[lx->i + 2] : 0;
-    Byte fourthSymbol = (lx->inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
+    Byte secondSymbol = (lx->stats.inpLength > lx->i + 1) ? source[lx->i + 1] : 0;
+    Byte thirdSymbol = (lx->stats.inpLength > lx->i + 2) ? source[lx->i + 2] : 0;
+    Byte fourthSymbol = (lx->stats.inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
     Int k = 0;
     Int opType = -1; // corresponds to the op... operator types
     //OpDef (*operators)[countOperators] = lx->langDef->operators;
@@ -1930,7 +1933,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     Int lengthOfBaseOper = (opDef.bytes[1] == 0) ? 1
         : (opDef.bytes[2] == 0 ? 2 : (opDef.bytes[3] == 0 ? 3 : 4));
     Int j = lx->i + lengthOfBaseOper;
-    if (opDef.assignable && j < lx->inpLength && source[j] == aEqual) {
+    if (opDef.assignable && j < lx->stats.inpLength && source[j] == aEqual) {
         isAssignment = true;
         j++;
     }
@@ -1967,7 +1970,7 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
 
 private void lexLT(Arr(Byte) source, Compiler* lx) { //:lexLT
 // Handles "<-" (reassignment) as well as operators
-    if ((lx->i + 1 < lx->inpLength) && NEXT_BT == aMinus) {
+    if ((lx->i + 1 < lx->stats.inpLength) && NEXT_BT == aMinus) {
         processAssignment(1, 0, lx);
         lx->i += 2; // CONSUME the "<-"
     } else {
@@ -1976,7 +1979,7 @@ private void lexLT(Arr(Byte) source, Compiler* lx) { //:lexLT
 }
 
 private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
-    if ((lx->i < lx->inpLength - 1) && NEXT_BT == aTilde) {
+    if ((lx->i < lx->stats.inpLength - 1) && NEXT_BT == aTilde) {
         pushIntokens((Token){ .tp = tokTilde, .pl1 = 2, .startBt = lx->i - 1, .lenBts = 2 }, lx);
         lx->i += 2; // CONSUME the "~~"
     } else {
@@ -1992,7 +1995,7 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
     maybeBreakStatement(lx);
 
     lx->i++;     // CONSUME the LF
-    while (lx->i < lx->inpLength) {
+    while (lx->i < lx->stats.inpLength) {
         if (CURR_BT != aSpace && CURR_BT != aTab && CURR_BT != aCarrReturn) {
             break;
         }
@@ -2008,7 +2011,7 @@ private void lexElision(Arr(Byte) source, Compiler* lx) {
     Int elisionLevel = 1;
 
     Int j = lx->i;
-    while (j < lx->inpLength - 1) {
+    while (j < lx->stats.inpLength - 1) {
         Byte cByte = source[j];
         if (cByte == aTimes && NEXT_BT == aDivBy) {
             --elisionLevel;
@@ -2028,7 +2031,7 @@ private void lexElision(Arr(Byte) source, Compiler* lx) {
 
 private void lexMinus(Arr(Byte) source, Compiler* lx) {
 // Handles the binary operator as well as the unary negation operator
-    if (lx->i == lx->inpLength - 1) {
+    if (lx->i == lx->stats.inpLength - 1) {
         lexOperator(source, lx);
     } else {
         Byte nextBt = NEXT_BT;
@@ -2045,7 +2048,7 @@ private void lexMinus(Arr(Byte) source, Compiler* lx) {
 
 private void lexDivBy(Arr(Byte) source, Compiler* lx) {
 // Handles the binary operator as well as the elisions
-    if (lx->i + 1 < lx->inpLength && NEXT_BT == aTimes) {
+    if (lx->i + 1 < lx->stats.inpLength && NEXT_BT == aTimes) {
         lexElision(source, lx);
     } else {
         lexOperator(source, lx);
@@ -2055,7 +2058,7 @@ private void lexDivBy(Arr(Byte) source, Compiler* lx) {
 
 private void lexParenLeft(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
-    VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
+    VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
     wrapInAStatement(source, lx);
     openPunctuation(tokParens, slSubexpr, lx->i, lx);
     ++lx->i; // CONSUME the left parenthesis
@@ -2076,13 +2079,13 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) {
     }
     lx->i++; // CONSUME the closing ")"
 
-    lx->lastClosingPunctInd = startInd;
+    lx->stats.lastClosingPunctInd = startInd;
 }
 
 
 private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
-    VALIDATEL(j < lx->inpLength, errPunctuationUnmatched)
+    VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
     closeStatement(lx);
     openPunctuation(tokScope, slScope, lx->i, lx);
     ++lx->i; // CONSUME the left bracket
@@ -2112,7 +2115,7 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
         setSpanLengthLexer(top.tokenInd, lx);
     }
 
-    if (hasValues(bt)) { lx->lastClosingPunctInd = startInd; }
+    if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
     lx->i++; // CONSUME the closing "}"
 }
 
@@ -2145,7 +2148,7 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
 
 private void lexCaret(Arr(Byte) source, Compiler* lx) {
     Int j = lx->i + 1;
-    if (j < lx->inpLength && NEXT_BT == aCurlyLeft) {
+    if (j < lx->stats.inpLength && NEXT_BT == aCurlyLeft) {
         push(((BtToken){ .tp = tokFn, .tokenInd = lx->tokens.len, .spanLevel = slScope }),
                 lx->lexBtrack);
         pushIntokens((Token){ .tp = tokFn, .pl1 = slScope, .startBt = lx->i, .lenBts = 0 }, lx);
@@ -2165,7 +2168,7 @@ private void lexComma(Arr(Byte) source, Compiler* lx) {
 private void lexPipe(Arr(Byte) source, Compiler* lx) {
 // Closes the current statement and changes its type to tokParamList
     Int j = lx->i + 1;
-    if (j < lx->inpLength && NEXT_BT == aPipe) {
+    if (j < lx->stats.inpLength && NEXT_BT == aPipe) {
         lexOperator(source, lx);
     } else {
         BtToken top = peek(lx->lexBtrack);
@@ -2180,7 +2183,7 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) {
 
 private void lexSpace(Arr(Byte) source, Compiler* lx) {
     lx->i++; // CONSUME the space
-    while (lx->i < lx->inpLength && CURR_BT == aSpace) {
+    while (lx->i < lx->stats.inpLength && CURR_BT == aSpace) {
         lx->i++; // CONSUME a space
     }
 }
@@ -2189,8 +2192,8 @@ private void lexSpace(Arr(Byte) source, Compiler* lx) {
 private void lexStringLiteral(Arr(Byte) source, Compiler* lx) {
     wrapInAStatement(source, lx);
     Int j = lx->i + 1;
-    for (; j < lx->inpLength && source[j] != aBacktick; j++);
-    VALIDATEL(j != lx->inpLength, errPrematureEndOfInput)
+    for (; j < lx->stats.inpLength && source[j] != aBacktick; j++);
+    VALIDATEL(j != lx->stats.inpLength, errPrematureEndOfInput)
     pushIntokens((Token){.tp=tokString, .startBt=(lx->i), .lenBts=(j - lx->i + 1)}, lx);
     lx->i = j + 1; // CONSUME the string literal, including the closing quote character
 }
@@ -2347,11 +2350,11 @@ private Int pExprWorker(Token tk, P_CT);
 
 
 _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
-    cm->wasError = true;
+    cm->stats.wasError = true;
 #ifdef TRACE
     printf("Error on i = %d line %d\n", cm->i, lineNumber);
 #endif
-    cm->errMsg = str(errMsg, cm->a);
+    cm->stats.errMsg = str(errMsg, cm->a);
     longjmp(excBuf, 1);
 }
 
@@ -2447,16 +2450,12 @@ private void parseTry(Token tok, P_CT) {
 }
 
 
-private void parseYield(Token tok, P_CT) {
-    throwExcParser(errTemp);
-}
-
 private void ifLeftSide(Token tok, P_CT) { //:ifLeftSide
 // Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
 
-    VALIDATEP(leftSentinel + 1 < cm->inpLength, errPrematureEndOfTokens)
+    VALIDATEP(leftSentinel + 1 < cm->stats.inpLength, errPrematureEndOfTokens)
     VALIDATEP(toks[leftSentinel].tp == tokMisc && toks[leftSentinel].pl1 == miscArrow,
             errIfMalformed)
     Int typeLeft = pExprWorker(tok, P_C);
@@ -2485,7 +2484,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assig
     EntityId leftEntityId = getActiveVar(firstTk.pl2, cm);
     Int j = start + 1;
 
-    StackInt* sc = cm->expStack;
+    StackInt* sc = cm->stateForExprs->exp;
     clearint32_t(sc);
 
     while (j < sentinel) {
@@ -2616,7 +2615,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 
 private void pFor(Token forTk, P_CT) { //:pFor
 // For loops. Look like "for x = 0; x < 100; x++ { ... }"
-    ++cm->loopCounter;
+    ++cm->stats.loopCounter;
     Int sentinel = cm->i + forTk.pl2;
 
     Int condInd = cm->i;
@@ -2627,7 +2626,7 @@ private void pFor(Token forTk, P_CT) { //:pFor
     Int startBtScope = toks[condSent].startBt;
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
-                        .typeId = cm->loopCounter }), cm->backtrack);
+                        .typeId = cm->stats.loopCounter }), cm->backtrack);
     addNode((Node){.tp = nodFor},  forTk.startBt, forTk.lenBts, cm);
 
     addParsedScope(sentinel, startBtScope, forTk.lenBts - startBtScope + forTk.startBt, cm);
@@ -3231,7 +3230,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities,
         importActivateEntity(
                 (Entity){.name = impt.name, .class = classImmutable, .typeId = impt.typeId }, cm);
     }
-    cm->countNonparsedEntities = cm->entities.len;
+    cm->stats.countNonparsedEntities = cm->entities.len;
 }
 
 
@@ -3352,7 +3351,7 @@ private void finalizeLexer(Compiler* lx) { //:finalizeLexer
 testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* a) {
 //:lexicallyAnalyze Main lexer function. Precondition: the input Byte array has been prepended with StandardText
     Compiler* lx = createLexerFromProto(sourceCode, proto, a);
-    Int inpLength = lx->inpLength;
+    const Int inpLength = lx->stats.inpLength;
     Arr(Byte) inp = lx->sourceCode->cont;
     VALIDATEL(inpLength > 0, "Empty input")
 
@@ -3550,7 +3549,7 @@ private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Com
     if (mbListId == -1) {
         Int newListId = listAddMultiAssocList(firstParamType, entityId, cm->rawOverloads);
         cm->activeBindings[nameId] = -newListId - 2;
-        ++cm->countOverloadedNames;
+        ++cm->stats.countOverloadedNames;
     } else {
         Int updatedListId = addMultiAssocList(firstParamType, entityId, mbListId,
                                               cm->rawOverloads);
@@ -3558,7 +3557,7 @@ private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Com
             cm->activeBindings[nameId] = -updatedListId - 2;
         }
     }
-    ++cm->countOverloads;
+    ++cm->stats.countOverloads;
 }
 
 
@@ -3825,7 +3824,6 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
         // this assumes that the source code is prefixed with the "standardText"
         .i = sizeof(standardText) - 1, .langDef = proto->langDef,
         .sourceCode = prepareInput((const char *)sourceCode->cont, a),
-        .inpLength = sourceCode->len + sizeof(standardText) - 1,
         .tokens = createInListToken(LEXER_INIT_SIZE, a),
         .metas = createInListToken(100, a),
         .newlines = createInListInt(500, a),
@@ -3833,8 +3831,13 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
         .lexBtrack = createStackBtToken(16, aTmp),
         .stringTable = copyStringTable(proto->stringTable, a),
         .stringDict = copyStringDict(proto->stringDict, a),
-        .wasLexerError = false, .wasError = false, .errMsg = &empty,
         .a = a, .aTmp = aTmp
+    };
+    lx->stats = (CompStats){
+        .inpLength = sourceCode->len + sizeof(standardText) - 1,
+        .countOverloads = proto->stats.countOverloads,
+        .countOverloadedNames = proto->stats.countOverloadedNames,
+        .wasLexerError = false, .wasError = false, .errMsg = &empty
     };
     return lx;
 }
@@ -3842,7 +3845,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
 
 testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:initializeParser
 // Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
-    if (lx->wasLexerError) {
+    if (lx->stats.wasLexerError) {
         return;
     }
 
@@ -3851,7 +3854,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     cm->scopeStack = createScopeStack();
     cm->backtrack = createStackParseFrame(16, lx->aTmp);
     cm->i = 0;
-    cm->loopCounter = 0;
+    cm->stats.loopCounter = 0;
     cm->nodes = createInListNode(initNodeCap, a);
     cm->sourceLocs = createStackSourceLoc(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
@@ -3859,6 +3862,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
 
     StateForExprs* stForExprs = allocateOnArena(sizeof(StateForExprs), a);
     (*stForExprs) = (StateForExprs) {
+        .exp = createStackint32_t(16, cm->aTmp),
         .frames = createStackExprFrame(16*sizeof(ExprFrame), a),
         .scr = createStackNode(16*sizeof(Node), a),
         .calls = createStackNode(16*sizeof(Node), a),
@@ -3868,8 +3872,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     cm->stateForExprs = stForExprs;
 
     cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
-    cm->countOverloads = proto->countOverloads;
-    cm->countOverloadedNames = proto->countOverloadedNames;
     cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
@@ -3894,11 +3896,16 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     cm->importNames = createInListInt(8, lx->aTmp);
     cm->toplevels = createInListToplevel(8, lx->a);
 
-    cm->expStack = createStackint32_t(16, cm->aTmp);
-    cm->typeParams = createStackint32_t(16, cm->aTmp);
-    cm->typeStack = createStackTypeFrame(16, cm->aTmp);
-    cm->tempStack = createStackint32_t(16, cm->aTmp);
     cm->scopeStack = createScopeStack();
+
+    StateForTypes* stForTypes = allocateOnArena(sizeof(StateForTypes), a);
+    (*stForTypes) = (StateForTypes) {
+        .frames = createStackTypeFrame(16*sizeof(TypeFrame), cm->aTmp),
+        .params = createStackint32_t(16, cm->aTmp),
+        .paramRenumberings = createStackint32_t(16, cm->aTmp),
+        .temp = createStackint32_t(16, cm->aTmp)
+    };
+
     importPrelude(cm);
 }
 
@@ -4003,8 +4010,8 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) { //:createNameOve
 testable void createOverloads(Compiler* cm) { //:createOverloads
 // Fills {overloads} from {rawOverloads}. Replaces all indices in
 // {activeBindings} to point to the new overloads table (they pointed to {rawOverloads} previously)
-    cm->overloads.cont = allocateOnArena(cm->countOverloads*8 + cm->countOverloadedNames*4,
-                                         cm->a);
+    cm->overloads.cont = allocateOnArena(
+            cm->stats.countOverloads*8 + cm->stats.countOverloadedNames*4, cm->a);
     // Each overload requires 2x4 = 8 bytes for the pair of (outerType entityId).
     // Plus you need an int per overloaded name to hold the length of the overloads for that name
 
@@ -4178,13 +4185,14 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
 
     Arr(Token) toks = cm->tokens.cont;
     TypeId newFnTypeId = voidToVoid; // default for nullary functions
+    StateForTypes* st = cm->stateForTypes;
     if (toks[cm->i].tp == tokParamList) {
         Token paramListTk = toks[cm->i];
         Int sentinel = calcSentinel(paramListTk, cm->i);
         cm->i++; // CONSUME the paramList
-        cm->typeStack->len = 0;
-        push(((TypeFrame) { .tp = tyeFunction, .sentinel = sentinel }), cm->typeStack);
-        newFnTypeId = typeDefinition(sentinel, cm->expStack, cm);
+        st->frames->len = 0;
+        push(((TypeFrame) { .tp = tyeFunction, .sentinel = sentinel }), st->frames);
+        newFnTypeId = typeDefinition(st, sentinel, cm);
         // assert there's an arrow now
         // parse a type - the return type
         // merge type
@@ -4248,7 +4256,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
 private void pFunctionBodies(Arr(Token) toks, Compiler* cm) {
 // Parses top-level function params and bodies
     for (int j = 0; j < cm->toplevels.len; j++) {
-        cm->loopCounter = 0;
+        cm->stats.loopCounter = 0;
         pToplevelBody(cm->toplevels.cont[j], P_C);
     }
 }
@@ -4354,6 +4362,8 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 //}}}
 //{{{ Types
 //{{{ Type utils
+
+#define TYPE_DEFINE_EXP const StackInt* exp = st->exp
 
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((untt)(sort << 16) + (depth << 8) + arity);
@@ -4486,12 +4496,13 @@ private Int typeCountArgs(Int sentinelToken, P_CT) {
 testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) { //:typeParamBinarySearch
 // Performs a binary search of the binary params in {typeParams}. Returns index of found type param,
 // or -1 if nothing is found
-    if (cm->typeParams->len == 0) {
+    StackInt* params = cm->stateForTypes->params;
+    if (params->len == 0) {
         return -1;
     }
-    Arr(Int) st = cm->typeParams->cont;
+    Arr(Int) st = params->cont;
     Int i = 0;
-    Int j = cm->typeParams->len - 2;
+    Int j = params->len - 2;
     if (st[i] == nameIdToFind) {
         return i;
     } else if (st[j] == nameIdToFind) {
@@ -4521,34 +4532,35 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) { //:typePara
 //}}}
 //{{{ Type expressions
 
-private void tSubexValidateNamesUnique(StackInt* exp, Int start, Int end, StackInt* tempStack) {
+private void tSubexValidateNamesUnique(StateForTypes* st, Int start, Int end, Compiler* cm) {
 //:tSubexValidateNamesUnique Validates that the names in a record or function are unique
     if (end - start <= 4) {
         return;
     }
-    tempStack->len = 0;
+    TYPE_DEFINE_EXP;
+    st->temp->len = 0;
 
     for (Int j = start; j < end; j += 4) {
-        push(exp->cont[j], tempStack);
+        push(exp->cont[j], st->temp);
     }
-    sortStackInts(exp);
-    NameId prev = exp->cont[0];
-    for (Int j = 1; j < exp->len; j++) {
-        if (exp->cont[j] == prev)  {
+    sortStackInts(st->exp);
+    NameId prev = st->exp->cont[0];
+    for (Int j = 1; j < st->exp->len; j++) {
+        if (st->exp->cont[j] == prev)  {
             throwExcParser(errFnDuplicateParams);
         }
     }
 }
 
 
-private TypeId typeCreateRecord(StackInt* exp, Int startInd, StackInt* params,
-                                untt nameAndLen, Compiler* cm) { //:typeCreateRecord
+private TypeId typeCreateRecord(StateForTypes* st, Int startInd, untt nameAndLen,
+                                Compiler* cm) { //:typeCreateRecord
 // Creates/merges a new struct type from a sequence of pairs in @exp and a list of type params
 // in @params. The sequence must be flat, i.e. not include any nested structs, and be in the
 // final position of @exp. "nameAndLen" may be -1 if it's an anonymous record.
 // Returns the typeId of the new/existing type
-
-    tSubexValidateNamesUnique(exp, startInd, exp->len, cm->tempStack);
+    TYPE_DEFINE_EXP;
+    tSubexValidateNamesUnique(st, startInd, exp->len, cm);
     Int tentativeTypeId = cm->types.len;
     pushIntypes(0, cm);
     Int sentinel = exp->len;
@@ -4558,10 +4570,10 @@ private TypeId typeCreateRecord(StackInt* exp, Int startInd, StackInt* params,
 #endif
     Int countFields = (sentinel - startInd)/4;
     typeAddHeader((TypeHeader){
-        .sort = sorRecord, .tyrity = params->len/2, .arity = countFields,
+        .sort = sorRecord, .tyrity = st->params->len/2, .arity = countFields,
         .nameAndLen = nameAndLen }, cm);
-    for (Int j = 1; j < params->len; j += 2) {
-        pushIntypes(params->cont[j], cm);
+    for (Int j = 1; j < st->params->len; j += 2) {
+        pushIntypes(st->params->cont[j], cm);
     }
 
     for (Int j = startInd + 1; j < sentinel; j += 4) {
@@ -4586,44 +4598,39 @@ private TypeId typeCreateRecord(StackInt* exp, Int startInd, StackInt* params,
 }
 
 
-private TypeId typeCreateTypeCall(StackInt* exp, Int startInd, StackInt* params,
-                                  TypeId typeId, Compiler* cm) { //:typeCreateTypeCall
-// Creates/merges a new type call from a sequence of pairs in "exp" and a list of type params
-// in "params". Handles ordinary type calls and function types.
+private TypeId typeCreateTypeCall(StateForTypes* st, Int startInd, TypeId typeId,
+                                  Compiler* cm) { //:typeCreateTypeCall
+// Creates/merges a new type call from a sequence of pairs in @exp and a list of type params
+// in @params. Handles ordinary type calls and function types.
 // Returns the typeId of the new type
     const Int tentativeTypeId = cm->types.len;
+    TYPE_DEFINE_EXP;
     pushIntypes(0, cm);
     const Int sentinel = exp->len;
     Int countFnParams = (sentinel - startInd)/2;
-    bool metRetType = exp->len >= 4 && exp->cont[exp->len - 4] == tyeRetType;
-    if (metRetType) {
-        --countFnParams;
-    }
+
     typeAddHeader((TypeHeader){
-        .sort = sorPartial, .tyrity = params->len/2, .arity = countFnParams,
+        .sort = sorPartial, .tyrity = st->params->len/2, .arity = countFnParams,
         .nameAndLen = 0}, cm);
-    for (Int j = 1; j < params->len; j += 2) {
-        pushIntypes(params->cont[j], cm);
+    for (Int j = 1; j < st->params->len; j += 2) {
+        pushIntypes(st->params->cont[j], cm);
     }
 
     for (Int j = startInd + 1; j < sentinel; j += 2) {
         Int tye = exp->cont[j - 1] & LOWER24BITS;
-        if (tye == tyeRetType) {
-        } else if (tye == tyeType) {
+        if (tye == tyeType) {
             pushIntypes(exp->cont[j], cm);
         } else {
             throwExcParser("not a type");
         }
-    }
-    if (!metRetType) {
-        pushIntypes(stToNameId(strVoid), cm);
     }
 
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
     return mergeType(tentativeTypeId, cm);
 }
 
-private Int typeDetermineTyrity(StackInt* exp, Int startInd) {
+
+private Int typeDetermineTyrity(const StackInt* exp, Int startInd) { //:typeDetermineTyrity
     Int result = 0;
     Int paramsSentinel = exp->len - 2;
     for (Int j = startInd + 2; j < paramsSentinel; j += 4) { // +2 to skip the name stuff
@@ -4633,36 +4640,38 @@ private Int typeDetermineTyrity(StackInt* exp, Int startInd) {
 }
 
 
-private TypeId typeCreateFnSignature(StackInt* exp, Int startInd, StackInt* params,
+private TypeId typeCreateFnSignature(StateForTypes* st, Int startInd,
                                      untt nameAndLen, Compiler* cm) { //:typeCreateFnSignature
 // Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
 // in "params". The sequence must be flat, i.e. not include any nested structs.
 // Returns the typeId of the new type
 // Example input: exp () params ()
+    TYPE_DEFINE_EXP;
+    const Int sentinel = exp->len;
+
 #ifdef SAFETY
     VALIDATEP((sentinel - startInd) % 2 == 0, "typeCreateFnSignature error not divisible by 2")
 #endif
 
-    tSubexValidateNamesUnique(exp, startInd, exp->len - 2, cm->tempStack); // -2 for the return type
+    tSubexValidateNamesUnique(st, startInd, exp->len - 2, cm); // -2 for the return type
 
-    const Int tyrity = typeDetermineTyrity(StackInt* exp, Int startInd);
+    const Int tyrity = typeDetermineTyrity(exp, startInd);
     if (tyrity > 0)  {
         // create a generic function with this tyrity
         // create a partial application of this function with the actual type params
     } else {
         const Int tentativeTypeId = cm->types.len;
         pushIntypes(0, cm);
-        Int sentinel = exp->len;
 
         print("startInd %d sentinel %d", startInd, sentinel)
         printTypeExp(cm);
 
         Int countParams = (sentinel - 2 - startInd)/4;
         typeAddHeader((TypeHeader){
-            .sort = sorFunction, .tyrity = params->len/2, .arity = countFields,
+            .sort = sorFunction, .tyrity = st->params->len/2, .arity = countParams,
             .nameAndLen = nameAndLen}, cm);
-        for (Int j = 1; j < params->len; j += 2) {
-            pushIntypes(params->cont[j], cm);
+        for (Int j = 1; j < st->params->len; j += 2) {
+            pushIntypes(st->params->cont[j], cm);
         }
 
         for (Int j = startInd + 3; j < sentinel; j += 4) {
@@ -4714,21 +4723,21 @@ private void typeDefClearParams(StackInt* params, Compiler* cm) { //:typeDefClea
 }
 
 
-private void tSubexClose(StackTypeFrame* frames, Compiler* cm) { //:tSubexClose
+private void tSubexClose(StateForTypes* st, Compiler* cm) { //:tSubexClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
-    StackInt* exp = cm->expStack;
-    StackInt* params = cm->typeParams;
+    TYPE_DEFINE_EXP;
+    StackTypeFrame* frames = st->frames;
     while (frames->len > 0 && peek(frames).sentinel == cm->i) {
-        TypeFrame frame = pop(cm->typeStack);
+        TypeFrame frame = pop(frames);
         Int startInd = exp->len - frame.countArgs*2;
         if (frame.tp == tyeFunction) {
-            typeCreateFnSignature(exp, startInd, params, -1, cm);
+            typeCreateFnSignature(st, startInd, -1, cm);
         } else if (frame.tp == tyeRecord) {
-            typeCreateRecord(exp, startInd, params, -1, cm);
+            typeCreateRecord(st, startInd, -1, cm);
         } else if (frame.tp == tyeTypeCall) {
             TypeId typeId = frame.nameId;
             VALIDATEP(typeGetTyrity(typeId, cm) == frame.countArgs, errTypeConstructorWrongArity)
-            typeCreateTypeCall(exp, startInd, params, typeId, cm);
+            typeCreateTypeCall(st, startInd, typeId, cm);
         } else { // tyeParamCall, a call of a type which is a parameter
             // TODO
             throwExcParser(errTemp);
@@ -4739,26 +4748,27 @@ private void tSubexClose(StackTypeFrame* frames, Compiler* cm) { //:tSubexClose
 }
 
 
-private TypeId typeDefinition(Int sentinel, StackInt* exp, Compiler* cm) { //:typeDefinition
+private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:typeDefinition
 // Parses a type definition like `Rec(id Int name Str)` or `a Double b Bool => String?`.
 // Precondition: we are looking at the first token in actual type definition.
 // {typeStack} may be non-empty (for example, when parsing a function signature,
 // it will contain one element with .tp = tyeFunction). Produces a linear, RPN sequence.
 // Usually this function should be followed by a call to "typeEvalExpr"
-    StackInt* params = cm->typeParams;
-    StackTypeFrame* tSt = cm->typeStack;
+    StackInt* exp = st->exp;
+    StackInt* params = st->params;
+    StackTypeFrame* frames = st->frames;
     exp->len = 0;
     params->len = 0;
     Bool metArrow = false;
-    Bool isFuncSignature = hasValues(tSt) && peek(tSt).tp == tyeFunction;
+    Bool isFuncSignature = hasValues(frames) && peek(frames).tp == tyeFunction;
 
     while (cm->i < sentinel) {
-        tSubexClose(cm->typeStack, cm);
+        tSubexClose(st, cm);
 
         Token cTk = cm->tokens.cont[cm->i];
         ++cm->i; // CONSUME the current token
-        if (hasValues(cm->typeStack)) {
-            cm->typeStack->cont[cm->typeStack->len - 1].countArgs++;
+        if (hasValues(frames)) {
+            frames->cont[frames->len - 1].countArgs++;
         }
 
         if (cTk.tp == tokTypeName) {
@@ -4777,22 +4787,22 @@ private TypeId typeDefinition(Int sentinel, StackInt* exp, Compiler* cm) { //:ty
             Int newSent = cm->i + cTk.pl2;
             if (mbParamId == -1) {
                 if (nameId == stToNameId(strF)) { // F(...)
-                    push(((TypeFrame){ .tp = tyeFunction, .sentinel = newSent}), cm->typeStack);
-                } else if (nameId == stToNameId(strRec)) { // inline types, like `(id Int name String)`
-                    push(((TypeFrame){ .tp = tyeRecord, .sentinel = newSent}), cm->typeStack);
+                    push(((TypeFrame){ .tp = tyeFunction, .sentinel = newSent}), frames);
+                } else if (nameId == stToNameId(strRec)) { // inline types  `(id Int name String)`
+                    push(((TypeFrame){ .tp = tyeRecord, .sentinel = newSent}), frames);
                 } else { // ordinary type call
                     Int typeId = cm->activeBindings[cTk.pl2];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
                     push(((TypeFrame){ .tp = tyeTypeCall, .nameId = typeId, .sentinel = newSent}),
-                         cm->typeStack);
+                         frames);
                 }
             } else {
                 push(((TypeFrame){ .tp = tyeParamCall, .nameId = mbParamId, .sentinel = newSent}),
-                      cm->typeStack);
+                      frames);
             }
         } else if (cTk.tp == tokWord) {
-            VALIDATEP(hasValues(tSt), errTypeDefError)
-            Int ctxType = peek(tSt).tp;
+            VALIDATEP(hasValues(frames), errTypeDefError)
+            Int ctxType = peek(frames).tp;
             VALIDATEP(ctxType == tyeRecord || ctxType == tyeFunction, errTypeDefError)
             push(tyeName, exp);
             push(cTk.pl2, exp);  // nameId
@@ -4800,9 +4810,9 @@ private TypeId typeDefinition(Int sentinel, StackInt* exp, Compiler* cm) { //:ty
             Token nextTk = cm->tokens.cont[cm->i];
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall, errTypeDefError)
         } else if (cTk.tp == tokMisc && cTk.pl1 == miscArrow) {
-            VALIDATEP(hasValues(cm->typeStack), errTypeDefError)
+            VALIDATEP(hasValues(frames), errTypeDefError)
             VALIDATEP(!metArrow, errTypeFnSingleReturnType)
-            TypeFrame frame = peek(cm->typeStack);
+            TypeFrame frame = peek(frames);
             VALIDATEP(frame.tp == tyeFunction, errTypeDefError)
 
             metArrow = true;
@@ -4814,9 +4824,9 @@ private TypeId typeDefinition(Int sentinel, StackInt* exp, Compiler* cm) { //:ty
     if (isFuncSignature && !metArrow)  { // functions with no return types get the "Void" type
         push(cm->activeBindings[stToNameId(strVoid)], exp);
         push(0, exp);
-        cm->typeStack->cont[cm->typeStack->len - 1].countArgs++;
+        frames->cont[frames->len - 1].countArgs++;
     }
-    tSubexClose(tSt, cm);
+    tSubexClose(st, cm);
 
     print("resulting len %d", exp->len);
     VALIDATEI(exp->len == 1, iErrorInconsistentTypeExpr);
@@ -4839,21 +4849,20 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 // Example 2: `a Double b Bool => String`
 //
 // Accepts a name or -1 for nameless type exprs (like function signatures).
-// Uses cm->expStack to build a "type expression" and cm->params for the type parameters
+// Uses cm->exp to build a "type expression" and cm->params for the type parameters
 // Produces no AST nodes, but potentially lots of new types
 // Consumes the whole type assignment right side, or the whole function signature
 // Data format: see "Type expression data format"
 // Precondition: we are 1 past the tokAssignmentRight token, or tokParamList token
-    StackInt* exp = cm->expStack;
-    StackInt* params = cm->typeParams;
-    cm->typeStack->len = 0;
+    StackInt* params = cm->stateForTypes->params;
+    cm->stateForTypes->frames->len = 0;
 
     Int sentinel = cm->i + toks[cm->i - 1].pl2; // we get the length from the tokAssignmentRight
     Token nameTk = toks[cm->i];
     cm->i += 2; // CONSUME the type name and the tokAssignmentRight
 
     VALIDATEP(cm->i < sentinel, errTypeDefError)
-    Int newTypeId = typeDefinition(sentinel, exp, cm);
+    Int newTypeId = typeDefinition(cm->stateForTypes, sentinel, cm);
     typeNameNewType(newTypeId, nameOfToken(nameTk), cm);
 
     typeDefClearParams(params, cm);
@@ -4863,8 +4872,9 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 //}}}
 //{{{ Overloads, type check & resolve
 
+/*
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
-
+*/
 
 private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) { //:getFirstParamType
 // Gets the type of the first param of a function. Returns -1 iff it's zero arity
@@ -4964,47 +4974,49 @@ private void shiftStackLeft(Int startInd, Int byHowMany, Compiler* cm) { //:shif
 // startInd and byHowMany are measured in units of Int
     Int from = startInd + byHowMany;
     Int to = startInd;
-    Int sentinel = cm->expStack->len;
+    StackInt* exp = cm->stateForExprs->exp;
+    Int sentinel = exp->len;
     while (from < sentinel) {
         Int pieceSize = MIN(byHowMany, sentinel - from);
-        memcpy(cm->expStack->cont + to, cm->expStack->cont + from, pieceSize*4);
+        memcpy(exp->cont + to, exp->cont + from, pieceSize*4);
         from += pieceSize;
         to += pieceSize;
     }
-    cm->expStack->len -= byHowMany;
+    exp->len -= byHowMany;
 }
 
-private void populateExpStack(Int indExpr, Int sentinelNode, Compiler* cm) {
-//:populateExpStack Populates the expression's type stack with the operands and functions of an
+
+private void populateExp(Int indExpr, Int sentinelNode, Compiler* cm) {
+//:populateExp Populates the expression's type stack with the operands and functions of an
 // expression
-    StackInt* st = cm->expStack;
-    st->len = 0;
+    StackInt* exp = cm->stateForExprs->exp;
+    exp->len = 0;
     for (Int j = indExpr + 1; j < sentinelNode; ++j) {
         Node nd = cm->nodes.cont[j];
         if (nd.tp <= tokString) {
-            push((Int)nd.tp, st);
+            push((Int)nd.tp, exp);
         } else if (nd.tp == nodCall) {
             Int argCount = nd.pl2;
-            push(BIG + argCount, st); // signifies that it's a call, and its arity
-            push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), st);
+            push(BIG + argCount, exp); // signifies that it's a call, and its arity
+            push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), exp);
             // index into overloadIds, or entityId for 0-arity fns
 
         } else if (nd.pl1 > -1) { // entityId
-            push(cm->entities.cont[nd.pl1].typeId, st);
+            push(cm->entities.cont[nd.pl1].typeId, exp);
         } else { // overloadId
-            push(nd.pl1, st); // overloadId
+            push(nd.pl1, exp); // overloadId
         }
     }
 }
 
 
-testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
+testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
 //:typeReduceExpr Runs the typechecking "evaluation" on a pure expression, i.e. one that doesn't
 // contain any nested subexpressions (i.e. data allocations or lambdas)
     // We go from left to right: resolving the calls, typechecking & collapsing args, and replacing
     // calls with their return types
-    Int expSentinel = cm->expStack->len;
-    Arr(Int) cont = st->cont;
+    Int expSentinel = exp->len;
+    Arr(Int) cont = exp->cont;
     Int currAhead = 1; // 1 for the extra "BIG" element before the call in "st"
 
     for (Int j = 0; j < expSentinel; ++j) {
@@ -5025,7 +5037,7 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
 
 #if defined(TRACE) && defined(TEST) //{{{
             if (!ovFound) {
-                printStackInt(st);
+                printStackInt(exp);
             }
 #endif //}}}
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
@@ -5045,7 +5057,7 @@ testable void typeReduceExpr(StackInt* st, Int indExpr, Compiler* cm) {
             const Bool ovFound = findOverload(tpFstArg, indOverl, &entityId, cm);
 #if defined(TRACE) && defined(TEST) //{{{
             if (!ovFound) {
-                printStackInt(st);
+                printStackInt(exp);
             }
 #endif //}}}
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
@@ -5084,14 +5096,14 @@ testable TypeId typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 //:typeCheckBigExpr Typechecks and resolves overloads in a single expression. "Big" refers to
 // the fact that this expr may contain sub-assignments for data allocation.
 // "indExpr" is the index of nodExpr or nodAssignmentRight
-    StackInt* st = cm->expStack;
+    StackInt* exp = cm->stateForExprs->exp;
 
-    populateExpStack(indExpr, sentinelNode, cm);
+    populateExp(indExpr, sentinelNode, cm);
 
-    typeReduceExpr(st, indExpr, cm);
+    typeReduceExpr(exp, indExpr, cm);
 
-    if (st->len == 1) {
-        return st->cont[0]; // the last remaining element is the type of the whole expression
+    if (exp->len == 1) {
+        return exp->cont[0]; // the last remaining element is the type of the whole expression
     } else {
         return -1;
     }
@@ -5182,12 +5194,13 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
     return -1;
 }
 
+/*
 testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm) {
 // Checks whether a concrete type satisfies a generic type. Returns a pointer to
 // cm->typeParams with the values of parameters if satisfies, null otherwise.
 // Example: for typeId = L(L(Int)) and genericId = [T/1]L(T(Int)) returns Generic[L]
 // Warning: assumes that typeId points to a concrete type, and genericId to a partial one
-    StackInt* tStack = cm->typeParams;
+    StackInt* tStack = cm->stateForTypes->params;
     tStack->len = 0;
     TypeHeader genericHeader = typeReadHeader(genericId, cm);
     // yet-unknown values of the type parameters
@@ -5262,6 +5275,7 @@ testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm)
 #endif
     return tStack;
 }
+*/
 
 //}}}
 //}}}
@@ -5334,7 +5348,8 @@ void printLexBtrack(Compiler* lx) {
 int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
 // differing token otherwise
-    if (a.wasLexerError != b.wasLexerError || (!endsWith(a.errMsg, b.errMsg))) {
+    if (a.stats.wasLexerError != b.stats.wasLexerError
+            || (!endsWith(a.stats.errMsg, b.stats.errMsg))) {
         return -1;
     }
     int commonLength = a.tokens.len < b.tokens.len ? a.tokens.len : b.tokens.len;
@@ -5369,9 +5384,9 @@ int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
 
 
 testable void printLexer(Compiler* lx) { //:printLexer
-    if (lx->wasLexerError) {
+    if (lx->stats.wasLexerError) {
         printf("Error: ");
-        printString(lx->errMsg);
+        printString(lx->stats.errMsg);
     }
     Int indent = 0;
     Arena* a = lx->a;
@@ -5408,9 +5423,9 @@ testable void printLexer(Compiler* lx) { //:printLexer
 //{{{ Parser testing
 
 testable void printParser(Compiler* cm, Arena* a) { //:printParser
-    if (cm->wasError) {
+    if (cm->stats.wasError) {
         printf("Error: ");
-        printString(cm->errMsg);
+        printString(cm->stats.errMsg);
     }
     Int indent = 0;
     Stackint32_t* sentinels = createStackint32_t(16, a);
@@ -5616,12 +5631,12 @@ void printOverloads(Int nameId, Compiler* cm) { //:printOverloads
 
 
 void printTypeExp(Compiler* cm) { //:printTypeExp
-    const Int len = cm->expStack->len;
+    const Int len = cm->stateForTypes->exp->len;
     if (len == 0) {
         print("()\n");
         return;
     }
-    Arr(Int) cont = cm->expStack->cont;
+    Arr(Int) cont = cm->stateForTypes->exp->cont;
     printf("(");
     for (Int i = 0; i < len - 2; i += 2)  {
         printf(" %d %d,", cont[i], cont[i + 1]);

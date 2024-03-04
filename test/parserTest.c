@@ -45,7 +45,7 @@ private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Par
     for (int i = 0; i < count; i++) {
         result->tests[i] = tests[i];
     }
-    printString(tests[0].control->errMsg);
+    printString(tests[0].control->stats.errMsg);
     return result;
 }
 
@@ -69,9 +69,9 @@ private Int tryGetOper0(Int opType, Int typeId, Compiler* protoOvs) {
 
 private Int transformBindingEntityId(Int inp, Compiler* pr) {
     if (inp < S) { // parsed stuff
-        return inp + pr->countNonparsedEntities;
+        return inp + pr->stats.countNonparsedEntities;
     } else if (inp < O){ // imported but not operators: "foo", "bar"
-        return inp - I + pr->countNonparsedEntities;
+        return inp - I + pr->stats.countNonparsedEntities;
     } else { // operators
         return inp - O;
     }
@@ -125,7 +125,7 @@ Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in no
 it will be inserted as 1 + (the number of built-in bindings) etc */
     Compiler* test = lexicallyAnalyze(sourceCode, proto, a);
     Compiler* control = lexicallyAnalyze(sourceCode, proto, a);
-    if (control->wasLexerError == true) {
+    if (control->stats.wasLexerError == true) {
         return (ParserTest) {
             .name = name, .test = test, .control = control, .compareLocsToo = false };
     }
@@ -180,8 +180,8 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
 // Creates a test with two parsers where the expected result is an error in parser
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);
-    theTest.control->wasError = true;
-    theTest.control->errMsg = message;
+    theTest.control->stats.wasError = true;
+    theTest.control->stats.errMsg = message;
     return theTest;
 }
 
@@ -197,7 +197,7 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
 // Creates a test with two parsers where the source locs are specified (unlike most parser tests)
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);
-    if (theTest.control->wasLexerError) {
+    if (theTest.control->stats.wasLexerError) {
         return theTest;
     }
     StandardText stText = getStandardTextLength();
@@ -218,7 +218,7 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
 int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool compareLocsToo) {
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
 // differing token otherwise
-    if (a.wasError != b.wasError || (!endsWith(a.errMsg, b.errMsg))) {
+    if (a.stats.wasError != b.stats.wasError || (!endsWith(a.stats.errMsg, b.stats.errMsg))) {
         return -1;
     }
     int commonLength = a.nodes.len < b.nodes.len ? a.nodes.len : b.nodes.len;
@@ -270,7 +270,7 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
     if (test.test->tokens.len == 0) {
         print("Lexer result empty");
         return;
-    } else if (test.control->wasLexerError) {
+    } else if (test.control->stats.wasLexerError) {
         print("Lexer error");
         printLexer(test.control);
         return;
@@ -285,9 +285,9 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
         printf("\n\nERROR IN [");
         printStringNoLn(test.name);
         printf("]\nError msg: ");
-        printString(test.test->errMsg);
+        printString(test.test->stats.errMsg);
         printf("\nBut was expected: ");
-        printString(test.control->errMsg);
+        printString(test.control->stats.errMsg);
         printf("\n");
         print("    LEXER:")
         printLexer(test.control);

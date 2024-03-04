@@ -526,6 +526,7 @@ typedef struct {  // :ExprFrame
 DEFINE_STACK_HEADER(ExprFrame)
 
 typedef struct { // :StateForExprs
+    StackInt* exp;   // [aTmp]
     StackExprFrame* frames;
     StackNode* scr;
     StackSourceLoc* locsScr;
@@ -544,6 +545,28 @@ typedef struct {  // :TypeFrame
 
 DEFINE_STACK_HEADER(TypeFrame)
 
+typedef struct { // :StateForTypes
+    StackInt* exp;   // [aTmp]
+    StackInt* params;  // [aTmp]
+    StackInt* paramRenumberings;  // [aTmp]
+    StackTypeFrame* frames;  // [aTmp]
+    StackInt* temp; // [aTmp]
+} StateForTypes;
+
+
+typedef struct { // :CompStats
+    Int inpLength;
+    Int lastClosingPunctInd;
+    Bool wasLexerError;
+
+    Int countNonparsedEntities;
+    Int countOverloads;
+    Int countOverloadedNames;
+    Int loopCounter;
+    Bool wasError;
+    String* errMsg;
+} CompStats;
+
 
 struct Compiler { // :Compiler
     // See docs/compiler.txt, docs/architecture.svgz
@@ -551,17 +574,14 @@ struct Compiler { // :Compiler
 
     // LEXING
     String* sourceCode;
-    Int inpLength;
     InListToken tokens;
     InListToken metas; // TODO - metas with links back into parent span tokens
     InListInt newlines;
     StackSourceLoc* sourceLocs;
-    Int indentation;
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
     Stackint32_t* stringTable;  // operators, then standard strings, then imported ones, then parsed
     StringDict* stringDict;
-    Int lastClosingPunctInd;
 
     // PARSING
     InListToplevel toplevels;
@@ -570,7 +590,6 @@ struct Compiler { // :Compiler
     ScopeStack* scopeStack;
     StateForExprs* stateForExprs; // [aTmp]
     Arr(Int) activeBindings;    // [aTmp]
-    Int loopCounter;
     InListNode nodes;
     InListNode monoCode; // code for monorphizations of generic functions
     MultiAssocList* monoIds;
@@ -579,21 +598,13 @@ struct Compiler { // :Compiler
     InListInt overloads;
     InListInt types;
     StringDict* typesDict;
-    StackInt* expStack;   // [aTmp]
-    StackInt* typeParams;  // [aTmp]
-    StackTypeFrame* typeStack;  // [aTmp]
-    StackInt* tempStack; // [aTmp]
-    Int countNonparsedEntities;
-    Int countOverloads;
-    Int countOverloadedNames;
+    StateForTypes* stateForTypes; // [aTmp]
 
     // GENERAL STATE
     Int i;
-    Bool wasLexerError;
-    Bool wasError;
-    String* errMsg;
     Arena* a;
     Arena* aTmp;
+    CompStats stats;
 };
 
 
