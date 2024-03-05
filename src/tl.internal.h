@@ -624,7 +624,7 @@ struct Compiler { // :Compiler
 #define sorRecord       1
 #define sorEnum         2
 #define sorFunction     3
-#define sorPartial      4 // Partially applied type
+#define sorTypeCall     4 // Partially applied type
 #define sorConcrete     5 // Fully applied type (no type params)
 
 // Type expression data format: First element is the tag (one of the following
@@ -632,8 +632,8 @@ struct Compiler { // :Compiler
 // is (8 bits of "tye", 24 bits of typeId). Used in @expStack
 #define tyeRecord     1 // payload: count of fields in the struct
 #define tyeEnum       2 // payload: count of variants
-#define tyeFunction   3 // payload: count of parameters. This is a function signature, not the F(...)
-#define tyeFnType     4 // payload: count of parameters. This is the F(...)
+#define tyeFnSigna    3 // payload: count of parameters. This is a function signature, not the F(...)
+#define tyeFnType     4 // payload: count of parameters. This is the F(Int Int -> Str)
 #define tyeType       5 // payload: typeId
 #define tyeTypeCall   6 // payload: count of args. Payl in tag: nameId
 #define tyeParam      7 // payload: paramId

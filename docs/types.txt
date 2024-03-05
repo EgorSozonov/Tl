@@ -19,10 +19,9 @@ depth = count of func params + 1
 (Arities of type params, count = type arity)
 (function parameter types)|return type|
 
-Partial:
+TypeCall:
 (typeId of the "parent" type)
-(Arities of type params, count = tyrity)
-(Full type expression in prefix form, with tyrities)
+(type arguments, which if negative are -1*(paramInd + 1), and if positive are TypeId)
 
 Concrete:
 (Full type expression in prefix form, with tyrities)
@@ -70,15 +69,15 @@ where Ref1 is the typeInd of the type
 
 -----------------------------------------------------
 
-Type layout for types of the sort "partial":
+Type layout for types of the sort "type call":
 
 Max tyrity = 254 (not 255!)
 
 [total size][tag][typeId/paramId]
-(Arities of type params, count = arity)(Full type expression in prefix form, with arities)
+(Full type expression in prefix form, with arities)
 
-- The tag has sort = "concretization", depth = 0
-- typeId = id of the original type if it's known, and paramId if a param
+- The tag has sort = "sorTypeCall", depth = 0
+- typeId = id of the original type if it's known, and -1*(paramId + 1) if a param
 - The type expression is made of single or double-int parts with the following structure: 
     - if it's less than 255, then it's the arity, and 
     next 24 bits are the typeInd of a concrete type
