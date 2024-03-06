@@ -4213,7 +4213,7 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
         Int sentinel = calcSentinel(paramListTk, cm->i);
         cm->i++; // CONSUME the paramList
         st->frames->len = 0;
-        push(((TypeFrame) { .tp = tyeFnSigna, .sentinel = sentinel }), st->frames);
+        push(((TypeFrame) { .tp = sorFunction, .sentinel = sentinel }), st->frames);
         newFnTypeId = typeDefinition(st, sentinel, cm);
         // assert there's an arrow now
         // parse a type - the return type
@@ -4335,10 +4335,10 @@ private void printType(TypeId typeId, Compiler* cm) { //:printType
     }
     TypeHeader header = typeReadHeader(typeId, cm);
     Int arity = header.arity;
-    if (header.sort == sorFnType) {
+    if (header.sort == sorFunction) {
         printf("F(");
-        Int sentinel = typeInd + cm->types.cont[typeInd] + 1;
-        for (Int j = typeInd + 2; j < sentinel; j++) {
+        Int sentinel = typeId + cm->types.cont[typeId] + 1;
+        for (Int j = typeId + 2; j < sentinel; j++) {
             Int tp = cm->types.cont[j];
             if (tp > -1 && tp < 5) {
                 printf("%s ", nodeNames[tp]);
@@ -4352,7 +4352,7 @@ private void printType(TypeId typeId, Compiler* cm) { //:printType
             printf("Void");
         }
         print(")");
-    } else if (headersort == sorRecord) {
+    } else if (header.sort == sorRecord) {
         print("sort %d", header.sort);
     }
 }
@@ -4387,6 +4387,7 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
 //{{{ Types
 //{{{ Type utils
 
+#define TYPE_PREFIX_LEN 3 // sizeof(TypeHeader) + 1. Length (in ints) of the prefix in type repr
 #define TYPE_DEFINE_EXP const StackInt* exp = st->exp
 
 private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
@@ -4458,9 +4459,9 @@ private Int isFunction(TypeId typeId, Compiler* cm) { //:isFunction
 //}}}
 //{{{ Parsing type names
 
-testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm) { //:typeAddTypeParam
-// Adds a type param to a Concretization-sort type. Arity > 0 means it's a type call
-    pushIntypes((0xFF << 24) + (paramInd << 8) + arity, cm);
+testable void typeAddTypeParam(Int paramInd, Int tyrity, Compiler* cm) { //:typeAddTypeParam
+// Adds a type param to a TypeCall-sort type. Tyrity > 0 means the param is a type call
+    pushIntypes((0xFF << 24) + (paramInd << 8) + tyrity, cm);
 }
 
 testable void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm) {
@@ -4576,10 +4577,10 @@ private void tSubexValidateNamesUnique(StateForTypes* st, Int start, Int end, Co
     }
 }
 
-
+/*
 private TypeId typeCreateRecord(StateForTypes* st, Int startInd, untt nameAndLen,
                                 Compiler* cm) { //:typeCreateRecord
-// Creates/merges a new struct type from a sequence of pairs in @exp and a list of type params
+// Creates/merges a new record type from a sequence of pairs in @exp and a list of type params
 // in @params. The sequence must be flat, i.e. not include any nested structs, and be in the
 // final position of @exp. "nameAndLen" may be -1 if it's an anonymous record.
 // Returns the typeId of the new/existing type
@@ -4602,11 +4603,6 @@ private TypeId typeCreateRecord(StateForTypes* st, Int startInd, untt nameAndLen
 
     for (Int j = startInd + 1; j < sentinel; j += 4) {
         // names of fields
-#ifdef SAFETY
-/*
-        VALIDATEP(exp->cont[j - 1] == tyeField, "not a field")
-*/
-#endif
         pushIntypes(exp->cont[j], cm);
     }
 
@@ -4620,6 +4616,7 @@ private TypeId typeCreateRecord(StateForTypes* st, Int startInd, untt nameAndLen
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
     return mergeType(tentativeTypeId, cm);
 }
+*/
 
 
 private TypeId typeCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame frame,
@@ -4639,13 +4636,11 @@ private TypeId typeCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame fra
         .sort = sorTypeCall, .tyrity = frame.countArgs, .arity = 0, .nameAndLen = 0}, cm);
 
     for (Int j = startInd + 1; j < sentinel; j += 2) {
-        Int tye = exp->cont[j - 1] >> 24;
-        if (tye == tyeType) {
+        Int tye = exp->cont[j - 1];
+        if (tye <= sorMaxType) {
             pushIntypes(exp->cont[j], cm);
-        } else if (type == tyeParam)  {
+        } else if (tye == tyeParam)  {
             pushIntypes(-1*(exp->cont[j] + 1), cm);
-        } else {
-            throwExcParser("not a type");
         }
     }
 
@@ -4655,7 +4650,7 @@ private TypeId typeCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame fra
 
 
 private Int typeDetermineTyrityInDefinition(const StateForTypes* st, Int startInd, Compiler* cm) {
-//:typeDetermineTyrity Counts how many unique type parameters there are in a type def
+//:typeDetermineTyrity Counts how many unique type parameters are used in a type def
     TYPE_DEFINE_EXP;
     Int result = 0;
     Int paramsSentinel = exp->len;
@@ -4664,10 +4659,15 @@ private Int typeDetermineTyrityInDefinition(const StateForTypes* st, Int startIn
         Int c = exp->cont[j];
         if (c == tyeParam) {
             push(c, st->subParams);
-        } else if (c == tyeTypeCall) {
-            TypeHeader tcHeader = typeReadHeader(exp->cont[j + 1], cm);
-            for () {
-                push(cm->types.cont[k], st->subParams);
+        } else if (c == sorTypeCall) {
+            TypeId typeId = exp->cont[j + 1];
+            TypeId sentOfType = typeId + cm->types.cont[typeId] + 1;
+            TypeHeader tcHeader = typeReadHeader(typeId, cm);
+            for (Int k = typeId + TYPE_PREFIX_LEN; k < sentOfType; k++) {
+                Int typeArg = cm->types.cont[k];
+                if (typeArg < 0) {
+                    push(-1*(typeArg + 1), st->subParams);
+                }
             }
         }
     }
@@ -4693,7 +4693,7 @@ private TypeId typeCreateFnSignature(StateForTypes* st, Int startInd,
 
     tSubexValidateNamesUnique(st, startInd, exp->len - 2, cm); // -2 for the return type
 
-    const Int tyrity = typeDetermineTyrityInDefinition(st, startInd);
+    const Int tyrity = typeDetermineTyrityInDefinition(st, startInd, cm);
     if (tyrity > 0)  {
         // create a generic function with this tyrity
         // create a partial application of this function with the actual type params
@@ -4706,7 +4706,7 @@ private TypeId typeCreateFnSignature(StateForTypes* st, Int startInd,
 
         Int countParams = (sentinel - 2 - startInd)/4;
         typeAddHeader((TypeHeader){
-            .sort = sorFnType, .tyrity = st->params->len/2, .arity = countParams,
+            .sort = sorFnType, .tyrity = tyrity, .arity = countParams,
             .nameAndLen = nameAndLen}, cm);
         for (Int j = 1; j < st->params->len; j += 2) {
             pushIntypes(st->params->cont[j], cm);

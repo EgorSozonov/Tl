@@ -621,24 +621,16 @@ struct Compiler { // :Compiler
 //{{{ Types
 
 // see the Type layout chapter in the docs
-#define sorRecord       1
+#define sorRecord       1 // Used for records and for primitive types
 #define sorEnum         2
 #define sorFunction     3
-#define sorTypeCall     4 // Partially applied type
-#define sorConcrete     5 // Fully applied type (no type params)
-
+#define sorTypeCall     4 // Partially (or completely) applied generic record/enum like L(Int)
+#define sorMaxType      sorTypeCall
+// the following constants must not clash with the "sor" constants
 // Type expression data format: First element is the tag (one of the following
-// constants), second is payload. Type calls need to have an extra payload, so their tag
-// is (8 bits of "tye", 24 bits of typeId). Used in @expStack
-#define tyeRecord     1 // payload: count of fields in the struct
-#define tyeEnum       2 // payload: count of variants
-#define tyeFnSigna    3 // payload: count of parameters. This is a function signature, not the F(...)
-#define tyeFnType     4 // payload: count of parameters. This is the F(Int Int -> Str)
-#define tyeType       5 // payload: typeId
-#define tyeTypeCall   6 // payload: count of args. Payl in tag: nameId
-#define tyeParam      7 // payload: paramId
-#define tyeParamCall  8 // payload: count of args. Payl in tag: nameId
-#define tyeName       9 // payload: nameId. Used for struct fields, function params, sum variants
+// constants), second is payload. Used in @expStack
+#define tyeParam        5 // payload: paramId
+#define tyeName         6 // payload: nameId. Used for struct fields, function params, sum variants
 
 
 typedef struct { // :TypeHeader
