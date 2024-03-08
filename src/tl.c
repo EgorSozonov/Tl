@@ -4334,7 +4334,6 @@ private void printType(TypeId typeId, Compiler* cm) { //:printType
         return;
     }
     TypeHeader header = typeReadHeader(typeId, cm);
-    Int arity = header.arity;
     if (header.sort == sorFunction) {
         printf("F(");
         Int sentinel = typeId + cm->types.cont[typeId] + 1;
@@ -4649,10 +4648,10 @@ private TypeId typeCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame fra
 }
 
 
-private Int typeDetermineTyrityInDefinition(const StateForTypes* st, Int startInd, Compiler* cm) {
-//:typeDetermineTyrity Counts how many unique type parameters are used in a type def
+private StackInt* typeDetermineUniqueParamsInDef(const StateForTypes* st, Int startInd,
+                                                 Compiler* cm) {
+//:typeDetermineUniqueParamsInDef Counts how many unique type parameters are used in a type def
     TYPE_DEFINE_EXP;
-    Int result = 0;
     Int paramsSentinel = exp->len;
     st->subParams->len = 0;
     for (Int j = startInd; j < paramsSentinel; j += 2) { // +2 to skip the name stuff
@@ -4674,9 +4673,43 @@ private Int typeDetermineTyrityInDefinition(const StateForTypes* st, Int startIn
     sortStackInts(st->subParams);
     removeDuplicatesInStack(st->subParams);
 
-    return st->subParams->len;
+    return st->subParams;
 }
 
+private TypeId typeCreateGenericFnSignatureUsingSubparams(StackInt* subParams, Compiler* cm) {
+//:typeCreateGenericFnSignatureUsingSubparams Create a brand new function type that has tyrity
+// equal to the length of @subParams
+    const Int tentativeTypeId = cm->types.len;
+    pushIntypes(0, cm);
+
+    print("startInd %d sentinel %d", startInd, sentinel)
+    printTypeExp(cm);
+
+    Int countParams = (sentinel - 2 - startInd)/4;
+    typeAddHeader((TypeHeader){
+        .sort = sorFunction, .tyrity = tyrity, .arity = countParams,
+        .nameAndLen = nameAndLen}, cm);
+    for (Int j = 1; j < st->params->len; j += 2) {
+        pushIntypes(st->params->cont[j], cm);
+    }
+
+    for (Int j = startInd + 3; j < sentinel; j += 4) {
+        // types of fields
+#ifdef SAFETY
+        //VALIDATEP(exp->cont[j - 1] == tyeType, "not a type")
+#endif
+        pushIntypes(exp->cont[j], cm);
+    }
+    cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1; // set the type length
+    return mergeType(tentativeTypeId, cm);
+}
+
+private TypeId typeSubsumeTypeCallFromGenericFn(parentId, StackInt* subParams, Compiler* cm) {
+//:typeSubsumeTypeCallFromGenericFn For an existing generic type, creates a type call that fills
+// some or all of the type parameters with the "concrete" type parameters used in the @subParams
+
+
+}
 
 private TypeId typeCreateFnSignature(StateForTypes* st, Int startInd,
                                      untt nameAndLen, Compiler* cm) { //:typeCreateFnSignature
@@ -4693,34 +4726,13 @@ private TypeId typeCreateFnSignature(StateForTypes* st, Int startInd,
 
     tSubexValidateNamesUnique(st, startInd, exp->len - 2, cm); // -2 for the return type
 
-    const Int tyrity = typeDetermineTyrityInDefinition(st, startInd, cm);
-    if (tyrity > 0)  {
-        // create a generic function with this tyrity
+    const StackInt* subParams = typeDetermineUniqueParamsInDef(st, startInd, cm);
+    Int tyrity = subParams->len;
+    // create a generic function with this tyrity
+    const TypeId parentId = typeCreateGenericFnSignatureUsingSubparams(subParams, cm);
+    if (tyrity > 0) {
         // create a partial application of this function with the actual type params
-    } else {
-        const Int tentativeTypeId = cm->types.len;
-        pushIntypes(0, cm);
-
-        print("startInd %d sentinel %d", startInd, sentinel)
-        printTypeExp(cm);
-
-        Int countParams = (sentinel - 2 - startInd)/4;
-        typeAddHeader((TypeHeader){
-            .sort = sorFnType, .tyrity = tyrity, .arity = countParams,
-            .nameAndLen = nameAndLen}, cm);
-        for (Int j = 1; j < st->params->len; j += 2) {
-            pushIntypes(st->params->cont[j], cm);
-        }
-
-        for (Int j = startInd + 3; j < sentinel; j += 4) {
-            // types of fields
-#ifdef SAFETY
-            VALIDATEP(exp->cont[j - 1] == tyeType, "not a type")
-#endif
-            pushIntypes(exp->cont[j], cm);
-        }
-        cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1; // set the type length
-        return mergeType(tentativeTypeId, cm);
+        return typeSubsumeTypeCallFromGenericFn(parentId, cm);
     }
 }
 
@@ -4760,11 +4772,12 @@ private void tSubexClose(StateForTypes* st, Compiler* cm) { //:tSubexClose
     while (frames->len > 0 && peek(frames).sentinel == cm->i) {
         TypeFrame frame = pop(frames);
         Int startInd = exp->len - frame.countArgs*2;
-        if (frame.tp == tyeFunction) {
+        if (frame.tp == sorFunction) {
             typeCreateFnSignature(st, startInd, -1, cm);
-        } else if (frame.tp == tyeRecord) {
-            typeCreateRecord(st, startInd, -1, cm);
-        } else if (frame.tp == tyeTypeCall) {
+        } else if (frame.tp == sorRecord) {
+            throwExcParser(errTemp);
+            //typeCreateRecord(st, startInd, -1, cm);
+        } else if (frame.tp == sorTypeCall) {
             typeCreateTypeCall(st, startInd, frame, cm);
         } else { // tyeParamCall, a call of a type which is a parameter
             // TODO
@@ -4780,14 +4793,14 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
 // Parses a type definition like `Rec(id Int name Str)` or `a Double b Bool => String?`.
 // Precondition: we are looking at the first token in actual type definition.
 // {typeStack} may be non-empty (for example, when parsing a function signature,
-// it will contain one element with .tp = tyeFunction). Produces a linear, RPN sequence.
+// it will contain one element with .tp = sorFunction). Produces a linear, RPN sequence.
     StackInt* exp = st->exp;
     StackInt* params = st->params;
     StackTypeFrame* frames = st->frames;
     exp->len = 0;
     params->len = 0;
     Bool metArrow = false;
-    Bool isFuncSignature = hasValues(frames) && peek(frames).tp == tyeFnSigna;
+    Bool isFuncSignature = hasValues(frames) && peek(frames).tp == sorFunction;
 
     while (cm->i < sentinel) {
         tSubexClose(st, cm);
@@ -4802,7 +4815,7 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
             // arg count
             Int mbParamId = typeParamBinarySearch(cTk.pl2, cm);
             if (mbParamId == -1) {
-                push(tyeType, exp);
+                push(typeReadHeader(mbParamId, cm).sort, exp);
                 push(cTk.pl2, exp);
             } else {
                 push(tyeParam, exp);
@@ -4814,36 +4827,36 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
             Int newSent = cm->i + cTk.pl2;
             if (mbParamId == -1) {
                 if (nameId == stToNameId(strF)) { // F(...)
-                    push(((TypeFrame){ .tp = tyeFunction, .sentinel = newSent}), frames);
+                    push(((TypeFrame){ .tp = sorFunction, .sentinel = newSent}), frames);
                 } else if (nameId == stToNameId(strRec)) { // inline types  `(id Int name String)`
-                    push(((TypeFrame){ .tp = tyeRecord, .sentinel = newSent}), frames);
+                    push(((TypeFrame){ .tp = sorRecord, .sentinel = newSent}), frames);
                 } else { // ordinary type call
                     Int typeId = cm->activeBindings[cTk.pl2];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
-                    push(((TypeFrame){ .tp = tyeTypeCall, .nameId = typeId, .sentinel = newSent}),
+                    push(((TypeFrame){ .tp = sorTypeCall, .nameId = typeId, .sentinel = newSent}),
                          frames);
                 }
             } else {
-                push(((TypeFrame){ .tp = tyeParamCall, .nameId = mbParamId, .sentinel = newSent}),
+                push(((TypeFrame){ .tp = tyeParam, .nameId = mbParamId, .sentinel = newSent}),
                       frames);
             }
         } else if (cTk.tp == tokWord) {
             VALIDATEP(hasValues(frames) && cm->i < sentinel, errTypeDefError)
             Int ctxType = peek(frames).tp;
-            VALIDATEP(ctxType == tyeRecord || ctxType == tyeFunction, errTypeDefError)
+            VALIDATEP(ctxType == sorRecord || ctxType == sorFunction, errTypeDefError)
             push(tyeName, exp);
             push(cTk.pl2, exp);  // nameId
 
             untt nextTp = cm->tokens.cont[cm->i].tp;
-            VALIDATEP(nextTk == tokTypeName || nextTk == tokTypeCall, errTypeDefError)
+            VALIDATEP(nextTp == tokTypeName || nextTp == tokTypeCall, errTypeDefError)
         } else if (cTk.tp == tokMisc && cTk.pl1 == miscArrow) {
             VALIDATEP(hasValues(frames) && cm->i < sentinel, errTypeDefError)
             VALIDATEP(!metArrow, errTypeFnSingleReturnType)
             TypeFrame frame = peek(frames);
-            VALIDATEP(frame.tp == tyeFunction, errTypeDefError)
+            VALIDATEP(frame.tp == sorFunction, errTypeDefError)
 
             untt nextTp = cm->tokens.cont[cm->i].tp;
-            VALIDATEP(nextTk == tokTypeName || nextTk == tokTypeCall, errTypeDefError)
+            VALIDATEP(nextTp == tokTypeName || nextTp == tokTypeCall, errTypeDefError)
 
             metArrow = true;
         } else {
@@ -5560,9 +5573,7 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
     } else if (hdr.sort == sorFunction) {
         printf("[Fn]");
     } else if (hdr.sort == sorTypeCall) {
-        printf("[Partial]");
-    } else if (hdr.sort == sorConcrete) {
-        printf("[Concrete]");
+        printf("[TypeCall]");
     }
 
     untt nameParamId = hdr.nameAndLen;
