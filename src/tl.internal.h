@@ -60,7 +60,6 @@ typedef struct { // :Arena
     testable Bool hasValues ## T (Stack ## T * st);\
     testable T pop ## T (Stack ## T * st);\
     testable T peek ## T(Stack ## T * st);\
-    testable T penultimate ## T(Stack ## T * st);\
     testable void push ## T (T newItem, Stack ## T * st);\
     testable void clear ## T (Stack ## T * st);
 
@@ -535,10 +534,9 @@ typedef struct { // :StateForExprs
     Bool metAnAllocation;
 } StateForExprs;
 
-
-typedef struct {  // :TypeFrame
-    Byte tp;      // "tye" constants in tl.c
-    Int sentinel; // token sentinel
+typedef struct {   // :TypeFrame
+    Byte tp;       // "sor" and "tye" constants
+    Int sentinel;  // token id sentinel
     Int countArgs; // accumulated number of type arguments
     Int nameId;
 } TypeFrame;
@@ -551,7 +549,7 @@ typedef struct { // :StateForTypes
     StackInt* subParams;  // [aTmp] Type params of a subexpression
     StackInt* paramRenumberings;  // [aTmp]
     StackTypeFrame* frames;  // [aTmp]
-    StackInt* temp; // [aTmp]
+    StackInt* names; // [aTmp]
 } StateForTypes;
 
 
@@ -582,6 +580,7 @@ struct Compiler { // :Compiler
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
     Stackint32_t* stringTable;  // operators, then standard strings, then imported ones, then parsed
+                                // Contains (8 bits of lenBts, 24 bits of startBt)
     StringDict* stringDict;
 
     // PARSING
@@ -660,13 +659,6 @@ typedef struct { // :TypeHeader
     StackTypeFrame*: peekTypeFrame,\
     Stackint32_t*: peekint32_t,\
     StackNode*: peekNode\
-    )(X)
-
-#define penultimate(X) _Generic((X),\
-    StackBtToken*: penultimateBtToken,\
-    StackParseFrame*: penultimateParseFrame,\
-    Stackint32_t*: penultimateint32_t,\
-    StackNode*: penultimateNode\
     )(X)
 
 #define push(A, X) _Generic((X),\
