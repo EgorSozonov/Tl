@@ -544,12 +544,13 @@ typedef struct {   // :TypeFrame
 DEFINE_STACK_HEADER(TypeFrame)
 
 typedef struct { // :StateForTypes
-    StackInt* exp;   // [aTmp]
+    StackInt* exp;   // [aTmp] Higher 8 bits are the "sor"/"tye" sorts, lower 24 bits are TypeId
     StackInt* params;  // [aTmp] Params of a whole type expression
     StackInt* subParams;  // [aTmp] Type params of a subexpression
     StackInt* paramRenumberings;  // [aTmp]
     StackTypeFrame* frames;  // [aTmp]
     StackInt* names; // [aTmp]
+    StackInt* tmp; // [aTmp]
 } StateForTypes;
 
 

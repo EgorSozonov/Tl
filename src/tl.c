@@ -3916,7 +3916,8 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
         .params = createStackint32_t(16, cm->aTmp),
         .subParams = createStackint32_t(16, cm->aTmp),
         .paramRenumberings = createStackint32_t(16, cm->aTmp),
-        .names = createStackint32_t(16, cm->aTmp)
+        .names = createStackint32_t(16, cm->aTmp),
+        .tmp = createStackint32_t(16, cm->aTmp)
     };
 
     importPrelude(cm);
@@ -4319,35 +4320,6 @@ const char* nodeNames[] = {
 };
 
 
-private void printType(TypeId typeId, Compiler* cm) { //:printType
-    if (typeId < 5) {
-        printf("%s\n", nodeNames[typeId]);
-        return;
-    }
-    TypeHeader header = typeReadHeader(typeId, cm);
-    if (header.sort == sorFunction) {
-        printf("F(");
-        Int sentinel = typeId + cm->types.cont[typeId] + 1;
-        for (Int j = typeId + 2; j < sentinel; j++) {
-            Int tp = cm->types.cont[j];
-            if (tp > -1 && tp < 5) {
-                printf("%s ", nodeNames[tp]);
-            }
-        }
-        printf(" -> ");
-        Int retType = getFunctionReturnType(typeId, cm);
-        if (retType < 5) {
-            printf("%s", nodeNames[retType]);
-        } else {
-            printf("Void");
-        }
-        print(")");
-    } else if (header.sort == sorRecord) {
-        print("sort %d", header.sort);
-    }
-}
-
-
 testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
     if (setjmp(excBuf) == 0) {
         pToplevelTypes(cm);
@@ -4548,26 +4520,31 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) { //:typePara
 //{{{ Type expressions
 
 private Int tSubexValidateNamesUnique(StateForTypes* st, Int start, Compiler* cm) {
-//:tSubexValidateNamesUnique Validates that the names in a record or function are unique.
-// Returns arity
-    TYPE_DEFINE_EXP;
-    const Int end = exp->len - 1; // -1 to avoid the return type
-    if (end - start <= 0) {
+//:tSubexValidateNamesUnique Validates that the names in a record or function sign are unique.
+// Returns function/record's arity
+    const Int end = st->names->len;
+    if (end == 0) {
         return 0;
     }
-    st->names->len = 0;
-
-    for (Int j = start; j < end; j += 4) {
-        push(exp->cont[j].nameId, st->names);
+    StackInt* names = st->names;
+    StackInt* tmp = st->tmp;
+    // copy from names to tmp
+    if (tmp->cap < names->len) {
+        Arr(Int) arr = allocateOnArena(names->len*4, cm->aTmp);
+        tmp->cont = arr;
+        tmp->cap = names->len;
     }
-    sortStackInts(st->names);
-    NameId prev = st->names->cont[0];
-    for (Int j = 1; j < st->names->len; j++) {
-        if (st->names->cont[j] == prev)  {
+    memcpy(tmp->cont, names->cont, names->len);
+    tmp->len = names->len;
+
+    sortStackInts(tmp);
+    NameId prev = tmp->cont[0];
+    for (Int j = 1; j < tmp->len; j++) {
+        if (tmp->cont[j] == prev)  {
             throwExcParser(errFnDuplicateParams);
         }
     }
-    return st->names->len;
+    return names->len;
 }
 
 
@@ -4629,12 +4606,12 @@ private TypeId typeCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame fra
     typeAddHeader((TypeHeader){
         .sort = sorTypeCall, .tyrity = frame.countArgs, .arity = 0, .nameAndLen = 0}, cm);
 
-    for (Int j = startInd + 1; j < sentinel; j += 2) {
-        Int tye = exp->cont[j - 1].sort;
+    for (Int j = startInd + 1; j < sentinel; j += 1) {
+        Int tye = exp->cont[j - 1] >> 24;
         if (tye <= sorMaxType) {
-            pushIntypes(exp->cont[j].sort, cm);
+            pushIntypes(exp->cont[j] & LOWER24BITS, cm);
         } else if (tye == tyeParam)  {
-            pushIntypes(-1*(exp->cont[j].typeId + 1), cm);
+            pushIntypes((-(exp->cont[j] & LOWER24BITS) - 1), cm);
         }
     }
 
@@ -5450,9 +5427,18 @@ private void typePrintGenElt(Int v) { //:typePrintGenElt
     }
 }
 
+typedef struct {
+    TypeId currPos;
+    TypeId sentinel;
+} TypeLoc;
+
+DEFINE_STACK_HEADER(TypeLoc)
+DEFINE_STACK(TypeLoc)
 
 void typePrint(Int typeId, Compiler* cm) { //:typePrint
     printf("Type [ind = %d, len = %d]\n", typeId, cm->types.cont[typeId]);
+    StackTypeLoc* st = createStackTypeLoc(16, cm->aTmp);
+
     Int sentinel = typeId + cm->types.cont[typeId] + 1;
     TypeHeader hdr = typeReadHeader(typeId, cm);
     if (hdr.sort == sorRecord) {
