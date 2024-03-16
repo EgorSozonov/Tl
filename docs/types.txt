@@ -8,11 +8,11 @@ Type header = sort, arity, depth, nameTypeId, nameLen
 II. Differing parts:
     
 Record:
-[nameId](Arities of type params, count = arity)
+[name](Arities of type params, count = arity)
 (member names)(member types)|meta flags, 1 Int|
 
 Enum:
-[nameId](variant names)(variant types)|meta flags|
+[name](variant names)(variant types)|meta flags|
 
 Function:
 depth = count of func params + 1
@@ -25,6 +25,9 @@ TypeCall:
 
 Concrete:
 (Full type expression in prefix form, with tyrities)
+
+
+(name = 8 bits of length, 24 bits of nameId)
 
 -----------------
 
