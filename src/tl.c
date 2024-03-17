@@ -72,41 +72,41 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aExclamation, aEqual, 0, 0 } }, // !=
     { .arity=1, .bytes={ aExclamation, 0, 0, 0 } },      // !
     { .arity=1, .bytes={ aSharp, aSharp, 0, 0 }, .overloadable=true }, // ##
-    { .arity=1, .bytes={ aDollar, 0, 0, 0 } },    // $
-    { .arity=2, .bytes={ aPercent, 0, 0, 0 } },   // %
-    { .arity=2, .bytes={ aAmp, aAmp, aDot, 0 } }, // &&.
+    { .arity=1, .bytes={ aDollar, 0, 0, 0 } },     // $
+    { .arity=2, .bytes={ aPercent, 0, 0, 0 } },    // %
+    { .arity=2, .bytes={ aAmp, aAmp, aDot, 0 } },  // &&.
     { .arity=2, .bytes={ aAmp, aAmp, 0, 0 }, .assignable=true }, // &&
-    { .arity=1, .bytes={ aAmp, 0, 0, 0 }, .isTypelevel=true }, // &
+    { .arity=1, .bytes={ aAmp, 0, 0, 0 }, .isTypelevel=true },   // &
     { .arity=1, .bytes={ aApostrophe, 0, 0, 0 } }, // '
     { .arity=2, .bytes={ aTimes, aColon, 0, 0}, .assignable = true, .overloadable = true}, // *:
-    { .arity=2, .bytes={ aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true}, // *
+    { .arity=2, .bytes={ aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true},     // *
     { .arity=1, .bytes={ aPlus, aPlus, 0, 0 }, .assignable = false, .overloadable = true}, // ++
     { .arity=2, .bytes={ aPlus, aColon, 0, 0 }, .assignable = true, .overloadable = true}, // +:
-    { .arity=2, .bytes={ aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true}, // +
+    { .arity=2, .bytes={ aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true},      // +
     { .arity=1, .bytes={ aMinus, aMinus, 0, 0 }, .assignable = false, .overloadable = true}, // --
     { .arity=2, .bytes={ aMinus, aColon, 0, 0}, .assignable = true, .overloadable = true}, // -:
-    { .arity=2, .bytes={ aMinus, 0, 0, 0}, .assignable = true, .overloadable = true }, // -
+    { .arity=2, .bytes={ aMinus, 0, 0, 0}, .assignable = true, .overloadable = true },     // -
     { .arity=2, .bytes={ aDivBy, aColon, 0, 0}, .assignable = true, .overloadable = true}, // /:
     { .arity=2, .bytes={ aDivBy, aPipe, 0, 0}, .isTypelevel = true}, // /|
     { .arity=2, .bytes={ aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true}, // /
-    { .arity=2, .bytes={ aLT, aLT, aDot, 0} }, // <<.
-    { .arity=2, .bytes={ aLT, aEqual, 0, 0} }, // <=
-    { .arity=2, .bytes={ aLT, aGT, 0, 0} },    // <>
-    { .arity=2, .bytes={ aLT, 0, 0, 0 } },     // <
+    { .arity=2, .bytes={ aLT, aLT, aDot, 0} },     // <<.
+    { .arity=2, .bytes={ aLT, aEqual, 0, 0} },     // <=
+    { .arity=2, .bytes={ aLT, aGT, 0, 0} },        // <>
+    { .arity=2, .bytes={ aLT, 0, 0, 0 } },         // <
     { .arity=2, .bytes={ aEqual, aEqual, aEqual, 0 } }, // ===
-    { .arity=2, .bytes={ aEqual, aEqual, 0, 0 } },      // ==
+    { .arity=2, .bytes={ aEqual, aEqual, 0, 0 } }, // ==
     { .arity=3, .bytes={ aGT, aEqual, aLT, aEqual } }, // >=<=
-    { .arity=3, .bytes={ aGT, aLT, aEqual, 0 } }, // ><=
-    { .arity=3, .bytes={ aGT, aEqual, aLT, 0 } }, // >=<
+    { .arity=3, .bytes={ aGT, aLT, aEqual, 0 } },  // ><=
+    { .arity=3, .bytes={ aGT, aEqual, aLT, 0 } },  // >=<
     { .arity=2, .bytes={ aGT, aGT, aDot, 0}, .assignable=true, .overloadable = true}, // >>.
-    { .arity=3, .bytes={ aGT, aLT, 0, 0 } },    // ><
-    { .arity=2, .bytes={ aGT, aEqual, 0, 0 } }, // >=
-    { .arity=2, .bytes={ aGT, 0, 0, 0 } },      // >
+    { .arity=3, .bytes={ aGT, aLT, 0, 0 } },       // ><
+    { .arity=2, .bytes={ aGT, aEqual, 0, 0 } },    // >=
+    { .arity=2, .bytes={ aGT, 0, 0, 0 } },         // >
     { .arity=2, .bytes={ aQuestion, aColon, 0, 0 } }, // ?:
     { .arity=1, .bytes={ aQuestion, 0, 0, 0 }, .isTypelevel=true }, // ?
-    { .arity=2, .bytes={ aCaret, aDot, 0, 0} }, // ^.
+    { .arity=2, .bytes={ aAt, 0, 0, 0}, .overloadable = true}, // @
+    { .arity=2, .bytes={ aCaret, aDot, 0, 0} },    // ^.
     { .arity=2, .bytes={ aCaret, 0, 0, 0}, .assignable=true, .overloadable = true}, // ^
-    { .arity=2, .bytes={ aUnderscore, 0, 0, 0}, .overloadable = true}, // _
     { .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }, // ||.
     { .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true } // ||
 };
@@ -124,7 +124,7 @@ private size_t minChunkSize(void) {
     return (size_t)(CHUNK_QUANT - 32);
 }
 
-testable Arena* mkArena(void) {
+testable Arena* mkArena(void) { //:mkArena
     Arena* result = malloc(sizeof(Arena));
 
     size_t firstChunkSize = minChunkSize();
@@ -304,7 +304,7 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
 
 void typePrint(Int typeId, Compiler* cm);
 
-MultiAssocList* createMultiAssocList(Arena* a) {
+MultiAssocList* createMultiAssocList(Arena* a) { //:createMultiAssocList
     MultiAssocList* ml = allocateOnArena(sizeof(MultiAssocList), a);
     Arr(Int) content = allocateOnArena(12*4, a);
     (*ml) = (MultiAssocList) {
@@ -318,7 +318,7 @@ MultiAssocList* createMultiAssocList(Arena* a) {
 }
 
 
-private Int multiListFindFree(Int neededCap, MultiAssocList* ml) {
+private Int multiListFindFree(Int neededCap, MultiAssocList* ml) { //:multiListFindFree
     Int freeInd = ml->freeList;
     Int prevFreeInd = -1;
     Int freeStep = 0;
@@ -341,6 +341,7 @@ private Int multiListFindFree(Int neededCap, MultiAssocList* ml) {
 
 
 private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, MultiAssocList* ml) {
+//:multiListReallocToEnd
     ml->cont[ml->len] = listLen;
     ml->cont[ml->len + 1] = neededCap;
     memcpy(ml->cont + ml->len + 2, ml->cont + listInd + 2, listLen*4);
@@ -349,6 +350,7 @@ private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, Mult
 
 
 private void multiListDoubleCap(MultiAssocList* ml) {
+//:multiListDoubleCap
     Int newMultiCap = ml->cap*2;
     Arr(Int) newAlloc = allocateOnArena(newMultiCap*4, ml->a);
     memcpy(newAlloc, ml->cont, ml->len*4);
@@ -358,8 +360,9 @@ private void multiListDoubleCap(MultiAssocList* ml) {
 
 
 testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocList* ml) {
-// Add a new key-value pair to a particular list within the MultiAssocList. Returns the new index
-// for this list in case it had to be reallocated, -1 if not. Throws exception if key already exists
+//:addMultiAssocList Add a new key-value pair to a particular list within the MultiAssocList.
+// Returns the new index for this list in case it had to be reallocated, -1 if not. Throws exception
+// if key already exists
     Int listLen = ml->cont[listInd];
     Int listCap = ml->cont[listInd + 1];
     ml->cont[listInd + listLen + 2] = newKey;
@@ -394,8 +397,8 @@ testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocLi
 
 
 testable Int listAddMultiAssocList(Int newKey, Int newVal, MultiAssocList* ml) {
-// Adds a new list to the MultiAssocList and populates it with one key-value pair.
-// Returns its index
+//:listAddMultiAssocList Adds a new list to the MultiAssocList and populates it with one key-value
+// pair. Returns its index
     Int initCap = 8;
     Int newInd = multiListFindFree(initCap, ml);
     if (newInd == -1) {
@@ -415,8 +418,8 @@ testable Int listAddMultiAssocList(Int newKey, Int newVal, MultiAssocList* ml) {
 
 
 testable Int searchMultiAssocList(Int searchKey, Int listInd, MultiAssocList* ml) {
-// Search for a key in a particular list within the MultiAssocList. Returns the value if found,
-// -1 otherwise
+//:searchMultiAssocList Search for a key in a particular list within the MultiAssocList. Returns
+// the value if found, -1 otherwise
     Int len = ml->cont[listInd]/2;
     Int endInd = listInd + 2 + len;
     for (Int j = listInd + 2; j < endInd; j++) {
@@ -427,7 +430,8 @@ testable Int searchMultiAssocList(Int searchKey, Int listInd, MultiAssocList* ml
     return -1;
 }
 
-private MultiAssocList* copyMultiAssocList(MultiAssocList* ml, Arena* a) {
+
+private MultiAssocList* copyMultiAssocList(MultiAssocList* ml, Arena* a) { //:copyMultiAssocList
     MultiAssocList* result = allocateOnArena(sizeof(MultiAssocList), a);
     Arr(Int) cont = allocateOnArena(4*ml->cap, a);
     memcpy(cont, ml->cont, 4*ml->cap);
@@ -439,7 +443,7 @@ private MultiAssocList* copyMultiAssocList(MultiAssocList* ml, Arena* a) {
 
 #ifdef TEST
 
-void printRawOverload(Int listInd, Compiler* cm) {
+void printRawOverload(Int listInd, Compiler* cm) { //:printRawOverload
     MultiAssocList* ml = cm->rawOverloads;
     Int len = ml->cont[listInd]/2;
     printf("[");
@@ -490,7 +494,7 @@ DEFINE_INTERNAL_LIST(types, Int, a)
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
-testable String* str(const char* content, Arena* a) {
+testable String* str(const char* content, Arena* a) { //:str
 // Allocates a C string literal into an arena. The length of the literal is determined in O(N)
     if (content == null) return null;
     const char* ind = content;
@@ -504,7 +508,7 @@ testable String* str(const char* content, Arena* a) {
     return result;
 }
 
-testable bool endsWith(String* a, String* b) {
+testable bool endsWith(String* a, String* b) { //:endsWith
 // Does string "a" end with string "b"?
     if (a->len < b->len) {
         return false;
@@ -518,7 +522,7 @@ testable bool endsWith(String* a, String* b) {
 }
 
 
-private bool equal(String* a, String* b) {
+private bool equal(String* a, String* b) { //:equal
     if (a->len != b->len) {
         return false;
     }
@@ -527,7 +531,8 @@ private bool equal(String* a, String* b) {
     return cmpResult == 0;
 }
 
-private Int stringLenOfInt(Int n) {
+
+private Int stringLenOfInt(Int n) { //:stringLenOfInt
     if (n < 0) n = (n == INT_MIN) ? INT_MAX : -n;
     if (n < 10) return 1;
     if (n < 100) return 2;
@@ -541,7 +546,7 @@ private Int stringLenOfInt(Int n) {
     return 10;
 }
 
-private String* stringOfInt(Int i, Arena* a) {
+private String* stringOfInt(Int i, Arena* a) { //:stringOfInt
     Int stringLen = stringLenOfInt(i);
     String* result = allocateOnArena(sizeof(String) + stringLen + 1, a);
     result->len = stringLen;
@@ -549,23 +554,23 @@ private String* stringOfInt(Int i, Arena* a) {
     return result;
 }
 
-testable void printString(String* s) {
+testable void printString(String* s) { //:printString
     if (s->len == 0) return;
     fwrite(s->cont, 1, s->len, stdout);
     printf("\n");
 }
 
 
-testable void printStringNoLn(String* s) {
+testable void printStringNoLn(String* s) { //:printStringNoLn
     if (s->len == 0) return;
     fwrite(s->cont, 1, s->len, stdout);
 }
 
-private bool isLetter(Byte a) {
+private bool isLetter(Byte a) { //:isLetter
     return ((a >= aALower && a <= aZLower) || (a >= aAUpper && a <= aZUpper));
 }
 
-private bool isCapitalLetter(Byte a) {
+private bool isCapitalLetter(Byte a) { //:isCapitalLetter
     return a >= aAUpper && a <= aZUpper;
 }
 
@@ -577,24 +582,25 @@ private bool isDigit(Byte a) {
     return a >= aDigit0 && a <= aDigit9;
 }
 
-private bool isAlphanumeric(Byte a) {
+private bool isAlphanumeric(Byte a) { //:isAlphanumeric
     return isLetter(a) || isDigit(a);
 }
 
-private bool isHexDigit(Byte a) {
+private bool isHexDigit(Byte a) { //:isHexDigit
     return isDigit(a) || (a >= aALower && a <= aFLower) || (a >= aAUpper && a <= aFUpper);
 }
 
-private bool isSpace(Byte a) {
+private bool isSpace(Byte a) { //:isSpace
     return a == aSpace || a == aNewline || a == aCarrReturn;
 }
 
 
 String empty = { .len = 0 };
+
 //}}}
 //{{{ Int Hashmap
 
-testable IntMap* createIntMap(int initSize, Arena* a) {
+testable IntMap* createIntMap(int initSize, Arena* a) { //:createIntMap
     IntMap* result = allocateOnArena(sizeof(IntMap), a);
     int realInitSize = (initSize >= 4 && initSize < 1024) ? initSize : (initSize >= 4 ? 1024 : 4);
     Arr(int*) dict = allocateOnArena(sizeof(int*)*realInitSize, a);
@@ -613,7 +619,7 @@ testable IntMap* createIntMap(int initSize, Arena* a) {
 }
 
 
-testable void addIntMap(int key, int value, IntMap* hm) {
+testable void addIntMap(int key, int value, IntMap* hm) { //:addIntMap
     if (key < 0) return;
 
     int hash = key % (hm->dictSize);
@@ -649,7 +655,7 @@ testable void addIntMap(int key, int value, IntMap* hm) {
 }
 
 
-testable bool hasKeyIntMap(int key, IntMap* hm) {
+testable bool hasKeyIntMap(int key, IntMap* hm) { //:hasKeyIntMap
     if (key < 0) return false;
 
     int hash = key % hm->dictSize;
@@ -666,7 +672,7 @@ testable bool hasKeyIntMap(int key, IntMap* hm) {
 }
 
 
-private int getIntMap(int key, int* value, IntMap* hm) {
+private int getIntMap(int key, int* value, IntMap* hm) { //:getIntMap
     int hash = key % (hm->dictSize);
     if (*(hm->dict + hash) == null) {
         return 1;
@@ -683,7 +689,8 @@ private int getIntMap(int key, int* value, IntMap* hm) {
     return 1;
 }
 
-private int getUnsafeIntMap(int key, IntMap* hm) {
+
+private int getUnsafeIntMap(int key, IntMap* hm) { //:getUnsafeIntMap
 // Throws an exception when key is absent
     int hash = key % (hm->dictSize);
     if (*(hm->dict + hash) == null) {
@@ -701,10 +708,9 @@ private int getUnsafeIntMap(int key, IntMap* hm) {
 }
 
 
-private bool hasKeyValueIntMap(int key, int value, IntMap* hm) {
+private bool hasKeyValueIntMap(int key, int value, IntMap* hm) { //:hasKeyValueIntMap
     return false;
 }
-
 
 //}}}
 //{{{ String Hashmap
@@ -1086,8 +1092,8 @@ const char errUnrecognizedByte[]           = "Unrecognized Byte in source code!"
 const char errWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
 const char errWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
 const char errWordLengthExceeded[]         = "I don't know why you want an identifier of more than 255 chars, but they aren't supported";
-const char errWordWrongCall[]              = "Unsupported kind of call. Only 3 types of call are supported: prefix `foo()`, infix `a .foo` and type calls `L(Int)`";
-const char errWordReservedWithDot[]        = "Reserved words may not be called like functions!";
+const char errWordWrongCall[]              = "Unsupported kind of call. Only 3 types of call are supported: prefix `foo a b`, infix `a##` and type calls `L(Int)`";
+const char errWordFreeFloatingFieldAcc[]   = "Free-floating field accessor";
 const char errWordInMeta[]                 = "Only ordinary words are allowed inside meta blocks!";
 const char errNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
 const char errNumericWidthExceeded[]       = "Numeric literal width is exceeded!";
@@ -1113,7 +1119,7 @@ const char errBareAtom[]                   = "Malformed token stream (atoms and 
 const char errImportsNonUnique[]           = "Import names must be unique!";
 const char errCannotMutateImmutable[]      = "Immutable variables cannot be reassigned to!";
 const char errLengthOverflow[]             = "AST nodes length overflow";
-const char errPrematureEndOfTokens[]       = "Premature end of input";
+const char errPrematureEndOfTokens[]       = "Premature end of tokens";
 const char errUnexpectedToken[]            = "Unexpected token";
 const char errCoreFormTooShort[]           = "Core syntax form too short";
 const char errCoreFormUnexpected[]         = "Unexpected core form";
@@ -1198,8 +1204,6 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 #ifdef TEST
 void printParser(Compiler* cm, Arena* a);
 void typePrint(TypeId typeId, Compiler* cm);
-#endif
-#if defined(TRACE) && defined(TEST)
 private void printStackInt(StackInt* st);
 #endif
 
@@ -1218,11 +1222,11 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = {
 // 2**53
 
 
-const int operatorStartSymbols[12] = {
+const int operatorStartSymbols[13] = {
     aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus,
-    aDivBy, aGT, aQuestion, aUnderscore
+    aDivBy, aGT, aQuestion, aAt, aCaret
     // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
-    // "=" - by lexEqual, "<" by lexLT, "^" by lexCaret, "|" by lexPipe
+    // "=" - by lexEqual, "<" by lexLT, "|" by lexPipe
 };
 const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinallyfor"
                             "ifimplimportifacematchpubreturntruetry"
@@ -1384,13 +1388,13 @@ _Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compi
 //}}}
 //{{{ Lexer proper
 
-private void checkPrematureEnd(Int requiredSymbols, Compiler* lx) {
+private void checkPrematureEnd(Int requiredSymbols, Compiler* lx) { //:checkPrematureEnd
 // Checks that there are at least 'requiredSymbols' symbols left in the input
     VALIDATEL(lx->i + requiredSymbols <= lx->stats.inpLength, errPrematureEndOfInput)
 }
 
 
-private void setSpanLengthLexer(Int tokenInd, Compiler* lx) {
+private void setSpanLengthLexer(Int tokenInd, Compiler* lx) { //:setSpanLengthLexer
 // Finds the top-level punctuation opener by its index, and sets its lengths.
 // Called when the matching closer is lexed. Does not pop anything from the "lexBtrack"
     lx->tokens.cont[tokenInd].lenBts = lx->i - lx->tokens.cont[tokenInd].startBt + 1;
@@ -1398,7 +1402,7 @@ private void setSpanLengthLexer(Int tokenInd, Compiler* lx) {
 }
 
 
-private BtToken getLexContext(Compiler* lx) {
+private BtToken getLexContext(Compiler* lx) { //:getLexContext
     if (!hasValues(lx->lexBtrack)) {
         return (BtToken) { .tp = tokInt, .tokenInd = -1, .spanLevel = 0 };
     }
@@ -1406,7 +1410,7 @@ private BtToken getLexContext(Compiler* lx) {
 }
 
 
-private void setStmtSpanLength(Int tokenInd, Compiler* lx) {
+private void setStmtSpanLength(Int tokenInd, Compiler* lx) { //:setStmtSpanLength
 // Correctly calculates the lenBts for a single-line, statement-type span
 // This is for correctly calculating lengths of statements when they are ended by parens in
 // case of a gap before "}", for example:
@@ -1430,6 +1434,7 @@ private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
 
 
 private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* lx) {
+//:wrapInAStatementStarting
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slDoubleScope) {
             addStatementSpan(tokStmt, startBt, lx);
@@ -1440,7 +1445,7 @@ private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* l
 }
 
 
-private void wrapInAStatement(Arr(Byte) source, Compiler* lx) {
+private void wrapInAStatement(Arr(Byte) source, Compiler* lx) { //:wrapInAStatement
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel <= slDoubleScope) {
             addStatementSpan(tokStmt, lx->i, lx);
@@ -1450,17 +1455,8 @@ private void wrapInAStatement(Arr(Byte) source, Compiler* lx) {
     }
 }
 
-private void maybeBreakStatement(Compiler* lx) {
-// If the lexer is in a statement, we need to close it
-    BtToken ctx = getLexContext(lx);
-    if(ctx.spanLevel == slStmt) {
-        setStmtSpanLength(ctx.tokenInd, lx);
-        pop(lx->lexBtrack);
-    }
-}
 
-
-private int64_t calcIntegerWithinLimits(Compiler* lx) {
+private int64_t calcIntegerWithinLimits(Compiler* lx) { //:calcIntegerWithinLimits
     int64_t powerOfTen = (int64_t)1;
     int64_t result = 0;
     Int j = lx->numeric.len - 1;
@@ -1474,7 +1470,8 @@ private int64_t calcIntegerWithinLimits(Compiler* lx) {
     return result;
 }
 
-private bool integerWithinDigits(const Byte* b, Int bLength, Compiler* lx){
+
+private bool integerWithinDigits(const Byte* b, Int bLength, Compiler* lx) { //:integerWithinDigits
 // Is the current numeric <= b if they are regarded as arrays of decimal digits (0 to 9)?
     if (lx->numeric.len != bLength) return (lx->numeric.len < bLength);
     for (Int j = 0; j < lx->numeric.len; j++) {
@@ -1485,14 +1482,14 @@ private bool integerWithinDigits(const Byte* b, Int bLength, Compiler* lx){
 }
 
 
-private Int calcInteger(int64_t* result, Compiler* lx) {
+private Int calcInteger(int64_t* result, Compiler* lx) { //:calcInteger
     if (lx->numeric.len > 19 || !integerWithinDigits(maxInt, sizeof(maxInt), lx)) return -1;
     *result = calcIntegerWithinLimits(lx);
     return 0;
 }
 
 
-private int64_t calcHexNumber(Compiler* lx) {
+private int64_t calcHexNumber(Compiler* lx) { //:calcHexNumber
     int64_t result = 0;
     int64_t powerOfSixteen = 1;
     Int j = lx->numeric.len - 1;
@@ -1508,7 +1505,7 @@ private int64_t calcHexNumber(Compiler* lx) {
 }
 
 
-private void hexNumber(Arr(Byte) source, Compiler* lx) {
+private void hexNumber(Arr(Byte) source, Compiler* lx) { //:hexNumber
 // Lexes a hexadecimal numeric literal (integer or floating-point)
 // Examples of accepted expressions: 0xCAFE_BABE, 0xdeadbeef, 0x123_45A
 // Examples of NOT accepted expressions: 0xCAFE_babe, 0x_deadbeef, 0x123_
@@ -1525,7 +1522,7 @@ private void hexNumber(Arr(Byte) source, Compiler* lx) {
             pushInnumeric(cByte - aALower + 10, lx);
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
             pushInnumeric(cByte - aAUpper + 10, lx);
-        } else if (cByte == aApostrophe && (j == lx->stats.inpLength - 1 || isHexDigit(source[j + 1]))) {
+        } else if (cByte == aUnderscore && (j == lx->stats.inpLength - 1 || isHexDigit(source[j + 1]))) {
             throwExcLexer(errNumericEndUnderscore);
         } else {
             break;
@@ -1542,8 +1539,8 @@ private void hexNumber(Arr(Byte) source, Compiler* lx) {
 
 
 private Int calcFloating(double* result, Int powerOfTen, Arr(Byte) source, Compiler* lx) {
-// Parses the floating-point numbers using just the "fast path" of David Gay's "strtod" function,
-// extended to 16 digits.
+//:calcFloating Parses the floating-point numbers using just the "fast path" of David Gay's
+// "strtod" function, extended to 16 digits.
 // I.e. it handles only numbers with 15 digits or 16 digits with the first digit not 9,
 // and decimal powers within [-22; 22]. Parsing the rest of numbers exactly is a huge and pretty
 // useless effort. Nobody needs these floating literals in text form: they are better input in
@@ -1598,18 +1595,19 @@ private Int calcFloating(double* result, Int powerOfTen, Arr(Byte) source, Compi
 }
 
 
-testable int64_t longOfDoubleBits(double d) {
+testable int64_t longOfDoubleBits(double d) { //:longOfDoubleBits
     FloatingBits un = {.d = d};
     return un.i;
 }
 
 
-private double doubleOfLongBits(int64_t i) {
+private double doubleOfLongBits(int64_t i) { //:doubleOfLongBits
     FloatingBits un = {.i = i};
     return un.d;
 }
 
-private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) {
+
+private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) { //:decNumber
 // Lexes a decimal numeric literal (integer or floating-point). Adds a token.
 // TODO: add support for the '1.23E4' format
     Int j = (isNegative) ? (lx->i + 1) : lx->i;
@@ -1630,7 +1628,7 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) {
             if (metDot) {
                 ++digitsAfterDot;
             }
-        } else if (cByte == aApostrophe) {
+        } else if (cByte == aUnderscore) {
             VALIDATEL(j != (lx->stats.inpLength - 1) && isDigit(source[j + 1]),
                       errNumericEndUnderscore)
         } else if (cByte == aDot) {
@@ -1665,7 +1663,7 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexNumber(Arr(Byte) source, Compiler* lx) {
+private void lexNumber(Arr(Byte) source, Compiler* lx) { //:lexNumber
     wrapInAStatement(source, lx);
     Byte cByte = CURR_BT;
     if (lx->i == lx->stats.inpLength - 1 && isDigit(cByte)) {
@@ -1685,7 +1683,7 @@ private void lexNumber(Arr(Byte) source, Compiler* lx) {
 
 
 private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* lx) {
-// Adds a token which serves punctuation purposes, i.e. either a ( or  a [
+//:openPunctuation Adds a token which serves punctuation purposes, i.e. either a ( or  a [
 // These tokens are used to define the structure, that is, nesting within the AST.
 // Upon addition, they are saved to the backtracking stack to be updated with their length
 // once it is known. Consumes no bytes
@@ -1697,7 +1695,7 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 
 
 private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
-                             Arr(Byte) source, Compiler* lx) {
+                             Arr(Byte) source, Compiler* lx) { //:lexReservedWord
 // Lexer action for a paren-type or statement-type reserved word.
 // Precondition: we are looking at the character immediately after the keyword
     StackBtToken* bt = lx->lexBtrack;
@@ -1753,21 +1751,17 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
     Token newToken = (Token){ .tp = wordType, .pl2 = uniqueStringId,
                              .startBt = realStartBt, .lenBts = lenBts };
 
-    if (lx->i < lx->stats.inpLength && CURR_BT == aParenLeft && wordType == tokWord) {
-        // A prefix function call or a type call/constructor (only the parser can distinguish)
-        newToken.tp = wasCapitalized ? tokTypeCall : tokCall;
+    if (lx->i < lx->stats.inpLength && CURR_BT == aParenLeft && wordType == tokWord
+            && wasCapitalized) {
+        newToken.tp = tokTypeCall;
         newToken.pl1 = uniqueStringId;
         newToken.pl2 = 0;
-        push(((BtToken){ .tp = newToken.tp, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
+        push(((BtToken){ .tp = tokTypeCall, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
         ++lx->i; // CONSUME the opening "(" of the call
     } else if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
         newToken.tp = (wasCapitalized ? tokTypeName : tokWord);
-    } else if (wordType == tokCall)  {
-        wrapInAStatementStarting(startBt, source, lx);
-        newToken.pl1 = uniqueStringId;
-        newToken.pl2 = 0;
     } else if (wordType == tokFieldAcc) {
         wrapInAStatementStarting(startBt, source, lx);
     }
@@ -1776,10 +1770,9 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
 
 
 private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartBt,
-                          Arr(Byte) source, Compiler* lx) {
+                          Arr(Byte) source, Compiler* lx) { //:wordReserved
     Int lenBts = lx->i - startBt;
     Int keywordTp = standardKeywords[wordId];
-    VALIDATEL(wordType != tokFieldAcc, errWordReservedWithDot)
     if (keywordTp < firstSpanTokenType) {
         if (keywordTp == keywTrue) {
             wrapInAStatementStarting(startBt, source, lx);
@@ -1801,7 +1794,7 @@ private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartB
 }
 
 
-private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) {
+private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) { //:wordInternal
 // Lexes a word (both reserved and identifier) according to Tl's rules.
 // Precondition: we are pointing at the first letter character of the word (i.e. past the possible
 // "." or ":")
@@ -1840,28 +1833,24 @@ private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) {
     }
 }
 
-private void lexWord(Arr(Byte) source, Compiler* lx) {
+private void lexWord(Arr(Byte) source, Compiler* lx) { //:lexWord
     wordInternal(tokWord, source, lx);
 }
 
 
-private void lexDot(Arr(Byte) source, Compiler* lx) {
+private void lexDot(Arr(Byte) source, Compiler* lx) { //:lexDot
 // The dot is a start of a field accessor or a function call
-
     VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT) && lx->tokens.len > 0,
         errUnexpectedToken);
     Token prevTok = lx->tokens.cont[lx->tokens.len - 1];
     ++lx->i; // CONSUME the dot
-    if (prevTok.tp == tokWord && lx->i == (prevTok.startBt + prevTok.lenBts + 1))  {
-        wordInternal(tokFieldAcc, source, lx);
-    } else {
-        wordInternal(tokCall, source, lx);
-    }
-
+    VALIDATEL(prevTok.tp == tokWord && lx->i == (prevTok.startBt + prevTok.lenBts + 1),
+            errWordFreeFloatingFieldAcc);
+    wordInternal(tokFieldAcc, source, lx);
 }
 
 
-private void processAssignment(Int mutType, untt opType, Compiler* lx) {
+private void processAssignment(Int mutType, untt opType, Compiler* lx) { //:processAssignment
 // Params: Handles the "=", "<-" and "+=" tokens. Changes existing stmt
 // token into tokAssignLeft and opens up a new tokAssignRight span. Doesn't consume anything
     BtToken currSpan = peek(lx->lexBtrack);
@@ -1907,7 +1896,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
 }
 
 
-private void lexSemicolon(Arr(Byte) source, Compiler* lx) {
+private void lexSemicolon(Arr(Byte) source, Compiler* lx) { //:lexSemicolon
     if (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).spanLevel != slScope) {
         closeStatement(lx);
         ++lx->i;  // CONSUME the ;
@@ -1963,7 +1952,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     if (isAssignment) { // mutation operators like "*=" or "*.="
         processAssignment(2, opType, lx);
     } else {
-        pushIntokens((Token){ .tp = (opDef.arity == 1 ? tokUnaryOper : tokCall), .pl1 = opType,
+        pushIntokens((Token){ .tp = tokOperator, .pl1 = opType,
                     .pl2 = 0, .startBt = lx->i, .lenBts = j - lx->i}, lx);
     }
     lx->i = j; // CONSUME the operator
@@ -1975,15 +1964,20 @@ private bool isOperatorTypeful(Int opType) {
 
 
 private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
-// The humble "=" can be the definition statement, a marker that separates signature from definition,
-// or an arrow "=>"
+// The humble "=" can be the definition statement, the marker "=>" which ends a parameter list,
+// or a comparison "=="
     checkPrematureEnd(2, lx);
     Byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
         lexOperator(source, lx); // ==
     } else if (nextBt == aGT) {
-        pushIntokens((Token){ .tp = tokMisc, .pl1 = miscArrow, .startBt = lx->i, .lenBts = 2 }, lx);
-        lx->i += 2;  // CONSUME the arrow "=>"
+        VALIDATEL(hasValues(lx->lexBtrack), errPunctuationParamList)
+        BtToken top = peek(lx->lexBtrack);
+        VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
+        setStmtSpanLength(top.tokenInd, lx);
+        lx->tokens.cont[top.tokenInd].tp = tokParamList;
+        pop(lx->lexBtrack);
+        lx->i += 2; // CONSUME the `=>`
     } else {
         processAssignment(0, 0, lx);
         lx->i++; // CONSUME the =
@@ -2001,13 +1995,13 @@ private void lexLT(Arr(Byte) source, Compiler* lx) { //:lexLT
     }
 }
 
-private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
+private void lexUnderscore(Arr(Byte) source, Compiler* lx) { //:lexUnderscore
     if ((lx->i < lx->stats.inpLength - 1) && NEXT_BT == aTilde) {
-        pushIntokens((Token){ .tp = tokTilde, .pl1 = 2, .startBt = lx->i - 1, .lenBts = 2 }, lx);
-        lx->i += 2; // CONSUME the "~~"
+        pushIntokens((Token){ .tp = tokUnderscore, .pl1 = 2, .startBt = lx->i - 1, .lenBts = 2 }, lx);
+        lx->i += 2; // CONSUME the "__"
     } else {
-        pushIntokens((Token){ .tp = tokTilde, .pl1 = 1, .startBt = lx->i - 1, .lenBts = 2 }, lx);
-        ++lx->i; // CONSUME the "~"
+        pushIntokens((Token){ .tp = tokUnderscore, .pl1 = 1, .startBt = lx->i - 1, .lenBts = 2 }, lx);
+        ++lx->i; // CONSUME the "_"
     }
 }
 
@@ -2015,7 +2009,6 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
 // Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes
 // the current statement unless it's inside an inline span (i.e. parens or accessor parens)
     pushInnewlines(lx->i, lx);
-    maybeBreakStatement(lx);
 
     lx->i++;     // CONSUME the LF
     while (lx->i < lx->stats.inpLength) {
@@ -2026,33 +2019,19 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
     }
 }
 
-private void lexElision(Arr(Byte) source, Compiler* lx) {
-// Tl separates between comments for documentation (which live in meta info and are
-// spelt as [`comment`]) and elisions for, well, temporarily eliding code
-// Elisions are of the / * comm * / form like in old-school C, except they are also nestable
-    lx->i += 2; // CONSUME the "/ *"
-    Int elisionLevel = 1;
+private void lexComment(Arr(Byte) source, Compiler* lx) { //:lexComment
+// Tl separates between documentation comments (which live in meta info and are
+// spelt as "meta(`comment`)") and comments for, well, eliding text from code;
+// Elision comments are of the "//" form.
+    lx->i += 2; // CONSUME the "//"
 
-    Int j = lx->i;
-    while (j < lx->stats.inpLength - 1) {
-        Byte cByte = source[j];
-        if (cByte == aTimes && NEXT_BT == aDivBy) {
-            --elisionLevel;
-            if (elisionLevel == 0)  {
-                lx->i = j + 2; // CONSUME the elision
-                return;
-            }
-        } else if (cByte == aDivBy && NEXT_BT == aTimes) {
-            ++elisionLevel;
-        } else {
-            j++;
-        }
+    for (;lx->i < lx->stats.inpLength - 1 && CURR_BT != aNewline; lx->i += 1) {
+        // CONSUME the comment
     }
-    throwExcLexer(errPrematureEndOfInput);
 }
 
 
-private void lexMinus(Arr(Byte) source, Compiler* lx) {
+private void lexMinus(Arr(Byte) source, Compiler* lx) { //:lexMinus
 // Handles the binary operator as well as the unary negation operator
     if (lx->i == lx->stats.inpLength - 1) {
         lexOperator(source, lx);
@@ -2062,6 +2041,9 @@ private void lexMinus(Arr(Byte) source, Compiler* lx) {
             wrapInAStatement(source, lx);
             decNumber(true, source, lx);
             lx->numeric.len = 0;
+        } else if (nextBt == aGT)  {
+            pushIntokens((Token){ .tp = tokMisc, .pl1 = miscArrow, .startBt = lx->i, .lenBts = 2 }, lx);
+            lx->i += 2;  // CONSUME the arrow "->"
         } else {
             lexOperator(source, lx);
         }
@@ -2069,17 +2051,17 @@ private void lexMinus(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexDivBy(Arr(Byte) source, Compiler* lx) {
-// Handles the binary operator as well as the elisions
-    if (lx->i + 1 < lx->stats.inpLength && NEXT_BT == aTimes) {
-        lexElision(source, lx);
+private void lexDivBy(Arr(Byte) source, Compiler* lx) { //:lexDivBy
+// Handles the binary operator as well as the comments
+    if (lx->i + 1 < lx->stats.inpLength && NEXT_BT == aDivBy) {
+        lexComment(source, lx);
     } else {
         lexOperator(source, lx);
     }
 }
 
 
-private void lexParenLeft(Arr(Byte) source, Compiler* lx) {
+private void lexParenLeft(Arr(Byte) source, Compiler* lx) { //:lexParenLeft
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
     wrapInAStatement(source, lx);
@@ -2094,14 +2076,10 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) {
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
+    VALIDATEL(top.spanLevel == slSubexpr, errPunctuationUnmatched)
 
     setSpanLengthLexer(top.tokenInd, lx);
-    if (top.tp == tokCall && lx->tokens.cont[top.tokenInd].pl2 == 0) {
-        // the `call()` - we need to distinguish this call from an infix one
-        lx->tokens.cont[top.tokenInd].pl2 = BIG;
-    }
     lx->i++; // CONSUME the closing ")"
-
     lx->stats.lastClosingPunctInd = startInd;
 }
 
@@ -2143,52 +2121,41 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexBracketLeft(Arr(Byte) source, Compiler* lx) {
-    wrapInAStatement(source, lx);
-    // TODO openPunctuation(tokMeta, slSubexpr, lx->i, lx);
-    lx->i++; // CONSUME the `[`
+private void lexBracketLeft(Arr(Byte) source, Compiler* lx) { //:lexBracketLeft
+    push(((BtToken){ .tp = tokFn, .tokenInd = lx->tokens.len, .spanLevel = slScope }),
+            lx->lexBtrack);
+    pushIntokens((Token){ .tp = tokFn, .pl1 = slScope, .startBt = lx->i, .lenBts = 0 }, lx);
+    lx->i += 1; // CONSUME the `[`
 }
 
 
-private void lexBracketRight(Arr(Byte) source, Compiler* lx) {
-    // TODO
-    ++lx->i;
-    return;
-   /*
+private void lexBracketRight(Arr(Byte) source, Compiler* lx) { //:lexBracketRight
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
-    if (top.tp != tokMeta) {
-        throwExcLexer(errPunctuationUnmatched);
+
+    // since a closing bracket is closing a function, it may have statements inside.
+    // So we need to close that statement before closing its parent
+    if (top.spanLevel == slStmt) {
+        setStmtSpanLength(top.tokenInd, lx);
+        VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
+        top = pop(bt);
     }
     setSpanLengthLexer(top.tokenInd, lx);
-    lx->i++; // CONSUME the `]`
-    if (hasValues(lx->lexBtrack)) { lx->lastClosingPunctInd = startInd; }
-   */
+
+    if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
+    lx->i += 1; // CONSUME the closing "]"
 }
 
 
-private void lexCaret(Arr(Byte) source, Compiler* lx) {
-    Int j = lx->i + 1;
-    if (j < lx->stats.inpLength && NEXT_BT == aCurlyLeft) {
-        push(((BtToken){ .tp = tokFn, .tokenInd = lx->tokens.len, .spanLevel = slScope }),
-                lx->lexBtrack);
-        pushIntokens((Token){ .tp = tokFn, .pl1 = slScope, .startBt = lx->i, .lenBts = 0 }, lx);
-        lx->i += 2; // CONSUME the `^{`
-    } else {
-        lexOperator(source, lx);
-    }
-}
-
-
-private void lexComma(Arr(Byte) source, Compiler* lx) {
+private void lexComma(Arr(Byte) source, Compiler* lx) { //:lexComma
     pushIntokens((Token){ .tp = tokMisc, .pl1 = miscComma, .startBt = lx->i, .lenBts = 1 }, lx);
     lx->i++; // CONSUME the `,`
 }
 
 
-private void lexPipe(Arr(Byte) source, Compiler* lx) {
+private void lexPipe(Arr(Byte) source, Compiler* lx) { //:lexPipe
 // Closes the current statement and changes its type to tokParamList
     Int j = lx->i + 1;
     if (j < lx->stats.inpLength && NEXT_BT == aPipe) {
@@ -2204,7 +2171,7 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexSpace(Arr(Byte) source, Compiler* lx) {
+private void lexSpace(Arr(Byte) source, Compiler* lx) { //:lexSpace
     lx->i++; // CONSUME the space
     while (lx->i < lx->stats.inpLength && CURR_BT == aSpace) {
         lx->i++; // CONSUME a space
@@ -2212,7 +2179,7 @@ private void lexSpace(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexStringLiteral(Arr(Byte) source, Compiler* lx) {
+private void lexStringLiteral(Arr(Byte) source, Compiler* lx) { //:lexStringLiteral
     wrapInAStatement(source, lx);
     Int j = lx->i + 1;
     for (; j < lx->stats.inpLength && source[j] != aBacktick; j++);
@@ -2222,16 +2189,16 @@ private void lexStringLiteral(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexUnexpectedSymbol(Arr(Byte) source, Compiler* lx) {
+private void lexUnexpectedSymbol(Arr(Byte) source, Compiler* lx) { //:lexUnexpectedSymbol
     throwExcLexer(errUnrecognizedByte);
 }
 
-private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) {
+private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) { //:lexNonAsciiError
     throwExcLexer(errNonAscii);
 }
 
 
-private LexerFunc (*tabulateDispatch(Arena* a))[256] {
+private LexerFunc (*tabulateDispatch(Arena* a))[256] { //:tabulateDispatch
     LexerFunc (*result)[256] = allocateOnArena(256*sizeof(LexerFunc), a);
     LexerFunc* p = *result;
     for (Int i = 0; i < 128; i++) {
@@ -2253,7 +2220,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aDot] = &lexDot;
     p[aEqual] = &lexEqual;
     p[aLT] = &lexLT; // to handle the reassignment `<-`
-    p[aTilde] = &lexTilde;
+    p[aUnderscore] = &lexUnderscore;
 
     for (Int i = sizeof(operatorStartSymbols)/4 - 1; i > -1; i--) {
         p[operatorStartSymbols[i]] = &lexOperator;
@@ -2265,11 +2232,10 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
     p[aCurlyRight] = &lexCurlyRight;
     p[aBracketLeft] = &lexBracketLeft;
     p[aBracketRight] = &lexBracketRight;
-    p[aCaret] = &lexCaret; // to handle the functions `^{}`
     p[aComma] = &lexComma;
     p[aPipe] = &lexPipe;
-    p[aDivBy] = &lexDivBy; // to handle the comments `/ *`
-    p[aColon] = &lexColon; // to handle keyword args `:a`
+    p[aDivBy] = &lexDivBy; // to handle the comments "//"
+    p[aColon] = &lexColon; // to handle keyword args ":a"
     p[aSemicolon] = &lexSemicolon; // the statement terminator
 
     p[aSpace] = &lexSpace;
@@ -2280,67 +2246,8 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] {
 }
 
 
-private void tabulateOperators() {
+private void setOperatorsLengths() { //:setOperatorsLengths
 // The set of operators in the language. Must agree in order with tl.internal.h
-    /*
-    OpDef (*result)[countOperators] = allocateOnArena(countOperators*sizeof(OpDef), a);
-    OpDef* p = *result;
-
-    // This is an array of 4-Byte arrays containing operator Byte sequences.
-    // Sorted: 1) by first Byte ASC 2) by second Byte DESC 3) third Byte DESC 4) fourth Byte DESC.
-    // Used to lex operators. Indices must equal the :OperatorType constants
-    p[ 0] = (OpDef){ .arity=1, .bytes={ aExclamation, aDot, 0, 0 } }; // !.
-    p[ 1] = (OpDef){ .arity=2, .bytes={ aExclamation, aEqual, 0, 0 } }; // !=
-    p[ 2] = (OpDef){ .arity=1, .bytes={ aExclamation, 0, 0, 0 } }; // !
-    p[ 3] = (OpDef){ .arity=1, .bytes={ aSharp, aSharp, 0, 0 }, .overloadable=true }; // ##
-    p[ 4] = (OpDef){ .arity=1, .bytes={ aDollar, 0, 0, 0 } }; // $
-    p[ 5] = (OpDef){ .arity=2, .bytes={ aPercent, 0, 0, 0 } }; // %
-    p[ 6] = (OpDef){ .arity=2, .bytes={ aAmp, aAmp, aDot, 0 } }; // &&.
-    p[ 7] = (OpDef){ .arity=2, .bytes={ aAmp, aAmp, 0, 0 }, .assignable=true }; // &&
-    p[ 8] = (OpDef){ .arity=1, .bytes={ aAmp, 0, 0, 0 }, .isTypelevel=true }; // &
-    p[ 9] = (OpDef){ .arity=1, .bytes={ aApostrophe, 0, 0, 0 } }; // '
-    p[10] = (OpDef){ .arity=2, .bytes={ aTimes, aColon, 0, 0},
-                     .assignable = true, .overloadable = true}; // *:
-    p[11] = (OpDef){ .arity=2, .bytes={ aTimes, 0, 0, 0 },
-                     .assignable = true, .overloadable = true}; // *
-    p[12] = (OpDef){ .arity=1, .bytes={ aPlus, aPlus, 0, 0 },
-                     .assignable = false, .overloadable = true}; // ++
-    p[13] = (OpDef){ .arity=2, .bytes={ aPlus, aColon, 0, 0 },
-                     .assignable = true, .overloadable = true}; // +:
-    p[14] = (OpDef){ .arity=2, .bytes={ aPlus, 0, 0, 0 },
-                     .assignable = true, .overloadable = true}; // +
-    p[15] = (OpDef){ .arity=1, .bytes={ aMinus, aMinus, 0, 0 },
-                     .assignable = false, .overloadable = true}; // --
-    p[16] = (OpDef){ .arity=2, .bytes={ aMinus, aColon, 0, 0},
-                     .assignable = true, .overloadable = true}; // -:
-    p[17] = (OpDef){ .arity=2, .bytes={ aMinus, 0, 0, 0},
-                     .assignable = true, .overloadable = true }; // -
-    p[18] = (OpDef){ .arity=2, .bytes={ aDivBy, aColon, 0, 0},
-                     .assignable = true, .overloadable = true}; // /:
-    p[19] = (OpDef){ .arity=2, .bytes={ aDivBy, aPipe, 0, 0}, .isTypelevel = true}; // /|
-    p[20] = (OpDef){ .arity=2, .bytes={ aDivBy, 0, 0, 0},
-                     .assignable = true, .overloadable = true}; // /
-    p[21] = (OpDef){ .arity=2, .bytes={ aLT, aLT, aDot, 0} }; // <<.
-    p[22] = (OpDef){ .arity=2, .bytes={ aLT, aEqual, 0, 0} }; // <=
-    p[23] = (OpDef){ .arity=2, .bytes={ aLT, aGT, 0, 0} }; // <>
-    p[24] = (OpDef){ .arity=2, .bytes={ aLT, 0, 0, 0 } }; // <
-    p[25] = (OpDef){ .arity=2, .bytes={ aEqual, aEqual, aEqual, 0 } }; // ===
-    p[26] = (OpDef){ .arity=2, .bytes={ aEqual, aEqual, 0, 0 } }; // ==
-    p[27] = (OpDef){ .arity=3, .bytes={ aGT, aEqual, aLT, aEqual } }; // >=<=
-    p[28] = (OpDef){ .arity=3, .bytes={ aGT, aLT, aEqual, 0 } }; // ><=
-    p[29] = (OpDef){ .arity=3, .bytes={ aGT, aEqual, aLT, 0 } }; // >=<
-    p[30] = (OpDef){ .arity=2, .bytes={ aGT, aGT, aDot, 0}, .assignable=true, .overloadable = true}; // >>.
-    p[31] = (OpDef){ .arity=3, .bytes={ aGT, aLT, 0, 0 } }; // ><
-    p[32] = (OpDef){ .arity=2, .bytes={ aGT, aEqual, 0, 0 } }; // >=
-    p[33] = (OpDef){ .arity=2, .bytes={ aGT, 0, 0, 0 } }; // >
-    p[34] = (OpDef){ .arity=2, .bytes={ aQuestion, aColon, 0, 0 } }; // ?:
-    p[35] = (OpDef){ .arity=1, .bytes={ aQuestion, 0, 0, 0 }, .isTypelevel=true }; // ?
-    p[36] = (OpDef){ .arity=2, .bytes={ aCaret, aDot, 0, 0} }; // ^.
-    p[37] = (OpDef){ .arity=2, .bytes={ aCaret, 0, 0, 0},
-                     .assignable=true, .overloadable = true}; // ^
-    p[38] = (OpDef){ .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }; // ||.
-    p[39] = (OpDef){ .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true }; // ||
-   */
     for (Int k = 0; k < countOperators; k++) {
         Int m = 0;
         for (; m < 4 && TL_OPERATORS[k].bytes[m] > 0; m++) {}
@@ -2455,7 +2362,7 @@ private void parseMisc(Token tok, P_CT) {
 }
 
 
-private void pScope(Token tok, P_CT) {
+private void pScope(Token tok, P_CT) { //:pScope
     addParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
 }
 
@@ -2681,17 +2588,12 @@ private void setSpanLengthParser(Int nodeInd, Compiler* cm) { //:setSpanLengthPa
 }
 
 
-private void parseVerbatim(Token tok, Compiler* cm) {
-    addNode((Node){
-        .tp = tok.tp, .pl1 = tok.pl1, .pl2 = tok.pl2}, tok.startBt, tok.lenBts, cm);
-}
-
 private void parseErrorBareAtom(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
 
-private ParseFrame popFrame(Compiler* cm) {
+private ParseFrame popFrame(Compiler* cm) { //:popFrame
     ParseFrame frame = pop(cm->backtrack);
     if (frame.tp == nodScope) {
         popScopeFrame(cm);
@@ -2711,7 +2613,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
         typeId = getTypeOfVar(varId, cm);
         addNode((Node){.tp = nodId, .pl1 = varId, .pl2 = tk.pl2},
                  tk.startBt, tk.lenBts, cm);
-    } else if (tk.tp == tokUnaryOper) {
+    } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
         OpDef operDefinition = TL_OPERATORS[operBindingId];
         VALIDATEP(operDefinition.arity == 1, errOperatorWrongArity)
@@ -2737,11 +2639,11 @@ private void exprSubex(Int sentinelToken, Int* arity, P_CT) { //:exprSubex
 // Consumes 1 or 2 tokens
     Token firstTk = toks[cm->i];
 
-    if (firstTk.tp == tokWord || firstTk.tp == tokUnaryOper) {
+    if (firstTk.tp == tokWord || firstTk.tp == tokOperator) {
         Int mbBnd = -1;
         if (firstTk.tp == tokWord) {
             mbBnd = cm->activeBindings[firstTk.pl2];
-        } else if (firstTk.tp == tokUnaryOper) {
+        } else if (firstTk.tp == tokOperator) {
             VALIDATEP(*arity == (TL_OPERATORS)[firstTk.pl1].arity, errOperatorWrongArity)
             mbBnd = -firstTk.pl1 - 2;
         }
@@ -2850,6 +2752,58 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
 }
 
 
+private void exprParensLinearize(Token cTk, Int sentinelToken, ExprFrame* parent, P_CT) {
+//:exprParensLinearize Parens inside expressions
+    StateForExprs* stEx = cm->stateForExprs;
+    StackNode* scr = stEx->scr;
+    StackNode* calls = cm->stateForExprs->calls;
+    StackSourceLoc* locsScr = cm->stateForExprs->locsScr;
+    StackSourceLoc* locsCalls = cm->stateForExprs->locsCalls;
+    StackExprFrame* frames = cm->stateForExprs->frames;
+    if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
+        ++parent->argCount;
+    }
+    Int parensSentinel = calcSentinel(cTk, cm->i);
+
+    if (parensSentinel == cm->i + 1) { // parens like "(foo)" or "(+)"
+        Token oneAndOnlyTk = toks[cm->i + 1];
+        if (oneAndOnlyTk.tp == tokWord) {
+            EntityId funcVarId = getActiveVar(cTk.pl2, cm);
+            addNode(((Node) { .tp = nodCall, .pl1 = funcVarId, .pl2 = 0}),
+                    cTk.startBt, cTk.lenBts, cm);
+        } else if (oneAndOnlyTk.tp == tokOperator) {
+            addNode(((Node) { .tp = nodId, .pl1 = -1, .pl2 = oneAndOnlyTk.pl1}),
+                    oneAndOnlyTk.startBt, oneAndOnlyTk.lenBts, cm);
+        } else {
+            throwExcParser(errUnexpectedToken);
+        }
+        cm->i += 1; // CONSUME the "(" so the end of iteration consumes the contents
+    } else {
+        push(((ExprFrame){
+                .tp = exfrParen, .startNode = scr->len, .sentinel = parensSentinel }), frames);
+
+        if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
+                                           // be marked with nodExpr for t-checking & codegen
+            push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
+            push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+        }
+
+        if (cm->i + 1 < sentinelToken)  {
+            Token firstTk = toks[cm->i + 1];
+            if (firstTk.tp == tokWord) { // words in initial position are calls
+                push(
+                    ((ExprFrame) {.tp = exfrCall, .sentinel = parensSentinel, .argCount = 0 }),
+                    frames);
+                push(((Node) { .tp = nodCall }), calls);
+                push(((SourceLoc) { .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }),
+                        locsCalls);
+                ++cm->i; // CONSUME the parens token
+            }
+        }
+    }
+}
+
+
 private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
 // The core code of the general, long expression parse. "startNodeInd" is the index of the
 // opening nodExpr, "sentinelToken" is the index where to stop reading tokens.
@@ -2868,7 +2822,6 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
 
     push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinelToken}), frames);
     while (cm->i < sentinelToken) {
-
         subexClose(stEx, cm);
         Token cTk = toks[cm->i];
         untt tokType = cTk.tp;
@@ -2886,52 +2839,12 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
             }
             push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
         } else if (tokType == tokParens) {
-            if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
-                ++parent->argCount;
-            }
-            Int parensSentinel = calcSentinel(cTk, cm->i);
-            push(((ExprFrame){
-                    .tp = exfrParen, .startNode = scr->len, .sentinel = parensSentinel }), frames);
-
-            if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
-                                               // be demarcated for typechecking & codegen
-                push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
-                push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-            }
-
-            if (cm->i + 1 < sentinelToken)  {
-                Token firstTk = toks[cm->i + 1];
-                if (firstTk.tp == tokCall && firstTk.pl2 == 0) {
-                    // `(.call 1 2)`
-                    push(
-                        ((ExprFrame) {.tp = exfrCall, .sentinel = parensSentinel, .argCount = 0 }),
-                        frames);
-                    push(((Node) { .tp = nodCall }), calls);
-                    push(((SourceLoc) { .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }),
-                            locsCalls);
-                    ++cm->i; // CONSUME the parens token
-                }
-            }
-        } else if (tokType == tokUnaryOper) { // unary operators
-            push(((Node) { .tp = nodCall, .pl1 = cTk.pl1, .pl2 = 1, }), scr);
-            push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-        } else if (tokType == tokCall) {
-            if (cTk.pl2 > 0) { // prefix calls like `foo()`
-                if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
-                    ++parent->argCount;
-                }
-                Int sentinel = cTk.pl2 == BIG ? (cm->i + 1) : calcSentinel(cTk, cm->i);
-                push(((ExprFrame) { .tp = exfrCall, .startNode = scr->len,
-                            .sentinel = sentinel, .argCount = 0 }), frames);
-                if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need
-                                                   // demarcation for typechecking & codegen
-                    push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
-                    push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-                }
-
-                push(((Node) { .tp = nodCall, .pl1 = cTk.pl1 }), calls);
-                push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
-            } else { // infix calls like ` .foo`
+            exprParensLinearize(cTk, sentinelToken, parent, P_C);
+        } else if (tokType == tokOperator) {
+            if (TL_OPERATORS[cTk.pl2].arity == 1)  {
+                push(((Node) { .tp = nodCall, .pl1 = cTk.pl1, .pl2 = 1, }), scr);
+                push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+            } else {
                 if (parent->tp == exfrCall) {
                     ExprFrame callFrame = pop(frames);
                     Node call = pop(calls);
@@ -2940,11 +2853,11 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
                     parent = frames->cont + (frames->len - 1);
                 }
                 push(((ExprFrame) { .tp = exfrCall, .startNode = -1, .sentinel = parent->sentinel,
-                                    .argCount = 1 }), frames);
+                                    .argCount = 1 }), frames); // argCount = 1 because infix
                 push(((Node) { .tp = nodCall, .pl1 = cTk.pl1 }), calls);
                 push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
             }
-        } else if (tokType == tokTypeCall) { // the `L(1 2 3)`
+        } else if (tokType == tokTypeCall) { // not really a type call, but a data alloc "L(1 2 3)"
             stEx->metAnAllocation = true;
             // push to a frame
             if (parent->tp == exfrCall || parent->tp == exfrDataAlloc)  {
@@ -3115,7 +3028,6 @@ private Int breakContinue(Token tok, Int* sentinel, P_CT) { //:breakContinue
         --j;
     }
     throwExcParser(errBreakContinueInvalidDepth);
-
 }
 
 
@@ -3281,7 +3193,7 @@ private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] { //:ta
 
 testable LanguageDefinition* buildLanguageDefinitions(Arena* a) { //:buildLanguageDefinitions
 // Definition of the operators, lexer dispatch and parser dispatch tables for the compiler
-    tabulateOperators();
+    setOperatorsLengths();
     LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
     (*result) = (LanguageDefinition) {
         .dispatchTable = tabulateDispatch(a),
@@ -3444,6 +3356,7 @@ testable ScopeStack* createScopeStack(void) {
     return result;
 }
 
+
 private void mbNewChunk(ScopeStack* scopeStack) { //:mbNewChunk
     if (scopeStack->currChunk->next != null) {
         return;
@@ -3455,7 +3368,8 @@ private void mbNewChunk(ScopeStack* scopeStack) { //:mbNewChunk
     scopeStack->lastChunk = null;
 }
 
-testable void pushLexScope(ScopeStack* scopeStack) {
+
+testable void pushLexScope(ScopeStack* scopeStack) { //:pushLexScope
 // Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within
 // a brand new chunk. Scopes have a simple size policy: 64 elements at first, then 256, then
 // throw exception. This is because only 256 local variables are allowed in one function, and
@@ -3786,7 +3700,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opBitwiseXor,   intOfIntInt, cm); // dummy
     buildOperator(opExponent,     intOfIntInt, cm);
     buildOperator(opExponent,     flOfFlFl, cm);
-    buildOperator(opDataAcc,      flOfFlFl, cm); // a dummy type. _ will be handled separately
+    buildOperator(opAccessor,     flOfFlFl, cm); // a dummy type. @ will be handled separately
     buildOperator(opBitwiseOr,    intOfIntInt, cm); // dummy
     buildOperator(opBoolOr,       flOfFl, cm); // dummy
 }
@@ -4847,7 +4761,7 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 // Consumes the whole type assignment right side, or the whole function signature
 // Data format: see "Type expression data format"
 // Precondition: we are 1 past the tokAssignmentRight token, or tokParamList token
-    StackInt* params = cm->stateForTypes->params;
+    //StackInt* params = cm->stateForTypes->params;
     cm->stateForTypes->frames->len = 0;
 
     Int sentinel = cm->i + toks[cm->i - 1].pl2; // we get the length from the tokAssignmentRight
@@ -5186,9 +5100,6 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 //}}}
 //}}}
-//{{{ Interpreter
-
-//}}}
 //{{{ Utils for tests & debugging
 
 #ifdef TEST
@@ -5231,12 +5142,12 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 
 // Must agree in order with token types in tl.internal.h
 const char* tokNames[] = {
-    "Int", "Long", "Double", "Bool", "String", "~", "misc",
-    "word", "Type", ":kwarg", "operator", "_acc",
-    "stmt", "()", ".call", "TypeCall", "paramList",
+    "Int", "Long", "Double", "Bool", "String", "_", "misc",
+    "word", "Type", ":kwarg", "operator", "@acc",
+    "stmt", "()", "TypeCall", "paramList",
     "...=", "=...", "alias", "assert", "breakCont",
     "iface", "import", "return",
-    "{}", "^{}", "try{", "catch{", "finally{",
+    "{}", "[fn]", "try{", "catch{", "finally{",
     "if{", "match{", "ei", "else", "impl{", "for{", "each{"
 };
 
@@ -5265,7 +5176,7 @@ int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
 // differing token otherwise
     if (a.stats.wasLexerError != b.stats.wasLexerError
-            || (!endsWith(a.stats.errMsg, b.stats.errMsg))) {
+            || !endsWith(a.stats.errMsg, b.stats.errMsg)) {
         return -1;
     }
     int commonLength = a.tokens.len < b.tokens.len ? a.tokens.len : b.tokens.len;

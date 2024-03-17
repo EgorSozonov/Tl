@@ -227,55 +227,53 @@ typedef struct { // :Token
 #define tokDouble       2
 #define tokBool         3  // pl2 = value (1 or 0)
 #define tokString       4
-#define tokTilde        5  // marks up to 2 anonymous params in a lambda. pl1 = tilde count
+#define tokUnderscore   5  // marks up to 2 anonymous params in a lambda. pl1 = underscore count
 #define tokMisc         6  // pl1 = see the misc* constants
 
 #define tokWord         7  // pl2 = nameId (index in the string table)
 #define tokTypeName     8  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg        9  // pl2 = same as tokWord. The ":argName"
-#define tokUnaryOper   10  // pl1 = OperatorType, one of the "opT" constants below
+#define tokOperator    10  // pl1 = OperatorType, one of the "opT" constants below
 #define tokFieldAcc    11  // pl2 = nameId
 
 // Statement or subexpr span types. pl2 = count of inner tokens
 #define tokStmt        12  // firstSpanTokenType
 #define tokParens      13  // subexpressions and struct/sum type instances
-#define tokCall        14  // pl1 = nameId, index in the string table. pl2 > 0 if prefix call.
-                           // Includes non-prefix operators: for them, pl1 = opT and pl2 = 0
-#define tokTypeCall    15  // pl1 = nameId of type. Either a type call or a type constructor
-#define tokParamList   16  // Parameter lists, ended with `|` */
-#define tokAssignLeft  17  // pl1 == 1 iff reassignment, pl1 == 2 iff type assignment,
-                           // pl1 == (BIG + opType) iff mutation. If pl2 == 0 then
-                           // pl1 = nameId for the single word on the left (and it's an
-                           // assignment of a var, i.e. neither reassignment/mut nor type)
-#define tokAssignRight 18  // Right-hand side of assignment
-#define tokAlias       19
-#define tokAssert      20
-#define tokBreakCont   21  // pl1 >= BIG iff it's a continue
-#define tokTrait       22
-#define tokImport      23  // For test files and package decls
-#define tokReturn      24
+#define tokTypeCall    14  // pl1 = nameId of type. Either a type call or a type constructor
+#define tokParamList   15  // Parameter lists, ended with `=>`
+#define tokAssignLeft  16  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
+                           // If pl2 == 0 then pl1 = nameId for the single word on the left (and
+                           // it's an assignment of a var, i.e. neither reassignment/mut nor type)
+#define tokAssignRight 17  // Right-hand side of assignment
+#define tokAlias       18
+#define tokAssert      19
+#define tokBreakCont   20  // pl1 >= BIG iff it's a continue
+#define tokTrait       21
+#define tokImport      22  // For test files and package decls
+#define tokReturn      23
 
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
-#define tokScope       25  // denoted by {}. firstScopeTokenType
-#define tokFn          26  // `^{ a Int => String | body}`
-#define tokTry         27  // `try {`
-#define tokCatch       28  // `catch MyExc e {`
-#define tokDefer       29  // `defer { `
+#define tokScope       24  // denoted by {}. firstScopeTokenType
+#define tokFn          25  // `[a Int -> Str => body]`
+#define tokTry         26  // `try {`
+#define tokCatch       27  // `catch MyExc e {`
+#define tokDefer       28  // `defer { `
 
 // Resumable core forms
-#define tokIf          30  // `if ... {`
-#define tokMatch       31  // `match ... {` pattern matching on sum type tag
-#define tokElseIf      32  // `ei ... {`
-#define tokElse        33  // `else {`
-#define tokImpl        34
-#define tokFor         35
-#define tokEach        36
+#define tokIf          29  // `if ... {`
+#define tokMatch       30  // `match ... {` pattern matching on sum type tag
+#define tokElseIf      31  // `ei ... {`
+#define tokElse        32  // `else {`
+#define tokImpl        33
+#define tokFor         34
+#define tokEach        35
 
 #define topVerbatimTokenVariant tokMisc
 #define topVerbatimType    tokString
 #define firstSpanTokenType tokStmt
 #define firstScopeTokenType tokScope
 #define firstResumableSpanTokenType tokIf
+#define countSyntaxForms (tokEach + 1)
 
 
 // List of keywords that don't correspond directly to a token.
@@ -399,15 +397,14 @@ typedef struct { // :OpDef
 #define opGreaterTh        33 // >
 #define opNullCoalesce     34 // ?:   null coalescing operator
 #define opQuestionMark     35 // ?    nullable type operator
-#define opBitwiseXor       36 // ^.   bitwise XOR
-#define opExponent         37 // ^    exponentiation
-#define opDataAcc          38 // _    array accessor
+#define opAccessor         36 // @    collection data accessor
+#define opBitwiseXor       37 // ^.   bitwise XOR
+#define opExponent         38 // ^    exponentiation
 #define opBitwiseOr        39 // ||.  bitwise or
 #define opBoolOr           40 // ||   logical or
 
 #define countOperators     41
 
-#define countSyntaxForms (tokEach + 1)
 
 typedef struct Compiler Compiler;
 

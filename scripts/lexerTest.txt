@@ -11,6 +11,6 @@ gcc -g3 --std=c2x -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-er
 -Werror=int-conversion -fstrict-flex-arrays=3 \
 -Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
 -iquote src -iquote test test/lexerTest.c src/tl.c \
--o $DEBUGDIR/lexerTest \
+-o $DEBUGDIR/tl/lexerTest \
 -DLEXER_TEST -DTEST \
--lm && $DEBUGDIR/lexerTest
+-lm && $DEBUGDIR/tl/lexerTest

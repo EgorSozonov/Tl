@@ -678,7 +678,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple function definition 1"),
-            s("newFn = ^{x Int y Bool | a = x}"),
+            s("newFn = [x Int y Bool => a = x]"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,             .pl2 = 7 },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
