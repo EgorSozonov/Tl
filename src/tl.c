@@ -1231,7 +1231,7 @@ const int operatorStartSymbols[13] = {
 const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinallyfor"
                             "ifimplimportifacematchpubreturntruetry"
                             // reserved words end here
-                            "IntLongDoubleBoolStrVoidFLADRecEnumTuPromiselencapf1f2printprintErr"
+                            "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2printprintErr"
                             "math:pimath:eTU"
 #ifdef TEST
                             "foobarinner"
@@ -1248,7 +1248,7 @@ const Int standardStringLens[] = {
      5, 3, 6, 4, 3, // try
      // reserved words end here
      3, 4, 6, 4, 3, // Str(ing)
-     4, 1, 1, 1, 1, // D
+     4, 1, 1, 5, 1, // D
      3, 4, 2, 7, 3, // len
      3, 2, 2, 5, 8, // printErr
      7, 6, 1, 1, // U

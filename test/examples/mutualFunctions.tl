@@ -1,13 +1,13 @@
-foo = ^{s String flag Bool => Int |
-    if { flag => return $s }
-    else { return s .getLength }
-}
+foo = [s Str flag Bool -> Int =>
+    if  flag { return s$ }
+    else { return getLength s }
+]
 
-getLength = ^{ s String => Int |
-    return s .foo true
-}
+getLength = [ s Str -> Int =>
+    return foo s true
+]
 
 main = {
-    result = `Hello world` .foo false
-    `Result is ` .print $result
+    result = foo `Hello world` false
+    print `Result is ` result$
 }
