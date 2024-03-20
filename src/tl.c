@@ -3572,7 +3572,7 @@ testable NameId stToNameId(Int a) { //:stToNameId
 private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
 // Creates the built-in types in the proto compiler
     for (int i = strInt; i <= strVoid; i++) {
-        cm->activeBindings[stToNameId(i)] = cm->types.len;
+        cm->activeBindings[stToNameId(i)] = i - strInt;
         pushIntypes(0, cm);
     }
     // List
@@ -3952,15 +3952,9 @@ testable void createOverloads(Compiler* cm) { //:createOverloads
     // Plus you need an int per overloaded name to hold the length of the overloads for that name
 
     cm->overloads.len = 0;
-    if (cm->toplevels.len > 0)  {
-        print("create %d", cm->toplevels.cont[0].sentinelToken)
-    }
     for (Int j = 0; j < countOperators; j++) {
         Int newIndex = createNameOverloads(j, cm);
         cm->activeBindings[j] = -newIndex - 2;
-    }
-    if (cm->toplevels.len > 0)  {
-        print("create 2 %d", cm->toplevels.cont[0].sentinelToken)
     }
     removeDuplicatesInList(&(cm->importNames));
     for (Int j = 0; j < cm->importNames.len; j++) {
@@ -4168,8 +4162,6 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
         Int paramsSentinel = cm->i + fnTk.pl2 + 1;
         cm->i++; // CONSUME the parens token for the param list
         while (cm->i < paramsSentinel) {
-            print("parsin' %d", cm->i)
-
             Token paramName = toks[cm->i];
             Int newEntityId = createEntity(nameOfToken(paramName), cm);
             ++cm->i; // CONSUME the param name
@@ -4233,12 +4225,12 @@ private void pToplevelSignatures(Compiler* cm) {
 
 // Must agree in order with node types in tl.internal.h
 const char* nodeNames[] = {
-    "Int", "Long", "Double", "Bool", "String", "~", "misc",
+    "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "id", "call", "binding", ".fld", "load", "store",
     "{}", "Expr", "...=", "data()",
     "alias", "assert", "breakCont", "catch", "defer",
-    "import", "^{}", "iface", "[]", "return", "try",
-    "for", "forCond", "if", "ei", "impl", "match"
+    "import", "[]", "trait", "return", "try",
+    "for", "forCond", "forStep", "if", "ei", "impl", "match"
 };
 
 
@@ -4684,9 +4676,10 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
             // arg count
             Int mbParamId = typeParamBinarySearch(cTk.pl2, cm);
             if (mbParamId == -1) {
-                print("pushing type name %d when frames len %d count args %d", cTk.pl2, frames->len,
+                print("pushing type id %d for name %d when frames len %d count args %d", 
+                        cm->activeBindings[cTk.pl2], cTk.pl2, frames->len,
                         frames->cont[frames->len - 1].countArgs)
-                push(cTk.pl2, exp);
+                push(cm->activeBindings[cTk.pl2], exp);
             } else {
                 push(-mbParamId - 1, exp); // index of this param in @params
             }
@@ -4739,14 +4732,19 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
         }
     }
     if (isFuncSignature && !metArrow)  { // functions with no return types get the "Void" type
+        VALIDATEP(peek(frames).tp == tyeName, errTypeDefError) 
+        TypeFrame nameFrame = pop(frames); 
+        VALIDATEP(nameFrame.countArgs == 1, errTypeDefParamsError) // name should be followed by 1 type
+        push(nameFrame.nameId, st->names);
+        
         NameId voidName = stToNameId(strVoid);
         push((cm->activeBindings[voidName]), exp);
         print("void type id is %d", cm->activeBindings[voidName]);
         frames->cont[frames->len - 1].countArgs++;
     }
-    tSubexClose(st, cm);
 
-    print("Typedef len %d", exp->len);
+    tSubexClose(st, cm);
+    
     VALIDATEI(exp->len == 1, iErrorInconsistentTypeExpr);
     return exp->cont[0];
 }
@@ -5382,12 +5380,12 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
 
     Int sentinel = typeId + cm->types.cont[typeId] + 1;
     print("printing from %d to %d", typeId + TYPE_PREFIX_LEN, sentinel)
+    typePrintOuter(typeId, cm);
     pushTypeLoc(((TypeLoc){ .currPos = typeId + TYPE_PREFIX_LEN, .sentinel = sentinel }), st);
     top = st->cont;
 
     while (top != nullptr)  {
         Int currT = cm->types.cont[top->currPos];
-        print("currT %d at pos %d", currT, top->currPos)
         top->currPos += 1;
         if (currT > -1) {
             if (currT <= topVerbatimType)  {
@@ -5402,12 +5400,13 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
         } else { // type param
             printf("%d ", -currT - 1);
         }
-        if (top->currPos == top->sentinel) {
+        while (top != nullptr && top->currPos == top->sentinel) {
             popTypeLoc(st);
             top = hasValuesTypeLoc(st) ? st->cont + (st->len - 1) : nullptr;
             printf(")");
         }
     }
+    printf("\n"); 
    /*
     if (hdr.sort == sorRecord) {
         printf("[Record]");

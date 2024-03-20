@@ -318,18 +318,17 @@ typedef struct { // :Token
 #define nodImport      22  // This is for test files only, no need to import anything in main
 #define nodFnDef       23  // pl1 = entityId
 #define nodTrait       24
-#define nodMeta        25
-#define nodReturn      26
-#define nodTry         27
-#define nodFor         28  // pl1 = id of loop (unique within a function) if it needs to
+#define nodReturn      25
+#define nodTry         26
+#define nodFor         27  // pl1 = id of loop (unique within a function) if it needs to
                            // have a label in codegen
-#define nodForCond     29
-#define nodForStep     30  // the "++i" of a for loop
+#define nodForCond     28
+#define nodForStep     29  // the "++i" of a for loop
 
-#define nodIf          31
-#define nodElseIf      32
-#define nodImpl        33
-#define nodMatch       34  // pattern matching on sum type tag
+#define nodIf          30
+#define nodElseIf      31
+#define nodImpl        32
+#define nodMatch       33  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 
