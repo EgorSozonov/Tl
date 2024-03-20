@@ -702,7 +702,7 @@ LexerTestSet* operatorTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokOperator, .pl1 = opBitwiseXor,  .startBt = 19, .lenBts = 2 }
         }))},
         (LexerTest) { .name = s("Operators list"),
-            .input = s("+ - / * ^ && || ' ? >=< >< >=<= $ ++ -- ##"),
+            .input = s("+ - / * ^ && || ' ? >=< >< >=<= $ >> << ##"),
             .expectedOutput = expect(((Token[]){
                 (Token){ .tp = tokStmt,             .pl2 = 16, .startBt = 0, .lenBts = 42 },
                 (Token){ .tp = tokOperator, .pl1 = opPlus, .startBt = 0, .lenBts = 1 },
@@ -718,8 +718,8 @@ LexerTestSet* operatorTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokOperator, .pl1 = opIntervalEx, .startBt = 24, .lenBts = 2 },
                 (Token){ .tp = tokOperator, .pl1 = opIntervalBo, .startBt = 27, .lenBts = 4 },
                 (Token){ .tp = tokOperator, .pl1 = opToString, .startBt = 32, .lenBts = 1 },
-                (Token){ .tp = tokOperator, .pl1 = opIncrement, .startBt = 34, .lenBts = 2 },
-                (Token){ .tp = tokOperator, .pl1 = opDecrement, .startBt = 37, .lenBts = 2 },
+                (Token){ .tp = tokOperator, .pl1 = opShiftR, .startBt = 34, .lenBts = 2 },
+                (Token){ .tp = tokOperator, .pl1 = opShiftL, .startBt = 37, .lenBts = 2 },
                 (Token){ .tp = tokOperator, .pl1 = opSize, .startBt = 40, .lenBts = 2 }
         }))},
         (LexerTest) { .name = s("Operator expression"),

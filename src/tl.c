@@ -80,16 +80,15 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=1, .bytes={ aApostrophe, 0, 0, 0 } }, // '
     { .arity=2, .bytes={ aTimes, aColon, 0, 0}, .assignable = true, .overloadable = true}, // *:
     { .arity=2, .bytes={ aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true},     // *
-    { .arity=1, .bytes={ aPlus, aPlus, 0, 0 }, .assignable = false, .overloadable = true}, // ++
     { .arity=2, .bytes={ aPlus, aColon, 0, 0 }, .assignable = true, .overloadable = true}, // +:
     { .arity=2, .bytes={ aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true},      // +
-    { .arity=1, .bytes={ aMinus, aMinus, 0, 0 }, .assignable = false, .overloadable = true}, // --
     { .arity=2, .bytes={ aMinus, aColon, 0, 0}, .assignable = true, .overloadable = true}, // -:
     { .arity=2, .bytes={ aMinus, 0, 0, 0}, .assignable = true, .overloadable = true },     // -
     { .arity=2, .bytes={ aDivBy, aColon, 0, 0}, .assignable = true, .overloadable = true}, // /:
     { .arity=2, .bytes={ aDivBy, aPipe, 0, 0}, .isTypelevel = true}, // /|
     { .arity=2, .bytes={ aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true}, // /
     { .arity=2, .bytes={ aLT, aLT, aDot, 0} },     // <<.
+    { .arity=2, .bytes={ aLT, aLT,    0, 0}, .overloadable = true }, // <<
     { .arity=2, .bytes={ aLT, aEqual, 0, 0} },     // <=
     { .arity=2, .bytes={ aLT, aGT, 0, 0} },        // <>
     { .arity=2, .bytes={ aLT, 0, 0, 0 } },         // <
@@ -101,6 +100,7 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aGT, aGT, aDot, 0}, .assignable=true, .overloadable = true}, // >>.
     { .arity=3, .bytes={ aGT, aLT, 0, 0 } },       // ><
     { .arity=2, .bytes={ aGT, aEqual, 0, 0 } },    // >=
+    { .arity=2, .bytes={ aGT, aGT, 0, 0 }, .overloadable = true }, // >>
     { .arity=2, .bytes={ aGT, 0, 0, 0 } },         // >
     { .arity=2, .bytes={ aQuestion, aColon, 0, 0 } }, // ?:
     { .arity=1, .bytes={ aQuestion, 0, 0, 0 }, .isTypelevel=true }, // ?
@@ -1507,8 +1507,8 @@ private int64_t calcHexNumber(Compiler* lx) { //:calcHexNumber
 
 private void hexNumber(Arr(Byte) source, Compiler* lx) { //:hexNumber
 // Lexes a hexadecimal numeric literal (integer or floating-point)
-// Examples of accepted expressions: 0xCAFE_BABE, 0xdeadbeef, 0x123_45A
-// Examples of NOT accepted expressions: 0xCAFE_babe, 0x_deadbeef, 0x123_
+// Examples of accepted expressions: 0xCAFE'BABE, 0xdeadbeef, 0x123'45A
+// Examples of NOT accepted expressions: 0xCAFE'babe, 0x'deadbeef, 0x123'
 // Checks that the input fits into a signed 64-bit fixnum.
 // TODO add floating-pointt literals like 0x12FA
     checkPrematureEnd(2, lx);
@@ -1522,7 +1522,8 @@ private void hexNumber(Arr(Byte) source, Compiler* lx) { //:hexNumber
             pushInnumeric(cByte - aALower + 10, lx);
         } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
             pushInnumeric(cByte - aAUpper + 10, lx);
-        } else if (cByte == aUnderscore && (j == lx->stats.inpLength - 1 || isHexDigit(source[j + 1]))) {
+        } else if (cByte == aUnderscore
+                    && (j == lx->stats.inpLength - 1 || isHexDigit(source[j + 1]))) {
             throwExcLexer(errNumericEndUnderscore);
         } else {
             break;
@@ -1783,10 +1784,12 @@ private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartB
             pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
         } else if (keywordTp == keywBreak) {
             wrapInAStatementStarting(startBt, source, lx);
-            pushIntokens((Token){.tp=tokBreakCont, .pl1=0, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
+            pushIntokens((Token){.tp=tokBreakCont, .pl1=0, .pl2=0,
+                          .startBt=realStartBt, .lenBts=5}, lx);
         } else if (keywordTp == keywContinue) {
             wrapInAStatementStarting(startBt, source, lx);
-            pushIntokens((Token){.tp=tokBreakCont, .pl1=1, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
+            pushIntokens((Token){.tp=tokBreakCont, .pl1=1, .pl2=0,
+                         .startBt=realStartBt, .lenBts=5}, lx);
         }
     } else {
         lexReservedWord(keywordTp, realStartBt, lenBts, source, lx);
@@ -1995,19 +1998,21 @@ private void lexLT(Arr(Byte) source, Compiler* lx) { //:lexLT
     }
 }
 
+
 private void lexUnderscore(Arr(Byte) source, Compiler* lx) { //:lexUnderscore
     if ((lx->i < lx->stats.inpLength - 1) && NEXT_BT == aTilde) {
-        pushIntokens((Token){ .tp = tokUnderscore, .pl1 = 2, .startBt = lx->i - 1, .lenBts = 2 }, lx);
+        pushIntokens((Token){ .tp = tokUnderscore, .pl1 = 2,
+                     .startBt = lx->i - 1, .lenBts = 2 }, lx);
         lx->i += 2; // CONSUME the "__"
     } else {
-        pushIntokens((Token){ .tp = tokUnderscore, .pl1 = 1, .startBt = lx->i - 1, .lenBts = 2 }, lx);
+        pushIntokens((Token){ .tp = tokUnderscore, .pl1 = 1,
+                     .startBt = lx->i - 1, .lenBts = 2 }, lx);
         ++lx->i; // CONSUME the "_"
     }
 }
 
+
 private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
-// Tl is not indentation-sensitive, but it is newline-sensitive. Thus, a newline charactor closes
-// the current statement unless it's inside an inline span (i.e. parens or accessor parens)
     pushInnewlines(lx->i, lx);
 
     lx->i++;     // CONSUME the LF
@@ -2018,6 +2023,7 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
         lx->i++; // CONSUME a space or tab
     }
 }
+
 
 private void lexComment(Arr(Byte) source, Compiler* lx) { //:lexComment
 // Tl separates between documentation comments (which live in meta info and are
@@ -3655,12 +3661,10 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opTimesExt,     flOfFlFl, cm); // dummy
     buildOperator(opTimes,        intOfIntInt, cm);
     buildOperator(opTimes,        flOfFlFl, cm);
-    buildOperator(opIncrement,    intOfIntInt, cm);
     buildOperator(opPlusExt,      strOfStrStr, cm); // dummy
     buildOperator(opPlus,         intOfIntInt, cm);
     buildOperator(opPlus,         flOfFlFl, cm);
     buildOperator(opPlus,         strOfStrStr, cm);
-    buildOperator(opDecrement,    intOfIntInt, cm); // dummy
     buildOperator(opMinusExt,     intOfIntInt, cm); // dummy
     buildOperator(opMinus,        intOfIntInt, cm);
     buildOperator(opMinus,        flOfFlFl, cm);
@@ -3669,6 +3673,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opDivBy,        intOfIntInt, cm);
     buildOperator(opDivBy,        flOfFlFl, cm);
     buildOperator(opBitShiftL,    intOfFlFl, cm);  // dummy
+    buildOperator(opShiftL,       intOfIntInt, cm); // dummy
     buildOperator(opLTEQ,         boolOfIntInt, cm);
     buildOperator(opLTEQ,         boolOfFlFl, cm);
     buildOperator(opLTEQ,         boolOfStrStr, cm);
@@ -3692,6 +3697,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opGTEQ,         boolOfIntInt, cm);
     buildOperator(opGTEQ,         boolOfFlFl, cm);
     buildOperator(opGTEQ,         boolOfStrStr, cm);
+    buildOperator(opShiftR,       intOfIntInt, cm);
     buildOperator(opGreaterTh,    boolOfIntInt, cm);
     buildOperator(opGreaterTh,    boolOfFlFl, cm);
     buildOperator(opGreaterTh,    boolOfStrStr, cm);
@@ -4587,6 +4593,7 @@ private TypeId typeCreateFnSignature(StateForTypes* st, Int startInd,
 
 
     const Int tentativeTypeId = cm->types.len;
+    print("createFnSign tentative id %d", tentativeTypeId)
     pushIntypes(0, cm);
 
     typeAddHeader((TypeHeader){
@@ -4601,6 +4608,7 @@ private TypeId typeCreateFnSignature(StateForTypes* st, Int startInd,
         // types of fields
         pushIntypes(exp->cont[j], cm);
     }
+    print("setting length %d",  cm->types.len - tentativeTypeId - 1)
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1; // set the type length
     return mergeType(tentativeTypeId, cm);
 }
@@ -4618,7 +4626,7 @@ private void tSubexClose(StateForTypes* st, Compiler* cm) { //:tSubexClose
         if (frame.tp == tyeName) {
             print("popping name with frame cnt args %d", frame.countArgs)
             printStackInt(exp);
-            VALIDATEP(frame.countArgs == 1, errTypeDefParamsError)
+            VALIDATEP(frame.countArgs == 1, errTypeDefParamsError) // name should be followed by 1 type
             push(frame.nameId, st->names);
             continue;
         }
@@ -4730,15 +4738,15 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
             throwExcParser(errTypeDefError);
         }
     }
-    tSubexClose(st, cm);
     if (isFuncSignature && !metArrow)  { // functions with no return types get the "Void" type
         NameId voidName = stToNameId(strVoid);
         push((cm->activeBindings[voidName]), exp);
-
+        print("void type id is %d", cm->activeBindings[voidName]);
         frames->cont[frames->len - 1].countArgs++;
     }
+    tSubexClose(st, cm);
 
-    print("resulting len %d", exp->len);
+    print("Typedef len %d", exp->len);
     VALIDATEI(exp->len == 1, iErrorInconsistentTypeExpr);
     return exp->cont[0];
 }

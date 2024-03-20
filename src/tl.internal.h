@@ -373,27 +373,27 @@ typedef struct { // :OpDef
 #define opIsNull            9 // '
 #define opTimesExt         10 // *:
 #define opTimes            11 // *
-#define opIncrement        12 // ++
-#define opPlusExt          13 // +:
-#define opPlus             14 // +
-#define opDecrement        15 // --
-#define opMinusExt         16 // -:
-#define opMinus            17 // -
-#define opDivByExt         18 // /:
-#define opIntersect        19 // /|
-#define opDivBy            20 // /
-#define opBitShiftL        21 // <<.
-#define opLTEQ             22 // <=
-#define opComparator       23 // <>
-#define opLessTh           24 // <
-#define opRefEquality      25 // ===
-#define opEquality         26 // ==
-#define opIntervalBo       27 // >=<= inclusive interval check
-#define opIntervalR        28 // ><=  right-inclusive interval check
-#define opIntervalL        29 // >=<  left-inclusive interval check
-#define opBitShiftR        30 // >>.  unsigned right bit shift
-#define opIntervalEx       31 // ><   exclusive interval check
-#define opGTEQ             32 // >=
+#define opPlusExt          12 // +:
+#define opPlus             13 // +
+#define opMinusExt         14 // -:
+#define opMinus            15 // -
+#define opDivByExt         16 // /:
+#define opIntersect        17 // /| type-level trait intersection ?
+#define opDivBy            18 // /
+#define opBitShiftL        19 // <<.
+#define opShiftL           20 // <<   shift smth, e.g. an iterator, left
+#define opLTEQ             21 // <=
+#define opComparator       22 // <>
+#define opLessTh           23 // <
+#define opRefEquality      24 // ===
+#define opEquality         25 // ==
+#define opIntervalBo       26 // >=<= inclusive interval check
+#define opIntervalR        27 // ><=  right-inclusive interval check
+#define opIntervalL        28 // >=<  left-inclusive interval check
+#define opBitShiftR        29 // >>.  unsigned right bit shift
+#define opIntervalEx       30 // ><   exclusive interval check
+#define opGTEQ             31 // >=
+#define opShiftR           32 // >>   shift right, e.g. an iterator
 #define opGreaterTh        33 // >
 #define opNullCoalesce     34 // ?:   null coalescing operator
 #define opQuestionMark     35 // ?    nullable type operator
