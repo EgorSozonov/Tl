@@ -1205,6 +1205,7 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 void printParser(Compiler* cm, Arena* a);
 void typePrint(TypeId typeId, Compiler* cm);
 private void printStackInt(StackInt* st);
+void typePrintTypeFrames(StackTypeFrame* st);
 #endif
 
 //}}}
@@ -4616,7 +4617,7 @@ private void tSubexClose(StateForTypes* st, Compiler* cm) { //:tSubexClose
     while (frames->len > 0 && peek(frames).sentinel == cm->i) {
         TypeFrame frame = pop(frames);
         if (frame.tp == tyeName) {
-            print("popping name with frame cnt args %d", frame.countArgs)
+            print("popping name with frame cnt args %d i = %d", frame.countArgs, cm->i)
             printStackInt(exp);
             VALIDATEP(frame.countArgs == 1, errTypeDefParamsError) // name should be followed by 1 type
             push(frame.nameId, st->names);
@@ -4641,9 +4642,9 @@ private void tSubexClose(StateForTypes* st, Compiler* cm) { //:tSubexClose
             //VALIDATEP(cm->typeParams->cont[frame.nameId + 1] == frame.countArgs,
             //          errTypeConstructorWrongArity)
         }
-        if (frame.tp != tyeName && hasValues(frames) && peek(frames).tp == tyeName)  {
-            frames->cont[frames->len - 1].countArgs += 1;
-        }
+//~        if (frame.tp != tyeName && hasValues(frames) && peek(frames).tp == tyeName)  {
+//~            frames->cont[frames->len - 1].countArgs += 1;
+//~        }
         exp->cont[startInd] = newTypeId;
         exp->len = startInd + 1;
     }
@@ -4661,7 +4662,7 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
     exp->len = 0;
     params->len = 0;
     Bool metArrow = false;
-    Bool isFuncSignature = hasValues(frames) && peek(frames).tp == sorFunction;
+    Bool isFnSignature = hasValues(frames) && peek(frames).tp == sorFunction;
 
     while (cm->i < sentinel) {
         tSubexClose(st, cm);
@@ -4676,9 +4677,10 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
             // arg count
             Int mbParamId = typeParamBinarySearch(cTk.pl2, cm);
             if (mbParamId == -1) {
-                print("pushing type id %d for name %d when frames len %d count args %d", 
+                print("pushing type id %d for name %d when frames len %d count args %d",
                         cm->activeBindings[cTk.pl2], cTk.pl2, frames->len,
                         frames->cont[frames->len - 1].countArgs)
+                typePrintTypeFrames(frames);
                 push(cm->activeBindings[cTk.pl2], exp);
             } else {
                 push(-mbParamId - 1, exp); // index of this param in @params
@@ -4693,8 +4695,9 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
                 } else if (nameId == stToNameId(strRec)) { // inline types  `(id Int name String)`
                     push(((TypeFrame){ .tp = sorRecord, .sentinel = newSent}), frames);
                 } else { // ordinary type call
-                    Int typeId = cm->activeBindings[cTk.pl2];
+                    Int typeId = cm->activeBindings[nameId];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
+                    print("pushint type call %d", typeId)
                     push(((TypeFrame){ .tp = sorTypeCall, .nameId = typeId, .sentinel = newSent}),
                          frames);
                 }
@@ -4711,19 +4714,25 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall, errTypeDefError)
             const Int nameSentinel = calcSentinel(nextTk, cm->i);
 
-            print("encountered name %d", cTk.pl2)
+            print("encountered name %d i is %d next tok sentinel is %d", cTk.pl2, cm->i, nameSentinel)
             push(((TypeFrame){.tp = tyeName, .nameId = cTk.pl2, .sentinel = nameSentinel,
                               .countArgs = 0 }),
                     frames);
 
         } else if (cTk.tp == tokMisc && cTk.pl1 == miscArrow) { // ->, the function return type
-            VALIDATEP(hasValues(frames) && cm->i < sentinel, errTypeDefError)
             VALIDATEP(!metArrow, errTypeFnSingleReturnType)
             TypeFrame frame = peek(frames);
             VALIDATEP(frame.tp == sorFunction, errTypeDefError)
 
-            untt nextTp = cm->tokens.cont[cm->i].tp;
-            VALIDATEP(nextTp == tokTypeName || nextTp == tokTypeCall, errTypeDefError)
+            if (cm->i == sentinel) {
+                NameId voidName = stToNameId(strVoid);
+                push((cm->activeBindings[voidName]), exp);
+                print("void type id is %d", cm->activeBindings[voidName]);
+                frames->cont[frames->len - 1].countArgs++;
+            } else {
+                untt nextTp = cm->tokens.cont[cm->i].tp;
+                VALIDATEP(nextTp == tokTypeName || nextTp == tokTypeCall, errTypeDefError)
+            }
 
             metArrow = true;
         } else {
@@ -4731,20 +4740,11 @@ private TypeId typeDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { /
             throwExcParser(errTypeDefError);
         }
     }
-    if (isFuncSignature && !metArrow)  { // functions with no return types get the "Void" type
-        VALIDATEP(peek(frames).tp == tyeName, errTypeDefError) 
-        TypeFrame nameFrame = pop(frames); 
-        VALIDATEP(nameFrame.countArgs == 1, errTypeDefParamsError) // name should be followed by 1 type
-        push(nameFrame.nameId, st->names);
-        
-        NameId voidName = stToNameId(strVoid);
-        push((cm->activeBindings[voidName]), exp);
-        print("void type id is %d", cm->activeBindings[voidName]);
-        frames->cont[frames->len - 1].countArgs++;
-    }
+
+    VALIDATEP(metArrow || !isFnSignature, errTypeDefParamsError) // func sign must contain the "->"
 
     tSubexClose(st, cm);
-    
+
     VALIDATEI(exp->len == 1, iErrorInconsistentTypeExpr);
     return exp->cont[0];
 }
@@ -5379,19 +5379,21 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
     TypeLoc* top = nullptr;
 
     Int sentinel = typeId + cm->types.cont[typeId] + 1;
-    print("printing from %d to %d", typeId + TYPE_PREFIX_LEN, sentinel)
+    print("printing from %d to %d size of is %d", typeId + TYPE_PREFIX_LEN, sentinel, sizeof(TypeHeader))
     typePrintOuter(typeId, cm);
     pushTypeLoc(((TypeLoc){ .currPos = typeId + TYPE_PREFIX_LEN, .sentinel = sentinel }), st);
     top = st->cont;
 
-    while (top != nullptr)  {
+    Int countIters = 0;
+    while (top != nullptr && countIters < 10)  {
         Int currT = cm->types.cont[top->currPos];
         top->currPos += 1;
         if (currT > -1) {
             if (currT <= topVerbatimType)  {
-                printf("%s ", nodeNames[currT]);
+                printf("%s ", currT != tokUnderscore ? nodeNames[currT] : "Void");
             } else {
                 Int newSentinel = currT + cm->types.cont[currT] + 1;
+                print("met a non verbatim type currT %d, new sentinel is %d", currT, newSentinel)
                 pushTypeLoc(
                     ((TypeLoc){ .currPos = currT + TYPE_PREFIX_LEN, .sentinel = newSentinel}), st);
                 top = st->cont + (st->len - 1);
@@ -5405,8 +5407,10 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
             top = hasValuesTypeLoc(st) ? st->cont + (st->len - 1) : nullptr;
             printf(")");
         }
+
+        countIters += 1;
     }
-    printf("\n"); 
+    printf("\n");
    /*
     if (hdr.sort == sorRecord) {
         printf("[Record]");
@@ -5481,6 +5485,23 @@ void typePrint(Int typeId, Compiler* cm) { //:typePrint
     }
     print(")");
     */
+}
+
+void typePrintTypeFrames(StackTypeFrame* st) { //:typePrintTypeFrames
+    print(">>> Type frames cnt %d", st->len);
+    for (Int j = 0; j < st->len; j += 1) {
+        TypeFrame fr = st->cont[j];
+        if (fr.tp == sorFunction) {
+            printf("Func ");
+        } else if (fr.tp == tyeName) {
+            printf("Name ");
+        } else if (fr.tp == sorTypeCall) {
+            printf("TypeCall ");
+        }
+        printf("countArgs %d ", fr.countArgs);
+        printf("sent %d \n", fr.sentinel);
+    }
+    printf(">>>\n\n");
 }
 
 

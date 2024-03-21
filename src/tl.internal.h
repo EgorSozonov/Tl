@@ -269,7 +269,7 @@ typedef struct { // :Token
 #define tokEach        35
 
 #define topVerbatimTokenVariant tokMisc
-#define topVerbatimType    tokString
+#define topVerbatimType    tokUnderscore
 #define firstSpanTokenType tokStmt
 #define firstScopeTokenType tokScope
 #define firstResumableSpanTokenType tokIf
