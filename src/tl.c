@@ -1356,7 +1356,7 @@ private untt nameOfToken(Token tk) { //:nameOfToken
 
 
 testable untt nameOfStandard(Int strId) { //:nameOfStandard
-// Builds a name (id + length) for a standardString after "strFirstNonreserved"
+// Builds a name (nameId + length) for a standardString after "strFirstNonreserved"
     Int length = standardStringLens[strId];
     Int nameId = strId + countOperators;
     return ((untt)length << 24) + (untt)(nameId);
@@ -3575,6 +3575,12 @@ testable NameId stToNameId(Int a) { //:stToNameId
 }
 
 
+private untt stToFullName(Int sta, Compiler* cm) { //:stToFullName
+// Converts a standard string to its nameId. Doesn't work for reserved words, obviously
+    return cm->stringTable->cont[sta + countOperators];
+}
+
+
 private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
 // Creates the built-in types in the proto compiler
     for (int i = strInt; i <= strVoid; i++) {
@@ -3583,10 +3589,11 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
     }
     // List
     Int typeIndL = cm->types.len;
-    pushIntypes(6, cm);
-    typeAddHeader((TypeHeader){.sort = sorRecord, .nameAndLen = (1 << 24) + stToNameId(strL),
-                                 .arity = 2, .tyrity = 1}, cm);
-    pushIntypes(0, cm); // the arity of the type param
+    print("typeIndL %d storing %d", typeIndL, stToNameId(strL))
+    pushIntypes(7, cm); // 2 for the header, 1 for param tyrity, and 4 for the field names & types
+    typeAddHeader((TypeHeader){.sort = sorRecord, .nameAndLen = stToFullName(strL, cm),
+                  .arity = 2, .tyrity = 1}, cm);
+    pushIntypes(0, cm); // tyrity of the type param
     pushIntypes(stToNameId(strLen), cm);
     pushIntypes(stToNameId(strCap), cm);
     pushIntypes(stToNameId(strInt), cm);
@@ -3595,18 +3602,18 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
 
     // Array
     Int typeIndA = cm->types.len;
-    pushIntypes(4, cm);
-    typeAddHeader((TypeHeader){.sort = sorRecord, .nameAndLen = (1 << 24) + stToNameId(strA),
+    pushIntypes(5, cm);
+    typeAddHeader((TypeHeader){.sort = sorRecord, .nameAndLen = stToFullName(strArray, cm),
                                  .arity = 1, .tyrity = 1}, cm);
     pushIntypes(0, cm); // the arity of the type param
     pushIntypes(stToNameId(strLen), cm);
     pushIntypes(stToNameId(strInt), cm);
-    cm->activeBindings[stToNameId(strA)] = typeIndA;
+    cm->activeBindings[stToNameId(strArray)] = typeIndA;
 
     // Tuple
     Int typeIndTu = cm->types.len;
-    pushIntypes(6, cm);
-    typeAddHeader((TypeHeader){.sort = sorRecord, .nameAndLen = (2 << 24) + stToNameId(strTu),
+    pushIntypes(8, cm);
+    typeAddHeader((TypeHeader){.sort = sorRecord, .nameAndLen = stToFullName(strTu, cm),
                                  .arity = 2, .tyrity = 2}, cm);
     pushIntypes(0, cm); // the arities of the type params
     pushIntypes(0, cm);
@@ -4496,18 +4503,14 @@ private TypeId tCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame frame,
     const Int sentinel = exp->len;
 
     typeAddHeader((TypeHeader){
-        .sort = sorTypeCall, .tyrity = frame.countArgs, .arity = 0, .nameAndLen = 0}, cm);
-
-    for (Int j = startInd + 1; j < sentinel; j += 1) {
-        Int tye = exp->cont[j - 1] >> 24;
-        if (tye <= sorMaxType) {
-            pushIntypes(exp->cont[j] & LOWER24BITS, cm);
-        } else if (tye == tyeParam)  {
-            pushIntypes((-(exp->cont[j] & LOWER24BITS) - 1), cm);
-        }
+        .sort = sorTypeCall, .tyrity = frame.countArgs, .arity = 0, .nameAndLen = typeId}, cm);
+    for (Int j = startInd; j < sentinel; j += 1) {
+        pushIntypes(exp->cont[j], cm);
     }
 
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
+    print("\nTypeCall result:", startInd, sentinel);
+    printIntArrayOff(tentativeTypeId, cm->types.len - tentativeTypeId, cm->types.cont);
     return mergeType(tentativeTypeId, cm);
 }
 
@@ -4562,18 +4565,14 @@ private TypeId tCreateFnSignature(StateForTypes* st, Int startInd,
     const Int countNames = tSubexValidateNamesUnique(st, startInd, cm);
     const StackInt* subParams = tDetermineUniqueParamsInDef(st, startInd, cm);
 
-    print("arity %d countname %d", arity, countNames);
     VALIDATEP(arity == countNames, errTypeDefCountNames);
     Int tyrity = subParams->len;
 
     const Int tentativeTypeId = cm->types.len;
-    print("createFnSign tentative id %d tyrity %d startInd %d sent %d", tentativeTypeId, tyrity,
-            startInd, sentinel)
     pushIntypes(0, cm);
 
     typeAddHeader((TypeHeader){
-        .sort = sorFunction, .tyrity = tyrity, .arity = arity,
-        .nameAndLen = fnNameAndLen}, cm);
+        .sort = sorFunction, .tyrity = tyrity, .arity = arity, .nameAndLen = fnNameAndLen}, cm);
     for (Int j = 0; j < tyrity; j += 1) {
         pushIntypes(st->params->cont[st->subParams->cont[j]], cm); // tyrities of the params used in
                                                                    // this subexpression
@@ -4583,7 +4582,6 @@ private TypeId tCreateFnSignature(StateForTypes* st, Int startInd,
         // types of fields
         pushIntypes(exp->cont[j], cm);
     }
-    print("setting length %d",  cm->types.len - tentativeTypeId - 1)
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1; // set the type length
     return mergeType(tentativeTypeId, cm);
 }
@@ -4600,11 +4598,9 @@ private void tSubexClose(StateForTypes* st, Compiler* cm) { //:tSubexClose
         TypeFrame frame = pop(frames);
 
         Int startInd = exp->len - frame.countArgs;
-        print("calc startInd len %d - countARgs %d", exp->len, frame.countArgs)
         Int newTypeId = -1;
         if (frame.tp == sorFunction) {
             newTypeId = tCreateFnSignature(st, startInd, -1, cm);
-            print("tCreateFnSignature");
             tPrint(newTypeId, cm);
 
         } else if (frame.tp == sorRecord) {
@@ -4657,7 +4653,6 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
             push(cTk.pl2, st->names);
             continue;
         } else if (cTk.tp == tokMisc) { // "->", function return type marker
-            print("meeting an arrow pl2 %d sort of parent %d", cTk.pl2, peek(frames).tp);
             VALIDATEP(cTk.pl1 == miscArrow && peek(frames).tp == sorFunction, errTypeDefError);
             VALIDATEP(!metArrow, errTypeFnSingleReturnType)
             metArrow = true;
@@ -4680,9 +4675,6 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
             // arg count
             Int mbParamId = typeParamBinarySearch(cTk.pl2, cm);
             if (mbParamId == -1) {
-                print("pushing typeid %d for name %d when frames len %d count args %d",
-                        cm->activeBindings[cTk.pl2], cTk.pl2, frames->len,
-                        frames->cont[frames->len - 1].countArgs)
                 tPrintTypeFrames(frames);
                 push(cm->activeBindings[cTk.pl2], exp);
 
@@ -4696,7 +4688,6 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
             Token typeFuncTk = cm->tokens.cont[cm->i];
 
             Int nameId = typeFuncTk.pl2 & LOWER24BITS;
-            print("name Id %d at %d", nameId, cm->i - 1)
 
             Int mbParamId = typeParamBinarySearch(nameId, cm);
             Int newSent = calcSentinel(cTk, cm->i - 1);
@@ -4710,7 +4701,6 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
                 } else { // ordinary type call
                     Int typeId = cm->activeBindings[nameId];
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
-                    print("pushing type call %d", typeId)
                     push(((TypeFrame){ .tp = sorTypeCall, .nameId = typeId, .sentinel = newSent}),
                          frames);
                 }
@@ -4725,6 +4715,9 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
     }
 
     VALIDATEP(metArrow || !isFnSignature, errTypeDefParamsError) // func sign must contain the "->"
+
+    print("result before final close");
+    printStackInt(exp);
 
     tSubexClose(st, cm);
 
@@ -5117,11 +5110,16 @@ private void printStackInt(StackInt* st) { //:printStackInt
 }
 
 
-void printName(NameId nameId, Compiler* cm) { //:printName
-    untt unsign = cm->stringTable->cont[nameId];
+void printNameAndLen(untt unsign, Compiler* cm) { //:printNameAndLen
     Int startBt = unsign & LOWER24BITS;
     Int len = (unsign >> 24) & 0xFF;
     fwrite(cm->sourceCode->cont + startBt, 1, len, stdout);
+}
+
+
+void printName(NameId nameId, Compiler* cm) { //:printName
+    untt unsign = cm->stringTable->cont[nameId];
+    printNameAndLen(unsign, cm);
     printf("\n");
 }
 
@@ -5345,14 +5343,19 @@ DEFINE_STACK_HEADER(TypeLoc)
 DEFINE_STACK(TypeLoc)
 
 void tPrintOuter(TypeId currT, Compiler* cm) { //:tPrintOuter
-    print("tPrintOuter");
+// Print the name of the outer type. `[Tu Int Double]` -> `Tu`
     Arr(Int) t = cm->types.cont;
     TypeHeader currHdr = typeReadHeader(currT, cm);
     if (currHdr.sort == sorFunction) {
-        printf("F(");
+        printf("[F ");
     } else if (currHdr.sort == sorTypeCall) {
-        print("here");
-        printName(t[t[currT + TYPE_PREFIX_LEN] + TYPE_PREFIX_LEN], cm);
+//~        print("TypeCall print %d", currT)
+//~        printIntArrayOff(currT, t[currT] + 1, t);
+        const TypeId genericTypeId = currHdr.nameAndLen;
+        const TypeHeader genericHdr = typeReadHeader(genericTypeId, cm);
+        printf("[");
+        printNameAndLen(genericHdr.nameAndLen, cm);
+        printf(" ");
     } else {
         printName(t[currT + TYPE_PREFIX_LEN], cm);
     }
@@ -5360,14 +5363,13 @@ void tPrintOuter(TypeId currT, Compiler* cm) { //:tPrintOuter
 
 
 void tPrint(Int typeId, Compiler* cm) { //:tPrint
-    printf("Printing the type [ind = %d, len = %d]\n", typeId, cm->types.cont[typeId]);
+    //printf("Printing the type [ind = %d, len = %d]\n", typeId, cm->types.cont[typeId]);
     printIntArrayOff(typeId, 6, cm->types.cont);
 
     StackTypeLoc* st = createStackTypeLoc(16, cm->aTmp);
     TypeLoc* top = nullptr;
 
     Int sentinel = typeId + cm->types.cont[typeId] + 1;
-    print("printing from %d to %d", typeId + TYPE_PREFIX_LEN, sentinel)
     tPrintOuter(typeId, cm);
     pushTypeLoc(((TypeLoc){ .currPos = typeId + TYPE_PREFIX_LEN, .sentinel = sentinel }), st);
     top = st->cont;
@@ -5375,13 +5377,13 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
     Int countIters = 0;
     while (top != nullptr && countIters < 10)  {
         Int currT = cm->types.cont[top->currPos];
+    //    print("printLoop currT %d currSentinel = %d", currT, top->sentinel)
         top->currPos += 1;
         if (currT > -1) {
             if (currT <= topVerbatimType)  {
                 printf("%s ", currT != tokUnderscore ? nodeNames[currT] : "Void");
             } else {
                 Int newSentinel = currT + cm->types.cont[currT] + 1;
-                print("met a non verbatim type currT %d, new sentinel is %d", currT, newSentinel)
                 pushTypeLoc(
                     ((TypeLoc){ .currPos = currT + TYPE_PREFIX_LEN, .sentinel = newSentinel}), st);
                 top = st->cont + (st->len - 1);
@@ -5393,7 +5395,7 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
         while (top != nullptr && top->currPos == top->sentinel) {
             popTypeLoc(st);
             top = hasValuesTypeLoc(st) ? st->cont + (st->len - 1) : nullptr;
-            printf(")");
+            printf("]");
         }
 
         countIters += 1;

@@ -175,7 +175,7 @@ typedef struct {
 #define strVoid      25
 #define strF         26 // F(unction type)
 #define strL         27 // L(ist)
-#define strA         28 // A(rray)
+#define strArray     28
 #define strD         29 // D(ictionary)
 #define strRec       30 // Record
 #define strEnum      31 // Enum
@@ -633,7 +633,7 @@ typedef struct { // :TypeHeader
     Byte sort;
     Byte tyrity; // "tyrity" = type arity, the number of type parameters
     Byte arity;  // for function types, equals arity. For structs, number of fields
-    untt nameAndLen;
+    untt nameAndLen; // startBt and lenBts
 } TypeHeader;
 
 //}}}

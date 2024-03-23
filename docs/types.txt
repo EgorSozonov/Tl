@@ -20,7 +20,6 @@ depth = count of func params + 1
 (function parameter types)(return type)
 
 TypeCall:
-(typeId of the "parent" type)
 (type arguments, which if negative are -1*(paramInd + 1), and if positive are TypeId)
 
 Concrete:
