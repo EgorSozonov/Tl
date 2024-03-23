@@ -1105,7 +1105,7 @@ const char errNumericIntWidthExceeded[]    = "Integer literals must be within th
 const char errPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errPunctuationExtraClosing[]    = "Extra closing punctuation";
 const char errPunctuationOnlyInMultiline[] = "The statement separator is not allowed inside expressions!";
-const char errPunctuationParamList[]       = "The param list separator `=>` must be directly in a statement";
+const char errPunctuationParamList[]       = "The param list separator `;;` must be directly in a statement";
 const char errPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errOperatorUnknown[]            = "Unknown operator";
@@ -1223,11 +1223,11 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = {
 // 2**53
 
 
-const int operatorStartSymbols[13] = {
+const int operatorStartSymbols[14] = {
     aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus,
-    aDivBy, aGT, aQuestion, aAt, aCaret
+    aDivBy, aLT, aGT, aQuestion, aAt, aCaret
     // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
-    // "=" - by lexEqual, "<" by lexLT, "|" by lexPipe
+    // "=" - by lexEqual, "|" by lexPipe, "/" by "lexDivBy"
 };
 const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinallyfor"
                             "ifimplimportifacematchpubreturntruetry"
@@ -1752,19 +1752,18 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
     Int lenBts = lx->i - realStartBt;
     Token newToken = (Token){ .tp = wordType, .pl2 = uniqueStringId,
                              .startBt = realStartBt, .lenBts = lenBts };
-
     if (lx->i < lx->stats.inpLength && CURR_BT == aParenLeft && wordType == tokWord
             && wasCapitalized) {
-        newToken.tp = tokTypeCall;
+        newToken.tp = tokDataAlloc;
         newToken.pl1 = uniqueStringId;
         newToken.pl2 = 0;
-        push(((BtToken){ .tp = tokTypeCall, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
+        push(((BtToken){ .tp = tokDataAlloc, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
              lx->lexBtrack);
         ++lx->i; // CONSUME the opening "(" of the call
     } else if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
         newToken.tp = (wasCapitalized ? tokTypeName : tokWord);
-    } else if (wordType == tokFieldAcc) {
+    } else if (wordType == tokFieldAcc || wordType == tokKwArg) {
         wrapInAStatementStarting(startBt, source, lx);
     }
     pushIntokens(newToken, lx);
@@ -1901,9 +1900,19 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
 
 
 private void lexSemicolon(Arr(Byte) source, Compiler* lx) { //:lexSemicolon
-    if (hasValues(lx->lexBtrack) && peek(lx->lexBtrack).spanLevel != slScope) {
+    Int j = lx->i + 1;
+    VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
+    BtToken top = peek(lx->lexBtrack);
+    if (j < lx->stats.inpLength && NEXT_BT == aSemicolon) {
+        VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
+        setStmtSpanLength(top.tokenInd, lx);
+        lx->tokens.cont[top.tokenInd].tp = tokParamList;
+        pop(lx->lexBtrack);
+        lx->i += 2; // CONSUME the ";;"
+    } else {
+        VALIDATEL(top.spanLevel == slStmt, errPunctuationOnlyInMultiline);
         closeStatement(lx);
-        ++lx->i;  // CONSUME the ;
+        ++lx->i;  // CONSUME the ";"
     }
 }
 
@@ -1962,10 +1971,6 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     lx->i = j; // CONSUME the operator
 }
 
-private bool isOperatorTypeful(Int opType) {
-    return false;
-}
-
 
 private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
 // The humble "=" can be the definition statement, the marker "=>" which ends a parameter list,
@@ -1985,17 +1990,6 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
     } else {
         processAssignment(0, 0, lx);
         lx->i++; // CONSUME the =
-    }
-}
-
-
-private void lexLT(Arr(Byte) source, Compiler* lx) { //:lexLT
-// Handles "<-" (reassignment) as well as operators
-    if ((lx->i + 1 < lx->stats.inpLength) && NEXT_BT == aMinus) {
-        processAssignment(1, 0, lx);
-        lx->i += 2; // CONSUME the "<-"
-    } else {
-        lexOperator(source, lx);
     }
 }
 
@@ -2091,12 +2085,18 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) {
 }
 
 
-private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) {
+private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) { //:lexCurlyLeft
+// Handles scopes "{}" and functions "{{...}}"
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
-    closeStatement(lx);
-    openPunctuation(tokScope, slScope, lx->i, lx);
-    ++lx->i; // CONSUME the left bracket
+    if (source[j] == aCurlyLeft)  {
+        openPunctuation(tokFn, slScope, lx->i, lx);
+        lx->i += 2; // CONSUME the `{{`
+    } else {
+        closeStatement(lx);
+        openPunctuation(tokScope, slScope, lx->i, lx);
+        lx->i += 1; // CONSUME the left bracket
+    }
 }
 
 
@@ -2105,33 +2105,44 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
 // 1. [scope stmt] - if it's just a scope nested within another scope or a function
 // 2. [coreForm stmt] - eg. if it's closing the function body
 // 3. [coreForm scope stmt] - eg. if it's closing the {} part of an "if"
-    Int startInd = lx->i;
+    const Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
 
     // since a closing curly is closing something with statements inside it, like a lex scope
-    // or a core syntax form, we need to close that statement before closing its parent
-    if (top.spanLevel == slStmt && bt->cont[bt->len - 1].spanLevel <= slDoubleScope) {
+    // or a function, we need to close that statement before closing its parent
+    if (top.spanLevel == slStmt) {
+        VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel <= slDoubleScope,
+                  errPunctuationUnmatched);
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
-    setSpanLengthLexer(top.tokenInd, lx);
 
-    if (top.spanLevel == slScope && hasValues(bt) && peek(bt).spanLevel == slDoubleScope)  {
-        top = pop(bt);
+    if (lx->i + 1 < lx->stats.inpLength && NEXT_BT == aCurlyRight) { // function end "}}"
+        VALIDATEL(top.tp == tokFn, errPunctuationUnmatched);
         setSpanLengthLexer(top.tokenInd, lx);
-    }
+        lx->i += 2; // CONSUME the closing "}}"
+    } else { // scope end
+        VALIDATEL(top.tp == tokScope, errPunctuationUnmatched);
+        setSpanLengthLexer(top.tokenInd, lx);
 
+        if (top.spanLevel == slScope && hasValues(bt) && peek(bt).spanLevel == slDoubleScope)  {
+            top = pop(bt);
+            setSpanLengthLexer(top.tokenInd, lx);
+        }
+
+        lx->i += 1; // CONSUME the closing "}"
+    }
     if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
-    lx->i++; // CONSUME the closing "}"
 }
 
 
 private void lexBracketLeft(Arr(Byte) source, Compiler* lx) { //:lexBracketLeft
-    push(((BtToken){ .tp = tokFn, .tokenInd = lx->tokens.len, .spanLevel = slScope }),
+    wrapInAStatement(source, lx);
+    push(((BtToken){ .tp = tokTypeCall, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
             lx->lexBtrack);
-    pushIntokens((Token){ .tp = tokFn, .pl1 = slScope, .startBt = lx->i, .lenBts = 0 }, lx);
+    pushIntokens((Token){ .tp = tokTypeCall, .pl1 = slSubexpr, .startBt = lx->i, .lenBts = 0 }, lx);
     lx->i += 1; // CONSUME the `[`
 }
 
@@ -2226,7 +2237,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] { //:tabulateDispatch
     }
     p[aDot] = &lexDot;
     p[aEqual] = &lexEqual;
-    p[aLT] = &lexLT; // to handle the reassignment `<-`
     p[aUnderscore] = &lexUnderscore;
 
     for (Int i = sizeof(operatorStartSymbols)/4 - 1; i > -1; i--) {
@@ -5150,12 +5160,13 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "word", "Type", ":kwarg", "operator", "@acc",
-    "stmt", "()", "TypeCall", "paramList",
+    "stmt", "()", "[]", "paramList", "data",
     "...=", "=...", "alias", "assert", "breakCont",
     "iface", "import", "return",
     "{}", "[fn]", "try{", "catch{", "finally{",
     "if{", "match{", "ei", "else", "impl{", "for{", "each{"
 };
+
 
 Int pos(Compiler* lx) {
     return lx->i - sizeof(standardText) + 1;

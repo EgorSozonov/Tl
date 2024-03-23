@@ -20,7 +20,7 @@ typedef struct {
     LexerTest* tests;
 } LexerTestSet;
 
-//{{{ Code
+//{{{ Utils
 
 #define S   70000000 // A constant larger than the largest allowed file size. Separates parsed
                      // names from others
@@ -46,7 +46,7 @@ private Compiler* buildExpectedLexer(Compiler* proto, Arena *a, int totalTokens,
             }
         } else if (tok.tp == tokAssignLeft && tok.pl2 == 0) { // the short form of an assignment
             tok.pl1 += stText.firstParsed;
-        } else if (tok.tp == tokWord || tok.tp == tokTypeCall || tok.tp == tokWord) {
+        } else if (tok.tp == tokDataAlloc) {
             if (tok.pl1 < S) { // parsed words
                 tok.pl1 += stText.firstParsed;
             } else { // built-in words
@@ -565,11 +565,11 @@ LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokWord, .pl2 = 1, .startBt = 10, .lenBts = 3 }
         }))},
         (LexerTest) { .name = s("Scopes nested"),
-            .input = s("[car;\n"
+            .input = s("{car;\n"
                        "{other car}\n"
-                       "cdr]"),
+                       "cdr}"),
             .expectedOutput = expect(((Token[]){
-                (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 8, .startBt = 0, .lenBts = 22 },
+                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 8, .startBt = 0, .lenBts = 22 },
 
                 (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 1, .lenBts = 3 },
                 (Token){ .tp = tokWord,  .pl2 = 0, .startBt = 1, .lenBts = 3 },  // car
@@ -622,32 +622,32 @@ LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokWord, .pl2 = 3, .startBt = 15, .lenBts = 3 } // bcj
         }))},
         (LexerTest) { .name = s("Punctuation all types"),
-            .input = s("[\n"
+            .input = s("{{\n"
                        "    b asdf d Ef (:y z)\n"
                        "    {\n"
                        "        bcjk( m b )\n"
                        "    }\n"
-                       "]"
+                       "}}"
             ),
             .expectedOutput = expect(((Token[]){
-                (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 14,  .startBt = 0,  .lenBts = 58 },
+                (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 14,  .startBt = 0,  .lenBts = 59 },
 
-                (Token){ .tp = tokStmt,      .pl2 = 7,   .startBt = 6,  .lenBts = 18 },
-                (Token){ .tp = tokWord,      .pl2 = 0,   .startBt = 6,  .lenBts = 1 }, //b
-                (Token){ .tp = tokWord,      .pl2 = 1,   .startBt = 8, .lenBts = 4 },  //asdf
-                (Token){ .tp = tokWord,      .pl2 = 2,   .startBt = 13, .lenBts = 1 }, // d
-                (Token){ .tp = tokTypeName,  .pl2 = 3,   .startBt = 15, .lenBts = 2 }, // Ef
-                (Token){ .tp = tokParens,    .pl2 = 2,   .startBt = 18, .lenBts = 6 },
-                (Token){ .tp = tokKwArg,     .pl2 = 4,   .startBt = 19, .lenBts = 2 }, // :y
-                (Token){ .tp = tokWord, .pl1 = 0, .pl2 = 5,   .startBt = 22, .lenBts = 1 }, // z
+                (Token){ .tp = tokStmt,      .pl2 = 7,   .startBt = 7,  .lenBts = 18 },
+                (Token){ .tp = tokWord,      .pl2 = 0,   .startBt = 7,  .lenBts = 1 }, //b
+                (Token){ .tp = tokWord,      .pl2 = 1,   .startBt = 9, .lenBts = 4 },  //asdf
+                (Token){ .tp = tokWord,      .pl2 = 2,   .startBt = 14, .lenBts = 1 }, // d
+                (Token){ .tp = tokTypeName,  .pl2 = 3,   .startBt = 16, .lenBts = 2 }, // Ef
+                (Token){ .tp = tokParens,    .pl2 = 2,   .startBt = 19, .lenBts = 6 },
+                (Token){ .tp = tokKwArg,     .pl2 = 4,   .startBt = 20, .lenBts = 2 }, // :y
+                (Token){ .tp = tokWord, .pl1 = 0, .pl2 = 5,   .startBt = 23, .lenBts = 1 }, // z
 
-                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 5, .startBt = 29, .lenBts = 27 },
-                (Token){ .tp = tokStmt, .pl1 = 0, .pl2 = 4, .startBt = 39, .lenBts = 11 },
-                (Token){ .tp = tokWord, .pl1 = 0, .pl2 = 6, .startBt = 39, .lenBts = 4 }, // bcjk
+                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 5, .startBt = 30, .lenBts = 27 },
+                (Token){ .tp = tokStmt, .pl1 = 0, .pl2 = 4, .startBt = 40, .lenBts = 11 },
+                (Token){ .tp = tokWord, .pl1 = 0, .pl2 = 6, .startBt = 40, .lenBts = 4 }, // bcjk
 
-                (Token){ .tp = tokParens, .pl1 = 0, .pl2 = 2, .startBt = 43, .lenBts = 7 },
-                (Token){ .tp = tokWord,   .pl2 = 7, .startBt = 45, .lenBts = 1 }, // m
-                (Token){ .tp = tokWord,      .pl2 = 0,   .startBt = 47, .lenBts = 1 }    // b
+                (Token){ .tp = tokParens, .pl1 = 0, .pl2 = 2, .startBt = 44, .lenBts = 7 },
+                (Token){ .tp = tokWord,   .pl2 = 7, .startBt = 46, .lenBts = 1 }, // m
+                (Token){ .tp = tokWord,      .pl2 = 0,   .startBt = 48, .lenBts = 1 }    // b
         }))},
         (LexerTest) { .name = s("Stmt separator"),
             .input = s("awu; arn baz"),
@@ -792,12 +792,11 @@ LexerTestSet* operatorTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokParens, .startBt = 2 }
         }))},
         (LexerTest) { .name = s("Operator assignment multiple error"),
-            .input = s("x <- y <- 7"),
+            .input = s("x = y = 7"),
             .expectedOutput = buildLexerWithError(s(errOperatorAssignmentPunct), ((Token[]) {
-                (Token){ .tp = tokAssignLeft, .pl1 = 1, .pl2 = 1, .lenBts = 1 },
-                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 0, .lenBts = 1 },
+                (Token){ .tp = tokAssignLeft, .pl1 = 0, .pl2 = 0, .lenBts = 1 },
                 (Token){ .tp = tokAssignRight, .pl2 = 0, .startBt = 2 },
-                (Token){ .tp = tokWord, .pl2 = 1, .startBt = 5, .lenBts = 1 }
+                (Token){ .tp = tokWord, .pl2 = 1, .startBt = 4, .lenBts = 1 }
         }))},
         (LexerTest) { .name = s("Boolean operators"),
             .input = s("a && b || c"),
@@ -891,8 +890,8 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
          }))},
         (LexerTest) { .name = s("If with elseif and else"),
             .input = s("if x <> 7 > 0 {5}\n"
-                        "ei x <> 7 < 0 {11}\n"
-                        "else{true}"),
+                       "ei x <> 7 < 0 {11}\n"
+                       "else{true}"),
             .expectedOutput = expect(((Token[]){
                 (Token){ .tp = tokIf, .pl1 = slDoubleScope, .pl2 = 9, .startBt = 0, .lenBts = 17 },
                 (Token){ .tp = tokStmt, .pl2 = 5, .startBt = 3, .lenBts = 10 },
@@ -925,7 +924,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokBool, .pl2 = 1, .startBt = 42, .lenBts = 4 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
-             .input = s("noo = [ x Int y Int -> Int => x - y]"),
+             .input = s("noo = {{ x Int y Int -> Int;; x - y}}"),
              .expectedOutput = expect(((Token[]){
                  (Token){ .tp = tokAssignLeft,         .pl2 = 0,
                           .startBt = 0, .lenBts = 3 }, // foo
@@ -934,15 +933,15 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokFn, .pl1 = slScope,       .pl2 = 11,
                           .startBt = 6, .lenBts = 30 },
                  (Token){ .tp = tokParamList,                .pl2 = 6,
-                          .startBt = 8, .lenBts = 18 },
-                 (Token){ .tp = tokWord,                 .pl2 = 1, .startBt = 8, .lenBts = 1 }, // x
+                          .startBt = 9, .lenBts = 18 },
+                 (Token){ .tp = tokWord,                 .pl2 = 1, .startBt = 9, .lenBts = 1 }, // x
                  (Token){ .tp = tokTypeName,  .pl2 = (strInt + S),
-                            .startBt = 10, .lenBts = 3 }, // Int
-                 (Token){ .tp = tokWord,       .pl2 = 2,        .startBt = 14, .lenBts = 1 }, // y
+                            .startBt = 11, .lenBts = 3 }, // Int
+                 (Token){ .tp = tokWord,       .pl2 = 2,        .startBt = 15, .lenBts = 1 }, // y
                  (Token){ .tp = tokTypeName, .pl2 = (strInt + S),
-                          .startBt = 16, .lenBts = 3 }, // Int
-                 (Token){ .tp = tokMisc, .pl1 = miscArrow,          .startBt = 20, .lenBts = 2 },
-                 (Token){ .tp = tokTypeName,   .pl2 = (strInt + S), .startBt = 23, .lenBts = 3 },
+                          .startBt = 17, .lenBts = 3 }, // Int
+                 (Token){ .tp = tokMisc, .pl1 = miscArrow,          .startBt = 21, .lenBts = 2 },
+                 (Token){ .tp = tokTypeName,   .pl2 = (strInt + S), .startBt = 24, .lenBts = 3 },
 
                  (Token){ .tp = tokStmt,       .pl2 = 3, .startBt = 30, .lenBts = 5 },
                  (Token){ .tp = tokWord,       .pl2 = 1, .startBt = 30, .lenBts = 1 }, // x
@@ -978,60 +977,65 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
 LexerTestSet* typeTests(Compiler* proto, Arena* a) {
     return createTestSet(s("Type forms lexer tests"), a, ((LexerTest[]) {
          (LexerTest) { .name = s("Simple type call"),
-             .input = s("Foo(Bar Baz)"),
+             .input = s("[Foo Bar Baz]"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokStmt, .pl2 = 3, .startBt = 0, .lenBts = 12 },
-                 (Token){ .tp = tokTypeCall, .pl1 = 0, .pl2 = 2, .startBt = 0, .lenBts = 12 },
-                 (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 4, .lenBts = 3 },
-                 (Token){ .tp = tokTypeName,           .pl2 = 2, .startBt = 8, .lenBts = 3 }
+                 (Token){ .tp = tokStmt,               .pl2 = 4, .startBt = 0, .lenBts = 13 },
+                 (Token){ .tp = tokTypeCall, .pl1 = slSubexpr, .pl2 = 3, .startBt = 0, .lenBts = 13 },
+                 (Token){ .tp = tokTypeName,           .pl2 = 0, .startBt = 1, .lenBts = 3 },
+                 (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 5, .lenBts = 3 },
+                 (Token){ .tp = tokTypeName,           .pl2 = 2, .startBt = 9, .lenBts = 3 }
          }))},
          (LexerTest) { .name = s("Generic function signature"),
-             .input = s("[V W => lst L(V) w W => print w]"),
+             .input = s("{{V W;; lst [L V] w W;; print w}}"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 12,    .lenBts = 32 },
-                 (Token){ .tp = tokParamList,         .pl2 = 2, .startBt = 1, .lenBts = 3 },
-                 (Token){ .tp = tokTypeName,     .pl2 = 0, .startBt = 1, .lenBts = 1 }, //U
-                 (Token){ .tp = tokTypeName,     .pl2 = 1, .startBt = 3, .lenBts = 1 }, //V
+                 (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 13,    .lenBts = 32 },
 
-                 (Token){ .tp = tokParamList,         .pl2 = 5, .startBt = 8, .lenBts = 12 },
-                 (Token){ .tp = tokWord,              .pl2 = 2, .startBt = 8, .lenBts = 3 },
+                 (Token){ .tp = tokParamList,         .pl2 = 2, .startBt = 2, .lenBts = 3 },
+                 (Token){ .tp = tokTypeName,     .pl2 = 0, .startBt = 2, .lenBts = 1 }, //V
+                 (Token){ .tp = tokTypeName,     .pl2 = 1, .startBt = 4, .lenBts = 1 }, //W
 
-                 (Token){ .tp = tokTypeCall, .pl1 = strL + S, .pl2 = 1, .startBt = 12, .lenBts = 4 },
-                 (Token){ .tp = tokTypeName,         .pl2 = 0, .startBt = 14, .lenBts = 1 },
-                 (Token){ .tp = tokWord,         .pl2 = 3,     .startBt = 17, .lenBts = 1 }, //v
-                 (Token){ .tp = tokTypeName,     .pl2 = 1,     .startBt = 19, .lenBts = 1 },
+                 (Token){ .tp = tokParamList,         .pl2 = 6, .startBt = 8, .lenBts = 13 },
+                 (Token){ .tp = tokWord,              .pl2 = 2, .startBt = 8, .lenBts = 3 }, //lst
+                 (Token){ .tp = tokTypeCall, .pl1 = slSubexpr, .pl2 = 2,
+                                             .startBt = 12, .lenBts = 5 },
+                 (Token){ .tp = tokTypeName,         .pl2 = strL + S, .startBt = 13, .lenBts = 1 },
+                 (Token){ .tp = tokTypeName,         .pl2 = 0, .startBt = 15, .lenBts = 1 }, //V
+                 (Token){ .tp = tokWord,         .pl2 = 3,     .startBt = 18, .lenBts = 1 }, //w
+                 (Token){ .tp = tokTypeName,     .pl2 = 1,     .startBt = 20, .lenBts = 1 },
 
                  (Token){ .tp = tokStmt,         .pl2 = 2,     .startBt = 24, .lenBts = 7 },
                  (Token){ .tp = tokWord,  .pl2 = strPrint + S, .startBt = 24, .lenBts = 5 },
                  (Token){ .tp = tokWord,     .pl2 = 3, .startBt = 30, .lenBts = 1 },
          }))},
          (LexerTest) { .name = s("Generic function signature with type funcs"),
-             .input = s("[G(2) H => lst G(Int H)]"),
+             .input = s("{{[G 2] H;; lst [G Int H]}}"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 9,               .lenBts = 24 },
-                 (Token){ .tp = tokParamList,          .pl2 = 3, .startBt = 1, .lenBts = 6 },
-                 (Token){ .tp = tokTypeCall, .pl1 = 0, .pl2 = 1, .startBt = 1, .lenBts = 4 }, // C
-                 (Token){ .tp = tokInt,                .pl2 = 2, .startBt = 3, .lenBts = 1 },
-                 (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 6, .lenBts = 1 }, // D
+                 (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 11,              .lenBts = 26 },
+                 (Token){ .tp = tokParamList,          .pl2 = 4, .startBt = 2, .lenBts = 7 },
+                 (Token){ .tp = tokTypeCall, .pl1 = slSubexpr, .pl2 = 2, .startBt = 2, .lenBts = 5 },
+                 (Token){ .tp = tokTypeName,           .pl2 = 0, .startBt = 3, .lenBts = 1 }, // G
+                 (Token){ .tp = tokInt,                .pl2 = 2, .startBt = 5, .lenBts = 1 },
+                 (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 8, .lenBts = 1 }, // D
 
-                 (Token){ .tp = tokStmt,               .pl2 = 4, .startBt = 11, .lenBts = 12 },
-                 (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 11, .lenBts = 3 },
-                 (Token){ .tp = tokTypeCall, .pl1 = 0, .pl2 = 2, .startBt = 15, .lenBts = 8 },
-                 (Token){ .tp = tokTypeName,           .pl2 = strInt + S, .startBt = 17, .lenBts = 3 },
-                 (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 21, .lenBts = 1 }
+                 (Token){ .tp = tokStmt,               .pl2 = 5, .startBt = 12, .lenBts = 13 },
+                 (Token){ .tp = tokWord,               .pl2 = 2, .startBt = 12, .lenBts = 3 },
+                 (Token){ .tp = tokTypeCall, .pl1 = slSubexpr, .pl2 = 3, .startBt = 16, .lenBts = 9 },
+                 (Token){ .tp = tokTypeName,           .pl2 = 0, .startBt = 17, .lenBts = 1 },
+                 (Token){ .tp = tokTypeName,           .pl2 = strInt + S, .startBt = 19, .lenBts = 3 },
+                 (Token){ .tp = tokTypeName,           .pl2 = 1, .startBt = 23, .lenBts = 1 }
          }))},
-         (LexerTest) { .name = s("Type constructors"),
+         (LexerTest) { .name = s("Data allocations"),
              .input = s("L(Array(1 2 3) Array(-3 4 5))"),
              .expectedOutput = expect(((Token[]) {
                  (Token){ .tp = tokStmt, .pl2 = 9, .lenBts = 29 },
-                 (Token){ .tp = tokTypeCall, .pl1 = strL + S, .pl2 = 8,               .lenBts=29 },
+                 (Token){ .tp = tokDataAlloc, .pl1 = strL + S, .pl2 = 8,               .lenBts=29 },
 
-                 (Token){ .tp = tokTypeCall, .pl1 = strA + S, .pl2 = 3, .startBt = 2, .lenBts=12 },
+                 (Token){ .tp = tokDataAlloc, .pl1 = strA + S, .pl2 = 3, .startBt = 2, .lenBts=12 },
                  (Token){ .tp = tokInt,                .pl2 = 1, .startBt = 8, .lenBts = 1 },
                  (Token){ .tp = tokInt,                .pl2 = 2, .startBt = 10, .lenBts = 1 },
                  (Token){ .tp = tokInt,                .pl2 = 3, .startBt = 12, .lenBts = 1 },
 
-                 (Token){ .tp = tokTypeCall, .pl1 = strA + S, .pl2 = 3, .startBt = 15, .lenBts = 13 },
+                 (Token){ .tp = tokDataAlloc, .pl1 = strA + S, .pl2 = 3, .startBt = 15, .lenBts = 13 },
                  (Token){ .tp = tokInt, .pl1 = (((int64_t)-3) >> 32),
                        .pl2 = (((int64_t)-3) & LOWER32BITS), .startBt = 21, .lenBts = 2 },
                  (Token){ .tp = tokInt,                .pl2 = 4, .startBt = 24, .lenBts = 1 },
@@ -1063,12 +1067,15 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&wordTests, &countPassed, &countTests, proto, a);
+
     runATestSet(&stringTests, &countPassed, &countTests, proto, a);
     //runATestSet(&metaTests, &countPassed, &countTests, proto, a);
     runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
     runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
     runATestSet(&numericTests, &countPassed, &countTests, proto, a);
     runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
+   /*
+   */
     runATestSet(&typeTests, &countPassed, &countTests, proto, a);
     if (countTests == 0) {
         print("\nThere were no tests to run!");

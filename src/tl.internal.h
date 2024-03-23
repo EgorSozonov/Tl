@@ -239,34 +239,35 @@ typedef struct { // :Token
 // Statement or subexpr span types. pl2 = count of inner tokens
 #define tokStmt        12  // firstSpanTokenType
 #define tokParens      13  // subexpressions and struct/sum type instances
-#define tokTypeCall    14  // pl1 = nameId of type. Either a type call or a type constructor
-#define tokParamList   15  // Parameter lists, ended with `=>`
-#define tokAssignLeft  16  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
+#define tokTypeCall    14  // `[Tu Int Str]`
+#define tokParamList   15  // Parameter lists, ended with `;;`
+#define tokDataAlloc   16
+#define tokAssignLeft  17  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
                            // If pl2 == 0 then pl1 = nameId for the single word on the left (and
                            // it's an assignment of a var, i.e. neither reassignment/mut nor type)
-#define tokAssignRight 17  // Right-hand side of assignment
-#define tokAlias       18
-#define tokAssert      19
-#define tokBreakCont   20  // pl1 >= BIG iff it's a continue
-#define tokTrait       21
-#define tokImport      22  // For test files and package decls
-#define tokReturn      23
+#define tokAssignRight 18  // Right-hand side of assignment
+#define tokAlias       19
+#define tokAssert      20
+#define tokBreakCont   21  // pl1 >= BIG iff it's a continue
+#define tokTrait       22
+#define tokImport      23  // For test files and package decls
+#define tokReturn      24
 
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
-#define tokScope       24  // denoted by {}. firstScopeTokenType
-#define tokFn          25  // `[a Int -> Str => body]`
-#define tokTry         26  // `try {`
-#define tokCatch       27  // `catch MyExc e {`
-#define tokDefer       28  // `defer { `
+#define tokScope       25  // denoted by {}. firstScopeTokenType
+#define tokFn          26  // `[a Int -> Str => body]`
+#define tokTry         27  // `try {`
+#define tokCatch       28  // `catch MyExc e {`
+#define tokDefer       29  // `defer { `
 
 // Resumable core forms
-#define tokIf          29  // `if ... {`
-#define tokMatch       30  // `match ... {` pattern matching on sum type tag
-#define tokElseIf      31  // `ei ... {`
-#define tokElse        32  // `else {`
-#define tokImpl        33
-#define tokFor         34
-#define tokEach        35
+#define tokIf          30  // `if ... {`
+#define tokMatch       31  // `match ... {` pattern matching on sum type tag
+#define tokElseIf      32  // `ei ... {`
+#define tokElse        33  // `else {`
+#define tokImpl        34
+#define tokFor         35
+#define tokEach        36
 
 #define topVerbatimTokenVariant tokMisc
 #define topVerbatimType    tokUnderscore
