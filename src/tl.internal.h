@@ -287,7 +287,7 @@ typedef struct { // :Token
 #define miscPub   0     // pub. It must be 0 because it's the only one denoted by a keyword
 #define miscEmpty 1     // null, written as `()`
 #define miscComma 2     // ,
-#define miscArrow 3     // =>
+#define miscArrow 3     // ->
 
 #define assiDefinition 0
 #define assiReassign   1
@@ -627,7 +627,6 @@ struct Compiler { // :Compiler
 // Type expression data format: First element is the tag (one of the following
 // constants), second is payload. Used in @expStack
 #define tyeParam        5 // payload: paramId
-#define tyeName         6 // payload: nameId. Used for struct fields, function params, sum variants
 
 
 typedef struct { // :TypeHeader

@@ -3,7 +3,7 @@ TYPE LAYOUT
 
 I. Common part = [type length][type header]
 Type length = number of ints 
-Type header = sort, arity, depth, nameTypeId, nameLen
+Type header = sort, arity, depth, nameLen
 
 II. Differing parts:
     
@@ -16,8 +16,8 @@ Enum:
 
 Function:
 depth = count of func params + 1
-(Arities of type params, count = type arity)
-(function parameter types)|return type|
+(Tyrities of type params, count = tyrity)
+(function parameter types)(return type)
 
 TypeCall:
 (typeId of the "parent" type)
