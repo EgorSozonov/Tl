@@ -1853,7 +1853,7 @@ private void lexDot(Arr(Byte) source, Compiler* lx) { //:lexDot
 
 
 private void processAssignment(Int mutType, untt opType, Compiler* lx) { //:processAssignment
-// Params: Handles the "=", "<-" and "+=" tokens. Changes existing stmt
+// Params: Handles the "=", and "+=" tokens. Changes existing stmt
 // token into tokAssignLeft and opens up a new tokAssignRight span. Doesn't consume anything
     BtToken currSpan = peek(lx->lexBtrack);
     VALIDATEL(currSpan.tp == tokStmt, errOperatorAssignmentPunct);
@@ -1871,8 +1871,6 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) { //:proc
     } else {
         if (lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
             tok->pl1 = assiType;
-        } else if (mutType == 1) {
-            tok->pl1 = assiReassign;
         } else if (mutType == 2) {
             tok->pl1 = BIG + opType;
         }
@@ -2491,8 +2489,8 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         mbNewBinding = createEntity(newName, cm);
         addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
                 tok.startBt, tok.lenBts, cm);
-    } else if (tok.pl1 == assiReassign || isMutation) {
-        addNode((Node){ .tp = nodAssignLeft, .pl1 = assiReassign, .pl2 = 1},
+    } else if (isMutation) {
+        addNode((Node){ .tp = nodAssignLeft, .pl1 = assiDefinition, .pl2 = 1},
                 tok.startBt, tok.lenBts, cm);
         mbOldBinding = toks[cm->i];
         mbOldBinding.pl1 = getActiveVar(mbOldBinding.pl2, cm);
@@ -4117,7 +4115,7 @@ private Int parseFnParamList(Token paramListTk, Compiler* cm) {
 
 testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVoid,
                                Compiler* cm) { //:pFnSignature
-// Parses a function signature. Emits no nodes, adds data to [toplevels], [functions], [overloads].
+// Parses a function signature. Emits no nodes, adds data to @toplevels, @functions, @overloads.
 // Pre-condition: we are 1 token past the tokFn
     Int fnStartTokenId = cm->i - 1;
     Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
@@ -4136,9 +4134,7 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
         st->frames->len = 0;
         push(((TypeFrame) { .tp = sorFunction, .sentinel = sentinel }), st->frames);
         newFnTypeId = tDefinition(st, sentinel, cm);
-        // assert there's an arrow now
-        // parse a type - the return type
-        // merge type
+        print("fn has received type %d", newFnTypeId)
     }
 
     EntityId newFnEntityId = cm->entities.len;
@@ -4152,7 +4148,7 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
 
 private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
 //:pToplevelBody Parses a top-level function. The result is the AST
-//L( FnDef EntityName Scope ParamList body... )
+//L( FnDef ParamList body... )
     Int fnStartInd = toplevelSignature.indToken;
     Int fnSentinel = toplevelSignature.sentinelToken;
 
@@ -4164,18 +4160,20 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     Int entityId = toplevelSignature.entityId;
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
                         .typeId = cm->entities.cont[entityId].typeId}), cm->backtrack);
-    addNode((Node){ .tp = nodFnDef}, fnTk.startBt, fnTk.lenBts, cm);
-    addNode((Node){ .tp = nodBinding, .pl1 = entityId}, startBt,
-                        (Int)(startBt >> 24), cm);
+    addNode((Node){ .tp = nodFnDef, .pl1 = entityId, .pl3 = (toplevelSignature.name & LOWER24BITS)},
+            fnTk.startBt, fnTk.lenBts, cm);
 
     // the scope for the function's body
     addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
 
-    if (toks[cm->i + 1].tp == tokParamList) {
-        Int paramsSentinel = cm->i + fnTk.pl2 + 1;
+    Token mbParamsTk = toks[cm->i + 1];
+    if (mbParamsTk.tp == tokParamList) {
+        const Int paramsSentinel = cm->i + mbParamsTk.pl2 + 1;
+        print("paramsSentinel %d", paramsSentinel)
         cm->i++; // CONSUME the parens token for the param list
         while (cm->i < paramsSentinel) {
             Token paramName = toks[cm->i];
+            print("here")
             Int newEntityId = createEntity(nameOfToken(paramName), cm);
             ++cm->i; // CONSUME the param name
             Int typeId = cm->activeBindings[paramName.pl2];

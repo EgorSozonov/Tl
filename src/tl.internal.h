@@ -290,7 +290,6 @@ typedef struct { // :Token
 #define miscArrow 3     // ->
 
 #define assiDefinition 0
-#define assiReassign   1
 #define assiType       2
 
 
@@ -317,7 +316,7 @@ typedef struct { // :Token
 #define nodCatch       20  // `catch e {`
 #define nodDefer       21
 #define nodImport      22  // This is for test files only, no need to import anything in main
-#define nodFnDef       23  // pl1 = entityId
+#define nodFnDef       23  // pl1 = entityId, pl3 = nameId
 #define nodTrait       24
 #define nodReturn      25
 #define nodTry         26
