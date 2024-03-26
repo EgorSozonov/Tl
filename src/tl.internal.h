@@ -465,7 +465,7 @@ typedef struct { // :Toplevel
     Int indToken;
     Int sentinelToken;
     untt name;
-    Int entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
+    EntityId entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
     bool isFunction;
 } Toplevel;
 
@@ -607,10 +607,8 @@ struct Compiler { // :Compiler
 
 // Span levels, must all be more than 0
 #define slScope       1 // scopes (denoted by brackets): newlines and commas have no effect there
-#define slDoubleScope 2 // double scopes like `if`, `for` etc. They last until the first
-                        // {} span gets closed
-#define slStmt        3 // single-line statements: newlines and semicolons break 'em
-#define slSubexpr     4 // parenthesized forms: newlines have no effect, semi-colons error out
+#define slStmt        2 // single-line statements: newlines and semicolons break 'em
+#define slSubexpr     3 // parenthesized forms: newlines have no effect, semi-colons error out
 
 
 //}}}

@@ -1363,6 +1363,17 @@ testable untt nameOfStandard(Int strId) { //:nameOfStandard
 }
 
 
+private void skipSpaces(Arr(Byte) source, Compiler* lx) { //:skipSpaces
+    while (lx->i < lx->stats.inpLength) {
+        Byte currBt = CURR_BT;
+        if (currBt != aSpace && currBt != aNewline && currBt != aCarrReturn) {
+            return;
+        }
+        lx->i += 1;
+    }
+}
+
+
 _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {
     cm->stats.wasError = true;
     printf("Internal error %d at %d\n", errInd, lineNumber);
@@ -1436,7 +1447,7 @@ private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
 private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* lx) {
 //:wrapInAStatementStarting
     if (hasValues(lx->lexBtrack)) {
-        if (peek(lx->lexBtrack).spanLevel <= slDoubleScope) {
+        if (peek(lx->lexBtrack).spanLevel == slScope) {
             addStatementSpan(tokStmt, startBt, lx);
         }
     } else {
@@ -1447,7 +1458,7 @@ private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* l
 
 private void wrapInAStatement(Arr(Byte) source, Compiler* lx) { //:wrapInAStatement
     if (hasValues(lx->lexBtrack)) {
-        if (peek(lx->lexBtrack).spanLevel <= slDoubleScope) {
+        if (peek(lx->lexBtrack).spanLevel == slScope) {
             addStatementSpan(tokStmt, lx->i, lx);
         }
     } else {
@@ -1695,19 +1706,22 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 }
 
 
-private void lexReservedWord(untt reservedWordType, Int startBt, Int lenBts,
-                             Arr(Byte) source, Compiler* lx) { //:lexReservedWord
-// Lexer action for a paren-type or statement-type reserved word.
+private void lexSyntaxForm(untt reservedWordType, Int startBt, Int lenBts,
+                             Arr(Byte) source, Compiler* lx) { //:lexSyntaxForm
+// Lexer action for a paren-type or statement-type syntax form.
 // Precondition: we are looking at the character immediately after the keyword
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= firstScopeTokenType) {
+        skipSpaces(source, lx);
+        VALIDATEL(lx->i < lx->stats.inpLength && CURR_BT == aCurlyLeft, errCoreFormTooShort);
+        lx->i += 1; // CONSUME the "{"
         if (hasValues(lx->lexBtrack)) {
             BtToken top = peek(lx->lexBtrack);
             VALIDATEL(top.spanLevel == slScope && top.tp != tokStmt, errPunctuationScope)
         }
         push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len,
-                    .spanLevel = slDoubleScope }), lx->lexBtrack);
-        pushIntokens((Token){ .tp = reservedWordType, .pl1 = slDoubleScope,
+                    .spanLevel = slScope }), lx->lexBtrack);
+        pushIntokens((Token){ .tp = reservedWordType, .pl1 = slScope,
             .startBt = startBt, .lenBts = lenBts }, lx);
     } else if (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
@@ -1791,7 +1805,7 @@ private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartB
                          .startBt=realStartBt, .lenBts=5}, lx);
         }
     } else {
-        lexReservedWord(keywordTp, realStartBt, lenBts, source, lx);
+        lexSyntaxForm(keywordTp, realStartBt, lenBts, source, lx);
     }
 }
 
@@ -2106,7 +2120,7 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
     // since a closing curly is closing something with statements inside it, like a lex scope
     // or a function, we need to close that statement before closing its parent
     if (top.spanLevel == slStmt) {
-        VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel <= slDoubleScope,
+        VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel == slScope,
                   errPunctuationUnmatched);
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
@@ -2119,12 +2133,6 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
     } else { // scope end
         VALIDATEL(top.tp == tokScope, errPunctuationUnmatched);
         setSpanLengthLexer(top.tokenInd, lx);
-
-        if (top.spanLevel == slScope && hasValues(bt) && peek(bt).spanLevel == slDoubleScope)  {
-            top = pop(bt);
-            setSpanLengthLexer(top.tokenInd, lx);
-        }
-
         lx->i += 1; // CONSUME the closing "}"
     }
     if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
@@ -4149,29 +4157,37 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
 private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
 //:pToplevelBody Parses a top-level function. The result is the AST
 //L( FnDef ParamList body... )
+// TODO pass concrete type to handle the fact that all types must be monomorphized here
     Int fnStartInd = toplevelSignature.indToken;
     Int fnSentinel = toplevelSignature.sentinelToken;
+    EntityId fnEntity = toplevelSignature.entityId;
+    TypeId fnType = cm->entities.cont[fnEntity].typeId;
+
+    print("toplevel body startInd %d sentinel %d", fnStartInd, fnSentinel);
 
     cm->i = fnStartInd; // tokFn
     Int startBt = toks[fnStartInd + 1].startBt;
     Token fnTk = toks[cm->i];
 
     // the fnDef scope & node
-    Int entityId = toplevelSignature.entityId;
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
-                        .typeId = cm->entities.cont[entityId].typeId}), cm->backtrack);
-    addNode((Node){ .tp = nodFnDef, .pl1 = entityId, .pl3 = (toplevelSignature.name & LOWER24BITS)},
+                        .typeId = fnType }), cm->backtrack);
+    addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
+    addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (toplevelSignature.name & LOWER24BITS)},
             fnTk.startBt, fnTk.lenBts, cm);
 
-    // the scope for the function's body
-    addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
-
-    Token mbParamsTk = toks[cm->i + 1];
+    cm->i += 1; // CONSUME the parens token for the param list
+    Token mbParamsTk = toks[cm->i];
     if (mbParamsTk.tp == tokParamList) {
         const Int paramsSentinel = cm->i + mbParamsTk.pl2 + 1;
         print("paramsSentinel %d", paramsSentinel)
-        cm->i++; // CONSUME the parens token for the param list
         while (cm->i < paramsSentinel) {
+            // need to get params type from the function type we got, not
+            // from tokens (where they may be generic)
+
+
+
+
             Token paramName = toks[cm->i];
             print("here")
             Int newEntityId = createEntity(nameOfToken(paramName), cm);
