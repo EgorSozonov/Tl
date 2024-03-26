@@ -1907,7 +1907,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
         VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
 
         setStmtSpanLength(top.tokenInd, lx);
-        lx->tokens.cont[top.tokenInd].tp = tokParamList;
+        lx->tokens.cont[top.tokenInd].tp = tokIntro;
         pop(lx->lexBtrack);
 
         lx->i += 1; // CONSUME the ":"
@@ -1991,7 +1991,7 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
         BtToken top = peek(lx->lexBtrack);
         VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
         setStmtSpanLength(top.tokenInd, lx);
-        lx->tokens.cont[top.tokenInd].tp = tokParamList;
+        lx->tokens.cont[top.tokenInd].tp = tokIntro;
         pop(lx->lexBtrack);
         lx->i += 2; // CONSUME the `=>`
     } else {
@@ -2131,7 +2131,7 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
         setSpanLengthLexer(top.tokenInd, lx);
         lx->i += 2; // CONSUME the closing "}}"
     } else { // scope end
-        VALIDATEL(top.tp == tokScope, errPunctuationUnmatched);
+        VALIDATEL(top.spanLevel == slScope, errPunctuationUnmatched);
         setSpanLengthLexer(top.tokenInd, lx);
         lx->i += 1; // CONSUME the closing "}"
     }
@@ -2175,7 +2175,7 @@ private void lexComma(Arr(Byte) source, Compiler* lx) { //:lexComma
 
 
 private void lexPipe(Arr(Byte) source, Compiler* lx) { //:lexPipe
-// Closes the current statement and changes its type to tokParamList
+// Closes the current statement and changes its type to tokIntro
     Int j = lx->i + 1;
     if (j < lx->stats.inpLength && NEXT_BT == aPipe) {
         lexOperator(source, lx);
@@ -2183,7 +2183,7 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) { //:lexPipe
         BtToken top = peek(lx->lexBtrack);
         VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
         setStmtSpanLength(top.tokenInd, lx);
-        lx->tokens.cont[top.tokenInd].tp = tokParamList;
+        lx->tokens.cont[top.tokenInd].tp = tokIntro;
         pop(lx->lexBtrack);
         lx->i++; // CONSUME the `|`
     }
@@ -4070,7 +4070,7 @@ private void validateOverloadsFull(Compiler* cm) {
 /*
  * TO DELETE
 private Int parseFnParamList(Token paramListTk, Compiler* cm) {
-// Precondition: we are 1 past the tokParamList
+// Precondition: we are 1 past the tokIntro
 // Returns the function's type, interpreted to be `Void => Void` if paramList is absent
     if (cm->tokens.cont[cm->i].tp == tokTypeName) {
         Token fnReturnType = cm->tokens.cont[cm->i];
@@ -4135,7 +4135,7 @@ testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVo
     Arr(Token) toks = cm->tokens.cont;
     TypeId newFnTypeId = voidToVoid; // default for nullary functions
     StateForTypes* st = cm->stateForTypes;
-    if (toks[cm->i].tp == tokParamList) {
+    if (toks[cm->i].tp == tokIntro) {
         Token paramListTk = toks[cm->i];
         Int sentinel = calcSentinel(paramListTk, cm->i);
         cm->i++; // CONSUME the paramList
@@ -4166,7 +4166,6 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     print("toplevel body startInd %d sentinel %d", fnStartInd, fnSentinel);
 
     cm->i = fnStartInd; // tokFn
-    Int startBt = toks[fnStartInd + 1].startBt;
     Token fnTk = toks[cm->i];
 
     // the fnDef scope & node
@@ -4178,7 +4177,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
 
     cm->i += 1; // CONSUME the parens token for the param list
     Token mbParamsTk = toks[cm->i];
-    if (mbParamsTk.tp == tokParamList) {
+    if (mbParamsTk.tp == tokIntro) {
         const Int paramsSentinel = cm->i + mbParamsTk.pl2 + 1;
         print("paramsSentinel %d", paramsSentinel)
         while (cm->i < paramsSentinel) {
@@ -4756,7 +4755,7 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 // Produces no AST nodes, but potentially lots of new types
 // Consumes the whole type assignment right side, or the whole function signature
 // Data format: see "Type expression data format"
-// Precondition: we are 1 past the tokAssignmentRight token, or tokParamList token
+// Precondition: we are 1 past the tokAssignmentRight token, or tokIntro token
     //StackInt* params = cm->stateForTypes->params;
     cm->stateForTypes->frames->len = 0;
 
@@ -5145,7 +5144,7 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "word", "Type", ":kwarg", "operator", "@acc",
-    "stmt", "()", "[]", "paramList", "data",
+    "stmt", "()", "[]", "intro:", "data",
     "...=", "=...", "alias", "assert", "breakCont",
     "iface", "import", "return",
     "{}", "[fn]", "try{", "catch{", "finally{",

@@ -240,7 +240,7 @@ typedef struct { // :Token
 #define tokStmt        12  // firstSpanTokenType
 #define tokParens      13  // subexpressions and struct/sum type instances
 #define tokTypeCall    14  // `[Tu Int Str]`
-#define tokParamList   15  // Parameter lists, ended with `;;`
+#define tokIntro       15  // Introduction to a syntax form, like a param list or an if condition
 #define tokDataAlloc   16
 #define tokAssignLeft  17  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
                            // If pl2 == 0 then pl1 = nameId for the single word on the left (and
