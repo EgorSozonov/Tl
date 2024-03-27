@@ -333,7 +333,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTestWithLocs(
             s("Double assignment"),
-            s("x = 12\n"
+            s("x = 12;\n"
               "second = x"
             ),
             ((Node[]) {
@@ -358,7 +358,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTestWithError(
             s("Assignment shadowing error"),
             s(errAssignmentShadowing),
-            s("x = 12\n"
+            s("x = 12;\n"
               "x = 7"
             ),
             ((Node[]) {
@@ -372,7 +372,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("Reassignment"),
             s("main = {{\n"
-              "x~ = `foo`\n"
+              "x~ = `foo`;\n"
               "x = `bar`}}"
             ),
             ((Node[]) {
@@ -393,10 +393,10 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
 //~        createTest(
 //~            s("Mutation simple"),
-//~            s("main = ^{\n"
-//~              "    x = 12\n"
+//~            s("main = {{\n"
+//~              "    x~ = 12;\n"
 //~              "    x += 3\n"
-//~              "}"
+//~              "}}"
 //~            ),
 //~            ((Node[]) {
 //~                (Node){ .tp = nodFnDef,           .pl2 = 11 },
@@ -419,9 +419,9 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         /*
         createTestWithLocs(
             s("Mutation complex"),
-            s("main = ^{ \n"
-                   "x = 2\n"
-                   "x ^= 15 - 8}"
+            s("main = {{ \n"
+                   "x~ = 2;\n"
+                   "x ^= 15 - 8}}"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 13 },
@@ -447,7 +447,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTestWithLocs(
             s("Complex left side"),
-            s("arr_i <- 5"
+            s("arr@i = 5"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 13, .startBt = 0, .lenBts = 34 },
@@ -750,7 +750,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Function definition with complex return"),
-            s("newFn = {{x Int y Float -> Str:\n"
+            s("newFn = {{x Int y Double -> Str:\n"
               "    return ((toDouble x) - y)$}}"
             ),
             ((Node[]) {
@@ -850,11 +850,11 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
         //~ (ParserTest) {
             //~ .name = str("Nested function def", a),
-            //~ .input = str("fn foo Int(x Int y Int) {\n"
+            //~ .input = str("foo = {{x Int y Int -> Int:\n"
                               //~ "z = x*y\n"
                               //~ ".return (z + x):inner 5 2\n"
                               //~ "fn inner Int(a Int b Int c Int)(return a - 2*b + 3*c)"
-                              //~ "}\n"
+                              //~ "}}\n"
 
             //~ , a),
             //~ .imports = {(Import){"foo", 3}},
@@ -914,7 +914,7 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTestWithLocs(
             s("Simple if"),
             s("f = {{\n"
-              "    if 5 == 5 { print `5` }\n"
+              "    if{ 5 == 5: print `5` }\n"
               "}}"
               ),
             ((Node[]) {
@@ -956,7 +956,7 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("If with else"),
             s("f = {{-> Str:\n"
-              "    if 5 > 3 { `5` } else {`=)` }\n"
+              "    if{ 5 > 3: `5` } else{`=)` }\n"
               "}}"
               ),
             ((Node[]) {
@@ -982,8 +982,8 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("If with elseif"),
             s("f = {{\n"
-              "    if 5 > 3 {11}\n"
-              "    ei 5 == 3 {4}\n"
+              "    if{ 5 > 3: 11}\n"
+              "    ei{ 5 == 3: 4}\n"
               "}}"
               ),
             ((Node[]) {
@@ -1013,9 +1013,9 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("If with elseif and else"),
             s("f = {{\n"
-              "    if 5 > 3 { 11 }\n"
-              "    ei 5 == 3 { 4 }\n"
-              "       else   { 100 }\n"
+              "    if{ 5 > 3: 11 }\n"
+              "    ei{ 5 == 3: 4 }\n"
+              "    else{ 100 }\n"
               "}}"
               ),
             ((Node[]) {
@@ -1056,7 +1056,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
         createTest(
             s("Simple loop 1"),
-            s("f = {{-> Int: for x~ = 1; x < 101; x += 1 { print x } }}"),
+            s("f = {{->: for{ x~ = 1; x < 101; x += 1: print x } }}"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 16 },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
@@ -1086,8 +1086,8 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("For with two complex initializers"),
-            s("f = {{\n"
-              "    for x~ = 17; y~ = x/5; y < 101 {\n"
+            s("f = {{->:\n"
+              "    for{ x~ = 17; y~ = x/5; y < 101:\n"
               "        print x;\n"
               "        x -= 1;\n"
               "        y += 1;}\n"
@@ -1142,9 +1142,9 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("For without initializers"),
-            s("f = {{-> Int:\n"
+            s("f = {{->:\n"
               "    x = 4;\n"
-              "    for x < 101 { \n"
+              "    for{ x < 101: \n"
               "        print x} }}"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,         .pl2 = 16 },
@@ -1174,8 +1174,8 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("For with break and continue"),
-            s("f = {{-> Int:\n"
-              "    for x = 0; x < 101 {\n"
+            s("f = {{->:\n"
+              "    for{ x = 0; x < 101:\n"
               "        break;\n"
               "        continue;}\n"
               "}}"
@@ -1208,8 +1208,8 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTestWithError(
             s("For with break error"),
             s(errBreakContinueInvalidDepth),
-            s("f = {{-> Int:\n"
-              "    for x = 0; x < 101 {\n"
+            s("f = {{->:\n"
+              "    for{ x = 0; x < 101:\n"
               "        break 2\n"
               "} }}"
               ),
@@ -1236,14 +1236,14 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Nested for with deep break and continue"),
-            s("f = {{\n"
-              "    for a = 0; a < 101 {\n"
-              "        for b = 0; b < 101 {\n"
-              "            for c = 0; c < 101 {\n"
+            s("f = {{->:\n"
+              "    for{ a = 0; a < 101:\n"
+              "        for{ b = 0; b < 101:\n"
+              "            for{ c = 0; c < 101:\n"
               "                break 3}\n"
               "        }\n"
-              "        for d = 0; d < 51 {\n"
-              "            for e = 0; e < 101 {\n"
+              "        for{ d = 0; d < 51:\n"
+              "            for{ e = 0; e < 101:\n"
               "                continue 2}\n"
               "        }\n"
               "        print a\n"
@@ -1336,7 +1336,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTestWithError(
             s("For with type error"),
             s(errTypeMustBeBool),
-            s("f = {{-> Int: for x = 1; x/101 { print x} }}"),
+            s("f = {{-> : for{ x = 1; x/101: print x} }}"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef         },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
@@ -1419,7 +1419,7 @@ int main() {
               "Tests are cancelled");
         return 1;
     }
-    
+
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);

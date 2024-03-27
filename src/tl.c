@@ -1082,6 +1082,7 @@ private void removeDuplicatesInList(InListInt* list) { //:removeDuplicatesInList
 #define iErrorGenericTypesParamOutOfBou 10 // A type contains a paramId that is out-of-bounds of the
                                            // generic's tyrity
 #define iErrorInconsistentTypeExpr      11 // Reduced type expression has != 1 elements
+#define iErrorNotAFunction              12 // Expected to find a function type here
 
 //}}}
 //{{{ Syntax errors
@@ -2321,7 +2322,7 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
 }
 
 
-private Int createEntity(untt name, Compiler* cm) { //:createEntity
+private EntityId createEntity(untt name, Compiler* cm) { //:createEntity
 // Validates a new binding (that it is unique), creates an entity for it,
 // and adds it to the current scope
     Int nameId = name & LOWER24BITS;
@@ -2338,6 +2339,13 @@ private Int createEntity(untt name, Compiler* cm) { //:createEntity
         }
         cm->activeBindings[nameId] = newEntityId; // makes it active
     }
+    return newEntityId;
+}
+
+
+private Int createEntityWithType(untt name, TypeId typeId, Compiler* cm) { //:createEntityWithType
+    EntityId newEntityId = createEntity(name, cm);
+    cm->entities.cont[newEntityId].typeId = typeId;
     return newEntityId;
 }
 
@@ -4183,21 +4191,15 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
         while (cm->i < paramsSentinel) {
             // need to get params type from the function type we got, not
             // from tokens (where they may be generic)
-
-
-
-
+            TypeId paramType = tGetIndexOfFnFirstParam(fnType, cm);
             Token paramName = toks[cm->i];
-            print("here")
-            Int newEntityId = createEntity(nameOfToken(paramName), cm);
-            ++cm->i; // CONSUME the param name
-            Int typeId = cm->activeBindings[paramName.pl2];
-            cm->entities.cont[newEntityId].typeId = typeId;
-
-            Node paramNode = (Node){.tp = nodBinding, .pl1 = newEntityId};
-
-            ++cm->i; // CONSUME the param's type name
+            print("here type is %d", paramName.tp)
+            Int newEntityId = createEntityWithType(nameOfToken(paramName), paramType, cm);
             addNode(paramNode, paramName.startBt, paramName.lenBts, cm);
+
+            ++cm->i; // CONSUME the param name
+            cm->i = calcSentinel(toks[cm->i], cm->i); // CONSUME the tokens of param type
+            paramType += 1;
         }
     }
 
@@ -4345,6 +4347,16 @@ private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeG
     } else {
         return cm->types.cont[typeId + hdr.tyrity + 3] & LOWER24BITS;
     }
+}
+
+
+private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm) { //:tGetIndexOfFnFirstParam
+    TypeHeader hdr = typeReadHeader(fnType, cm);
+#ifdef SAFETY
+    VALIDATEI(hdr.sort == sorFunction, iErrorNotAFunction);
+#endif
+    return fnType + TYPE_PREFIX_LEN + hdr.tyrity;
+
 }
 
 
