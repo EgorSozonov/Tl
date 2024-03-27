@@ -1090,7 +1090,7 @@ private void removeDuplicatesInList(InListInt* list) { //:removeDuplicatesInList
 const char errNonAscii[]                   = "Non-ASCII symbols are not allowed in code - only inside comments & string literals!";
 const char errPrematureEndOfInput[]        = "Premature end of input";
 const char errUnrecognizedByte[]           = "Unrecognized Byte in source code!";
-const char errWordChunkStart[]             = "In an identifier, each word piece must start with a letter, optionally prefixed by 1 underscore!";
+const char errWordChunkStart[]             = "In an identifier, each word piece must start with a letter. Tilde may come only after an identifier";
 const char errWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
 const char errWordLengthExceeded[]         = "I don't know why you want an identifier of more than 255 chars, but they aren't supported";
 const char errWordWrongCall[]              = "Unsupported kind of call. Only 3 types of call are supported: prefix `foo a b`, infix `a##` and type calls `L(Int)`";
@@ -1201,6 +1201,7 @@ private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
 private Int typeGetTyrity(TypeId typeId, Compiler* cm);
 testable Int typeCheckBigExpr(Int indExpr, Int sentinel, Compiler* cm);
 private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
+private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm);
 #ifdef TEST
 void printParser(Compiler* cm, Arena* a);
 void tPrint(TypeId typeId, Compiler* cm);
@@ -1925,6 +1926,15 @@ private void lexSemicolon(Arr(Byte) source, Compiler* lx) { //:lexSemicolon
 }
 
 
+private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
+    const Int lastInd = lx->tokens.len - 1;
+    VALIDATEL(lx->tokens.len > 0 && lx->tokens.cont[lastInd].tp == tokWord,
+              errWordChunkStart)
+    lx->tokens.cont[lastInd].pl1 = 1;
+    lx->i += 1;  // CONSUME the ";"
+}
+
+
 private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     wrapInAStatement(source, lx);
 
@@ -2003,12 +2013,12 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
 
 
 private void lexUnderscore(Arr(Byte) source, Compiler* lx) { //:lexUnderscore
-    if ((lx->i < lx->stats.inpLength - 1) && NEXT_BT == aTilde) {
-        pushIntokens((Token){ .tp = tokUnderscore, .pl1 = 2,
+    if ((lx->i < lx->stats.inpLength - 1) && NEXT_BT == aUnderscore) {
+        pushIntokens((Token){ .tp = tokMisc, .pl1 = miscUnderscore, .pl2 = 2,
                      .startBt = lx->i - 1, .lenBts = 2 }, lx);
         lx->i += 2; // CONSUME the "__"
     } else {
-        pushIntokens((Token){ .tp = tokUnderscore, .pl1 = 1,
+        pushIntokens((Token){ .tp = tokMisc, .pl1 = miscUnderscore, .pl2 = 1,
                      .startBt = lx->i - 1, .lenBts = 2 }, lx);
         ++lx->i; // CONSUME the "_"
     }
@@ -2169,12 +2179,6 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) { //:lexBracketRigh
 }
 
 
-private void lexComma(Arr(Byte) source, Compiler* lx) { //:lexComma
-    pushIntokens((Token){ .tp = tokMisc, .pl1 = miscComma, .startBt = lx->i, .lenBts = 1 }, lx);
-    lx->i++; // CONSUME the `,`
-}
-
-
 private void lexPipe(Arr(Byte) source, Compiler* lx) { //:lexPipe
 // Closes the current statement and changes its type to tokIntro
     Int j = lx->i + 1;
@@ -2251,11 +2255,11 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] { //:tabulateDispatch
     p[aCurlyRight] = &lexCurlyRight;
     p[aBracketLeft] = &lexBracketLeft;
     p[aBracketRight] = &lexBracketRight;
-    p[aComma] = &lexComma;
     p[aPipe] = &lexPipe;
     p[aDivBy] = &lexDivBy; // to handle the comments "//"
     p[aColon] = &lexColon; // to handle keyword args ":a"
     p[aSemicolon] = &lexSemicolon; // the statement terminator
+    p[aTilde] = &lexTilde;
 
     p[aSpace] = &lexSpace;
     p[aCarrReturn] = &lexSpace;
@@ -2322,7 +2326,7 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
 }
 
 
-private EntityId createEntity(untt name, Compiler* cm) { //:createEntity
+private EntityId createEntity(untt name, Byte class, Compiler* cm) { //:createEntity
 // Validates a new binding (that it is unique), creates an entity for it,
 // and adds it to the current scope
     Int nameId = name & LOWER24BITS;
@@ -2331,7 +2335,7 @@ private EntityId createEntity(untt name, Compiler* cm) { //:createEntity
     // if it's a binding, it should be -1, and if overload, < -1
 
     Int newEntityId = cm->entities.len;
-    pushInentities(((Entity){ .name = name, .class = classMutableGuaranteed }), cm);
+    pushInentities(((Entity){ .name = name, .class = class }), cm);
 
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->len > 0) {
@@ -2343,8 +2347,9 @@ private EntityId createEntity(untt name, Compiler* cm) { //:createEntity
 }
 
 
-private Int createEntityWithType(untt name, TypeId typeId, Compiler* cm) { //:createEntityWithType
-    EntityId newEntityId = createEntity(name, cm);
+private Int createEntityWithType(untt name, TypeId typeId, Byte class, Compiler* cm) {
+//:createEntityWithType
+    EntityId newEntityId = createEntity(name, class, cm);
     cm->entities.cont[newEntityId].typeId = typeId;
     return newEntityId;
 }
@@ -2425,7 +2430,7 @@ private void pIf(Token tok, P_CT) { //:pIf
 private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assignmentComplexLeftSide
 // A left side with more than one token must consist of a known var with a series of accessors.
 // It gets transformed like this:
-// arr_i_(j*2)_(k + 3) ==> _ _ _ arr i (* j 2) (+ k 3)
+// arr@i@(j*2)@(k + 3) ==> arr i getElemPtr j 2 *(2) getElemPtr k 3 +(2) getElemPtr
     Token firstTk = toks[start];
     VALIDATEP(firstTk.tp == tokWord, errAssignmentLeftSide)
     EntityId leftEntityId = getActiveVar(firstTk.pl2, cm);
@@ -2441,7 +2446,7 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assig
         push(j, sc);
     }
 
-    // Add the "_ _ _" part using the stack of accessor operators
+    // Add the "@ @ @" part using the stack of accessor operators
     j = sc->len - 1;
     while (j > -1) {
         Token accessorTk = toks[sc->cont[j]];
@@ -2501,8 +2506,8 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
         assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, P_C);
     } else if (tok.pl2 == 0) { // a new var being defined
-        untt newName = ((untt)tok.lenBts << 24) + (untt)tok.pl1;
-        mbNewBinding = createEntity(newName, cm);
+        untt newName = ((untt)tok.lenBts << 24) + (untt)tok.pl1; // nameId + lenBts
+        mbNewBinding = createEntity(newName, tok.pl1 == 1 ? classMutable : classImmutable, cm);
         addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
                 tok.startBt, tok.lenBts, cm);
     } else if (isMutation) {
@@ -4194,8 +4199,11 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
             TypeId paramType = tGetIndexOfFnFirstParam(fnType, cm);
             Token paramName = toks[cm->i];
             print("here type is %d", paramName.tp)
-            Int newEntityId = createEntityWithType(nameOfToken(paramName), paramType, cm);
-            addNode(paramNode, paramName.startBt, paramName.lenBts, cm);
+            Int newEntityId = createEntityWithType(
+                    nameOfToken(paramName), paramType,
+                    paramName.pl1 == 1 ? classImmutable : classMutable, cm);
+            addNode(((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = 0}),
+                    paramName.startBt, paramName.lenBts, cm);
 
             ++cm->i; // CONSUME the param name
             cm->i = calcSentinel(toks[cm->i], cm->i); // CONSUME the tokens of param type
@@ -5154,7 +5162,7 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 
 // Must agree in order with token types in tl.internal.h
 const char* tokNames[] = {
-    "Int", "Long", "Double", "Bool", "String", "_", "misc",
+    "Int", "Long", "Double", "Bool", "String", "misc",
     "word", "Type", ":kwarg", "operator", "@acc",
     "stmt", "()", "[]", "intro:", "data",
     "...=", "=...", "alias", "assert", "breakCont",
@@ -5406,7 +5414,7 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
         top->currPos += 1;
         if (currT > -1) {
             if (currT <= topVerbatimType)  {
-                printf("%s ", currT != tokUnderscore ? nodeNames[currT] : "Void");
+                printf("%s ", currT != tokMisc ? nodeNames[currT] : "Void");
             } else {
                 Int newSentinel = currT + cm->types.cont[currT] + 1;
                 pushTypeLoc(

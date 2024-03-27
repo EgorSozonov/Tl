@@ -838,6 +838,14 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokOperator, .pl1 = opDivBy, .startBt = 2, .lenBts = 1 },
                  (Token){ .tp = tokParens, .startBt = 4 }
          }))},
+         (LexerTest) { .name = s("Definition of a mutable var"),
+             .input = s("w~ = 9"),
+             .expectedOutput = expect(((Token[]) {
+                 (Token){ .tp = tokAssignLeft,  .pl2 = 1,             .lenBts = 5 },
+                 (Token){ .tp = tokWord,    .pl1 = 1,          .startBt = 0, .lenBts = 1 }, // w
+                 (Token){ .tp = tokAssignRight,  .pl2 = 1,             .lenBts = 5 },
+                 (Token){ .tp = tokInt,      .pl2 = 9, .startBt = 4, .lenBts = 1 },
+         }))},
          (LexerTest) { .name = s("Assignment with complex left side"),
              .input = s("a@i@5 = 9"),
              .expectedOutput = expect(((Token[]) {

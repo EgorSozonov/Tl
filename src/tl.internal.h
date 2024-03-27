@@ -227,50 +227,49 @@ typedef struct { // :Token
 #define tokDouble       2
 #define tokBool         3  // pl2 = value (1 or 0)
 #define tokString       4
-#define tokUnderscore   5  // marks up to 2 anonymous params in a lambda. pl1 = underscore count
-#define tokMisc         6  // pl1 = see the misc* constants
+#define tokMisc         5  // pl1 = see the misc* constants. pl2 = underscore count iff miscUscore
 
-#define tokWord         7  // pl2 = nameId (index in the string table)
-#define tokTypeName     8  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
-#define tokKwArg        9  // pl2 = same as tokWord. The ":argName"
-#define tokOperator    10  // pl1 = OperatorType, one of the "opT" constants below
-#define tokFieldAcc    11  // pl2 = nameId
+#define tokWord         6  // pl2 = nameId (index in the string table). pl1 = 1 iff followed by ~
+#define tokTypeName     7  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
+#define tokKwArg        8  // pl2 = same as tokWord. The ":argName"
+#define tokOperator     9  // pl1 = OperatorType, one of the "opT" constants below
+#define tokFieldAcc    10  // pl2 = nameId
 
 // Statement or subexpr span types. pl2 = count of inner tokens
-#define tokStmt        12  // firstSpanTokenType
-#define tokParens      13  // subexpressions and struct/sum type instances
-#define tokTypeCall    14  // `[Tu Int Str]`
-#define tokIntro       15  // Introduction to a syntax form, like a param list or an if condition
-#define tokDataAlloc   16
-#define tokAssignLeft  17  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
+#define tokStmt        11  // firstSpanTokenType
+#define tokParens      12  // subexpressions and struct/sum type instances
+#define tokTypeCall    13  // `[Tu Int Str]`
+#define tokIntro       14  // Introduction to a syntax form, like a param list or an if condition
+#define tokDataAlloc   15
+#define tokAssignLeft  16  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
                            // If pl2 == 0 then pl1 = nameId for the single word on the left (and
                            // it's an assignment of a var, i.e. neither reassignment/mut nor type)
-#define tokAssignRight 18  // Right-hand side of assignment
-#define tokAlias       19
-#define tokAssert      20
-#define tokBreakCont   21  // pl1 >= BIG iff it's a continue
-#define tokTrait       22
-#define tokImport      23  // For test files and package decls
-#define tokReturn      24
+#define tokAssignRight 17  // Right-hand side of assignment
+#define tokAlias       18
+#define tokAssert      19
+#define tokBreakCont   20  // pl1 >= BIG iff it's a continue
+#define tokTrait       21
+#define tokImport      22  // For test files and package decls
+#define tokReturn      23
 
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
-#define tokScope       25  // denoted by {}. firstScopeTokenType
-#define tokFn          26  // `[a Int -> Str => body]`
-#define tokTry         27  // `try {`
-#define tokCatch       28  // `catch MyExc e {`
-#define tokDefer       29  // `defer { `
+#define tokScope       24  // denoted by {}. firstScopeTokenType
+#define tokFn          25  // `[a Int -> Str => body]`
+#define tokTry         26  // `try {`
+#define tokCatch       27  // `catch MyExc e {`
+#define tokDefer       28  // `defer { `
 
 // Resumable core forms
-#define tokIf          30  // `if ... {`
-#define tokMatch       31  // `match ... {` pattern matching on sum type tag
-#define tokElseIf      32  // `ei ... {`
-#define tokElse        33  // `else {`
-#define tokImpl        34
-#define tokFor         35
-#define tokEach        36
+#define tokIf          29  // `if ... {`
+#define tokMatch       30  // `match ... {` pattern matching on sum type tag
+#define tokElseIf      31  // `ei ... {`
+#define tokElse        32  // `else {`
+#define tokImpl        33
+#define tokFor         34
+#define tokEach        35
 
 #define topVerbatimTokenVariant tokMisc
-#define topVerbatimType    tokUnderscore
+#define topVerbatimType    topVerbatimTokenVariant
 #define firstSpanTokenType tokStmt
 #define firstScopeTokenType tokScope
 #define firstResumableSpanTokenType tokIf
@@ -284,10 +283,9 @@ typedef struct { // :Token
 #define keywBreak       3
 #define keywContinue    4
 
-#define miscPub   0     // pub. It must be 0 because it's the only one denoted by a keyword
-#define miscEmpty 1     // null, written as `()`
-#define miscComma 2     // ,
-#define miscArrow 3     // ->
+#define miscPub        0     // pub. It must be 0 because it's the only one denoted by a keyword
+#define miscUnderscore 1     // ,
+#define miscArrow      2     // ->
 
 #define assiDefinition 0
 #define assiType       2
@@ -298,8 +296,8 @@ typedef struct { // :Token
 #define nodCall         8  // pl1 = index of entity, pl2 = arg count
 #define nodBinding      9  // pl1 = index of entity, pl2 = 1 if it's a type binding
 #define nodFieldAcc    10  // pl1 = nameId; after type resolution pl1 = offset
-#define nodLoad        11  // a read from memory (a reference or list, array etc)
-#define nodStore       12  // a store to memory
+#define nodGetElemPtr  11  // get pointer to array/list elem
+#define nodGetElem     12  // get value of array/list elem
 
 // Punctuation (inner node). pl2 = node count
 #define nodScope       13
@@ -438,11 +436,8 @@ typedef struct { // :ParseFrame
 } ParseFrame;
 
 
-#define classMutableGuaranteed 1
-#define classMutatedGuaranteed 2
-#define classMutableNullable   3
-#define classMutatedNullable   4
-#define classImmutable         5
+#define classMutable   1
+#define classImmutable 5
 
 
 typedef struct { // :Entity
