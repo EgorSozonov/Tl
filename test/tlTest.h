@@ -47,7 +47,7 @@ extern const char errWordCapitalizationOrder[];
 extern const char errWordUnderscoresOnlyAtStart[];
 extern const char errWordWrongAccessor[];
 extern const char errWordLengthExceeded[];
-extern const char errWordWrongCall[];
+extern const char errWordTilde[];
 extern const char errWordFreeFloatingFieldAcc[];
 extern const char errWordInMeta[];
 extern const char errNumericEndUnderscore[];

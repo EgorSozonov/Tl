@@ -218,9 +218,9 @@ typedef struct { // :Token
 
 #define maxWordLength 255
 
-// Regular (leaf) Token types
+// Atomic (leaf) Token types
 // The following group of variants are transferred to the AST byte for byte, with no analysis
-// Their values must exactly correspond with the initial group of variants in "RegularAST"
+// Their values must exactly correspond with the initial group of variants in "Node"
 // The largest value must be stored in "topVerbatimTokenVariant" constant
 #define tokInt          0
 #define tokLong         1
@@ -228,8 +228,9 @@ typedef struct { // :Token
 #define tokBool         3  // pl2 = value (1 or 0)
 #define tokString       4
 #define tokMisc         5  // pl1 = see the misc* constants. pl2 = underscore count iff miscUscore
+                           // Also stands for "Void" among the primitive types
 
-#define tokWord         6  // pl2 = nameId (index in the string table). pl1 = 1 iff followed by ~
+#define tokWord         6  // pl1 = 1 iff followed by ~. pl2 = nameId (index in the string table).
 #define tokTypeName     7  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg        8  // pl2 = same as tokWord. The ":argName"
 #define tokOperator     9  // pl1 = OperatorType, one of the "opT" constants below
@@ -241,9 +242,9 @@ typedef struct { // :Token
 #define tokTypeCall    13  // `[Tu Int Str]`
 #define tokIntro       14  // Introduction to a syntax form, like a param list or an if condition
 #define tokDataAlloc   15
-#define tokAssignLeft  16  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
-                           // If pl2 == 0 then pl1 = nameId for the single word on the left (and
-                           // it's an assignment of a var, i.e. neither reassignment/mut nor type)
+#define tokAssignLeft  16  // Iff pl2 == 0 then pl1 = nameId for the word on the left (hence it's a
+                           // def of an immutable var or reassign, i.e. neither mutation nor type)
+                           // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
 #define tokAssignRight 17  // Right-hand side of assignment
 #define tokAlias       18
 #define tokAssert      19
@@ -254,7 +255,7 @@ typedef struct { // :Token
 
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
 #define tokScope       24  // denoted by {}. firstScopeTokenType
-#define tokFn          25  // `[a Int -> Str => body]`
+#define tokFn          25  // `{{a Int -> Str: body}}`
 #define tokTry         26  // `try {`
 #define tokCatch       27  // `catch MyExc e {`
 #define tokDefer       28  // `defer { `

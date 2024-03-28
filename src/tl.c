@@ -1093,7 +1093,7 @@ const char errUnrecognizedByte[]           = "Unrecognized Byte in source code!"
 const char errWordChunkStart[]             = "In an identifier, each word piece must start with a letter. Tilde may come only after an identifier";
 const char errWordCapitalizationOrder[]    = "An identifier may not contain a capitalized piece after an uncapitalized one!";
 const char errWordLengthExceeded[]         = "I don't know why you want an identifier of more than 255 chars, but they aren't supported";
-const char errWordWrongCall[]              = "Unsupported kind of call. Only 3 types of call are supported: prefix `foo a b`, infix `a##` and type calls `L(Int)`";
+const char errWordTilde[]                  = "Mutable var definitions should look like `asdf~` with no spaces in between";
 const char errWordFreeFloatingFieldAcc[]   = "Free-floating field accessor";
 const char errWordInMeta[]                 = "Only ordinary words are allowed inside meta blocks!";
 const char errNumericEndUnderscore[]       = "Numeric literal cannot end with underscore!";
@@ -1868,8 +1868,9 @@ private void lexDot(Arr(Byte) source, Compiler* lx) { //:lexDot
 }
 
 
-private void processAssignment(Int mutType, untt opType, Compiler* lx) { //:processAssignment
-// Params: Handles the "=", and "+=" tokens. Changes existing stmt
+private void processAssignment(Int opType, Compiler* lx) { //:processAssignment
+// Params: opType is the operator for mutations (like `*=`), -1 for other assignments.
+// Handles the "=", and "+=" tokens. Changes existing stmt
 // token into tokAssignLeft and opens up a new tokAssignRight span. Doesn't consume anything
     BtToken currSpan = peek(lx->lexBtrack);
     VALIDATEL(currSpan.tp == tokStmt, errOperatorAssignmentPunct);
@@ -1877,19 +1878,20 @@ private void processAssignment(Int mutType, untt opType, Compiler* lx) { //:proc
     Int assignmentStartInd = currSpan.tokenInd;
     Token* tok = (lx->tokens.cont + assignmentStartInd);
     tok->tp = tokAssignLeft;
-    if (assignmentStartInd == (lx->tokens.len - 2) && mutType == 0)  { // only one token on the left
-        Token wordTk = lx->tokens.cont[assignmentStartInd + 1];
-        VALIDATEL(wordTk.tp == tokWord, errAssignment);
-        tok->pl1 = wordTk.pl2; // nameId
-        tok->startBt = wordTk.startBt;
-        tok->lenBts = wordTk.lenBts;
-        lx->tokens.len--; // delete the word token because its data now lives in tokAssignLeft
-    } else {
-        if (lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
+    if (opType == -1) {
+        if (assignmentStartInd == (lx->tokens.len - 2)
+            && lx->tokens.cont[lx->tokens.len - 1].pl1 == 0)  { // only one token and no ~
+            Token wordTk = lx->tokens.cont[assignmentStartInd + 1];
+            VALIDATEL(wordTk.tp == tokWord, errAssignment);
+            tok->pl1 = wordTk.pl2; // nameId
+            tok->startBt = wordTk.startBt;
+            tok->lenBts = wordTk.lenBts;
+            lx->tokens.len--; // delete the word token because its data now lives in tokAssignLeft
+        } else if (lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
             tok->pl1 = assiType;
-        } else if (mutType == 2) {
-            tok->pl1 = BIG + opType;
         }
+    } else {
+        tok->pl1 = BIG + opType;
     }
     setStmtSpanLength(assignmentStartInd, lx);
     lx->lexBtrack->cont[lx->lexBtrack->len - 1] = (BtToken){ .tp = tokAssignRight, .spanLevel = slStmt,
@@ -1928,9 +1930,12 @@ private void lexSemicolon(Arr(Byte) source, Compiler* lx) { //:lexSemicolon
 
 private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
     const Int lastInd = lx->tokens.len - 1;
-    VALIDATEL(lx->tokens.len > 0 && lx->tokens.cont[lastInd].tp == tokWord,
-              errWordChunkStart)
+    VALIDATEL(lx->tokens.len > 0, errWordTilde)
+    Token lastTk = lx->tokens.cont[lastInd];
+    VALIDATEL(lx->tokens.cont[lastInd].tp == tokWord && (lastTk.startBt + lastTk.lenBts == lx->i),
+              errWordTilde)
     lx->tokens.cont[lastInd].pl1 = 1;
+    lx->tokens.cont[lastInd].lenBts = lastTk.lenBts + 1;
     lx->i += 1;  // CONSUME the ";"
 }
 
@@ -1981,7 +1986,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
         j++;
     }
     if (isAssignment) { // mutation operators like "*=" or "*.="
-        processAssignment(2, opType, lx);
+        processAssignment(opType, lx);
     } else {
         pushIntokens((Token){ .tp = tokOperator, .pl1 = opType,
                     .pl2 = 0, .startBt = lx->i, .lenBts = j - lx->i}, lx);
@@ -2006,7 +2011,7 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
         pop(lx->lexBtrack);
         lx->i += 2; // CONSUME the `=>`
     } else {
-        processAssignment(0, 0, lx);
+        processAssignment(-1, lx);
         lx->i++; // CONSUME the =
     }
 }
