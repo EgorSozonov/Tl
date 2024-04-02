@@ -155,15 +155,19 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
     for (Int i = 0; i < countNodes; i++) {
         Node nd = nodes[i];
         untt nodeType = nd.tp;
-        // All the node types which contain bindingIds
+        // All the node types which contain entityIds in their pl1
         if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding
-                || (nodeType == nodAssignLeft && nd.pl2 == 0)) {
+                || (nodeType == nodAssignLeft && nd.pl2 == 0) || nodeType == nodFnDef) {
             nd.pl1 = transformBindingEntityId(nd.pl1, control);
         } else if (nodeType == nodDataAlloc) {
             nd.pl1 =  control->activeBindings[nd.pl1];
         }
+        // transform pl2/pl3 if it holds NameId
         if (nodeType == nodId && nd.pl2 != -1)  {
             nd.pl2 += stText.firstParsed;
+        }
+        if (nodeType == nodFnDef && nd.pl2 != -1)  {
+            nd.pl3 += stText.firstParsed;
         }
         addNode(nd, 0, 0, control);
     }
@@ -680,26 +684,22 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             s("Simple function definition 1"),
             s("newFn = {{x Int y [L Bool] -> : a = x}}"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,             .pl2 = 7 },
-                (Node){ .tp = nodBinding, .pl1 = 0 },
-                (Node){ .tp = nodScope,             .pl2 = 5 },
+                (Node){ .tp = nodFnDef,             .pl2 = 5 },
                 (Node){ .tp = nodBinding, .pl1 = 1 },  // param x
                 (Node){ .tp = nodBinding, .pl1 = 2 },  // param y
-                (Node){ .tp = nodAssignLeft,        .pl2 = 2 },
-                (Node){ .tp = nodBinding, .pl1 = 3 },  // local a
-                (Node){ .tp = nodId, .pl1 = 1,      .pl2 = 2 }   // x
+                (Node){ .tp = nodAssignLeft, .pl1 = 3 },
+                (Node){ .tp = nodExpr, .pl2 = 1 },
+                (Node){ .tp = nodId, .pl1 = 1,      .pl2 = 1 }   // x
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {}),
             ((SourceLoc[]) {
-                (SourceLoc){ .startBt = 0, .lenBts = 37 },
-                (SourceLoc){ .startBt = 4, .lenBts = 5 },
-                (SourceLoc){ .startBt = 13, .lenBts = 24 },
-                (SourceLoc){ .startBt = 14, .lenBts = 1 },  // param x
-                (SourceLoc){ .startBt = 20, .lenBts = 1 },  // param y
-                (SourceLoc){ .startBt = 31, .lenBts = 5 },
-                (SourceLoc){ .startBt = 31, .lenBts = 1 },  // local a
-                (SourceLoc){ .startBt = 35, .lenBts = 1 }   // x
+                (SourceLoc){ .startBt = 8, .lenBts = 31 },
+                (SourceLoc){ .startBt = 10, .lenBts = 1 },
+                (SourceLoc){ .startBt = 16, .lenBts = 1 },
+                (SourceLoc){ .startBt = 32, .lenBts = 1 },
+                (SourceLoc){ .startBt = 34, .lenBts = 3 },
+                (SourceLoc){ .startBt = 36, .lenBts = 1 }
              })
         ),
        /*

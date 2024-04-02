@@ -2144,8 +2144,9 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
 
     if (lx->i + 1 < lx->stats.inpLength && NEXT_BT == aCurlyRight) { // function end "}}"
         VALIDATEL(top.tp == tokFn, errPunctuationUnmatched);
+        lx->i += 1; // CONSUME the first "}"
         setSpanLengthLexer(top.tokenInd, lx);
-        lx->i += 2; // CONSUME the closing "}}"
+        lx->i += 1; // CONSUME the second "}"
     } else { // scope end
         VALIDATEL(top.spanLevel == slScope, errPunctuationUnmatched);
         setSpanLengthLexer(top.tokenInd, lx);
@@ -3894,7 +3895,7 @@ private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) { /
 
 
 private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm) {
-// Validates the overloads for a name for non-intersecting via their outer types
+// :validateNameOverloads Validates the overloads for a name don't intersect via their outer types
 // 1. For parameter outer types, their arities must be unique and not match any other outer types
 // 2. A zero-arity function, if any, must be unique
 // 3. For concrete outer types, there must be only one ref
@@ -4007,7 +4008,7 @@ testable void createOverloads(Compiler* cm) { //:createOverloads
 }
 
 
-private void pToplevelTypes(Compiler* cm) {
+private void pToplevelTypes(Compiler* cm) { //:pToplevelTypes
 // Parses top-level types but not functions. Writes them to the types table and adds
 // their bindings to the scope
     cm->i = 0;
@@ -4025,7 +4026,7 @@ private void pToplevelTypes(Compiler* cm) {
 }
 
 
-private void pToplevelConstants(Compiler* cm) {
+private void pToplevelConstants(Compiler* cm) { //:pToplevelConstants
 // Parses top-level constants but not functions, and adds their bindings to the scope
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
@@ -4180,6 +4181,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     Int fnSentinel = toplevelSignature.sentinelToken;
     EntityId fnEntity = toplevelSignature.entityId;
     TypeId fnType = cm->entities.cont[fnEntity].typeId;
+    print("at start, node count is %d", cm->nodes.len);
 
     print("toplevel body startInd %d sentinel %d", fnStartInd, fnSentinel);
 
@@ -4189,7 +4191,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     // the fnDef scope & node
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
                         .typeId = fnType }), cm->backtrack);
-    addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
+    //addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
     addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (toplevelSignature.name & LOWER24BITS)},
             fnTk.startBt, fnTk.lenBts, cm);
 
@@ -4197,16 +4199,22 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     Token mbParamsTk = toks[cm->i];
     if (mbParamsTk.tp == tokIntro) {
         const Int paramsSentinel = cm->i + mbParamsTk.pl2 + 1;
+        cm->i += 1; // CONSUME the tokIntro
+        print("fn type:");
+        tPrint(fnType, cm);
         print("paramsSentinel %d", paramsSentinel)
+        TypeId paramType = tGetIndexOfFnFirstParam(fnType, cm);
         while (cm->i < paramsSentinel) {
             // need to get params type from the function type we got, not
             // from tokens (where they may be generic)
-            TypeId paramType = tGetIndexOfFnFirstParam(fnType, cm);
             Token paramName = toks[cm->i];
-            print("here type is %d", paramName.tp)
+            if (paramName.tp == tokMisc) {
+                break;
+            }
+            print("here token type at %d is %d, type is %d", cm->i, paramName.tp, cm->types.cont[paramType])
             Int newEntityId = createEntityWithType(
                     nameOfToken(paramName), paramType,
-                    paramName.pl1 == 1 ? classImmutable : classMutable, cm);
+                    paramName.pl1 == 1 ? classMutable : classImmutable, cm);
             addNode(((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = 0}),
                     paramName.startBt, paramName.lenBts, cm);
 
@@ -4222,7 +4230,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
 }
 
 
-private void pFunctionBodies(Arr(Token) toks, Compiler* cm) {
+private void pFunctionBodies(Arr(Token) toks, Compiler* cm) { //:pFunctionBodies
 // Parses top-level function params and bodies
     for (int j = 0; j < cm->toplevels.len; j++) {
         cm->stats.loopCounter = 0;
@@ -4231,7 +4239,7 @@ private void pFunctionBodies(Arr(Token) toks, Compiler* cm) {
 }
 
 
-private void pToplevelSignatures(Compiler* cm) {
+private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 // Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
 // Result: the overload counts and the list of toplevel functions to parse. No nodes emitted
     cm->i = 0;
@@ -4267,10 +4275,10 @@ private void pToplevelSignatures(Compiler* cm) {
 // Must agree in order with node types in tl.internal.h
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
-    "id", "call", "binding", ".fld", "load", "store",
+    "id", "call", "binding", ".fld", "GEP", "GElem",
     "{}", "Expr", "...=", "data()",
     "alias", "assert", "breakCont", "catch", "defer",
-    "import", "[]", "trait", "return", "try",
+    "import", "{{fn}}", "trait", "return", "try",
     "for", "forCond", "forStep", "if", "ei", "impl", "match"
 };
 
@@ -4294,7 +4302,7 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
 }
 
 
-testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) {
+testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) { //:parse
 // Parses a single file in 4 passes, see docs/parser.txt
     initializeParser(cm, proto, a);
     return parseMain(cm, a);
@@ -5172,7 +5180,7 @@ const char* tokNames[] = {
     "stmt", "()", "[]", "intro:", "data",
     "...=", "=...", "alias", "assert", "breakCont",
     "iface", "import", "return",
-    "{}", "[fn]", "try{", "catch{", "finally{",
+    "{}", "{{fn}}", "try{", "catch{", "finally{",
     "if{", "match{", "ei", "else", "impl{", "for{", "each{"
 };
 
