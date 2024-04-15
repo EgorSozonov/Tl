@@ -46,8 +46,6 @@
 
 #define aSpace        32
 #define aNewline      10
-#define aCarrReturn   13
-#define aTab           9
 
 #define aApostrophe   39
 #define aBacktick     96
@@ -591,7 +589,7 @@ private bool isHexDigit(Byte a) { //:isHexDigit
 }
 
 private bool isSpace(Byte a) { //:isSpace
-    return a == aSpace || a == aNewline || a == aCarrReturn;
+    return a == aSpace || a == aNewline;
 }
 
 
@@ -1368,7 +1366,7 @@ testable untt nameOfStandard(Int strId) { //:nameOfStandard
 private void skipSpaces(Arr(Byte) source, Compiler* lx) { //:skipSpaces
     while (lx->i < lx->stats.inpLength) {
         Byte currBt = CURR_BT;
-        if (currBt != aSpace && currBt != aNewline && currBt != aCarrReturn) {
+        if (!isSpace(currBt)) {
             return;
         }
         lx->i += 1;
@@ -2035,7 +2033,7 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
 
     lx->i++;     // CONSUME the LF
     while (lx->i < lx->stats.inpLength) {
-        if (CURR_BT != aSpace && CURR_BT != aTab && CURR_BT != aCarrReturn) {
+        if (!isSpace(CURR_BT)) {
             break;
         }
         lx->i++; // CONSUME a space or tab
@@ -2203,7 +2201,7 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) { //:lexPipe
 
 private void lexSpace(Arr(Byte) source, Compiler* lx) { //:lexSpace
     lx->i++; // CONSUME the space
-    while (lx->i < lx->stats.inpLength && CURR_BT == aSpace) {
+    while (lx->i < lx->stats.inpLength && isSpace(CURR_BT)) {
         lx->i++; // CONSUME a space
     }
 }
@@ -2268,7 +2266,6 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] { //:tabulateDispatch
     p[aTilde] = &lexTilde;
 
     p[aSpace] = &lexSpace;
-    p[aCarrReturn] = &lexSpace;
     p[aNewline] = &lexNewline; // to make the newline a statement terminator sometimes
     p[aBacktick] = &lexStringLiteral;
     return result;
