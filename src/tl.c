@@ -1228,8 +1228,8 @@ const int operatorStartSymbols[14] = {
     // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
     // "=" - by lexEqual, "|" by lexPipe, "/" by "lexDivBy"
 };
-const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinallyfor"
-                            "ifimplimportifacematchpubreturntruetry"
+const char standardText[] = "aliasassertbreakcatchcontinuedeferdoeacheielsefalsefor"
+                            "ifimplimportmatchpubreturntraittruetry"
                             // reserved words end here
                             "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2printprintErr"
                             "math:pimath:eTU"
@@ -1242,10 +1242,10 @@ const char standardText[] = "aliasassertbreakcatchcontinueeacheielsefalsefinally
 // Also they must agree with the "standardStr" in tl.internal.h
 
 const Int standardStringLens[] = {
-     5, 6, 5, 5, 8, // continue
-     4, 2, 4, 5, 7, // finally
-     3, 2, 4, 6, 5, // iface
-     5, 3, 6, 4, 3, // try
+     5, 6, 5, 5, 8, 5,
+     2, 4, 2, 4, 5,
+     3, 2, 4, 6, 5, 3, 6,
+     5, 4, 3,
      // reserved words end here
      3, 4, 6, 4, 3, // Str(ing)
      4, 1, 1, 5, 1, // D
@@ -1258,10 +1258,10 @@ const Int standardStringLens[] = {
 };
 
 const Int standardKeywords[] = {
-    tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue,
-    tokEach,      tokElseIf,  tokElse,    keywFalse,  tokDefer,
-    tokFor,       tokIf,      tokImpl,    tokImport,  tokTrait,
-    tokMatch,     tokMisc,    tokReturn,  keywTrue,   tokTry
+    tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue, tokDefer,
+    tokScope,     tokEach,    tokElseIf,  tokElse,    keywFalse,
+    tokFor,       tokIf,      tokImpl,    tokImport,  tokMatch,
+    tokMisc,      tokReturn,  tokTrait,   keywTrue,   tokTry
 };
 
 
@@ -1712,6 +1712,10 @@ private void lexSyntaxForm(untt reservedWordType, Int startBt, Int lenBts,
 // Precondition: we are looking at the character immediately after the keyword
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= firstScopeTokenType) {
+        // validate that we are in parentheses and this is the first token in them
+        // mutate the parent lexing context into the corresponding syntax form
+
+
         skipSpaces(source, lx);
         VALIDATEL(lx->i < lx->stats.inpLength && CURR_BT == aCurlyLeft, errCoreFormTooShort);
         lx->i += 1; // CONSUME the "{"
@@ -1760,26 +1764,28 @@ private void closeStatement(Compiler* lx) { //:closeStatement
 }
 
 
+private void tryOpenAccessor(Arr(Byte) source, Compiler* lx) { //:tryOpenAccessor
+    if (lx->i < lx->stats.inpLength && CURR_BT == aBracketLeft) { // `a[i][j]`
+        openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
+        lx->i += 1; // CONSUME the `[`
+    }
+}
+
+
 private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
                         bool wasCapitalized, Arr(Byte) source, Compiler* lx) { //:wordNormal
     Int lenBts = lx->i - realStartBt;
     Token newToken = (Token){ .tp = wordType, .pl2 = uniqueStringId,
                              .startBt = realStartBt, .lenBts = lenBts };
-    if (lx->i < lx->stats.inpLength && CURR_BT == aParenLeft && wordType == tokWord
-            && wasCapitalized) {
-        newToken.tp = tokDataAlloc;
-        newToken.pl1 = uniqueStringId;
-        newToken.pl2 = 0;
-        push(((BtToken){ .tp = tokDataAlloc, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
-             lx->lexBtrack);
-        ++lx->i; // CONSUME the opening "(" of the call
-    } else if (wordType == tokWord) {
+    if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
         newToken.tp = (wasCapitalized ? tokTypeName : tokWord);
-    } else if (wordType == tokFieldAcc || wordType == tokKwArg) {
-        wrapInAStatementStarting(startBt, source, lx);
     }
     pushIntokens(newToken, lx);
+
+    if (wordType == tokWord && !wasCapitalized) {
+        tryOpenAccessor(source, lx); // `word[i]` is parsed as list accessor
+    }
 }
 
 
@@ -1934,7 +1940,7 @@ private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
               errWordTilde)
     lx->tokens.cont[lastInd].pl1 = 1;
     lx->tokens.cont[lastInd].lenBts = lastTk.lenBts + 1;
-    lx->i += 1;  // CONSUME the ";"
+    lx->i += 1;  // CONSUME the "~"
 }
 
 
@@ -1947,7 +1953,6 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     Byte fourthSymbol = (lx->stats.inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
     Int k = 0;
     Int opType = -1; // corresponds to the op... operator types
-    //OpDef (*operators)[countOperators] = lx->langDef->operators;
     while (k < countOperators && TL_OPERATORS[k].bytes[0] < firstSymbol) {
         k++;
     }
@@ -2092,12 +2097,26 @@ private void lexParenLeft(Arr(Byte) source, Compiler* lx) { //:lexParenLeft
 }
 
 
-private void lexParenRight(Arr(Byte) source, Compiler* lx) {
+private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
+// A closing parenthesis may close the following configurations of lexer backtrack:
+// 1. [scope stmt] - if it's just a scope nested within another scope or a function
+// 2. [coreForm stmt] - eg. if it's closing the function body
+// 3. [coreForm scope stmt] - eg. if it's closing the {} part of an "if"
     Int startInd = lx->i;
 
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
+
+    // since a closing paren may be closing something with statements inside it, like a lex scope
+    // or a function, we need to close that statement before closing its parent
+    if (top.spanLevel == slStmt) {
+        VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel == slScope,
+                  errPunctuationUnmatched);
+        setStmtSpanLength(top.tokenInd, lx);
+        top = pop(bt);
+    }
+
     VALIDATEL(top.spanLevel == slSubexpr, errPunctuationUnmatched)
 
     setSpanLengthLexer(top.tokenInd, lx);
@@ -2121,44 +2140,24 @@ private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) { //:lexCurlyLeft
 }
 
 
-private void lexCurlyRight(Arr(Byte) source, Compiler* lx) {
-// A closing curly brace may close the following configurations of lexer backtrack:
-// 1. [scope stmt] - if it's just a scope nested within another scope or a function
-// 2. [coreForm stmt] - eg. if it's closing the function body
-// 3. [coreForm scope stmt] - eg. if it's closing the {} part of an "if"
-    const Int startInd = lx->i;
+private void lexCurlyRight(Arr(Byte) source, Compiler* lx) { //:lexCurlyRight
+    Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
+    VALIDATEL(top.tp == tokDataMap, errPunctuationUnmatched)
 
-    // since a closing curly is closing something with statements inside it, like a lex scope
-    // or a function, we need to close that statement before closing its parent
-    if (top.spanLevel == slStmt) {
-        VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel == slScope,
-                  errPunctuationUnmatched);
-        setStmtSpanLength(top.tokenInd, lx);
-        top = pop(bt);
-    }
+    setSpanLengthLexer(top.tokenInd, lx);
 
-    if (lx->i + 1 < lx->stats.inpLength && NEXT_BT == aCurlyRight) { // function end "}}"
-        VALIDATEL(top.tp == tokFn, errPunctuationUnmatched);
-        lx->i += 1; // CONSUME the first "}"
-        setSpanLengthLexer(top.tokenInd, lx);
-        lx->i += 1; // CONSUME the second "}"
-    } else { // scope end
-        VALIDATEL(top.spanLevel == slScope, errPunctuationUnmatched);
-        setSpanLengthLexer(top.tokenInd, lx);
-        lx->i += 1; // CONSUME the closing "}"
-    }
     if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
+    lx->i += 1; // CONSUME the closing "}"
 }
+
 
 
 private void lexBracketLeft(Arr(Byte) source, Compiler* lx) { //:lexBracketLeft
     wrapInAStatement(source, lx);
-    push(((BtToken){ .tp = tokTypeCall, .tokenInd = lx->tokens.len, .spanLevel = slSubexpr }),
-            lx->lexBtrack);
-    pushIntokens((Token){ .tp = tokTypeCall, .pl1 = slSubexpr, .startBt = lx->i, .lenBts = 0 }, lx);
+    openPunctuation(tokDataList, slSubexpr, lx->i, lx);
     lx->i += 1; // CONSUME the `[`
 }
 
@@ -2168,18 +2167,14 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) { //:lexBracketRigh
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
+    VALIDATEL(top.tp == tokDataList, errPunctuationUnmatched)
 
-    // since a closing bracket is closing a function, it may have statements inside.
-    // So we need to close that statement before closing its parent
-    if (top.spanLevel == slStmt) {
-        setStmtSpanLength(top.tokenInd, lx);
-        VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
-        top = pop(bt);
-    }
     setSpanLengthLexer(top.tokenInd, lx);
 
     if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
     lx->i += 1; // CONSUME the closing "]"
+
+    tryOpenAccessor(source, lx);
 }
 
 
@@ -2189,12 +2184,8 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) { //:lexPipe
     if (j < lx->stats.inpLength && NEXT_BT == aPipe) {
         lexOperator(source, lx);
     } else {
-        BtToken top = peek(lx->lexBtrack);
-        VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
-        setStmtSpanLength(top.tokenInd, lx);
-        lx->tokens.cont[top.tokenInd].tp = tokIntro;
-        pop(lx->lexBtrack);
-        lx->i++; // CONSUME the `|`
+        throwExcLexer(errUnexpectedToken);
+        // TODO function chaining
     }
 }
 
@@ -5173,12 +5164,12 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 // Must agree in order with token types in tl.internal.h
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "misc",
-    "word", "Type", ":kwarg", "operator", "@acc",
-    "stmt", "()", "[]", "intro:", "data",
+    "word", "Type", ":kwarg", "operator", ".field",
+    "stmt", "()", "(T ...)", "intro:", "[]", "{}", "a[]",
     "...=", "=...", "alias", "assert", "breakCont",
-    "iface", "import", "return",
-    "{}", "{{fn}}", "try{", "catch{", "finally{",
-    "if{", "match{", "ei", "else", "impl{", "for{", "each{"
+    "trait", "import", "return",
+    "(do", "(\\", "(try", "(catch", "(defer",
+    "(if", "match{", "elseIf", "else", "(impl", "(for", "(each"
 };
 
 
@@ -5410,7 +5401,7 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
     printIntArrayOff(typeId, 6, cm->types.cont);
 
     StackTypeLoc* st = createStackTypeLoc(16, cm->aTmp);
-    TypeLoc* top = nullptr;
+    TypeLoc* top = null;
 
     Int sentinel = typeId + cm->types.cont[typeId] + 1;
     tPrintOuter(typeId, cm);
@@ -5418,7 +5409,7 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
     top = st->cont;
 
     Int countIters = 0;
-    while (top != nullptr && countIters < 10)  {
+    while (top != null && countIters < 10)  {
         Int currT = cm->types.cont[top->currPos];
     //    print("printLoop currT %d currSentinel = %d", currT, top->sentinel)
         top->currPos += 1;
@@ -5435,9 +5426,9 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
         } else { // type param
             printf("%d ", -currT - 1);
         }
-        while (top != nullptr && top->currPos == top->sentinel) {
+        while (top != null && top->currPos == top->sentinel) {
             popTypeLoc(st);
-            top = hasValuesTypeLoc(st) ? st->cont + (st->len - 1) : nullptr;
+            top = hasValuesTypeLoc(st) ? st->cont + (st->len - 1) : null;
             printf("]");
         }
 
