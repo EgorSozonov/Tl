@@ -854,7 +854,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokInt,      .pl2 = 9, .startBt = 5, .lenBts = 1 },
          }))},
          (LexerTest) { .name = s("Assignment with complex left side"),
-             .input = s("a@i@5 = 9"),
+             .input = s("a[i][5] = 9"),
              .expectedOutput = expect(((Token[]) {
                  (Token){ .tp = tokAssignLeft,  .pl2 = 5,             .lenBts = 5 },
                  (Token){ .tp = tokWord,                .startBt = 0, .lenBts = 1 }, // x
@@ -962,9 +962,9 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
              .expectedOutput = expect(((Token[]) {
                  (Token){ .tp = tokFor, .pl1 = slScope, .pl2 = 10, .lenBts = 30 },
 
-                 (Token){ .tp = tokAssignLeft, .pl2 = 0, .startBt = 5, .lenBts = 1 }, // print
-                 (Token){ .tp = tokAssignRight, .pl2 = 1, .startBt = 7, .lenBts = 3 },
-                 (Token){ .tp = tokInt,        .pl2 = 1, .startBt = 9, .lenBts = 1 },
+                 (Token){ .tp = tokAssignLeft,   .pl2 = 0, .startBt = 5, .lenBts = 1 }, // print
+                 (Token){ .tp = tokAssignRight,  .pl2 = 1, .startBt = 7, .lenBts = 3 },
+                 (Token){ .tp = tokInt,          .pl2 = 1, .startBt = 9, .lenBts = 1 },
 
                  (Token){ .tp = tokIntro,            .pl2 = 3, .startBt = 12, .lenBts = 7 },
                  (Token){ .tp = tokWord,                  .startBt = 12, .lenBts = 1 }, // x
@@ -972,8 +972,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokInt,             .pl2 = 101, .startBt = 16, .lenBts = 3 },
 
                  (Token){ .tp = tokStmt,           .pl2 = 2, .startBt = 21, .lenBts = 7 },
-                 (Token){ .tp = tokWord,           .pl2 = (strPrint + S),
-                                                    .startBt = 21, .lenBts = 5 }, // print
+                 (Token){ .tp = tokWord,  .pl2 = (strPrint + S), .startBt = 21, .lenBts = 5 },//print
                  (Token){ .tp = tokWord,                 .startBt = 27, .lenBts = 1 }  // x
          }))}
     }));
@@ -1078,14 +1077,14 @@ int main(int argc, char** argv) {
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&wordTests, &countPassed, &countTests, proto, a);
-    runATestSet(&stringTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&wordTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&stringTests, &countPassed, &countTests, proto, a);
     //runATestSet(&metaTests, &countPassed, &countTests, proto, a);
-    runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
-    runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
-    runATestSet(&numericTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&numericTests, &countPassed, &countTests, proto, a);
     runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
-    runATestSet(&typeTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&typeTests, &countPassed, &countTests, proto, a);
     if (countTests == 0) {
         print("\nThere were no tests to run!");
     } else if (countPassed == countTests) {

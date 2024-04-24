@@ -151,50 +151,51 @@ typedef struct {
 #define strBreak      2
 #define strCatch      3
 #define strContinue   4
-#define strEach       5
-#define strElseIf     6
-#define strElse       7
-#define strFalse      8
-#define strFinally    9
-#define strFor       10
-#define strIf        11
-#define strImpl      12
-#define strImport    13
-#define strInterface 14
+#define strDefer      5
+#define strDo         6
+#define strEach       7
+#define strElseIf     8
+#define strElse       9
+#define strFalse     10
+#define strFor       11
+#define strIf        12
+#define strImpl      13
+#define strImport    14
 #define strMatch     15
 #define strPub       16
 #define strReturn    17
-#define strTrue      18
-#define strTry       19
-#define strFirstNonReserved 20
+#define strTrait     18
+#define strTrue      19
+#define strTry       20 
+#define strFirstNonReserved 21
 #define strInt       strFirstNonReserved // types must come first here?, see "buildPreludeTypes"
-#define strLong      21
-#define strDouble    22
-#define strBool      23
-#define strString    24
-#define strVoid      25
-#define strF         26 // F(unction type)
-#define strL         27 // L(ist)
-#define strArray     28
-#define strD         29 // D(ictionary)
-#define strRec       30 // Record
-#define strEnum      31 // Enum
-#define strTu        32 // Tu(ple)
-#define strPromise   33 // Promise
-#define strLen       34
-#define strCap       35
-#define strF1        36
-#define strF2        37
-#define strPrint     38
-#define strPrintErr  39
-#define strMathPi    40
-#define strMathE     41
-#define strTypeVarT  42
-#define strTypeVarU  43
+#define strLong      22
+#define strDouble    23
+#define strBool      24
+#define strString    25
+#define strVoid      26
+#define strF         27 // F(unction type)
+#define strL         28 // L(ist)
+#define strArray     29
+#define strD         30 // D(ictionary)
+#define strRec       31 // Record
+#define strEnum      32 // Enum
+#define strTu        33 // Tu(ple)
+#define strPromise   34 // Promise
+#define strLen       35
+#define strCap       36
+#define strF1        37
+#define strF2        38
+#define strPrint     39
+#define strPrintErr  40
+#define strMathPi    41
+#define strMathE     42
+#define strTypeVarT  43
+#define strTypeVarU  44
 #ifndef TEST
-#define strSentinel  44
+#define strSentinel  45
 #else
-#define strSentinel  47
+#define strSentinel  48
 #endif
 
 //}}}

@@ -1712,21 +1712,19 @@ private void lexSyntaxForm(untt reservedWordType, Int startBt, Int lenBts,
 // Precondition: we are looking at the character immediately after the keyword
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= firstScopeTokenType) {
-        // validate that we are in parentheses and this is the first token in them
-        // mutate the parent lexing context into the corresponding syntax form
-
-
+        // A reserved word must be the first inside parentheses, but parentheses are always wrapped
+	// in statements, so we need to check the TWO last tokens and two top BtTokens
+        VALIDATEL(bt->len >= 2 && peek(bt).tp == tokParens && bt->cont[bt->len - 2].tp == tokStmt, errCoreFormInappropriate)
+	const Int indLastToken = lx->tokens.len - 1;
+        VALIDATEL(lx->tokens.cont[indLastToken].tp == tokParens
+		  && lx->tokens.cont[indLastToken - 1].tp == tokStmt, errCoreFormInappropriate)
+	lx->tokens.cont[indLastToken - 1].tp = reservedWordType;
+	lx->tokens.cont[indLastToken - 1].pl1 = slScope;
+        lx->tokens.len -= 1;
+        bt->cont[bt->len - 2].tp = reservedWordType;
+        bt->cont[bt->len - 2].spanLevel = slScope;
+        bt->len -= 1;
         skipSpaces(source, lx);
-        VALIDATEL(lx->i < lx->stats.inpLength && CURR_BT == aCurlyLeft, errCoreFormTooShort);
-        lx->i += 1; // CONSUME the "{"
-        if (hasValues(lx->lexBtrack)) {
-            BtToken top = peek(lx->lexBtrack);
-            VALIDATEL(top.spanLevel == slScope && top.tp != tokStmt, errPunctuationScope)
-        }
-        push(((BtToken){ .tp = reservedWordType, .tokenInd = lx->tokens.len,
-                    .spanLevel = slScope }), lx->lexBtrack);
-        pushIntokens((Token){ .tp = reservedWordType, .pl1 = slScope,
-            .startBt = startBt, .lenBts = lenBts }, lx);
     } else if (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
         addStatementSpan(reservedWordType, startBt, lx);
@@ -2091,9 +2089,14 @@ private void lexDivBy(Arr(Byte) source, Compiler* lx) { //:lexDivBy
 private void lexParenLeft(Arr(Byte) source, Compiler* lx) { //:lexParenLeft
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
-    wrapInAStatement(source, lx);
-    openPunctuation(tokParens, slSubexpr, lx->i, lx);
-    ++lx->i; // CONSUME the left parenthesis
+    if (NEXT_BT == aBackslash) {
+	openPunctuation(tokFn, slScope, lx->i, lx);
+	lx->i += 2; // CONSUME the "(\"
+    } else {
+	wrapInAStatement(source, lx);
+	openPunctuation(tokParens, slSubexpr, lx->i, lx);
+	lx->i += 1; // CONSUME the left parenthesis
+    }
 }
 
 
@@ -2117,7 +2120,7 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
         top = pop(bt);
     }
 
-    VALIDATEL(top.spanLevel == slSubexpr, errPunctuationUnmatched)
+    VALIDATEL(top.spanLevel == slSubexpr || top.spanLevel == slScope, errPunctuationUnmatched)
 
     setSpanLengthLexer(top.tokenInd, lx);
     lx->i++; // CONSUME the closing ")"
