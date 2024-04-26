@@ -856,15 +856,15 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
          (LexerTest) { .name = s("Assignment with complex left side"),
              .input = s("a[i][5] = 9"),
              .expectedOutput = expect(((Token[]) {
-                 (Token){ .tp = tokAssignLeft,  .pl2 = 5,             .lenBts = 5 },
+                 (Token){ .tp = tokAssignLeft,  .pl2 = 5,             .lenBts = 7 },
                  (Token){ .tp = tokWord,                .startBt = 0, .lenBts = 1 }, // x
-                 (Token){ .tp = tokOperator, .pl1 = opAccessor, .startBt = 1, .lenBts = 1 },
+                 (Token){ .tp = tokAccessor,    .pl2 = 1, .startBt = 1, .lenBts = 3 }, // x
                  (Token){ .tp = tokWord,      .pl2 = 1, .startBt = 2, .lenBts = 1 }, // i
-                 (Token){ .tp = tokOperator, .pl1 = opAccessor, .startBt = 3, .lenBts = 1 },
-                 (Token){ .tp = tokInt,      .pl2 = 5, .startBt = 4, .lenBts = 1 },
+                 (Token){ .tp = tokAccessor,  .pl2 = 1, .startBt = 4, .lenBts = 3 },
+                 (Token){ .tp = tokInt,      .pl2 = 5, .startBt = 5, .lenBts = 1 },
 
-                 (Token){ .tp = tokAssignRight,  .pl2 = 1, .startBt = 6, .lenBts = 3 },
-                 (Token){ .tp = tokInt, .pl2 = 9,  .startBt = 8,  .lenBts = 1 },
+                 (Token){ .tp = tokAssignRight,  .pl2 = 1, .startBt = 8, .lenBts = 3 },
+                 (Token){ .tp = tokInt, .pl2 = 9,  .startBt = 10,  .lenBts = 1 },
          }))},
          (LexerTest) { .name = s("Paren-type core form"),
              .input = s("(if x <> 7 > 0: true )"),
@@ -882,9 +882,9 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokBool, .pl2 = 1, .startBt = 16, .lenBts = 4 },
          }))},
          (LexerTest) { .name = s("If with else"),
-             .input = s("(if x <> 7 > 0: true else: false )"),
+             .input = s("(if x <> 7 > 0: true else false )"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 8, .startBt = 0, .lenBts = 21 },
+                 (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 11, .startBt = 0, .lenBts = 33 },
                  (Token){ .tp = tokIntro,  .pl2 = 5, .startBt = 4, .lenBts = 10 },
                  (Token){ .tp = tokWord,            .startBt = 4, .lenBts = 1 },                // x
                  (Token){ .tp = tokOperator, .pl1 = opComparator, .startBt = 6, .lenBts = 2 },
@@ -896,14 +896,14 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokBool,  .pl2 = 1, .startBt = 16, .lenBts = 4 },
 
                  (Token){ .tp = tokElse, .pl1 = slScope, .pl2 = 2,
-                          .startBt = 22, .lenBts = 13 },
-                 (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 28, .lenBts = 5 },
-                 (Token){ .tp = tokBool,            .startBt = 28, .lenBts = 5 }
+                          .startBt = 21, .lenBts = 10 },
+                 (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 26, .lenBts = 5 },
+                 (Token){ .tp = tokBool,            .startBt = 26, .lenBts = 5 }
          }))},
         (LexerTest) { .name = s("If with elseif and else"),
             .input = s("(if x <> 7 > 0: 5\n"
-                       "ei x <> 7 < 0: 11\n"
-                       "else: true )"),
+                       "eif x <> 7 < 0: 11\n"
+                       "else true )"),
             .expectedOutput = expect(((Token[]){
                 (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 8, .startBt = 0, .lenBts = 18 },
                 (Token){ .tp = tokIntro, .pl2 = 5, .startBt = 4, .lenBts = 10 },

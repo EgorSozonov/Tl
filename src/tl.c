@@ -1104,7 +1104,7 @@ const char errNumericIntWidthExceeded[]    = "Integer literals must be within th
 const char errPunctuationExtraOpening[]    = "Extra opening punctuation";
 const char errPunctuationExtraClosing[]    = "Extra closing punctuation";
 const char errPunctuationOnlyInMultiline[] = "The statement separator is not allowed inside expressions!";
-const char errPunctuationParamList[]       = "The param list separator `;;` must be directly in a statement";
+const char errPunctuationParamList[]       = "The intro separator `:` must be directly in a statement";
 const char errPunctuationUnmatched[]       = "Unmatched closing punctuation";
 const char errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
 const char errOperatorUnknown[]            = "Unknown operator";
@@ -1185,6 +1185,7 @@ const char errTypeFnSingleReturnType[]      = "More than one return type in a fu
 //}}}
 //{{{ Forward decls
 
+private void closeStatement(Compiler* lx);
 private void exprCopyFromScratch(Int startNodeInd, Compiler* cm);
 private Int isFunction(TypeId typeId, Compiler* cm);
 private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm);
@@ -1228,7 +1229,7 @@ const int operatorStartSymbols[14] = {
     // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
     // "=" - by lexEqual, "|" by lexPipe, "/" by "lexDivBy"
 };
-const char standardText[] = "aliasassertbreakcatchcontinuedeferdoeacheielsefalsefor"
+const char standardText[] = "aliasassertbreakcatchcontinuedeferdoeacheifelsefalsefor"
                             "ifimplimportmatchpubreturntraittruetry"
                             // reserved words end here
                             "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2printprintErr"
@@ -1243,7 +1244,7 @@ const char standardText[] = "aliasassertbreakcatchcontinuedeferdoeacheielsefalse
 
 const Int standardStringLens[] = {
      5, 6, 5, 5, 8, 5,
-     2, 4, 2, 4, 5,
+     2, 4, 3, 4, 5,
      3, 2, 4, 6, 5, 3, 6,
      5, 4, 3,
      // reserved words end here
@@ -1706,20 +1707,36 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 }
 
 
-private void lexSyntaxForm(untt reservedWordType, Int startBt, Int lenBts,
-                             Arr(Byte) source, Compiler* lx) { //:lexSyntaxForm
+private void lexElseElseIf(untt reservedWordType, Int startBt,
+               Arr(Byte) source, Compiler* lx) { //:lexElseElseIf
+    StackBtToken* bt = lx->lexBtrack;
+    VALIDATEL(bt->len >= 1, errCoreFormInappropriate)
+    if (peek(bt).tp != tokIf) {
+        VALIDATEL(bt->len > 1 && peek(bt).spanLevel == slStmt
+                  && bt->cont[bt->len - 2].tp == tokIf, errCoreFormInappropriate)
+        closeStatement(lx);
+    }
+    openPunctuation(reservedWordType, slScope, startBt, lx);
+}
+
+
+private void lexSyntaxForm(untt reservedWordType, Int startBt,
+                           Arr(Byte) source, Compiler* lx) { //:lexSyntaxForm
 // Lexer action for a paren-type or statement-type syntax form.
 // Precondition: we are looking at the character immediately after the keyword
     StackBtToken* bt = lx->lexBtrack;
-    if (reservedWordType >= firstScopeTokenType) {
+    if (reservedWordType == tokElseIf || reservedWordType == tokElse) {
+        lexElseElseIf(reservedWordType, startBt, source, lx);
+    } else if (reservedWordType >= firstScopeTokenType) {
         // A reserved word must be the first inside parentheses, but parentheses are always wrapped
-	// in statements, so we need to check the TWO last tokens and two top BtTokens
-        VALIDATEL(bt->len >= 2 && peek(bt).tp == tokParens && bt->cont[bt->len - 2].tp == tokStmt, errCoreFormInappropriate)
-	const Int indLastToken = lx->tokens.len - 1;
+    // in statements, so we need to check the TWO last tokens and two top BtTokens
+        VALIDATEL(bt->len >= 2 && peek(bt).tp == tokParens
+          && bt->cont[bt->len - 2].tp == tokStmt, errCoreFormInappropriate)
+        const Int indLastToken = lx->tokens.len - 1;
         VALIDATEL(lx->tokens.cont[indLastToken].tp == tokParens
-		  && lx->tokens.cont[indLastToken - 1].tp == tokStmt, errCoreFormInappropriate)
-	lx->tokens.cont[indLastToken - 1].tp = reservedWordType;
-	lx->tokens.cont[indLastToken - 1].pl1 = slScope;
+          && lx->tokens.cont[indLastToken - 1].tp == tokStmt, errCoreFormInappropriate)
+        lx->tokens.cont[indLastToken - 1].tp = reservedWordType;
+        lx->tokens.cont[indLastToken - 1].pl1 = slScope;
         lx->tokens.len -= 1;
         bt->cont[bt->len - 2].tp = reservedWordType;
         bt->cont[bt->len - 2].spanLevel = slScope;
@@ -1789,7 +1806,6 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
 
 private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartBt,
                           Arr(Byte) source, Compiler* lx) { //:wordReserved
-    Int lenBts = lx->i - startBt;
     Int keywordTp = standardKeywords[wordId];
     if (keywordTp < firstSpanTokenType) {
         if (keywordTp == keywTrue) {
@@ -1809,7 +1825,7 @@ private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartB
                          .startBt=realStartBt, .lenBts=5}, lx);
         }
     } else {
-        lexSyntaxForm(keywordTp, realStartBt, lenBts, source, lx);
+        lexSyntaxForm(keywordTp, realStartBt, source, lx);
     }
 }
 
@@ -1910,7 +1926,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
     } else {
         VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
         BtToken top = peek(lx->lexBtrack);
-        VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
+        VALIDATEL(top.spanLevel == slStmt || top.tp == tokElse, errPunctuationParamList)
 
         setStmtSpanLength(top.tokenInd, lx);
         lx->tokens.cont[top.tokenInd].tp = tokIntro;
@@ -1997,20 +2013,11 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
 
 
 private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
-// The humble "=" can be the definition statement, the marker "=>" which ends a parameter list,
-// or a comparison "=="
+// The humble "=" can be the definition statement or a comparison "=="
     checkPrematureEnd(2, lx);
     Byte nextBt = NEXT_BT;
     if (nextBt == aEqual) {
         lexOperator(source, lx); // ==
-    } else if (nextBt == aGT) {
-        VALIDATEL(hasValues(lx->lexBtrack), errPunctuationParamList)
-        BtToken top = peek(lx->lexBtrack);
-        VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
-        setStmtSpanLength(top.tokenInd, lx);
-        lx->tokens.cont[top.tokenInd].tp = tokIntro;
-        pop(lx->lexBtrack);
-        lx->i += 2; // CONSUME the `=>`
     } else {
         processAssignment(-1, lx);
         lx->i++; // CONSUME the =
@@ -2090,12 +2097,12 @@ private void lexParenLeft(Arr(Byte) source, Compiler* lx) { //:lexParenLeft
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
     if (NEXT_BT == aBackslash) {
-	openPunctuation(tokFn, slScope, lx->i, lx);
-	lx->i += 2; // CONSUME the "(\"
+        openPunctuation(tokFn, slScope, lx->i, lx);
+        lx->i += 2; // CONSUME the "(\"
     } else {
-	wrapInAStatement(source, lx);
-	openPunctuation(tokParens, slSubexpr, lx->i, lx);
-	lx->i += 1; // CONSUME the left parenthesis
+        wrapInAStatement(source, lx);
+        openPunctuation(tokParens, slSubexpr, lx->i, lx);
+        lx->i += 1; // CONSUME the left parenthesis
     }
 }
 
@@ -2104,7 +2111,8 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
 // A closing parenthesis may close the following configurations of lexer backtrack:
 // 1. [scope stmt] - if it's just a scope nested within another scope or a function
 // 2. [coreForm stmt] - eg. if it's closing the function body
-// 3. [coreForm scope stmt] - eg. if it's closing the {} part of an "if"
+// 3. [if else/elseIf stmt]
+// 4. [if else/elseIf ]
     Int startInd = lx->i;
 
     StackBtToken* bt = lx->lexBtrack;
@@ -2116,6 +2124,10 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
     if (top.spanLevel == slStmt) {
         VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel == slScope,
                   errPunctuationUnmatched);
+        setStmtSpanLength(top.tokenInd, lx);
+        top = pop(bt);
+    }
+    if (hasValues(bt) && top.tp == tokElse || top.tp == tokElseIf)  {
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
@@ -2170,7 +2182,7 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) { //:lexBracketRigh
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
-    VALIDATEL(top.tp == tokDataList, errPunctuationUnmatched)
+    VALIDATEL(top.tp == tokDataList || top.tp == tokAccessor, errPunctuationUnmatched)
 
     setSpanLengthLexer(top.tokenInd, lx);
 
@@ -3295,6 +3307,7 @@ private void finalizeLexer(Compiler* lx) { //:finalizeLexer
         return;
     }
     BtToken top = pop(lx->lexBtrack);
+    printLexBtrack(lx);
     VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
 
     setStmtSpanLength(top.tokenInd, lx);
