@@ -1712,9 +1712,18 @@ private void lexElseElseIf(untt reservedWordType, Int startBt,
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(bt->len >= 1, errCoreFormInappropriate)
     if (peek(bt).tp != tokIf) {
-        VALIDATEL(bt->len > 1 && peek(bt).spanLevel == slStmt
-                  && bt->cont[bt->len - 2].tp == tokIf, errCoreFormInappropriate)
-        closeStatement(lx);
+        // if not directly inside "if", then we may be only be in:
+        // [If], [If stmt], [ElseIf] or [ElseIf stmt]
+        VALIDATEL(bt->len > 1, errCoreFormInappropriate)
+        if (peek(bt).spanLevel == slStmt) {
+            closeStatement(lx);
+        }
+        VALIDATEL(bt->len > 0, errCoreFormInappropriate)
+        BtToken top = peek(bt);
+        if (top.tp == tokElseIf) {
+            setStmtSpanLength(top.tokenInd, lx);
+            pop(lx->lexBtrack);
+        }
     }
     openPunctuation(reservedWordType, slScope, startBt, lx);
 }
@@ -1729,7 +1738,7 @@ private void lexSyntaxForm(untt reservedWordType, Int startBt,
         lexElseElseIf(reservedWordType, startBt, source, lx);
     } else if (reservedWordType >= firstScopeTokenType) {
         // A reserved word must be the first inside parentheses, but parentheses are always wrapped
-    // in statements, so we need to check the TWO last tokens and two top BtTokens
+        // in statements, so we need to check the TWO last tokens and two top BtTokens
         VALIDATEL(bt->len >= 2 && peek(bt).tp == tokParens
           && bt->cont[bt->len - 2].tp == tokStmt, errCoreFormInappropriate)
         const Int indLastToken = lx->tokens.len - 1;
@@ -3307,7 +3316,6 @@ private void finalizeLexer(Compiler* lx) { //:finalizeLexer
         return;
     }
     BtToken top = pop(lx->lexBtrack);
-    printLexBtrack(lx);
     VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
 
     setStmtSpanLength(top.tokenInd, lx);
@@ -5200,7 +5208,7 @@ Int posInd(Int ind) {
 
 
 void printLexBtrack(Compiler* lx) {
-    printf("[");
+    printf("lexBtTrack = [");
     StackBtToken* bt = lx->lexBtrack;
 
     for (Int k = 0; k < bt->len; k++) {

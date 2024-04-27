@@ -166,7 +166,7 @@ typedef struct {
 #define strReturn    17
 #define strTrait     18
 #define strTrue      19
-#define strTry       20 
+#define strTry       20
 #define strFirstNonReserved 21
 #define strInt       strFirstNonReserved // types must come first here?, see "buildPreludeTypes"
 #define strLong      22

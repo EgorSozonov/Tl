@@ -558,29 +558,29 @@ LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
             .input = s("(do car;\n"
                        "    cdr)"),
             .expectedOutput = expect(((Token[]){
-                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 4, .startBt = 0, .lenBts = 14 },
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 1, .lenBts = 3 },
-                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 1, .lenBts = 3 },
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 10, .lenBts = 3 },
-                (Token){ .tp = tokWord, .pl2 = 1, .startBt = 10, .lenBts = 3 }
+                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 4, .startBt = 0, .lenBts = 17 },
+                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 4, .lenBts = 3 },
+                (Token){ .tp = tokWord, .pl2 = 0, .startBt = 4, .lenBts = 3 },
+                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 13, .lenBts = 3 },
+                (Token){ .tp = tokWord, .pl2 = 1, .startBt = 13, .lenBts = 3 }
         }))},
         (LexerTest) { .name = s("Scopes nested"),
             .input = s("(do car;\n"
                        "(do other car)\n"
                        "cdr)"),
             .expectedOutput = expect(((Token[]){
-                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 8, .startBt = 0, .lenBts = 22 },
+                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 8, .startBt = 0, .lenBts = 28 },
 
-                (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 1, .lenBts = 3 },
-                (Token){ .tp = tokWord,  .pl2 = 0, .startBt = 1, .lenBts = 3 },  // car
+                (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 4, .lenBts = 3 },
+                (Token){ .tp = tokWord,  .pl2 = 0, .startBt = 4, .lenBts = 3 },  // car
 
-                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 3, .startBt = 6, .lenBts = 11 },
-                (Token){ .tp = tokStmt,  .pl2 = 2, .startBt = 7, .lenBts = 9 },
-                (Token){ .tp = tokWord,  .pl2 = 1, .startBt = 7, .lenBts = 5 },  // other
-                (Token){ .tp = tokWord,  .pl2 = 0, .startBt = 13, .lenBts = 3 }, // car
+                (Token){ .tp = tokScope, .pl1 = slScope, .pl2 = 3, .startBt = 9, .lenBts = 14 },
+                (Token){ .tp = tokStmt,  .pl2 = 2, .startBt = 13, .lenBts = 9 },
+                (Token){ .tp = tokWord,  .pl2 = 1, .startBt = 13, .lenBts = 5 },  // other
+                (Token){ .tp = tokWord,  .pl2 = 0, .startBt = 19, .lenBts = 3 }, // car
 
-                (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 18, .lenBts = 3 },
-                (Token){ .tp = tokWord,  .pl2 = 2, .startBt = 18, .lenBts = 3 }  // cdr
+                (Token){ .tp = tokStmt,  .pl2 = 1, .startBt = 24, .lenBts = 3 },
+                (Token){ .tp = tokWord,  .pl2 = 2, .startBt = 24, .lenBts = 3 }  // cdr
         }))},
         (LexerTest) { .name = s("Parens inside statement"),
             .input = s("loo aa ( asdf )"),
@@ -905,7 +905,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                        "eif x <> 7 < 0: 11\n"
                        "else true )"),
             .expectedOutput = expect(((Token[]){
-                (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 8, .startBt = 0, .lenBts = 18 },
+                (Token){ .tp = tokIf, .pl1 = slScope, .pl2 = 20, .startBt = 0, .lenBts = 48 },
                 (Token){ .tp = tokIntro, .pl2 = 5, .startBt = 4, .lenBts = 10 },
                 (Token){ .tp = tokWord,            .startBt = 4, .lenBts = 1 }, // x
                 (Token){ .tp = tokOperator, .pl1 = opComparator, .startBt = 6, .lenBts = 2 },
@@ -916,21 +916,21 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokInt,       .pl2 = 5, .startBt = 16, .lenBts = 1 },
 
                 (Token){ .tp = tokElseIf, .pl1 = slScope, .pl2 = 8,
-                         .startBt = 19, .lenBts = 19 },
-                (Token){ .tp = tokIntro,      .pl2 = 5, .startBt = 23, .lenBts = 10 },
-                (Token){ .tp = tokWord,                .startBt = 23, .lenBts = 1 }, // x
-                (Token){ .tp = tokOperator, .pl1 = opComparator, .startBt = 25, .lenBts = 2 },
-                (Token){ .tp = tokInt,       .pl2 = 7, .startBt = 28, .lenBts = 1 },
-                (Token){ .tp = tokOperator, .pl1 = opLessTh, .startBt = 30, .lenBts = 1 },
-                (Token){ .tp = tokInt,       .pl2 = 0, .startBt = 32, .lenBts = 1 },
+                         .startBt = 18, .lenBts = 18 },
+                (Token){ .tp = tokIntro,      .pl2 = 5, .startBt = 22, .lenBts = 10 },
+                (Token){ .tp = tokWord,                .startBt = 22, .lenBts = 1 }, // x
+                (Token){ .tp = tokOperator, .pl1 = opComparator, .startBt = 24, .lenBts = 2 },
+                (Token){ .tp = tokInt,       .pl2 = 7, .startBt = 27, .lenBts = 1 },
+                (Token){ .tp = tokOperator, .pl1 = opLessTh, .startBt = 29, .lenBts = 1 },
+                (Token){ .tp = tokInt,       .pl2 = 0, .startBt = 31, .lenBts = 1 },
 
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 35, .lenBts = 2 },
-                (Token){ .tp = tokInt,  .pl2 = 11,.startBt = 35, .lenBts = 2 },
+                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 34, .lenBts = 2 },
+                (Token){ .tp = tokInt,  .pl2 = 11,.startBt = 34, .lenBts = 2 },
 
                 (Token){ .tp = tokElse, .pl1 = slScope, .pl2 = 2,
-                         .startBt = 39, .lenBts = 12 },
-                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 45, .lenBts = 4 },
-                (Token){ .tp = tokBool, .pl2 = 1, .startBt = 45, .lenBts = 4 }
+                         .startBt = 37, .lenBts = 9 },
+                (Token){ .tp = tokStmt, .pl2 = 1, .startBt = 42, .lenBts = 4 },
+                (Token){ .tp = tokBool, .pl2 = 1, .startBt = 42, .lenBts = 4 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
              .input = s("noo = (\\ x Int y Int -> Int: x - y)"),
@@ -1081,9 +1081,9 @@ int main(int argc, char** argv) {
     //runATestSet(&stringTests, &countPassed, &countTests, proto, a);
     //runATestSet(&metaTests, &countPassed, &countTests, proto, a);
     //runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
-    //runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
+    runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
     //runATestSet(&numericTests, &countPassed, &countTests, proto, a);
-    runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
+    //runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
     //runATestSet(&typeTests, &countPassed, &countTests, proto, a);
     if (countTests == 0) {
         print("\nThere were no tests to run!");
