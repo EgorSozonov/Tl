@@ -1061,12 +1061,11 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodBinding, .pl1 = 0 },
                 (Node){ .tp = nodScope,           .pl2 = 14 }, // function body
 
-                (Node){ .tp = nodFor,           .pl2 = 13 },
-                (Node){ .tp = nodForCond, .pl1 = slStmt, .pl2 = 4 },
-                (Node){ .tp = nodExpr,            .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
+                (Node){ .tp = nodFor,           .pl2 = 18 },
+                (Node){ .tp = nodForCond, .pl1 = slStmt, .pl2 = 3 },
                 (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2 }, // x
                 (Node){ .tp = tokInt,          .pl2 = 101 },
+                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
 
                 (Node){ .tp = nodAssignLeft,      .pl2 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 1 }, // x
@@ -1076,12 +1075,14 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodExpr,           .pl2 = 3 },
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1 }, // print
                 (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
-                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2 }      // x
+                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2 },      // x
 
                 (Node){ .tp = nodAssignLeft,           .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1 }, // print
-                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 1 }, // $
-                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2 }      // x
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 }, // x
+                (Node){ .tp = nodExpr,           .pl2 = 3 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 }, // x
+                (Node){ .tp = tokInt, .pl1 = 0, .pl2 = 1 },
+                (Node){ .tp = nodCall,   .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})

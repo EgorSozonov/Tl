@@ -2601,8 +2601,10 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 }
 
 
-private void preambleFor(Int sentinel) { //:preambleFor
+private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* condSent,
+                         Compiler* cm) { //:preambleFor
 // Pre-validates a "for" loop and finds its key tokens: the loop condition and the intro
+// Returns the token for the loop condition
     Int j = cm->i;
     Token currTok = cm->tokens.cont[j];
     while (j < sentinel && (currTok.tp == tokAssignLeft || currTok.tp == tokAssignRight))  {
@@ -2612,12 +2614,12 @@ private void preambleFor(Int sentinel) { //:preambleFor
         }
         currTok = cm->tokens.cont[j];
     }
-    const Int condInd = j;
-    const Int condSent = calcSentinel(currTk, condInd);
-
+    *condInd = j;
+    *condSent = calcSentinel(currTok, *condInd);
 
     // condition must be an expression and there must be something after it
     VALIDATEP(currTok.tp == tokStmt && condSent < sentinel, errLoopSyntaxError)
+    return currTok;
 }
 
 
@@ -2632,38 +2634,40 @@ private void pFor(Token forTk, P_CT) { //:pFor
 //     initializations
 //     scope
 //         body
+    const Int forInd = cm->i;
 
     ++cm->stats.loopCounter;
-    Int sentinel = cm->i + forTk.pl2;
+    const Int sentinel = cm->i + forTk.pl2;
 
-    preambleFor();
-
+    Int condInd;
+    Int condSent;
+    Token condTok = preambleFor(sentinel, &condInd, &condSent, cm);
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->stats.loopCounter }), cm->backtrack);
     addNode((Node){.tp = nodFor},  forTk.startBt, forTk.lenBts, cm);
 
 
+    // loop condition
     push(((ParseFrame){ .tp = nodForCond, .startNodeInd = cm->nodes.len, .sentinelToken = condSent,
                         .typeId = cm->stats.loopCounter }), cm->backtrack);
-    addNode((Node){.tp = nodForCond},  currTok.startBt, currTok.lenBts, cm);
+    addNode((Node){.tp = nodForCond},  condTok.startBt, condTok.lenBts, cm);
 
-    // parse condition
-    //
-    // parse the variable inits which are before cond
-    // parse the body
-    // parse the stepping statements and add them after body
+    cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/token
+    Int condTypeId = pExprWorker(toks[condInd], P_C);
+    VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
 
-
-
+    // variables initialization
+    cm->i = forInd;
+    for (cm->i = forInd; cm->i < condInd;) {
+        // parse assignments
+    }
 
 
 
 
 
     Int startBtScope = toks[condSent].startBt;
-
-
     addParsedScope(sentinel, startBtScope, forTk.lenBts - startBtScope + forTk.startBt, cm);
 
     // variable initializations, if any
@@ -2680,16 +2684,6 @@ private void pFor(Token forTk, P_CT) { //:pFor
     }
     Int indBody = cm->i;
     VALIDATEP(indBody < sentinel, errLoopEmptyBody);
-
-    // loop condition
-    push(((ParseFrame){.tp = nodForCond, .startNodeInd = cm->nodes.len,
-                .sentinelToken = condSent }), cm->backtrack);
-    addNode((Node){.tp = nodForCond, .pl1 = slStmt, .pl2 = condSent - condInd },
-                       condTk.startBt, condTk.lenBts, cm);
-    cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/token
-
-    Int condTypeId = pExprWorker(toks[condInd], P_C);
-    VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
 
     cm->i = indBody; // CONSUME the for token, its condition and variable inits (if any)
 }
