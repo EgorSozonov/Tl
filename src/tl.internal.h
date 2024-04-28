@@ -7,7 +7,7 @@
 #define Byte unsigned char
 #define Bool bool
 #define Arr(T) T*
-#define untt uint32_t
+#define Unt uint32_t
 #define null NULL
 #define NameId int32_t
 #define EntityId int32_t
@@ -123,13 +123,13 @@ typedef struct {
 
 // Reference to first occurrence of a string identifier within input text
 typedef struct {
-    untt hash;
+    Unt hash;
     Int indString;
 } StringValue;
 
 
 typedef struct {
-    untt capAndLen;
+    Unt capAndLen;
     StringValue cont[];
 } Bucket;
 
@@ -202,19 +202,19 @@ typedef struct {
 
 // Backtrack token, used during lexing to keep track of all the nested stuff
 typedef struct { // :BtToken
-    untt tp : 6;
+    Unt tp : 6;
     Int tokenInd;
-    untt spanLevel : 3;
+    Unt spanLevel : 3;
 } BtToken;
 
 DEFINE_STACK_HEADER(BtToken)
 
 typedef struct { // :Token
-    untt tp : 6;
-    untt lenBts: 26;
-    untt startBt;
-    untt pl1;
-    untt pl2;
+    Unt tp : 6;
+    Unt lenBts: 26;
+    Unt startBt;
+    Unt pl1;
+    Unt pl2;
 } Token;
 
 #define maxWordLength 255
@@ -418,8 +418,8 @@ typedef struct { // :LanguageDefinition
 
 
 typedef struct { // :Node
-    untt tp : 6;
-    untt pl3: 26;
+    Unt tp : 6;
+    Unt pl3: 26;
     Int pl1;
     Int pl2;
 } Node;
@@ -430,7 +430,7 @@ typedef struct { // :SourceLoc
 } SourceLoc;
 
 typedef struct { // :ParseFrame
-    untt tp : 6;
+    Unt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
     Int typeId;            // valid only for fnDef, if, loopCond and the like
@@ -444,7 +444,7 @@ typedef struct { // :ParseFrame
 
 typedef struct { // :Entity
     TypeId typeId;
-    untt name; // 8 bits of length, 24 bits of nameId
+    Unt name; // 8 bits of length, 24 bits of nameId
     uint8_t class;
     bool isPublic;
     bool hasExceptionHandler;
@@ -452,7 +452,7 @@ typedef struct { // :Entity
 
 
 typedef struct { // :EntityImport
-    untt name;   // 8 bits of length, 24 bits of nameId
+    Unt name;   // 8 bits of length, 24 bits of nameId
     TypeId typeId;
 } EntityImport;
 
@@ -461,7 +461,7 @@ typedef struct { // :Toplevel
     // Toplevel definitions (functions, variables, types) for parsing order and name searchability
     Int indToken;
     Int sentinelToken;
-    untt name;
+    Unt name;
     EntityId entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
     bool isFunction;
 } Toplevel;
@@ -627,7 +627,7 @@ typedef struct { // :TypeHeader
     Byte sort;
     Byte tyrity; // "tyrity" = type arity, the number of type parameters
     Byte arity;  // for function types, equals arity. For structs, number of fields
-    untt nameAndLen; // startBt and lenBts
+    Unt nameAndLen; // startBt and lenBts
 } TypeHeader;
 
 //}}}

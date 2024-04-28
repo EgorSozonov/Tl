@@ -635,7 +635,7 @@ testable void addIntMap(int key, int value, IntMap* hm) { //:addIntMap
                 return;
             }
         }
-        Int capacity = (untt)(*p) >> 16;
+        Int capacity = (Unt)(*p) >> 16;
         if (maxInd - 1 < capacity) {
             p[maxInd] = key;
             p[maxInd + 1] = value;
@@ -736,8 +736,8 @@ private StringDict* createStringDict(int initSize, Arena* a) {
 }
 
 
-private untt hashCode(Byte* start, Int len) {
-    untt result = 5381;
+private Unt hashCode(Byte* start, Int len) {
+    Unt result = 5381;
     Byte* p = start;
     for (Int i = 0; i < len; i++) {
         result = ((result << 5) + result) + p[i]; // hash*33 + c
@@ -747,7 +747,7 @@ private untt hashCode(Byte* start, Int len) {
 }
 
 
-private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, untt hash, Arena* a) {
+private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, Unt hash, Arena* a) {
     Bucket* p = *ptrToBucket;
     Int capacity = (p->capAndLen) >> 16;
     Int lenBucket = (p->capAndLen & 0xFFFF);
@@ -770,7 +770,7 @@ private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, untt hash,
 testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable,
                            StringDict* hm) { //:addStringDict
 // Unique'ing of symbols within source code
-    untt hash = hashCode(text + startBt, lenBts);
+    Unt hash = hashCode(text + startBt, lenBts);
     Int hashOffset = hash % (hm->dictSize);
     Int newIndString;
     Bucket* bu = *(hm->dict + hashOffset);
@@ -781,7 +781,7 @@ testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* st
         StringValue* firstElem = (StringValue*)newBucket->cont;
 
         newIndString = stringTable->len;
-        untt newName = ((untt)(lenBts) << 24) + (untt)startBt;
+        Unt newName = ((Unt)(lenBts) << 24) + (Unt)startBt;
         push(newName, stringTable);
 
         *firstElem = (StringValue){.hash = hash, .indString = newIndString };
@@ -800,7 +800,7 @@ testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* st
         }
 
         newIndString = stringTable->len;
-        untt newName = ((untt)(lenBts) << 24) + (untt)startBt;
+        Unt newName = ((Unt)(lenBts) << 24) + (Unt)startBt;
         push(newName, stringTable);
         addValueToBucket(hm->dict + hashOffset, newIndString, hash, hm->a);
     }
@@ -811,7 +811,7 @@ testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* st
 testable Int getStringDict(Byte* text, String* strToSearch, Stackint32_t* stringTable, StringDict* hm) {
 // Returns the index of a string within the string table, or -1 if it's not present
     Int lenBts = strToSearch->len;
-    untt hash = hashCode(strToSearch->cont, lenBts);
+    Unt hash = hashCode(strToSearch->cont, lenBts);
     Int hashOffset = hash % (hm->dictSize);
     if (*(hm->dict + hashOffset) == null) {
         return -1;
@@ -1192,7 +1192,7 @@ private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Com
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
-private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm);
+private Int typeEncodeTag(Unt sort, Int depth, Int arity, Compiler* cm);
 private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm);
 private TypeId getFunctionReturnType(TypeId funcTypeId, Compiler* cm);
 private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
@@ -1351,16 +1351,16 @@ testable String* prepareInput(const char* content, Arena* a) { //:prepareInput
     return result;
 }
 
-private untt nameOfToken(Token tk) { //:nameOfToken
-    return ((untt)tk.lenBts << 24) + (untt)tk.pl2;
+private Unt nameOfToken(Token tk) { //:nameOfToken
+    return ((Unt)tk.lenBts << 24) + (Unt)tk.pl2;
 }
 
 
-testable untt nameOfStandard(Int strId) { //:nameOfStandard
+testable Unt nameOfStandard(Int strId) { //:nameOfStandard
 // Builds a name (nameId + length) for a standardString after "strFirstNonreserved"
     Int length = standardStringLens[strId];
     Int nameId = strId + countOperators;
-    return ((untt)length << 24) + (untt)(nameId);
+    return ((Unt)length << 24) + (Unt)(nameId);
 }
 
 
@@ -1438,7 +1438,7 @@ private void setStmtSpanLength(Int tokenInd, Compiler* lx) { //:setStmtSpanLengt
 }
 
 
-private void addStatementSpan(untt stmtType, Int startBt, Compiler* lx) {
+private void addStatementSpan(Unt stmtType, Int startBt, Compiler* lx) {
     push(((BtToken){ .tp = stmtType, .tokenInd = lx->tokens.len, .spanLevel = slStmt }),
                     lx->lexBtrack);
     pushIntokens((Token){ .tp = stmtType, .startBt = startBt, .lenBts = 0 }, lx);
@@ -1695,7 +1695,7 @@ private void lexNumber(Arr(Byte) source, Compiler* lx) { //:lexNumber
 }
 
 
-private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* lx) {
+private void openPunctuation(Unt tType, Unt spanLevel, Int startBt, Compiler* lx) {
 //:openPunctuation Adds a token which serves punctuation purposes, i.e. either a ( or  a [
 // These tokens are used to define the structure, that is, nesting within the AST.
 // Upon addition, they are saved to the backtracking stack to be updated with their length
@@ -1707,7 +1707,7 @@ private void openPunctuation(untt tType, untt spanLevel, Int startBt, Compiler* 
 }
 
 
-private void lexElseElseIf(untt reservedWordType, Int startBt,
+private void lexElseElseIf(Unt reservedWordType, Int startBt,
                Arr(Byte) source, Compiler* lx) { //:lexElseElseIf
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(bt->len >= 1, errCoreFormInappropriate)
@@ -1729,7 +1729,7 @@ private void lexElseElseIf(untt reservedWordType, Int startBt,
 }
 
 
-private void lexSyntaxForm(untt reservedWordType, Int startBt,
+private void lexSyntaxForm(Unt reservedWordType, Int startBt,
                            Arr(Byte) source, Compiler* lx) { //:lexSyntaxForm
 // Lexer action for a paren-type or statement-type syntax form.
 // Precondition: we are looking at the character immediately after the keyword
@@ -1796,14 +1796,27 @@ private void tryOpenAccessor(Arr(Byte) source, Compiler* lx) { //:tryOpenAccesso
 }
 
 
-private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
+private void tryChangeParensToTypeCall(Compiler* lx) {
+    if (!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).tp != tokParens
+            || lx->tokens.cont[lx->tokens.len - 1].tp != tokParens) {
+        return;
+    }
+    lx->lexBtrack->cont[lx->lexBtrack->len - 1].tp = tokTypeCall;
+    lx->tokens.cont[lx->tokens.len - 1].tp = tokTypeCall;
+}
+
+
+private void wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
                         bool wasCapitalized, Arr(Byte) source, Compiler* lx) { //:wordNormal
     Int lenBts = lx->i - realStartBt;
     Token newToken = (Token){ .tp = wordType, .pl2 = uniqueStringId,
                              .startBt = realStartBt, .lenBts = lenBts };
     if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
-        newToken.tp = (wasCapitalized ? tokTypeName : tokWord);
+        if (wasCapitalized)  {
+            tryChangeParensToTypeCall(lx);
+            newToken.tp = tokTypeName;
+        }
     }
     pushIntokens(newToken, lx);
 
@@ -1813,7 +1826,7 @@ private void wordNormal(untt wordType, Int uniqueStringId, Int startBt, Int real
 }
 
 
-private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartBt,
+private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt,
                           Arr(Byte) source, Compiler* lx) { //:wordReserved
     Int keywordTp = standardKeywords[wordId];
     if (keywordTp < firstSpanTokenType) {
@@ -1839,7 +1852,7 @@ private void wordReserved(untt wordType, Int wordId, Int startBt, Int realStartB
 }
 
 
-private void wordInternal(untt wordType, Arr(Byte) source, Compiler* lx) { //:wordInternal
+private void wordInternal(Unt wordType, Arr(Byte) source, Compiler* lx) { //:wordInternal
 // Lexes a word (both reserved and identifier) according to Tl's rules.
 // Precondition: we are pointing at the first letter character of the word (i.e. past the possible
 // "." or ":")
@@ -2344,7 +2357,7 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
 }
 
 
-private EntityId createEntity(untt name, Byte class, Compiler* cm) { //:createEntity
+private EntityId createEntity(Unt name, Byte class, Compiler* cm) { //:createEntity
 // Validates a new binding (that it is unique), creates an entity for it,
 // and adds it to the current scope
     Int nameId = name & LOWER24BITS;
@@ -2365,7 +2378,7 @@ private EntityId createEntity(untt name, Byte class, Compiler* cm) { //:createEn
 }
 
 
-private Int createEntityWithType(untt name, TypeId typeId, Byte class, Compiler* cm) {
+private Int createEntityWithType(Unt name, TypeId typeId, Byte class, Compiler* cm) {
 //:createEntityWithType
     EntityId newEntityId = createEntity(name, class, cm);
     cm->entities.cont[newEntityId].typeId = typeId;
@@ -2524,7 +2537,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
         assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, P_C);
     } else if (tok.pl2 == 0) { // a new var being defined
-        untt newName = ((untt)tok.lenBts << 24) + (untt)tok.pl1; // nameId + lenBts
+        Unt newName = ((Unt)tok.lenBts << 24) + (Unt)tok.pl1; // nameId + lenBts
         mbNewBinding = createEntity(newName, tok.pl1 == 1 ? classMutable : classImmutable, cm);
         addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
                 tok.startBt, tok.lenBts, cm);
@@ -2873,7 +2886,7 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
     while (cm->i < sentinelToken) {
         subexClose(stEx, cm);
         Token cTk = toks[cm->i];
-        untt tokType = cTk.tp;
+        Unt tokType = cTk.tp;
 
         ExprFrame* parent = frames->cont + (frames->len - 1);
         if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
@@ -3542,7 +3555,7 @@ private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mer
     StringDict* hm = cm->typesDict;
     Int startBt = startInd*4;
     Int lenBts = lenInts*4;
-    untt theHash = hashCode(types + startBt, lenBts);
+    Unt theHash = hashCode(types + startBt, lenBts);
     Int hashOffset = theHash % (hm->dictSize);
     if (*(hm->dict + hashOffset) == null) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue),
@@ -3612,7 +3625,7 @@ testable NameId stToNameId(Int a) { //:stToNameId
 }
 
 
-private untt stToFullName(Int sta, Compiler* cm) { //:stToFullName
+private Unt stToFullName(Int sta, Compiler* cm) { //:stToFullName
 // Converts a standard string to its nameId. Doesn't work for reserved words, obviously
     return cm->stringTable->cont[sta + countOperators];
 }
@@ -4152,7 +4165,7 @@ private Int parseFnParamList(Token paramListTk, Compiler* cm) {
 */
 
 
-testable void pFnSignature(Token fnDef, bool isToplevel, untt name, Int voidToVoid,
+testable void pFnSignature(Token fnDef, bool isToplevel, Unt name, Int voidToVoid,
                                Compiler* cm) { //:pFnSignature
 // Parses a function signature. Emits no nodes, adds data to @toplevels, @functions, @overloads.
 // Pre-condition: we are 1 token past the tokFn
@@ -4277,7 +4290,7 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 
         // since this is an immutable definition tokAssignLeft, its pl1 is the nameId and
         // its bytes are same as the var name in source code
-        untt name =  ((untt)tok.lenBts << 24) + (untt)tok.pl1;
+        Unt name =  ((Unt)tok.lenBts << 24) + (Unt)tok.pl1;
         cm->i += tok.pl2 + 3; // CONSUME the left side, tokAssignmentRight and tokFn
         pFnSignature(rightTk, true, name, voidToVoid, cm);
     }
@@ -4327,15 +4340,15 @@ testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) { //:parse
 #define TYPE_PREFIX_LEN 3 // sizeof(TypeHeader)/4 + 1. Length (in ints) of the prefix in type repr
 #define TYPE_DEFINE_EXP const StackInt* exp = st->exp
 
-private Int typeEncodeTag(untt sort, Int depth, Int arity, Compiler* cm) {
-    return (Int)((untt)(sort << 16) + (depth << 8) + arity);
+private Int typeEncodeTag(Unt sort, Int depth, Int arity, Compiler* cm) {
+    return (Int)((Unt)(sort << 16) + (depth << 8) + arity);
 }
 
 
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm) { //:typeAddHeader
 // Writes the bytes for the type header to the tail of the cm->types table.
 // Adds two 4-byte elements
-    pushIntypes((Int)((untt)((untt)hdr.sort << 16) + ((untt)hdr.arity << 8) + hdr.tyrity), cm);
+    pushIntypes((Int)((Unt)((Unt)hdr.sort << 16) + ((Unt)hdr.arity << 8) + hdr.tyrity), cm);
     pushIntypes((Int)hdr.nameAndLen, cm);
 }
 
@@ -4343,9 +4356,9 @@ testable void typeAddHeader(TypeHeader hdr, Compiler* cm) { //:typeAddHeader
 testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm) { //:typeReadHeader
 // Reads a type header from the type array
     Int tag = cm->types.cont[typeId + 1];
-    return (TypeHeader){ .sort = ((untt)tag >> 16) & LOWER16BITS,
+    return (TypeHeader){ .sort = ((Unt)tag >> 16) & LOWER16BITS,
             .arity = (tag >> 8) & 0xFF, .tyrity = tag & 0xFF,
-            .nameAndLen = (untt)cm->types.cont[typeId + 2] };
+            .nameAndLen = (Unt)cm->types.cont[typeId + 2] };
 }
 
 
@@ -4506,7 +4519,7 @@ private Int tSubexValidateNamesUnique(StateForTypes* st, Int start, Compiler* cm
 
 
 /*
-private TypeId typeCreateRecord(StateForTypes* st, Int startInd, untt nameAndLen,
+private TypeId typeCreateRecord(StateForTypes* st, Int startInd, Unt nameAndLen,
                                 Compiler* cm) { //:typeCreateRecord
 // Creates/merges a new record type from a sequence of pairs in @exp and a list of type params
 // in @params. The sequence must be flat, i.e. not include any nested structs, and be in the
@@ -4610,7 +4623,7 @@ private StackInt* tDetermineUniqueParamsInDef(const StateForTypes* st, Int start
 
 
 private TypeId tCreateFnSignature(StateForTypes* st, Int startInd,
-                                     untt fnNameAndLen, Compiler* cm) { //:tCreateFnSignature
+                                     Unt fnNameAndLen, Compiler* cm) { //:tCreateFnSignature
 // Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
 // in "params". The sequence must be flat, i.e. not include any nested structs.
 // Returns the typeId of the new type
@@ -4716,7 +4729,7 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
             metArrow = true;
 
             if (cm->i < sentinel) { // no return type specified = void type
-                untt nextTp = cm->tokens.cont[cm->i].tp;
+                Unt nextTp = cm->tokens.cont[cm->i].tp;
                 VALIDATEP(nextTp == tokTypeName || nextTp == tokTypeCall, errTypeDefError)
             } else {
                 push((cm->activeBindings[stToNameId(strVoid)]), exp);
@@ -4784,7 +4797,7 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
 }
 
 
-private void typeNameNewType(TypeId newTypeId, untt name, Compiler* cm) { //:typeNameNewType
+private void typeNameNewType(TypeId newTypeId, Unt name, Compiler* cm) { //:typeNameNewType
     cm->activeBindings[(name & LOWER24BITS)] = newTypeId;
     cm->types.cont[newTypeId + 1] = name;
 }
@@ -5075,7 +5088,7 @@ testable void typeSkipNode(Int* ind, Compiler* cm) {
 
 private Int typeEltArgcount(Int typeElt) {
 // Get type-arg-count from a type element (which may be a type call, concrete type, type param etc)
-    untt genericTag = typeGenTag(typeElt);
+    Unt genericTag = typeGenTag(typeElt);
     if (genericTag == 255) {
         return typeElt & 0xFF;
     } else {
@@ -5094,8 +5107,8 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
 
     Int sentinel1 = type1 + cm->types.cont[type1] + 1;
     Int sentinel2 = type2 + cm->types.cont[type2] + 1;
-    untt top1 = cm->types.cont[i1];
-    untt top2 = cm->types.cont[i2];
+    Unt top1 = cm->types.cont[i1];
+    Unt top2 = cm->types.cont[i2];
     if (top1 != top2) {
         return false;
     } else if (typeGenTag(top1) == 255 || typeGenTag(top2) == 255) {
@@ -5105,8 +5118,8 @@ testable bool typeGenericsIntersect(Int type1, Int type2, Compiler* cm) {
     ++i1;
     ++i2;
     while (i1 < sentinel1 && i2 < sentinel2) {
-        untt nod1 = cm->types.cont[i1];
-        untt nod2 = cm->types.cont[i2];
+        Unt nod1 = cm->types.cont[i1];
+        Unt nod2 = cm->types.cont[i2];
         if (typeGenTag(nod1) < 255 && typeGenTag(nod2) < 255) {
             if (nod1 != nod2) {
                 return false;
@@ -5168,7 +5181,7 @@ private void printStackInt(StackInt* st) { //:printStackInt
 }
 
 
-void printNameAndLen(untt unsign, Compiler* cm) { //:printNameAndLen
+void printNameAndLen(Unt unsign, Compiler* cm) { //:printNameAndLen
     Int startBt = unsign & LOWER24BITS;
     Int len = (unsign >> 24) & 0xFF;
     fwrite(cm->sourceCode->cont + startBt, 1, len, stdout);
@@ -5176,7 +5189,7 @@ void printNameAndLen(untt unsign, Compiler* cm) { //:printNameAndLen
 
 
 void printName(NameId nameId, Compiler* cm) { //:printName
-    untt unsign = cm->stringTable->cont[nameId];
+    Unt unsign = cm->stringTable->cont[nameId];
     printNameAndLen(unsign, cm);
     printf("\n");
 }
@@ -5470,7 +5483,7 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
         printf("[TypeCall]");
     }
 
-    untt nameParamId = hdr.nameAndLen;
+    Unt nameParamId = hdr.nameAndLen;
     Int mainNameLen = (nameParamId >> 24) & 0xFF;
     Int mainName = nameParamId & LOWER24BITS;
 

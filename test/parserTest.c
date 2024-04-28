@@ -154,7 +154,7 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
     // The control compiler
     for (Int i = 0; i < countNodes; i++) {
         Node nd = nodes[i];
-        untt nodeType = nd.tp;
+        Unt nodeType = nd.tp;
         // All the node types which contain entityIds in their pl1
         if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding
                 || (nodeType == nodAssignLeft && nd.pl2 == 0) || nodeType == nodFnDef) {
@@ -682,7 +682,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple function definition 1"),
-            s("newFn = {{x Int y [L Bool] -> : a = x}}"),
+            s("newFn = (\\x Int y (L Bool) -> : a = x)"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,             .pl2 = 5 },
                 (Node){ .tp = nodBinding, .pl1 = 1 },  // param x
@@ -694,7 +694,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {}),
             ((SourceLoc[]) {
-                (SourceLoc){ .startBt = 8, .lenBts = 31 },
+                (SourceLoc){ .startBt = 8, .lenBts = 30 },
                 (SourceLoc){ .startBt = 10, .lenBts = 1 },
                 (SourceLoc){ .startBt = 16, .lenBts = 1 },
                 (SourceLoc){ .startBt = 32, .lenBts = 1 },

@@ -25,7 +25,7 @@ StandardText getStandardTextLength();
 void typePrint(Int, Compiler*);
 void pushIntokens(Token, Compiler*);
 Int stToNameId(Int a);
-untt nameOfStandard(Int strId);
+Unt nameOfStandard(Int strId);
 void printRawOverload(Int listInd, Compiler* cm);
 void printName(Int name, Compiler* cm);
 
