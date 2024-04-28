@@ -1962,8 +1962,13 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
 private void lexSemicolon(Arr(Byte) source, Compiler* lx) { //:lexSemicolon
     VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
     BtToken top = peek(lx->lexBtrack);
-    VALIDATEL(top.spanLevel == slStmt, errPunctuationOnlyInMultiline);
-    closeStatement(lx);
+    VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline);
+    if (top.spanLevel == slScope) {
+        pushIntokens((Token){ .tp = tokStmt, .pl1 = 0, .pl2 = 0, .startBt = lx->i, .lenBts = 0 },
+                        lx);
+    } else {
+        closeStatement(lx);
+    }
     lx->i += 1;  // CONSUME the ";"
 }
 
@@ -2596,21 +2601,68 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 }
 
 
+private void preambleFor(Int sentinel) { //:preambleFor
+// Pre-validates a "for" loop and finds its key tokens: the loop condition and the intro
+    Int j = cm->i;
+    Token currTok = cm->tokens.cont[j];
+    while (j < sentinel && (currTok.tp == tokAssignLeft || currTok.tp == tokAssignRight))  {
+        j = calcSentinel(currTok, j);
+        if (j >= sentinel)  {
+            throwExcParser(errLoopSyntaxError);
+        }
+        currTok = cm->tokens.cont[j];
+    }
+    const Int condInd = j;
+    const Int condSent = calcSentinel(currTk, condInd);
+
+
+    // condition must be an expression and there must be something after it
+    VALIDATEP(currTok.tp == tokStmt && condSent < sentinel, errLoopSyntaxError)
+}
+
+
 private void pFor(Token forTk, P_CT) { //:pFor
-// For loops. Look like "for x = 0; x < 100; x++ { ... }"
+// For loops. Look like "(for x~ = 0; x < 100; x += 1:  ... )"
+// End result of a parse should look like:
+// nodFor
+//     nodForCond
+//         exprs
+//     nodForStep
+//         stepExprs
+//     initializations
+//     scope
+//         body
+
     ++cm->stats.loopCounter;
     Int sentinel = cm->i + forTk.pl2;
 
-    Int condInd = cm->i;
-    Token condTk = toks[condInd];
-    VALIDATEP(condTk.tp == tokStmt, errLoopSyntaxError)
+    preambleFor();
 
-    Int condSent = calcSentinel(condTk, condInd);
-    Int startBtScope = toks[condSent].startBt;
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->stats.loopCounter }), cm->backtrack);
     addNode((Node){.tp = nodFor},  forTk.startBt, forTk.lenBts, cm);
+
+
+    push(((ParseFrame){ .tp = nodForCond, .startNodeInd = cm->nodes.len, .sentinelToken = condSent,
+                        .typeId = cm->stats.loopCounter }), cm->backtrack);
+    addNode((Node){.tp = nodForCond},  currTok.startBt, currTok.lenBts, cm);
+
+    // parse condition
+    //
+    // parse the variable inits which are before cond
+    // parse the body
+    // parse the stepping statements and add them after body
+
+
+
+
+
+
+
+
+    Int startBtScope = toks[condSent].startBt;
+
 
     addParsedScope(sentinel, startBtScope, forTk.lenBts - startBtScope + forTk.startBt, cm);
 

@@ -323,12 +323,11 @@ typedef struct { // :Token
 #define nodFor         27  // pl1 = id of loop (unique within a function) if it needs to
                            // have a label in codegen
 #define nodForCond     28
-#define nodForStep     29  // the "++i" of a for loop
 
-#define nodIf          30
-#define nodElseIf      31
-#define nodImpl        32
-#define nodMatch       33  // pattern matching on sum type tag
+#define nodIf          29
+#define nodElseIf      30
+#define nodImpl        31
+#define nodMatch       32  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 
@@ -433,7 +432,8 @@ typedef struct { // :ParseFrame
     Unt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
-    Int typeId;            // valid only for fnDef, if, loopCond and the like
+    Int typeId;            // valid only for fnDef, if, loopCond and the like. 
+                           // For loops, contains the loop depth
     void* scopeStackFrame; // only for tp = scope or expr
 } ParseFrame;
 
