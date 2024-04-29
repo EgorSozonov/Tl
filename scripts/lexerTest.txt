@@ -11,7 +11,7 @@ gcc -g3 --std=c17 -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-er
 -Werror=int-conversion \
 -I src -I test \
 -o $DEBUGDIR/tl/lexerTest \
--DLEXER_TEST -DTEST -DTRACE \
+-DLEXER_TEST -DTEST \
 test/lexerTest.c src/tl.c -lm &&
 $DEBUGDIR/tl/lexerTest \
 #-fstrict-flex-arrays=3 -Wsuggest-attribute=pure -Wsuggest-attribute=const\

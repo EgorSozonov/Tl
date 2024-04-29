@@ -242,6 +242,7 @@ typedef struct { // :Token
 #define tokParens      12  // subexpressions and struct/sum type instances
 #define tokTypeCall    13  // `(Tu Int Str)`
 #define tokIntro       14  // Introduction to a syntax form, like a param list or an if condition
+                           // pl1 = original tp of this token before it was converted to tokIntro
 #define tokDataList    15  // []
 #define tokDataMap     16  // {}
 #define tokAccessor    17  // x[]
@@ -308,7 +309,6 @@ typedef struct { // :Token
                            // a nodDataAlloc
 #define nodDataAlloc   16  // pl1 = typeId, pl3 = count of elements
 
-// Single-shot core syntax forms
 #define nodAlias       17
 #define nodAssert      18  // pl1 = 1 iff it's a debug assert
 #define nodBreakCont   19  // pl1 = number of label to break or continue to, -1 if none needed
@@ -433,8 +433,7 @@ typedef struct { // :ParseFrame
     Int startNodeInd;
     Int sentinelToken;
     Int typeId;            // valid only for fnDef, if, loopCond and the like. 
-                           // For loops, contains the loop depth
-    void* scopeStackFrame; // only for tp = scope or expr
+                           // For nodFor, contains the loop depth
 } ParseFrame;
 
 

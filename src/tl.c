@@ -1948,10 +1948,12 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
     } else {
         VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
         BtToken top = peek(lx->lexBtrack);
-        VALIDATEL(top.spanLevel == slStmt || top.tp == tokElse, errPunctuationParamList)
+        VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
 
         setStmtSpanLength(top.tokenInd, lx);
-        lx->tokens.cont[top.tokenInd].tp = tokIntro;
+        Token* tok = lx->tokens.cont + top.tokenInd;
+        tok->pl1 = tok->tp;
+        tok->tp = tokIntro;
         pop(lx->lexBtrack);
 
         lx->i += 1; // CONSUME the ":"
@@ -2603,8 +2605,19 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 
 private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* condSent,
                          Compiler* cm) { //:preambleFor
-// Pre-validates a "for" loop and finds its key tokens: the loop condition and the intro
-// Returns the token for the loop condition
+// Pre-processes a "for" loop and finds its key tokens: the loop condition and the intro
+// This function performs important token twiddling!
+// A "for" declaration is quadripartite: var inits, then the condition, then arbitrary statements
+// for stepping to the next iteration, then loop body. Those stepping statements just need to be
+// appended to the body, but the parser works in a linear way: t'would be hard to make it return
+// to parse a couple of stmts. This is why this function simply reorders the tokens:
+//
+// [inits cond tokStmt tokIntro | tokBody1 ... tokBodyN]
+//             ^ step1 ^ step2    ^ loop body
+//
+//   |    |    |    |    |    |    |    |    |
+//   v    v    v    v    v    v    v    v    v
+// [inits cond | tokBody1 ... tokBodyN tokStep1 tokStep2 ] <- also restores tokIntro to its original tp
     Int j = cm->i;
     Token currTok = cm->tokens.cont[j];
     while (j < sentinel && (currTok.tp == tokAssignLeft || currTok.tp == tokAssignRight))  {
@@ -2618,7 +2631,7 @@ private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* condSent,
     *condSent = calcSentinel(currTok, *condInd);
 
     // condition must be an expression and there must be something after it
-    VALIDATEP(currTok.tp == tokStmt && condSent < sentinel, errLoopSyntaxError)
+    VALIDATEP(currTok.tp == tokStmt && *condSent < sentinel, errLoopSyntaxError)
     return currTok;
 }
 
@@ -2703,7 +2716,7 @@ private void parseErrorBareAtom(Token tok, P_CT) {
 
 private ParseFrame popFrame(Compiler* cm) { //:popFrame
     ParseFrame frame = pop(cm->backtrack);
-    if (frame.tp == nodScope) {
+    if (frame.tp == nodScope || frame.tp == nodFor) { // a nodFor acts as a scope itself
         popScopeFrame(cm);
     }
     setSpanLengthParser(frame.startNodeInd, cm);
@@ -3064,6 +3077,7 @@ private void maybeCloseSpans(Compiler* cm) { //:maybeCloseSpans
         popFrame(cm);
     }
 }
+
 
 private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
 // Parses anything from current cm->i to "sentinelToken"
@@ -4157,59 +4171,6 @@ private void validateOverloadsFull(Compiler* cm) {
 }
 #endif
 
-/*
- * TO DELETE
-private Int parseFnParamList(Token paramListTk, Compiler* cm) {
-// Precondition: we are 1 past the tokIntro
-// Returns the function's type, interpreted to be `Void => Void` if paramList is absent
-    if (cm->tokens.cont[cm->i].tp == tokTypeName) {
-        Token fnReturnType = cm->tokens.cont[cm->i];
-        Int returnTypeId = cm->activeBindings[fnReturnType.pl2];
-        VALIDATEP(returnTypeId > -1, errUnknownType)
-        pushIntypes(returnTypeId, cm);
-
-        cm->i++; // CONSUME the function return type token
-    } else {
-        pushIntypes(tokMisc, cm); // Misc stands for the Void type
-    }
-    VALIDATEP(cm->tokens.cont[cm->i].tp == tokParens, errFnNameAndParams)
-
-    Int paramsTokenInd = cm->i;
-    Token parens = cm->tokens.cont[paramsTokenInd];
-    Int paramsSentinel = cm->i + parens.pl2 + 1;
-    cm->i++; // CONSUME the parens token for the param list
-
-    Int fnEntityId = cm->entities.len;
-
-    Int arity = 0;
-    Int firstParamType = -1;
-    while (cm->i < paramsSentinel) {
-        Token paramName = cm->tokens.cont[cm->i];
-        VALIDATEP(paramName.tp == tokWord, errFnNameAndParams)
-        ++cm->i; // CONSUME a param name
-        ++arity;
-
-        VALIDATEP(cm->i < paramsSentinel, errFnNameAndParams)
-        Token paramType = cm->tokens.cont[cm->i];
-        VALIDATEP(paramType.tp == tokTypeName, errFnNameAndParams)
-
-        Int paramTypeId = cm->activeBindings[paramType.pl2]; // the binding of this parameter's type
-        VALIDATEP(paramTypeId > -1, errUnknownType)
-        pushIntypes(paramTypeId, cm);
-        if (firstParamType == -1) {
-            firstParamType = paramTypeId;
-        }
-
-        ++cm->i; // CONSUME the param's type name
-    }
-
-    cm->types.cont[tentativeTypeInd] = arity + 1;
-
-    Int uniqueTypeId = mergeType(tentativeTypeInd, cm);
-
-}
-*/
-
 
 testable void pFnSignature(Token fnDef, bool isToplevel, Unt name, Int voidToVoid,
                                Compiler* cm) { //:pFnSignature
@@ -4347,10 +4308,10 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "id", "call", "binding", ".fld", "GEP", "GElem",
-    "{}", "Expr", "...=", "data()",
+    "(do", "Expr", "...=", "[]",
     "alias", "assert", "breakCont", "catch", "defer",
-    "import", "{{fn}}", "trait", "return", "try",
-    "for", "forCond", "forStep", "if", "ei", "impl", "match"
+    "import", "(\\ fn)", "trait", "return", "try",
+    "for", "forCond", "if", "eif", "impl", "match"
 };
 
 
