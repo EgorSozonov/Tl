@@ -1425,9 +1425,9 @@ private BtToken getLexContext(Compiler* lx) { //:getLexContext
 private void setStmtSpanLength(Int tokenInd, Compiler* lx) { //:setStmtSpanLength
 // Correctly calculates the lenBts for a single-line, statement-type span
 // This is for correctly calculating lengths of statements when they are ended by parens in
-// case of a gap before "}", for example:
-//  ` { asdf    <- statement actually ended here
-//    }`        <- but we are in this position now
+// case of a gap before ")", for example:
+//  ` (do asdf    <- statement actually ended here
+//    )`        <- but we are in this position now
     Token lastToken = lx->tokens.cont[lx->tokens.len - 1];
     Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
     Int byteAfterLastPunct = lx->stats.lastClosingPunctInd + 1;
@@ -1950,6 +1950,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
         BtToken top = peek(lx->lexBtrack);
         VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
 
+        lx->stats.lastClosingPunctInd = lx->i;
         setStmtSpanLength(top.tokenInd, lx);
         Token* tok = lx->tokens.cont + top.tokenInd;
         tok->pl1 = tok->tp;
@@ -1965,8 +1966,9 @@ private void lexSemicolon(Arr(Byte) source, Compiler* lx) { //:lexSemicolon
     VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
     BtToken top = peek(lx->lexBtrack);
     VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline);
+    lx->stats.lastClosingPunctInd = lx->i;
     if (top.spanLevel == slScope) {
-        pushIntokens((Token){ .tp = tokStmt, .pl1 = 0, .pl2 = 0, .startBt = lx->i, .lenBts = 0 },
+        pushIntokens((Token){ .tp = tokStmt, .pl1 = 0, .pl2 = 0, .startBt = lx->i, .lenBts = 1 },
                         lx);
     } else {
         closeStatement(lx);
@@ -2142,7 +2144,7 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
 // 2. [coreForm stmt] - eg. if it's closing the function body
 // 3. [if else/elseIf stmt]
 // 4. [if else/elseIf ]
-    Int startInd = lx->i;
+    const Int startInd = lx->i;
 
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
@@ -2170,17 +2172,11 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
 
 
 private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) { //:lexCurlyLeft
-// Handles scopes "{}" and functions "{{...}}"
+// Handles objects/maps/sets "{}"
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
-    if (source[j] == aCurlyLeft)  {
-        openPunctuation(tokFn, slScope, lx->i, lx);
-        lx->i += 2; // CONSUME the `{{`
-    } else {
-        closeStatement(lx);
-        openPunctuation(tokScope, slScope, lx->i, lx);
-        lx->i += 1; // CONSUME the left bracket
-    }
+    openPunctuation(tokDataMap, slSubexpr, lx->i, lx);
+    lx->i += 1; // CONSUME the left bracket
 }
 
 
