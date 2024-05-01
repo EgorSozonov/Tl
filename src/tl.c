@@ -1054,6 +1054,26 @@ private void removeDuplicatesInList(InListInt* list) { //:removeDuplicatesInList
     list->len = prevInd + 1;
 }
 
+
+private Int minPositiveOf(Int count, ...) { //:minPositiveOf
+// Returns the minimum positive integer of a list, or 0 if none of them are positive
+    if (count == 0) {
+        return 0;
+    }
+    Int result = 0;
+    va_list args;
+    va_start(args, count);
+    for (Int j = count; j > 0; j -= 1)  {
+        Int n = va_arg(args, Int);
+        if (n > 0 && (n < result || result == 0))  {
+            result = n;
+        }
+    }
+    va_end(args);
+    return result;
+}
+
+
 //}}}
 
 //}}}
@@ -2599,102 +2619,118 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 }
 
 
-private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* condSent,
-                         Compiler* cm) { //:preambleFor
+private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
+                         P_CT) { //:preambleFor
 // Pre-processes a "for" loop and finds its key tokens: the loop condition and the intro
-// This function performs important token twiddling!
-// A "for" declaration is quadripartite: var inits, then the condition, then arbitrary statements
-// for stepping to the next iteration, then loop body. Those stepping statements just need to be
-// appended to the body, but the parser works in a linear way: t'would be hard to make it return
-// to parse a couple of stmts. This is why this function simply reorders the tokens:
+// Every out index is either positive or 0 for "not found".
+// One of "stepInd" and "bodyInd" is guaranteed to be found & positive. If they are both present,
+// this function performs important token twiddling: it reorders the step to be after the body.
+// A "for" syntax form is quadripartite:
+// 1) var inits (they must all be assignments),
+// 2) the condition (must be an expression),
+// 3) statements for stepping to the next iteration (must be expressions, assignments or asserts),
+// 4) loop body (arbitrary syntax forms).
+// The stepping statements (3) just need to be appended to the body (4), but the parser works in a
+// unidirectional way: t'would be hard to make it jump back to parse a couple of stmts. This is why
+// this function reorders the tokens:
 //
-// [inits cond tokStmt tokIntro | tokBody1 ... tokBodyN]
-//             ^ step1 ^ step2    ^ loop body
+// [inits | cond | tokStmt tokIntro | tokBody1 ... tokBodyN]
+//                 ^ step1 ^ step2    ^ loop body
 //
 //   |    |    |    |    |    |    |    |    |
 //   v    v    v    v    v    v    v    v    v
-// [inits cond | tokBody1 ... tokBodyN tokStep1 tokStep2 ] <- also restores tokIntro to its original tp
+// [inits | cond | tokBody1 ... tokBodyN tokStep1 tokStep2 ] <- restores original tp of tokIntro
+    VALIDATEP(cm->i < sentinel, errLoopEmptyBody)
     Int j = cm->i;
-    Token currTok = cm->tokens.cont[j];
-    while (j < sentinel && (currTok.tp == tokAssignLeft || currTok.tp == tokAssignRight))  {
+    for (Token currTok = toks[j];
+         (currTok.tp == tokAssignLeft || currTok.tp == tokAssignRight);
+         currTok = toks[j]) {
         j = calcSentinel(currTok, j);
-        if (j >= sentinel)  {
-            throwExcParser(errLoopSyntaxError);
-        }
-        currTok = cm->tokens.cont[j];
+        VALIDATEP(j < sentinel, errLoopEmptyBody)
     }
-    *condInd = j;
-    *condSent = calcSentinel(currTok, *condInd);
+    Token condTok = toks[j];
+    VALIDATEP(condTok.tp == tokStmt || condTok.tp == tokIntro, errLoopSyntaxError)
+    *condInd = (condTok.pl2 > 0) ? j : 0;
+
+    j = calcSentinel(condTok, j);
+    if (condTok.tp == tokIntro)  {
+        *stepInd = 0;
+        *bodyInd = j;
+        return;
+    }
+
+    *stepInd = j;
+    for (Token currTok = toks[j]; currTok.tp != tokIntro; currTok = toks[j]) {
+        j = calcSentinel(currTok, j);
+        VALIDATEP(j < sentinel, errLoopEmptyBody)
+    }
+    VALIDATEP(toks[j].tp == tokIntro, errLoopSyntaxError)
+    *bodyInd = j;
+
+    // re-order
+
 
     // condition must be an expression and there must be something after it
-    VALIDATEP(currTok.tp == tokStmt && *condSent < sentinel, errLoopSyntaxError)
     return currTok;
 }
 
 
 private void pFor(Token forTk, P_CT) { //:pFor
-// For loops. Look like "(for x~ = 0; x < 100; x += 1:  ... )"
-// End result of a parse should look like:
+// For loops. Look like "(for x~ = 0;  x < 100; x += 1:  ... )"
+//                            ^initInd ^condInd ^stepInd ^bodyInd
+// At least a step or a body is syntactically required.
+// End result of a parse looks like:
 // nodFor
-//     nodForCond
-//         exprs
-//     nodForStep
-//         stepExprs
-//     initializations
-//     scope
-//         body
-    const Int forInd = cm->i;
+//     expr
+//     scope (pl3 = length of nodes to inner scope)
+//         initializations
+//         scope
+//             body
+//             step
+    const Int initInd = cm->i;
 
     ++cm->stats.loopCounter;
     const Int sentinel = cm->i + forTk.pl2;
 
-    Int condInd;
-    Int condSent;
-    Token condTok = preambleFor(sentinel, &condInd, &condSent, cm);
+    Int condInd; // index of condition
+    Int stepInd; // index of iteration stepping code
+    Int bodyInd; // index of loop body
+    Token condTok = preambleFor(sentinel, &condInd, &stepInd, &bodyInd, P_C);
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->stats.loopCounter }), cm->backtrack);
     addNode((Node){.tp = nodFor},  forTk.startBt, forTk.lenBts, cm);
 
-
     // loop condition
-    push(((ParseFrame){ .tp = nodForCond, .startNodeInd = cm->nodes.len, .sentinelToken = condSent,
-                        .typeId = cm->stats.loopCounter }), cm->backtrack);
-    addNode((Node){.tp = nodForCond},  condTok.startBt, condTok.lenBts, cm);
+    if (condInd != 0)  {
+        push(((ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len,
+                            .sentinelToken = minPositiveOf(3, stepInd, bodyInd, sentinel),
+                            .typeId = cm->stats.loopCounter }), cm->backtrack);
+        addNode((Node){.tp = nodExpr},  condTok.startBt, condTok.lenBts, cm);
 
-    cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/token
-    Int condTypeId = pExprWorker(toks[condInd], P_C);
-    VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
-
-    // variables initialization
-    cm->i = forInd;
-    for (cm->i = forInd; cm->i < condInd;) {
-        // parse assignments
+        cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/token
+        Int condTypeId = pExprWorker(toks[condInd], P_C);
+        VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
     }
 
-
-
-
-
-    Int startBtScope = toks[condSent].startBt;
-    addParsedScope(sentinel, startBtScope, forTk.lenBts - startBtScope + forTk.startBt, cm);
-
-    // variable initializations, if any
-
-    cm->i = condSent;
-    while (cm->i < sentinel) {
-        Token tok = toks[cm->i];
-        if (tok.tp != tokAssignLeft) {
-            break;
+    // variable initialization
+    Int sndInd = minPositiveOf(3, condInd, stepInd, bodyInd);
+    if (sndInd > initInd) {
+        Int initStartBt = toks[initInd].startBt;
+        addParsedScope(sentinel, initStartBt, forTk.lenBts - initStartBt + forTk.startBt, cm);
+        for (cm->i = initInd; cm->i < sndInd;) {
+            // parse assignments
+            Token tok = toks[cm->i];
+            cm->i += 1; // CONSUME the assignment span marker
+            pAssignment(tok, P_C);
+            maybeCloseSpans(cm);
         }
-        ++cm->i; // CONSUME the assignment span marker
-        pAssignment(tok, P_C);
-        maybeCloseSpans(cm);
     }
-    Int indBody = cm->i;
-    VALIDATEP(indBody < sentinel, errLoopEmptyBody);
 
-    cm->i = indBody; // CONSUME the for token, its condition and variable inits (if any)
+    // readying to parse the body + step statements
+    Int bodyStartBt = toks[sndInd].startBt;
+    addParsedScope(sentinel, bodyStartBt, forTk.lenBts - bodyStartBt + forTk.startBt, cm);
+    cm->i = minPositiveOf(2, stepInd, bodyInd);
 }
 
 
@@ -4307,7 +4343,7 @@ const char* nodeNames[] = {
     "(do", "Expr", "...=", "[]",
     "alias", "assert", "breakCont", "catch", "defer",
     "import", "(\\ fn)", "trait", "return", "try",
-    "for", "forCond", "if", "eif", "impl", "match"
+    "for", "if", "eif", "impl", "match"
 };
 
 

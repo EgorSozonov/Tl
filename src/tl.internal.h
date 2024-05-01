@@ -303,7 +303,8 @@ typedef struct { // :Token
 #define nodGetElem     12  // get value of array/list elem
 
 // Punctuation (inner node). pl2 = node count
-#define nodScope       13
+#define nodScope       13  // if it's the outer scope of a forNode, then pl3 = length of nodes till
+                           // inner scope. See parser tests for examples
 #define nodExpr        14  // pl1 = 1 iff it's a composite expression (has internal var decls)
 #define nodAssignLeft  15  // if pl2 = 0, then pl1 = entityId. Next span is always a nodExpr or
                            // a nodDataAlloc
@@ -322,12 +323,11 @@ typedef struct { // :Token
 #define nodTry         26
 #define nodFor         27  // pl1 = id of loop (unique within a function) if it needs to
                            // have a label in codegen
-#define nodForCond     28
 
-#define nodIf          29
-#define nodElseIf      30
-#define nodImpl        31
-#define nodMatch       32  // pattern matching on sum type tag
+#define nodIf          28
+#define nodElseIf      29  // pl3 = length till the next elseif, or 0 if this is an "else"
+#define nodImpl        30
+#define nodMatch       31  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 

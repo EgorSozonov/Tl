@@ -1055,28 +1055,28 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
         createTest(
             s("Simple loop 1"),
-            s("f = (\\(for x~ = 1; x < 101; x = x + 1: print x ))"),
+            s("f = (\\(for x~ = 1; x < 101; x = x + 1: print $x ))"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 16 },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
                 (Node){ .tp = nodScope,           .pl2 = 14 }, // function body
 
                 (Node){ .tp = nodFor,           .pl2 = 18 },
-                (Node){ .tp = nodForCond, .pl1 = slStmt, .pl2 = 3 },
+                (Node){ .tp = nodExpr, .pl1 = slStmt, .pl2 = 3 },
                 (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2 }, // x
                 (Node){ .tp = tokInt,          .pl2 = 101 },
                 (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
 
+                (Node){ .tp = nodScope, .pl1 = slScope, .pl2 = 3 },
                 (Node){ .tp = nodAssignLeft,      .pl2 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 1 }, // x
                 (Node){ .tp = tokInt,             .pl2 = 1 },
 
                 (Node){ .tp = nodScope,          .pl2 = 12 },
                 (Node){ .tp = nodExpr,           .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1 }, // print
-                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
                 (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2 },      // x
-
+                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
+                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1 }, // print
                 (Node){ .tp = nodAssignLeft,           .pl2 = 3 },
                 (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 }, // x
                 (Node){ .tp = nodExpr,           .pl2 = 3 },
