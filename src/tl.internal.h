@@ -217,6 +217,8 @@ typedef struct { // :Token
     Unt pl2;
 } Token;
 
+
+DEFINE_STACK_HEADER(Token)
 #define maxWordLength 255
 
 // Atomic (leaf) Token types
@@ -524,6 +526,7 @@ typedef struct { // :StateForExprs
     StackNode* calls;
     StackSourceLoc* locsCalls;
     Bool metAnAllocation;
+    StackToken* reorderBuf;
 } StateForExprs;
 
 typedef struct {   // :TypeFrame

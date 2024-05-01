@@ -1,4 +1,4 @@
-//{{{ Includes
+//{{{ Include s
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -264,6 +264,18 @@ void pushBulk(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) 
     cm->sourceLocs->len += pushCount;
 }
 
+
+private void reserveSpaceTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
+//:reserveSpaceTokenBuf
+    st->len = 0;
+    if (neededSpace >= st->cap) {
+        Arr(Token) newContent = allocateOnArena(2*(st->cap)*sizeof(Token), cm->a);
+        st->cap *= 2;
+        st->cont = newContent;
+    }
+}
+
+
 //}}}
 //{{{ Internal list
 
@@ -463,6 +475,7 @@ void printRawOverload(Int listInd, Compiler* cm) { //:printRawOverload
 
 DEFINE_STACK(int32_t)
 DEFINE_STACK(BtToken)
+DEFINE_STACK(Token)
 DEFINE_STACK(ParseFrame)
 DEFINE_STACK(ExprFrame)
 DEFINE_STACK(TypeFrame)
@@ -2555,6 +2568,14 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
         pTypeDef(P_C);
         return;
+    } else if (countLeftSide == 1)  {
+        Token nameTok = toks[cm->i];
+        Unt newName = ((Unt)nameTok.lenBts << 24) + (Unt)nameTok.pl2; // nameId + lenBts
+        mbNewBinding = createEntity(newName, nameTok.pl1 == 1 ? classMutable : classImmutable, cm);
+        print("created binding %d for name %d at i %d", mbNewBinding, nameTok.pl2, cm->i + 1)
+        addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
+                tok.startBt, tok.lenBts, cm);
+        print("creatin' binding tok.pl1 %d", tok.pl1)
     } else if (countLeftSide > 1) {
         complexLeft = true;
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
@@ -2578,9 +2599,6 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
                        .sentinelToken = cm->i + rightTk.pl2 }), cm->backtrack);
     addNode((Node){.tp = nodExpr}, rightTk.startBt, rightTk.lenBts, cm);
 
-    //Token firstInRightTk = toks[cm->i]; // first token inside the tokAssignmentRight
-    //Int startBt = firstInRightTk.startBt;
-    //Int lenBts = rightTk.startBt + rightTk.lenBts - startBt;
     if (isMutation) {
         StateForExprs* stEx = cm->stateForExprs;
 
@@ -2610,6 +2628,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         exprLinearize(sentinel, P_C);
         exprCopyFromScratch(startNodeInd, cm);
         Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
+
         VALIDATEP(rightType != -2, errAssignment)
 
         if (tok.pl1 == 0 && rightType > -1) {
@@ -2619,7 +2638,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 }
 
 
-private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
+private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
                          P_CT) { //:preambleFor
 // Pre-processes a "for" loop and finds its key tokens: the loop condition and the intro
 // Every out index is either positive or 0 for "not found".
@@ -2641,6 +2660,7 @@ private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT 
 //   v    v    v    v    v    v    v    v    v
 // [inits | cond | tokBody1 ... tokBodyN tokStep1 tokStep2 ] <- restores original tp of tokIntro
     VALIDATEP(cm->i < sentinel, errLoopEmptyBody)
+    print("preamble i %d sentinel %d", cm->i, sentinel)
     Int j = cm->i;
     for (Token currTok = toks[j];
          (currTok.tp == tokAssignLeft || currTok.tp == tokAssignRight);
@@ -2653,7 +2673,7 @@ private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT 
     *condInd = (condTok.pl2 > 0) ? j : 0;
 
     j = calcSentinel(condTok, j);
-    if (condTok.tp == tokIntro)  {
+    if (condTok.tp == tokIntro) { // the cond is the intro, hence there are no steppings
         *stepInd = 0;
         *bodyInd = j;
         return;
@@ -2664,16 +2684,23 @@ private Token preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT 
         j = calcSentinel(currTok, j);
         VALIDATEP(j < sentinel, errLoopEmptyBody)
     }
-    VALIDATEP(toks[j].tp == tokIntro, errLoopSyntaxError)
-    *bodyInd = j;
+    const Int introInd = j;
+    j = calcSentinel(toks[introInd], introInd);
+    *bodyInd = (j < sentinel) ? j : 0;
 
     // re-order
-
-
-    // condition must be an expression and there must be something after it
-    return currTok;
+    if (*stepInd > 0 && *bodyInd > 0)  {
+        const Int lenBody = sentinel - *bodyInd;
+        const Int lenStep = *bodyInd - (*stepInd);
+        StackToken* buf = cm->stateForExprs->reorderBuf;
+        reserveSpaceTokenBuf(lenBody, buf, cm);
+        memcpy(buf->cont, toks + *bodyInd, lenBody*sizeof(Token));
+        memcpy(toks + sentinel - lenStep, toks + (*stepInd), lenStep*sizeof(Token));
+        memcpy(toks + (*stepInd), buf->cont, lenBody*sizeof(Token));
+    }
 }
 
+testable void printLexer(Compiler* lx);
 
 private void pFor(Token forTk, P_CT) { //:pFor
 // For loops. Look like "(for x~ = 0;  x < 100; x += 1:  ... )"
@@ -2681,12 +2708,13 @@ private void pFor(Token forTk, P_CT) { //:pFor
 // At least a step or a body is syntactically required.
 // End result of a parse looks like:
 // nodFor
-//     expr
-//     scope (pl3 = length of nodes to inner scope)
+//     scope (pl3 = length of nodes to condinner scope)(
 //         initializations
-//         scope
+//         expr (the cond - if present)
+//         scope (if any inits are present)
 //             body
 //             step
+    print("pFor")
     const Int initInd = cm->i;
 
     ++cm->stats.loopCounter;
@@ -2695,35 +2723,42 @@ private void pFor(Token forTk, P_CT) { //:pFor
     Int condInd; // index of condition
     Int stepInd; // index of iteration stepping code
     Int bodyInd; // index of loop body
-    Token condTok = preambleFor(sentinel, &condInd, &stepInd, &bodyInd, P_C);
+    preambleFor(sentinel, &condInd, &stepInd, &bodyInd, P_C);
+
+    printLexer(cm);
+
+    print("from preamble %d %d %d", condInd, stepInd, bodyInd)
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->stats.loopCounter }), cm->backtrack);
     addNode((Node){.tp = nodFor},  forTk.startBt, forTk.lenBts, cm);
 
-    // loop condition
-    if (condInd != 0)  {
-        push(((ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len,
-                            .sentinelToken = minPositiveOf(3, stepInd, bodyInd, sentinel),
-                            .typeId = cm->stats.loopCounter }), cm->backtrack);
-        addNode((Node){.tp = nodExpr},  condTok.startBt, condTok.lenBts, cm);
-
-        cm->i = condInd + 1; // + 1 because the expression parser needs to be 1 past the expr/token
-        Int condTypeId = pExprWorker(toks[condInd], P_C);
-        VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
-    }
-
     // variable initialization
     Int sndInd = minPositiveOf(3, condInd, stepInd, bodyInd);
     if (sndInd > initInd) {
-        Int initStartBt = toks[initInd].startBt;
-        addParsedScope(sentinel, initStartBt, forTk.lenBts - initStartBt + forTk.startBt, cm);
+        print("inits initInd %d sndInd %d", initInd, sndInd)
+        addParsedScope(sentinel, forTk.startBt, forTk.lenBts, cm);
         for (cm->i = initInd; cm->i < sndInd;) {
             // parse assignments
             Token tok = toks[cm->i];
             cm->i += 1; // CONSUME the assignment span marker
+            print("parsin assignment at %d", cm->i);
             pAssignment(tok, P_C);
             maybeCloseSpans(cm);
+        }
+        print("after ass")
+        // loop condition
+        if (condInd != 0)  {
+            Token condTok = toks[condInd];
+            push(((ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len,
+                                .sentinelToken = minPositiveOf(3, stepInd, bodyInd, sentinel),
+                                .typeId = cm->stats.loopCounter }), cm->backtrack);
+            addNode((Node){.tp = nodExpr},  condTok.startBt, condTok.lenBts, cm);
+
+            cm->i = condInd + 1; // +1 cause the expression parser needs to be 1 past the exprToken
+            print("cond")
+            Int condTypeId = pExprWorker(toks[condInd], P_C);
+            VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
         }
     }
 
@@ -2731,6 +2766,7 @@ private void pFor(Token forTk, P_CT) { //:pFor
     Int bodyStartBt = toks[sndInd].startBt;
     addParsedScope(sentinel, bodyStartBt, forTk.lenBts - bodyStartBt + forTk.startBt, cm);
     cm->i = minPositiveOf(2, stepInd, bodyInd);
+    print("leavin pFor at i %d",cm->i)
 }
 
 
@@ -2961,6 +2997,7 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
 // The core code of the general, long expression parse. "startNodeInd" is the index of the
 // opening nodExpr, "sentinelToken" is the index where to stop reading tokens.
 // Produces a linear sequence of operands and operators with arg counts in Reverse Polish Notation
+// Handles data allocations, too
     StateForExprs* stEx = cm->stateForExprs;
     stEx->metAnAllocation = false;
     StackNode* scr = stEx->scr;
@@ -2974,13 +3011,14 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
     locsCalls->len = 0;
 
     push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinelToken}), frames);
-    while (cm->i < sentinelToken) {
+    ExprFrame* parent = frames->cont + (frames->len - 1);
+    for (; cm->i < sentinelToken; frames->cont + (frames->len - 1)) {
         subexClose(stEx, cm);
         Token cTk = toks[cm->i];
         Unt tokType = cTk.tp;
 
-        ExprFrame* parent = frames->cont + (frames->len - 1);
         if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
+            print("in expr at i %d I have parent tp %d", cm->i, parent->tp)
             if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
                 ++parent->argCount;
             }
@@ -2998,7 +3036,7 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
                 push(((Node) { .tp = nodCall, .pl1 = cTk.pl1, .pl2 = 1, }), scr);
                 push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
             } else {
-                if (parent->tp == exfrCall) {
+                if (parent->tp == exfrCall) { // pop the parent call because we met infix operator
                     ExprFrame callFrame = pop(frames);
                     Node call = pop(calls);
                     call.pl2 = callFrame.argCount;
@@ -3035,6 +3073,7 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
 // The main "big" expression parser. Parses an expression whether there is a token or not.
 // Starts from cm->i and goes up to the sentinel token. Returns the expression's type
 // Precondition: we are looking 1 past the tokExpr or tokParens
+    print("expr upt o %d", cm->i)
     Int startNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd,
                 .sentinelToken = sentinelToken }), cm->backtrack);
@@ -3116,6 +3155,7 @@ private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
     while (cm->i < sentinelToken) {
         Token currTok = toks[cm->i];
         cm->i++;
+        print("parsing tok tp %d at i %d", currTok.tp, cm->i)
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, P_C);
 
         maybeCloseSpans(cm);
@@ -3731,7 +3771,6 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
     }
     // List
     Int typeIndL = cm->types.len;
-    print("typeIndL %d storing %d", typeIndL, stToNameId(strL))
     pushIntypes(7, cm); // 2 for the header, 1 for param tyrity, and 4 for the field names & types
     typeAddHeader((TypeHeader){.sort = sorRecord, .nameAndLen = stToFullName(strL, cm),
                   .arity = 2, .tyrity = 1}, cm);
@@ -3955,7 +3994,8 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
         .scr = createStackNode(16*sizeof(Node), a),
         .calls = createStackNode(16*sizeof(Node), a),
         .locsScr = createStackSourceLoc(16*sizeof(SourceLoc), a),
-        .locsCalls = createStackSourceLoc(16*sizeof(SourceLoc), a)
+        .locsCalls = createStackSourceLoc(16*sizeof(SourceLoc), a),
+        .reorderBuf = createStackToken(16*sizeof(Token), a)
     };
     cm->stateForExprs = stForExprs;
 
@@ -3998,16 +4038,6 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     };
 
     importPrelude(cm);
-}
-
-
-private void reserveSpaceInList(Int neededSpace, InListInt st, Compiler* cm) { //:reserveSpaceInList
-    if (st.len + neededSpace >= st.cap) {
-        Arr(Int) newContent = allocateOnArena(8*(st.cap), cm->a);
-        memcpy(newContent, st.cont, st.len*4);
-        st.cap *= 2;
-        st.cont = newContent;
-    }
 }
 
 
@@ -4245,13 +4275,11 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     Int fnSentinel = toplevelSignature.sentinelToken;
     EntityId fnEntity = toplevelSignature.entityId;
     TypeId fnType = cm->entities.cont[fnEntity].typeId;
-    print("at start, node count is %d", cm->nodes.len);
-
-    print("toplevel body startInd %d sentinel %d", fnStartInd, fnSentinel);
 
     cm->i = fnStartInd; // tokFn
     Token fnTk = toks[cm->i];
 
+    print("fnStartInd %d", cm->i);
     // the fnDef scope & node
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
                         .typeId = fnType }), cm->backtrack);
@@ -4259,7 +4287,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (toplevelSignature.name & LOWER24BITS)},
             fnTk.startBt, fnTk.lenBts, cm);
 
-    cm->i += 1; // CONSUME the parens token for the param list
+    cm->i += 1; // CONSUME the tokFn token
     Token mbParamsTk = toks[cm->i];
     if (mbParamsTk.tp == tokIntro) {
         const Int paramsSentinel = cm->i + mbParamsTk.pl2 + 1;
@@ -4275,21 +4303,20 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
             if (paramName.tp == tokMisc) {
                 break;
             }
-            print("here token type at %d is %d, type is %d", cm->i, paramName.tp, cm->types.cont[paramType])
             Int newEntityId = createEntityWithType(
                     nameOfToken(paramName), paramType,
-                    paramName.pl1 == 1 ? classMutable : classImmutable, cm);
+                    paramName.pl1 == 1 ? classMutable : classImmutable, cm
+            );
             addNode(((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = 0}),
                     paramName.startBt, paramName.lenBts, cm);
 
-            ++cm->i; // CONSUME the param name
+            cm->i += 1; // CONSUME the param name
             cm->i = calcSentinel(toks[cm->i], cm->i); // CONSUME the tokens of param type
             paramType += 1;
         }
+        cm->i += 1; // CONSUME ??
     }
 
-    ++cm->i; // CONSUME the "=" sign
-    print("here i %d sent %d", cm->i, fnSentinel)
     parseUpTo(fnSentinel, P_C);
 }
 
@@ -4990,7 +5017,7 @@ private void populateExp(Int indExpr, Int sentinelNode, Compiler* cm) {
         if (nd.tp <= tokString) {
             push((Int)nd.tp, exp);
         } else if (nd.tp == nodCall) {
-            Int argCount = nd.pl2;
+            const Int argCount = nd.pl2;
             push(BIG + argCount, exp); // signifies that it's a call, and its arity
             push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), exp);
             // index into overloadIds, or entityId for 0-arity fns
@@ -5057,6 +5084,8 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
+            print("type found argc %d:", argCount)
+            tPrint(typeOfFunc, cm);
             VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
             // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
@@ -5240,7 +5269,7 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 // Must agree in order with token types in tl.internal.h
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "misc",
-    "word", "Type", ":kwarg", "operator", ".field",
+    "word", "Type", ":kwarg", "call", ".field",
     "stmt", "()", "(T ...)", "intro:", "[]", "{}", "a[]",
     "...=", "=...", "alias", "assert", "breakCont",
     "trait", "import", "return",
@@ -5463,7 +5492,7 @@ void tPrintOuter(TypeId currT, Compiler* cm) { //:tPrintOuter
 //~        printIntArrayOff(currT, t[currT] + 1, t);
         const TypeId genericTypeId = currHdr.nameAndLen;
         const TypeHeader genericHdr = typeReadHeader(genericTypeId, cm);
-        printf("[");
+        printf("(");
         printNameAndLen(genericHdr.nameAndLen, cm);
         printf(" ");
     } else {
@@ -5487,7 +5516,6 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
     Int countIters = 0;
     while (top != null && countIters < 10)  {
         Int currT = cm->types.cont[top->currPos];
-    //    print("printLoop currT %d currSentinel = %d", currT, top->sentinel)
         top->currPos += 1;
         if (currT > -1) {
             if (currT <= topVerbatimType)  {
@@ -5505,7 +5533,7 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
         while (top != null && top->currPos == top->sentinel) {
             popTypeLoc(st);
             top = hasValuesTypeLoc(st) ? st->cont + (st->len - 1) : null;
-            printf("]");
+            printf(")");
         }
 
         countIters += 1;
