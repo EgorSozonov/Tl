@@ -514,7 +514,8 @@ typedef struct {  // :ExprFrame
 
 #define exfrParen      1
 #define exfrCall       2
-#define exfrDataAlloc  3
+#define exfrUnaryCall  3
+#define exfrDataAlloc  4
 
 DEFINE_STACK_HEADER(ExprFrame)
 

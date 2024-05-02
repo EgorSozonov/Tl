@@ -1,4 +1,4 @@
-//{{{ Include s
+//{{{ Includes
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -1218,10 +1218,14 @@ const char errTypeFnSingleReturnType[]      = "More than one return type in a fu
 //}}}
 //{{{ Forward decls
 
+
+#define P_CT Arr(Token) toks, Compiler* cm // parser context signature fragment
+#define P_C toks, cm // parser context args fragment
 private void closeStatement(Compiler* lx);
 private void exprCopyFromScratch(Int startNodeInd, Compiler* cm);
 private Int isFunction(TypeId typeId, Compiler* cm);
 private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm);
+private TypeId exprUpToWithFrame(ParseFrame frame, Int startBt, Int lenBts, P_CT);
 testable void typeAddHeader(TypeHeader hdr, Compiler* cm);
 testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm);
 testable void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
@@ -2352,10 +2356,8 @@ private void setOperatorsLengths() { //:setOperatorsLengths
 //{{{ Parser utils
 
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
-#define P_CT Arr(Token) toks, Compiler* cm // parser context signature fragment
-#define P_C toks, cm // parser context args fragment
 
-private Int exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
+private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
 private void subexClose(StateForExprs* s, Compiler* cm);
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
@@ -2421,16 +2423,45 @@ private Int createEntityWithType(Unt name, TypeId typeId, Byte class, Compiler* 
     return newEntityId;
 }
 
+
 private Int calcSentinel(Token tok, Int tokInd) { //:calcSentinel
 // Calculates the sentinel token for a token at a specific index
     return (tok.tp >= firstSpanTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
 
 
-
-void addNode(Node node, Int startBt, Int lenBts, Compiler* cm) { //:addNode
+testable void addNode(Node node, Int startBt, Int lenBts, Compiler* cm) { //:addNode
     pushInnodes(node, cm);
     push(((SourceLoc) { .startBt = startBt, .lenBts = lenBts }), cm->sourceLocs);
+}
+
+
+private void pAddOperatorCall(Int operId, Int sentinel, Int startBt, Int lenBts, StateForExprs* s) {
+//:pAddOperatorCall Pushes a call to the temporary stacks during expression parsing
+// This sets argCount = 1 because infix
+    push(((ExprFrame) { .tp = exfrCall, .startNode = -1, .sentinel = sentinel,
+                        .argCount = 1 }), s->frames);
+    push(((Node) { .tp = nodCall, .pl1 = operId }), s->calls);
+    push(((SourceLoc) { .startBt = startBt, .lenBts = lenBts }), s->locsCalls);
+}
+
+
+private void pAddUnaryCall(Token tok, StateForExprs* s) {
+//:pAddUnaryCall Pushes a unary, prefix call to the temporary stacks during expression parsing
+    push(((ExprFrame) { .tp = exfrUnaryCall, .startNode = -1, .sentinel = -1,
+                        .argCount = 1 }), s->frames);
+    push(((Node) { .tp = nodCall, .pl1 = tok.pl1 }), s->calls);
+    push(((SourceLoc) { .startBt = tok.startBt, .lenBts = tok.lenBts }), s->locsCalls);
+}
+
+
+private void pAddFunctionCall(Token tk, Int sentinel, StateForExprs* s) {
+//:pAddFunctionCall Pushes a call to the temporary stacks during expression parsing
+    push(
+        ((ExprFrame) {.tp = exfrCall, .sentinel = sentinel, .argCount = 0 }),
+        s->frames);
+    push(((Node) { .tp = nodCall, .pl1 = tk.pl2 }), s->calls);
+    push(((SourceLoc) { .startBt = tk.startBt, .lenBts = tk.lenBts }), s->locsCalls);
 }
 
 //}}}
@@ -2438,7 +2469,6 @@ void addNode(Node node, Int startBt, Int lenBts, Compiler* cm) { //:addNode
 
 testable void pushLexScope(ScopeStack* scopeStack);
 testable Int pTypeDef(P_CT);
-private void parseFnDef(Token tok, P_CT);
 testable bool findOverload(FirstArgTypeId typeId, Int start, EntityId* entityId, Compiler* cm);
 
 #ifdef TEST
@@ -2594,7 +2624,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
                 mbOldBinding.startBt, mbOldBinding.lenBts, cm);
     }
     cm->i += countLeftSide + 1; // CONSUME the left side of an assignment
-    Int sentinel = cm->i + rightTk.pl2;
+    const Int sentinel = cm->i + rightTk.pl2;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = cm->nodes.len,
                        .sentinelToken = cm->i + rightTk.pl2 }), cm->backtrack);
     addNode((Node){.tp = nodExpr}, rightTk.startBt, rightTk.lenBts, cm);
@@ -2621,7 +2651,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
         subexClose(stEx, cm);
     } else if (rightTk.tp == tokFn) {
-        parseFnDef(rightTk, P_C);
+        // TODO
     } else {
         Int startNodeInd = cm->nodes.len - 1; // index of the nodExpr for the right side
 
@@ -2635,6 +2665,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
             cm->entities.cont[mbNewBinding].typeId = rightType;
         }
     }
+    maybeCloseSpans(cm);
 }
 
 
@@ -2700,7 +2731,6 @@ private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT I
     }
 }
 
-testable void printLexer(Compiler* lx);
 
 private void pFor(Token forTk, P_CT) { //:pFor
 // For loops. Look like "(for x~ = 0;  x < 100; x += 1:  ... )"
@@ -2714,7 +2744,6 @@ private void pFor(Token forTk, P_CT) { //:pFor
 //         scope (if any inits are present)
 //             body
 //             step
-    print("pFor")
     const Int initInd = cm->i;
 
     ++cm->stats.loopCounter;
@@ -2724,8 +2753,6 @@ private void pFor(Token forTk, P_CT) { //:pFor
     Int stepInd; // index of iteration stepping code
     Int bodyInd; // index of loop body
     preambleFor(sentinel, &condInd, &stepInd, &bodyInd, P_C);
-
-    printLexer(cm);
 
     print("from preamble %d %d %d", condInd, stepInd, bodyInd)
 
@@ -2742,22 +2769,20 @@ private void pFor(Token forTk, P_CT) { //:pFor
             // parse assignments
             Token tok = toks[cm->i];
             cm->i += 1; // CONSUME the assignment span marker
-            print("parsin assignment at %d", cm->i);
             pAssignment(tok, P_C);
-            maybeCloseSpans(cm);
         }
-        print("after ass")
         // loop condition
         if (condInd != 0)  {
             Token condTok = toks[condInd];
-            push(((ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len,
-                                .sentinelToken = minPositiveOf(3, stepInd, bodyInd, sentinel),
-                                .typeId = cm->stats.loopCounter }), cm->backtrack);
-            addNode((Node){.tp = nodExpr},  condTok.startBt, condTok.lenBts, cm);
 
+// TODO handle single-token conditions, like a single var or a literal
             cm->i = condInd + 1; // +1 cause the expression parser needs to be 1 past the exprToken
-            print("cond")
-            Int condTypeId = pExprWorker(toks[condInd], P_C);
+
+            TypeId condTypeId = exprUpToWithFrame(
+                    (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len,
+                                  .sentinelToken = minPositiveOf(3, stepInd, bodyInd, sentinel),
+                                  .typeId = cm->stats.loopCounter },
+                    condTok.startBt, condTok.lenBts, P_C);
             VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
         }
     }
@@ -2894,6 +2919,7 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
                 // a prefix call inside a data allocator - need to set the nodExpr length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
             }
+
             push(call, scr);
             push(pop(stEx->locsCalls), stEx->locsScr);
         } else {
@@ -2942,12 +2968,10 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
 
 
 private void exprParensLinearize(Token cTk, Int sentinelToken, ExprFrame* parent, P_CT) {
-//:exprParensLinearize Parens inside expressions
+//:exprParensLinearize Parens inside expressions. Handles also operator names like `(+)`
     StateForExprs* stEx = cm->stateForExprs;
     StackNode* scr = stEx->scr;
-    StackNode* calls = cm->stateForExprs->calls;
     StackSourceLoc* locsScr = cm->stateForExprs->locsScr;
-    StackSourceLoc* locsCalls = cm->stateForExprs->locsCalls;
     StackExprFrame* frames = cm->stateForExprs->frames;
     if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
         ++parent->argCount;
@@ -2976,28 +3000,15 @@ private void exprParensLinearize(Token cTk, Int sentinelToken, ExprFrame* parent
             push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
             push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
         }
-
-        if (cm->i + 1 < sentinelToken)  {
-            Token firstTk = toks[cm->i + 1];
-            if (firstTk.tp == tokWord) { // words in initial position are calls
-                push(
-                    ((ExprFrame) {.tp = exfrCall, .sentinel = parensSentinel, .argCount = 0 }),
-                    frames);
-                push(((Node) { .tp = nodCall }), calls);
-                push(((SourceLoc) { .startBt = firstTk.startBt, .lenBts = firstTk.lenBts }),
-                        locsCalls);
-                ++cm->i; // CONSUME the parens token
-            }
-        }
     }
 }
 
 
 private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
-// The core code of the general, long expression parse. "startNodeInd" is the index of the
-// opening nodExpr, "sentinelToken" is the index where to stop reading tokens.
-// Produces a linear sequence of operands and operators with arg counts in Reverse Polish Notation
-// Handles data allocations, too
+// The core code of the general, long expression parse. Starts at cm->i and parses until
+// "sentinelToken". Produces a linear sequence of operands and operators with arg counts in
+// Reverse Polish Notation. Handles data allocations, too
+print("linearize sent %d", sentinelToken)
     StateForExprs* stEx = cm->stateForExprs;
     stEx->metAnAllocation = false;
     StackNode* scr = stEx->scr;
@@ -3011,30 +3022,45 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
     locsCalls->len = 0;
 
     push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinelToken}), frames);
-    ExprFrame* parent = frames->cont + (frames->len - 1);
-    for (; cm->i < sentinelToken; frames->cont + (frames->len - 1)) {
+
+    for (ExprFrame* parent = frames->cont + (frames->len - 1);
+         cm->i < sentinelToken;
+         cm->i += 1,  // CONSUME any expression token
+         parent = frames->cont + (frames->len - 1)) {
         subexClose(stEx, cm);
         Token cTk = toks[cm->i];
         Unt tokType = cTk.tp;
 
         if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
-            print("in expr at i %d I have parent tp %d", cm->i, parent->tp)
-            if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
-                ++parent->argCount;
-            }
-            if (tokType == tokWord)  {
+            if (tokType == tokWord) {
+                if (parent->tp == exfrParen && cm->i + 1 < sentinelToken)  {
+                    Token nextTok = toks[cm->i + 1];
+                    print("nextTok tp %d at %d arity %d", nextTok.tp, cm->i + 1,
+                            TL_OPERATORS[nextTok.pl1].arity)
+                    if (nextTok.tp != tokOperator || TL_OPERATORS[nextTok.pl1].arity == 1) {
+                        pAddFunctionCall(cTk, parent->sentinel, stEx);
+                        continue;
+                    }
+                }
+                print("getting var at %d", cm->i)
                 EntityId varId = getActiveVar(cTk.pl2, cm);
                 push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2 }), scr);
             } else {
                 push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2 }), scr);
             }
             push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+
+            if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
+                ++parent->argCount;
+            } else if (parent->tp == exfrUnaryCall) {
+                // pop all the unary calls
+            }
+
         } else if (tokType == tokParens) {
-            exprParensLinearize(cTk, sentinelToken, parent, P_C);
+             exprParensLinearize(cTk, sentinelToken, parent, P_C);
         } else if (tokType == tokOperator) {
-            if (TL_OPERATORS[cTk.pl2].arity == 1)  {
-                push(((Node) { .tp = nodCall, .pl1 = cTk.pl1, .pl2 = 1, }), scr);
-                push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+            if (TL_OPERATORS[cTk.pl1].arity == 1)  {
+                pAddUnaryCall(cTk, stEx);
             } else {
                 if (parent->tp == exfrCall) { // pop the parent call because we met infix operator
                     ExprFrame callFrame = pop(frames);
@@ -3043,10 +3069,8 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
                     push(call, scr);
                     parent = frames->cont + (frames->len - 1);
                 }
-                push(((ExprFrame) { .tp = exfrCall, .startNode = -1, .sentinel = parent->sentinel,
-                                    .argCount = 1 }), frames); // argCount = 1 because infix
-                push(((Node) { .tp = nodCall, .pl1 = cTk.pl1 }), calls);
-                push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
+
+                pAddOperatorCall(cTk.pl1, parent->sentinel, cTk.startBt, cTk.lenBts, stEx);
             }
         } else if (tokType == tokTypeCall) { // not really a type call, but a data alloc "L(1 2 3)"
             stEx->metAnAllocation = true;
@@ -3063,17 +3087,31 @@ private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
         } else {
             throwExcParser(errExpressionCannotContain);
         }
-        cm->i++; // CONSUME any token
     }
     subexClose(stEx, cm);
 }
 
 
+
+private TypeId exprUpToWithFrame(ParseFrame frame, Int startBt, Int lenBts, P_CT) {
+//:exprUpToWithFrame The main "big" expression parser. Parses an expression whether there is a
+// token or not. Starts from cm->i and goes up to the sentinel token. Returns the expression's type
+// Precondition: we are looking 1 past the tokExpr or tokParens
+    const Int startNodeInd = cm->nodes.len;
+    push(frame, cm->backtrack);
+    addNode((Node){ .tp = nodExpr}, startBt, lenBts, cm);
+
+    exprLinearize(frame.sentinelToken, P_C);
+    exprCopyFromScratch(startNodeInd, cm);
+    Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
+    maybeCloseSpans(cm);
+    return exprType;
+}
+
 private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprUpTo
 // The main "big" expression parser. Parses an expression whether there is a token or not.
 // Starts from cm->i and goes up to the sentinel token. Returns the expression's type
 // Precondition: we are looking 1 past the tokExpr or tokParens
-    print("expr upt o %d", cm->i)
     Int startNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd,
                 .sentinelToken = sentinelToken }), cm->backtrack);
@@ -3115,6 +3153,8 @@ private Int pExprWorker(Token tok, P_CT) { //:pExprWorker
                 return exprSingleItem(singleToken, cm);
             }
         }
+
+        print("worker %d at i %d sent %d", tok.tp, cm->i, cm->i + tok.pl2)
         return exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, P_C);
     } else {
         return exprSingleItem(tok, cm);
@@ -3155,7 +3195,6 @@ private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
     while (cm->i < sentinelToken) {
         Token currTok = toks[cm->i];
         cm->i++;
-        print("parsing tok tp %d at i %d", currTok.tp, cm->i)
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, P_C);
 
         maybeCloseSpans(cm);
@@ -3245,22 +3284,7 @@ private void parseDefer(Token tok, P_CT) {
 }
 
 
-private void parseDispose(Token tok, P_CT) {
-    throwExcParser(errTemp);
-}
-
-
-private void parseExposePrivates(Token tok, P_CT) {
-    throwExcParser(errTemp);
-}
-
-
-private void parseFnDef(Token tok, P_CT) {
-    throwExcParser(errTemp);
-}
-
-
-private void parseInterface(Token tok, P_CT) {
+private void pTrait(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
@@ -3281,11 +3305,6 @@ private void parseLambda1(Token tok, P_CT) {
 
 
 private void parseLambda2(Token tok, P_CT) {
-    throwExcParser(errTemp);
-}
-
-
-private void parseLambda3(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
@@ -3650,7 +3669,9 @@ private void popScopeFrame(Compiler* cm) { //:popScopeFrame
             scopeStack->lastChunk->next = null;
             do {
                 ScopeChunk* nextToDelete = ch->next;
+#ifdef TRACE
                 printf("ScopeStack is freeing a chunk of memory at %p next = %p\n", ch, nextToDelete);
+#endif
                 free(ch);
 
                 if (nextToDelete == null) break;
@@ -4185,7 +4206,6 @@ private void pToplevelConstants(Compiler* cm) { //:pToplevelConstants
             if (rightTk.tp != tokFn) {
                 cm->i += 1; // CONSUME the left and right assignment
                 pAssignment(tok, P_C);
-                maybeCloseSpans(cm);
                 //parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, P_C);
             } else {
                 cm->i += (tok.pl2 + 1);
@@ -4279,7 +4299,6 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     cm->i = fnStartInd; // tokFn
     Token fnTk = toks[cm->i];
 
-    print("fnStartInd %d", cm->i);
     // the fnDef scope & node
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
                         .typeId = fnType }), cm->backtrack);

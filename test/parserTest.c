@@ -294,7 +294,7 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
         printString(test.control->stats.errMsg);
         printf("\n");
         print("    LEXER:")
-        printLexer(test.control);
+        printLexer(test.test);
         print("    PARSER:")
         printParser(test.test, a);
     } else {
@@ -302,7 +302,7 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
         printString(test.name);
         printf("On node %d\n", equalityStatus);
         print("    LEXER:")
-        printLexer(test.control);
+        printLexer(test.test);
         print("    PARSER:")
         printParser(test.test, a);
     }
