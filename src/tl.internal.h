@@ -151,51 +151,50 @@ typedef struct {
 #define strBreak      2
 #define strCatch      3
 #define strContinue   4
-#define strDefer      5
-#define strDo         6
-#define strEach       7
-#define strElseIf     8
-#define strElse       9
-#define strFalse     10
-#define strFor       11
-#define strIf        12
-#define strImpl      13
-#define strImport    14
-#define strMatch     15
-#define strPub       16
-#define strReturn    17
-#define strTrait     18
-#define strTrue      19
-#define strTry       20
-#define strFirstNonReserved 21
+#define strDo         5
+#define strEach       6
+#define strElseIf     7
+#define strElse       8
+#define strFalse      9
+#define strFor       10
+#define strIf        11
+#define strImpl      12
+#define strImport    13
+#define strMatch     14
+#define strPub       15
+#define strReturn    16
+#define strTrait     17
+#define strTrue      18
+#define strTry       19
+#define strFirstNonReserved 20
 #define strInt       strFirstNonReserved // types must come first here?, see "buildPreludeTypes"
-#define strLong      22
-#define strDouble    23
-#define strBool      24
-#define strString    25
-#define strVoid      26
-#define strF         27 // F(unction type)
-#define strL         28 // L(ist)
-#define strArray     29
-#define strD         30 // D(ictionary)
-#define strRec       31 // Record
-#define strEnum      32 // Enum
-#define strTu        33 // Tu(ple)
-#define strPromise   34 // Promise
-#define strLen       35
-#define strCap       36
-#define strF1        37
-#define strF2        38
-#define strPrint     39
-#define strPrintErr  40
-#define strMathPi    41
-#define strMathE     42
-#define strTypeVarT  43
-#define strTypeVarU  44
+#define strLong      21
+#define strDouble    22
+#define strBool      23
+#define strString    24
+#define strVoid      25
+#define strF         26 // F(unction type)
+#define strL         27 // L(ist)
+#define strArray     28
+#define strD         29 // D(ictionary)
+#define strRec       30 // Record
+#define strEnum      31 // Enum
+#define strTu        32 // Tu(ple)
+#define strPromise   33 // Promise
+#define strLen       34
+#define strCap       35
+#define strF1        36
+#define strF2        37
+#define strPrint     38
+#define strPrintErr  39
+#define strMathPi    40
+#define strMathE     41
+#define strTypeVarT  42
+#define strTypeVarU  43
 #ifndef TEST
-#define strSentinel  45
+#define strSentinel  44
 #else
-#define strSentinel  48
+#define strSentinel  47
 #endif
 
 //}}}
@@ -234,38 +233,35 @@ DEFINE_STACK_HEADER(Token)
                            // Also stands for "Void" among the primitive types
 
 #define tokWord         6  // pl1 = nameId (index in the string table). pl2 = 1 iff followed by ~
-#define tokTypeName     7  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
-#define tokKwArg        8  // pl2 = same as tokWord. The ":argName"
-#define tokOperator     9  // pl1 = OperatorType, one of the "opT" constants below
-#define tokFieldAcc    10  // pl2 = nameId
+#define tokTypeName     7  // same as tokWord
+#define tokTypeVar      8  // same as tokWord. The `'a`. May be lower- or upper-case
+#define tokKwArg        9  // pl2 = same as tokWord. The ":argName"
+#define tokOperator    10  // pl1 = OperatorType, one of the "opT" constants below
+#define tokFieldAcc    11  // pl2 = nameId
 
 // Statement or subexpr span types. pl2 = count of inner tokens
-#define tokStmt        11  // firstSpanTokenType
-#define tokParens      12  // subexpressions and struct/sum type instances
-#define tokTypeCall    13  // `(Tu Int Str)`
-#define tokIntro       14  // Introduction to a syntax form, like a param list or an if condition
+#define tokStmt        12  // firstSpanTokenType
+#define tokParens      13  // subexpressions and struct/sum type instances
+#define tokTypeCall    14  // `(Tu Int Str)`
+#define tokIntro       15  // Introduction to a syntax form, like a param list or an if condition
                            // pl1 = original tp of this token before it was converted to tokIntro
-#define tokDataList    15  // []
-#define tokDataMap     16  // {}
-#define tokAccessor    17  // x[]
-#define tokAssignLeft  18  // Iff pl2 == 0 then pl1 = nameId for the word on the left (hence it's a
-                           // def of an immutable var or reassign, i.e. neither mutation nor type)
-                           // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
-#define tokAssignRight 19  // Right-hand side of assignment
-#define tokAlias       20
-#define tokAssert      21
-#define tokBreakCont   22  // pl1 >= BIG iff it's a continue
-#define tokTrait       23
-#define tokImport      24  // For test files and package decls
-#define tokReturn      25
+#define tokDataList    16  // []
+#define tokDataMap     17  // {}
+#define tokAccessor    18  // x[]
+#define tokAssignment  19  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
+#define tokAssignRight 20  // Right-hand side of assignment
+#define tokAlias       21
+#define tokAssert      22
+#define tokBreakCont   23  // pl1 >= BIG iff it's a continue
+#define tokTrait       24
+#define tokImport      25  // For test files and package decls
+#define tokReturn      26
 
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
-#define tokScope       26  // `(do ...)` firstScopeTokenType
-#define tokFn          27  // `(\ a Int -> Str: body)`
-#define tokToplevFn    27  // `fn foo (\ a Int -> Str: body)`
-#define tokTry         28  // `(try`
-#define tokCatch       29  // `(catch e MyExc:`
-#define tokDefer       30  // `(defer`
+#define tokScope       27  // `(do ...)` firstScopeTokenType
+#define tokFn          28  // `(\ a Int -> Str: body)`
+#define tokTry         29  // `(try`
+#define tokCatch       30  // `(catch e MyExc:`
 #define tokIf          31  // `(if ... `
 #define tokMatch       32  // `(match ... ` pattern matching on sum type tag
 #define tokElseIf      33  // `ei ... `
@@ -371,23 +367,23 @@ typedef struct { // :OpDef
 #define opBitwiseAnd        6 // &&. bitwise "and"
 #define opBoolAnd           7 // && logical "and"
 #define opPtr               8 // & pointers/values at type level
-#define opIsNull            9 // '
-#define opTimesExt         10 // *:
-#define opTimes            11 // *
-#define opPlusExt          12 // +:
-#define opPlus             13 // +
-#define opMinusExt         14 // -:
-#define opMinus            15 // -
-#define opDivByExt         16 // /:
-#define opIntersect        17 // /| type-level trait intersection ?
-#define opDivBy            18 // /
-#define opBitShiftL        19 // <<.
-#define opLTZero           20 // <0   less than zero
-#define opShiftL           21 // <<   shift smth, e.g. an iterator, left
-#define opLTEQ             22 // <=
-#define opComparator       23 // <>
-#define opLessTh           24 // <
-#define opRefEquality      25 // ===
+#define opTimesExt          9 // *:
+#define opTimes            10 // *
+#define opPlusExt          11 // +:
+#define opPlus             12 // +
+#define opMinusExt         13 // -:
+#define opMinus            14 // -
+#define opDivByExt         15 // /:
+#define opIntersect        16 // /| type-level trait intersection ?
+#define opDivBy            17 // /
+#define opBitShiftL        18 // <<.
+#define opLTZero           19 // <0   less than zero
+#define opShiftL           20 // <<   shift smth, e.g. an iterator, left
+#define opLTEQ             21 // <=
+#define opComparator       22 // <>
+#define opLessTh           23 // <
+#define opRefEquality      24 // ===
+#define opIsNull           25 // =0
 #define opEquality         26 // ==
 #define opIntervalBo       27 // >=<= inclusive interval check
 #define opIntervalR        28 // ><=  right-inclusive interval check

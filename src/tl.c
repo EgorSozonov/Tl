@@ -75,7 +75,6 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aAmp, aAmp, aDot, 0 } },  // &&.
     { .arity=2, .bytes={ aAmp, aAmp, 0, 0 }, .assignable=true }, // &&
     { .arity=1, .bytes={ aAmp, 0, 0, 0 }, .isTypelevel=true },   // &
-    { .arity=1, .bytes={ aApostrophe, 0, 0, 0 } }, // '
     { .arity=2, .bytes={ aTimes, aColon, 0, 0}, .assignable = true, .overloadable = true}, // *:
     { .arity=2, .bytes={ aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true},     // *
     { .arity=2, .bytes={ aPlus, aColon, 0, 0 }, .assignable = true, .overloadable = true}, // +:
@@ -92,6 +91,7 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aLT, aGT, 0, 0} },        // <>
     { .arity=2, .bytes={ aLT, 0, 0, 0 } },         // <
     { .arity=2, .bytes={ aEqual, aEqual, aEqual, 0 } }, // ===
+    { .arity=1, .bytes={ aEqual, aDigit0, 0, 0 } }, // =0
     { .arity=2, .bytes={ aEqual, aEqual, 0, 0 } }, // ==
     { .arity=3, .bytes={ aGT, aEqual, aLT, aEqual } }, // >=<=
     { .arity=3, .bytes={ aGT, aLT, aEqual, 0 } },  // ><=
@@ -109,6 +109,14 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aCaret, 0, 0, 0}, .assignable=true, .overloadable = true}, // ^
     { .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }, // ||.
     { .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true } // ||
+};
+
+
+const int operatorStartSymbols[13] = {
+    // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
+    // "=" - by lexEqual, "|" by lexPipe, "/" by "lexDivBy"
+    aExclamation, aSharp, aDollar, aPercent, aAmp, aTimes, aPlus,
+    aDivBy, aLT, aGT, aQuestion, aAt, aCaret
 };
 
 //}}}
@@ -1262,15 +1270,9 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = {
 // 2**53
 
 
-const int operatorStartSymbols[14] = {
-    aExclamation, aSharp, aDollar, aPercent, aAmp, aApostrophe, aTimes, aPlus,
-    aDivBy, aLT, aGT, aQuestion, aAt, aCaret
-    // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
-    // "=" - by lexEqual, "|" by lexPipe, "/" by "lexDivBy"
-};
-const char standardText[] = "aliasassertbreakcatchcontinuedeferdoeacheifelsefalsefor"
+const char standardText[] = "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
                             "ifimplimportmatchpubreturntraittruetry"
-                            // reserved words end here
+                            // reserved words end here; what follows may have arbitrary order
                             "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2printprintErr"
                             "math:pimath:eTU"
 #ifdef TEST
@@ -1282,7 +1284,7 @@ const char standardText[] = "aliasassertbreakcatchcontinuedeferdoeacheifelsefals
 // Also they must agree with the "standardStr" in tl.internal.h
 
 const Int standardStringLens[] = {
-     5, 6, 5, 5, 8, 5,
+     5, 6, 5, 5, 8,
      2, 4, 3, 4, 5,
      3, 2, 4, 6, 5, 3, 6,
      5, 4, 3,
@@ -1298,7 +1300,7 @@ const Int standardStringLens[] = {
 };
 
 const Int standardKeywords[] = {
-    tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue, tokDefer,
+    tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue,
     tokScope,     tokEach,    tokElseIf,  tokElse,    keywFalse,
     tokFor,       tokIf,      tokImpl,    tokImport,  tokMatch,
     tokMisc,      tokReturn,  tokTrait,   keywTrue,   tokTry
@@ -1816,6 +1818,19 @@ private bool wordChunk(Arr(Byte) source, Compiler* lx) { //:wordChunk
 }
 
 
+private void mbCloseAssignRight(BtToken* top, Compiler* lx) {
+    if (top->tp != tokAssignRight) {
+        return;
+    }
+#ifdef SAFETY
+    VALIDATEI(hasValues(lx->lexBtrack) && peek(lx->lexBtrack).tp == tokAssignment,
+                iErrorInconsistentSpans)
+#endif
+    *top = pop(lx->lexBtrack);
+    setStmtSpanLength(top->tokenInd, lx);
+}
+
+
 private void closeStatement(Compiler* lx) { //:closeStatement
 // Closes the current statement. Consumes no tokens
     BtToken top = peek(lx->lexBtrack);
@@ -1823,6 +1838,7 @@ private void closeStatement(Compiler* lx) { //:closeStatement
     if (top.spanLevel == slStmt) {
         setStmtSpanLength(top.tokenInd, lx);
         pop(lx->lexBtrack);
+        mbCloseAssignRight(&top, lx);
     }
 }
 
@@ -1950,37 +1966,26 @@ private void lexDot(Arr(Byte) source, Compiler* lx) { //:lexDot
 private void processAssignment(Int opType, Compiler* lx) { //:processAssignment
 // Params: opType is the operator for mutations (like `*=`), -1 for other assignments.
 // Handles the "=", and "+=" tokens. Changes existing stmt
-// token into tokAssignLeft and opens up a new tokAssignRight span. Doesn't consume anything
+// token into tokAssignment and opens up a new tokAssignRight span. Doesn't consume anything
     BtToken currSpan = peek(lx->lexBtrack);
     VALIDATEL(currSpan.tp == tokStmt, errOperatorAssignmentPunct);
 
     Int assignmentStartInd = currSpan.tokenInd;
     Token* tok = (lx->tokens.cont + assignmentStartInd);
-    tok->tp = tokAssignLeft;
-    if (opType == -1) {
-        if (assignmentStartInd == (lx->tokens.len - 2)
-            && lx->tokens.cont[lx->tokens.len - 1].pl2 == 0)  { // only one token and no ~
-            Token wordTk = lx->tokens.cont[assignmentStartInd + 1];
-            VALIDATEL(wordTk.tp == tokWord, errAssignment);
-            tok->pl1 = wordTk.pl1; // nameId
-            tok->startBt = wordTk.startBt;
-            tok->lenBts = wordTk.lenBts;
-            lx->tokens.len--; // delete the word token because its data now lives in tokAssignLeft
-        } else if (lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
-            tok->pl1 = assiType;
-        }
-    } else {
+    tok->tp = tokAssignment;
+    if (opType == -1 && lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
+        tok->pl1 = assiType;
+    } else if (opType > -1) {
         tok->pl1 = BIG + opType;
     }
-    setStmtSpanLength(assignmentStartInd, lx);
-    lx->lexBtrack->cont[lx->lexBtrack->len - 1] = (BtToken){ .tp = tokAssignRight, .spanLevel = slStmt,
-        .tokenInd = lx->tokens.len };
+    push(((BtToken) {.tp = tokAssignRight, .spanLevel = slStmt, .tokenInd = lx->tokens.len}),
+            lx->lexBtrack);
     pushIntokens((Token){ .tp = tokAssignRight, .startBt = lx->i }, lx);
 }
 
 
 private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
-// Handles keyword arguments ":asdf" and param lists "{{x Int : ...}}"
+// Handles keyword arguments ":asdf" and intros like param lists "(\\x Int : ...)"
     if (lx->i < lx->stats.inpLength - 1 && isLowercaseLetter(NEXT_BT)) {
         lx->i += 1; // CONSUME the ":"
         wordInternal(tokKwArg, source, lx);
@@ -1991,13 +1996,23 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
 
         lx->stats.lastClosingPunctInd = lx->i;
         setStmtSpanLength(top.tokenInd, lx);
+        pop(lx->lexBtrack);
+        mbCloseAssignRight(&top, lx);
+
         Token* tok = lx->tokens.cont + top.tokenInd;
         tok->pl1 = tok->tp;
         tok->tp = tokIntro;
-        pop(lx->lexBtrack);
 
         lx->i += 1; // CONSUME the ":"
     }
+}
+
+
+private void lexApostrophe(Arr(Byte) source, Compiler* lx) { //:lexApostrophe
+// Handles keyword arguments ":asdf" and param lists "{{x Int : ...}}"
+    VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT), errUnexpectedToken)
+    lx->i += 1; // CONSUME the "'"
+    wordInternal(tokTypeVar, source, lx);
 }
 
 
@@ -2086,8 +2101,8 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
 // The humble "=" can be the definition statement or a comparison "=="
     checkPrematureEnd(2, lx);
     Byte nextBt = NEXT_BT;
-    if (nextBt == aEqual) {
-        lexOperator(source, lx); // ==
+    if (nextBt == aEqual || nextBt == aDigit0) {
+        lexOperator(source, lx); // == or =0
     } else {
         processAssignment(-1, lx);
         lx->i++; // CONSUME the =
@@ -2332,6 +2347,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] { //:tabulateDispatch
     p[aPipe] = &lexPipe;
     p[aDivBy] = &lexDivBy; // to handle the comments "//"
     p[aColon] = &lexColon; // to handle keyword args ":a"
+    p[aApostrophe] = &lexApostrophe; // to handle type variables "'a"
     p[aSemicolon] = &lexSemicolon; // the statement terminator
     p[aTilde] = &lexTilde;
 
@@ -2701,7 +2717,7 @@ private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT I
     VALIDATEP(cm->i < sentinel, errLoopEmptyBody)
     Int j = cm->i;
     for (Token currTok = toks[j];
-         (currTok.tp == tokAssignLeft || currTok.tp == tokAssignRight);
+         (currTok.tp == tokAssignment || currTok.tp == tokAssignRight);
          currTok = toks[j]) {
         j = calcSentinel(currTok, j);
         VALIDATEP(j < sentinel, errLoopEmptyBody)
@@ -3358,7 +3374,7 @@ private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] { //:ta
     p[tokScope]       = &pScope;
     p[tokStmt]        = &pExpr;
     p[tokParens]      = &parseErrorBareAtom;
-    p[tokAssignLeft]  = &pAssignment;
+    p[tokAssignment]  = &pAssignment;
     p[tokMisc]        = &parseMisc;
 
     p[tokAlias]       = &pAlias;
@@ -3366,7 +3382,6 @@ private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] { //:ta
     p[tokBreakCont]   = &pBreakCont;
     p[tokCatch]       = &pAlias;
     p[tokFn]          = &pAlias;
-    p[tokDefer]       = &pAlias;
     p[tokTrait]       = &pAlias;
     p[tokImport]      = &pAlias;
     p[tokReturn]      = &pReturn;
@@ -3455,9 +3470,9 @@ private void finalizeLexer(Compiler* lx) { //:finalizeLexer
         return;
     }
     BtToken top = pop(lx->lexBtrack);
-    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
-
     setStmtSpanLength(top.tokenInd, lx);
+    mbCloseAssignRight(&top, lx);
+    VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
 }
 
 
@@ -3847,7 +3862,6 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opBitwiseAnd,   boolOfBoolBool, cm); // dummy
     buildOperator(opBoolAnd,      boolOfBoolBool, cm);
     buildOperator(opPtr,          boolOfBoolBool, cm); // dummy
-    buildOperator(opIsNull,       boolOfBoolBool, cm); // dummy
     buildOperator(opTimesExt,     flOfFlFl, cm); // dummy
     buildOperator(opTimes,        intOfIntInt, cm);
     buildOperator(opTimes,        flOfFlFl, cm);
@@ -3875,6 +3889,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opLessTh,       boolOfFlFl, cm);
     buildOperator(opLessTh,       boolOfStrStr, cm);
     buildOperator(opRefEquality,  boolOfIntInt, cm); // dummy
+    buildOperator(opIsNull,       boolOfIntInt, cm); // dummy
     buildOperator(opEquality,     boolOfIntInt, cm);
     buildOperator(opIntervalBo,   boolOfIntIntInt, cm); // dummy
     buildOperator(opIntervalBo,   boolOfFlFlFl, cm); // dummy
@@ -4161,7 +4176,7 @@ private void pToplevelTypes(Compiler* cm) { //:pToplevelTypes
     const Int len = cm->tokens.len;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignLeft && toks[cm->i + 1].tp == tokTypeName) {
+        if (tok.tp == tokAssignment && toks[cm->i + 1].tp == tokTypeName) {
             ++cm->i; // CONSUME the assignment token
             pTypeDef(P_C);
         } else {
@@ -4178,7 +4193,7 @@ private void pToplevelConstants(Compiler* cm) { //:pToplevelConstants
     const Int len = cm->tokens.len;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignLeft && tok.pl2 == 0) {
+        if (tok.tp == tokAssignment && tok.pl2 == 0) {
             Token rightTk = toks[cm->i + 2];
             if (rightTk.tp != tokFn) {
                 cm->i += 1; // CONSUME the left and right assignment
@@ -4334,7 +4349,7 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
     Int voidToVoid = addConcrFnType(1, (Int[]){ tokMisc, tokMisc}, cm);
     Int nextI = cm->i;
     for (Token tok = toks[cm->i]; cm->i < len; cm->i = nextI, tok = toks[nextI]) {
-        if (tok.tp != tokAssignLeft) {
+        if (tok.tp != tokAssignment) {
             nextI = cm->i + tok.pl2 + 1;  // Skip the whole span, whatever it is
             continue;
         }
@@ -4348,7 +4363,7 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
         //Int sentinel = calcSentinel(tok, cm->i);
         //parseUpTo(cm->i + tok.pl2, P_C);
 
-        // since this is an immutable definition tokAssignLeft, its pl1 is the nameId and
+        // since this is an immutable definition tokAssignment, its pl1 is the nameId and
         // its bytes are same as the var name in source code
         Unt name =  ((Unt)tok.lenBts << 24) + (Unt)tok.pl1;
         cm->i += tok.pl2 + 3; // CONSUME the left side, tokAssignmentRight and tokFn
@@ -5259,11 +5274,11 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 // Must agree in order with token types in tl.internal.h
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "misc",
-    "word", "Type", ":kwarg", "call", ".field",
+    "word", "Type", "'var", ":kwarg", "operator", ".field",
     "stmt", "()", "(T ...)", "intro:", "[]", "{}", "a[]",
-    "...=", "=...", "alias", "assert", "breakCont",
+    "=", "=...", "alias", "assert", "breakCont",
     "trait", "import", "return",
-    "(do", "(\\", "(try", "(catch", "(defer",
+    "(do", "(\\", "(try", "(catch",
     "(if", "match{", "elseIf", "else", "(impl", "(for", "(each"
 };
 
