@@ -233,7 +233,7 @@ DEFINE_STACK_HEADER(Token)
 #define tokMisc         5  // pl1 = see the misc* constants. pl2 = underscore count iff miscUscore
                            // Also stands for "Void" among the primitive types
 
-#define tokWord         6  // pl1 = 1 iff followed by ~. pl2 = nameId (index in the string table).
+#define tokWord         6  // pl1 = nameId (index in the string table). pl2 = 1 iff followed by ~ 
 #define tokTypeName     7  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg        8  // pl2 = same as tokWord. The ":argName"
 #define tokOperator     9  // pl1 = OperatorType, one of the "opT" constants below
@@ -262,6 +262,7 @@ DEFINE_STACK_HEADER(Token)
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
 #define tokScope       26  // `(do ...)` firstScopeTokenType
 #define tokFn          27  // `(\ a Int -> Str: body)`
+#define tokToplevFn    27  // `fn foo (\ a Int -> Str: body)`
 #define tokTry         28  // `(try`
 #define tokCatch       29  // `(catch e MyExc:`
 #define tokDefer       30  // `(defer`
@@ -381,29 +382,31 @@ typedef struct { // :OpDef
 #define opIntersect        17 // /| type-level trait intersection ?
 #define opDivBy            18 // /
 #define opBitShiftL        19 // <<.
-#define opShiftL           20 // <<   shift smth, e.g. an iterator, left
-#define opLTEQ             21 // <=
-#define opComparator       22 // <>
-#define opLessTh           23 // <
-#define opRefEquality      24 // ===
-#define opEquality         25 // ==
-#define opIntervalBo       26 // >=<= inclusive interval check
-#define opIntervalR        27 // ><=  right-inclusive interval check
-#define opIntervalL        28 // >=<  left-inclusive interval check
-#define opBitShiftR        29 // >>.  unsigned right bit shift
-#define opIntervalEx       30 // ><   exclusive interval check
-#define opGTEQ             31 // >=
-#define opShiftR           32 // >>   shift right, e.g. an iterator
-#define opGreaterTh        33 // >
-#define opNullCoalesce     34 // ?:   null coalescing operator
-#define opQuestionMark     35 // ?    nullable type operator
-#define opAccessor         36 // @    collection data accessor
-#define opBitwiseXor       37 // ^.   bitwise XOR
-#define opExponent         38 // ^    exponentiation
-#define opBitwiseOr        39 // ||.  bitwise or
-#define opBoolOr           40 // ||   logical or
+#define opLTZero           20 // <0   less than zero
+#define opShiftL           21 // <<   shift smth, e.g. an iterator, left
+#define opLTEQ             22 // <=
+#define opComparator       23 // <>
+#define opLessTh           24 // <
+#define opRefEquality      25 // ===
+#define opEquality         26 // ==
+#define opIntervalBo       27 // >=<= inclusive interval check
+#define opIntervalR        28 // ><=  right-inclusive interval check
+#define opIntervalL        29 // >=<  left-inclusive interval check
+#define opBitShiftR        30 // >>.  unsigned right bit shift
+#define opGTZero           31 // >0   greater than zero
+#define opIntervalEx       32 // ><   exclusive interval check
+#define opGTEQ             33 // >=
+#define opShiftR           34 // >>   shift right, e.g. an iterator
+#define opGreaterTh        35 // >
+#define opNullCoalesce     36 // ?:   null coalescing operator
+#define opQuestionMark     37 // ?    nullable type operator
+#define opAccessor         38 // @    collection data accessor
+#define opBitwiseXor       39 // ^.   bitwise XOR
+#define opExponent         40 // ^    exponentiation
+#define opBitwiseOr        41 // ||.  bitwise or
+#define opBoolOr           42 // ||   logical or
 
-#define countOperators     41
+#define countOperators     43
 
 
 typedef struct Compiler Compiler;

@@ -86,6 +86,7 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aDivBy, aPipe, 0, 0}, .isTypelevel = true}, // /|
     { .arity=2, .bytes={ aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true}, // /
     { .arity=2, .bytes={ aLT, aLT, aDot, 0} },     // <<.
+    { .arity=1, .bytes={ aLT, aDigit0, 0, 0} },    // <0
     { .arity=2, .bytes={ aLT, aLT,    0, 0}, .overloadable = true }, // <<
     { .arity=2, .bytes={ aLT, aEqual, 0, 0} },     // <=
     { .arity=2, .bytes={ aLT, aGT, 0, 0} },        // <>
@@ -96,6 +97,7 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=3, .bytes={ aGT, aLT, aEqual, 0 } },  // ><=
     { .arity=3, .bytes={ aGT, aEqual, aLT, 0 } },  // >=<
     { .arity=2, .bytes={ aGT, aGT, aDot, 0}, .assignable=true, .overloadable = true}, // >>.
+    { .arity=1, .bytes={ aGT, aDigit0, 0, 0 } },   // >0
     { .arity=3, .bytes={ aGT, aLT, 0, 0 } },       // ><
     { .arity=2, .bytes={ aGT, aEqual, 0, 0 } },    // >=
     { .arity=2, .bytes={ aGT, aGT, 0, 0 }, .overloadable = true }, // >>
@@ -1846,11 +1848,11 @@ private void tryChangeParensToTypeCall(Compiler* lx) {
 private void wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
                         bool wasCapitalized, Arr(Byte) source, Compiler* lx) { //:wordNormal
     Int lenBts = lx->i - realStartBt;
-    Token newToken = (Token){ .tp = wordType, .pl2 = uniqueStringId,
+    Token newToken = (Token){ .tp = wordType, .pl1 = uniqueStringId,
                              .startBt = realStartBt, .lenBts = lenBts };
     if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
-        if (wasCapitalized)  {
+        if (wasCapitalized) {
             tryChangeParensToTypeCall(lx);
             newToken.tp = tokTypeName;
         }
@@ -1957,10 +1959,10 @@ private void processAssignment(Int opType, Compiler* lx) { //:processAssignment
     tok->tp = tokAssignLeft;
     if (opType == -1) {
         if (assignmentStartInd == (lx->tokens.len - 2)
-            && lx->tokens.cont[lx->tokens.len - 1].pl1 == 0)  { // only one token and no ~
+            && lx->tokens.cont[lx->tokens.len - 1].pl2 == 0)  { // only one token and no ~
             Token wordTk = lx->tokens.cont[assignmentStartInd + 1];
             VALIDATEL(wordTk.tp == tokWord, errAssignment);
-            tok->pl1 = wordTk.pl2; // nameId
+            tok->pl1 = wordTk.pl1; // nameId
             tok->startBt = wordTk.startBt;
             tok->lenBts = wordTk.lenBts;
             lx->tokens.len--; // delete the word token because its data now lives in tokAssignLeft
@@ -2020,7 +2022,7 @@ private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
     Token lastTk = lx->tokens.cont[lastInd];
     VALIDATEL(lx->tokens.cont[lastInd].tp == tokWord && (lastTk.startBt + lastTk.lenBts == lx->i),
               errWordTilde)
-    lx->tokens.cont[lastInd].pl1 = 1;
+    lx->tokens.cont[lastInd].pl2 = 1;
     lx->tokens.cont[lastInd].lenBts = lastTk.lenBts + 1;
     lx->i += 1;  // CONSUME the "~"
 }
@@ -2365,7 +2367,7 @@ private void popScopeFrame(Compiler* cm);
 private EntityId importActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
 testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
-private void exprLinearize(Int sentinel, P_CT);
+private void eLinearize(Int sentinel, P_CT);
 private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT);
 private void pExpr(Token tk, P_CT);
 private Int pExprWorker(Token tk, P_CT);
@@ -2460,7 +2462,7 @@ private void pAddFunctionCall(Token tk, Int sentinel, StateForExprs* s) {
     push(
         ((ExprFrame) {.tp = exfrCall, .sentinel = sentinel, .argCount = 0 }),
         s->frames);
-    push(((Node) { .tp = nodCall, .pl1 = tk.pl2 }), s->calls);
+    push(((Node) { .tp = nodCall, .pl1 = tk.pl1 }), s->calls);
     push(((SourceLoc) { .startBt = tk.startBt, .lenBts = tk.lenBts }), s->locsCalls);
 }
 
@@ -2571,8 +2573,8 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assig
                         0, 0, cm);
                 j++;
             } else { // tokWord
-                Int accessEntityId = getActiveVar(accessTk.pl2, cm);
-                addNode((Node){ .tp = nodId, .pl1 = accessEntityId, .pl2 = accessTk.pl2},
+                Int accessEntityId = getActiveVar(accessTk.pl1, cm);
+                addNode((Node){ .tp = nodId, .pl1 = accessEntityId, .pl2 = accessTk.pl1},
                                     accessTk.startBt, accessTk.lenBts, cm);
                 j++;
             }
@@ -2587,6 +2589,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     Token rightTk = toks[cm->i + countLeftSide];
 
 #ifdef SAFETY
+    print("right tk tp %d at %d left side %d", rightTk.tp, cm->i + countLeftSide, countLeftSide)
     VALIDATEI(rightTk.tp == tokAssignRight, iErrorInconsistentSpans)
 #endif
 
@@ -2600,12 +2603,10 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         return;
     } else if (countLeftSide == 1)  {
         Token nameTok = toks[cm->i];
-        Unt newName = ((Unt)nameTok.lenBts << 24) + (Unt)nameTok.pl2; // nameId + lenBts
-        mbNewBinding = createEntity(newName, nameTok.pl1 == 1 ? classMutable : classImmutable, cm);
-        print("created binding %d for name %d at i %d", mbNewBinding, nameTok.pl2, cm->i + 1)
+        Unt newName = ((Unt)nameTok.lenBts << 24) + (Unt)nameTok.pl1; // nameId + lenBts
+        mbNewBinding = createEntity(newName, nameTok.pl2 == 1 ? classMutable : classImmutable, cm);
         addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
                 tok.startBt, tok.lenBts, cm);
-        print("creatin' binding tok.pl1 %d", tok.pl1)
     } else if (countLeftSide > 1) {
         complexLeft = true;
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
@@ -2636,7 +2637,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         addNode((Node){ .tp = nodId, .pl1 = mbOldBinding.pl1, .pl2 = 0},
                 mbOldBinding.startBt, mbOldBinding.lenBts, cm);
 
-        exprLinearize(sentinel, P_C);
+        eLinearize(sentinel, P_C);
 
         TypeId leftSideType = cm->entities.cont[mbOldBinding.pl1].typeId;
         Int operatorEntity = -1;
@@ -2655,7 +2656,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else {
         Int startNodeInd = cm->nodes.len - 1; // index of the nodExpr for the right side
 
-        exprLinearize(sentinel, P_C);
+        eLinearize(sentinel, P_C);
         exprCopyFromScratch(startNodeInd, cm);
         Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
 
@@ -2715,8 +2716,10 @@ private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT I
         j = calcSentinel(currTok, j);
         VALIDATEP(j < sentinel, errLoopEmptyBody)
     }
-    const Int introInd = j;
-    j = calcSentinel(toks[introInd], introInd);
+    if (toks[j].tp == tokIntro)  {
+        toks[j].tp = toks[j].pl1;
+    }
+    j = calcSentinel(toks[j], j);
     *bodyInd = (j < sentinel) ? j : 0;
 
     // re-order
@@ -2823,9 +2826,9 @@ private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
 // Returns the type of the single item
     Int typeId = -1;
     if (tk.tp == tokWord) {
-        Int varId = getActiveVar(tk.pl2, cm);
+        Int varId = getActiveVar(tk.pl1, cm);
         typeId = getTypeOfVar(varId, cm);
-        addNode((Node){.tp = nodId, .pl1 = varId, .pl2 = tk.pl2},
+        addNode((Node){.tp = nodId, .pl1 = varId, .pl2 = tk.pl1},
                  tk.startBt, tk.lenBts, cm);
     } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
@@ -2856,7 +2859,7 @@ private void exprSubex(Int sentinelToken, Int* arity, P_CT) { //:exprSubex
     if (firstTk.tp == tokWord || firstTk.tp == tokOperator) {
         Int mbBnd = -1;
         if (firstTk.tp == tokWord) {
-            mbBnd = cm->activeBindings[firstTk.pl2];
+            mbBnd = cm->activeBindings[firstTk.pl1];
         } else if (firstTk.tp == tokOperator) {
             VALIDATEP(*arity == (TL_OPERATORS)[firstTk.pl1].arity, errOperatorWrongArity)
             mbBnd = -firstTk.pl1 - 2;
@@ -2907,6 +2910,34 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
 }
 
 
+private void eBumpArgCount(ExprFrame* parent, StateForExprs* stEx) { //:eBumpArgCount
+    if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
+        print("bumping argcount from %d to %d", parent->argCount, parent->argCount + 1);
+        parent->argCount += 1;
+    }
+}
+
+
+private void ePopUnaryCalls(StateForExprs* stEx) { //:ePopUnaryCalls
+    ExprFrame* zero = stEx->frames->cont;
+    ExprFrame* parent = zero + (stEx->frames->len - 1);
+    for (;  parent >= zero && parent->tp == exfrUnaryCall;
+            parent -= 1) {
+        // pop all the unary calls
+
+        print("popping unary call")
+        pop(stEx->frames);
+        Node call = pop(stEx->calls);
+        call.pl2 = 1;
+        push(call, stEx->scr);
+        push(pop(stEx->locsCalls), stEx->locsScr);
+    }
+    if (parent >= zero && (parent->tp == exfrCall || parent->tp == exfrDataAlloc)) {
+        parent->argCount += 1;
+    }
+}
+
+
 private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
     StackNode* scr = stEx->scr;
@@ -2915,18 +2946,20 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
         if (frame.tp == exfrCall)  {
             Node call = pop(stEx->calls);
             call.pl2 = frame.argCount;
+            print("popping call with argc %d", call.pl2)
             if (frame.startNode > -1 && scr->cont[frame.startNode].tp == nodExpr) {
-                // a prefix call inside a data allocator - need to set the nodExpr length
+                // Call inside a data allocator. It was wrapped in a nodExpr, now we set its length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
             }
 
             push(call, scr);
             push(pop(stEx->locsCalls), stEx->locsScr);
-        } else {
-            if (frame.tp == exfrDataAlloc)  {
+        } else if (frame.tp == exfrDataAlloc)  {
                 subexDataAllocation(frame, stEx, cm);
-            } else if (frame.tp == exfrParen && scr->cont[frame.startNode].tp == nodExpr) {
-                // a parens inside a data allocator - need to set the nodExpr length
+        } else if (frame.tp == exfrParen) {
+            ePopUnaryCalls(stEx);
+            if (scr->cont[frame.startNode].tp == nodExpr) {
+                // Parens inside data allocator. It was wrapped in a nodExpr, now we set its length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
             }
         }
@@ -2967,48 +3000,11 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
 }
 
 
-private void exprParensLinearize(Token cTk, Int sentinelToken, ExprFrame* parent, P_CT) {
-//:exprParensLinearize Parens inside expressions. Handles also operator names like `(+)`
-    StateForExprs* stEx = cm->stateForExprs;
-    StackNode* scr = stEx->scr;
-    StackSourceLoc* locsScr = cm->stateForExprs->locsScr;
-    StackExprFrame* frames = cm->stateForExprs->frames;
-    if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
-        ++parent->argCount;
-    }
-    Int parensSentinel = calcSentinel(cTk, cm->i);
-
-    if (parensSentinel == cm->i + 1) { // parens like "(foo)" or "(+)"
-        Token oneAndOnlyTk = toks[cm->i + 1];
-        if (oneAndOnlyTk.tp == tokWord) {
-            EntityId funcVarId = getActiveVar(cTk.pl2, cm);
-            addNode(((Node) { .tp = nodCall, .pl1 = funcVarId, .pl2 = 0}),
-                    cTk.startBt, cTk.lenBts, cm);
-        } else if (oneAndOnlyTk.tp == tokOperator) {
-            addNode(((Node) { .tp = nodId, .pl1 = -1, .pl2 = oneAndOnlyTk.pl1}),
-                    oneAndOnlyTk.startBt, oneAndOnlyTk.lenBts, cm);
-        } else {
-            throwExcParser(errUnexpectedToken);
-        }
-        cm->i += 1; // CONSUME the "(" so the end of iteration consumes the contents
-    } else {
-        push(((ExprFrame){
-                .tp = exfrParen, .startNode = scr->len, .sentinel = parensSentinel }), frames);
-
-        if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
-                                           // be marked with nodExpr for t-checking & codegen
-            push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
-            push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-        }
-    }
-}
-
-
-private void exprLinearize(Int sentinelToken, P_CT) { //:exprLinearize
+private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
 // The core code of the general, long expression parse. Starts at cm->i and parses until
 // "sentinelToken". Produces a linear sequence of operands and operators with arg counts in
 // Reverse Polish Notation. Handles data allocations, too
-print("linearize sent %d", sentinelToken)
+    print("linearize sent %d", sentinelToken)
     StateForExprs* stEx = cm->stateForExprs;
     stEx->metAnAllocation = false;
     StackNode* scr = stEx->scr;
@@ -3030,58 +3026,42 @@ print("linearize sent %d", sentinelToken)
         subexClose(stEx, cm);
         Token cTk = toks[cm->i];
         Unt tokType = cTk.tp;
-
-        if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
+        if ((tokType == tokWord || tokType == tokOperator) && parent->tp == exfrParen) {
+            pAddFunctionCall(cTk, parent->sentinel, stEx);
+        } else if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
             if (tokType == tokWord) {
-                if (parent->tp == exfrParen && cm->i + 1 < sentinelToken)  {
-                    Token nextTok = toks[cm->i + 1];
-                    print("nextTok tp %d at %d arity %d", nextTok.tp, cm->i + 1,
-                            TL_OPERATORS[nextTok.pl1].arity)
-                    if (nextTok.tp != tokOperator || TL_OPERATORS[nextTok.pl1].arity == 1) {
-                        pAddFunctionCall(cTk, parent->sentinel, stEx);
-                        continue;
-                    }
-                }
-                print("getting var at %d", cm->i)
-                EntityId varId = getActiveVar(cTk.pl2, cm);
-                push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl2 }), scr);
+                EntityId varId = getActiveVar(cTk.pl1, cm);
+                push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl1 }), scr);
             } else {
                 push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2 }), scr);
             }
             push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-
-            if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
-                ++parent->argCount;
-            } else if (parent->tp == exfrUnaryCall) {
-                // pop all the unary calls
-            }
-
+            ePopUnaryCalls(stEx);
         } else if (tokType == tokParens) {
-             exprParensLinearize(cTk, sentinelToken, parent, P_C);
+            eBumpArgCount(parent, stEx);
+            Int parensSentinel = calcSentinel(cTk, cm->i);
+            push(((ExprFrame){
+                    .tp = exfrParen, .startNode = scr->len, .sentinel = parensSentinel }), frames);
+
+            if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
+                                               // be marked with nodExpr for t-checking & codegen
+                push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
+                push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+            }
         } else if (tokType == tokOperator) {
             if (TL_OPERATORS[cTk.pl1].arity == 1)  {
                 pAddUnaryCall(cTk, stEx);
             } else {
-                if (parent->tp == exfrCall) { // pop the parent call because we met infix operator
-                    ExprFrame callFrame = pop(frames);
-                    Node call = pop(calls);
-                    call.pl2 = callFrame.argCount;
-                    push(call, scr);
-                    parent = frames->cont + (frames->len - 1);
-                }
-
-                pAddOperatorCall(cTk.pl1, parent->sentinel, cTk.startBt, cTk.lenBts, stEx);
+                push(((Node){ .tp = nodId, .pl2 = cTk.pl1 }), scr);
+                push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+                eBumpArgCount(parent, stEx);
             }
-        } else if (tokType == tokTypeCall) { // not really a type call, but a data alloc "L(1 2 3)"
+        } else if (tokType == tokDataList) {
             stEx->metAnAllocation = true;
-            // push to a frame
-            if (parent->tp == exfrCall || parent->tp == exfrDataAlloc)  {
-                ++parent->argCount;
-            }
-            push(
-                ((ExprFrame) { .tp = exfrDataAlloc, .startNode = scr->len,
-                               .sentinel = calcSentinel(cTk, cm->i)
-                               }), frames);
+            eBumpArgCount(parent, stEx);
+            push(((ExprFrame) { .tp = exfrDataAlloc, .startNode = scr->len,
+                               .sentinel = calcSentinel(cTk, cm->i)}), frames
+            );
             push(((Node) { .tp = nodDataAlloc, .pl1 = cm->activeBindings[cTk.pl1] }), calls);
             push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
         } else {
@@ -3101,7 +3081,7 @@ private TypeId exprUpToWithFrame(ParseFrame frame, Int startBt, Int lenBts, P_CT
     push(frame, cm->backtrack);
     addNode((Node){ .tp = nodExpr}, startBt, lenBts, cm);
 
-    exprLinearize(frame.sentinelToken, P_C);
+    eLinearize(frame.sentinelToken, P_C);
     exprCopyFromScratch(startNodeInd, cm);
     Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
     maybeCloseSpans(cm);
@@ -3117,7 +3097,7 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
                 .sentinelToken = sentinelToken }), cm->backtrack);
     addNode((Node){ .tp = nodExpr}, startBt, lenBts, cm);
 
-    exprLinearize(sentinelToken, P_C);
+    eLinearize(sentinelToken, P_C);
     exprCopyFromScratch(startNodeInd, cm);
     Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
     return exprType;
@@ -3888,6 +3868,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opDivBy,        intOfIntInt, cm);
     buildOperator(opDivBy,        flOfFlFl, cm);
     buildOperator(opBitShiftL,    intOfFlFl, cm);  // dummy
+    buildOperator(opLTZero,       boolOfIntInt, cm);
     buildOperator(opShiftL,       intOfIntInt, cm); // dummy
     buildOperator(opLTEQ,         boolOfIntInt, cm);
     buildOperator(opLTEQ,         boolOfFlFl, cm);
@@ -3907,6 +3888,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opIntervalL,    boolOfIntIntInt, cm); // dummy
     buildOperator(opIntervalL,    boolOfFlFlFl, cm); // dummy
     buildOperator(opBitShiftR,    boolOfBoolBool, cm); // dummy
+    buildOperator(opGTZero,       boolOfIntInt, cm);
     buildOperator(opIntervalEx,   boolOfIntIntInt, cm); // dummy
     buildOperator(opIntervalEx,   boolOfFlFlFl, cm); // dummy
     buildOperator(opGTEQ,         boolOfIntInt, cm);
@@ -4303,6 +4285,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
                         .typeId = fnType }), cm->backtrack);
     //addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
+    print("toplevel name %d", toplevelSignature.name & LOWER24BITS)
     addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (toplevelSignature.name & LOWER24BITS)},
             fnTk.startBt, fnTk.lenBts, cm);
 
@@ -4360,7 +4343,7 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
     Int nextI = cm->i;
     for (Token tok = toks[cm->i]; cm->i < len; cm->i = nextI, tok = toks[nextI]) {
         if (tok.tp != tokAssignLeft) {
-            nextI = cm->i + tok.pl2 + 1;  // CONSUME the whole span, whatever it is
+            nextI = cm->i + tok.pl2 + 1;  // Skip the whole span, whatever it is
             continue;
         }
         VALIDATEP(tok.pl2 == 0, errAssignmentToplevelFn)
@@ -4757,8 +4740,6 @@ private void tSubexClose(StateForTypes* st, Compiler* cm) { //:tSubexClose
         Int newTypeId = -1;
         if (frame.tp == sorFunction) {
             newTypeId = tCreateFnSignature(st, startInd, -1, cm);
-            tPrint(newTypeId, cm);
-
         } else if (frame.tp == sorRecord) {
             throwExcParser(errTemp);
             //typeCreateRecord(st, startInd, -1, cm);
@@ -4806,7 +4787,7 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
 
             Token nextTk = cm->tokens.cont[cm->i];
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall, errTypeDefError)
-            push(cTk.pl2, st->names);
+            push(cTk.pl1, st->names);
             continue;
         } else if (cTk.tp == tokMisc) { // "->", function return type marker
             VALIDATEP(cTk.pl1 == miscArrow && peek(frames).tp == sorFunction, errTypeDefError);
@@ -5077,6 +5058,7 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
 
 #if defined(TRACE) && defined(TEST) //{{{
             if (!ovFound) {
+                print("Overload not found, stack is:")
                 printStackInt(exp);
             }
 #endif //}}}
@@ -5103,7 +5085,6 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            print("type found argc %d:", argCount)
             tPrint(typeOfFunc, cm);
             VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
             // first parm matches, but not arity
@@ -5284,7 +5265,6 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 //}}}
 //{{{ Lexer testing
 
-
 // Must agree in order with token types in tl.internal.h
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "misc",
@@ -5395,7 +5375,7 @@ testable void printLexer(Compiler* lx) { //:printLexer
 //}}}
 //{{{ Parser testing
 
-testable void printParser(Compiler* cm, Arena* a) { //:printParser
+void printParser(Compiler* cm, Arena* a) { //:printParser
     if (cm->stats.wasError) {
         printf("Error: ");
         printString(cm->stats.errMsg);
@@ -5418,7 +5398,7 @@ testable void printParser(Compiler* cm, Arena* a) { //:printParser
         }
         Int startBt = loc.startBt - stText.len;
         if (nod.tp == nodCall) {
-            printf("Call %d [%d; %d] type = \n", nod.pl1, startBt, loc.lenBts);
+            printf("call %d [%d; %d] type = \n", nod.pl1, startBt, loc.lenBts);
             //printType(cm->entities.cont[nod.pl1].typeId, cm);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             if (nod.pl3 != 0)  {
@@ -5454,8 +5434,7 @@ private void printStackNode(StackNode* st, Arena* a) { //:printStackNode
             printf("  ");
         }
         if (nod.tp == nodCall) {
-            printf("Call %d type = \n", nod.pl1);
-            //printType(cm->entities.cont[nod.pl1].typeId, cm);
+            printf("call %d type = \n", nod.pl1);
         } else if (nod.pl1 != 0 || nod.pl2 != 0) {
             if (nod.pl3 != 0)  {
                 printf("%s %d %d %d\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.pl3);
@@ -5501,14 +5480,12 @@ DEFINE_STACK_HEADER(TypeLoc)
 DEFINE_STACK(TypeLoc)
 
 void tPrintOuter(TypeId currT, Compiler* cm) { //:tPrintOuter
-// Print the name of the outer type. `[Tu Int Double]` -> `Tu`
+// Print the name of the outer type. `(Tu Int Double)` -> `Tu`
     Arr(Int) t = cm->types.cont;
     TypeHeader currHdr = typeReadHeader(currT, cm);
     if (currHdr.sort == sorFunction) {
         printf("[F ");
     } else if (currHdr.sort == sorTypeCall) {
-//~        print("TypeCall print %d", currT)
-//~        printIntArrayOff(currT, t[currT] + 1, t);
         const TypeId genericTypeId = currHdr.nameAndLen;
         const TypeHeader genericHdr = typeReadHeader(genericTypeId, cm);
         printf("(");
@@ -5558,80 +5535,6 @@ void tPrint(Int typeId, Compiler* cm) { //:tPrint
         countIters += 1;
     }
     printf("\n");
-   /*
-    if (hdr.sort == sorRecord) {
-        printf("[Record]");
-    } else if (hdr.sort == sorEnum) {
-        printf("[Enum]");
-    } else if (hdr.sort == sorFunction) {
-        printf("[Fn]");
-    } else if (hdr.sort == sorTypeCall) {
-        printf("[TypeCall]");
-    }
-
-    Unt nameParamId = hdr.nameAndLen;
-    Int mainNameLen = (nameParamId >> 24) & 0xFF;
-    Int mainName = nameParamId & LOWER24BITS;
-
-    if (mainNameLen == 0) {
-        printf("[$anonymous]");
-    } else if (hdr.sort != sorFunction) {
-        printf("{");
-        Int startBt = cm->stringTable->cont[mainName];
-        fwrite(cm->sourceCode->cont + startBt, 1, mainNameLen, stdout);
-        printf("}\n");
-    }
-
-    if (hdr.sort == sorRecord) {
-        if (hdr.tyrity > 0) {
-            printf("[Params: ");
-            for (Int j = 0; j < hdr.tyrity; j++) {
-                printf("%d ", cm->types.cont[j + typeId + 3]);
-            }
-            printf("]");
-        }
-        printf("(");
-        Int fieldsStart = typeId + hdr.tyrity + 3;
-        Int fieldsSentinel = fieldsStart + hdr.arity;
-        for (Int j = fieldsStart; j < fieldsSentinel; j++) {
-            printf("name %d ", cm->types.cont[j]);
-        }
-        fieldsStart += hdr.arity;
-        fieldsSentinel += hdr.arity;
-        for (Int j = fieldsStart; j < fieldsSentinel; j++) {
-            tPrintGenElt(cm->types.cont[j]);
-        }
-
-        printf("\n)");
-    } else if (hdr.sort == sorFunction) {
-        if (hdr.tyrity > 0) {
-            printf("[Params: ");
-            for (Int j = 0; j < hdr.tyrity; j++) {
-                printf("%d ", cm->types.cont[j + typeId + 3]);
-            }
-            printf("]");
-        }
-        printf("(");
-        Int fnParamsStart = typeId + hdr.tyrity + 3;
-        Int fnParamsSentinel = fnParamsStart + hdr.arity - 1;
-        for (Int j = fnParamsStart; j < fnParamsSentinel; j++) {
-            tPrintGenElt(cm->types.cont[j]);
-        }
-        // now for the return type
-        printf("=> ");
-        tPrintGenElt(cm->types.cont[fnParamsSentinel]);
-
-        printf("\n");
-
-    } else if (hdr.sort == sorTypeCall) {
-        printf("(\n    ");
-        for (Int j = typeId + hdr.tyrity + 3; j < sentinel; j++) {
-            tPrintGenElt(cm->types.cont[j]);
-        }
-        printf("\n");
-    }
-    print(")");
-    */
 }
 
 void tPrintTypeFrames(StackTypeFrame* st) { //:tPrintTypeFrames

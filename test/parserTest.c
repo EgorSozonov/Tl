@@ -166,7 +166,7 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
         if (nodeType == nodId && nd.pl2 != -1)  {
             nd.pl2 += stText.firstParsed;
         }
-        if (nodeType == nodFnDef && nd.pl2 != -1)  {
+        if (nodeType == nodFnDef && nd.pl3 != -1)  {
             nd.pl3 += stText.firstParsed;
         }
         addNode(nd, 0, 0, control);
@@ -705,10 +705,10 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
        /*
         createTest(
             s("Simple function definition 2"),
-            s("newFn = {{x Str y Double -> Str:\n"
+            s("newFn = (\\x Str y Double -> Str:\n"
               "    a = x;\n"
               "    return a\n"
-              "}}"
+              ")"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,            .pl2 = 9 },
@@ -728,10 +728,10 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTestWithError(
             s("Function definition wrong return type"),
             s(errTypeWrongReturnType),
-            s("newFn = {{x Double y Double -> Str:\n"
+            s("newFn = (\\x Double y Double -> Str:\n"
               "    a = x;\n"
               "    return a\n"
-              "}}"
+              ")"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef                       },
@@ -750,8 +750,8 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Function definition with complex return"),
-            s("newFn = {{x Int y Double -> Str:\n"
-              "    return ((toDouble x) - y)$}}"
+            s("newFn = (\x Int y Double -> Str:\n"
+              "    return $((toDouble x) - y))"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,            .pl2 = 11 },
@@ -771,13 +771,13 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Mutually recursive function definitions"),
-            s("foo = {{x Int y Double -> Int:\n"
+            s("foo = (\\x Int y Double -> Int:\n"
               "    a = x;\n"
               "    return bar y a\n"
-              "}}\n"
-              "bar = {{x Double y Int -> Int:\n"
+              ")\n"
+              "bar = (\\x Double y Int -> Int:\n"
               "    return foo y x\n"
-              "}}"
+              ")"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,            .pl2 = 12  }, // foo
@@ -811,13 +811,13 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Function definition with nested scope"),
-            s("main = {{x Int y Float:\n"
-              "    {\n"
+            s("main = (\\x Int y Float ->:\n"
+              "    (do\n"
               "        a = 5\n"
-              "    }\n"
-              "    a = x, - y;\n"
+              "    )\n"
+              "    a = ,x - y;\n"
               "    print a\n"
-              "}}"
+              ")"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 19 },
@@ -850,11 +850,11 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
         //~ (ParserTest) {
             //~ .name = str("Nested function def", a),
-            //~ .input = str("foo = {{x Int y Int -> Int:\n"
-                              //~ "z = x*y\n"
-                              //~ ".return (z + x):inner 5 2\n"
+            //~ .input = str("foo = (\\x Int y Int -> Int:\n"
+                              //~ "z = * x y;\n"
+                              //~ "return (+ z x):inner 5 2\n"
                               //~ "fn inner Int(a Int b Int c Int)(return a - 2*b + 3*c)"
-                              //~ "}}\n"
+                              //~ ")\n"
 
             //~ , a),
             //~ .imports = {(Import){"foo", 3}},
@@ -913,9 +913,9 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("If test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple if"),
-            s("f = {{\n"
-              "    if{ 5 == 5: print `5` }\n"
-              "}}"
+            s("f = (\\\n"
+              "    (if == 5 5: print `5` }\n"
+              ")"
               ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .pl2 = 11 },
@@ -981,10 +981,10 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("If with elseif"),
-            s("f = {{\n"
-              "    if{ 5 > 3: 11}\n"
-              "    ei{ 5 == 3: 4}\n"
-              "}}"
+            s("f = (\\\n"
+              "    (if > 5 3: 11}\n"
+              "    eif == 5 3: 4}\n"
+              ")"
               ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,     .pl2 = 15 },
@@ -1012,11 +1012,11 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("If with elseif and else"),
-            s("f = {{\n"
-              "    if{ 5 > 3: 11 }\n"
-              "    ei{ 5 == 3: 4 }\n"
-              "    else{ 100 }\n"
-              "}}"
+            s("f = (\\\n"
+              "    (if > 5 3: 11 }\n"
+              "    eif == 5 3: 4 }\n"
+              "    else 100 )\n"
+              ")"
               ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,     .pl2 = 17 },
@@ -1055,32 +1055,28 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
         createTest(
             s("Simple loop 1"),
-            s("f = (\\(for x~ = 1; x < 101; x = x + 1: print $x ))"),
+            s("f = (\\(for x~ = 1; < x 101; x = + x 1: print $x ))"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,           .pl2 = 16 },
-                (Node){ .tp = nodBinding, .pl1 = 0 },
-                (Node){ .tp = nodScope,           .pl2 = 14 }, // function body
-
+                (Node){ .tp = nodFnDef,           .pl2 = 19, .pl3 = 0 },
                 (Node){ .tp = nodFor,           .pl2 = 18 },
+                
+                (Node){ .tp = nodScope, .pl1 = slScope, .pl2 = 3 },
+                (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0 }, // x~ = 1
                 (Node){ .tp = nodExpr, .pl1 = slStmt, .pl2 = 3 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2 }, // x
+                (Node){ .tp = tokInt,          .pl2 = 101 },
+                (Node){ .tp = nodExpr, .pl1 = slStmt, .pl2 = 3 }, // < x 101
+                (Node){ .tp = nodId, .pl1 = 0 },
                 (Node){ .tp = tokInt,          .pl2 = 101 },
                 (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
 
-                (Node){ .tp = nodScope, .pl1 = slScope, .pl2 = 3 },
-                (Node){ .tp = nodAssignLeft,      .pl2 = 2 },
-                (Node){ .tp = nodBinding, .pl1 = 1 }, // x
-                (Node){ .tp = tokInt,             .pl2 = 1 },
-
                 (Node){ .tp = nodScope,          .pl2 = 12 },
-                (Node){ .tp = nodExpr,           .pl2 = 3 },
+                (Node){ .tp = nodExpr,           .pl2 = 3 }, // print $x
                 (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2 },      // x
                 (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
                 (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1 }, // print
-                (Node){ .tp = nodAssignLeft,           .pl2 = 3 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 }, // x
-                (Node){ .tp = nodExpr,           .pl2 = 3 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 }, // x
+                (Node){ .tp = nodAssignLeft,      .pl2 = 2 }, // x = x + 1
+                (Node){ .tp = nodBinding, .pl1 = 1 }, // x
+                (Node){ .tp = tokInt,             .pl2 = 1 },
                 (Node){ .tp = tokInt, .pl1 = 0, .pl2 = 1 },
                 (Node){ .tp = nodCall,   .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
             }),
@@ -1091,7 +1087,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("For with two complex initializers"),
             s("f = {{->:\n"
-              "    for{ x~ = 17; y~ = x/5; y < 101:\n"
+              "    for{ x~ = 17; y~ = x/5; < y 101:\n"
               "        print x;\n"
               "        x -= 1;\n"
               "        y += 1;}\n"
@@ -1146,10 +1142,10 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("For without initializers"),
-            s("f = {{->:\n"
+            s("f = (\\\n"
               "    x = 4;\n"
-              "    for{ x < 101: \n"
-              "        print x} }}"),
+              "    (for < x 101: \n"
+              "        print x) )"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,         .pl2 = 16 },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
@@ -1178,11 +1174,11 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("For with break and continue"),
-            s("f = {{->:\n"
-              "    for{ x = 0; x < 101:\n"
+            s("f = (\\\n"
+              "    (for x = 0; < x 101:\n"
               "        break;\n"
-              "        continue;}\n"
-              "}}"
+              "        continue;)\n"
+              ")"
               ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,             .pl2 = 14 },
@@ -1212,10 +1208,10 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTestWithError(
             s("For with break error"),
             s(errBreakContinueInvalidDepth),
-            s("f = {{->:\n"
-              "    for{ x = 0; x < 101:\n"
+            s("f = (\\\n"
+              "    (for x = 0; < x 101:\n"
               "        break 2\n"
-              "} }}"
+              "))"
               ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef                },
@@ -1240,19 +1236,19 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Nested for with deep break and continue"),
-            s("f = {{->:\n"
-              "    for{ a = 0; a < 101:\n"
-              "        for{ b = 0; b < 101:\n"
-              "            for{ c = 0; c < 101:\n"
-              "                break 3}\n"
+            s("f = (\\\n"
+              "    (for a = 0; < a 101:\n"
+              "        (for b = 0; < b 101:\n"
+              "            (for c = 0; < c 101:\n"
+              "                break 3)\n"
               "        }\n"
-              "        for{ d = 0; d < 51:\n"
-              "            for{ e = 0; e < 101:\n"
-              "                continue 2}\n"
-              "        }\n"
+              "        (for d = 0; < d 51:\n"
+              "            (for e = 0; < e 101:\n"
+              "                continue 2)\n"
+              "        )\n"
               "        print a\n"
-              "    }\n"
-              "}}"
+              "    )\n"
+              ")"
               ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 58 },
@@ -1340,7 +1336,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTestWithError(
             s("For with type error"),
             s(errTypeMustBeBool),
-            s("f = {{-> : for{ x = 1; x/101: print x} }}"),
+            s("f = (\\ (for x~ = 1; / x 101: print x) )"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef         },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
@@ -1371,7 +1367,7 @@ ParserTestSet* typeTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Types test set"), a, ((ParserTest[]){
         createTest(
             s("Simple type 1"),
-            s("Foo = [* id Int name Str]"),
+            s("Foo = (* id Int name Str)"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 16 },
                 (Node){ .tp = nodBinding, .pl1 = 0 },
