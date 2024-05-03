@@ -2589,7 +2589,6 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     Token rightTk = toks[cm->i + countLeftSide];
 
 #ifdef SAFETY
-    print("right tk tp %d at %d left side %d", rightTk.tp, cm->i + countLeftSide, countLeftSide)
     VALIDATEI(rightTk.tp == tokAssignRight, iErrorInconsistentSpans)
 #endif
 
@@ -2604,7 +2603,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else if (countLeftSide == 1)  {
         Token nameTok = toks[cm->i];
         Unt newName = ((Unt)nameTok.lenBts << 24) + (Unt)nameTok.pl1; // nameId + lenBts
-        mbNewBinding = createEntity(newName, nameTok.pl2 == 1 ? classMutable : classImmutable, cm);
+        mbNewBinding = createEntity(newName, nameTok.pl2 == 1 ? classImmutable : classMutable, cm);
         addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
                 tok.startBt, tok.lenBts, cm);
     } else if (countLeftSide > 1) {
@@ -2613,9 +2612,17 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, P_C);
     } else if (tok.pl2 == 0) { // a new var being defined
         Unt newName = ((Unt)tok.lenBts << 24) + (Unt)tok.pl1; // nameId + lenBts
-        mbNewBinding = createEntity(newName, tok.pl1 == 1 ? classMutable : classImmutable, cm);
-        addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
-                tok.startBt, tok.lenBts, cm);
+        Int mbExistingBinding = cm->activeBindings[tok.pl1];
+        if (mbExistingBinding > -1)  {
+            VALIDATEP(cm->entities.cont[mbExistingBinding].class == classImmutable,
+                    errCannotMutateImmutable)
+            addNode((Node){ .tp = nodAssignLeft, .pl1 = mbExistingBinding, .pl2 = 0},
+                    tok.startBt, tok.lenBts, cm);
+        } else {
+            mbNewBinding = createEntity(newName, tok.pl1 == 1 ? classMutable : classImmutable, cm);
+            addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
+                    tok.startBt, tok.lenBts, cm);
+        }
     } else if (isMutation) {
         addNode((Node){ .tp = nodAssignLeft, .pl1 = assiDefinition, .pl2 = 1},
                 tok.startBt, tok.lenBts, cm);
@@ -2692,7 +2699,6 @@ private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT I
 //   v    v    v    v    v    v    v    v    v
 // [inits | cond | tokBody1 ... tokBodyN tokStep1 tokStep2 ] <- restores original tp of tokIntro
     VALIDATEP(cm->i < sentinel, errLoopEmptyBody)
-    print("preamble i %d sentinel %d", cm->i, sentinel)
     Int j = cm->i;
     for (Token currTok = toks[j];
          (currTok.tp == tokAssignLeft || currTok.tp == tokAssignRight);
@@ -2757,8 +2763,6 @@ private void pFor(Token forTk, P_CT) { //:pFor
     Int bodyInd; // index of loop body
     preambleFor(sentinel, &condInd, &stepInd, &bodyInd, P_C);
 
-    print("from preamble %d %d %d", condInd, stepInd, bodyInd)
-
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
                         .typeId = cm->stats.loopCounter }), cm->backtrack);
     addNode((Node){.tp = nodFor},  forTk.startBt, forTk.lenBts, cm);
@@ -2766,7 +2770,6 @@ private void pFor(Token forTk, P_CT) { //:pFor
     // variable initialization
     Int sndInd = minPositiveOf(3, condInd, stepInd, bodyInd);
     if (sndInd > initInd) {
-        print("inits initInd %d sndInd %d", initInd, sndInd)
         addParsedScope(sentinel, forTk.startBt, forTk.lenBts, cm);
         for (cm->i = initInd; cm->i < sndInd;) {
             // parse assignments
@@ -2794,7 +2797,6 @@ private void pFor(Token forTk, P_CT) { //:pFor
     Int bodyStartBt = toks[sndInd].startBt;
     addParsedScope(sentinel, bodyStartBt, forTk.lenBts - bodyStartBt + forTk.startBt, cm);
     cm->i = minPositiveOf(2, stepInd, bodyInd);
-    print("leavin pFor at i %d",cm->i)
 }
 
 
@@ -2912,7 +2914,6 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
 
 private void eBumpArgCount(ExprFrame* parent, StateForExprs* stEx) { //:eBumpArgCount
     if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
-        print("bumping argcount from %d to %d", parent->argCount, parent->argCount + 1);
         parent->argCount += 1;
     }
 }
@@ -2923,9 +2924,6 @@ private void ePopUnaryCalls(StateForExprs* stEx) { //:ePopUnaryCalls
     ExprFrame* parent = zero + (stEx->frames->len - 1);
     for (;  parent >= zero && parent->tp == exfrUnaryCall;
             parent -= 1) {
-        // pop all the unary calls
-
-        print("popping unary call")
         pop(stEx->frames);
         Node call = pop(stEx->calls);
         call.pl2 = 1;
@@ -2946,7 +2944,6 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
         if (frame.tp == exfrCall)  {
             Node call = pop(stEx->calls);
             call.pl2 = frame.argCount;
-            print("popping call with argc %d", call.pl2)
             if (frame.startNode > -1 && scr->cont[frame.startNode].tp == nodExpr) {
                 // Call inside a data allocator. It was wrapped in a nodExpr, now we set its length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
@@ -3004,7 +3001,6 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
 // The core code of the general, long expression parse. Starts at cm->i and parses until
 // "sentinelToken". Produces a linear sequence of operands and operators with arg counts in
 // Reverse Polish Notation. Handles data allocations, too
-    print("linearize sent %d", sentinelToken)
     StateForExprs* stEx = cm->stateForExprs;
     stEx->metAnAllocation = false;
     StackNode* scr = stEx->scr;
@@ -3134,7 +3130,6 @@ private Int pExprWorker(Token tok, P_CT) { //:pExprWorker
             }
         }
 
-        print("worker %d at i %d sent %d", tok.tp, cm->i, cm->i + tok.pl2)
         return exprUpTo(cm->i + tok.pl2, tok.startBt, tok.lenBts, P_C);
     } else {
         return exprSingleItem(tok, cm);
@@ -4272,7 +4267,6 @@ testable void pFnSignature(Token fnDef, bool isToplevel, Unt name, Int voidToVoi
 private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
 //:pToplevelBody Parses a top-level function. The result is the AST
 //L( FnDef ParamList body... )
-// TODO pass concrete type to handle the fact that all types must be monomorphized here
     Int fnStartInd = toplevelSignature.indToken;
     Int fnSentinel = toplevelSignature.sentinelToken;
     EntityId fnEntity = toplevelSignature.entityId;
@@ -4285,7 +4279,6 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinelToken = fnSentinel,
                         .typeId = fnType }), cm->backtrack);
     //addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
-    print("toplevel name %d", toplevelSignature.name & LOWER24BITS)
     addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (toplevelSignature.name & LOWER24BITS)},
             fnTk.startBt, fnTk.lenBts, cm);
 
@@ -4318,7 +4311,6 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
         }
         cm->i += 1; // CONSUME ??
     }
-
     parseUpTo(fnSentinel, P_C);
 }
 
@@ -5085,7 +5077,6 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            tPrint(typeOfFunc, cm);
             VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
             // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);

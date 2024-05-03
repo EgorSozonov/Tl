@@ -1060,23 +1060,23 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodFnDef,           .pl2 = 19, .pl3 = 0 },
                 (Node){ .tp = nodFor,           .pl2 = 18 },
                 
-                (Node){ .tp = nodScope, .pl1 = slScope, .pl2 = 3 },
-                (Node){ .tp = nodAssignLeft, .pl1 = 0, .pl2 = 0 }, // x~ = 1
-                (Node){ .tp = nodExpr, .pl1 = slStmt, .pl2 = 3 },
-                (Node){ .tp = tokInt,          .pl2 = 101 },
-                (Node){ .tp = nodExpr, .pl1 = slStmt, .pl2 = 3 }, // < x 101
-                (Node){ .tp = nodId, .pl1 = 0 },
+                (Node){ .tp = nodScope, .pl2 = 17 },
+                (Node){ .tp = nodAssignLeft, .pl1 = 1, .pl2 = 0 }, // x~ = 1
+                (Node){ .tp = nodExpr, .pl2 = 1 },
+                (Node){ .tp = tokInt,          .pl2 = 1 },
+                (Node){ .tp = nodExpr, .pl2 = 3 }, // < x 101
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1, },
                 (Node){ .tp = tokInt,          .pl2 = 101 },
                 (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
 
-                (Node){ .tp = nodScope,          .pl2 = 12 },
+                (Node){ .tp = nodScope,          .pl2 = 9 },
                 (Node){ .tp = nodExpr,           .pl2 = 3 }, // print $x
-                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2 },      // x
+                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 1 },      // x
                 (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1 }, // print
-                (Node){ .tp = nodAssignLeft,      .pl2 = 2 }, // x = x + 1
-                (Node){ .tp = nodBinding, .pl1 = 1 }, // x
-                (Node){ .tp = tokInt,             .pl2 = 1 },
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 }, // print
+                (Node){ .tp = nodAssignLeft, .pl1 = 1, .pl2 = 0 }, // x = x + 1
+                (Node){ .tp = nodExpr, .pl2 = 3 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 },
                 (Node){ .tp = tokInt, .pl1 = 0, .pl2 = 1 },
                 (Node){ .tp = nodCall,   .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
             }),

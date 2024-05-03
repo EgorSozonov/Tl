@@ -233,7 +233,7 @@ DEFINE_STACK_HEADER(Token)
 #define tokMisc         5  // pl1 = see the misc* constants. pl2 = underscore count iff miscUscore
                            // Also stands for "Void" among the primitive types
 
-#define tokWord         6  // pl1 = nameId (index in the string table). pl2 = 1 iff followed by ~ 
+#define tokWord         6  // pl1 = nameId (index in the string table). pl2 = 1 iff followed by ~
 #define tokTypeName     7  // pl1 = 1 iff it has arity (like "M/2"), pl2 = same as tokWord
 #define tokKwArg        8  // pl2 = same as tokWord. The ":argName"
 #define tokOperator     9  // pl1 = OperatorType, one of the "opT" constants below
@@ -437,7 +437,7 @@ typedef struct { // :ParseFrame
     Unt tp : 6;
     Int startNodeInd;
     Int sentinelToken;
-    Int typeId;            // valid only for fnDef, if, loopCond and the like. 
+    Int typeId;            // valid only for fnDef, if, loopCond and the like.
                            // For nodFor, contains the loop depth
 } ParseFrame;
 
