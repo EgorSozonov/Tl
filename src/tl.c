@@ -2779,6 +2779,7 @@ private void pFor(Token forTk, P_CT) { //:pFor
     Int condInd; // index of condition
     Int stepInd; // index of iteration stepping code
     Int bodyInd; // index of loop body
+    const Int forNodeInd = cm->nodes.len;
     preambleFor(sentinel, &condInd, &stepInd, &bodyInd, P_C);
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinelToken = sentinel,
@@ -2795,26 +2796,30 @@ private void pFor(Token forTk, P_CT) { //:pFor
             cm->i += 1; // CONSUME the assignment span marker
             pAssignment(tok, P_C);
         }
-        // loop condition
-        if (condInd != 0)  {
-            Token condTok = toks[condInd];
+    }
+    // loop condition
+    if (condInd != 0)  {
+        Token condTok = toks[condInd];
 
 // TODO handle single-token conditions, like a single var or a literal
-            cm->i = condInd + 1; // +1 cause the expression parser needs to be 1 past the exprToken
+        cm->i = condInd + 1; // +1 cause the expression parser needs to be 1 past the exprToken
 
-            TypeId condTypeId = exprUpToWithFrame(
-                    (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len,
-                                  .sentinelToken = minPositiveOf(3, stepInd, bodyInd, sentinel),
-                                  .typeId = cm->stats.loopCounter },
-                    condTok.startBt, condTok.lenBts, P_C);
-            VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
-        }
+        TypeId condTypeId = exprUpToWithFrame(
+                (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len,
+                              .sentinelToken = minPositiveOf(3, stepInd, bodyInd, sentinel),
+                              .typeId = cm->stats.loopCounter },
+                condTok.startBt, condTok.lenBts, P_C);
+        VALIDATEP(condTypeId == tokBool, errTypeMustBeBool)
     }
 
     // readying to parse the body + step statements
     Int bodyStartBt = toks[sndInd].startBt;
+    const Int bodyNodeInd = cm->nodes.len;
+
+    cm->nodes.cont[forNodeInd].pl3 = bodyNodeInd - forNodeInd; // distance to inner scope
     addParsedScope(sentinel, bodyStartBt, forTk.lenBts - bodyStartBt + forTk.startBt, cm);
-    cm->i = minPositiveOf(2, stepInd, bodyInd);
+
+    cm->i = minPositiveOf(2, stepInd, bodyInd); // CONSUME the "for" until the loop body + step
 }
 
 

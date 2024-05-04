@@ -321,7 +321,7 @@ DEFINE_STACK_HEADER(Token)
 #define nodReturn      25
 #define nodTry         26
 #define nodFor         27  // pl1 = id of loop (unique within a function) if it needs to
-                           // have a label in codegen
+                           // have a label in codegen; pl3 = number of nodes to skip to get to body
 
 #define nodIf          28
 #define nodElseIf      29  // pl3 = length till the next elseif, or 0 if this is an "else"

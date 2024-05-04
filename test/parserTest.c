@@ -1053,13 +1053,12 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //{{{ Loop tests
 ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
-   /*
         createTest(
             s("Simple loop 1"),
             s("f = (\\(for x~ = 1; < x 101; x = + x 1: print $x ))"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 21, .pl3 = 0 },
-                (Node){ .tp = nodFor,           .pl2 = 20 },
+                (Node){ .tp = nodFor,           .pl2 = 20, .pl3 = 10 },
 
                 (Node){ .tp = nodScope, .pl2 = 19 },
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 3 }, // x~ = 1
@@ -1086,95 +1085,89 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       */
         createTest(
             s("For with two complex initializers"),
             s("f = (\\\n"
-              "    (for x~ = 17; y~ = / x 5; < y 101:\n"
+              "    (for x~ = 17; y~ = / x 5; < y 101; x = - x 1; y = + y 1:\n"
               "        print $x;\n"
-              "        x = x - 1;\n"
-              "        y = y + 1;)\n"
-              ")"
+              "))"
               ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,           .pl2 = 34 },
-                (Node){ .tp = nodBinding, .pl1 = 0 },
-                (Node){ .tp = nodScope,           .pl2 = 32 }, // function body
+                (Node){ .tp = nodFnDef,           .pl2 = 33 },
+                (Node){ .tp = nodFor,             .pl2 = 32, .pl3 = 16 },
+                (Node){ .tp = nodScope,           .pl2 = 31 }, // function body
 
-                (Node){ .tp = nodFor,           .pl2 = 31 },
-                (Node){ .tp = nodScope,                 .pl2 = 30 },
-
-                (Node){ .tp = nodAssignment,            .pl2 = 2 },
-                (Node){ .tp = nodBinding, .pl1 = 1,              },  // def x
+                (Node){ .tp = nodAssignment,            .pl2 = 3 }, // x~ = 17
+                (Node){ .tp = nodBinding, .pl1 = 1,              },
+                (Node){ .tp = nodExpr, .pl2 = 1,              },
                 (Node){ .tp = tokInt,                   .pl2 = 17 },
 
-                (Node){ .tp = nodAssignment, .pl2 = 5           },
+                (Node){ .tp = nodAssignment, .pl2 = 5           }, // y~ = / x 5
                 (Node){ .tp = nodBinding, .pl1 = 2,             },  // def y
                 (Node){ .tp = nodExpr,                  .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opDivBy, tokInt), .pl2 = 2 },
-                (Node){ .tp = nodId, .pl1 = 1,          .pl2 = 3 }, // x
+                (Node){ .tp = nodId, .pl1 = 1,          .pl2 = 1 }, // x
                 (Node){ .tp = tokInt,                   .pl2 = 5 },
+                (Node){ .tp = nodCall, .pl1 = oper(opDivBy, tokInt), .pl2 = 2 },
 
-                (Node){ .tp = nodExpr, .pl2 = 3,                  },
-                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
-                (Node){ .tp = nodId, .pl1 = 2,          .pl2 = 2 }, // y
+                (Node){ .tp = nodExpr, .pl2 = 3,                  }, // < y 101
+                (Node){ .tp = nodId, .pl1 = 2,          .pl2 = 2 },
                 (Node){ .tp = tokInt,                   .pl2 = 101 },
+                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
 
-                (Node){ .tp = nodExpr,                  .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = I,        .pl2 = 1 }, // print
+                (Node){ .tp = nodScope,                 .pl2 = 16 },
+                (Node){ .tp = nodExpr,                  .pl2 = 3 }, // print $x
+                (Node){ .tp = nodId,    .pl1 = 1,       .pl2 = 1 }, // x
                 (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
-                (Node){ .tp = nodId,    .pl1 = 1,       .pl2 = 3 }, // x
+                (Node){ .tp = nodCall, .pl1 = I - 4,        .pl2 = 1 }, // print
 
-                (Node){ .tp = nodAssignment,              .pl2 = 5 },
-                (Node){ .tp = nodBinding,  .pl1 = 1,               },
+                (Node){ .tp = nodAssignment,            .pl2 = 5 }, // x = - x 1
+                (Node){ .tp = nodBinding,  .pl1 = 1,             },
                 (Node){ .tp = nodExpr,                  .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opMinus, tokInt), .pl2 = 2 },
-                (Node){ .tp = nodId, .pl1 = 1,      .pl2 = 3 }, // x
+                (Node){ .tp = nodId, .pl1 = 1,      .pl2 = 1 }, // x
                 (Node){ .tp = tokInt,               .pl2 = 1 },
+                (Node){ .tp = nodCall, .pl1 = oper(opMinus, tokInt), .pl2 = 2 },
 
-                (Node){ .tp = nodAssignment,              .pl2 = 5 },
+                (Node){ .tp = nodAssignment,              .pl2 = 5 }, // y = + y 1
                 (Node){ .tp = nodBinding,  .pl1 = 2,               },
                 (Node){ .tp = nodExpr,                  .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 2 },
                 (Node){ .tp = nodId, .pl1 = 2,      .pl2 = 2 },    // y
                 (Node){ .tp = tokInt,               .pl2 = 1 },
+                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 2 },
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-/*
         createTest(
             s("For without initializers"),
             s("f = (\\\n"
               "    x = 4;\n"
               "    (for < x 101: \n"
-              "        print x) )"),
+              "        print $x) )"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,         .pl2 = 16 },
-                (Node){ .tp = nodBinding, .pl1 = 0 },
-                (Node){ .tp = nodScope, .pl2 = 14 }, // function body
+                (Node){ .tp = nodFnDef,         .pl2 = 14 },
 
-                (Node){ .tp = nodAssignment, .pl2 = 2 },
-                (Node){ .tp = nodBinding, .pl1 = 1 },  // x
+                (Node){ .tp = nodAssignment, .pl2 = 3 }, // x = 4
+                (Node){ .tp = nodBinding, .pl1 = 1 },
+                (Node){ .tp = nodExpr, .pl2 = 1 },
                 (Node){ .tp = tokInt,              .pl2 = 4 },
 
-                (Node){ .tp = nodFor,            .pl2 = 10 },
-                (Node){ .tp = nodScope, .pl2 = 9,          },
+                (Node){ .tp = nodFor,            .pl2 = 9, .pl3 = 5 },
 
-                (Node){ .tp = nodForCond, .pl1 = slStmt, .pl2 = 4 },
-                (Node){ .tp = nodExpr, .pl2 = 3,           },
-                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2 }, // x
+                (Node){ .tp = nodExpr, .pl2 = 3,           }, // < x 101
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 },
                 (Node){ .tp = tokInt,          .pl2 = 101 },
+                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
 
+                (Node){ .tp = nodScope, .pl2 = 4,          }, // print $x
                 (Node){ .tp = nodExpr,         .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1 }, // print
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 },
                 (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2 }  // x
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+/*
         createTest(
             s("For with break and continue"),
             s("f = (\\\n"
