@@ -1418,7 +1418,7 @@ private void skipSpaces(Arr(Byte) source, Compiler* lx) { //:skipSpaces
 
 _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {
     cm->stats.wasError = true;
-    printf("Internal error %d at %d\n", errInd, lineNumber);
+    printf("Internal error %d at line %d\n", errInd, lineNumber);
     cm->stats.errMsg = stringOfInt(errInd, cm->a);
     printString(cm->stats.errMsg);
     longjmp(excBuf, 1);
@@ -1818,16 +1818,17 @@ private bool wordChunk(Arr(Byte) source, Compiler* lx) { //:wordChunk
 }
 
 
-private void mbCloseAssignRight(BtToken* top, Compiler* lx) {
+private void mbCloseAssignRight(BtToken* top, Compiler* cm) { //:mbCloseAssignRight
+// Handles the case we are closing a tokAssignRight: we need to close its parent tokAssignment!
     if (top->tp != tokAssignRight) {
         return;
     }
 #ifdef SAFETY
-    VALIDATEI(hasValues(lx->lexBtrack) && peek(lx->lexBtrack).tp == tokAssignment,
+    VALIDATEI(hasValues(cm->lexBtrack) && peek(cm->lexBtrack).tp == tokAssignment,
                 iErrorInconsistentSpans)
 #endif
-    *top = pop(lx->lexBtrack);
-    setStmtSpanLength(top->tokenInd, lx);
+    *top = pop(cm->lexBtrack);
+    setStmtSpanLength(top->tokenInd, cm);
 }
 
 
@@ -1844,6 +1845,7 @@ private void closeStatement(Compiler* lx) { //:closeStatement
 
 
 private void tryOpenAccessor(Arr(Byte) source, Compiler* lx) { //:tryOpenAccessor
+// Checks whether there is a `[` right after a word, in which case it's an accessor
     if (lx->i < lx->stats.inpLength && CURR_BT == aBracketLeft) { // `a[i][j]`
         openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
         lx->i += 1; // CONSUME the `[`
@@ -1963,7 +1965,7 @@ private void lexDot(Arr(Byte) source, Compiler* lx) { //:lexDot
 }
 
 
-private void processAssignment(Int opType, Compiler* lx) { //:processAssignment
+private void lxAssignment(Int opType, Compiler* lx) { //:lxAssignment
 // Params: opType is the operator for mutations (like `*=`), -1 for other assignments.
 // Handles the "=", and "+=" tokens. Changes existing stmt
 // token into tokAssignment and opens up a new tokAssignRight span. Doesn't consume anything
@@ -1973,14 +1975,15 @@ private void processAssignment(Int opType, Compiler* lx) { //:processAssignment
     Int assignmentStartInd = currSpan.tokenInd;
     Token* tok = (lx->tokens.cont + assignmentStartInd);
     tok->tp = tokAssignment;
-    if (opType == -1 && lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
+    lx->lexBtrack->cont[lx->lexBtrack->len - 1].tp = tokAssignment;
+
+    if (opType == -1 && lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){ // type assign
         tok->pl1 = assiType;
-    } else if (opType > -1) {
+    } else if (opType > -1) { // mutation
         tok->pl1 = BIG + opType;
     }
-    push(((BtToken) {.tp = tokAssignRight, .spanLevel = slStmt, .tokenInd = lx->tokens.len}),
-            lx->lexBtrack);
-    pushIntokens((Token){ .tp = tokAssignRight, .startBt = lx->i }, lx);
+
+    openPunctuation(tokAssignRight, slStmt, lx->i, lx);
 }
 
 
@@ -2088,7 +2091,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
         j++;
     }
     if (isAssignment) { // mutation operators like "*=" or "*.="
-        processAssignment(opType, lx);
+        lxAssignment(opType, lx);
     } else {
         pushIntokens((Token){ .tp = tokOperator, .pl1 = opType,
                     .pl2 = 0, .startBt = lx->i, .lenBts = j - lx->i}, lx);
@@ -2104,7 +2107,7 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
     if (nextBt == aEqual || nextBt == aDigit0) {
         lexOperator(source, lx); // == or =0
     } else {
-        processAssignment(-1, lx);
+        lxAssignment(-1, lx);
         lx->i++; // CONSUME the =
     }
 }
@@ -2601,11 +2604,16 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assig
 
 
 private void pAssignment(Token tok, P_CT) { //:pAssignment
-    Int countLeftSide = tok.pl2;
-    Token rightTk = toks[cm->i + countLeftSide];
+    Int j = cm->i;
+    for (Token tk = toks[j]; j < cm->stats.inpLength && tk.tp != tokAssignRight;
+            j += 1) {
+        tk = toks[j];
+    }
+    Int countLeftSide = j - cm->i - 1;
+    Token rightTk = toks[j];
 
 #ifdef SAFETY
-    VALIDATEI(rightTk.tp == tokAssignRight, iErrorInconsistentSpans)
+    VALIDATEI(countLeftSide < (tok.pl2 - 1), iErrorInconsistentSpans)
 #endif
 
     Bool complexLeft = false;
@@ -4349,24 +4357,24 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
     Int voidToVoid = addConcrFnType(1, (Int[]){ tokMisc, tokMisc}, cm);
     Int nextI = cm->i;
     for (Token tok = toks[cm->i]; cm->i < len; cm->i = nextI, tok = toks[nextI]) {
-        if (tok.tp != tokAssignment) {
-            nextI = cm->i + tok.pl2 + 1;  // Skip the whole span, whatever it is
+        nextI = calcSentinel(tok, cm->i);
+        if (tok.tp != tokAssignment || tok.pl2 <= 3) { // toplevel func has at least 4 tokens
             continue;
         }
-        VALIDATEP(tok.pl2 == 0, errAssignmentToplevelFn)
-        nextI = cm->i + toks[cm->i + 1].pl2 + 2; // CONSUME tokAssignmentRight (later)
+        Token nameTk = toks[cm->i + 1];
+        VALIDATEP(nameTk.tp == tokWord && nameTk.pl2 == 0, errAssignmentToplevelFn)
         Token rightTk = toks[cm->i + 2]; // the token after tokAssignRight
-        if (rightTk.tp != tokFn) {
+        print("here0")
+        const Int fnInd = cm->i + 3; // skipping the name & the tokAssignRight
+        if (rightTk.tp != tokAssignRight || toks[fnInd].tp != tokFn) {
             continue;
         }
-
-        //Int sentinel = calcSentinel(tok, cm->i);
-        //parseUpTo(cm->i + tok.pl2, P_C);
+        print("here")
 
         // since this is an immutable definition tokAssignment, its pl1 is the nameId and
         // its bytes are same as the var name in source code
-        Unt name =  ((Unt)tok.lenBts << 24) + (Unt)tok.pl1;
-        cm->i += tok.pl2 + 3; // CONSUME the left side, tokAssignmentRight and tokFn
+        Unt name =  ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1;
+        cm->i = fnInd + 1; // CONSUME the left side, tokAssignmentRight and tokFn
         pFnSignature(rightTk, true, name, voidToVoid, cm);
     }
 }
