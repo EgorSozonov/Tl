@@ -2426,7 +2426,6 @@ private EntityId createEntity(Unt name, Byte class, Compiler* cm) { //:createEnt
 
     Int newEntityId = cm->entities.len;
     pushInentities(((Entity){ .name = name, .class = class }), cm);
-
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->len > 0) {
             addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
@@ -2605,11 +2604,11 @@ private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assig
 
 private void pAssignment(Token tok, P_CT) { //:pAssignment
     Int j = cm->i;
-    for (Token tk = toks[j]; j < cm->stats.inpLength && tk.tp != tokAssignRight;
+    for (; j < cm->stats.inpLength && toks[j].tp != tokAssignRight;
             j += 1) {
-        tk = toks[j];
     }
-    Int countLeftSide = j - cm->i - 1;
+    const Int sentinel = calcSentinel(tok, cm->i - 1);
+    Int countLeftSide = j - cm->i;
     Token rightTk = toks[j];
 
 #ifdef SAFETY
@@ -2620,45 +2619,40 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     Int mbNewBinding = -1;
     Token mbOldBinding = (Token){.tp = 0 };
     Bool isMutation = tok.pl1 >= BIG;
+    push(((ParseFrame){.tp = nodAssignment, .startNodeInd = cm->nodes.len,
+                       .sentinelToken = sentinel}), cm->backtrack);
     if (tok.pl1 == assiType) {
         VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
         pTypeDef(P_C);
         return;
     } else if (countLeftSide == 1)  {
-        Token nameTok = toks[cm->i];
-        Unt newName = ((Unt)nameTok.lenBts << 24) + (Unt)nameTok.pl1; // nameId + lenBts
-        mbNewBinding = createEntity(newName, nameTok.pl2 == 1 ? classImmutable : classMutable, cm);
-        addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
-                tok.startBt, tok.lenBts, cm);
+        Token nameTk = toks[cm->i];
+        Unt newName = ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1; // nameId + lenBts
+        Int mbBinding = cm->activeBindings[nameTk.pl1];
+        if (mbBinding > -1) {
+            VALIDATEP(cm->entities.cont[mbBinding].class == classMutable,
+                    errCannotMutateImmutable)
+        } else {
+            mbBinding = createEntity(newName, nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
+        }
+        addNode((Node){ .tp = nodAssignment}, tok.startBt, tok.lenBts, cm);
+        addNode((Node){ .tp = nodBinding, .pl1 = mbBinding, .pl2 = 0 },
+                nameTk.startBt, nameTk.lenBts, cm);
     } else if (countLeftSide > 1) {
         complexLeft = true;
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
         assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, P_C);
-    } else if (tok.pl2 == 0) { // a new var being defined
-        Unt newName = ((Unt)tok.lenBts << 24) + (Unt)tok.pl1; // nameId + lenBts
-        Int mbExistingBinding = cm->activeBindings[tok.pl1];
-        if (mbExistingBinding > -1)  {
-            VALIDATEP(cm->entities.cont[mbExistingBinding].class == classImmutable,
-                    errCannotMutateImmutable)
-            addNode((Node){ .tp = nodAssignLeft, .pl1 = mbExistingBinding, .pl2 = 0},
-                    tok.startBt, tok.lenBts, cm);
-        } else {
-            mbNewBinding = createEntity(newName, tok.pl1 == 1 ? classMutable : classImmutable, cm);
-            addNode((Node){ .tp = nodAssignLeft, .pl1 = mbNewBinding, .pl2 = 0},
-                    tok.startBt, tok.lenBts, cm);
-        }
     } else if (isMutation) {
-        addNode((Node){ .tp = nodAssignLeft, .pl1 = assiDefinition, .pl2 = 1},
+        addNode((Node){ .tp = nodAssignment, .pl1 = assiDefinition, .pl2 = 1},
                 tok.startBt, tok.lenBts, cm);
         mbOldBinding = toks[cm->i];
         mbOldBinding.pl1 = getActiveVar(mbOldBinding.pl2, cm);
         addNode((Node){ .tp = nodBinding, .pl1 = mbOldBinding.pl1, .pl2 = 0},
                 mbOldBinding.startBt, mbOldBinding.lenBts, cm);
     }
-    cm->i += countLeftSide + 1; // CONSUME the left side of an assignment
-    const Int sentinel = cm->i + rightTk.pl2;
+    cm->i += countLeftSide + 1; // CONSUME the left side of an assignment and the assignRight
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = cm->nodes.len,
-                       .sentinelToken = cm->i + rightTk.pl2 }), cm->backtrack);
+                       .sentinelToken = sentinel}), cm->backtrack);
     addNode((Node){.tp = nodExpr}, rightTk.startBt, rightTk.lenBts, cm);
 
     if (isMutation) {
@@ -2685,11 +2679,11 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else if (rightTk.tp == tokFn) {
         // TODO
     } else {
-        Int startNodeInd = cm->nodes.len - 1; // index of the nodExpr for the right side
+        const Int startNodeInd = cm->nodes.len - 1; // index of the nodExpr for the right side
 
         eLinearize(sentinel, P_C);
         exprCopyFromScratch(startNodeInd, cm);
-        Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
+        const Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
 
         VALIDATEP(rightType != -2, errAssignment)
 
@@ -2923,7 +2917,7 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
         }
     }
 
-    addNode((Node){.tp = nodAssignLeft, .pl1 = newEntityId, .pl2 = 0},
+    addNode((Node){.tp = nodAssignment, .pl1 = newEntityId, .pl2 = 0},
             rawLoc.startBt, rawLoc.lenBts, cm);
     addNode((Node){.tp = nodDataAlloc, .pl1 = rawNd.pl1, .pl2 = countNodes, .pl3 = countElements },
             rawLoc.startBt, rawLoc.lenBts, cm);
@@ -3195,7 +3189,6 @@ private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
         Token currTok = toks[cm->i];
         cm->i++;
         ((*cm->langDef->parserTable)[currTok.tp])(currTok, P_C);
-
         maybeCloseSpans(cm);
     }
 }
@@ -4259,7 +4252,7 @@ testable void pFnSignature(Token fnDef, bool isToplevel, Unt name, Int voidToVoi
 // Parses a function signature. Emits no nodes, adds data to @toplevels, @functions, @overloads.
 // Pre-condition: we are 1 token past the tokFn
     Int fnStartTokenId = cm->i - 1;
-    Int fnSentinelToken = fnStartTokenId + fnDef.pl2 + 1;
+    Int fnSentinelToken = calcSentinel(fnDef, fnStartTokenId);
 
     NameId fnNameId = name & LOWER24BITS;
 
@@ -4291,7 +4284,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
 //:pToplevelBody Parses a top-level function. The result is the AST
 //L( FnDef ParamList body... )
     Int fnStartInd = toplevelSignature.indToken;
-    Int fnSentinel = toplevelSignature.sentinelToken;
+    const Int fnSentinel = toplevelSignature.sentinelToken;
     EntityId fnEntity = toplevelSignature.entityId;
     TypeId fnType = cm->entities.cont[fnEntity].typeId;
 
@@ -4364,18 +4357,16 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
         Token nameTk = toks[cm->i + 1];
         VALIDATEP(nameTk.tp == tokWord && nameTk.pl2 == 0, errAssignmentToplevelFn)
         Token rightTk = toks[cm->i + 2]; // the token after tokAssignRight
-        print("here0")
         const Int fnInd = cm->i + 3; // skipping the name & the tokAssignRight
         if (rightTk.tp != tokAssignRight || toks[fnInd].tp != tokFn) {
             continue;
         }
-        print("here")
 
         // since this is an immutable definition tokAssignment, its pl1 is the nameId and
         // its bytes are same as the var name in source code
         Unt name =  ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1;
         cm->i = fnInd + 1; // CONSUME the left side, tokAssignmentRight and tokFn
-        pFnSignature(rightTk, true, name, voidToVoid, cm);
+        pFnSignature(toks[fnInd], true, name, voidToVoid, cm);
     }
 }
 
@@ -4384,7 +4375,7 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "id", "call", "binding", ".fld", "GEP", "GElem",
-    "(do", "Expr", "...=", "[]",
+    "(do", "Expr", "=", "[]",
     "alias", "assert", "breakCont", "catch", "defer",
     "import", "(\\ fn)", "trait", "return", "try",
     "for", "if", "eif", "impl", "match"

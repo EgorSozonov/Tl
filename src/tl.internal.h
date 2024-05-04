@@ -296,7 +296,7 @@ DEFINE_STACK_HEADER(Token)
 // AST nodes
 #define nodId           7  // pl1 = index of entity, pl2 = index of name
 #define nodCall         8  // pl1 = index of entity, pl2 = arg count
-#define nodBinding      9  // pl1 = index of entity, pl2 = 1 if it's a type binding
+#define nodBinding      9  // pl1 = index of entity, pl2 = 1 iff it's a type binding
 #define nodFieldAcc    10  // pl1 = nameId; after type resolution pl1 = offset
 #define nodGetElemPtr  11  // get pointer to array/list elem
 #define nodGetElem     12  // get value of array/list elem
@@ -305,7 +305,7 @@ DEFINE_STACK_HEADER(Token)
 #define nodScope       13  // if it's the outer scope of a forNode, then pl3 = length of nodes till
                            // inner scope. See parser tests for examples
 #define nodExpr        14  // pl1 = 1 iff it's a composite expression (has internal var decls)
-#define nodAssignLeft  15  // if pl2 = 0, then pl1 = entityId. Next span is always a nodExpr or
+#define nodAssignment  15  // if pl2 = 0, then pl1 = entityId. Next span is always a nodExpr or
                            // a nodDataAlloc
 #define nodDataAlloc   16  // pl1 = typeId, pl3 = count of elements
 
