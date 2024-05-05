@@ -2389,7 +2389,7 @@ private void setOperatorsLengths() { //:setOperatorsLengths
 #define VALIDATEP(cond, errMsg) if (!(cond)) { throwExcParser0(errMsg, __LINE__, cm); }
 
 private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
-private void subexClose(StateForExprs* s, Compiler* cm);
+private void eClose(StateForExprs* s, Compiler* cm);
 private void addBinding(int nameId, int bindingId, Compiler* cm);
 private void maybeCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
@@ -2687,7 +2687,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
                     stEx->locsCalls);
         TypeId rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
-        subexClose(stEx, cm);
+        eClose(stEx, cm);
     } else if (rightTk.tp == tokFn) {
         // TODO
     } else {
@@ -2906,7 +2906,6 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
         }
     }
 
-    print("pushing alloc expr sent %d", frame.sentinel)
     addNode((Node){.tp = nodAssignment, .pl1 = 0, .pl2 = countNodes + 2, .pl3 = 2},
             rawLoc.startBt, rawLoc.lenBts, cm);
     addNode((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = -1},
@@ -2922,18 +2921,16 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
 }
 
 
-private void eBumpArgCount(ExprFrame* parent, StateForExprs* stEx) { //:eBumpArgCount
-    if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
-        parent->argCount += 1;
-        print("bumping arg count to %d", parent->argCount)
-        printExprStack(stEx);
+private void eBumpArgCount(StateForExprs* stEx) { //:eBumpArgCount
+    const Int ind = stEx->frames->len - 1;
+    const Int tp = stEx->frames->cont[ind].tp;
+    if (tp == exfrCall || tp == exfrDataAlloc) {
+        stEx->frames->cont[ind].argCount += 1;
     }
 }
 
 
 private void ePopUnaryCalls(StateForExprs* stEx) { //:ePopUnaryCalls
-    print("before popUnary")
-    printExprStack(stEx);
     ExprFrame* zero = stEx->frames->cont;
     ExprFrame* parent = zero + (stEx->frames->len - 1);
     Bool poppedAnyUnaries = false;
@@ -2944,20 +2941,12 @@ private void ePopUnaryCalls(StateForExprs* stEx) { //:ePopUnaryCalls
         call.pl2 = 1;
         push(call, stEx->scr);
         push(pop(stEx->locsCalls), stEx->locsScr);
-
         poppedAnyUnaries = true;
     }
-    if (poppedAnyUnaries && parent >= zero
-            && (parent->tp == exfrCall || parent->tp == exfrDataAlloc)) {
-        parent->argCount += 1;
-        print("popUnary bumping arg count to %d", parent->argCount)
-    }
-    print("afte popUnary")
-    printExprStack(stEx);
 }
 
 
-private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
+private void eClose(StateForExprs* stEx, Compiler* cm) { //:eClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
     StackNode* scr = stEx->scr;
     while (stEx->frames->len > 0 && cm->i == peek(stEx->frames).sentinel) {
@@ -2973,10 +2962,12 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
             push(call, scr);
             push(pop(stEx->locsCalls), stEx->locsScr);
         } else if (frame.tp == exfrDataAlloc)  {
-                subexDataAllocation(frame, stEx, cm);
+            subexDataAllocation(frame, stEx, cm);
         } else if (frame.tp == exfrParen) {
-            print("closing paren")
             ePopUnaryCalls(stEx);
+            if (stEx->frames->len > 0) {
+                eBumpArgCount(stEx);
+            }
             if (scr->cont[frame.startNode].tp == nodExpr) {
                 // Parens inside data allocator. It was wrapped in a nodExpr, now we set its length
                 scr->cont[frame.startNode].pl2 = scr->len - frame.startNode - 1;
@@ -3037,15 +3028,14 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
 
     push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinelToken}), frames);
 
-    for (ExprFrame* parent = frames->cont + (frames->len - 1);
-         cm->i < sentinelToken;
-         cm->i += 1,  // CONSUME any expression token
-         parent = frames->cont + (frames->len - 1)) {
-        subexClose(stEx, cm);
+    for (; cm->i < sentinelToken; cm->i += 1) { // CONSUME any expression token
+        eClose(stEx, cm);
+        ExprFrame parent = peek(frames);
         Token cTk = toks[cm->i];
         Unt tokType = cTk.tp;
-        if ((tokType == tokWord || tokType == tokOperator) && parent->tp == exfrParen) {
-            pAddFunctionCall(cTk, parent->sentinel, stEx);
+
+        if ((tokType == tokWord || tokType == tokOperator) && parent.tp == exfrParen) {
+            pAddFunctionCall(cTk, parent.sentinel, stEx);
         } else if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
             if (tokType == tokWord) {
                 EntityId varId = getActiveVar(cTk.pl1, cm);
@@ -3054,17 +3044,14 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
                 push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2 }), scr);
             }
             push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-            print("word or literal")
             ePopUnaryCalls(stEx);
-            eBumpArgCount(parent, stEx);
+            eBumpArgCount(stEx);
         } else if (tokType == tokParens) {
-            print("parens")
-            eBumpArgCount(parent, stEx);
             Int parensSentinel = calcSentinel(cTk, cm->i);
             push(((ExprFrame){
                     .tp = exfrParen, .startNode = scr->len, .sentinel = parensSentinel }), frames);
 
-            if (parent->tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
+            if (parent.tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
                                                // be marked with nodExpr for t-checking & codegen
                 push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
                 push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
@@ -3075,11 +3062,12 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
             } else {
                 push(((Node){ .tp = nodId, .pl2 = cTk.pl1 }), scr);
                 push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
-                eBumpArgCount(parent, stEx);
+                eBumpArgCount(stEx);
+                ePopUnaryCalls(stEx);
             }
         } else if (tokType == tokDataList) {
             stEx->metAnAllocation = true;
-            eBumpArgCount(parent, stEx);
+            eBumpArgCount(stEx);
             push(((ExprFrame) { .tp = exfrDataAlloc, .startNode = scr->len,
                                .sentinel = calcSentinel(cTk, cm->i)}), frames
             );
@@ -3089,9 +3077,8 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
             throwExcParser(errExpressionCannotContain);
         }
     }
-    subexClose(stEx, cm);
+    eClose(stEx, cm);
 }
-
 
 
 private TypeId exprUpToWithFrame(ParseFrame frame, Int startBt, Int lenBts, P_CT) {
@@ -3108,6 +3095,7 @@ private TypeId exprUpToWithFrame(ParseFrame frame, Int startBt, Int lenBts, P_CT
     maybeCloseSpans(cm);
     return exprType;
 }
+
 
 private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprUpTo
 // The main "big" expression parser. Parses an expression whether there is a token or not.
@@ -4196,7 +4184,7 @@ private void pToplevelConstants(Compiler* cm) { //:pToplevelConstants
     while (cm->i < len) {
         Token tok = toks[cm->i];
         if (tok.tp == tokAssignment) {
-            Token rightTk = toks[cm->i + 2];
+            Token rightTk = toks[cm->i + 3]; // 3 to skip the binding, tokAssignRight and tokFn
             if (rightTk.tp != tokFn) {
                 cm->i += 1; // CONSUME the left and right assignment
                 pAssignment(tok, P_C);
@@ -4275,7 +4263,6 @@ testable void pFnSignature(Token fnDef, bool isToplevel, Unt name, Int voidToVoi
     EntityId newFnEntityId = cm->entities.len;
     pushInentities(((Entity){ .class = classImmutable, .typeId = newFnTypeId }), cm);
     addRawOverload(fnNameId, newFnTypeId, newFnEntityId, cm);
-
     pushIntoplevels((Toplevel){.indToken = fnStartTokenId, .sentinelToken = fnSentinelToken,
             .name = name, .entityId = newFnEntityId }, cm);
 }
@@ -4389,7 +4376,6 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
         // This gives the complete overloads & overloadIds tables + list of toplevel functions
         pToplevelSignatures(cm);
         createOverloads(cm);
-
         pToplevelConstants(cm);
 
 #ifdef SAFETY
@@ -4736,7 +4722,7 @@ private TypeId tCreateFnSignature(StateForTypes* st, Int startInd,
 #define maxTypeParams 254
 
 
-private void tSubexClose(StateForTypes* st, Compiler* cm) { //:tSubexClose
+private void teClose(StateForTypes* st, Compiler* cm) { //:teClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
     StackInt* exp = st->exp;
     StackTypeFrame* frames = st->frames;
@@ -4781,7 +4767,7 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
     Bool isFnSignature = hasValues(frames) && peek(frames).tp == sorFunction;
 
     while (cm->i < sentinel) {
-        tSubexClose(st, cm);
+        teClose(st, cm);
 
         Token cTk = cm->tokens.cont[cm->i];
         ++cm->i; // CONSUME the current token
@@ -4863,7 +4849,7 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
     print("result before final close");
     printStackInt(exp);
 
-    tSubexClose(st, cm);
+    teClose(st, cm);
 
     VALIDATEI(exp->len == 1, iErrorInconsistentTypeExpr);
     return exp->cont[0];
@@ -5092,7 +5078,6 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            print("argCount %d arity %d", argCount,  typeReadHeader(typeOfFunc, cm).arity)
             VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
             // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
@@ -5460,16 +5445,17 @@ private void printStackNode(StackNode* st, Arena* a) { //:printStackNode
 
 
 private void printExprStack(StateForExprs* st) { //:printExprStack
-    print(">>> Expr frames cnt %d", st->frames->len);
+    print(">>> Expr frames");
     for (Int j = 0; j < st->frames->len; j += 1) {
         ExprFrame fr = st->frames->cont[j];
         if (fr.tp == exfrCall) {
-            printf("Call %d ", fr.argCount);
+            printf("Call argc");
         } else if (fr.tp == exfrDataAlloc) {
-            printf("DataAlloc %d ", fr.argCount);
+            printf("DataAlloc");
         } else if (fr.tp == exfrParen) {
-            printf("Paren %d ", fr.argCount);
+            printf("Paren");
         }
+        printf(" %d %d; ", fr.argCount, fr.sentinel);
     }
     printf(">>>\n\n");
 }
