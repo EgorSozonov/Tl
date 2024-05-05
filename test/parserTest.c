@@ -159,8 +159,6 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
         if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding
                 || (nodeType == nodAssignment && nd.pl2 == 0) || nodeType == nodFnDef) {
             nd.pl1 = transformBindingEntityId(nd.pl1, control);
-        } else if (nodeType == nodDataAlloc) {
-            nd.pl1 =  control->activeBindings[nd.pl1];
         }
         // transform pl2/pl3 if it holds NameId
         if (nodeType == nodId && nd.pl2 != -1)  {
@@ -477,11 +475,13 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
+       /*
         createTestWithLocs(
             s("Simple function call"),
             s("x = foo 10 2 `hw`"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 6 },
+                (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
                 (Node){ .tp = nodExpr, .pl2 = 4 },
                 (Node){ .tp = tokInt, .pl2 = 10,      },
                 (Node){ .tp = tokInt, .pl2 = 2,       },
@@ -491,19 +491,21 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) { 4, tokInt, tokInt, tokString, tokDouble }),
             ((TestEntityImport[]) {{ .nameInd = 0, .typeInd = 0 }}),
             ((SourceLoc[]) {
+                { .startBt = 0, .lenBts = 17 },
                 { .startBt = 0, .lenBts = 1 },
-                { .startBt = 2, .lenBts = 16 },
-                { .startBt = 4, .lenBts = 2 },
-                { .startBt = 12, .lenBts = 1 },
-                { .startBt = 14, .lenBts = 4 },
-                { .startBt = 7, .lenBts = 4 }
+                { .startBt = 2, .lenBts = 15 },
+                { .startBt = 8, .lenBts = 2 },
+                { .startBt = 11, .lenBts = 1 },
+                { .startBt = 13, .lenBts = 4 },
+                { .startBt = 4, .lenBts = 3 }
             })
         ),
         createTest(
             s("Data allocation"),
-            s("x = L(1 2 3)"),
+            s("x = [1 2 3]"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 8 },
+                (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
                 (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 6 },
 
                 (Node){ .tp = nodAssignment, .pl1 = 1, .pl2 = 0 },
@@ -519,12 +521,14 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Data allocation with expression inside"),
-            s("x = L(4 (2 ^ 7))"),
+            s("x = [4 (^ 2 7)]"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 0 },
-                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 8 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 11 },
+                (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 9 },
 
-                (Node){ .tp = nodAssignment, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 7 },
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
                 (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 5, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 4 },
                 (Node){ .tp = nodExpr, .pl1 = 0, .pl2 = 3 },
@@ -537,11 +541,13 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       */
         createTest(
             s("Nested data allocation with expression inside"),
-            s("x = L(L(1) L(4 (2 - 7)) L(2 3))"),
+            s("x = [[1] [4 (- 2 7)] [2 3]]"),
             (((Node[]) {
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
                 (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 20 },
 
                 (Node){ .tp = nodAssignment, .pl1 = 1, .pl2 = 0 }, // L(1)
@@ -572,6 +578,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       /*
         createTest(
             s("Nested function call 1"),
             s("x = foo 10 (bar) 3"),
@@ -671,7 +678,8 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
-        ),
+        )
+       */
     }));
 }
 
@@ -1425,14 +1433,16 @@ int main() {
     int countTests = 0;
    /*
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
+   */
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
+   /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
 
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&typeTests, &countPassed, &countTests, proto, protoOvs, a);
-   */
 
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
+   */
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {

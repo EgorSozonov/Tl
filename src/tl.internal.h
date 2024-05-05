@@ -305,8 +305,8 @@ DEFINE_STACK_HEADER(Token)
 #define nodScope       13  // if it's the outer scope of a forNode, then pl3 = length of nodes till
                            // inner scope. See parser tests for examples
 #define nodExpr        14  // pl1 = 1 iff it's a composite expression (has internal var decls)
-#define nodAssignment  15  // if pl2 = 0, then pl1 = entityId. Next span is always a nodExpr or
-                           // a nodDataAlloc
+#define nodAssignment  15  // Followed by binding or complex left side. pl3 = distance to the inner
+                           // right side, which is always a nodExpr or a nodDataAlloc
 #define nodDataAlloc   16  // pl1 = typeId, pl3 = count of elements
 
 #define nodAlias       17
@@ -432,9 +432,9 @@ typedef struct { // :SourceLoc
 typedef struct { // :ParseFrame
     Unt tp : 6;
     Int startNodeInd;
-    Int sentinelToken;
-    Int typeId;            // valid only for fnDef, if, loopCond and the like.
-                           // For nodFor, contains the loop depth
+    Int sentinel;    // sentinel token
+    Int typeId;      // valid only for fnDef, if, loopCond and the like.
+                     // For nodFor, contains the loop depth
 } ParseFrame;
 
 
