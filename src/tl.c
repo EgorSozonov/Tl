@@ -11,7 +11,7 @@
 #include "tl.internal.h"
 //}}}
 //{{{ Language definition
-//{{{ Text encoding
+//{{{ Lexical structure
 
 #define aALower       97
 #define aFLower      102
@@ -63,9 +63,13 @@
 #define aLT           60
 #define aGT           62
 
-//}}}
 
-static OpDef TL_OPERATORS[countOperators] = {
+LexerFunc LEX_TABLE[256];
+
+//}}}
+//{{{ Operators
+
+static OpDef OPERATORS[countOperators] = {
     { .arity=1, .bytes={ aExclamation, aDot, 0, 0 } },   // !.
     { .arity=2, .bytes={ aExclamation, aEqual, 0, 0 } }, // !=
     { .arity=1, .bytes={ aExclamation, 0, 0, 0 } },      // !
@@ -111,7 +115,6 @@ static OpDef TL_OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true } // ||
 };
 
-
 const int operatorStartSymbols[13] = {
     // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
     // "=" - by lexEqual, "|" by lexPipe, "/" by "lexDivBy"
@@ -119,6 +122,12 @@ const int operatorStartSymbols[13] = {
     aDivBy, aLT, aGT, aQuestion, aAt, aCaret
 };
 
+//}}}
+//{{{ Syntactical structure
+
+ParserFunc PARSE_TABLE[countSyntaxForms];
+
+//}}}
 //}}}
 //{{{ Utils
 
@@ -1252,6 +1261,7 @@ private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm);
 #ifdef TEST
 void printParser(Compiler* cm, Arena* a);
 void tPrint(TypeId typeId, Compiler* cm);
+private void printExprStack(StateForExprs* st);
 private void printStackInt(StackInt* st);
 void tPrintTypeFrames(StackTypeFrame* st);
 #endif
@@ -2056,11 +2066,11 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     Byte fourthSymbol = (lx->stats.inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
     Int k = 0;
     Int opType = -1; // corresponds to the op... operator types
-    while (k < countOperators && TL_OPERATORS[k].bytes[0] < firstSymbol) {
+    while (k < countOperators && OPERATORS[k].bytes[0] < firstSymbol) {
         k++;
     }
-    while (k < countOperators && TL_OPERATORS[k].bytes[0] == firstSymbol) {
-        OpDef opDef = TL_OPERATORS[k];
+    while (k < countOperators && OPERATORS[k].bytes[0] == firstSymbol) {
+        OpDef opDef = OPERATORS[k];
         Byte secondTentative = opDef.bytes[1];
         if (secondTentative != 0 && secondTentative != secondSymbol) {
             k++;
@@ -2081,7 +2091,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     }
     VALIDATEL(opType > -1, errOperatorUnknown)
 
-    OpDef opDef = TL_OPERATORS[opType];
+    OpDef opDef = OPERATORS[opType];
     bool isAssignment = false;
 
     Int lengthOfBaseOper = (opDef.bytes[1] == 0) ? 1
@@ -2315,9 +2325,8 @@ private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) { //:lexNonAsciiEr
 }
 
 
-private LexerFunc (*tabulateDispatch(Arena* a))[256] { //:tabulateDispatch
-    LexerFunc (*result)[256] = allocateOnArena(256*sizeof(LexerFunc), a);
-    LexerFunc* p = *result;
+private void tabulateDispatch() { //:tabulateDispatch
+    LexerFunc* p = LEX_TABLE;
     for (Int i = 0; i < 128; i++) {
         p[i] = &lexUnexpectedSymbol;
     }
@@ -2358,7 +2367,7 @@ private LexerFunc (*tabulateDispatch(Arena* a))[256] { //:tabulateDispatch
     p[aSpace] = &lexSpace;
     p[aNewline] = &lexNewline; // to make the newline a statement terminator sometimes
     p[aBacktick] = &lexStringLiteral;
-    return result;
+    //return result;
 }
 
 
@@ -2366,8 +2375,8 @@ private void setOperatorsLengths() { //:setOperatorsLengths
 // The set of operators in the language. Must agree in order with tl.internal.h
     for (Int k = 0; k < countOperators; k++) {
         Int m = 0;
-        for (; m < 4 && TL_OPERATORS[k].bytes[m] > 0; m++) {}
-        TL_OPERATORS[k].lenBts = m;
+        for (; m < 4 && OPERATORS[k].bytes[m] > 0; m++) {}
+        OPERATORS[k].lenBts = m;
     }
 }
 
@@ -2609,7 +2618,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
             j += 1) {
     }
     const Int sentinel = calcSentinel(tok, cm->i - 1);
-    Int countLeftSide = j - cm->i;
+    const Int countLeftSide = j - cm->i;
     Token rightTk = toks[j];
 
 #ifdef SAFETY
@@ -2619,8 +2628,9 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     Bool complexLeft = false;
     Int mbNewBinding = -1;
     Token mbOldBinding = (Token){.tp = 0 };
-    Bool isMutation = tok.pl1 >= BIG;
-    push(((ParseFrame){.tp = nodAssignment, .startNodeInd = cm->nodes.len,
+    const Bool isMutation = tok.pl1 >= BIG;
+    const Int assignmentNodeInd = cm->nodes.len;
+    push(((ParseFrame){.tp = nodAssignment, .startNodeInd = assignmentNodeInd,
                        .sentinel = sentinel}), cm->backtrack);
     if (tok.pl1 == assiType) {
         VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
@@ -2652,6 +2662,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
                 mbOldBinding.startBt, mbOldBinding.lenBts, cm);
     }
     cm->i += countLeftSide + 1; // CONSUME the left side of an assignment and the assignRight
+    cm->nodes.cont[assignmentNodeInd].pl3 = cm->nodes.len - assignmentNodeInd;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = cm->nodes.len,
                        .sentinel = sentinel}), cm->backtrack);
     addNode((Node){.tp = nodExpr}, rightTk.startBt, rightTk.lenBts, cm);
@@ -2672,7 +2683,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         bool foundOv = findOverload(leftSideType, ovInd, &operatorEntity, cm);
         VALIDATEP(foundOv, errTypeNoMatchingOverload)
         push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2 }), stEx->calls);
-        push(((SourceLoc){ .startBt = rightTk.startBt, .lenBts = TL_OPERATORS[opType].lenBts}),
+        push(((SourceLoc){ .startBt = rightTk.startBt, .lenBts = OPERATORS[opType].lenBts}),
                     stEx->locsCalls);
         TypeId rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
         VALIDATEP(rightType == leftSideType, errTypeMismatch)
@@ -2681,7 +2692,6 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         // TODO
     } else {
         const Int startNodeInd = cm->nodes.len - 1; // index of the nodExpr for the right side
-
         eLinearize(sentinel, P_C);
         exprCopyFromScratch(startNodeInd, cm);
         const Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
@@ -2858,7 +2868,7 @@ private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
                  tk.startBt, tk.lenBts, cm);
     } else if (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
-        OpDef operDefinition = TL_OPERATORS[operBindingId];
+        OpDef operDefinition = OPERATORS[operBindingId];
         VALIDATEP(operDefinition.arity == 1, errOperatorWrongArity)
         addNode((Node){ .tp = nodId, .pl1 = operBindingId}, tk.startBt, tk.lenBts, cm);
         // TODO add the type when we support first-class functions
@@ -2897,7 +2907,7 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     }
 
     print("pushing alloc expr sent %d", frame.sentinel)
-    addNode((Node){.tp = nodAssignment, .pl1 = 0, .pl2 = countNodes + 2},
+    addNode((Node){.tp = nodAssignment, .pl1 = 0, .pl2 = countNodes + 2, .pl3 = 2},
             rawLoc.startBt, rawLoc.lenBts, cm);
     addNode((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = -1},
             rawLoc.startBt, rawLoc.lenBts, cm);
@@ -2915,24 +2925,35 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
 private void eBumpArgCount(ExprFrame* parent, StateForExprs* stEx) { //:eBumpArgCount
     if (parent->tp == exfrCall || parent->tp == exfrDataAlloc) {
         parent->argCount += 1;
+        print("bumping arg count to %d", parent->argCount)
+        printExprStack(stEx);
     }
 }
 
 
 private void ePopUnaryCalls(StateForExprs* stEx) { //:ePopUnaryCalls
+    print("before popUnary")
+    printExprStack(stEx);
     ExprFrame* zero = stEx->frames->cont;
     ExprFrame* parent = zero + (stEx->frames->len - 1);
-    for (;  parent >= zero && parent->tp == exfrUnaryCall;
-            parent -= 1) {
+    Bool poppedAnyUnaries = false;
+    for (; parent >= zero && parent->tp == exfrUnaryCall;
+           parent -= 1) {
         pop(stEx->frames);
         Node call = pop(stEx->calls);
         call.pl2 = 1;
         push(call, stEx->scr);
         push(pop(stEx->locsCalls), stEx->locsScr);
+
+        poppedAnyUnaries = true;
     }
-    if (parent >= zero && (parent->tp == exfrCall || parent->tp == exfrDataAlloc)) {
+    if (poppedAnyUnaries && parent >= zero
+            && (parent->tp == exfrCall || parent->tp == exfrDataAlloc)) {
         parent->argCount += 1;
+        print("popUnary bumping arg count to %d", parent->argCount)
     }
+    print("afte popUnary")
+    printExprStack(stEx);
 }
 
 
@@ -2954,6 +2975,7 @@ private void subexClose(StateForExprs* stEx, Compiler* cm) { //:subexClose
         } else if (frame.tp == exfrDataAlloc)  {
                 subexDataAllocation(frame, stEx, cm);
         } else if (frame.tp == exfrParen) {
+            print("closing paren")
             ePopUnaryCalls(stEx);
             if (scr->cont[frame.startNode].tp == nodExpr) {
                 // Parens inside data allocator. It was wrapped in a nodExpr, now we set its length
@@ -3032,8 +3054,11 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
                 push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2 }), scr);
             }
             push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+            print("word or literal")
             ePopUnaryCalls(stEx);
+            eBumpArgCount(parent, stEx);
         } else if (tokType == tokParens) {
+            print("parens")
             eBumpArgCount(parent, stEx);
             Int parensSentinel = calcSentinel(cTk, cm->i);
             push(((ExprFrame){
@@ -3045,7 +3070,7 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
                 push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
             }
         } else if (tokType == tokOperator) {
-            if (TL_OPERATORS[cTk.pl1].arity == 1)  {
+            if (OPERATORS[cTk.pl1].arity == 1)  {
                 pAddUnaryCall(cTk, stEx);
             } else {
                 push(((Node){ .tp = nodId, .pl2 = cTk.pl1 }), scr);
@@ -3170,7 +3195,7 @@ private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
     while (cm->i < sentinelToken) {
         Token currTok = toks[cm->i];
         cm->i++;
-        ((*cm->langDef->parserTable)[currTok.tp])(currTok, P_C);
+        (PARSE_TABLE[currTok.tp])(currTok, P_C);
         maybeCloseSpans(cm);
     }
 }
@@ -3346,9 +3371,8 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities,
 }
 
 
-private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] { //:tabulateParserDispatch
-    ParserFunc (*res)[countSyntaxForms] = allocateOnArena(countSyntaxForms*sizeof(ParserFunc), a);
-    ParserFunc* p = *res;
+private void tabulateParserDispatch() { //:tabulateParserDispatch
+    ParserFunc* p = PARSE_TABLE;
     int i = 0;
     while (i <= firstSpanTokenType) {
         p[i] = &parseErrorBareAtom;
@@ -3373,19 +3397,15 @@ private ParserFunc (*tabulateParserDispatch(Arena* a))[countSyntaxForms] { //:ta
     p[tokIf]          = &pIf;
     p[tokFor]         = &pFor;
     p[tokElse]        = &pAlias;
-    return res;
 }
 
 
-testable LanguageDefinition* buildLanguageDefinitions(Arena* a) { //:buildLanguageDefinitions
-// Definition of the operators, lexer dispatch and parser dispatch tables for the compiler
+testable void buildLanguageDefinitions() { //:buildLanguageDefinitions
+// Definition of the operators, lexer dispatch and parser dispatch tables for the compiler.
+// This function should only be called once, at compiler init. Its results are global shared const.
     setOperatorsLengths();
-    LanguageDefinition* result = allocateOnArena(sizeof(LanguageDefinition), a);
-    (*result) = (LanguageDefinition) {
-        .dispatchTable = tabulateDispatch(a),
-        .parserTable = tabulateParserDispatch(a)
-    };
-    return result;
+    tabulateDispatch();
+    tabulateParserDispatch();
 }
 
 
@@ -3426,13 +3446,12 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) { //:copyStringDi
 testable Compiler* createProtoCompiler(Arena* a) { //:createProtoCompiler
 // Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned
 // for every source code module. The proto-compiler contains the following data:
-// - langDef with operators
 // - types that are sufficient for the built-in operators
 // - entities with the built-in operator entities
 // - overloadIds with counts
     Compiler* proto = allocateOnArena(sizeof(Compiler), a);
     (*proto) = (Compiler){
-        .langDef = buildLanguageDefinitions(a), .entities = createInListEntity(32, a),
+        .entities = createInListEntity(32, a),
         .sourceCode = str(standardText, a),
         .stringTable = createStackint32_t(16, a), .stringDict = createStringDict(128, a),
         .types = createInListInt(64, a), .typesDict = createStringDict(128, a),
@@ -3473,11 +3492,11 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
         && (unsigned char)inp[lx->i + 2] == 0xBF) {
         lx->i += 3;
     }
-    LexerFunc (*dispatch)[256] = proto->langDef->dispatchTable;
     // Main loop over the input
     if (setjmp(excBuf) == 0) {
         while (lx->i < inpLength) {
-            ((*dispatch)[inp[lx->i]])(inp, lx);
+            //((*dispatch)[inp[lx->i]])(inp, lx);
+            (LEX_TABLE[inp[lx->i]])(inp, lx);
         }
         finalizeLexer(lx);
     }
@@ -3945,7 +3964,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
     Arena* aTmp = mkArena();
     (*lx) = (Compiler){
         // this assumes that the source code is prefixed with the "standardText"
-        .i = sizeof(standardText) - 1, .langDef = proto->langDef,
+        .i = sizeof(standardText) - 1,
         .sourceCode = prepareInput((const char *)sourceCode->cont, a),
         .tokens = createInListToken(LEXER_INIT_SIZE, a),
         .metas = createInListToken(100, a),
@@ -5006,7 +5025,7 @@ private void populateExp(Int indExpr, Int sentinelNode, Compiler* cm) {
             push((Int)nd.tp, exp);
         } else if (nd.tp == nodCall) {
             const Int argCount = nd.pl2;
-            push(BIG + argCount, exp); // signifies that it's a call, and its arity
+            push(BIG + argCount, exp); // signifies that it's a call, and its arg count
             push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), exp);
             // index into overloadIds, or entityId for 0-arity fns
 
@@ -5073,6 +5092,7 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
+            print("argCount %d arity %d", argCount,  typeReadHeader(typeOfFunc, cm).arity)
             VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
             // first parm matches, but not arity
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
@@ -5438,6 +5458,22 @@ private void printStackNode(StackNode* st, Arena* a) { //:printStackNode
     }
 }
 
+
+private void printExprStack(StateForExprs* st) { //:printExprStack
+    print(">>> Expr frames cnt %d", st->frames->len);
+    for (Int j = 0; j < st->frames->len; j += 1) {
+        ExprFrame fr = st->frames->cont[j];
+        if (fr.tp == exfrCall) {
+            printf("Call %d ", fr.argCount);
+        } else if (fr.tp == exfrDataAlloc) {
+            printf("DataAlloc %d ", fr.argCount);
+        } else if (fr.tp == exfrParen) {
+            printf("Paren %d ", fr.argCount);
+        }
+    }
+    printf(">>>\n\n");
+}
+
 //}}}
 //{{{ Types testing
 
@@ -5577,7 +5613,8 @@ void printOverloads(Int nameId, Compiler* cm) { //:printOverloads
 
 
 #ifndef TEST
-Int main(int argc, char** argv) {
+Int main(int argc, char** argv) { //:main
+    buildLanguageDefinitions();
     Arena* a = mkArena();
     String* sourceCode = readSourceFile("_bin/code.tl", a);
     if (sourceCode == null) {

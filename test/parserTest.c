@@ -78,7 +78,7 @@ private Int transformBindingEntityId(Int inp, Compiler* pr) {
 }
 
 
-private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
+private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { //:importTypes
     Int countImportedTypes = 0;
     Int j = 0;
     while (j < countTypes) {
@@ -96,7 +96,7 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) {
         const Int sentinel = j + importLen + 1;
         TypeId initTypeId = cm->types.len;
 
-        pushIntypes(importLen + 3, cm); // +3 because the header takes 2 ints, 1 more for
+        pushIntypes(importLen + 2, cm); // +3 because the header takes 2 ints, 1 more for
                                         // the return typeId
         typeAddHeader(
            (TypeHeader){.sort = sorFunction, .tyrity = 0, .arity = importLen - 1,
@@ -475,12 +475,12 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
-       /*
+    /* 
         createTestWithLocs(
             s("Simple function call"),
             s("x = foo 10 2 `hw`"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 6 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 6, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
                 (Node){ .tp = nodExpr, .pl2 = 4 },
                 (Node){ .tp = tokInt, .pl2 = 10,      },
@@ -504,11 +504,12 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             s("Data allocation"),
             s("x = [1 2 3]"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 8 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 9, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
-                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 6 },
+                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 7 },
 
-                (Node){ .tp = nodAssignment, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 5, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
                 (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3,
                         .pl3 = 3 },
                 (Node){ .tp = tokInt, .pl2 = 1 },
@@ -523,11 +524,11 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             s("Data allocation with expression inside"),
             s("x = [4 (^ 2 7)]"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 11 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 11, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
                 (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 9 },
 
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 7 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 7, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
                 (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 5, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 4 },
@@ -541,20 +542,21 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       */
         createTest(
             s("Nested data allocation with expression inside"),
             s("x = [[1] [4 (- 2 7)] [2 3]]"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 26, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
-                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 20 },
+                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 24 },
 
-                (Node){ .tp = nodAssignment, .pl1 = 1, .pl2 = 0 }, // L(1)
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 3, .pl3 = 2 }, // [1]
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
                 (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 1, .pl3 = 1 },
                 (Node){ .tp = tokInt, .pl2 = 1 },
 
-                (Node){ .tp = nodAssignment, .pl1 = 2, .pl2 = 0 }, // L(2 (2 - 7))
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 7, .pl3 = 2 }, // [2 (2 - 7)]
+                (Node){ .tp = nodBinding, .pl1 = 2, .pl2 = -1 }, // [2 (2 - 7)]
                 (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 5, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 4 },
                 (Node){ .tp = nodExpr, .pl1 = 0, .pl2 = 3 },
@@ -562,12 +564,14 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = tokInt, .pl2 = 7 },
                 (Node){ .tp = nodCall, .pl1 = oper(opMinus, tokInt), .pl2 = 2 },
 
-                (Node){ .tp = nodAssignment, .pl1 = 3, .pl2 = 0 }, // L(2 3)
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 4, .pl3 = 2 }, // [2 3]
+                (Node){ .tp = nodBinding, .pl1 = 3, .pl2 = -1 },
                 (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 3 },
 
-                (Node){ .tp = nodAssignment, .pl1 = 4, .pl2 = 0 }, // L(2 3)
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 5, .pl3 = 2 }, // [2 3]
+                (Node){ .tp = nodBinding, .pl1 = 4, .pl2 = -1 },
                 (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3, .pl3 = 3 },
                 (Node){ .tp = nodId, .pl1 = 1, .pl2 = -1 },
                 (Node){ .tp = nodId, .pl1 = 2, .pl2 = -1 },
@@ -578,12 +582,13 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       /*
+       */ 
         createTest(
             s("Nested function call 1"),
             s("x = foo 10 (bar) 3"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl2 = 0},
+                (Node){ .tp = nodAssignment, .pl2 = 6, .pl3 = 2},
+                (Node){ .tp = nodBinding, .pl1 = 0},
                 (Node){ .tp = nodExpr, .pl2 = 4},
 
                 (Node){ .tp = tokInt, .pl2 = 10},
@@ -596,6 +601,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((TestEntityImport[]) {(TestEntityImport){ .nameInd = 0, .typeInd = 0},
                                (TestEntityImport){ .nameInd = 1, .typeInd = 1}})
         ),
+       /*
         createTest(
             s("Nested function call 2"),
             s("x = foo 10 (bar 3.4)"),
@@ -1425,6 +1431,7 @@ int main() {
         return 1;
     }
 
+    buildLanguageDefinitions();
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);

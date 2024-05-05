@@ -301,7 +301,7 @@ DEFINE_STACK_HEADER(Token)
 #define nodGetElemPtr  11  // get pointer to array/list elem
 #define nodGetElem     12  // get value of array/list elem
 
-// Punctuation (inner node). pl2 = node count
+// Punctuation (inner node). pl2 = node count inside (so for [span node1 node2], span.pl2 = 2)
 #define nodScope       13  // if it's the outer scope of a forNode, then pl3 = length of nodes till
                            // inner scope. See parser tests for examples
 #define nodExpr        14  // pl1 = 1 iff it's a composite expression (has internal var decls)
@@ -410,11 +410,6 @@ typedef struct Compiler Compiler;
 
 typedef void (*LexerFunc)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void)
 typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
-
-typedef struct { // :LanguageDefinition
-    LexerFunc (*dispatchTable)[256];
-    ParserFunc (*parserTable)[countSyntaxForms];
-} LanguageDefinition;
 
 
 typedef struct { // :Node
@@ -564,9 +559,6 @@ typedef struct { // :CompStats
 
 
 struct Compiler { // :Compiler
-    // See docs/compiler.txt, docs/architecture.svgz
-    LanguageDefinition* langDef;
-
     // LEXING
     String* sourceCode;
     InListToken tokens;

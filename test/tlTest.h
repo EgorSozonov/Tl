@@ -10,10 +10,10 @@ DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 DEFINE_INTERNAL_LIST_HEADER(imports, EntityImport)
 
 
+void buildLanguageDefinitions();
 String* prepareInput(const char* content, Arena* a);
 Compiler* lexicallyAnalyze(String* input, Compiler*, Arena*);
 void printLexer(Compiler* a);
-LanguageDefinition* buildLanguageDefinitions(Arena* a);
 int64_t longOfDoubleBits(double d);
 void printIntArray(Int count, Arr(Int) arr);
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
@@ -79,7 +79,6 @@ extern const char errIndentation[];
 #ifdef PARSER_TEST
 
 void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* cm);
-LanguageDefinition* buildLanguageDefinitions(Arena* a);
 void createCompiler(Compiler* lx, Arena* a);
 void parseMain(Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Compiler* cm);
