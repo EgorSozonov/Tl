@@ -64,7 +64,7 @@
 #define aGT           62
 
 
-LexerFunc LEX_TABLE[256];
+LexerFunc LEX_TABLE[256]; // filled in by "tabulateLexer"
 
 //}}}
 //{{{ Operators
@@ -113,7 +113,7 @@ static OpDef OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aCaret, 0, 0, 0}, .assignable=true, .overloadable = true}, // ^
     { .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }, // ||.
     { .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true } // ||
-};
+}; // real operator overloads filled in by "buildOperators"
 
 const int operatorStartSymbols[13] = {
     // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
@@ -125,7 +125,7 @@ const int operatorStartSymbols[13] = {
 //}}}
 //{{{ Syntactical structure
 
-ParserFunc PARSE_TABLE[countSyntaxForms];
+ParserFunc PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
 
 //}}}
 //}}}
@@ -1186,8 +1186,8 @@ const char errFnNameAndParams[]            = "Function signature must look like 
 const char errFnDuplicateParams[]          = "Duplicate parameter names in a function are not allowed";
 const char errFnMissingBody[]              = "Function definition must contain a body which must be a Scope immediately following its parameter list!";
 const char errLoopSyntaxError[]            = "A loop should look like `for x = 0; x < 101; ( loopBody ) `";
-const char errLoopHeader[]                 = "A loop header should contain 1 or 2 items: the condition and, optionally, the var declarations";
-const char errLoopEmptyBody[]              = "Empty loop body!";
+const char errLoopNoCondition[]            = "A loop header should contain a condition";
+const char errLoopEmptyStepBody[]          = "Empty loop step code & body, but at least one must be present!";
 const char errBreakContinueTooComplex[]    = "This statement is too complex! Continues and breaks may contain one thing only: the postitive number of enclosing loops to continue/break!";
 const char errBreakContinueInvalidDepth[]  = "Invalid depth of break/continue! It must be a positive 32-bit integer!";
 const char errDuplicateFunction[]          = "Duplicate function declaration: a function with same name and arity already exists in this scope!";
@@ -1338,7 +1338,7 @@ StandardText getStandardTextLength(void) { //:getStandardTextLength
 #ifdef TEST
 
 Int pos(Compiler* lx);
-void printLexBtrack(Compiler* lx);
+void printLexBtrack(StackBtToken* lx);
 
 #endif
 
@@ -2217,6 +2217,7 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
+    mbCloseAssignRight(&top, lx);
 
     // since a closing paren may be closing something with statements inside it, like a lex scope
     // or a function, we need to close that statement before closing its parent
@@ -2325,7 +2326,7 @@ private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) { //:lexNonAsciiEr
 }
 
 
-private void tabulateDispatch() { //:tabulateDispatch
+private void tabulateLexer() { //:tabulateLexer
     LexerFunc* p = LEX_TABLE;
     for (Int i = 0; i < 128; i++) {
         p[i] = &lexUnexpectedSymbol;
@@ -2533,10 +2534,10 @@ private void ifLeftSide(Token tok, P_CT) { //:ifLeftSide
 // Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
     VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
-
     VALIDATEP(leftSentinel + 1 < cm->stats.inpLength, errPrematureEndOfTokens)
     VALIDATEP(toks[leftSentinel].tp == tokMisc && toks[leftSentinel].pl1 == miscArrow,
             errIfMalformed)
+
     Int typeLeft = pExprWorker(tok, P_C);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
 }
@@ -2626,7 +2627,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 #endif
 
     Bool complexLeft = false;
-    Int mbNewBinding = -1;
+    EntityId entityId = -1;
     Token mbOldBinding = (Token){.tp = 0 };
     const Bool isMutation = tok.pl1 >= BIG;
     const Int assignmentNodeInd = cm->nodes.len;
@@ -2639,15 +2640,15 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else if (countLeftSide == 1)  {
         Token nameTk = toks[cm->i];
         Unt newName = ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1; // nameId + lenBts
-        Int mbBinding = cm->activeBindings[nameTk.pl1];
-        if (mbBinding > -1) {
-            VALIDATEP(cm->entities.cont[mbBinding].class == classMutable,
+        entityId = cm->activeBindings[nameTk.pl1];
+        if (entityId > -1) {
+            VALIDATEP(cm->entities.cont[entityId].class == classMutable,
                     errCannotMutateImmutable)
         } else {
-            mbBinding = createEntity(newName, nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
+            entityId = createEntity(newName, nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
         }
         addNode((Node){ .tp = nodAssignment}, tok.startBt, tok.lenBts, cm);
-        addNode((Node){ .tp = nodBinding, .pl1 = mbBinding, .pl2 = 0 },
+        addNode((Node){ .tp = nodBinding, .pl1 = entityId, .pl2 = 0 },
                 nameTk.startBt, nameTk.lenBts, cm);
     } else if (countLeftSide > 1) {
         complexLeft = true;
@@ -2695,11 +2696,10 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         eLinearize(sentinel, P_C);
         exprCopyFromScratch(startNodeInd, cm);
         const Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
-
         VALIDATEP(rightType != -2, errAssignment)
 
         if (tok.pl1 == 0 && rightType > -1) {
-            cm->entities.cont[mbNewBinding].typeId = rightType;
+            cm->entities.cont[entityId].typeId = rightType;
         }
     }
     maybeCloseSpans(cm);
@@ -2727,36 +2727,35 @@ private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT I
 //   |    |    |    |    |    |    |    |    |
 //   v    v    v    v    v    v    v    v    v
 // [inits | cond | tokBody1 ... tokBodyN tokStep1 tokStep2 ] <- restores original tp of tokIntro
-    VALIDATEP(cm->i < sentinel, errLoopEmptyBody)
+    VALIDATEP(cm->i < sentinel, errLoopEmptyStepBody)
     Int j = cm->i;
     for (Token currTok = toks[j];
          (currTok.tp == tokAssignment || currTok.tp == tokAssignRight);
          currTok = toks[j]) {
         j = calcSentinel(currTok, j);
-        VALIDATEP(j < sentinel, errLoopEmptyBody)
+        VALIDATEP(j < sentinel, errLoopEmptyStepBody)
     }
     Token condTok = toks[j];
-    VALIDATEP(condTok.tp == tokStmt || condTok.tp == tokIntro, errLoopSyntaxError)
-    *condInd = (condTok.pl2 > 0) ? j : 0;
+    VALIDATEP((condTok.tp == tokStmt || condTok.tp == tokIntro) && condTok.pl2 > 0,
+              errLoopNoCondition)
+    *condInd = j;
 
-    j = calcSentinel(condTok, j);
-    if (condTok.tp == tokIntro) { // the cond is the intro, hence there are no steppings
+    if (condTok.tp == tokIntro)  {
+        VALIDATEP(condTok.pl1 == tokStmt, errLoopNoCondition) // a cond must be an expression
         *stepInd = 0;
-        *bodyInd = j;
-        return;
+    } else {
+        j = calcSentinel(condTok, j); // skipping the cond
+        *stepInd = j;
+        for (Token currTok = toks[j]; j < sentinel && currTok.tp != tokIntro; currTok = toks[j]) {
+            j = calcSentinel(currTok, j);
+        }
+        VALIDATEP(j < sentinel, errLoopSyntaxError)
     }
-
-    *stepInd = j;
-    for (Token currTok = toks[j]; currTok.tp != tokIntro; currTok = toks[j]) {
-        j = calcSentinel(currTok, j);
-        VALIDATEP(j < sentinel, errLoopEmptyBody)
-    }
-    if (toks[j].tp == tokIntro)  {
-        toks[j].tp = toks[j].pl1;
-    }
+    toks[j].tp = toks[j].pl1; // restore the original token type of the tokIntro
     j = calcSentinel(toks[j], j);
     *bodyInd = (j < sentinel) ? j : 0;
 
+    VALIDATEP((*stepInd) + (*bodyInd) > 0, errLoopEmptyStepBody)
     // re-order
     if (*stepInd > 0 && *bodyInd > 0)  {
         const Int lenBody = sentinel - *bodyInd;
@@ -2791,7 +2790,7 @@ private void pFor(Token forTk, P_CT) { //:pFor
     Int stepInd; // index of iteration stepping code
     Int bodyInd; // index of loop body
     const Int forNodeInd = cm->nodes.len;
-    preambleFor(sentinel, &condInd, &stepInd, &bodyInd, P_C);
+    preambleFor(sentinel, OUT &condInd, OUT &stepInd, OUT &bodyInd, P_C);
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinel = sentinel,
                         .typeId = cm->stats.loopCounter }), cm->backtrack);
@@ -3085,6 +3084,14 @@ private TypeId exprUpToWithFrame(ParseFrame frame, Int startBt, Int lenBts, P_CT
 //:exprUpToWithFrame The main "big" expression parser. Parses an expression whether there is a
 // token or not. Starts from cm->i and goes up to the sentinel token. Returns the expression's type
 // Precondition: we are looking 1 past the tokExpr or tokParens
+    if (cm->i + 1 == frame.sentinel) { // the [stmt 1, tokInt] case
+        Token singleToken = toks[cm->i];
+        if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
+            cm->i += 1; // CONSUME the single literal
+            return exprSingleItem(singleToken, cm);
+        }
+    }
+
     const Int startNodeInd = cm->nodes.len;
     push(frame, cm->backtrack);
     addNode((Node){ .tp = nodExpr}, startBt, lenBts, cm);
@@ -3099,8 +3106,10 @@ private TypeId exprUpToWithFrame(ParseFrame frame, Int startBt, Int lenBts, P_CT
 
 private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:exprUpTo
 // The main "big" expression parser. Parses an expression whether there is a token or not.
-// Starts from cm->i and goes up to the sentinel token. Returns the expression's type
 // Precondition: we are looking 1 past the tokExpr or tokParens
+// Starts from cm->i and goes up to the sentinel token.
+// Emits a nodExpr and opens a corresponding parse frame
+// Returns the expression's type
     Int startNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd,
                 .sentinel = sentinelToken }), cm->backtrack);
@@ -3131,8 +3140,7 @@ private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT) { //:ex
 
 private Int pExprWorker(Token tok, P_CT) { //:pExprWorker
 // Precondition: we are looking 1 past the first token of expr, which is the first parameter.
-// Consumes 1
-// or more tokens. Handles single items also Returns the type of parsed expression
+// Consumes 1 or more tokens. Handles single items also Returns the type of parsed expression
     if (tok.tp == tokStmt || tok.tp == tokParens) {
         if (tok.pl2 == 1) {
             Token singleToken = toks[cm->i];
@@ -3359,7 +3367,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities,
 }
 
 
-private void tabulateParserDispatch() { //:tabulateParserDispatch
+private void tabulateParser() { //:tabulateParser
     ParserFunc* p = PARSE_TABLE;
     int i = 0;
     while (i <= firstSpanTokenType) {
@@ -3392,8 +3400,8 @@ testable void buildLanguageDefinitions() { //:buildLanguageDefinitions
 // Definition of the operators, lexer dispatch and parser dispatch tables for the compiler.
 // This function should only be called once, at compiler init. Its results are global shared const.
     setOperatorsLengths();
-    tabulateDispatch();
-    tabulateParserDispatch();
+    tabulateLexer();
+    tabulateParser();
 }
 
 
@@ -3816,9 +3824,9 @@ private void buildOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildOp
 
 
 private void buildOperators(Compiler* cm) { //:buildOperators
-// Operators are the first-ever functions to be defined. This function builds their [types],
-// [functions] and overload counts. The order must agree with the order of operator
-// definitions in tl.internal.h, and every operator must have at least one function defined
+// Operators are the first-ever functions to be defined. This function builds their @types,
+// @functions and overload counts. The order must agree with the order of operator
+// definitions in tl.internal.h, and every operator must have at least one type defined
     TypeId boolOfIntInt    = addConcrFnType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     TypeId boolOfIntIntInt = addConcrFnType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     TypeId boolOfFlFl      = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
@@ -4830,6 +4838,7 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
                     push(((TypeFrame){ .tp = sorRecord, .sentinel = newSent}), frames);
                 } else { // ordinary type call
                     Int typeId = cm->activeBindings[nameId];
+                    print("nameId %d typeId %d", nameId, typeId)
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
                     push(((TypeFrame){ .tp = sorTypeCall, .nameId = typeId, .sentinel = newSent}),
                          frames);
@@ -5078,8 +5087,10 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
+            //print("type of func %d argc %d arity %d", typeOfFunc, argCount, typeReadHeader(typeOfFunc, cm).arity)
             // first parm matches, but not arity
+            VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
+
             Int firstParamInd = getFirstParamInd(typeOfFunc, cm);
             for (int k = j - argCount, l = firstParamInd; k < j; k++, l++) {
                 // We know the type of the function, now to validate arg types against param types
@@ -5092,9 +5103,8 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
                 }
             }
 
-
-            cm->nodes.cont[j + indExpr + (currAhead)].pl1 = entityId;
             // the type-resolved function of the call
+            cm->nodes.cont[j + indExpr + (currAhead)].pl1 = entityId;
 
             j -= argCount;
             currAhead += argCount;
@@ -5279,9 +5289,8 @@ Int posInd(Int ind) {
 }
 
 
-void printLexBtrack(Compiler* lx) {
+void printLexBtrack(StackBtToken* bt) {
     printf("lexBtTrack = [");
-    StackBtToken* bt = lx->lexBtrack;
 
     for (Int k = 0; k < bt->len; k++) {
         printf("%s ", tokNames[bt->cont[k].tp]);

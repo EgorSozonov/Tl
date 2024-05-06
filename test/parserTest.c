@@ -157,7 +157,7 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
         Unt nodeType = nd.tp;
         // All the node types which contain entityIds in their pl1
         if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding
-                || (nodeType == nodAssignment && nd.pl2 == 0) || nodeType == nodFnDef) {
+                || nodeType == nodFnDef) {
             nd.pl1 = transformBindingEntityId(nd.pl1, control);
         }
         // transform pl2/pl3 if it holds NameId
@@ -636,12 +636,12 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((TestEntityImport[]) {(TestEntityImport){ .nameInd = 0, .typeInd = 0},
                                (TestEntityImport){ .nameInd = 1, .typeInd = 1}})
         ),
-       /*
         createTest(
             s("Triple function call"),
             s("x = bar 2 (foo (foo `hw`)) 4"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment,     .pl2 = 0 },
+                (Node){ .tp = nodAssignment,     .pl2 = 8, .pl3 = 2 },
+                (Node){ .tp = nodBinding,        .pl1 = 0 },
                 (Node){ .tp = nodExpr,           .pl2 = 6 },
                 (Node){ .tp = tokInt,            .pl2 = 2 },
                 (Node){ .tp = tokString,                      },
@@ -657,9 +657,10 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Operators simple"),
-            s("x = 1 + (9/3)"),
+            s("x = + 1 (/ 9 3)"),
             (((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 7, .pl3 = 2 },
+                (Node){ .tp = nodBinding,        .pl1 = 0 },
                 (Node){ .tp = nodExpr,  .pl2 = 5 },
                 (Node){ .tp = tokInt, .pl2 = 1 },
                 (Node){ .tp = tokInt, .pl2 = 9 },
@@ -670,27 +671,12 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-        createTestWithError(
-            s("Operator arity error"),
-            s(errTypeNoMatchingOverload),
-            s("x = 1 + 20 100"),
-            (((Node[]) {
-                (Node){ .tp = nodAssignment },
-                (Node){ .tp = nodExpr },
-                (Node){ .tp = tokInt, .pl2 = 1 },
-                (Node){ .tp = tokInt, .pl2 = 20 },
-                (Node){ .tp = tokInt, .pl2 = 100 },
-                (Node){ .tp = nodCall, .pl1 = O + opPlus, .pl2 = 3 }
-            })),
-            ((Int[]) {}),
-            ((TestEntityImport[]) {})
-        ),
         createTest(
             s("Unary operator precedence"),
-            s("x = `12` + -3##$"),
-
+            s("x = + `12` $ ## -3"),
             ((Node[]) {
-                (Node){ .tp = nodAssignment, .pl2 = 0 },
+                (Node){ .tp = nodAssignment, .pl2 = 7, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl2 = 0 },
                 (Node){ .tp = nodExpr,              .pl2 = 5 },
                 (Node){ .tp = tokString },
                 (Node){ .tp = tokInt, .pl1 = -1,    .pl2 = -3 },
@@ -700,8 +686,23 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
+        ),
+        createTestWithError(
+            s("Operator arity error"),
+            s(errTypeNoMatchingOverload),
+            s("x = + 1 20 100"),
+            (((Node[]) {
+                (Node){ .tp = nodAssignment, .pl3 = 2 },
+                (Node){ .tp = nodBinding },
+                (Node){ .tp = nodExpr },
+                (Node){ .tp = tokInt, .pl2 = 1 },
+                (Node){ .tp = tokInt, .pl2 = 20 },
+                (Node){ .tp = tokInt, .pl2 = 100 },
+                (Node){ .tp = nodCall, .pl1 = opPlus + O, .pl2 = 3 }
+            })),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
         )
-       */
     }));
 }
 
@@ -1197,6 +1198,163 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+
+        createTest(
+            s("For loop without body"),
+            s("f = (\\(for x~ = 1; < x 101; x = + x 1: ))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 17, .pl3 = 0 },
+                (Node){ .tp = nodFor,           .pl2 = 16, .pl3 = 10 },
+
+                (Node){ .tp = nodScope, .pl2 = 15 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 3, .pl3 = 2 }, // x~ = 1
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl2 = 1 },
+                (Node){ .tp = tokInt,          .pl2 = 1 },
+                (Node){ .tp = nodExpr, .pl2 = 3 }, // < x 101
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1, },
+                (Node){ .tp = tokInt,          .pl2 = 101 },
+                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
+
+                (Node){ .tp = nodScope,          .pl2 = 6 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 5, .pl3 = 2 }, // x = x + 1
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl2 = 3 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 },
+                (Node){ .tp = tokInt, .pl1 = 0, .pl2 = 1 },
+                (Node){ .tp = nodCall,   .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+        createTest(
+            s("For loop with no step"),
+            s("f = (\\(for x~ = 1; < x 101: print $x ))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 15, .pl3 = 0 },
+                (Node){ .tp = nodFor,           .pl2 = 14, .pl3 = 10 },
+
+                (Node){ .tp = nodScope, .pl2 = 13 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 3, .pl3 = 2 }, // x~ = 1
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl2 = 1 },
+                (Node){ .tp = tokInt,          .pl2 = 1 },
+                (Node){ .tp = nodExpr, .pl2 = 3 }, // < x 101
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1, },
+                (Node){ .tp = tokInt,          .pl2 = 101 },
+                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
+
+                (Node){ .tp = nodScope,          .pl2 = 4 },
+                (Node){ .tp = nodExpr,           .pl2 = 3 }, // print $x
+                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 1 },      // x
+                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 }, // print
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+        createTest(
+            s("For with no initializers and step"),
+            s("f = (\\x = 0;\n"
+              " (for < x 101: print $x ))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 14, .pl3 = 0 },
+
+                (Node){ .tp = nodAssignment, .pl2 = 3, .pl3 = 2 }, // x = 0
+                (Node){ .tp = nodBinding, .pl1 = 1 },
+                (Node){ .tp = nodExpr, .pl2 = 1 },
+                (Node){ .tp = tokInt,              .pl2 = 0 },
+
+                (Node){ .tp = nodFor,           .pl2 = 9, .pl3 = 5 },
+                (Node){ .tp = nodExpr, .pl2 = 3 }, // < x 101
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1, },
+                (Node){ .tp = tokInt,          .pl2 = 101 },
+                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
+
+                (Node){ .tp = nodScope,          .pl2 = 4 },
+                (Node){ .tp = nodExpr,           .pl2 = 3 }, // print $x
+                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 1 },      // x
+                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 }, // print
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+
+        createTest(
+            s("For loop with no initalizers and body"),
+            s("f = (\\x~ = 7;\n"
+              " (for < x 101; x = + x 1: ))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 16, .pl3 = 0 },
+                (Node){ .tp = nodAssignment, .pl2 = 3, .pl3 = 2 }, // x = 0
+                (Node){ .tp = nodBinding, .pl1 = 1 },
+                (Node){ .tp = nodExpr, .pl2 = 1 },
+                (Node){ .tp = tokInt,              .pl2 = 7 },
+
+                (Node){ .tp = nodFor,           .pl2 = 11, .pl3 = 5 },
+
+                (Node){ .tp = nodExpr, .pl2 = 3 }, // < x 101
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1, },
+                (Node){ .tp = tokInt,          .pl2 = 101 },
+                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
+
+                (Node){ .tp = nodScope,          .pl2 = 6 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 5, .pl3 = 2 }, // x = + x 1
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl2 = 3 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 },
+                (Node){ .tp = tokInt, .pl1 = 0, .pl2 = 1 },
+                (Node){ .tp = nodCall,   .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+        createTest(
+            s("For loop with single-token condition"),
+            s("f = (\\x~ = true;\n"
+              " (for x: x = !x ))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 12, .pl3 = 0 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 3, .pl3 = 2 }, // x~ = 1
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl2 = 1 },
+                (Node){ .tp = tokBool,          .pl2 = 1 },
+
+                (Node){ .tp = nodFor,           .pl2 = 7, .pl3 = 2 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 },
+
+                (Node){ .tp = nodScope,          .pl2 = 5 },
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 4, .pl3 = 2 }, // x = x + 1
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl2 = 2 },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 },
+                (Node){ .tp = nodCall,   .pl1 = oper(opBoolNeg, tokBool), .pl2 = 1 }
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+
+        createTestWithError(
+            s("For loop error: neither step nor body"),
+            s(errLoopEmptyStepBody),
+            s("f = (\\(for x~ = 1; < x 101: ))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 0, .pl3 = 0 },
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+        createTestWithError(
+            s("For loop error: no condition"),
+            s(errLoopNoCondition),
+            s("f = (\\(for x~ = 1; x = + x 1: print $x ))"),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 0, .pl3 = 0 },
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
 /*
         createTest(
             s("For with break and continue"),
@@ -1455,17 +1613,17 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
    /*
-    runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
-   */
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
+   */
+    runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
    /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
 
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&typeTests, &countPassed, &countTests, proto, protoOvs, a);
 
-   */
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
+   */
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {
