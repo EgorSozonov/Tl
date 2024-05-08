@@ -313,7 +313,7 @@ DEFINE_STACK_HEADER(Token)
 #define nodAssert      18  // pl1 = 1 iff it's a debug assert
 #define nodBreakCont   19  // pl1 = number of label to break or continue to, -1 if none needed
                            // It's a continue iff it's >= BIG
-#define nodCatch       20  // `catch e {`
+#define nodCatch       20  // `(catch e `
 #define nodDefer       21
 #define nodImport      22  // This is for test files only, no need to import anything in main
 #define nodFnDef       23  // pl1 = entityId, pl3 = nameId
@@ -336,9 +336,9 @@ DEFINE_STACK_HEADER(Token)
 
 // There is a closed set of operators in the language.
 //
-// For added flexibility, some operators may be extended into one more planes,
+// For added flexibility, some operators may be extended into another variant,
 // e.g. (+) may be extended into (+.), while (/) may be extended into (/.).
-// These extended operators are declared by the language, and may be defined
+// These extended operators are declared but not defined by the language, and may be defined
 // for any type by the user, with the return type being arbitrary.
 // For example, the type of 3D vectors may have two different multiplication
 // operators: *. for vector product and * for scalar product.

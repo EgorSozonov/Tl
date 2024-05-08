@@ -14,7 +14,7 @@ WARN=-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc
 DEPFLAGS=
 LIBS=-lm
-BIN=tlc
+BIN=billtc
 
 CFLAGS = $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(LIBS)
 

@@ -34,7 +34,6 @@ void printName(Int name, Compiler* cm);
 Int getStringDict(Byte* text, String* strToSearch, StackInt* stringTable, StringDict* hm);
 
 Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
-LanguageDefinition* buildLanguageDefinitions(Arena* a);
 void printLexer(Compiler* a);
 int equalityLexer(Compiler a, Compiler b);
 

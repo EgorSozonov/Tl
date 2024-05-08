@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../src/tl.internal.h"
-#include "tlTest.h"
+#include "../src/billt.internal.h"
+#include "billtTest.h"
 
 
 typedef struct {
@@ -82,9 +82,9 @@ private LexerTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Lexe
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(LexerTest), tests)
 
 
-void runLexerTest(LexerTest test, int* countPassed, int* coUntests, Compiler* proto, Arena *a) {
+void runLexerTest(LexerTest test, int* countPassed, int* countTests, Compiler* proto, Arena *a) {
 // Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code
-    (*coUntests)++;
+    (*countTests)++;
     Compiler* result = lexicallyAnalyze(test.input, proto, a);
 
     int equalityStatus = equalityLexer(*result, *test.expectedOutput);
@@ -1046,6 +1046,7 @@ int main(int argc, char** argv) {
     printf("----------------------------\n");
     printf("--  LEXER TEST  --\n");
     printf("----------------------------\n");
+    buildLanguageDefinitions();
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
 

@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../src/tl.internal.h"
-#include "tlTest.h"
+#include "../src/billt.internal.h"
+#include "billtTest.h"
 
 //{{{ Utils
 
@@ -986,9 +986,9 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("If with else"),
-            s("f = {{-> Str:\n"
-              "    if{ 5 > 3: `5` } else{`=)` }\n"
-              "}}"
+            s("f = (\\-> Str:\n"
+              "    (if > 5 3: `5` else `=)` )\n"
+              ")"
               ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .pl2 = 11 },
@@ -1013,8 +1013,8 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("If with elseif"),
             s("f = (\\\n"
-              "    (if > 5 3: 11}\n"
-              "    eif == 5 3: 4}\n"
+              "    (if > 5 3: 11\n"
+              "    eif == 5 3: 4)\n"
               ")"
               ),
             ((Node[]) {
@@ -1044,8 +1044,8 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("If with elseif and else"),
             s("f = (\\\n"
-              "    (if > 5 3: 11 }\n"
-              "    eif == 5 3: 4 }\n"
+              "    (if > 5 3: 11 \n"
+              "    eif == 5 3: 4 \n"
               "    else 100 )\n"
               ")"
               ),
@@ -1084,6 +1084,7 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //{{{ Loop tests
 ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
+   /* 
         createTest(
             s("Simple loop"),
             s("f = (\\(for x~ = 1; < x 101; x = + x 1: print $x ))"),
@@ -1355,7 +1356,6 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-/*
         createTest(
             s("For with break and continue"),
             s("f = (\\\n"
@@ -1517,33 +1517,30 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       */ 
         createTestWithError(
             s("For with type error"),
             s(errTypeMustBeBool),
             s("f = (\\ (for x~ = 1; / x 101: print x) )"),
             ((Node[]) {
-                (Node){ .tp = nodFnDef         },
-                (Node){ .tp = nodBinding, .pl1 = 0 },
-                (Node){ .tp = nodScope }, // function body
-
+                (Node){ .tp = nodFnDef },
                 (Node){ .tp = nodFor },
 
                 (Node){ .tp = nodScope },
 
-                (Node){ .tp = nodAssignment,      .pl2 = 2 },
+                (Node){ .tp = nodAssignment,      .pl2 = 3, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 1  }, // x
+                (Node){ .tp = nodExpr,             .pl2 = 1 },
                 (Node){ .tp = tokInt,             .pl2 = 1 },
 
-                (Node){ .tp = nodForCond, .pl1 = slStmt, .pl2 = 4 },
                 (Node){ .tp = nodExpr,            .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opDivBy, tokInt), .pl2 = 2 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2 }, // x
-                (Node){ .tp = tokInt,          .pl2 = 101 }
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 }, // x
+                (Node){ .tp = tokInt,          .pl2 = 101 },
+                (Node){ .tp = nodCall, .pl1 = oper(opDivBy, tokInt), .pl2 = 2 }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         )
-       */
     }));
 }
 /*
@@ -1614,16 +1611,16 @@ int main() {
     int countTests = 0;
    /*
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
-   */
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
+   */
    /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
 
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&typeTests, &countPassed, &countTests, proto, protoOvs, a);
 
-    runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
    */
+    runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {

@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <setjmp.h>
-#include "tl.internal.h"
+#include "billt.internal.h"
 //}}}
 //{{{ Language definition
 //{{{ Lexical structure
@@ -1291,8 +1291,8 @@ const char standardText[] = "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
 #endif
                             ;
 // The :standardText prepended to all source code inputs and the hash table to provide a built-in
-// string set. Tl's reserved words must be at the start and sorted lexicographically.
-// Also they must agree with the "standardStr" in tl.internal.h
+// string set. Billtin's reserved words must be at the start and sorted lexicographically.
+// Also they must agree with the "standardStr" in billt.internal.h
 
 const Int standardStringLens[] = {
      5, 6, 5, 5, 8,
@@ -1921,7 +1921,7 @@ private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt
 
 
 private void wordInternal(Unt wordType, Arr(Byte) source, Compiler* lx) { //:wordInternal
-// Lexes a word (both reserved and identifier) according to Tl's rules.
+// Lexes a word (both reserved and identifier) according to Billtin's rules.
 // Precondition: we are pointing at the first letter character of the word (i.e. past the possible
 // "." or ":")
 // Examples of acceptable words: A:B:c:d, asdf123, ab:cd45
@@ -2151,7 +2151,7 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
 
 
 private void lexComment(Arr(Byte) source, Compiler* lx) { //:lexComment
-// Tl separates between documentation comments (which live in meta info and are
+// Billt separates between documentation comments (which live in meta info and are
 // spelt as "meta(`comment`)") and comments for, well, eliding text from code;
 // Elision comments are of the "//" form.
     lx->i += 2; // CONSUME the "//"
@@ -2373,7 +2373,7 @@ private void tabulateLexer() { //:tabulateLexer
 
 
 private void setOperatorsLengths() { //:setOperatorsLengths
-// The set of operators in the language. Must agree in order with tl.internal.h
+// The set of operators in the language. Must agree in order with billt.internal.h
     for (Int k = 0; k < countOperators; k++) {
         Int m = 0;
         for (; m < 4 && OPERATORS[k].bytes[m] > 0; m++) {}
@@ -3475,7 +3475,8 @@ private void finalizeLexer(Compiler* lx) { //:finalizeLexer
 
 
 testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* a) {
-//:lexicallyAnalyze Main lexer function. Precondition: the input Byte array has been prepended with StandardText
+//:lexicallyAnalyze Main lexer function. Precondition: the input Byte array has been prepended
+// with StandardText
     Compiler* lx = createLexerFromProto(sourceCode, proto, a);
     const Int inpLength = lx->stats.inpLength;
     Arr(Byte) inp = lx->sourceCode->cont;
@@ -3491,7 +3492,6 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
     // Main loop over the input
     if (setjmp(excBuf) == 0) {
         while (lx->i < inpLength) {
-            //((*dispatch)[inp[lx->i]])(inp, lx);
             (LEX_TABLE[inp[lx->i]])(inp, lx);
         }
         finalizeLexer(lx);
@@ -3826,7 +3826,7 @@ private void buildOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildOp
 private void buildOperators(Compiler* cm) { //:buildOperators
 // Operators are the first-ever functions to be defined. This function builds their @types,
 // @functions and overload counts. The order must agree with the order of operator
-// definitions in tl.internal.h, and every operator must have at least one type defined
+// definitions in billt.internal.h, and every operator must have at least one type defined
     TypeId boolOfIntInt    = addConcrFnType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     TypeId boolOfIntIntInt = addConcrFnType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     TypeId boolOfFlFl      = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
@@ -4367,7 +4367,7 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 }
 
 
-// Must agree in order with node types in tl.internal.h
+// Must agree in order with node types in billt.internal.h
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "id", "call", "binding", ".fld", "GEP", "GElem",
@@ -5267,7 +5267,7 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 //}}}
 //{{{ Lexer testing
 
-// Must agree in order with token types in tl.internal.h
+// Must agree in order with token types in billt.internal.h
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "misc",
     "word", "Type", "'var", ":kwarg", "operator", ".field",
@@ -5611,7 +5611,7 @@ void printOverloads(Int nameId, Compiler* cm) { //:printOverloads
 Int main(int argc, char** argv) { //:main
     buildLanguageDefinitions();
     Arena* a = mkArena();
-    String* sourceCode = readSourceFile("_bin/code.tl", a);
+    String* sourceCode = readSourceFile("_bin/code.bil", a);
     if (sourceCode == null) {
         goto cleanup;
     }
