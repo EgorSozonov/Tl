@@ -1906,13 +1906,14 @@ private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt
             wrapInAStatementStarting(startBt, source, lx);
             pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
         } else if (keywordTp == keywBreak) {
-            wrapInAStatementStarting(startBt, source, lx);
-            pushIntokens((Token){.tp=tokBreakCont, .pl1=0, .pl2=0,
-                          .startBt=realStartBt, .lenBts=5}, lx);
+
+            push(((BtToken){ .tp = tokBreakCont, .tokenInd = lx->tokens.len, .spanLevel = slStmt}),
+                    lx->lexBtrack);
+            pushIntokens((Token) {.tp = tokBreakCont, .pl1 = 0, .startBt = realStartBt }, lx);
         } else if (keywordTp == keywContinue) {
-            wrapInAStatementStarting(startBt, source, lx);
-            pushIntokens((Token){.tp=tokBreakCont, .pl1=1, .pl2=0,
-                         .startBt=realStartBt, .lenBts=5}, lx);
+            push(((BtToken){ .tp = tokBreakCont, .tokenInd = lx->tokens.len, .spanLevel = slStmt}),
+                    lx->lexBtrack);
+            pushIntokens((Token) {.tp = tokBreakCont, .pl1 = 1, .startBt = realStartBt }, lx);
         }
     } else {
         lexSyntaxForm(keywordTp, realStartBt, source, lx);
@@ -2558,7 +2559,7 @@ private void pIf(Token tok, P_CT) { //:pIf
 private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assignmentComplexLeftSide
 // A left side with more than one token must consist of a known var with a series of accessors.
 // It gets transformed like this:
-// arr@i@(j*2)@(k + 3) ==> arr i getElemPtr j 2 *(2) getElemPtr k 3 +(2) getElemPtr
+// arr[i][j*2][k + 3] ==> arr i getElemPtr j 2 *(2) getElemPtr k 3 +(2) getElemPtr
     Token firstTk = toks[start];
     VALIDATEP(firstTk.tp == tokWord, errAssignmentLeftSide)
     EntityId leftEntityId = getActiveVar(firstTk.pl2, cm);
@@ -2664,9 +2665,6 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     }
     cm->i += countLeftSide + 1; // CONSUME the left side of an assignment and the assignRight
     cm->nodes.cont[assignmentNodeInd].pl3 = cm->nodes.len - assignmentNodeInd;
-    push(((ParseFrame){.tp = nodExpr, .startNodeInd = cm->nodes.len,
-                       .sentinel = sentinel}), cm->backtrack);
-    addNode((Node){.tp = nodExpr}, rightTk.startBt, rightTk.lenBts, cm);
 
     if (isMutation) {
         StateForExprs* stEx = cm->stateForExprs;
@@ -2692,10 +2690,9 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else if (rightTk.tp == tokFn) {
         // TODO
     } else {
-        const Int startNodeInd = cm->nodes.len - 1; // index of the nodExpr for the right side
-        eLinearize(sentinel, P_C);
-        exprCopyFromScratch(startNodeInd, cm);
-        const Int rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
+        TypeId rightType = exprUpToWithFrame(
+                (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
+                rightTk.startBt, rightTk.lenBts, P_C);
         VALIDATEP(rightType != -2, errAssignment)
 
         if (tok.pl1 == 0 && rightType > -1) {
@@ -2847,7 +2844,7 @@ private void parseErrorBareAtom(Token tok, P_CT) {
 
 private ParseFrame popFrame(Compiler* cm) { //:popFrame
     ParseFrame frame = pop(cm->backtrack);
-    if (frame.tp == nodScope || frame.tp == nodFor) { // a nodFor acts as a scope itself
+    if (frame.tp == nodScope) { // a nodFor acts as a scope itself
         popScopeFrame(cm);
     }
     setSpanLengthParser(frame.startNodeInd, cm);
@@ -3227,6 +3224,7 @@ private void parseAwait(Token tok, P_CT) {
 
 
 private Int breakContinue(Token tok, Int* sentinel, P_CT) { //:breakContinue
+// Returns the number of levels to break/continue to, or 1 if there weren't any specified
     VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
     Int unwindLevel = 1;
     *sentinel = cm->i;
@@ -3238,7 +3236,7 @@ private Int breakContinue(Token tok, Int* sentinel, P_CT) { //:breakContinue
         ++(*sentinel); // CONSUME the Int after the `break`
     }
     if (unwindLevel == 1) {
-        return -1;
+        return 1;
     }
 
     Int j = cm->backtrack->len;
@@ -4838,7 +4836,6 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
                     push(((TypeFrame){ .tp = sorRecord, .sentinel = newSent}), frames);
                 } else { // ordinary type call
                     Int typeId = cm->activeBindings[nameId];
-                    print("nameId %d typeId %d", nameId, typeId)
                     VALIDATEP(typeId > -1, errUnknownTypeConstructor)
                     push(((TypeFrame){ .tp = sorTypeCall, .nameId = typeId, .sentinel = newSent}),
                          frames);

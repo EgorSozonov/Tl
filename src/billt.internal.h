@@ -252,7 +252,7 @@ DEFINE_STACK_HEADER(Token)
 #define tokAssignRight 20  // Right-hand side of assignment
 #define tokAlias       21
 #define tokAssert      22
-#define tokBreakCont   23  // pl1 >= BIG iff it's a continue
+#define tokBreakCont   23  // pl1 = 1 iff it's a continue
 #define tokTrait       24
 #define tokImport      25  // For test files and package decls
 #define tokReturn      26
@@ -306,7 +306,7 @@ DEFINE_STACK_HEADER(Token)
                            // inner scope. See parser tests for examples
 #define nodExpr        14  // pl1 = 1 iff it's a composite expression (has internal var decls)
 #define nodAssignment  15  // Followed by binding or complex left side. pl3 = distance to the inner
-                           // right side, which is always a nodExpr or a nodDataAlloc
+                           // right side, which is always a literal, nodExpr or a nodDataAlloc
 #define nodDataAlloc   16  // pl1 = typeId, pl3 = count of elements
 
 #define nodAlias       17
