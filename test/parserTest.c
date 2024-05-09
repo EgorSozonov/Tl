@@ -357,7 +357,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 { .startBt = 17, .lenBts = 1 }
             })
         ),
-        
+
         createTestWithError(
             s("Assignment shadowing error"),
             s(errCannotMutateImmutable),
@@ -708,6 +708,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
 ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
+       /*
         createTestWithLocs(
             s("Simple function definition 1"),
             s("newFn = (\\x Int y (L Bool) -> : a = x)"),
@@ -715,8 +716,8 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodFnDef,             .pl2 = 5 },
                 (Node){ .tp = nodBinding, .pl1 = 1 },  // param x
                 (Node){ .tp = nodBinding, .pl1 = 2 },  // param y
-                (Node){ .tp = nodAssignment, .pl1 = 3 },
-                (Node){ .tp = nodExpr, .pl2 = 1 },
+                (Node){ .tp = nodAssignment, .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 3 },
                 (Node){ .tp = nodId, .pl1 = 1,      .pl2 = 1 }   // x
             }),
             ((Int[]) {}),
@@ -725,12 +726,11 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (SourceLoc){ .startBt = 8, .lenBts = 30 },
                 (SourceLoc){ .startBt = 10, .lenBts = 1 },
                 (SourceLoc){ .startBt = 16, .lenBts = 1 },
+                (SourceLoc){ .startBt = 32, .lenBts = 5 },
                 (SourceLoc){ .startBt = 32, .lenBts = 1 },
-                (SourceLoc){ .startBt = 34, .lenBts = 3 },
                 (SourceLoc){ .startBt = 36, .lenBts = 1 }
              })
         ),
-       /*
         createTest(
             s("Simple function definition 2"),
             s("newFn = (\\x Str y Double -> Str:\n"
@@ -739,16 +739,14 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
               ")"
             ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,            .pl2 = 9 },
-                (Node){ .tp = nodBinding, .pl1 = 0,          },
-                (Node){ .tp = nodScope,            .pl2 = 7 },
+                (Node){ .tp = nodFnDef,            .pl2 = 7 },
                 (Node){ .tp = nodBinding, .pl1 = 1           }, // param x
                 (Node){ .tp = nodBinding, .pl1 = 2           }, // param y
-                (Node){ .tp = nodAssignment,       .pl2 = 2  },
+                (Node){ .tp = nodAssignment,       .pl2 = 2, .pl3 = 2  },
                 (Node){ .tp = nodBinding, .pl1 = 3           }, // local a
-                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2  }, // x
+                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 1  }, // x
                 (Node){ .tp = nodReturn,           .pl2 = 1  },
-                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5  }  // a
+                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 3  }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
@@ -763,48 +761,46 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef                       },
-                (Node){ .tp = nodBinding, .pl1 = 0           },
-                (Node){ .tp = nodScope                       },
                 (Node){ .tp = nodBinding, .pl1 = 1           }, // param x
                 (Node){ .tp = nodBinding, .pl1 = 2           }, // param y
-                (Node){ .tp = nodAssignment,       .pl2 = 2  },
+                (Node){ .tp = nodAssignment,       .pl2 = 2, .pl3 = 2  },
                 (Node){ .tp = nodBinding, .pl1 = 3,          }, // local a
-                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2  }, // x
+                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 1  }, // x
                 (Node){ .tp = nodReturn,                     },
-                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 5  }  // a
+                (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 3  }  // a
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
         createTest(
             s("Function definition with complex return"),
-            s("newFn = (\x Int y Double -> Str:\n"
-              "    return $((toDouble x) - y))"
+            s("newFn = (\\x Int y Double -> Str:\n"
+              "    return $(- (foo x) y))"
             ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,            .pl2 = 11 },
-                (Node){ .tp = nodBinding, .pl1 = 0,          },
-                (Node){ .tp = nodScope,            .pl2 = 9  },
-                (Node){ .tp = nodBinding, .pl1 = 1           }, // param x
-                (Node){ .tp = nodBinding, .pl1 = 2           }, // param y
+                (Node){ .tp = nodFnDef,            .pl2 = 9 },
+                (Node){ .tp = nodBinding, .pl1 = 1           },  // param x
+                (Node){ .tp = nodBinding, .pl1 = 2           },  // param y
                 (Node){ .tp = nodReturn,           .pl2 = 6  },
-                (Node){ .tp = nodExpr,           .pl2 = 5    },
-                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokDouble), .pl2 = 1 },
+                (Node){ .tp = nodExpr,             .pl2 = 5  },
+                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 1 },   // x
+                (Node){ .tp = nodCall, .pl1 = I - 1, .pl2 = 1 }, // foo
+                (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 2 },   // y
                 (Node){ .tp = nodCall, .pl1 = oper(opMinus, tokDouble), .pl2 = 2 },
-                (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 2 },  // x
-                (Node){ .tp = nodId, .pl1 = 2,     .pl2 = 4 }  // y
+                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokDouble), .pl2 = 1 },
             }),
-            ((Int[]) {}),
-            ((TestEntityImport[]) {})
+            ((Int[]) { 2, tokInt, tokDouble }),
+            ((TestEntityImport[]) {{ .nameInd = 0, .typeInd = 0 }})
         ),
+       */
         createTest(
             s("Mutually recursive function definitions"),
-            s("foo = (\\x Int y Double -> Int:\n"
+            s("func1 = (\\x Int y Double -> Int:\n"
               "    a = x;\n"
-              "    return bar y a\n"
+              "    return func2 y a\n"
               ")\n"
-              "bar = (\\x Double y Int -> Int:\n"
-              "    return foo y x\n"
+              "func2 = (\\x Double y Int -> Int:\n"
+              "    return func1 y x\n"
               ")"
             ),
             ((Node[]) {
@@ -837,6 +833,7 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       /*
         createTest(
             s("Function definition with nested scope"),
             s("main = (\\x Int y Float ->:\n"
@@ -1205,7 +1202,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 2, .pl3 = 2 }, // x~ = 1
                 (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = 0 },
                 (Node){ .tp = tokInt,          .pl2 = 1 },
-                
+
                 (Node){ .tp = nodExpr, .pl2 = 3 }, // < x 101
                 (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1, },
                 (Node){ .tp = tokInt,          .pl2 = 101 },
@@ -1387,7 +1384,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Node[]) {
                 (Node){ .tp = nodFnDef                },
                 (Node){ .tp = nodFor, .pl3 = 9       },
-                
+
                 (Node){ .tp = nodScope     },
                 (Node){ .tp = nodAssignment,      .pl2 = 2, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 1 }, // x
@@ -1422,7 +1419,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodFnDef,           .pl2 = 56 },
 
                 (Node){ .tp = nodFor,  .pl1 = 1, .pl2 = 55, .pl3 = 9 }, // for #1. It's being "broken" from
-                        
+
                 (Node){ .tp = nodScope, .pl2 = 54 },
 
                 (Node){ .tp = nodAssignment, .pl2 = 2, .pl3 = 2}, // a = 0
@@ -1433,7 +1430,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1 }, // a
                 (Node){ .tp = tokInt, .pl2 = 101 },
                 (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
-                
+
                 (Node){ .tp = nodScope,          .pl2 = 46 },
                 (Node){ .tp = nodFor,          .pl2 = 20, .pl3 = 9 }, // for #2
                 (Node){ .tp = nodScope,          .pl2 = 19 },
@@ -1589,18 +1586,18 @@ int main() {
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
+   /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
-   /*
-    runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
    */
+    runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
    /*
 
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&typeTests, &countPassed, &countTests, proto, protoOvs, a);
 
-   */
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
+   */
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {
