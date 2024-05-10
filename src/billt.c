@@ -1179,7 +1179,7 @@ const char errCoreFormInappropriate[]      = "Inappropriate reserved word!";
 const char errIfLeft[]                     = "A left-hand clause in an if can only contain variables, boolean literals and expressions!";
 const char errIfRight[]                    = "A right-hand clause in an if can only contain atoms, expressions, scopes and some core forms!";
 const char errIfEmpty[]                    = "Empty `if` expression";
-const char errIfMalformed[]                = "Malformed `if` expression, should look like (if pred => `true case` else `default`)";
+const char errIfMalformed[]                = "Malformed `if` expression, should look like (if pred: `true case` else `default`)";
 const char errIfElseMustBeLast[]           = "An `else` subexpression must be the last thing in an `if`";
 const char errTypeDefCountNames[]          = "Wrong count of names in a type definition!";
 const char errFnNameAndParams[]            = "Function signature must look like this: `{x Type1 y Type 2 ->  ReturnType => body...}`";
@@ -2236,7 +2236,6 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
 
-
     mbCloseAssignRight(&top, lx);
 
     // since a closing paren may be closing something with statements inside it, like a lex scope
@@ -2417,7 +2416,7 @@ private void setOperatorsLengths() { //:setOperatorsLengths
 private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT);
 private void eClose(StateForExprs* s, Compiler* cm);
 private void addBinding(int nameId, int bindingId, Compiler* cm);
-private void maybeCloseSpans(Compiler* cm);
+private void mbCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
 private EntityId importActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
@@ -2533,8 +2532,8 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
 
 //}}}
 
-private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
-//:addParsedScope Performs coordinated insertions to start a scope within the parser
+private void openParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler* cm) {
+//:openParsedScope Performs coordinated insertions to start a scope within the parser
     push(((ParseFrame){
             .tp = nodScope, .startNodeInd = cm->nodes.len, .sentinel = sentinelToken }),
         cm->backtrack);
@@ -2542,12 +2541,23 @@ private void addParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compiler
     pushLexScope(cm->scopeStack);
 }
 
+
+private void openFnScope(EntityId fnEntity, NameId name, TypeId fnType, Token fnTk, Int sentinel, 
+                         Compiler* cm) {
+//:openParsedScope Performs coordinated insertions to start a scope within the parser
+    push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinel = sentinel,
+                        .typeId = fnType }), cm->backtrack);
+    pushLexScope(cm->scopeStack); // a function body is also a lexical scope
+    addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (name & LOWER24BITS)},
+            fnTk.startBt, fnTk.lenBts, cm);
+} 
+
 private void parseMisc(Token tok, P_CT) {
 }
 
 
 private void pScope(Token tok, P_CT) { //:pScope
-    addParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
+    openParsedScope(cm->i + tok.pl2, tok.startBt, tok.lenBts, cm);
 }
 
 private void parseTry(Token tok, P_CT) {
@@ -2555,28 +2565,81 @@ private void parseTry(Token tok, P_CT) {
 }
 
 
-private void ifLeftSide(Token tok, P_CT) { //:ifLeftSide
+private void ifFindNextClause(Int start, Int sentinel, OUT Int* nextTokenInd, OUT Int* lastLastByte, 
+                              Arr(Token) toks) { //:ifFindNextClause
+// Finds the next clause inside an "if" syntax form. Returns the index of that clause's first token
+// and the last byte (of course exclusive, so the byte after) of the last token/span before that 
+// clause. Returns 0s if there is no next clause.
+// Precondition: we are 1 token past the tokIntro span 
+    Int j = start;
+    Int next; 
+    Token curr; 
+    for (curr = toks[j], next = calcSentinel(curr, j); 
+         j < sentinel && curr.tp != tokElseIf && curr.tp != tokElse;
+         j = next) {
+        *lastLastByte = curr.startBt + curr.lenBts;
+    }
+    if (j == sentinel)  {
+        *nextTokenInd = 0;
+        *lastLastByte = 0;
+    }
+}
+
+
+private void ifCondition(Token tok, P_CT) { //:ifCondition
 // Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
-    VALIDATEP(tok.tp == tokStmt || tok.tp == tokWord || tok.tp == tokBool, errIfLeft)
+    print("left i %d sent %d", cm->i, leftSentinel) 
+    VALIDATEP(tok.tp == tokIntro, errIfLeft)
     VALIDATEP(leftSentinel + 1 < cm->stats.inpLength, errPrematureEndOfTokens)
-    VALIDATEP(toks[leftSentinel].tp == tokMisc && toks[leftSentinel].pl1 == miscArrow,
-            errIfMalformed)
 
-    Int typeLeft = pExprWorker(tok, P_C);
+    TypeId typeLeft = pExprWorker(tok, P_C);
     VALIDATEP(typeLeft == tokBool, errTypeMustBeBool)
+    mbCloseSpans(cm);
 }
 
 
 private void pIf(Token tok, P_CT) { //:pIf
+    const Int ifSentinel = cm->i + tok.pl2; 
+    
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.len,
-            .sentinel = cm->i + tok.pl2 };
+            .sentinel = ifSentinel };
     push(newParseFrame, cm->backtrack);
     addNode((Node){.tp = nodIf, .pl1 = tok.pl1 }, tok.startBt, tok.lenBts, cm);
 
     Token stmtTok = toks[cm->i];
     cm->i += 1; // CONSUME the stmt token
-    ifLeftSide(stmtTok, P_C);
+    ifCondition(stmtTok, P_C);
+    
+    Int indNextClause;
+    Int lastByteBeforeNextClause;
+    ifFindNextClause(cm->i, ifSentinel, OUT &indNextClause, OUT &lastByteBeforeNextClause, toks);
+    Token scopeTok = toks[cm->i];
+    if (indNextClause > 0) {
+        VALIDATEP(indNextClause > cm->i, errIfEmpty)
+        openParsedScope(indNextClause, scopeTok.startBt, lastByteBeforeNextClause - scopeTok.startBt, cm);
+    } else {
+        lastByteBeforeNextClause = tok.startBt + tok.lenBts;
+        openParsedScope(ifSentinel, scopeTok.startBt, scopeTok.lenBts, cm);
+    }
+}
+
+
+private void pElseIf(Token tok, P_CT) { //:pElseIf
+// ElseIf spans go inside an if: (if expr (scope ...) (elseif expr (scope ...))
+// "Else" is a special case of "ElseIf" marked with .pl3 = 0
+    // if we're in an elseif already, close it
+    // even if we're in "If", need to set its .pl3
+    const Int ifSentinel = cm->i + tok.pl2; 
+    ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.len,
+            .sentinel = ifSentinel };
+    push(newParseFrame, cm->backtrack);
+    addNode((Node){.tp = nodIf, .pl1 = tok.pl1 }, tok.startBt, tok.lenBts, cm);
+
+    Token stmtTok = toks[cm->i];
+    cm->i += 1; // CONSUME the stmt token
+    ifCondition(stmtTok, P_C);
+    openParsedScope(ifSentinel, tok.startBt, 0, cm);
 }
 
 
@@ -2723,7 +2786,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
             cm->entities.cont[entityId].typeId = rightType;
         }
     }
-    maybeCloseSpans(cm);
+    mbCloseSpans(cm);
 }
 
 
@@ -2820,7 +2883,7 @@ private void pFor(Token forTk, P_CT) { //:pFor
     // variable initialization
     Int sndInd = minPositiveOf(3, condInd, stepInd, bodyInd);
     if (sndInd > initInd) {
-        addParsedScope(sentinel, forTk.startBt, forTk.lenBts, cm);
+        openParsedScope(sentinel, forTk.startBt, forTk.lenBts, cm);
         for (cm->i = initInd; cm->i < sndInd;) {
             // parse assignments
             Token tok = toks[cm->i];
@@ -2848,7 +2911,7 @@ private void pFor(Token forTk, P_CT) { //:pFor
     const Int bodyNodeInd = cm->nodes.len;
 
     cm->nodes.cont[forNodeInd].pl3 = bodyNodeInd - forNodeInd; // distance to inner scope
-    addParsedScope(sentinel, bodyStartBt, forTk.lenBts - bodyStartBt + forTk.startBt, cm);
+    openParsedScope(sentinel, bodyStartBt, forTk.lenBts - bodyStartBt + forTk.startBt, cm);
 
     cm->i = minPositiveOf(2, stepInd, bodyInd); // CONSUME the "for" until the loop body + step
 }
@@ -3120,7 +3183,7 @@ private TypeId exprUpToWithFrame(ParseFrame frame, Int startBt, Int lenBts, P_CT
     eLinearize(frame.sentinel, P_C);
     exprCopyFromScratch(startNodeInd, cm);
     Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
-    maybeCloseSpans(cm);
+    mbCloseSpans(cm);
     return exprType;
 }
 
@@ -3131,6 +3194,7 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
 // Starts from cm->i and goes up to the sentinel token.
 // Emits a nodExpr and opens a corresponding parse frame
 // Returns the expression's type
+print("e up to sentinel %d", sentinelToken)
     Int startNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd,
                 .sentinel = sentinelToken }), cm->backtrack);
@@ -3162,7 +3226,7 @@ private TypeId exprHeadless(Int sentinel, Int startBt, Int lenBts, P_CT) { //:ex
 private Int pExprWorker(Token tok, P_CT) { //:pExprWorker
 // Precondition: we are looking 1 past the first token of expr, which is the first parameter.
 // Consumes 1 or more tokens. Handles single items also Returns the type of parsed expression
-    if (tok.tp == tokStmt || tok.tp == tokParens) {
+    if (tok.tp == tokStmt || tok.tp == tokParens || tok.tp == tokIntro) {
         if (tok.pl2 == 1) {
             Token singleToken = toks[cm->i];
             if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
@@ -3184,7 +3248,7 @@ private void pExpr(Token tok, P_CT) {
 }
 
 
-private void maybeCloseSpans(Compiler* cm) { //:maybeCloseSpans
+private void mbCloseSpans(Compiler* cm) { //:mbCloseSpans
 // When we are at the end of a function parsing a parse frame, we might be at the end of said frame
 // (otherwise => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
 // in which case this function handles all the corresponding stack poppin'.
@@ -3213,7 +3277,7 @@ private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
         Token currTok = toks[cm->i];
         cm->i += 1;
         (PARSE_TABLE[currTok.tp])(currTok, P_C);
-        maybeCloseSpans(cm);
+        mbCloseSpans(cm);
     }
 }
 
@@ -3414,6 +3478,7 @@ private void tabulateParser() { //:tabulateParser
     p[tokTry]         = &pAlias;
 
     p[tokIf]          = &pIf;
+    p[tokElseIf]      = &pElseIf;
     p[tokFor]         = &pFor;
     p[tokElse]        = &pAlias;
 }
@@ -4308,15 +4373,9 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     TypeId fnType = cm->entities.cont[fnEntity].typeId;
 
     cm->i = fnStartInd; // tokFn
-
     Token fnTk = toks[cm->i];
 
-    // the fnDef scope & node
-    push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinel = fnSentinel,
-                        .typeId = fnType }), cm->backtrack);
-    pushLexScope(cm->scopeStack); // a function body is also a lexical scope
-    addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (toplevelSignature.name & LOWER24BITS)},
-            fnTk.startBt, fnTk.lenBts, cm);
+    openFnScope(fnEntity, toplevelSignature.name, fnType, fnTk, fnSentinel, cm);
 
     cm->i += 1; // CONSUME the tokFn token
     Token mbParamsTk = toks[cm->i];

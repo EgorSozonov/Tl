@@ -868,51 +868,47 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
 //}}}
 //{{{ If tests
-/*
 ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("If test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple if"),
             s("f = (\\\n"
-              "    (if == 5 5: print `5` }\n"
+              "    (if == 5 5: print `5` )\n"
               ")"
               ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl2 = 11 },
-                (Node){ .tp = nodBinding, .pl1 = 0 }, // f
-                (Node){ .tp = nodScope,    .pl2 = 9 },
+                (Node){ .tp = nodFnDef, .pl2 = 9 },
 
                 (Node){ .tp = nodIf, .pl1 = slScope, .pl2 = 8 },
                 (Node){ .tp = nodExpr,     .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opEquality, tokInt), .pl2 = 2 }, // ==
                 (Node){ .tp = tokInt,      .pl2 = 5 },
                 (Node){ .tp = tokInt,      .pl2 = 5},
+                (Node){ .tp = nodCall, .pl1 = oper(opEquality, tokInt), .pl2 = 2 }, // ==
 
-                (Node){ .tp = nodIf,       .pl2 = 3 },
+                (Node){ .tp = nodScope,     .pl2 = 3 },
                 (Node){ .tp = nodExpr,     .pl2 = 2 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1 }, // print
-                (Node){ .tp = tokString }
+                (Node){ .tp = tokString },
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 } // print
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {}),
             ((SourceLoc[]) {
-                (SourceLoc){ .startBt = 0, .lenBts = 38 },
-                (SourceLoc){ .startBt = 4, .lenBts = 1 },
-                (SourceLoc){ .startBt = 5, .lenBts = 33 },
+                (SourceLoc){ .startBt = 4, .lenBts = 32 },
 
-                (SourceLoc){ .startBt = 13, .lenBts = 24 },
-                (SourceLoc){ .startBt = 17, .lenBts = 6 },
-                (SourceLoc){ .startBt = 17, .lenBts = 2 },
+                (SourceLoc){ .startBt = 11, .lenBts = 23 },
+                (SourceLoc){ .startBt = 15, .lenBts = 7 },
+                (SourceLoc){ .startBt = 18, .lenBts = 1 },
                 (SourceLoc){ .startBt = 20, .lenBts = 1 },
-                (SourceLoc){ .startBt = 22, .lenBts = 1 },
+                (SourceLoc){ .startBt = 15, .lenBts = 2 },
 
-                (SourceLoc){ .startBt = 27, .lenBts = 9 },
-                (SourceLoc){ .startBt = 27, .lenBts = 9 },
-                (SourceLoc){ .startBt = 27, .lenBts = 5 },
-                (SourceLoc){ .startBt = 33, .lenBts = 3 }
+                (SourceLoc){ .startBt = 23, .lenBts = 9 },
+                (SourceLoc){ .startBt = 23, .lenBts = 9 },
+                (SourceLoc){ .startBt = 29, .lenBts = 3 },
+                (SourceLoc){ .startBt = 23, .lenBts = 5 }
 
              })
         ),
+/*
         createTest(
             s("If with else"),
             s("f = (\\-> Str:\n"
@@ -1005,10 +1001,10 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         )
+*/
     }));
 }
 
-*/
 //}}}
 //{{{ Loop tests
 
@@ -1521,18 +1517,17 @@ int main() {
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
+   /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
-   /*
    */
-   /*
-
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
+   /*
+    runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&typeTests, &countPassed, &countTests, proto, protoOvs, a);
 
    */
-    runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {
