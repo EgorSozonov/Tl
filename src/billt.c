@@ -1846,6 +1846,7 @@ private void mbCloseAssignRight(BtToken* top, Compiler* cm) { //:mbCloseAssignRi
 private void lxCloseFnDef(BtToken* top, Compiler* cm) { //:lxCloseFnDef
 // Handles the case we are closing a function definition: we need to close its parent tokAssignment!
     StackBtToken* bt = cm->lexBtrack;
+    setStmtSpanLength(top->tokenInd, cm);
 #ifdef SAFETY
     VALIDATEI(hasValues(bt) && peek(bt).tp == tokAssignRight, iErrorInconsistentSpans)
 #endif
@@ -2234,6 +2235,8 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
 
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
+
+
     mbCloseAssignRight(&top, lx);
 
     // since a closing paren may be closing something with statements inside it, like a lex scope
@@ -2244,9 +2247,10 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
         setStmtSpanLength(top.tokenInd, lx);
         top = pop(bt);
     }
-    lx->i += 1; // CONSUME the closing ")"
+    lx->stats.lastClosingPunctInd = startInd; // this must be here, after possible statement close
     if (top.tp == tokFn)  {
         lxCloseFnDef(&top, lx);
+        lx->i += 1; // CONSUME the closing ")"
         return;
     }
     if (hasValues(bt) && (top.tp == tokElse || top.tp == tokElseIf)) {
@@ -2257,7 +2261,7 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
     VALIDATEL(top.spanLevel == slSubexpr || top.spanLevel == slScope, errPunctuationUnmatched)
 
     setSpanLengthLexer(top.tokenInd, lx);
-    lx->stats.lastClosingPunctInd = startInd;
+    lx->i += 1; // CONSUME the closing ")"
 }
 
 
@@ -3348,7 +3352,6 @@ private void pReturn(Token tok, P_CT) { //:pReturn
 
     Token rTk = toks[cm->i];
     Int typeId = exprHeadless(sentinelToken, rTk.startBt, tok.lenBts - rTk.startBt + tok.startBt, P_C);
-    print("return type Id %d", typeId)
     VALIDATEP(typeId > -1, errReturn)
     if (typeId > -1) {
         typecheckFnReturn(typeId, cm);
@@ -4299,6 +4302,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
 //:pToplevelBody Parses a top-level function. The result is the AST
 //L( FnDef ParamList body... )
     Int fnStartInd = toplevelSignature.indToken;
+
     const Int fnSentinel = toplevelSignature.sentinelToken;
     EntityId fnEntity = toplevelSignature.entityId;
     TypeId fnType = cm->entities.cont[fnEntity].typeId;
@@ -4310,7 +4314,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
     // the fnDef scope & node
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinel = fnSentinel,
                         .typeId = fnType }), cm->backtrack);
-    //addParsedScope(fnSentinel, fnTk.startBt, fnTk.lenBts, cm);
+    pushLexScope(cm->scopeStack); // a function body is also a lexical scope
     addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (toplevelSignature.name & LOWER24BITS)},
             fnTk.startBt, fnTk.lenBts, cm);
 
@@ -4402,7 +4406,6 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
         pToplevelSignatures(cm);
         createOverloads(cm);
         pToplevelConstants(cm);
-
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
@@ -4668,8 +4671,6 @@ private TypeId tCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame frame,
     }
 
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
-    print("\nTypeCall result:", startInd, sentinel);
-    printIntArrayOff(tentativeTypeId, cm->types.len - tentativeTypeId, cm->types.cont);
     return mergeType(tentativeTypeId, cm);
 }
 
@@ -4822,7 +4823,6 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
                 frames->cont[frames->len - 1].countArgs += 1;
             }
 
-            dbgTypeFrames(frames);
             continue;
         }
 
@@ -4832,11 +4832,7 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
             // arg count
             Int mbParamId = typeParamBinarySearch(cTk.pl1, cm);
             if (mbParamId == -1) {
-                dbgTypeFrames(frames);
                 push(cm->activeBindings[cTk.pl1], exp);
-
-                print("in tDefinition, EXP:")
-                printStackInt(exp);
             } else {
                 push(-mbParamId - 1, exp); // index of this param in @params
             }

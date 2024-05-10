@@ -259,7 +259,7 @@ DEFINE_STACK_HEADER(Token)
 
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
 #define tokScope       27  // `(do ...)` firstScopeTokenType
-#define tokFn          28  // `(\ a Int -> Str: body)`
+#define tokFn          28  // `(\ a Int -> Str: body)`. pl1 = entityId
 #define tokTry         29  // `(try`
 #define tokCatch       30  // `(catch e MyExc:`
 #define tokIf          31  // `(if ... `
