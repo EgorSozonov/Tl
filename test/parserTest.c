@@ -879,7 +879,7 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Node[]) {
                 (Node){ .tp = nodFnDef, .pl2 = 9 },
 
-                (Node){ .tp = nodIf, .pl1 = slScope, .pl2 = 8 },
+                (Node){ .tp = nodIf, .pl2 = 8 },
                 (Node){ .tp = nodExpr,     .pl2 = 3 },
                 (Node){ .tp = tokInt,      .pl2 = 5 },
                 (Node){ .tp = tokInt,      .pl2 = 5},
@@ -908,7 +908,6 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
              })
         ),
-/*
         createTest(
             s("If with else"),
             s("f = (\\-> Str:\n"
@@ -916,25 +915,26 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
               ")"
               ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef, .pl2 = 11 },
-                (Node){ .tp = nodBinding, .pl1 = 0 }, // f
-                (Node){ .tp = nodScope, .pl2 = 9 },
+                (Node){ .tp = nodFnDef, .pl2 = 10 },
 
-                (Node){ .tp = nodIf, .pl1 = slScope, .pl2 = 8 },
+                (Node){ .tp = nodIf, .pl2 = 9, .pl3 = 7 },
 
                 (Node){ .tp = nodExpr, .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opGreaterTh, tokInt), .pl2 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 5 },
                 (Node){ .tp = tokInt, .pl2 = 3 },
-                (Node){ .tp = nodIf,  .pl2 = 1 },
+                (Node){ .tp = nodCall, .pl1 = oper(opGreaterTh, tokInt), .pl2 = 2 },
+
+                (Node){ .tp = nodScope,  .pl2 = 1 },
                 (Node){ .tp = tokString },
 
-                (Node){ .tp = nodIf, .pl2 = 1 },
-                (Node){ .tp = tokString     },
+                (Node){ .tp = nodElseIf,  .pl2 = 2 },
+                (Node){ .tp = nodScope,  .pl2 = 1 },
+                (Node){ .tp = tokString },
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+       /*
         createTest(
             s("If with elseif"),
             s("f = (\\\n"

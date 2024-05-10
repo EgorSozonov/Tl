@@ -2191,6 +2191,7 @@ private void lexMinus(Arr(Byte) source, Compiler* lx) { //:lexMinus
             decNumber(true, source, lx);
             lx->numeric.len = 0;
         } else if (nextBt == aGT)  {
+            wrapInAStatement(source, lx);
             pushIntokens((Token){ .tp = tokMisc, .pl1 = miscArrow, .startBt = lx->i, .lenBts = 2 }, lx);
             lx->i += 2;  // CONSUME the arrow "->"
         } else {
@@ -2542,7 +2543,7 @@ private void openParsedScope(Int sentinelToken, Int startBt, Int lenBts, Compile
 }
 
 
-private void openFnScope(EntityId fnEntity, NameId name, TypeId fnType, Token fnTk, Int sentinel, 
+private void openFnScope(EntityId fnEntity, NameId name, TypeId fnType, Token fnTk, Int sentinel,
                          Compiler* cm) {
 //:openParsedScope Performs coordinated insertions to start a scope within the parser
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinel = sentinel,
@@ -2550,7 +2551,7 @@ private void openFnScope(EntityId fnEntity, NameId name, TypeId fnType, Token fn
     pushLexScope(cm->scopeStack); // a function body is also a lexical scope
     addNode((Node){ .tp = nodFnDef, .pl1 = fnEntity, .pl3 = (name & LOWER24BITS)},
             fnTk.startBt, fnTk.lenBts, cm);
-} 
+}
 
 private void parseMisc(Token tok, P_CT) {
 }
@@ -2565,23 +2566,32 @@ private void parseTry(Token tok, P_CT) {
 }
 
 
-private void ifFindNextClause(Int start, Int sentinel, OUT Int* nextTokenInd, OUT Int* lastLastByte, 
+private void ifFindNextClause(Int start, Int sentinel, OUT Int* nextTokenInd, OUT Int* lastLastByte,
                               Arr(Token) toks) { //:ifFindNextClause
 // Finds the next clause inside an "if" syntax form. Returns the index of that clause's first token
-// and the last byte (of course exclusive, so the byte after) of the last token/span before that 
+// and the last byte (of course exclusive, so the byte after) of the last token/span before that
 // clause. Returns 0s if there is no next clause.
-// Precondition: we are 1 token past the tokIntro span 
+// Precondition: we are 1 token past the tokIntro span
+    if (start >= sentinel)  {
+        *nextTokenInd = 0;
+        *lastLastByte = 0;
+        return;
+    }
     Int j = start;
-    Int next; 
-    Token curr; 
-    for (curr = toks[j], next = calcSentinel(curr, j); 
-         j < sentinel && curr.tp != tokElseIf && curr.tp != tokElse;
-         j = next) {
+    Token curr;
+    for (curr = toks[j]; curr.tp != tokElseIf && curr.tp != tokElse; ){
+        j = calcSentinel(curr, j);
+        if (j >= sentinel) {
+            break;
+        }
         *lastLastByte = curr.startBt + curr.lenBts;
+        curr = toks[j];
     }
     if (j == sentinel)  {
         *nextTokenInd = 0;
         *lastLastByte = 0;
+    } else {
+        *nextTokenInd = j;
     }
 }
 
@@ -2589,7 +2599,6 @@ private void ifFindNextClause(Int start, Int sentinel, OUT Int* nextTokenInd, OU
 private void ifCondition(Token tok, P_CT) { //:ifCondition
 // Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
-    print("left i %d sent %d", cm->i, leftSentinel) 
     VALIDATEP(tok.tp == tokIntro, errIfLeft)
     VALIDATEP(leftSentinel + 1 < cm->stats.inpLength, errPrematureEndOfTokens)
 
@@ -2600,20 +2609,21 @@ private void ifCondition(Token tok, P_CT) { //:ifCondition
 
 
 private void pIf(Token tok, P_CT) { //:pIf
-    const Int ifSentinel = cm->i + tok.pl2; 
-    
+    const Int ifSentinel = cm->i + tok.pl2;
+    Int indNextClause;
+    Int lastByteBeforeNextClause;
+    ifFindNextClause(cm->i, ifSentinel, OUT &indNextClause, OUT &lastByteBeforeNextClause, toks);
+
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.len,
             .sentinel = ifSentinel };
     push(newParseFrame, cm->backtrack);
-    addNode((Node){.tp = nodIf, .pl1 = tok.pl1 }, tok.startBt, tok.lenBts, cm);
+    addNode((Node){.tp = nodIf, .pl3 = indNextClause > 0 ? (indNextClause - cm->i + 1) : 0},
+            tok.startBt, tok.lenBts, cm);
 
     Token stmtTok = toks[cm->i];
     cm->i += 1; // CONSUME the stmt token
     ifCondition(stmtTok, P_C);
-    
-    Int indNextClause;
-    Int lastByteBeforeNextClause;
-    ifFindNextClause(cm->i, ifSentinel, OUT &indNextClause, OUT &lastByteBeforeNextClause, toks);
+
     Token scopeTok = toks[cm->i];
     if (indNextClause > 0) {
         VALIDATEP(indNextClause > cm->i, errIfEmpty)
@@ -2627,10 +2637,7 @@ private void pIf(Token tok, P_CT) { //:pIf
 
 private void pElseIf(Token tok, P_CT) { //:pElseIf
 // ElseIf spans go inside an if: (if expr (scope ...) (elseif expr (scope ...))
-// "Else" is a special case of "ElseIf" marked with .pl3 = 0
-    // if we're in an elseif already, close it
-    // even if we're in "If", need to set its .pl3
-    const Int ifSentinel = cm->i + tok.pl2; 
+    const Int ifSentinel = cm->i + tok.pl2;
     ParseFrame newParseFrame = (ParseFrame){ .tp = nodIf, .startNodeInd = cm->nodes.len,
             .sentinel = ifSentinel };
     push(newParseFrame, cm->backtrack);
@@ -2639,6 +2646,19 @@ private void pElseIf(Token tok, P_CT) { //:pElseIf
     Token stmtTok = toks[cm->i];
     cm->i += 1; // CONSUME the stmt token
     ifCondition(stmtTok, P_C);
+    openParsedScope(ifSentinel, tok.startBt, 0, cm);
+}
+
+
+private void pElse(Token tok, P_CT) { //:pElse
+// "Else" is a special case of "ElseIf" marked with .pl3 = 0
+    mbCloseSpans(cm);
+
+    const Int ifSentinel = cm->i + tok.pl2;
+    push(((ParseFrame){ .tp = nodElseIf, .startNodeInd = cm->nodes.len,
+            .sentinel = ifSentinel }), cm->backtrack);
+    addNode((Node){.tp = nodElseIf }, tok.startBt, tok.lenBts, cm);
+
     openParsedScope(ifSentinel, tok.startBt, 0, cm);
 }
 
@@ -3194,7 +3214,6 @@ private TypeId exprUpTo(Int sentinelToken, Int startBt, Int lenBts, P_CT) { //:e
 // Starts from cm->i and goes up to the sentinel token.
 // Emits a nodExpr and opens a corresponding parse frame
 // Returns the expression's type
-print("e up to sentinel %d", sentinelToken)
     Int startNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodExpr, .startNodeInd = startNodeInd,
                 .sentinel = sentinelToken }), cm->backtrack);
@@ -3479,8 +3498,8 @@ private void tabulateParser() { //:tabulateParser
 
     p[tokIf]          = &pIf;
     p[tokElseIf]      = &pElseIf;
+    p[tokElse]        = &pElse;
     p[tokFor]         = &pFor;
-    p[tokElse]        = &pAlias;
 }
 
 
