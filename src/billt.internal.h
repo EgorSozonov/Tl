@@ -49,7 +49,7 @@ typedef struct { // :Arena
     int currInd;
 } Arena;
 
-#define DEFINE_STACK_HEADER(T)                                  \
+#define DEFINE_STACK_HEADER(T) \
     typedef struct {\
         Int cap;\
         Int len;\

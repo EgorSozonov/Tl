@@ -517,6 +517,25 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
+        createTestWithError(
+            s("Data allocation type error"),
+            s(errListDifferentEltTypes), 
+            s("x = [1 true]"),
+            (((Node[]) {
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 0, .pl2 = 0 },
+                (Node){ .tp = nodExpr, .pl1 = 0, .pl2 = 0 },
+
+                (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 4, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2,
+                        .pl3 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 1 },
+                (Node){ .tp = tokBool, .pl2 = 1 },
+            })),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
         createTest(
             s("Data allocation with expression inside"),
             s("x = [4 (^ 2 7)]"),
@@ -704,7 +723,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
        */ 
         createTest(
             s("List accessor"),
-            s("arr = [1 2 3];\n"
+            s("arr = [true false true];\n"
               "x = arr[1]"
                 ),
             ((Node[]) {

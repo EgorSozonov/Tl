@@ -37,7 +37,6 @@ Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
 void printLexer(Compiler* a);
 int equalityLexer(Compiler a, Compiler b);
 
-extern const char errLengthOverflow[];
 extern const char errNonAscii[];
 extern const char errPrematureEndOfInput[];
 extern const char errUnrecognizedByte[];
@@ -90,7 +89,6 @@ void typeAddHeader(TypeHeader hdr, Compiler* cm);
 extern const char errBareAtom[];
 extern const char errImportsNonUnique[];
 extern const char errCannotMutateImmutable[];
-extern const char errLengthOverflow[];
 extern const char errPrematureEndOfTokens[];
 extern const char errUnexpectedToken[];
 extern const char errInconsistentSpan[];
@@ -127,6 +125,7 @@ extern const char errUnknownFunction[];
 extern const char errIncorrectPrefixSequence[];
 extern const char errOperatorUsedInappropriately[];
 extern const char errAssignment[];
+extern const char errListDifferentEltTypes[];
 extern const char errAssignmentShadowing[];
 extern const char errAssignmentToplevelFn[];
 extern const char errAssignmentLeftSide[];
@@ -147,33 +146,8 @@ extern const char errTypeMismatch[];
 extern const char errTypeMustBeBool[];
 extern const char errTypeTooManyParameters[];
 extern const char errAssignmentAccessOnToplevel[];
-
-#endif
-
-
-#ifdef TYPER_TEST
-
-void addFunctionType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm);
-Int typeCheckResolveExpr(Int indExpr, Compiler* cm);
-extern const char errTypeOverloadsIntersect[];
-extern const char errTypeUnknownLastArg[];
-extern const char errTypeZeroArityOverload[];
-extern const char errTypeNoMatchingOverload[];
-extern const char errTypeWrongArgumentType[];
-Int findOverload(Int typeId, Int start, Int end, Entity* ent, Compiler* cm);
-Int parseTypeName(Token tk, Arr(Token) tokens, Compiler* cm);
-void parseToplevelSignature(Token fnDef, StackNode* toplevelSignatures, Compiler* cm);
-void typeSkipNode(Int* ind, Compiler* cm);
-
-void typeAddHeader(TypeHeader hdr, Compiler* cm);
-void typeAddTypeParam(Int paramInd, Int arity, Compiler* cm);
-void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm);
-Int typeSingleItem(Token tk, Compiler* cm);
-bool typeGenericsIntersect(Int id1, Int id2, Compiler* cm);
-StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
-Int typeDef(Token, bool, Arr(Token), Compiler* cm);
-extern const char errTypeFnSingleReturnType[];
-void printOverloads(Int nameId, Compiler* cm);
+extern const char errTypeOfNotList[];
+extern const char errTypeOfListIndex[];
 
 #endif
 

@@ -331,7 +331,7 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
 //}}}
 //{{{ AssocList
 
-void dbgType(Int typeId, Compiler* cm);
+void dbgType(TypeId typeId, Compiler* cm);
 
 MultiAssocList* createMultiAssocList(Arena* a) { //:createMultiAssocList
     MultiAssocList* ml = allocateOnArena(sizeof(MultiAssocList), a);
@@ -1169,7 +1169,6 @@ const char errCoreMissingParen[]           = "Core form requires opening parenth
 const char errBareAtom[]                   = "Malformed token stream (atoms and parentheses must not be bare)";
 const char errImportsNonUnique[]           = "Import names must be unique!";
 const char errCannotMutateImmutable[]      = "Immutable variables cannot be reassigned to!";
-const char errLengthOverflow[]             = "AST nodes length overflow";
 const char errPrematureEndOfTokens[]       = "Premature end of tokens";
 const char errUnexpectedToken[]            = "Unexpected token";
 const char errCoreFormTooShort[]           = "Core syntax form too short";
@@ -1202,6 +1201,7 @@ const char errUnknownBinding[]              = "Unknown binding!";
 const char errUnknownFunction[]             = "Unknown function!";
 const char errOperatorUsedInappropriately[] = "Operator used in an inappropriate location!";
 const char errAssignment[]                  = "Cannot parse assignment, it must look like `freshIdentifier` = `expression`";
+const char errListDifferentEltTypes[]       = "A list's elements must all be of the same type";
 const char errMutation[]                    = "Cannot parse mutation, it must look like `freshIdentifier` += `expression`";
 const char errAssignmentShadowing[]         = "Assignment error: existing identifier is being shadowed";
 const char errAssignmentToplevelFn[]        = "Assignment of top-level functions must be immutable";
@@ -1231,6 +1231,8 @@ const char errTypeConstructorWrongArity[]   = "Wrong arity for the type construc
 const char errTypeOnlyTypesArity[]          = "Only type constructors (i.e. capitalized words) may have arity specification";
 const char errTypeTooManyParameters[]       = "Only up to 254 type parameters are supported";
 const char errTypeFnSingleReturnType[]      = "More than one return type in a function type";
+const char errTypeOfNotList[]               = "Trying to get the element of a type which is not a list";
+const char errTypeOfListIndex[]             = "The type of a list/array index must be Int";
 
 //}}}
 
@@ -1256,8 +1258,10 @@ private bool isFunctionWithParams(TypeId typeId, Compiler* cm);
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm);
 private Int typeGetTyrity(TypeId typeId, Compiler* cm);
 testable Int typeCheckBigExpr(Int indExpr, Int sentinel, Compiler* cm);
+private TypeId typecheckList(Int startInd, Compiler* cm);
 private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm);
+private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm);
 #ifdef TEST
 void printParser(Compiler* cm, Arena* a);
 void dbgType(TypeId typeId, Compiler* cm);
@@ -2798,6 +2802,8 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         TypeId rightType = exprUpToWithFrame(
                 (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
                 locOf(rightTk), P_C);
+        print("rightTYpe %d", rightType)
+        dbgType(rightType, cm);
         VALIDATEP(rightType != -2, errAssignment)
 
         if (tok.pl1 == 0 && rightType > -1) {
@@ -2993,8 +2999,8 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     Node rawNd = pop(stEx->calls);
     SourceLoc rawLoc = pop(stEx->locsCalls);
 
-    EntityId newEntityId = cm->entities.len;
-    pushInentities(((Entity) {.class = classImmutable, .typeId = rawNd.pl1 }), cm);
+    const EntityId newEntityId = cm->entities.len;
+    pushInentities(((Entity) { .class = classImmutable }), cm);
 
     Int countElements = 0;
     Int countNodes = scr->len - frame.startNode;
@@ -3012,7 +3018,14 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     addNode((Node){.tp = nodDataAlloc, .pl1 = rawNd.pl1, .pl2 = countNodes, .pl3 = countElements },
             rawLoc, cm);
 
+    Int startNodeInd = cm->nodes.len;
     saveNodes(frame.startNode, scr, stEx->locsScr, cm);
+    if (countNodes > 0)  {
+        TypeId eltType = typecheckList(startNodeInd, cm);
+        cm->entities.cont[newEntityId].typeId = tCreateSingleParamTypeCall(
+            cm->activeBindings[stToNameId(strL)], eltType, cm
+        );
+    }
 
     scr->len = frame.startNode + 1;
     stEx->locsScr->len = frame.startNode + 1;
@@ -3210,6 +3223,7 @@ private TypeId exprUpToWithFrame(ParseFrame frame, SourceLoc loc, P_CT) {
 
     eLinearize(frame.sentinel, P_C);
     exprCopyFromScratch(startNodeInd, cm);
+    print("p1")
     Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
     mbCloseSpans(cm);
     return exprType;
@@ -4549,10 +4563,10 @@ private Int typeGetTyrity(TypeId typeId, Compiler* cm) { //:typeGetTyrity
 
 
 private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeGetOuter
-// A         => A  (concrete types)
-// A(B)      => A  (concrete generic types)
-// A + A(B)  => -2 (param generic types)
-// F(A -> B) => F(A -> B)
+// A          => A  (concrete types)
+// (A B)      => A  (concrete generic types)
+// A + (A B)  => -2 (param generic types)
+// (F A -> B) => (F A -> B)
     if (typeId <= topVerbatimType) {
         return typeId;
     }
@@ -4561,7 +4575,7 @@ private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeG
         return typeId;
     } else if (hdr.sort == sorTypeCall) {
         Int genElt = cm->types.cont[typeId + hdr.tyrity + 3];
-        if ((genElt >> 24) & 0xFF == 0xFF) {
+        if ((genElt >> 24) & 0xFF == 0xFF) { // ???
             return -(genElt & 0xFF) - 1; // a param type in outer position,
                                          // so we return its (-arity -1)
         } else {
@@ -4570,6 +4584,11 @@ private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeG
     } else {
         return cm->types.cont[typeId + hdr.tyrity + 3] & LOWER24BITS;
     }
+}
+
+private TypeId getGenericParam(TypeId t, Int ind, Compiler* cm) { //:getGenericParam
+// (L Foo) -> Foo
+    return cm->types.cont[t + TYPE_PREFIX_LEN + ind];
 }
 
 
@@ -4763,6 +4782,20 @@ private TypeId tCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame frame,
 }
 
 
+private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm) {
+//:tCreateSingleParamTypeCall Creates a type like (L Int)
+    const Int tentativeTypeId = cm->types.len;
+    pushIntypes(0, cm);
+
+    typeAddHeader((TypeHeader){
+        .sort = sorTypeCall, .tyrity = 1, .arity = 0, .nameAndLen = stToNameId(strL) }, cm);
+    pushIntypes(param, cm);
+
+    cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
+    return mergeType(tentativeTypeId, cm);
+}
+
+
 private StackInt* tDetermineUniqueParamsInDef(const StateForTypes* st, Int startInd,
                                                  Compiler* cm) {
 //:tDetermineUniqueParamsInDef Counts how many unique type parameters are used in a type def
@@ -4800,7 +4833,7 @@ private StackInt* tDetermineUniqueParamsInDef(const StateForTypes* st, Int start
 
 
 private TypeId tCreateFnSignature(StateForTypes* st, Int startInd,
-                                     Unt fnNameAndLen, Compiler* cm) { //:tCreateFnSignature
+                                  Unt fnNameAndLen, Compiler* cm) { //:tCreateFnSignature
 // Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
 // in "params". The sequence must be flat, i.e. not include any nested structs.
 // Returns the typeId of the new type
@@ -4998,10 +5031,6 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 //}}}
 //{{{ Overloads, type check & resolve
 
-/*
-testable StackInt* typeSatisfiesGeneric(Int typeId, Int genericId, Compiler* cm);
-*/
-
 private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) { //:getFirstParamType
 // Gets the type of the first param of a function. Returns -1 iff it's zero arity
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
@@ -5089,7 +5118,6 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
 }
 
 
-
 private void shiftStackLeft(Int startInd, Int byHowMany, Compiler* cm) { //:shiftStackLeft
 // Shifts ints from start and until the end to the left.
 // E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
@@ -5110,19 +5138,30 @@ private void shiftStackLeft(Int startInd, Int byHowMany, Compiler* cm) { //:shif
 
 private void populateExp(Int indExpr, Int sentinelNode, Compiler* cm) {
 //:populateExp Populates the expression's type stack with the operands and functions of an
-// expression
+// expression. First we need to skip possible internal assignments (in cases with data allocations)
     StackInt* exp = cm->stateForExprs->exp;
     exp->len = 0;
-    for (Int j = indExpr + 1; j < sentinelNode; ++j) {
+    Int j = indExpr + 1;
+    for (; j < sentinelNode; ) {
+        Node nd = cm->nodes.cont[j];
+        if (nd.tp != nodAssignment)  {
+            break;
+        }
+        j += (nd.pl2 + 1);
+    }
+    for (; j < sentinelNode; ++j) {
         Node nd = cm->nodes.cont[j];
         if (nd.tp <= tokString) {
             push((Int)nd.tp, exp);
         } else if (nd.tp == nodCall) {
-            const Int argCount = nd.pl2;
-            push(BIG + argCount, exp); // signifies that it's a call, and its arg count
-            push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), exp);
-            // index into overloadIds, or entityId for 0-arity fns
-
+            if (nd.pl1 == opGetElem)  { // accessors are handled specially
+                push(2*BIG, exp);
+            } else {
+                const Int argCount = nd.pl2;
+                push(BIG + argCount, exp); // signifies that it's a call, and its arg count
+                // index into overloadIds, or, for 0-arity fns, entityId directly
+                push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), exp);
+            }
         } else if (nd.pl1 > -1) { // entityId
             push(cm->entities.cont[nd.pl1].typeId, exp);
         } else { // overloadId
@@ -5144,6 +5183,22 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
     for (Int j = 0; j < expSentinel; ++j) {
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
+            continue;
+        } else if (cont[j] == 2*BIG) {
+            TypeId type1 = cont[j - 2];
+            TypeId outer1 = typeGetOuter(type1, cm);
+            print("type1 %d outer1 %d", type1, outer1)
+            printStackInt(exp);
+            VALIDATEP(outer1 == cm->activeBindings[stToNameId(strL)], errTypeOfNotList)
+            TypeId type2 = cont[j - 1];
+            VALIDATEP(type2 == tokInt, errTypeOfListIndex)
+            TypeId eltType = getGenericParam(type1, 0, cm);
+            print("eltType %d", eltType)
+
+            j -= 2;
+            currAhead += 2;
+            shiftStackLeft(j, 3, cm);
+            cont[j] = eltType;
             continue;
         }
 
@@ -5223,14 +5278,39 @@ testable TypeId typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     StackInt* exp = cm->stateForExprs->exp;
 
     populateExp(indExpr, sentinelNode, cm);
-
+    print("populated ind %d to sent %d", indExpr, sentinelNode)
+    printStackInt(exp);
     typeReduceExpr(exp, indExpr, cm);
 
+    printStackInt(exp);
     if (exp->len == 1) {
         return exp->cont[0]; // the last remaining element is the type of the whole expression
     } else {
         return -1;
     }
+}
+
+
+private TypeId tGetTypeOfListElement(Int j, Compiler* cm) { //:tGetTypeOfListElement
+    Node nd = cm->nodes.cont[j];
+    if (nd.tp <= topVerbatimTokenVariant) {
+        return nd.tp;
+    } else if (nd.tp == nodId) {
+        return cm->entities.cont[nd.pl1].typeId;
+    } else {
+        Int sentinel = j + nd.pl2 + 1;
+        return typeCheckBigExpr(j, sentinel, cm);
+    }
+}
+
+
+private TypeId typecheckList(Int startInd, Compiler* cm) { //:typecheckList
+    TypeId fstType = tGetTypeOfListElement(startInd, cm);
+    for (Int j = startInd + 1; j < cm->nodes.len; j++) {
+        TypeId eltType = tGetTypeOfListElement(j, cm);
+        VALIDATEP(eltType == fstType, errListDifferentEltTypes)
+    }
+    return fstType;
 }
 
 //}}}
@@ -5566,7 +5646,7 @@ void dbgTypeOuter(TypeId currT, Compiler* cm) { //:dbgTypeOuter
 }
 
 
-void dbgType(Int typeId, Compiler* cm) { //:dbgType
+void dbgType(TypeId typeId, Compiler* cm) { //:dbgType
 // Print a single type fully for debugging purposes
     //printf("Printing the type [ind = %d, len = %d]\n", typeId, cm->types.cont[typeId]);
     printIntArrayOff(typeId, 6, cm->types.cont);
