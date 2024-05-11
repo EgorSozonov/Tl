@@ -396,13 +396,16 @@ typedef struct { // :OpDef
 #define opGreaterTh        35 // >
 #define opNullCoalesce     36 // ?:   null coalescing operator
 #define opQuestionMark     37 // ?    nullable type operator
-#define opAccessor         38 // @    collection data accessor
+#define opUnused           38 // @    unused yet
 #define opBitwiseXor       39 // ^.   bitwise XOR
 #define opExponent         40 // ^    exponentiation
 #define opBitwiseOr        41 // ||.  bitwise or
 #define opBoolOr           42 // ||   logical or
+#define opGetElem          43 // Get list element
+#define opGetElemPtr       44 // Get pointer to list element
 
-#define countOperators     43
+#define countOperators     45
+#define countRealOperators 43 // The "unreal" ones, like "a[..]", which have a separate syntax
 
 
 typedef struct Compiler Compiler;
@@ -510,6 +513,7 @@ typedef struct {  // :ExprFrame
 #define exfrCall       2
 #define exfrUnaryCall  3
 #define exfrDataAlloc  4
+#define exfrAccessor   5
 
 DEFINE_STACK_HEADER(ExprFrame)
 

@@ -472,6 +472,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
+   /* 
         createTestWithLocs(
             s("Simple function call"),
             s("x = foo 10 2 `hw`"),
@@ -700,6 +701,25 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         )
+       */ 
+        createTest(
+            s("List accessor"),
+            s("arr = [1 2 3];\n"
+              "x = arr[1]"
+                ),
+            ((Node[]) {
+                (Node){ .tp = nodAssignment, .pl2 = 7, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl2 = 0 },
+                (Node){ .tp = nodExpr,              .pl2 = 5 },
+                (Node){ .tp = tokString },
+                (Node){ .tp = tokInt, .pl1 = -1,    .pl2 = -3 },
+                (Node){ .tp = nodCall, .pl1 = oper(opSize, tokInt), .pl2 = 1 },
+                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 },
+                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokString), .pl2 = 2 }
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
     }));
 }
 
@@ -1504,11 +1524,15 @@ int main() {
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
+   /* 
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
+   */ 
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
+   /* 
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
+   */ 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {

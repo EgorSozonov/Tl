@@ -253,7 +253,7 @@ testable void deleteArena(Arena* ar) { //:deleteArena
 private void dbgStackNode(StackNode*, Arena*);
 #endif
 
-void pushBulk(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:pushBulk
+void saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:saveNodes
 // Pushes the tail of scratch space (from a specified index onward) into the main node list
     const Int pushCount = scr->len - startInd;
     if (pushCount == 0)  {
@@ -2492,13 +2492,12 @@ testable void addNode(Node node, SourceLoc loc, Compiler* cm) { //:addNode
 }
 
 
-private void pAddOperatorCall(Int operId, Int sentinel, Int startBt, Int lenBts, StateForExprs* s) {
-//:pAddOperatorCall Pushes a call to the temporary stacks during expression parsing
-// This sets argCount = 1 because infix
+private void pAddAccessorCall(Int sentinel, SourceLoc loc, StateForExprs* s) {
+//:pAddAccessorCall Pushes a list accessor call to the temporary stacks during expression parsing
     push(((ExprFrame) { .tp = exfrCall, .startNode = -1, .sentinel = sentinel,
-                        .argCount = 1 }), s->frames);
-    push(((Node) { .tp = nodCall, .pl1 = operId }), s->calls);
-    push(((SourceLoc) { .startBt = startBt, .lenBts = lenBts }), s->locsCalls);
+                        .argCount = 2 }), s->frames);
+    push(((Node) { .tp = nodCall, .pl1 = opGetElem }), s->calls);
+    push(loc, s->locsCalls);
 }
 
 
@@ -3013,7 +3012,7 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     addNode((Node){.tp = nodDataAlloc, .pl1 = rawNd.pl1, .pl2 = countNodes, .pl3 = countElements },
             rawLoc, cm);
 
-    pushBulk(frame.startNode, scr, stEx->locsScr, cm);
+    saveNodes(frame.startNode, scr, stEx->locsScr, cm);
 
     scr->len = frame.startNode + 1;
     stEx->locsScr->len = frame.startNode + 1;
@@ -3110,9 +3109,9 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
 }
 
 
-private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
+private void eLinearize(Int sentinel, P_CT) { //:eLinearize
 // The core code of the general, long expression parse. Starts at cm->i and parses until
-// "sentinelToken". Produces a linear sequence of operands and operators with arg counts in
+// "sentinel". Produces a linear sequence of operands and operators with arg counts in
 // Reverse Polish Notation. Handles data allocations, too
     StateForExprs* stEx = cm->stateForExprs;
     stEx->metAnAllocation = false;
@@ -3126,15 +3125,24 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
     locsScr->len = 0;
     locsCalls->len = 0;
 
-    push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinelToken}), frames);
+    push(((ExprFrame){ .tp = exfrParen, .sentinel = sentinel}), frames);
 
-    for (; cm->i < sentinelToken; cm->i += 1) { // CONSUME any expression token
+    for (; cm->i < sentinel; cm->i += 1) { // CONSUME any expression token
         eClose(stEx, cm);
         ExprFrame parent = peek(frames);
         Token cTk = toks[cm->i];
+        SourceLoc loc = locOf(cTk);
         Unt tokType = cTk.tp;
+        if (tokType == tokWord && (cm->i + 1) < sentinel && toks[cm->i + 1].tp == tokAccessor)  {
+            eBumpArgCount(stEx);
 
-        if ((tokType == tokWord || tokType == tokOperator) && parent.tp == exfrParen) {
+            Int accSentinel = calcSentinel(toks[cm->i + 1], cm->i + 1);
+            push(((ExprFrame){ .tp = exfrParen, .startNode = scr->len,
+                    .sentinel = accSentinel }), frames);
+            EntityId varId = getActiveVar(cTk.pl1, cm);
+            push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl1 }), scr);
+            push(locOf(cTk), locsScr);
+        } else if ((tokType == tokWord || tokType == tokOperator) && parent.tp == exfrParen) {
             pAddFunctionCall(cTk, parent.sentinel, stEx);
         } else if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
             if (tokType == tokWord) {
@@ -3143,7 +3151,7 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
             } else {
                 push(((Node){ .tp = cTk.tp, .pl1 = cTk.pl1, .pl2 = cTk.pl2 }), scr);
             }
-            push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+            push(loc, locsScr);
             ePopUnaryCalls(stEx);
             eBumpArgCount(stEx);
         } else if (tokType == tokParens) {
@@ -3154,14 +3162,14 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
             if (parent.tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
                                                // be marked with nodExpr for t-checking & codegen
                 push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
-                push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+                push(loc, locsScr);
             }
         } else if (tokType == tokOperator) {
-            if (OPERATORS[cTk.pl1].arity == 1)  {
+            if (OPERATORS[cTk.pl1].arity == 1) {
                 pAddUnaryCall(cTk, stEx);
             } else {
                 push(((Node){ .tp = nodId, .pl2 = cTk.pl1 }), scr);
-                push(((SourceLoc){ .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsScr);
+                push(loc, locsScr);
                 eBumpArgCount(stEx);
                 ePopUnaryCalls(stEx);
             }
@@ -3172,7 +3180,10 @@ private void eLinearize(Int sentinelToken, P_CT) { //:eLinearize
                                .sentinel = calcSentinel(cTk, cm->i)}), frames
             );
             push(((Node) { .tp = nodDataAlloc, .pl1 = stToNameId(strL) }), calls);
-            push(((SourceLoc) { .startBt = cTk.startBt, .lenBts = cTk.lenBts }), locsCalls);
+            push(loc, locsCalls);
+        } else if (tokType == tokAccessor) {
+            const Int accSentinel = calcSentinel(cTk, cm->i);
+            pAddAccessorCall(accSentinel, loc, stEx);
         } else {
             throwExcParser(errExpressionCannotContain);
         }
@@ -4016,9 +4027,11 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opBitwiseXor,   intOfIntInt, cm); // dummy
     buildOperator(opExponent,     intOfIntInt, cm);
     buildOperator(opExponent,     flOfFlFl, cm);
-    buildOperator(opAccessor,     flOfFlFl, cm); // a dummy type. @ will be handled separately
+    buildOperator(opUnused,       flOfFlFl, cm); // a dummy type
     buildOperator(opBitwiseOr,    intOfIntInt, cm); // dummy
     buildOperator(opBoolOr,       flOfFl, cm); // dummy
+    buildOperator(opGetElem,      flOfFl, cm); // dummy
+    buildOperator(opGetElemPtr,   flOfFl, cm); // dummy
 }
 
 
