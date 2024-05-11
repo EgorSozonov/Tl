@@ -167,7 +167,7 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
         if (nodeType == nodFnDef && nd.pl3 != -1)  {
             nd.pl3 += stText.firstParsed;
         }
-        addNode(nd, 0, 0, control);
+        addNode(nd, (SourceLoc){.startBt = 0, .lenBts = 0}, control);
     }
     return (ParserTest){ .name = name, .test = test, .control = control, .compareLocsToo = false };
 }
@@ -934,7 +934,6 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-       /*
         createTest(
             s("If with elseif"),
             s("f = (\\\n"
@@ -943,24 +942,23 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
               ")"
               ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,     .pl2 = 15 },
-                (Node){ .tp = nodBinding, .pl1 = 0 }, // f
-                (Node){ .tp = nodScope,     .pl2 = 13 },
+                (Node){ .tp = nodFnDef,     .pl2 = 14 },
 
-                (Node){ .tp = nodIf, .pl1 = slScope, .pl2 = 12 },
+                (Node){ .tp = nodIf, .pl2 = 13, .pl3 = 7 },
 
                 (Node){ .tp = nodExpr,      .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opGreaterTh, tokInt), .pl2 = 2 },
                 (Node){ .tp = tokInt,       .pl2 = 5 },
                 (Node){ .tp = tokInt,       .pl2 = 3 },
-                (Node){ .tp = nodIf,  .pl2 = 1       },
+                (Node){ .tp = nodCall, .pl1 = oper(opGreaterTh, tokInt), .pl2 = 2 },
+                (Node){ .tp = nodScope,  .pl2 = 1       },
                 (Node){ .tp = tokInt,       .pl2 = 11 },
 
+                (Node){ .tp = nodElseIf, .pl2 = 6, .pl3 = 0 },
                 (Node){ .tp = nodExpr,      .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opEquality, tokInt), .pl2 = 2 },
                 (Node){ .tp = tokInt,       .pl2 = 5 },
                 (Node){ .tp = tokInt,       .pl2 = 3 },
-                (Node){ .tp = nodIf,  .pl2 = 1 },
+                (Node){ .tp = nodCall, .pl1 = oper(opEquality, tokInt), .pl2 = 2 },
+                (Node){ .tp = nodScope,  .pl2 = 1 },
                 (Node){ .tp = tokInt,       .pl2 = 4 }
             }),
             ((Int[]) {}),
@@ -969,39 +967,63 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         createTest(
             s("If with elseif and else"),
             s("f = (\\\n"
-              "    (if > 5 3: 11 \n"
-              "    eif == 5 3: 4 \n"
-              "    else 100 )\n"
+              "    (if > 5 3: print `11` \n"
+              "    eif == 5 3: print `4` \n"
+              "    else print `100` )\n"
               ")"
               ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,     .pl2 = 17 },
-                (Node){ .tp = nodBinding, .pl1 = 0,   }, // f
-                (Node){ .tp = nodScope,     .pl2 = 15 },
+                (Node){ .tp = nodFnDef,     .pl2 = 23 },
 
-                (Node){ .tp = nodIf, .pl1 = slScope, .pl2 = 14 },
+                (Node){ .tp = nodIf, .pl2 = 22, .pl3 = 8 },
 
                 (Node){ .tp = nodExpr,      .pl2 = 3},
+                (Node){ .tp = tokInt,       .pl2 = 5 },
+                (Node){ .tp = tokInt,       .pl2 = 3 },
                 (Node){ .tp = nodCall, .pl1 = oper(opGreaterTh, tokInt), .pl2 = 2 },
-                (Node){ .tp = tokInt,       .pl2 = 5 },
-                (Node){ .tp = tokInt,       .pl2 = 3 },
-                (Node){ .tp = nodIf,  .pl2 = 1       },
-                (Node){ .tp = tokInt,       .pl2 = 11 },
+                (Node){ .tp = nodScope,  .pl2 = 3       },
+                (Node){ .tp = nodExpr,   .pl2 = 2       },
+                (Node){ .tp = tokString,   },
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 },
 
+                (Node){ .tp = nodElseIf,      .pl2 = 8 },
                 (Node){ .tp = nodExpr,      .pl2 = 3},
-                (Node){ .tp = nodCall, .pl1 = oper(opEquality, tokInt), .pl2 = 2 },
                 (Node){ .tp = tokInt,       .pl2 = 5 },
                 (Node){ .tp = tokInt,       .pl2 = 3 },
-                (Node){ .tp = nodIf,  .pl2 = 1 },
-                (Node){ .tp = tokInt,       .pl2 = 4 },
+                (Node){ .tp = nodCall, .pl1 = oper(opEquality, tokInt), .pl2 = 2 },
+                (Node){ .tp = nodScope,  .pl2 = 3 },
+                (Node){ .tp = nodExpr,  .pl2 = 2       },
+                (Node){ .tp = tokString,  },
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 },
 
-                (Node){ .tp = nodIf,  .pl2 = 1 },
-                (Node){ .tp = tokInt,       .pl2 = 100 }
+                (Node){ .tp = nodElseIf,  .pl2 = 4 },
+                (Node){ .tp = nodScope,  .pl2 = 3 },
+                (Node){ .tp = nodExpr,  .pl2 = 2       },
+                (Node){ .tp = tokString },
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
-        )
-*/
+        ),
+        createTestWithError(
+            s("If error: must be bool"),
+            s(errTypeMustBeBool),
+            s("f = (\\\n"
+              "    (if + 5 5: print `5` )\n"
+              ")"
+              ),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef },
+
+                (Node){ .tp = nodIf },
+                (Node){ .tp = nodExpr },
+                (Node){ .tp = tokInt, .pl2 = 5 },
+                (Node){ .tp = tokInt, .pl2 = 5 },
+                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
     }));
 }
 
@@ -1451,42 +1473,7 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         )
     }));
 }
-/*
-ParserTestSet* typeTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
-    return createTestSet(s("Types test set"), a, ((ParserTest[]){
-        createTest(
-            s("Simple type 1"),
-            s("Foo = (* id Int name Str)"),
-            ((Node[]) {
-                (Node){ .tp = nodFnDef,           .pl2 = 16 },
-                (Node){ .tp = nodBinding, .pl1 = 0 },
-                (Node){ .tp = nodScope,           .pl2 = 14 }, // function body
 
-                (Node){ .tp = nodFor,           .pl2 = 13 },
-
-                (Node){ .tp = nodScope,           .pl2 = 12 },
-
-                (Node){ .tp = nodAssignment,      .pl2 = 2 },
-                (Node){ .tp = nodBinding, .pl1 = 1 }, // x
-                (Node){ .tp = tokInt,             .pl2 = 1 },
-
-                (Node){ .tp = nodForCond, .pl1 = slStmt, .pl2 = 4 },
-                (Node){ .tp = nodExpr,            .pl2 = 3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opLessTh, tokInt), .pl2 = 2 },
-                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 2,    .startBt = 25, .lenBts = 1 }, // x
-                (Node){ .tp = tokInt,          .pl2 = 101,  .startBt = 27, .lenBts = 3 },
-
-                (Node){ .tp = nodExpr,           .pl2 = 3,  .startBt = 40, .lenBts = 8 },
-                (Node){ .tp = nodCall, .pl1 = I, .pl2 = 1,  .startBt = 40, .lenBts = 5 }, // print
-                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 }, // $
-                (Node){ .tp = nodId,   .pl1 = 1, .pl2 = 2,  .startBt = 47, .lenBts = 1 }      // x
-            }),
-            ((Int[]) {}),
-            ((TestEntityImport[]) {})
-        )
-    }));
-}
-*/
 //}}}
 
 
@@ -1517,17 +1504,11 @@ int main() {
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
-   /*
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
-   */
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
-   /*
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
-    runATestSet(&typeTests, &countPassed, &countTests, proto, protoOvs, a);
-
-   */
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {
