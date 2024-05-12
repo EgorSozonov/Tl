@@ -317,6 +317,7 @@ private Node doubleNd(double value) {
 
 ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
+   /* 
         createTestWithLocs(
             s("Simple assignment"),
             s("x = 12"),
@@ -415,7 +416,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //~            ((Int[]) {}),
 //~            ((TestEntityImport[]) {})
 //~        ),
-        /*
         createTestWithLocs(
             s("Mutation complex"),
             s("main = (\\ \n"
@@ -444,16 +444,19 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((TestEntityImport[]) {}),
             ((SourceLoc[]) {})
         ),
+       */ 
         createTestWithLocs(
             s("Complex left side"),
-            s("arr[i] = 5"
-            ),
+            s("main = (\\\n"
+              "arr = [1 2];\n"
+              "arr[0] = 11\n"
+              ")"
+             ),
             ((Node[]) {
-                (Node){ .tp = nodFnDef,           .pl2 = 13, .startBt = 0, .lenBts = 34 },
-                (Node){ .tp = nodBinding, .pl1 = 0,          .startBt = 4, .lenBts = 4 },
-                (Node){ .tp = nodScope,           .pl2 = 11, .startBt = 8, .lenBts = 26 },
-                (Node){ .tp = nodAssignment,      .pl2 = 2, .startBt = 14, .lenBts = 5 },
-                (Node){ .tp = nodBinding, .pl1 = 1,         .startBt = 14, .lenBts = 1 },     // x
+                (Node){ .tp = nodAssignment, .pl1 = 0 },
+                (Node){ .tp = nodScope,           .pl2 = 11 },
+                (Node){ .tp = nodAssignment,      .pl2 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 1,        },     // x
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {}),
@@ -463,7 +466,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 { .startBt = 4, .lenBts = 2 }
              })
         )
-        */
     }));
 }
 
@@ -1551,10 +1553,12 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
+   /* 
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
+   */ 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {

@@ -244,9 +244,6 @@ testable void deleteArena(Arena* ar) { //:deleteArena
         }\
         st->len += 1;\
     }\
-    testable void clear##T (Stack##T * st) {\
-        st->len = 0;\
-    }
 
 
 #ifdef TEST
@@ -2671,63 +2668,65 @@ private void pElse(Token tok, P_CT) { //:pElse
 }
 
 
-private void assignmentComplexLeftSide(Int start, Int sentinel, P_CT) { //:assignmentComplexLeftSide
+private TypeId assignmentComplexLeftSide(Int sentinel, P_CT) { //:assignmentComplexLeftSide
 // A left side with more than one token must consist of a known var with a series of accessors.
 // It gets transformed like this:
-// arr[i][j*2][k + 3] ==> arr i getElemPtr j 2 *(2) getElemPtr k 3 +(2) getElemPtr
-    Token firstTk = toks[start];
+// arr[i][j*2][k + 3] ==> arr i getElem j 2 *(2) getElem k 3 +(2) getElemPtr
+// Returns the type of the left side
+    Token firstTk = toks[cm->i];
     VALIDATEP(firstTk.tp == tokWord, errAssignmentLeftSide)
-    EntityId leftEntityId = getActiveVar(firstTk.pl2, cm);
-    Int j = start + 1;
-
+    //EntityId leftEntityId = getActiveVar(firstTk.pl1, cm);
+    Int j = cm->i + 1;
+print("startj %d", j)
     StackInt* sc = cm->stateForExprs->exp;
-    clearint32_t(sc);
+    sc->len = 0; 
 
     while (j < sentinel) {
         Token accessorTk = toks[j];
-        VALIDATEP(accessorTk.tp == tokFieldAcc, errAssignmentLeftSide)
-        j += 1;
+        VALIDATEP(accessorTk.tp == tokAccessor, errAssignmentLeftSide)
+        j = calcSentinel(accessorTk, j);
         push(j, sc);
     }
+print("after skipping %d", j)
 
-    // Add the "@ @ @" part using the stack of accessor operators
-    j = sc->len - 1;
-    while (j > -1) {
-        Token accessorTk = toks[sc->cont[j]];
-        addNode((Node){ .tp = nodFieldAcc, .pl1 = accessorTk.pl1}, locOf(accessorTk), cm);
-    }
-
-    // The collection name part
-    addNode((Node){ .tp = nodId, .pl1 = leftEntityId, .pl2 = firstTk.pl2}, locOf(firstTk), cm);
-    // The accessor expression parts
-    while (j < sentinel) {
-        Token accessorTk = toks[j];
-        if (accessorTk.tp == tokFieldAcc) {
-            j += 1;
-        } else { // tkAccArray
-            Token accessTk = toks[j + 1];
-            if (accessTk.tp == tokParens) {
-                cm->i = j + 2; // CONSUME up to the subexpression start
-                Int subexSentinel = cm->i + accessTk.pl2 + 1;
-                exprHeadless(subexSentinel, locOf(accessTk), P_C);
-                j = cm->i;
-            } else if (accessTk.tp == tokInt || accessTk.tp == tokString) {
-                addNode(((Node){ .tp = accessTk.tp, .pl1 = accessTk.pl1, .pl2 = accessTk.pl2}),
-                        (SourceLoc){.startBt = 0, .lenBts = 0}, cm);
-                j += 1;
-            } else { // tokWord
-                Int accessEntityId = getActiveVar(accessTk.pl1, cm);
-                addNode((Node){ .tp = nodId, .pl1 = accessEntityId, .pl2 = accessTk.pl1},
-                                    locOf(accessTk), cm);
-                j += 1;
-            }
-        }
-    }
-    clearint32_t(sc);
+    Int startBt = firstTk.startBt;
+    Int lastBt = toks[j - 1].startBt + toks[j - 1].lenBts;
+    TypeId leftType = exprUpToWithFrame(
+            (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
+            (SourceLoc){.startBt = startBt, .lenBts = lastBt - startBt }, P_C);
+//    // The collection name part
+//    addNode((Node){ .tp = nodId, .pl1 = leftEntityId, .pl2 = firstTk.pl2}, locOf(firstTk), cm);
+//    // The accessor expression parts
+//    while (j < sentinel) {
+//        Token accessorTk = toks[j];
+//        if (accessorTk.tp == tokFieldAcc) {
+//            j += 1;
+//        } else { // tkAccArray
+//            Token accessTk = toks[j + 1];
+//            if (accessTk.tp == tokParens) {
+//                cm->i = j + 2; // CONSUME up to the subexpression start
+//                Int subexSentinel = cm->i + accessTk.pl2 + 1;
+//                exprHeadless(subexSentinel, locOf(accessTk), P_C);
+//                j = cm->i;
+//            } else if (accessTk.tp == tokInt || accessTk.tp == tokString) {
+//                addNode(((Node){ .tp = accessTk.tp, .pl1 = accessTk.pl1, .pl2 = accessTk.pl2}),
+//                        (SourceLoc){.startBt = 0, .lenBts = 0}, cm);
+//                j += 1;
+//            } else { // tokWord
+//                Int accessEntityId = getActiveVar(accessTk.pl1, cm);
+//                addNode((Node){ .tp = nodId, .pl1 = accessEntityId, .pl2 = accessTk.pl1},
+//                                    locOf(accessTk), cm);
+//                j += 1;
+//            }
+//        }
+//    }
+//    sc->len = 0; 
+    return leftType;
 }
 
 
 private void pAssignment(Token tok, P_CT) { //:pAssignment
+    TypeId leftType = -1;
     Int j = cm->i;
     for (; j < cm->stats.inpLength && toks[j].tp != tokAssignRight;
             j += 1) {
@@ -2736,6 +2735,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     const Int countLeftSide = j - cm->i;
     Token rightTk = toks[j];
 
+    print("count left sie %d", countLeftSide)
 #ifdef SAFETY
     VALIDATEI(countLeftSide < (tok.pl2 - 1), iErrorInconsistentSpans)
 #endif
@@ -2747,6 +2747,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     const Int assignmentNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodAssignment, .startNodeInd = assignmentNodeInd,
                        .sentinel = sentinel}), cm->backtrack);
+    print("assi sentinel %d", sentinel) 
     if (tok.pl1 == assiType) {
         VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
         pTypeDef(P_C);
@@ -2758,6 +2759,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         if (entityId > -1) {
             VALIDATEP(cm->entities.cont[entityId].class == classMutable,
                     errCannotMutateImmutable)
+            leftType = cm->entities.cont[entityId].typeId; 
         } else {
             entityId = createEntity(newName, nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
         }
@@ -2766,7 +2768,8 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else if (countLeftSide > 1) {
         complexLeft = true;
         VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
-        assignmentComplexLeftSide(cm->i, cm->i + countLeftSide, P_C);
+        addNode((Node){ .tp = nodAssignment}, locOf(tok), cm);
+        leftType = assignmentComplexLeftSide(cm->i + countLeftSide, P_C);
     } else if (isMutation) {
         addNode((Node){ .tp = nodAssignment, .pl1 = assiDefinition, .pl2 = 1}, locOf(tok), cm);
         mbOld = toks[cm->i];
@@ -2799,13 +2802,16 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else if (rightTk.tp == tokFn) {
         // TODO
     } else {
+        print("right side at %d to sent %d", cm->i, sentinel) 
         TypeId rightType = exprUpToWithFrame(
                 (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
                 locOf(rightTk), P_C);
         VALIDATEP(rightType != -2, errAssignment)
 
-        if (tok.pl1 == 0 && rightType > -1) {
+        if (rightType > -1 && leftType == -1) {
             cm->entities.cont[entityId].typeId = rightType;
+        } else if (leftType > -1 && rightType > -1) {
+            VALIDATEP(leftType == rightType, errTypeMismatch)
         }
     }
     mbCloseSpans(cm);

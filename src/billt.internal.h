@@ -60,8 +60,7 @@ typedef struct { // :Arena
     testable Bool hasValues ## T (Stack ## T * st);\
     testable T pop ## T (Stack ## T * st);\
     testable T peek ## T(Stack ## T * st);\
-    testable void push ## T (T newItem, Stack ## T * st);\
-    testable void clear ## T (Stack ## T * st);
+    testable void push ## T (T newItem, Stack ## T * st);
 
 #define DEFINE_INTERNAL_LIST_TYPE(T)\
 typedef struct {\
