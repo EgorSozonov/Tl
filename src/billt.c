@@ -2499,7 +2499,7 @@ testable void addNode(Node node, SourceLoc loc, Compiler* cm) { //:addNode
 private void pAddAccessorCall(Int sentinel, SourceLoc loc, StateForExprs* s) {
 //:pAddAccessorCall Pushes a list accessor call to the temporary stacks during expression parsing
     push(((ExprFrame) { .tp = exfrCall, .startNode = -1, .sentinel = sentinel,
-                        .argCount = 2 }), s->frames);
+                        .argCount = 1 }), s->frames);
     push(((Node) { .tp = nodCall, .pl1 = opGetElem }), s->calls);
     push(loc, s->locsCalls);
 }
@@ -2802,8 +2802,6 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         TypeId rightType = exprUpToWithFrame(
                 (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
                 locOf(rightTk), P_C);
-        print("rightTYpe %d", rightType)
-        dbgType(rightType, cm);
         VALIDATEP(rightType != -2, errAssignment)
 
         if (tok.pl1 == 0 && rightType > -1) {
@@ -3223,7 +3221,6 @@ private TypeId exprUpToWithFrame(ParseFrame frame, SourceLoc loc, P_CT) {
 
     eLinearize(frame.sentinel, P_C);
     exprCopyFromScratch(startNodeInd, cm);
-    print("p1")
     Int exprType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
     mbCloseSpans(cm);
     return exprType;
@@ -4574,15 +4571,9 @@ private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeG
     if (hdr.sort <= sorFunction) {
         return typeId;
     } else if (hdr.sort == sorTypeCall) {
-        Int genElt = cm->types.cont[typeId + hdr.tyrity + 3];
-        if ((genElt >> 24) & 0xFF == 0xFF) { // ???
-            return -(genElt & 0xFF) - 1; // a param type in outer position,
-                                         // so we return its (-arity -1)
-        } else {
-            return genElt & LOWER24BITS;
-        }
+        return hdr.nameAndLen;
     } else {
-        return cm->types.cont[typeId + hdr.tyrity + 3] & LOWER24BITS;
+        return cm->types.cont[typeId + hdr.tyrity + TYPE_PREFIX_LEN] & LOWER24BITS;
     }
 }
 
@@ -4786,9 +4777,9 @@ private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* 
 //:tCreateSingleParamTypeCall Creates a type like (L Int)
     const Int tentativeTypeId = cm->types.len;
     pushIntypes(0, cm);
-
+    TypeId listType = cm->activeBindings[stToNameId(strL)];
     typeAddHeader((TypeHeader){
-        .sort = sorTypeCall, .tyrity = 1, .arity = 0, .nameAndLen = stToNameId(strL) }, cm);
+        .sort = sorTypeCall, .tyrity = 1, .arity = 0, .nameAndLen = listType }, cm);
     pushIntypes(param, cm);
 
     cm->types.cont[tentativeTypeId] = cm->types.len - tentativeTypeId - 1;
@@ -5179,7 +5170,7 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
     Int expSentinel = exp->len;
     Arr(Int) cont = exp->cont;
     Int currAhead = 1; // 1 for the extra "BIG" element before the call in "st"
-
+    const TypeId listType = cm->activeBindings[stToNameId(strL)];
     for (Int j = 0; j < expSentinel; ++j) {
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
@@ -5187,18 +5178,18 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
         } else if (cont[j] == 2*BIG) {
             TypeId type1 = cont[j - 2];
             TypeId outer1 = typeGetOuter(type1, cm);
-            print("type1 %d outer1 %d", type1, outer1)
-            printStackInt(exp);
-            VALIDATEP(outer1 == cm->activeBindings[stToNameId(strL)], errTypeOfNotList)
+            VALIDATEP(outer1 == listType, errTypeOfNotList)
+
             TypeId type2 = cont[j - 1];
             VALIDATEP(type2 == tokInt, errTypeOfListIndex)
-            TypeId eltType = getGenericParam(type1, 0, cm);
-            print("eltType %d", eltType)
 
+            TypeId eltType = getGenericParam(type1, 0, cm);
+
+            shiftStackLeft(j + 1, 2, cm);
             j -= 2;
             currAhead += 2;
-            shiftStackLeft(j, 3, cm);
             cont[j] = eltType;
+            expSentinel -= 3;
             continue;
         }
 
@@ -5278,11 +5269,8 @@ testable TypeId typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     StackInt* exp = cm->stateForExprs->exp;
 
     populateExp(indExpr, sentinelNode, cm);
-    print("populated ind %d to sent %d", indExpr, sentinelNode)
-    printStackInt(exp);
     typeReduceExpr(exp, indExpr, cm);
 
-    printStackInt(exp);
     if (exp->len == 1) {
         return exp->cont[0]; // the last remaining element is the type of the whole expression
     } else {
@@ -5291,23 +5279,29 @@ testable TypeId typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 }
 
 
-private TypeId tGetTypeOfListElement(Int j, Compiler* cm) { //:tGetTypeOfListElement
-    Node nd = cm->nodes.cont[j];
+private TypeId typecheckAndProcessListElt(Int* j, Compiler* cm) { //:typecheckAndProcessListElt
+// Also updates the current index to skip the current element
+    Node nd = cm->nodes.cont[*j];
     if (nd.tp <= topVerbatimTokenVariant) {
+        *j += 1;
         return nd.tp;
     } else if (nd.tp == nodId) {
+        *j += 1;
         return cm->entities.cont[nd.pl1].typeId;
     } else {
-        Int sentinel = j + nd.pl2 + 1;
-        return typeCheckBigExpr(j, sentinel, cm);
+        Int sentinel = (*j) + nd.pl2 + 1;
+        TypeId exprType = typeCheckBigExpr(*j, sentinel, cm);
+        *j = sentinel;
+        return exprType;
     }
 }
 
 
 private TypeId typecheckList(Int startInd, Compiler* cm) { //:typecheckList
-    TypeId fstType = tGetTypeOfListElement(startInd, cm);
-    for (Int j = startInd + 1; j < cm->nodes.len; j++) {
-        TypeId eltType = tGetTypeOfListElement(j, cm);
+    Int j = startInd;
+    TypeId fstType = typecheckAndProcessListElt(&j, cm);
+    for (; j < cm->nodes.len; ) {
+        TypeId eltType = typecheckAndProcessListElt(&j, cm);
         VALIDATEP(eltType == fstType, errListDifferentEltTypes)
     }
     return fstType;
@@ -5649,6 +5643,10 @@ void dbgTypeOuter(TypeId currT, Compiler* cm) { //:dbgTypeOuter
 void dbgType(TypeId typeId, Compiler* cm) { //:dbgType
 // Print a single type fully for debugging purposes
     //printf("Printing the type [ind = %d, len = %d]\n", typeId, cm->types.cont[typeId]);
+    if (typeId <= topVerbatimType)  {
+        printf("%s", nodeNames[typeId]);
+        return;
+    }
     printIntArrayOff(typeId, 6, cm->types.cont);
 
     StackTypeLoc* st = createStackTypeLoc(16, cm->aTmp);

@@ -472,7 +472,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
 ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
-   /* 
         createTestWithLocs(
             s("Simple function call"),
             s("x = foo 10 2 `hw`"),
@@ -519,7 +518,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
         ),
         createTestWithError(
             s("Data allocation type error"),
-            s(errListDifferentEltTypes), 
+            s(errListDifferentEltTypes),
             s("x = [1 true]"),
             (((Node[]) {
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl3 = 2 },
@@ -719,26 +718,34 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             })),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
-        )
-       */ 
+        ),
         createTest(
             s("List accessor"),
             s("arr = [true false true];\n"
               "x = arr[1]"
-                ),
+             ),
             ((Node[]) {
-                (Node){ .tp = nodAssignment, .pl2 = 7, .pl3 = 2 },
+                (Node){ .tp = nodAssignment, .pl2 = 9, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl2 = 0 },
-                (Node){ .tp = nodExpr,              .pl2 = 5 },
-                (Node){ .tp = tokString },
-                (Node){ .tp = tokInt, .pl1 = -1,    .pl2 = -3 },
-                (Node){ .tp = nodCall, .pl1 = oper(opSize, tokInt), .pl2 = 1 },
-                (Node){ .tp = nodCall, .pl1 = oper(opToString, tokInt), .pl2 = 1 },
-                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokString), .pl2 = 2 }
+                (Node){ .tp = nodExpr,  .pl1 = 1, .pl2 = 7 },
+                (Node){ .tp = nodAssignment,      .pl2 = 5, .pl3 = 2 },
+                (Node){ .tp = nodBinding,  .pl1 = 1, .pl2 = -1 },
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3, .pl3 = 3 },
+                (Node){ .tp = tokBool,            .pl2 = 1 },
+                (Node){ .tp = tokBool,            .pl2 = 0 },
+                (Node){ .tp = tokBool,            .pl2 = 1 },
+                (Node){ .tp = nodId,    .pl1 = 1, .pl2 = -1 },
+
+                (Node){ .tp = nodAssignment, .pl2 = 5, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 2, .pl2 = 0 },
+                (Node){ .tp = nodExpr,              .pl2 = 3 },
+                (Node){ .tp = nodId,      .pl1 = 0, .pl2 = 0 }, // arr
+                (Node){ .tp = tokInt,               .pl2 = 1 },
+                (Node){ .tp = nodCall, .pl1 = opGetElem + O, .pl2 = 2 }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
-        ),
+        )
     }));
 }
 
@@ -1543,15 +1550,11 @@ int main() {
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
-   /* 
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
-   */ 
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
-   /* 
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
-   */ 
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {
