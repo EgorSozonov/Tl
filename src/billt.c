@@ -1130,6 +1130,7 @@ private Int minPositiveOf(Int count, ...) { //:minPositiveOf
                                            // generic's tyrity
 #define iErrorInconsistentTypeExpr      11 // Reduced type expression has != 1 elements
 #define iErrorNotAFunction              12 // Expected to find a function type here
+#define iErrorArrayElemButShouldBePtr   13 // An assignment with list accessor on left should be ptr
 
 //}}}
 //{{{ Syntax errors
@@ -2677,9 +2678,8 @@ private TypeId assignmentComplexLeftSide(Int sentinel, P_CT) { //:assignmentComp
     VALIDATEP(firstTk.tp == tokWord, errAssignmentLeftSide)
     //EntityId leftEntityId = getActiveVar(firstTk.pl1, cm);
     Int j = cm->i + 1;
-print("startj %d", j)
     StackInt* sc = cm->stateForExprs->exp;
-    sc->len = 0; 
+    sc->len = 0;
 
     while (j < sentinel) {
         Token accessorTk = toks[j];
@@ -2687,13 +2687,21 @@ print("startj %d", j)
         j = calcSentinel(accessorTk, j);
         push(j, sc);
     }
-print("after skipping %d", j)
 
     Int startBt = firstTk.startBt;
     Int lastBt = toks[j - 1].startBt + toks[j - 1].lenBts;
     TypeId leftType = exprUpToWithFrame(
             (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
             (SourceLoc){.startBt = startBt, .lenBts = lastBt - startBt }, P_C);
+    Int indLastNode = cm->nodes.len - 1;
+
+    Node lastNode = cm->nodes.cont[indLastNode];
+    if (lastNode.tp == nodCall)  {
+#ifdef SAFETY
+        VALIDATEI(lastNode.pl1 == opGetElem, iErrorArrayElemButShouldBePtr)
+#endif
+        cm->nodes.cont[indLastNode].pl1 = opGetElemPtr;
+    }
 //    // The collection name part
 //    addNode((Node){ .tp = nodId, .pl1 = leftEntityId, .pl2 = firstTk.pl2}, locOf(firstTk), cm);
 //    // The accessor expression parts
@@ -2720,7 +2728,7 @@ print("after skipping %d", j)
 //            }
 //        }
 //    }
-//    sc->len = 0; 
+//    sc->len = 0;
     return leftType;
 }
 
@@ -2731,11 +2739,11 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     for (; j < cm->stats.inpLength && toks[j].tp != tokAssignRight;
             j += 1) {
     }
+    const Int rightInd = j;
     const Int sentinel = calcSentinel(tok, cm->i - 1);
     const Int countLeftSide = j - cm->i;
     Token rightTk = toks[j];
 
-    print("count left sie %d", countLeftSide)
 #ifdef SAFETY
     VALIDATEI(countLeftSide < (tok.pl2 - 1), iErrorInconsistentSpans)
 #endif
@@ -2747,7 +2755,6 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     const Int assignmentNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodAssignment, .startNodeInd = assignmentNodeInd,
                        .sentinel = sentinel}), cm->backtrack);
-    print("assi sentinel %d", sentinel) 
     if (tok.pl1 == assiType) {
         VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
         pTypeDef(P_C);
@@ -2759,7 +2766,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         if (entityId > -1) {
             VALIDATEP(cm->entities.cont[entityId].class == classMutable,
                     errCannotMutateImmutable)
-            leftType = cm->entities.cont[entityId].typeId; 
+            leftType = cm->entities.cont[entityId].typeId;
         } else {
             entityId = createEntity(newName, nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
         }
@@ -2776,7 +2783,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         mbOld.pl1 = getActiveVar(mbOld.pl2, cm);
         addNode((Node){ .tp = nodBinding, .pl1 = mbOld.pl1, .pl2 = 0}, locOf(mbOld), cm);
     }
-    cm->i += countLeftSide + 1; // CONSUME the left side of an assignment and the assignRight
+    cm->i = rightInd + 1; // CONSUME the left side of an assignment and the assignRight
     cm->nodes.cont[assignmentNodeInd].pl3 = cm->nodes.len - assignmentNodeInd;
 
     if (isMutation) {
@@ -2802,7 +2809,6 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     } else if (rightTk.tp == tokFn) {
         // TODO
     } else {
-        print("right side at %d to sent %d", cm->i, sentinel) 
         TypeId rightType = exprUpToWithFrame(
                 (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
                 locOf(rightTk), P_C);

@@ -1,5 +1,5 @@
-# Tl
-### A new programming language for the browser
+# Billt
+### A new embedded scripting language
 
 Goal: a practical embedded scripting language that doesn't suck
 
@@ -16,13 +16,12 @@ Goal: a practical embedded scripting language that doesn't suck
 * No "import" duplication in every source file
 * Hot code reloading
 * Stability after version 1.0: no breaking changes, few new features if any
-* Compiles to JokeScript, but with no dependencies on any JS packages
 * Compiler and all tooling written in a native language, i.e. fast
 
 ### Why this name?
 
-"Tl" kind of looks like the letter π. Alternatively, it may stand for "Top language" or "The language". 
-Short and sweet.
+"Billt" was built by a crazy scientist named Bill Tinkerer, also known as Bill Tin, so you can have
+additional functionality "built in" your favorite software
 
 ### Using it
 

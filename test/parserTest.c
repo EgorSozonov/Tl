@@ -416,55 +416,64 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //~            ((Int[]) {}),
 //~            ((TestEntityImport[]) {})
 //~        ),
-        createTestWithLocs(
-            s("Mutation complex"),
-            s("main = (\\ \n"
-                   "x~ = 2;\n"
-                   "x ^= 15 - 8)"
-            ),
-            ((Node[]) {
-                (Node){ .tp = nodFnDef,           .pl2 = 13 },
-                (Node){ .tp = nodBinding, .pl1 = 0,         },
-                (Node){ .tp = nodScope,           .pl2 = 11 },
-                (Node){ .tp = nodAssignment,      .pl2 = 2  },
-                (Node){ .tp = nodBinding, .pl1 = 1,         },     // x
-                (Node){ .tp = tokInt,             .pl2 = 2  },
-                (Node){ .tp = nodAssignment,        .pl2 = 7  },
-                (Node){ .tp = nodBinding, .pl1 = 1,         },
-                (Node){ .tp = nodExpr,            .pl2 = 5  },
 
-                (Node){ .tp = nodCall, .pl1 = oper(opExponent, tokInt), .pl2 = 2 },
-                (Node){ .tp = nodId,      .pl1 = 1, .pl2 = 1 },
-
-                (Node){ .tp = nodCall, .pl1 = oper(opMinus, tokInt), .pl2 = 2 },
-                (Node){ .tp = tokInt,             .pl2 = 15, .startBt = 28, .lenBts = 2 },
-                (Node){ .tp = tokInt,             .pl2 = 8, .startBt = 31, .lenBts = 1 }
-            }),
-            ((Int[]) {}),
-            ((TestEntityImport[]) {}),
-            ((SourceLoc[]) {})
-        ),
-       */ 
-        createTestWithLocs(
+//        createTestWithLocs(
+//            s("Mutation complex"),
+//            s("main = (\\ \n"
+//                   "x~ = 2;\n"
+//                   "x ^= 15 - 8)"
+//            ),
+//            ((Node[]) {
+//                (Node){ .tp = nodFnDef,           .pl2 = 13 },
+//                (Node){ .tp = nodBinding, .pl1 = 0,         },
+//                (Node){ .tp = nodScope,           .pl2 = 11 },
+//                (Node){ .tp = nodAssignment,      .pl2 = 2  },
+//                (Node){ .tp = nodBinding, .pl1 = 1,         },     // x
+//                (Node){ .tp = tokInt,             .pl2 = 2  },
+//                (Node){ .tp = nodAssignment,        .pl2 = 7  },
+//                (Node){ .tp = nodBinding, .pl1 = 1,         },
+//                (Node){ .tp = nodExpr,            .pl2 = 5  },
+//
+//                (Node){ .tp = nodCall, .pl1 = oper(opExponent, tokInt), .pl2 = 2 },
+//                (Node){ .tp = nodId,      .pl1 = 1, .pl2 = 1 },
+//
+//                (Node){ .tp = nodCall, .pl1 = oper(opMinus, tokInt), .pl2 = 2 },
+//                (Node){ .tp = tokInt,             .pl2 = 15, .startBt = 28, .lenBts = 2 },
+//                (Node){ .tp = tokInt,             .pl2 = 8, .startBt = 31, .lenBts = 1 }
+//            }),
+//            ((Int[]) {}),
+//            ((TestEntityImport[]) {}),
+//            ((SourceLoc[]) {})
+//        ),
+*/
+        createTest(
             s("Complex left side"),
             s("main = (\\\n"
               "arr = [1 2];\n"
-              "arr[0] = 11\n"
+              "arr[0] = 21\n"
               ")"
              ),
             ((Node[]) {
-                (Node){ .tp = nodAssignment, .pl1 = 0 },
-                (Node){ .tp = nodScope,           .pl2 = 11 },
-                (Node){ .tp = nodAssignment,      .pl2 = 2 },
-                (Node){ .tp = nodBinding, .pl1 = 1,        },     // x
+                (Node){ .tp = nodFnDef,           .pl2 = 15 },
+                (Node){ .tp = nodAssignment, .pl2 = 8, .pl3 = 2 },   // arr = [1 2]
+                (Node){ .tp = nodBinding, .pl1 = 1 },
+                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 6 },
+                (Node){ .tp = nodAssignment, .pl2 = 4, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 2, .pl2 = -1 },
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 1 },
+                (Node){ .tp = tokInt, .pl2 = 2 },
+                (Node){ .tp = nodId, .pl1 = 2, .pl2 = -1 },
+
+                (Node){ .tp = nodAssignment, .pl2 = 5, .pl3 = 5 }, // arr[0] = 21
+                (Node){ .tp = nodExpr,         .pl2 = 3  },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1  },
+                (Node){ .tp = tokInt, .pl2 = 0           },
+                (Node){ .tp = nodCall, .pl1 = opGetElemPtr + O, .pl2 = 2 },
+                (Node){ .tp = tokInt,          .pl2 = 21 }
             }),
             ((Int[]) {}),
-            ((TestEntityImport[]) {}),
-            ((SourceLoc[]) {
-                { .startBt = 0, .lenBts = 1 },
-                { .startBt = 2, .lenBts = 4 },
-                { .startBt = 4, .lenBts = 2 }
-             })
+            ((TestEntityImport[]) {})
         )
     }));
 }
@@ -1553,12 +1562,13 @@ int main() {
     int countPassed = 0;
     int countTests = 0;
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
-   /* 
+
+   /*
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
-   */ 
+   */
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {
