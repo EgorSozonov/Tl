@@ -1260,6 +1260,7 @@ private TypeId typecheckList(Int startInd, Compiler* cm);
 private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm);
 private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm);
+private Int tGetFnArity(TypeId fnType, Compiler* cm);
 #ifdef TEST
 void printParser(Compiler* cm, Arena* a);
 void dbgType(TypeId typeId, Compiler* cm);
@@ -2693,47 +2694,77 @@ private TypeId assignmentComplexLeftSide(Int sentinel, P_CT) { //:assignmentComp
     TypeId leftType = exprUpToWithFrame(
             (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
             (SourceLoc){.startBt = startBt, .lenBts = lastBt - startBt }, P_C);
-    Int indLastNode = cm->nodes.len - 1;
 
-    Node lastNode = cm->nodes.cont[indLastNode];
-    if (lastNode.tp == nodCall)  {
-#ifdef SAFETY
-        VALIDATEI(lastNode.pl1 == opGetElem, iErrorArrayElemButShouldBePtr)
-#endif
-        cm->nodes.cont[indLastNode].pl1 = opGetElemPtr;
-    }
-//    // The collection name part
-//    addNode((Node){ .tp = nodId, .pl1 = leftEntityId, .pl2 = firstTk.pl2}, locOf(firstTk), cm);
-//    // The accessor expression parts
-//    while (j < sentinel) {
-//        Token accessorTk = toks[j];
-//        if (accessorTk.tp == tokFieldAcc) {
-//            j += 1;
-//        } else { // tkAccArray
-//            Token accessTk = toks[j + 1];
-//            if (accessTk.tp == tokParens) {
-//                cm->i = j + 2; // CONSUME up to the subexpression start
-//                Int subexSentinel = cm->i + accessTk.pl2 + 1;
-//                exprHeadless(subexSentinel, locOf(accessTk), P_C);
-//                j = cm->i;
-//            } else if (accessTk.tp == tokInt || accessTk.tp == tokString) {
-//                addNode(((Node){ .tp = accessTk.tp, .pl1 = accessTk.pl1, .pl2 = accessTk.pl2}),
-//                        (SourceLoc){.startBt = 0, .lenBts = 0}, cm);
-//                j += 1;
-//            } else { // tokWord
-//                Int accessEntityId = getActiveVar(accessTk.pl1, cm);
-//                addNode((Node){ .tp = nodId, .pl1 = accessEntityId, .pl2 = accessTk.pl1},
-//                                    locOf(accessTk), cm);
-//                j += 1;
-//            }
-//        }
-//    }
-//    sc->len = 0;
+    // we also need to mutate the last opGetElem to opGetElemPtr, but we do that in
+    // "assignmentMutateComplexLeft"
     return leftType;
 }
 
 
+private void assignmentMutateComplexLeft(Int rightNodeInd, P_CT) {
+//:assignmentMutateComplexLeft Mutating the last opGetElem to opGetElemPtr, but only after the whole
+// left side has been copied to the right (in case we are in a mutation like `x[i] += 2`)
+    Node lastNode = cm->nodes.cont[rightNodeInd - 1];
+    if (lastNode.tp == nodCall)  {
+#ifdef SAFETY
+        VALIDATEI(lastNode.pl1 == opGetElem, iErrorArrayElemButShouldBePtr)
+#endif
+        cm->nodes.cont[rightNodeInd - 1].pl1 = opGetElemPtr;
+    }
+}
+
+
+private TypeId pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, P_CT) {
+//:pAssignmentRight The right side of an assignment
+    if (rightTk.tp == tokFn) {
+        // TODO
+    } else {
+        TypeId rightType = exprUpToWithFrame(
+                (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
+                locOf(rightTk), P_C);
+        VALIDATEP(rightType != -2, errAssignment)
+        return rightType;
+    }
+}
+
+
+private TypeId pMutationRight(Int leftNodeInd, TypeId leftType, Int opType, Token rightTk,
+                              Int sentinel, P_CT) {
+//:pMutationRight "leftNodeInd" is the index of the first node emitted after the nodAssignment
+// Precondition: we are pointing one past tokAssignmentRight
+    Int startNodeInd = cm->nodes.len;
+    const Int countLeftNodes = cm->nodes.len - leftNodeInd;
+    StateForExprs* stEx = cm->stateForExprs;
+
+    // copy nodes from leftNodeInd to lastNodeInd to the end
+    // parse the right side
+    // insert the operator
+
+    addNode((Node){ .tp = nodExpr}, locOf(tok), cm);
+
+    eLinearize(sentinel, P_C);
+
+    const Int ovInd = -cm->activeBindings[opType] - 2;
+    Int operatorEntity = -1;
+    bool foundOv = findOverload(leftType, ovInd, &operatorEntity, cm);
+    VALIDATEP(foundOv, errTypeNoMatchingOverload)
+    VALIDATEP(tGetFnArity(cm->entities.cont[operatorEntity].typeId, cm) == 2,
+            errTypeNoMatchingOverload)
+
+    push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2 }), stEx->calls);
+    push(((SourceLoc){ .startBt = rightTk.startBt, .lenBts = OPERATORS[opType].lenBts}),
+                stEx->locsCalls);
+
+    return typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
+}
+
+
 private void pAssignment(Token tok, P_CT) { //:pAssignment
+    if (tok.pl1 == assiType) {
+        pTypeDef(P_C);
+        return;
+    }
+
     TypeId leftType = -1;
     Int j = cm->i;
     for (; j < cm->stats.inpLength && toks[j].tp != tokAssignRight;
@@ -2748,18 +2779,13 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     VALIDATEI(countLeftSide < (tok.pl2 - 1), iErrorInconsistentSpans)
 #endif
 
-    Bool complexLeft = false;
     EntityId entityId = -1;
-    Token mbOld = (Token){.tp = 0 };
     const Bool isMutation = tok.pl1 >= BIG;
     const Int assignmentNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodAssignment, .startNodeInd = assignmentNodeInd,
                        .sentinel = sentinel}), cm->backtrack);
-    if (tok.pl1 == assiType) {
-        VALIDATEP(countLeftSide == 1, errAssignmentLeftSide)
-        pTypeDef(P_C);
-        return;
-    } else if (countLeftSide == 1)  {
+    addNode((Node){ .tp = nodAssignment}, locOf(tok), cm);
+    if (countLeftSide == 1)  {
         Token nameTk = toks[cm->i];
         Unt newName = ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1; // nameId + lenBts
         entityId = cm->activeBindings[nameTk.pl1];
@@ -2770,56 +2796,31 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         } else {
             entityId = createEntity(newName, nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
         }
-        addNode((Node){ .tp = nodAssignment}, locOf(tok), cm);
         addNode((Node){ .tp = nodBinding, .pl1 = entityId, .pl2 = 0 }, locOf(nameTk), cm);
     } else if (countLeftSide > 1) {
-        complexLeft = true;
-        VALIDATEP(tok.pl1 == assiDefinition || tok.pl1 >= BIG, errAssignmentLeftSide)
-        addNode((Node){ .tp = nodAssignment}, locOf(tok), cm);
         leftType = assignmentComplexLeftSide(cm->i + countLeftSide, P_C);
-    } else if (isMutation) {
-        addNode((Node){ .tp = nodAssignment, .pl1 = assiDefinition, .pl2 = 1}, locOf(tok), cm);
-        mbOld = toks[cm->i];
-        mbOld.pl1 = getActiveVar(mbOld.pl2, cm);
-        addNode((Node){ .tp = nodBinding, .pl1 = mbOld.pl1, .pl2 = 0}, locOf(mbOld), cm);
     }
+
     cm->i = rightInd + 1; // CONSUME the left side of an assignment and the assignRight
     cm->nodes.cont[assignmentNodeInd].pl3 = cm->nodes.len - assignmentNodeInd;
+    const Int rightNodeInd = cm->nodes.len;
 
+    TypeId rightType = -1;
     if (isMutation) {
-        StateForExprs* stEx = cm->stateForExprs;
-
-        Int startNodeInd = cm->nodes.len;
-        addNode((Node){ .tp = nodId, .pl1 = mbOld.pl1, .pl2 = 0}, locOf(mbOld), cm);
-
-        eLinearize(sentinel, P_C);
-
-        TypeId leftSideType = cm->entities.cont[mbOld.pl1].typeId;
-        Int operatorEntity = -1;
-        Int opType = tok.pl1 - BIG;
-        Int ovInd = -cm->activeBindings[opType] - 2;
-        bool foundOv = findOverload(leftSideType, ovInd, &operatorEntity, cm);
-        VALIDATEP(foundOv, errTypeNoMatchingOverload)
-        push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2 }), stEx->calls);
-        push(((SourceLoc){ .startBt = rightTk.startBt, .lenBts = OPERATORS[opType].lenBts}),
-                    stEx->locsCalls);
-        TypeId rightType = typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
-        VALIDATEP(rightType == leftSideType, errTypeMismatch)
-        eClose(stEx, cm);
-    } else if (rightTk.tp == tokFn) {
-        // TODO
+        rightType = pMutationRight(leftNodeInd, leftType, tok.pl1 - BIG, rightTk, sentinel, cm);
     } else {
-        TypeId rightType = exprUpToWithFrame(
-                (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
-                locOf(rightTk), P_C);
-        VALIDATEP(rightType != -2, errAssignment)
-
-        if (rightType > -1 && leftType == -1) {
-            cm->entities.cont[entityId].typeId = rightType;
-        } else if (leftType > -1 && rightType > -1) {
-            VALIDATEP(leftType == rightType, errTypeMismatch)
-        }
+        rightType = pAssignmentRight(leftType, rightTk, sentinel, P_C);
     }
+
+    if (countLeftSide > 1)  {
+        assignmentMutateComplexLeft(rightNodeInd, cm);
+    }
+    if (entityId > -1 && rightType > -1 && leftType == -1) {
+        cm->entities.cont[entityId].typeId = rightType; // inferring the type of left binding
+    } else if (leftType > -1 && rightType > -1) {
+        VALIDATEP(leftType == rightType, errTypeMismatch)
+    }
+
     mbCloseSpans(cm);
 }
 
@@ -4601,7 +4602,15 @@ private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm) { //:tGetInd
     VALIDATEI(hdr.sort == sorFunction, iErrorNotAFunction);
 #endif
     return fnType + TYPE_PREFIX_LEN + hdr.tyrity;
+}
 
+
+private Int tGetFnArity(TypeId fnType, Compiler* cm) { //:tGetFnArity
+    TypeHeader hdr = typeReadHeader(fnType, cm);
+#ifdef SAFETY
+    VALIDATEI(hdr.sort == sorFunction, iErrorNotAFunction);
+#endif
+    return hdr.arity;
 }
 
 
@@ -5017,7 +5026,7 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 // Consumes the whole type assignment right side, or the whole function signature
 // Data format: see "Type expression data format"
 // Precondition: we are 1 past the tokAssignmentRight token, or tokIntro token
-    //StackInt* params = cm->stateForTypes->params;
+    VALIDATEP(toks[cm->i + 1].tp == tokAssignmentRight, errAssignmentLeftSide)
     cm->stateForTypes->frames->len = 0;
 
     Int sentinel = cm->i + toks[cm->i - 1].pl2; // we get the length from the tokAssignmentRight

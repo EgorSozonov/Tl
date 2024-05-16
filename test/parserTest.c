@@ -317,7 +317,7 @@ private Node doubleNd(double value) {
 
 ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
-   /* 
+   /*
         createTestWithLocs(
             s("Simple assignment"),
             s("x = 12"),
@@ -391,32 +391,33 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Int[]) {}),
             ((TestEntityImport[]) {})
         ),
-//~        createTest(
-//~            s("Mutation simple"),
-//~            s("main = {{\n"
-//~              "    x~ = 12;\n"
-//~              "    x += 3\n"
-//~              "}}"
-//~            ),
-//~            ((Node[]) {
-//~                (Node){ .tp = nodFnDef,           .pl2 = 11 },
-//~                (Node){ .tp = nodBinding, .pl1 = 0,         },
-//~                (Node){ .tp = nodScope,           .pl2 = 9 },
-//~                (Node){ .tp = nodAssignment,  .pl1 = 1, .pl2 = 0 }, // 1 = x, 0 is taken by "main"
-//~                (Node){ .tp = nodExpr, .pl2 = 1,        },
-//~                (Node){ .tp = tokInt,             .pl2 = 12 },
-//~                (Node){ .tp = nodAssignment, .pl1 = 1, .pl2 = 1 },
-//~                (Node){ .tp = nodBinding, .pl1 = 1,        },
-//~                (Node){ .tp = nodExpr, .pl2 = 3 },
-//~                (Node){ .tp = nodExpr,            .pl2 = 3 },
-//~                (Node){ .tp = nodId,   .pl1 = 1,  .pl2 = 1 },
-//~                (Node){ .tp = tokInt,             .pl2 = 3 },
-//~                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
-//~            }),
-//~            ((Int[]) {}),
-//~            ((TestEntityImport[]) {})
-//~        ),
-
+       */
+        createTest(
+            s("Mutation simple"),
+            s("main = (\\\n"
+              "    x~ = 12;\n"
+              "    x += 3\n"
+              ")"
+            ),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 11 },
+                (Node){ .tp = nodBinding, .pl1 = 0,         },
+                (Node){ .tp = nodScope,           .pl2 = 9 },
+                (Node){ .tp = nodAssignment,  .pl1 = 1, .pl2 = 0 }, // 1 = x, 0 is taken by "main"
+                (Node){ .tp = nodExpr, .pl2 = 1,        },
+                (Node){ .tp = tokInt,             .pl2 = 12 },
+                (Node){ .tp = nodAssignment, .pl1 = 1, .pl2 = 1 },
+                (Node){ .tp = nodBinding, .pl1 = 1,        },
+                (Node){ .tp = nodExpr, .pl2 = 3 },
+                (Node){ .tp = nodExpr,            .pl2 = 3 },
+                (Node){ .tp = nodId,   .pl1 = 1,  .pl2 = 1 },
+                (Node){ .tp = tokInt,             .pl2 = 3 },
+                (Node){ .tp = nodCall, .pl1 = oper(opPlus, tokInt), .pl2 = 2 }
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+/*
 //        createTestWithLocs(
 //            s("Mutation complex"),
 //            s("main = (\\ \n"
@@ -445,7 +446,6 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //            ((TestEntityImport[]) {}),
 //            ((SourceLoc[]) {})
 //        ),
-*/
         createTest(
             s("Complex left side"),
             s("main = (\\\n"
@@ -474,7 +474,53 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
+        ),
+        createTest(
+            s("Very complex left side"),
+            s("main = (\\\n"
+              "arr = [[1 2] [4 3]];\n"
+              "arr[1][0] = 21\n"
+              ")"
+             ),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,           .pl2 = 27 },
+                (Node){ .tp = nodAssignment, .pl2 = 18, .pl3 = 2 },   // arr = [1 2]
+                (Node){ .tp = nodBinding, .pl1 = 1 },
+                (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 16 },
+
+                (Node){ .tp = nodAssignment, .pl2 = 4, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 2, .pl2 = -1 },
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 1 },
+                (Node){ .tp = tokInt, .pl2 = 2 },
+
+                (Node){ .tp = nodAssignment, .pl2 = 4, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 3, .pl2 = -1 },
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 4 },
+                (Node){ .tp = tokInt, .pl2 = 3 },
+
+                (Node){ .tp = nodAssignment, .pl2 = 4, .pl3 = 2 },
+                (Node){ .tp = nodBinding, .pl1 = 4, .pl2 = -1 },
+                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = nodId, .pl1 = 2, .pl2 = -1 },
+                (Node){ .tp = nodId, .pl1 = 3, .pl2 = -1 },
+
+                (Node){ .tp = nodId, .pl1 = 4, .pl2 = -1 },
+
+                (Node){ .tp = nodAssignment, .pl2 = 7, .pl3 = 7 }, // arr[1][0] = 21
+                (Node){ .tp = nodExpr,         .pl2 = 5  },
+                (Node){ .tp = nodId, .pl1 = 1, .pl2 = 1  },
+                (Node){ .tp = tokInt, .pl2 = 1           },
+                (Node){ .tp = nodCall, .pl1 = opGetElem + O, .pl2 = 2 },
+                (Node){ .tp = tokInt, .pl2 = 0           },
+                (Node){ .tp = nodCall, .pl1 = opGetElemPtr + O, .pl2 = 2 },
+                (Node){ .tp = tokInt,          .pl2 = 21 }
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
         )
+*/
     }));
 }
 
