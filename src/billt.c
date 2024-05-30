@@ -250,6 +250,7 @@ testable void deleteArena(Arena* ar) { //:deleteArena
 private void dbgStackNode(StackNode*, Arena*);
 #endif
 
+
 void saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:saveNodes
 // Pushes the tail of scratch space (from a specified index onward) into the main node list
     const Int pushCount = scr->len - startInd;
@@ -264,8 +265,10 @@ void saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm)
     } else {
         Int newCap = 2*(cm->nodes.cap) + pushCount;
         Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
-        memcpy(newContent,                  cm->nodes.cont + startInd, cm->nodes.len*sizeof(Node));
-        memcpy((Node*)(newContent) + (cm->nodes.len), scr->cont + startInd, pushCount*sizeof(Node));
+        memcpy(newContent, cm->nodes.cont + startInd, cm->nodes.len*sizeof(Node));
+        memcpy((Node*)(newContent) + (cm->nodes.len),
+                scr->cont + startInd,
+                pushCount*sizeof(Node));
         cm->nodes.cap = newCap;
         cm->nodes.cont = newContent;
 
@@ -280,14 +283,27 @@ void saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm)
     cm->sourceLocs->len += pushCount;
 }
 
-
-private void reserveSpaceTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
-//:reserveSpaceTokenBuf
+void ensureCapacityTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
+//:ensureCapacityTokenBuf Reserve space in the temp buffer used to shuffle tokens
     st->len = 0;
     if (neededSpace >= st->cap) {
         Arr(Token) newContent = allocateOnArena(2*(st->cap)*sizeof(Token), cm->a);
         st->cap *= 2;
         st->cont = newContent;
+    }
+}
+
+
+private void ensureCapacityNodes(Int neededSpace, Compiler* cm) {
+//:ensureCapacityNodes Reserve space in the main nodes list
+    if (cm->nodes.len + neededSpace - 1 >= cm->nodes.cap) {
+        const Int newCap = (2*(cm->nodes.cap) > cm->nodes.cap + neededSpace)
+            ? 2*cm->nodes.cap
+            : cm->nodes.cap + neededSpace;
+        Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
+        memcpy(newContent, cm->nodes.cont, cm->nodes.len*sizeof(Node));
+        cm->nodes.cap = newCap;
+        cm->nodes.cont = newContent;
     }
 }
 
@@ -1287,8 +1303,8 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = {
 const char standardText[] = "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
                             "ifimplimportmatchpubreturntraittruetry"
                             // reserved words end here; what follows may have arbitrary order
-                            "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2printprintErr"
-                            "math:pimath:eTU"
+                            "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2print"
+                            "printErrmath:pimath:eTU"
 #ifdef TEST
                             "foobarinner"
 #endif
@@ -2717,6 +2733,7 @@ private void assignmentMutateComplexLeft(Int rightNodeInd, P_CT) {
 private TypeId pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, P_CT) {
 //:pAssignmentRight The right side of an assignment
     if (rightTk.tp == tokFn) {
+        return -1;
         // TODO
     } else {
         TypeId rightType = exprUpToWithFrame(
@@ -2730,31 +2747,56 @@ private TypeId pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, P_
 
 private TypeId pMutationRight(Int leftNodeInd, TypeId leftType, Int opType, Token rightTk,
                               Int sentinel, P_CT) {
-//:pMutationRight "leftNodeInd" is the index of the first node emitted after the nodAssignment
+//:pMutationRight The right side of a mutation like `a += 5`.
+// "leftNodeInd" is the index of the first node emitted after the nodAssignment
 // Precondition: we are pointing one past tokAssignmentRight
     Int startNodeInd = cm->nodes.len;
     const Int countLeftNodes = cm->nodes.len - leftNodeInd;
     StateForExprs* stEx = cm->stateForExprs;
 
-    // copy nodes from leftNodeInd to lastNodeInd to the end
+    print("left ind %d leftType %d opType %d sentinel %d count left %d startNode %d", leftNodeInd,
+            leftType, opType, sentinel, countLeftNodes, startNodeInd)
+    //addNode((Node){ .tp = nodExpr}, locOf(rightTk), cm);
+
+    // copy nodes from leftNodeInd to the end of nodes
+    ensureCapacityNodes(countLeftNodes, cm);
+    if (countLeftNodes > 1)  {
+        memcpy(cm->nodes.cont + cm->nodes.len, cm->nodes.cont + leftNodeInd,
+                countLeftNodes*sizeof(Node));
+    } else { // change binding to id
+        Node idNode = cm->nodes.cont[leftNodeInd];
+        idNode.tp = nodId;
+        idNode.pl2 = cm->entities.cont[idNode.pl1].name & LOWER24BITS;
+        cm->nodes.cont[cm->nodes.len] = idNode;
+    }
+    cm->nodes.len += countLeftNodes;
+    print("parse right %d", cm->i)
     // parse the right side
-    // insert the operator
 
-    addNode((Node){ .tp = nodExpr}, locOf(tok), cm);
+    TypeId rightType = exprUpToWithFrame(
+            (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
+            locOf(rightTk), P_C);
 
-    eLinearize(sentinel, P_C);
-
+    // resolve and insert the operator
     const Int ovInd = -cm->activeBindings[opType] - 2;
     Int operatorEntity = -1;
     bool foundOv = findOverload(leftType, ovInd, &operatorEntity, cm);
     VALIDATEP(foundOv, errTypeNoMatchingOverload)
     VALIDATEP(tGetFnArity(cm->entities.cont[operatorEntity].typeId, cm) == 2,
             errTypeNoMatchingOverload)
+           // TODO validate rightType
 
+print("p1")
+    push(
+        ((ExprFrame) {.tp = exfrCall, .sentinel = sentinel, .argCount = 2 }),
+        stEx->frames);
     push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2 }), stEx->calls);
     push(((SourceLoc){ .startBt = rightTk.startBt, .lenBts = OPERATORS[opType].lenBts}),
                 stEx->locsCalls);
 
+print("p2 sent %d cm->i %d", sentinel , cm->i)
+    eClose(stEx, cm);
+    saveNodes(startNodeInd, stEx->scr, stEx->locsScr, cm);
     return typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
 }
 
@@ -2785,6 +2827,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     push(((ParseFrame){.tp = nodAssignment, .startNodeInd = assignmentNodeInd,
                        .sentinel = sentinel}), cm->backtrack);
     addNode((Node){ .tp = nodAssignment}, locOf(tok), cm);
+    const Int leftNodeInd = cm->nodes.len;
     if (countLeftSide == 1)  {
         Token nameTk = toks[cm->i];
         Unt newName = ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1; // nameId + lenBts
@@ -2807,13 +2850,14 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 
     TypeId rightType = -1;
     if (isMutation) {
-        rightType = pMutationRight(leftNodeInd, leftType, tok.pl1 - BIG, rightTk, sentinel, cm);
+        const Int opType = tok.pl1 - BIG;
+        rightType = pMutationRight(leftNodeInd, leftType, opType, rightTk, sentinel, P_C);
     } else {
         rightType = pAssignmentRight(leftType, rightTk, sentinel, P_C);
     }
 
     if (countLeftSide > 1)  {
-        assignmentMutateComplexLeft(rightNodeInd, cm);
+        assignmentMutateComplexLeft(rightNodeInd, P_C);
     }
     if (entityId > -1 && rightType > -1 && leftType == -1) {
         cm->entities.cont[entityId].typeId = rightType; // inferring the type of left binding
@@ -2880,7 +2924,7 @@ private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT I
         const Int lenBody = sentinel - *bodyInd;
         const Int lenStep = *bodyInd - (*stepInd);
         StackToken* buf = cm->stateForExprs->reorderBuf;
-        reserveSpaceTokenBuf(lenBody, buf, cm);
+        ensureCapacityTokenBuf(lenBody, buf, cm);
         memcpy(buf->cont, toks + *bodyInd, lenBody*sizeof(Token));
         memcpy(toks + sentinel - lenStep, toks + (*stepInd), lenStep*sizeof(Token));
         memcpy(toks + (*stepInd), buf->cont, lenBody*sizeof(Token));
@@ -3136,7 +3180,7 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
 private void eLinearize(Int sentinel, P_CT) { //:eLinearize
 // The core code of the general, long expression parse. Starts at cm->i and parses until
 // "sentinel". Produces a linear sequence of operands and operators with arg counts in
-// Reverse Polish Notation. Handles data allocations, too
+// Reverse Polish Notation. Handles data allocations, too. But not single-item exprs
     StateForExprs* stEx = cm->stateForExprs;
     stEx->metAnAllocation = false;
     StackNode* scr = stEx->scr;
@@ -5026,7 +5070,7 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 // Consumes the whole type assignment right side, or the whole function signature
 // Data format: see "Type expression data format"
 // Precondition: we are 1 past the tokAssignmentRight token, or tokIntro token
-    VALIDATEP(toks[cm->i + 1].tp == tokAssignmentRight, errAssignmentLeftSide)
+    VALIDATEP(toks[cm->i + 1].tp == tokAssignRight, errAssignmentLeftSide)
     cm->stateForTypes->frames->len = 0;
 
     Int sentinel = cm->i + toks[cm->i - 1].pl2; // we get the length from the tokAssignmentRight

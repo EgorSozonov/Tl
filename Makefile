@@ -4,7 +4,7 @@ ifndef VERBOSE
 .SILENT: # Silent mode unless you run it like "make all VERBOSE=1"
 endif
 
-.PHONY: all clean help
+.PHONY: all clean help parserTest
 
 CC=gcc --std=c2x
 CONFIG=-g3
@@ -44,6 +44,9 @@ _bin:
 
 clean: ## Delete cached build results
 / rm -rf _bin
+
+parserTest:
+/ . scripts/parserTest.txt
 
 help: ## Show this help
 / @egrep -h '\s##\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {print "-- Help --";print ""; FS = ":.*?## "}; {printf "\033[32m%-10s\033[0m %s\n", $$1, $$2}'
