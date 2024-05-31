@@ -294,16 +294,16 @@ void ensureCapacityTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
 }
 
 
-private void ensureCapacityNodes(Int neededSpace, Compiler* cm) {
+private void ensureCapacityTokens(Int neededSpace, Compiler* cm) {
 //:ensureCapacityNodes Reserve space in the main nodes list
-    if (cm->nodes.len + neededSpace - 1 >= cm->nodes.cap) {
-        const Int newCap = (2*(cm->nodes.cap) > cm->nodes.cap + neededSpace)
-            ? 2*cm->nodes.cap
-            : cm->nodes.cap + neededSpace;
-        Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
-        memcpy(newContent, cm->nodes.cont, cm->nodes.len*sizeof(Node));
-        cm->nodes.cap = newCap;
-        cm->nodes.cont = newContent;
+    if (cm->tokens.len + neededSpace - 1 >= cm->tokens.cap) {
+        const Int newCap = (2*(cm->tokens.cap) > cm->tokens.cap + neededSpace)
+            ? 2*cm->tokens.cap
+            : cm->tokens.cap + neededSpace;
+        Arr(Token) newContent = allocateOnArena(newCap*sizeof(Token), cm->a);
+        memcpy(newContent, cm->tokens.cont, cm->tokens.len*sizeof(Token));
+        cm->tokens.cap = newCap;
+        cm->tokens.cont = newContent;
     }
 }
 
@@ -1280,7 +1280,7 @@ private Int tGetFnArity(TypeId fnType, Compiler* cm);
 #ifdef TEST
 void printParser(Compiler* cm, Arena* a);
 void dbgType(TypeId typeId, Compiler* cm);
-private void dbgExprStack(StateForExprs* st);
+private void dbgExprFrames(StateForExprs* st);
 private void printStackInt(StackInt* st);
 void dbgTypeFrames(StackTypeFrame* st);
 #endif
@@ -1740,8 +1740,9 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) { //:dec
         VALIDATEL(errorCode == 0, errNumericIntWidthExceeded)
 
         if (isNegative) resultValue = -resultValue;
-        pushIntokens((Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS,
-                .startBt = lx->i, .lenBts = j - lx->i }, lx);
+        pushIntokens(
+            (Token){ .tp = tokInt, .pl1 = resultValue >> 32, .pl2 = resultValue & LOWER32BITS,
+            .startBt = lx->i, .lenBts = j - lx->i }, lx);
     }
     lx->i = j; // CONSUME the decimal number
 }
@@ -1751,7 +1752,8 @@ private void lexNumber(Arr(Byte) source, Compiler* lx) { //:lexNumber
     wrapInAStatement(source, lx);
     Byte cByte = CURR_BT;
     if (lx->i == lx->stats.inpLength - 1 && isDigit(cByte)) {
-        pushIntokens((Token){ .tp = tokInt, .pl2 = cByte - aDigit0, .startBt = lx->i, .lenBts = 1 }, lx);
+        pushIntokens((Token){ .tp = tokInt, .pl2 = cByte - aDigit0,
+                .startBt = lx->i, .lenBts = 1 }, lx);
         lx->i += 1; // CONSUME the single-digit number
         return;
     }
@@ -1853,6 +1855,7 @@ private void mbCloseAssignRight(BtToken* top, Compiler* cm) { //:mbCloseAssignRi
     if (top->tp != tokAssignRight) {
         return;
     }
+    setStmtSpanLength(top->tokenInd, cm);
 #ifdef SAFETY
     VALIDATEI(hasValues(cm->lexBtrack) && peek(cm->lexBtrack).tp == tokAssignment,
                 iErrorInconsistentSpans)
@@ -1987,12 +1990,12 @@ private void wordInternal(Unt wordType, Arr(Byte) source, Compiler* lx) { //:wor
     // accounting for the initial ".", ":" or other symbol
     Int lenString = lx->i - startBt;
     VALIDATEL(lenString <= maxWordLength, errWordLengthExceeded)
-    Int uniqueStringId = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
-    if (uniqueStringId - countOperators < strFirstNonReserved)  {
-        wordReserved(wordType, uniqueStringId - countOperators, startBt, realStartBt, source, lx);
+    Int stringId = addStringDict(source, startBt, lenString, lx->stringTable, lx->stringDict);
+    if (stringId - countOperators < strFirstNonReserved)  {
+        wordReserved(wordType, stringId - countOperators, startBt, realStartBt, source, lx);
     } else {
         wrapInAStatementStarting(startBt, source, lx);
-        wordNormal(wordType, uniqueStringId, startBt, realStartBt, wasCapitalized, source, lx);
+        wordNormal(wordType, stringId, startBt, realStartBt, wasCapitalized, source, lx);
     }
 }
 
@@ -2013,10 +2016,11 @@ private void lexDot(Arr(Byte) source, Compiler* lx) { //:lexDot
 }
 
 
-private void lxAssignment(Int opType, Compiler* lx) { //:lxAssignment
-// Params: opType is the operator for mutations (like `*=`), -1 for other assignments.
-// Handles the "=", and "+=" tokens. Changes existing stmt
-// token into tokAssignment and opens up a new tokAssignRight span. Doesn't consume anything
+private void lexAssignment(Int opType, Compiler* lx) { //:lexAssignment
+// Params: opType is the operator for mutations (like `*=`), -1 for normal assignments.
+// Handles the "=", and "+=" tokens (for the latter, inserts the operator and duplicates the
+// tokens from the left side). Changes existing stmt token into tokAssignment and opens up a new
+// tokAssignRight span. Doesn't consume anything
     BtToken currSpan = peek(lx->lexBtrack);
     VALIDATEL(currSpan.tp == tokStmt, errOperatorAssignmentPunct);
 
@@ -2027,11 +2031,20 @@ private void lxAssignment(Int opType, Compiler* lx) { //:lxAssignment
 
     if (opType == -1 && lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){ // type assign
         tok->pl1 = assiType;
-    } else if (opType > -1) { // mutation
-        tok->pl1 = BIG + opType;
     }
 
     openPunctuation(tokAssignRight, slStmt, lx->i, lx);
+    if (opType > -1) {
+        // -2 because we've already opened the right side span
+        const Int countLeftSide = lx->tokens.len - assignmentStartInd - 2;
+        ensureCapacityTokens(countLeftSide + 1, lx); // + 1 for the operator
+
+        pushIntokens((Token){ .tp = tokOperator, .pl1 = opType,
+                    .pl2 = 0, .startBt = lx->i, .lenBts = OPERATORS[opType].lenBts}, lx);
+        memcpy(lx->tokens.cont + lx->tokens.len,
+               lx->tokens.cont + assignmentStartInd + 1, countLeftSide*sizeof(Token));
+        lx->tokens.len += countLeftSide;
+    }
 }
 
 
@@ -2139,7 +2152,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
         j += 1;
     }
     if (isAssignment) { // mutation operators like "*=" or "*.="
-        lxAssignment(opType, lx);
+        lexAssignment(opType, lx);
     } else {
         pushIntokens((Token){ .tp = tokOperator, .pl1 = opType,
                     .pl2 = 0, .startBt = lx->i, .lenBts = j - lx->i}, lx);
@@ -2155,7 +2168,7 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
     if (nextBt == aEqual || nextBt == aDigit0) {
         lexOperator(source, lx); // == or =0
     } else {
-        lxAssignment(-1, lx);
+        lexAssignment(-1, lx);
         lx->i += 1; // CONSUME the =
     }
 }
@@ -2257,7 +2270,6 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
     BtToken top = pop(bt);
 
     mbCloseAssignRight(&top, lx);
-
     // since a closing paren may be closing something with statements inside it, like a lex scope
     // or a function, we need to close that statement before closing its parent
     if (top.spanLevel == slStmt) {
@@ -2745,62 +2757,6 @@ private TypeId pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, P_
 }
 
 
-private TypeId pMutationRight(Int leftNodeInd, TypeId leftType, Int opType, Token rightTk,
-                              Int sentinel, P_CT) {
-//:pMutationRight The right side of a mutation like `a += 5`.
-// "leftNodeInd" is the index of the first node emitted after the nodAssignment
-// Precondition: we are pointing one past tokAssignmentRight
-    Int startNodeInd = cm->nodes.len;
-    const Int countLeftNodes = cm->nodes.len - leftNodeInd;
-    StateForExprs* stEx = cm->stateForExprs;
-
-    print("left ind %d leftType %d opType %d sentinel %d count left %d startNode %d", leftNodeInd,
-            leftType, opType, sentinel, countLeftNodes, startNodeInd)
-    //addNode((Node){ .tp = nodExpr}, locOf(rightTk), cm);
-
-    // copy nodes from leftNodeInd to the end of nodes
-    ensureCapacityNodes(countLeftNodes, cm);
-    if (countLeftNodes > 1)  {
-        memcpy(cm->nodes.cont + cm->nodes.len, cm->nodes.cont + leftNodeInd,
-                countLeftNodes*sizeof(Node));
-    } else { // change binding to id
-        Node idNode = cm->nodes.cont[leftNodeInd];
-        idNode.tp = nodId;
-        idNode.pl2 = cm->entities.cont[idNode.pl1].name & LOWER24BITS;
-        cm->nodes.cont[cm->nodes.len] = idNode;
-    }
-    cm->nodes.len += countLeftNodes;
-    print("parse right %d", cm->i)
-    // parse the right side
-
-    TypeId rightType = exprUpToWithFrame(
-            (ParseFrame){ .tp = nodExpr, .startNodeInd = cm->nodes.len, .sentinel = sentinel },
-            locOf(rightTk), P_C);
-
-    // resolve and insert the operator
-    const Int ovInd = -cm->activeBindings[opType] - 2;
-    Int operatorEntity = -1;
-    bool foundOv = findOverload(leftType, ovInd, &operatorEntity, cm);
-    VALIDATEP(foundOv, errTypeNoMatchingOverload)
-    VALIDATEP(tGetFnArity(cm->entities.cont[operatorEntity].typeId, cm) == 2,
-            errTypeNoMatchingOverload)
-           // TODO validate rightType
-
-print("p1")
-    push(
-        ((ExprFrame) {.tp = exfrCall, .sentinel = sentinel, .argCount = 2 }),
-        stEx->frames);
-    push(((Node){ .tp = nodCall, .pl1 = operatorEntity, .pl2 = 2 }), stEx->calls);
-    push(((SourceLoc){ .startBt = rightTk.startBt, .lenBts = OPERATORS[opType].lenBts}),
-                stEx->locsCalls);
-
-print("p2 sent %d cm->i %d", sentinel , cm->i)
-    eClose(stEx, cm);
-    saveNodes(startNodeInd, stEx->scr, stEx->locsScr, cm);
-    return typeCheckBigExpr(startNodeInd, cm->nodes.len, cm);
-}
-
-
 private void pAssignment(Token tok, P_CT) { //:pAssignment
     if (tok.pl1 == assiType) {
         pTypeDef(P_C);
@@ -2822,12 +2778,10 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 #endif
 
     EntityId entityId = -1;
-    const Bool isMutation = tok.pl1 >= BIG;
     const Int assignmentNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = nodAssignment, .startNodeInd = assignmentNodeInd,
                        .sentinel = sentinel}), cm->backtrack);
     addNode((Node){ .tp = nodAssignment}, locOf(tok), cm);
-    const Int leftNodeInd = cm->nodes.len;
     if (countLeftSide == 1)  {
         Token nameTk = toks[cm->i];
         Unt newName = ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1; // nameId + lenBts
@@ -2848,17 +2802,11 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     cm->nodes.cont[assignmentNodeInd].pl3 = cm->nodes.len - assignmentNodeInd;
     const Int rightNodeInd = cm->nodes.len;
 
-    TypeId rightType = -1;
-    if (isMutation) {
-        const Int opType = tok.pl1 - BIG;
-        rightType = pMutationRight(leftNodeInd, leftType, opType, rightTk, sentinel, P_C);
-    } else {
-        rightType = pAssignmentRight(leftType, rightTk, sentinel, P_C);
-    }
-
-    if (countLeftSide > 1)  {
+    if (countLeftSide > 1) {
         assignmentMutateComplexLeft(rightNodeInd, P_C);
     }
+    const TypeId rightType = pAssignmentRight(leftType, rightTk, sentinel, P_C);
+
     if (entityId > -1 && rightType > -1 && leftType == -1) {
         cm->entities.cont[entityId].typeId = rightType; // inferring the type of left binding
     } else if (leftType > -1 && rightType > -1) {
@@ -3201,15 +3149,18 @@ private void eLinearize(Int sentinel, P_CT) { //:eLinearize
         Token cTk = toks[cm->i];
         SourceLoc loc = locOf(cTk);
         Unt tokType = cTk.tp;
-        if (tokType == tokWord && (cm->i + 1) < sentinel && toks[cm->i + 1].tp == tokAccessor)  {
-            eBumpArgCount(stEx);
-
+        if (tokType == tokWord && (cm->i + 1) < sentinel && toks[cm->i + 1].tp == tokAccessor) {
+            // accessor like `a[i]`, but on this iteration we parse only the `a`
             Int accSentinel = calcSentinel(toks[cm->i + 1], cm->i + 1);
             push(((ExprFrame){ .tp = exfrParen, .startNode = scr->len,
                     .sentinel = accSentinel }), frames);
             EntityId varId = getActiveVar(cTk.pl1, cm);
             push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl1 }), scr);
             push(locOf(cTk), locsScr);
+        } else if (tokType == tokAccessor) {
+            // accessor like `a[i]`, now we parse the `[i]`
+            const Int accSentinel = calcSentinel(cTk, cm->i);
+            pAddAccessorCall(accSentinel, loc, stEx);
         } else if ((tokType == tokWord || tokType == tokOperator) && parent.tp == exfrParen) {
             pAddFunctionCall(cTk, parent.sentinel, stEx);
         } else if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
@@ -3228,7 +3179,7 @@ private void eLinearize(Int sentinel, P_CT) { //:eLinearize
                     .tp = exfrParen, .startNode = scr->len, .sentinel = parensSentinel }), frames);
 
             if (parent.tp == exfrDataAlloc) { // inside a data allocator, subexpressions need to
-                                               // be marked with nodExpr for t-checking & codegen
+                                              // be marked with nodExpr for t-checking & codegen
                 push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
                 push(loc, locsScr);
             }
@@ -3249,9 +3200,6 @@ private void eLinearize(Int sentinel, P_CT) { //:eLinearize
             );
             push(((Node) { .tp = nodDataAlloc, .pl1 = stToNameId(strL) }), calls);
             push(loc, locsCalls);
-        } else if (tokType == tokAccessor) {
-            const Int accSentinel = calcSentinel(cTk, cm->i);
-            pAddAccessorCall(accSentinel, loc, stEx);
         } else {
             throwExcParser(errExpressionCannotContain);
         }
@@ -5236,11 +5184,13 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
     Arr(Int) cont = exp->cont;
     Int currAhead = 1; // 1 for the extra "BIG" element before the call in "st"
     const TypeId listType = cm->activeBindings[stToNameId(strL)];
+
+    //printStackInt(exp);
     for (Int j = 0; j < expSentinel; ++j) {
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
             continue;
-        } else if (cont[j] == 2*BIG) {
+        } else if (cont[j] == 2*BIG) { // a list accessor
             TypeId type1 = cont[j - 2];
             TypeId outer1 = typeGetOuter(type1, cm);
             VALIDATEP(outer1 == listType, errTypeOfNotList)
@@ -5250,11 +5200,11 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
 
             TypeId eltType = getGenericParam(type1, 0, cm);
 
-            shiftStackLeft(j + 1, 2, cm);
             j -= 2;
+            shiftStackLeft(j + 1, 2, cm);
             currAhead += 2;
             cont[j] = eltType;
-            expSentinel -= 3;
+            expSentinel -= 2;
             continue;
         }
 
@@ -5297,7 +5247,6 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             VALIDATEP(ovFound, errTypeNoMatchingOverload)
 
             Int typeOfFunc = cm->entities.cont[entityId].typeId;
-            //print("type of func %d argc %d arity %d", typeOfFunc, argCount, typeReadHeader(typeOfFunc, cm).arity)
             // first parm matches, but not arity
             VALIDATEP(typeReadHeader(typeOfFunc, cm).arity == argCount, errTypeNoMatchingOverload)
 
@@ -5643,7 +5592,7 @@ private void dbgStackNode(StackNode* st, Arena* a) { //:dbgStackNode
 }
 
 
-private void dbgExprStack(StateForExprs* st) { //:dbgExprStack
+private void dbgExprFrames(StateForExprs* st) { //:dbgExprFrames
     print(">>> Expr frames");
     for (Int j = 0; j < st->frames->len; j += 1) {
         ExprFrame fr = st->frames->cont[j];

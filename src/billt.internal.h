@@ -247,7 +247,7 @@ DEFINE_STACK_HEADER(Token)
 #define tokDataList    16  // []
 #define tokDataMap     17  // {}
 #define tokAccessor    18  // x[]
-#define tokAssignment  19  // pl1 == 2 iff type assignment, pl1 == (BIG + opType) iff mutation.
+#define tokAssignment  19  // pl1 == 2 iff type assignment
 #define tokAssignRight 20  // Right-hand side of assignment
 #define tokAlias       21
 #define tokAssert      22
