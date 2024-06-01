@@ -1357,7 +1357,7 @@ StandardText getStandardTextLength(void) { //:getStandardTextLength
 #ifdef TEST
 
 Int pos(Compiler* lx);
-void dbgLexBtrack(StackBtToken* lx);
+void dbgLexBtrack(Compiler* lx);
 
 #endif
 
@@ -1869,11 +1869,12 @@ private void lxCloseFnDef(BtToken* top, Compiler* cm) { //:lxCloseFnDef
 // Handles the case we are closing a function definition: we need to close its parent tokAssignment!
     StackBtToken* bt = cm->lexBtrack;
     setStmtSpanLength(top->tokenInd, cm);
-#ifdef SAFETY
-    VALIDATEI(hasValues(bt) && peek(bt).tp == tokAssignRight, iErrorInconsistentSpans)
-#endif
+    if (!hasValues(bt) || peek(bt).tp != tokAssignRight) {
+        return;
+    }
     *top = pop(bt); // the tokAssignRight
     setStmtSpanLength(top->tokenInd, cm);
+
 #ifdef SAFETY
     VALIDATEI(hasValues(bt) && peek(bt).tp == tokAssignment, iErrorInconsistentSpans)
 #endif
@@ -2268,8 +2269,8 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
 
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
-
     mbCloseAssignRight(&top, lx);
+
     // since a closing paren may be closing something with statements inside it, like a lex scope
     // or a function, we need to close that statement before closing its parent
     if (top.spanLevel == slStmt) {
@@ -5428,11 +5429,19 @@ Int posInd(Int ind) {
 }
 
 
-void dbgLexBtrack(StackBtToken* bt) { //:dbgLexBtrack
+void dbgLexBtrack(Compiler* lx) { //:dbgLexBtrack
+    StackBtToken* bt = lx->lexBtrack;
     printf("lexBtTrack = [");
 
     for (Int k = 0; k < bt->len; k++) {
         printf("%s ", tokNames[bt->cont[k].tp]);
+    }
+    printf("  ]\n");
+
+    printf("lexBtTrack StartInds = [");
+
+    for (Int k = 0; k < bt->len; k++) {
+        printf("%d ", bt->cont[k].tokenInd);
     }
     printf("  ]\n");
 }
