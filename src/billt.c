@@ -3615,13 +3615,6 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
     Arr(Byte) inp = lx->sourceCode->cont;
     VALIDATEL(inpLength > 0, "Empty input")
 
-    // Check for UTF-8 BOM at start of file
-    if ((lx->i + 3) < inpLength
-        && (unsigned char)inp[lx->i] == 0xEF
-        && (unsigned char)inp[lx->i + 1] == 0xBB
-        && (unsigned char)inp[lx->i + 2] == 0xBF) {
-        lx->i += 3;
-    }
     // Main loop over the input
     if (setjmp(excBuf) == 0) {
         while (lx->i < inpLength) {
@@ -5370,13 +5363,14 @@ DEFINE_STACK(OConstant);
 DEFINE_STACK(OInstr);
 DEFINE_STACK(int);
 
+OPackage makeForTestCall(Arena* ar) { //:makeForTestCall
 //fn f x y = { z = x - 2*y; return z*x }
 //fn main = { print "HW"; x y = 10 100; newValue = f x y; print "Result is:"; print newValue }
 // Expected output: "HW" "Result is:" -1900;
-OPackage makeForTestCall(Arena* ar) {
     // f
     StackOConstant* constantsF = mkStackOConstant(ar, 2);
-    pushOConstant(constantsF, (OConstant){.tag = strr, .value.str = allocateLiteral(ar, 13, "Hello from F!")});
+    pushOConstant(constantsF, (OConstant){.tag = strr, .value.str = 
+            allocateLiteral(ar, 13, "Hello from F!")});
     pushOConstant(constantsF, (OConstant){.tag = intt, .value.num = 2});
 
     OFunction* f = arenaAllocate(ar, sizeof(OFunction));
@@ -5427,12 +5421,9 @@ OPackage makeForTestCall(Arena* ar) {
     return package;
 }
 
-/**
- * @brief Should display: HW, 29, 14, The sum is:, 43
- * @param ar
- * @return
- */
-OPackage makeForTestBasic(Arena* ar) {
+
+OPackage makeForTestBasic(Arena* ar) { //:makeForTestBasic
+// Should display: HW, 29, 14, The sum is:, 43
     StackOConstant* constants = mkStackOConstant(ar, 3);
     pushOConstant(constants, (OConstant){.tag = strr, .value.str = allocateLiteral(ar, 11, "Hello world")});
     pushOConstant(constants, (OConstant){.tag = intt, .value.num = 77});
@@ -5472,8 +5463,6 @@ void runPackage(OPackage package, OVM* vm, Arena* ar) {
                           .returnAddress = 0, .needReturnAddresses = false, .pc = 0, };
     *(vm->currCallInfo) = mainCall;
 
-
-
     // ---- Current instruction stuff
     OpCode opCode;
     int64_t r1;
@@ -5491,7 +5480,8 @@ void runPackage(OPackage package, OVM* vm, Arena* ar) {
     OFunction* currFunc = vm->currCallInfo->func;
     StackOConstant* currConst = currFunc->constants;
 
-    printf("Executing entrypoint %s with %zu instructions...\n", currFunc->name->content, package.entryPoint->instructions->length);
+    printf("Executing entrypoint %s with %zu instructions...\n", 
+            currFunc->name->content, package.entryPoint->instructions->length);
 
     while (i < currFunc->instructions->length) {
         uint64_t instr = ((currFunc->instructions)->content)[i];
@@ -5599,8 +5589,9 @@ void runPackage(OPackage package, OVM* vm, Arena* ar) {
             vm->currCallInfo++;
             bool needReturnAddresses = (r4 >= 256);
             int numberExtraReturnAddresses = 0;
-
-            *currFrame = needReturnAddresses ? r4 - 256 : 0; // This is the 0th slot in a stack frame. This is why we ignore 0 values in stack indices
+            
+            // This is the 0th slot in a stack frame. This is why we ignore 0 values in stack indices
+            *currFrame = needReturnAddresses ? r4 - 256 : 0;
             *(vm->currCallInfo) = (CallInfo){ .func = newFunc, .indFixedArg = r2,
                                  .returnAddress = r3, .needReturnAddresses = needReturnAddresses, .pc = 0, };
             printf("Called function %s\n", currFunc->name->content);
@@ -5625,7 +5616,6 @@ void runPackage(OPackage package, OVM* vm, Arena* ar) {
         // TODO This is to save redundant OP_RETURN instructions at the ends of functions.
     }
 }
-
 
 //}}}
 //{{{ Utils for tests & debugging

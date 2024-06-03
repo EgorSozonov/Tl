@@ -631,8 +631,38 @@ typedef struct { // :TypeHeader
 //{{{ Interpreter
 //{{{ Instructions
 
+// All instructions have up to 3 operands, A, B and C
+// An operand like "A[16 stack addr]" means that operand is 16-bit and contains a signed address
+// inside stack. It's signed because it spans both the current frame and the caller frame
+// An operand like "[NEXT 64]" means that this is a long instruction, and the next instruction is
+// read, too.
+#define iAdd             0 // int arithmetic. A[16 dest] B[16 stack addr1] C[16 stackl addr2]
+#define iSub             1
+#define iTimes           2
+#define iDivBy           3
+#define iAddConst        4 // A[16 dest] B[16 stack addr1] C[32 int value]
+#define iSubConst        5
+#define iTimesConst      6
+#define iDivByConst      7
+#define iAddFl           8 // floating-point arith. A[16 dest] B[16 stack addr1] C[16 stackl addr2]
+#define iSubFl           9
+#define iTimesFl        10
+#define iDivByFl        11
+#define iAddConstFl     12 // A[16 dest] B[16 stack addr1] [NEXT 64 floating value]
+#define iSubConstFl     13
+#define iTimesConstFl   14
+#define iDivByConstFl   15
+#define iAddList        16 // A[16 stack addr of list] B[16 stAddr of new element] C[16 elem size]
+#define iAddValueToList 16 // Only for elem types up to 4 byts. A[16 stack addr of list] B[32 value]
+#define iRemoveList     17 // A[16 stack addr of list]
+#define iGetFld         18 // Get data from inside an object. Needs a full address, not an offset
+                           // A[16 stack dest] B[16 stack src] C[16 size in bytes]
+#define iGetArrElem     19 // get the element of a list/array
+#define iCall           20
+#define iRet            21
+
 typedef enum {
-    OP_ADD,       // R[A] = R[B] + R[C}
+    OP_ADD,       // R[A] = R[B] + R[C]
     OP_SUB,
     OP_MUL,
     OP_DIV,
@@ -646,12 +676,15 @@ typedef enum {
     OP_WRITEGLOB,
     OP_CALLRETADRESS, // Sets an additional return address for the future function call
     OP_CALLARG,       // Sets an argument (vararg or fixed) for the future function call
-    OP_CALL,      // A is function index (in the constants list), B = index of first fixed arg, C = main return address as offset from new frame base,
-                  // D = whether we need extra ret addresses (its lower 8 bits are the number of extra ret addresses)
+    OP_CALL,      // A is function index (in the constants list), B = index of first fixed arg,
+                  // C = main return address as offset from new frame base,
+                  // D = whether we need extra ret addresses (its lower 8 bits are the number of
+                  // extra ret addresses)
     OP_RETURN,    // Return from function call
     OP_COPY,      // R[A] <- R[B]
     OP_NOOP,      // Does nothing
-    OP_EXTRAARG,  // Indicates that is a double-length instruction; actual opcode will be in the second 32 bits
+    OP_EXTRAARG,  // Indicates that is a double-length instruction; actual opcode will be in
+                  // the second 32 bits
 } OpCode;
 
 
@@ -676,18 +709,16 @@ typedef struct {
 DEFINE_STACK_HEADER(OConstant)
 
 enum InstructionMode {modeABC, modeABx, modeAx};
-/**
- *  The list of instructions must have an even number of elements.
- *  Two-element instructions are aligned at even numbers.
- *  Hence, the interpreter will ingest instructions by two (two 32-bit instrs = 64 bit).
- *  In order to facilitate this, the OP_NOOP exists.
- */
+
+// The list of instructions must have an even number of elements.
+// Two-element instructions are aligned at even numbers.
+// Hence, the interpreter will ingest instructions by two (two 32-bit instrs = 64 bit).
+// In order to facilitate this, the OP_NOOP exists.
+
 DEFINE_STACK_HEADER(OInstr)
 
 
-/**
- * Instruction layouts:
- */
+// Instruction layouts:
 
 // Standard layout
 // [Opcode 6] [A 9] [B 9] [C 9] [D 9] [E 9] [F 9] [_ 4]
@@ -754,27 +785,26 @@ uint64_t mkInstructionABx(OpCode opCode, unsigned int a, short bx);
 //{{{ Runtime
 
 
-#define FRAME_SIZE 256                                      // 256 slots in a stack frame. This includes args, varargs, return addresses, and local variables
-#define CALLINFO_STACK_SIZE 1000                            // Up to 1000 function calls in the stack
-#define CALL_STACK_SIZE (FRAME_SIZE*CALLINFO_STACK_SIZE)    // 2MB of stack space per interpreter
+#define FRAME_SIZE 65536 // 16 bits for addressing in a stack frame. This includes args, varargs,
+                         // return addresses, and local variables
+#define CALLINFO_STACK_SIZE 1000                         // Up to 1000 function calls
+#define CALL_STACK_SIZE (FRAME_SIZE*CALLINFO_STACK_SIZE) // 2MB of stack space per interpreter
 #define ERR_MSG_SIZE 200
-
-
 
 DEFINE_STACK_HEADER(int)
 
 typedef struct {
-    size_t length;
-    uint64_t content[];
-} OBytecode;
+    Int length;
+    Unt content[];
+} Bytecode;
 
 typedef struct {
     String* name;
-    OBytecode* instructions;
+    Bytecode* instructions;
     int countArgs;
     int countLocals;
     StackOConstant* constants;
-} OFunction;
+} RFunction;
 DEFINE_STACK_HEADER(OFunction)
 
 typedef struct {
@@ -786,30 +816,31 @@ typedef struct {
 
 DEFINE_STACK_HEADER(OPackage)
 
-/**
- * The layout of a call frame is:
- * 1. Number of extra return addresses            <--- Callinfo.frameBase points here
- * 2. Space for extra return addresses (optional)
- * 3. Space for varargs (optional)
- * 4. Space for normal args                       <--- CallInfo.indFixedArg points here
- * 5. Locals
- */
+
+// The layout of a call frame is:
+// 1. Number of extra return addresses            <--- Callinfo.frameBase points here
+// 2. Space for extra return addresses (optional)
+// 3. Space for varargs (optional)
+// 4. Space for normal args                       <--- CallInfo.indFixedArg points here
+// 5. Locals
 typedef struct {
     OFunction* func;
     int32_t indFixedArg; // Index of the first fixed argument for this call frame
     int32_t returnAddress; // Index for the first return value, which is always on the parent frame
-    bool needReturnAddresses;  // If true, there are return addresses in the call frame. If false, returns are written continuously onto the parent frame
+    bool needReturnAddresses;  // If true, there are return addresses in the call frame. If false,
+                               // returns are written continuously onto the parent frame
     int pc; // Program counter
 } CallInfo;
+
 
 typedef struct {
     StackOPackage* packages;
     CallInfo* currCallInfo; // CallInfo
     CallInfo callInfoStack[CALLINFO_STACK_SIZE]; // Array CallInfo
-    int64_t callStack[CALL_STACK_SIZE];
     bool wasError;
     char errMsg[ERR_MSG_SIZE];
-} OVM;
+    Int callStack[CALL_STACK_SIZE];
+} Runner;
 
 
 OPackage makeForTestCall(Arena* ar);
@@ -859,4 +890,3 @@ void runPackage(OPackage package, OVM* vm, Arena* ar);
     )(X)
 
 //}}}
-
