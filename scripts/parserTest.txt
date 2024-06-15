@@ -3,14 +3,15 @@ clear
 if [[ ! "${DEBUGDIR}" ]]; then
     export DEBUGDIR=~/debug;
 fi
-mkdir -p $DEBUGDIR/billt
 
 # main part
-gcc -g3 --std=c17 -o $DEBUGDIR/billt/parserTest \
+APP=prok
+mkdir -p $DEBUGDIR/$APP
+gcc -g3 --std=c17 -o $DEBUGDIR/$APP/parserTest \
 -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=int-conversion -Werror=implicit-int \
 -Werror=incompatible-pointer-types \
 -iquote src -iquote test \
-test/parserTest.c src/billt.c \
+test/parserTest.c src/$APP.c \
 -DPARSER_TEST -DTEST -DSAFETY -DTRACE \
--lm && $DEBUGDIR/billt/parserTest
+-lm && $DEBUGDIR/$APP/parserTest

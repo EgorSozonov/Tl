@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../src/billt.internal.h"
-#include "billtTest.h"
+#include "../src/prok.internal.h"
+#include "prokTest.h"
 
 
 typedef struct {
@@ -929,15 +929,15 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
                 (Token){ .tp = tokBool, .pl2 = 1, .startBt = 44, .lenBts = 4 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
-             .input = s("noo = (\\ x Int y Int -> Int: return - x y)"),
+             .input = s("noo = (( x Int y Int -> Int: return - x y))"),
              .expectedOutput = expect(((Token[]){
                  (Token){ .tp = tokAssignment,         .pl2 = 14,
-                          .startBt = 0, .lenBts = 42 },
+                          .startBt = 0, .lenBts = 43 },
                  (Token){ .tp = tokWord,       .pl1 = 0,        .startBt = 0, .lenBts = 3 }, // noo
                  (Token){ .tp = tokAssignRight,              .pl2 = 12,
-                          .startBt = 4, .lenBts = 38 },
+                          .startBt = 4, .lenBts = 39 },
                  (Token){ .tp = tokFn, .pl1 = slScope,       .pl2 = 11,
-                          .startBt = 6, .lenBts = 36 },
+                          .startBt = 6, .lenBts = 37 },
 
                  (Token){ .tp = tokIntro, .pl1 = tokStmt, .pl2 = 6,
                           .startBt = 9, .lenBts = 19 },
@@ -1002,9 +1002,9 @@ LexerTestSet* typeTests(Compiler* proto, Arena* a) {
                  (Token){ .tp = tokTypeName, .pl1 = 2,   .startBt = 9, .lenBts = 3 }
          }))},
          (LexerTest) { .name = s("Generic function signature"),
-             .input = s("(\\lst (L 'v) w 'w: print w)"),
+             .input = s("((lst (L 'v) w 'w: print w))"),
              .expectedOutput = expect(((Token[]){
-                 (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 10,    .lenBts = 27 },
+                 (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 10,    .lenBts = 28 },
 
                  (Token){ .tp = tokIntro, .pl1 = tokStmt, .pl2 = 6, .startBt = 2, .lenBts = 16 },
                  (Token){ .tp = tokWord,  .pl1 = 0,                 .startBt = 2, .lenBts = 3 }, //lst
