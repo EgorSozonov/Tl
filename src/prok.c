@@ -4932,8 +4932,8 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
         VALIDATEP(hasValues(frames), errTypeDefError)
         if (cTk.tp == tokWord) {
             VALIDATEP(cm->i < sentinel, errTypeDefError)
-            Int ctxType = peek(frames).tp;
-            VALIDATEP(ctxType == sorRecord || ctxType == sorFunction, errTypeDefError)
+            Int unitype = peek(frames).tp;
+            VALIDATEP(unitype == sorRecord || unitype == sorFunction, errTypeDefError)
 
             Token nextTk = cm->tokens.cont[cm->i];
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall, errTypeDefError)
@@ -5367,42 +5367,112 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 //}}}
 //}}}
 //{{{ Codegen
+//{{{ Typedefs for GCC codegen
 
 typedef gcc_jit_block Block;
 typedef gcc_jit_rvalue RValue;
+typedef gcc_jit_lvalue LValue;
 typedef gcc_jit_context CodegenUnit;
 typedef gcc_jit_param Param;
 typedef gcc_jit_function Function;
 typedef gcc_jit_type Type;
+typedef gcc_jit_block CodeBlock;
+// void* GCC_JIT_TYPE_VOID_PTR
+// void* GCC_JIT_TYPE_DOUBLE
+
+//}}}
+
 void
 createCode(CodegenUnit *unit) {
-    /* Let's try to inject the equivalent of:
-
-        int square (int i)
-        {
-          return i * i;
-        }
-    */
+    // Simple sum-of-squares, to test conditionals and looping
+    // int loop_test (int n) {
+    //   int i;
+    //   int sum = 0;
+    //   for (i = 0; i < n ; i ++)      {
+    //       sum += i * i;
+    //   }
+    //   return sum;
+    // }
+    
     Type* typeInt = gcc_jit_context_get_type(unit, GCC_JIT_TYPE_INT32_T);
-    Param* iPar = gcc_jit_context_new_param(unit, NULL, typeInt, "i");
-    Function* func = gcc_jit_context_new_function(
-            unit, null,
-            GCC_JIT_FUNCTION_EXPORTED,
-            typeInt,
-            "square",
-            1, &iPar,
-            0);
+    Type* returnType = typeInt;
 
-    Block* block = gcc_jit_function_new_block(func, null);
-
-    RValue *expr = gcc_jit_context_new_binary_op(
-        unit, NULL,
-        GCC_JIT_BINARY_OP_MULT, typeInt,
-        gcc_jit_param_as_rvalue(iPar),
-        gcc_jit_param_as_rvalue(iPar)
+    Param* n = gcc_jit_context_new_param(unit, null, typeInt, "n");
+    Param* params[1] = {n};
+    Function* func = gcc_jit_context_new_function(unit, null,
+        GCC_JIT_FUNCTION_EXPORTED,
+        returnType,
+        "loopFn",
+        1, params, 0
     );
 
-    gcc_jit_block_end_with_return(block, null, expr);
+    // Build locals
+    LValue* i = gcc_jit_function_new_local(func, null, typeInt, "i");
+    LValue* sum = gcc_jit_function_new_local(func, null, typeInt, "sum");
+  
+    CodeBlock* bInitial = gcc_jit_function_new_block(func, "initial");
+    CodeBlock* bLoopCond = gcc_jit_function_new_block(func, "loopCond");
+    CodeBlock* bLoopBody = gcc_jit_function_new_block(func, "loopBody");
+    CodeBlock* bAfterLoop = gcc_jit_function_new_block (func, "afterLoop");
+
+    // sum = 0;
+    gcc_jit_block_add_assignment(
+        bInitial, null,
+        sum,
+        gcc_jit_context_zero(unit, typeInt)
+    );
+
+    // i = 0;
+    gcc_jit_block_add_assignment(
+        bInitial, null,
+        i,
+        gcc_jit_context_zero(unit, typeInt)
+    );
+
+    gcc_jit_block_end_with_jump(bInitial, null, bLoopCond);
+
+    // if (i >= n)
+    gcc_jit_block_end_with_conditional(
+        bLoopCond, null,
+        gcc_jit_context_new_comparison(
+            unit, null,
+            GCC_JIT_COMPARISON_GE,
+            gcc_jit_lvalue_as_rvalue(i),
+            gcc_jit_param_as_rvalue(n)
+        ),
+        bAfterLoop,
+        bLoopBody
+    );
+
+    // sum += i * i */
+    gcc_jit_block_add_assignment_op(
+        bLoopBody, null,
+        sum,
+        GCC_JIT_BINARY_OP_PLUS,
+        gcc_jit_context_new_binary_op(
+            unit, null,
+            GCC_JIT_BINARY_OP_MULT, typeInt,
+            gcc_jit_lvalue_as_rvalue(i),
+            gcc_jit_lvalue_as_rvalue(i)
+        )
+    );
+
+    // i++
+    gcc_jit_block_add_assignment_op (
+        bLoopBody, null,
+        i,
+        GCC_JIT_BINARY_OP_PLUS,
+        gcc_jit_context_one(unit, typeInt)
+    );
+
+    gcc_jit_block_end_with_jump(bLoopBody, null, bLoopCond);
+
+    // return sum
+    gcc_jit_block_end_with_return(
+        bAfterLoop,
+        null,
+        gcc_jit_lvalue_as_rvalue(sum)
+    );
 }
 
 //}}}
@@ -5829,38 +5899,43 @@ Int main(int argc, char** argv) { //:main
     // Compile the code
     result = gcc_jit_context_compile(unit);
     if (result == null) {
-        fprintf(stderr, "NULL result");
+        fprintf(stderr, "null result");
         goto error;
     }
 
     // We're done with the context; we can release it:
     gcc_jit_context_release(unit);
     unit = null;
-
+    
+    
+    
     // Extract the generated code from "result"
-    void *fnPtr = gcc_jit_result_get_code(result, "square");
-    if (fnPtr == null) {
-         fprintf(stderr, "NULL function pointer as a result of codegen");
-         goto error;
+    typedef Int (*loopFnType) (Int);
+    loopFnType loopTest = (loopFnType)gcc_jit_result_get_code(result, "loopFn");
+    if (loopTest == null) {
+        fprintf (stderr, "NULL loop test");
+        goto error;
     }
 
-    typedef int (*fnType) (int);
-    fnType square = (fnType)fnPtr;
-    printf("result: 5^2 = %d\n", square(5));
+    // Run the generated code
+    Int val = loopTest(5);
+    printf("loopTest returned: %d\n", val);
+    
+
 
  error:
     if (unit != null) { gcc_jit_context_release(unit); }
-    if (result) { gcc_jit_result_release(result); }
+    if (result != null) { gcc_jit_result_release(result); }
     return 0;
-
-/*
+    
+/* 
     buildLanguageDefinitions();
     Arena* a = mkArena();
     String* sourceCode = readSourceFile("_bin/code.bil", a);
     if (sourceCode == null) {
         goto cleanup;
     }
-*/
+*/ 
 /*
     Codegen* cg = compile(sourceCode);
     if (cg != null) {
@@ -5871,7 +5946,7 @@ Int main(int argc, char** argv) { //:main
     cleanup:
     deleteArena(a);
     return 0;
-*/
+*/ 
 }
 #endif
 
