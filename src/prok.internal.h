@@ -1,5 +1,6 @@
 //{{{ Utils
 
+#include <stdint.h>
 #define Int int32_t
 #define StackInt Stackint32_t
 #define InListUns InListuint32_t
@@ -38,7 +39,7 @@
 typedef struct ArenaChunk ArenaChunk;
 
 struct ArenaChunk { // :ArenaChunk
-    size_t size;
+    Int size;
     ArenaChunk* next;
     char memory[]; // flexible array member
 };
@@ -46,7 +47,7 @@ struct ArenaChunk { // :ArenaChunk
 typedef struct { // :Arena
     ArenaChunk* firstChunk;
     ArenaChunk* currChunk;
-    int currInd;
+    Int currInd;
 } Arena;
 
 #define DEFINE_STACK_HEADER(T) \

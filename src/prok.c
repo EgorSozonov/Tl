@@ -1,4 +1,5 @@
 //{{{ Includes
+
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -8,7 +9,10 @@
 #include <stdlib.h>
 #include <math.h>
 #include <setjmp.h>
+#include <sys/types.h>
+#include <libgccjit.h>
 #include "prok.internal.h"
+
 //}}}
 //{{{ Language definition
 //{{{ Lexical structure
@@ -5364,6 +5368,42 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 //}}}
 //{{{ Codegen
 
+typedef gcc_jit_block Block;
+typedef gcc_jit_rvalue RValue;
+typedef gcc_jit_context CodegenUnit;
+typedef gcc_jit_param Param;
+typedef gcc_jit_function Function;
+typedef gcc_jit_type Type;
+void
+createCode(CodegenUnit *unit) {
+    /* Let's try to inject the equivalent of:
+
+        int square (int i)
+        {
+          return i * i;
+        }
+    */
+    Type* typeInt = gcc_jit_context_get_type(unit, GCC_JIT_TYPE_INT32_T);
+    Param* iPar = gcc_jit_context_new_param(unit, NULL, typeInt, "i");
+    Function* func = gcc_jit_context_new_function(
+            unit, null,
+            GCC_JIT_FUNCTION_EXPORTED,
+            typeInt,
+            "square",
+            1, &iPar,
+            0);
+
+    Block* block = gcc_jit_function_new_block(func, null);
+
+    RValue *expr = gcc_jit_context_new_binary_op(
+        unit, NULL,
+        GCC_JIT_BINARY_OP_MULT, typeInt,
+        gcc_jit_param_as_rvalue(iPar),
+        gcc_jit_param_as_rvalue(iPar)
+    );
+
+    gcc_jit_block_end_with_return(block, null, expr);
+}
 
 //}}}
 //{{{ Utils for tests & debugging
@@ -5766,22 +5806,72 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 
 #ifndef TEST
 Int main(int argc, char** argv) { //:main
+    CodegenUnit* unit = gcc_jit_context_acquire();
+    gcc_jit_result* result = null;
+
+    // Get a "codegen unit" object for working with the library
+    if (unit == null) {
+        fprintf(stderr, "Could not create codegen unit");
+        goto error;
+    }
+
+    // Set some options on the unit.
+    // Let's see the code being generated, in assembler form
+    gcc_jit_context_set_bool_option(
+        unit,
+        GCC_JIT_BOOL_OPTION_DUMP_GENERATED_CODE,
+        0
+    );
+
+    // Populate the context
+    createCode(unit);
+
+    // Compile the code
+    result = gcc_jit_context_compile(unit);
+    if (result == null) {
+        fprintf(stderr, "NULL result");
+        goto error;
+    }
+
+    // We're done with the context; we can release it:
+    gcc_jit_context_release(unit);
+    unit = null;
+
+    // Extract the generated code from "result"
+    void *fnPtr = gcc_jit_result_get_code(result, "square");
+    if (fnPtr == null) {
+         fprintf(stderr, "NULL function pointer as a result of codegen");
+         goto error;
+    }
+
+    typedef int (*fnType) (int);
+    fnType square = (fnType)fnPtr;
+    printf("result: 5^2 = %d\n", square(5));
+
+ error:
+    if (unit != null) { gcc_jit_context_release(unit); }
+    if (result) { gcc_jit_result_release(result); }
+    return 0;
+
+/*
     buildLanguageDefinitions();
     Arena* a = mkArena();
     String* sourceCode = readSourceFile("_bin/code.bil", a);
     if (sourceCode == null) {
         goto cleanup;
     }
-
+*/
 /*
     Codegen* cg = compile(sourceCode);
     if (cg != null) {
         fwrite(cg->buffer, 1, cg->len, stdout);
     }
 */
+/*
     cleanup:
     deleteArena(a);
     return 0;
+*/
 }
 #endif
 

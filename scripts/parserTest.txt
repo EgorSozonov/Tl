@@ -14,4 +14,4 @@ gcc -g3 --std=c17 -o $DEBUGDIR/$APP/parserTest \
 -iquote src -iquote test \
 test/parserTest.c src/$APP.c \
 -DPARSER_TEST -DTEST -DSAFETY -DTRACE \
--lm && $DEBUGDIR/$APP/parserTest
+-lm -lgccjit && $DEBUGDIR/$APP/parserTest
