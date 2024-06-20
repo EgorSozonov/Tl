@@ -645,7 +645,7 @@ private bool isSpace(Byte a) { //:isSpace
 String empty = { .len = 0 };
 
 //}}}
-//{{{ Int Hashmap
+//{{{ Int dictionary
 
 testable IntMap* createIntMap(int initSize, Arena* a) { //:createIntMap
     IntMap* result = allocateOnArena(sizeof(IntMap), a);
@@ -760,7 +760,7 @@ private bool hasKeyValueIntMap(int key, int value, IntMap* hm) { //:hasKeyValueI
 }
 
 //}}}
-//{{{ String Hashmap
+//{{{ String Dictionary
 
 #define initBucketSize 8
 
@@ -3541,7 +3541,7 @@ private void tabulateParser() { //:tabulateParser
 }
 
 
-testable void buildLanguageDefinitions() { //:buildLanguageDefinitions
+private void buildLanguageDefinitions() { //:buildLanguageDefinitions
 // Definition of the operators, lexer dispatch and parser dispatch tables for the compiler.
 // This function should only be called once, at compiler init. Its results are global shared const.
     setOperatorsLengths();
@@ -5413,20 +5413,66 @@ struct Codegen {
 };
 
 //}}}
-//{{{ Reserved
+//{{{ Codegen strings (reserved & core lib words)
 
-const char reservedWords[] = "autobreakcasecharconstcontinuedefaultdodoubleelseentryenumextern"
-    "floatforgotoifintlongprintfregisterreturnshortsignedsizeofstaticstructswitchtypedefunion"
-    "unsignedvoidvolatilewhile";
-const Int reservedLens[] = {
-    4, 5, 4, 4, 5, 8, 7, 2, 6, 4, 5, 4, 6, 
-    5, 3, 4, 2, 3, 4, 6, 8, 6, 5, 6, 6, 6, 6, 6, 7, 5, 
-    8, 4, 8, 5
+const char cgWords[] = "autobreakcasecharconstcontinuedefaultdodoubleelseentryenumextern"
+    "floatforgotoifintlongregisterreturnshortsignedsizeofstaticstructswitchtypedefunion"
+    "unsignedvoidvolatilewhile"
+    // reserved words end here
+    "printf"
+    ;
+const Unt cgLens[] = {
+    4, 5, 4, 4, 5, 8, 7, 2, 6, 4, 5, 4, 6,
+    5, 3, 4, 2, 3, 4, 8, 6, 5, 6, 6, 6, 6, 6, 7, 5,
+    8, 4, 8, 5, // reserved words end here
+    6
 };
 
+const Int reservedWordCount = 33;
+#define reservedDictSize 256; // Must be big enough to guarantee perfect hashing
+const Unt cgDict[reservedDictSize] = { -1 };
+
+
+private Int dictionarizeCodegen() { //:dictionarizeCodegen
+// Store reserved words of C into a dictionary with perfect hash function, so that it will be very
+// cheap to check if a string is present in it or not (in order to know which idents to shield)
+    Int i = 0;
+
+    for (Int j = 0; j < reservedWordCount; j++) {
+        Int len = cgLens[j];
+
+        Unt hash = hashCode(cgWords + i, len);
+        Int hashOffset = hash % reservedDictSize;
+        if (cgDict[hashOffset] > -1) { // the hashing function isn't perfect for this set
+            return 1;
+        }
+        cgDict[hashOffset] = i + (len << 24);
+
+        i += len;
+    }
+    return 0;
+}
+
+
+private Bool cgCheckIfStrInDictionary(Int charInd, Int len, Arr(Byte) sourceCode) {
+//:cgCheckIfStrInDictionary Checks if a string from source code matches any string in the
+// codegen dictionary. Precondition: charInd and its len fit into the source code array
+        Unt hash = hashCode(sourceCode->cont + i, len);
+        Int hashOffset = hash % reservedDictSize;
+        if (cgDict[hashOffset] == -1) {
+            return false;
+        }
+        Int cgStart = cgDict[hashOffset] & LOWER24BITS;
+        Int cgLen = cgDict[hashOffset] >> 24;
+        if (len != cgLen) {
+            return false;
+        }
+        return (memcmp(cgWords + cgStart, sourceCode + charInd, len) == 0);
+}
+
+
 //}}}
-
-
+//{{{ Main codegen
 
 private void cgEnsureBufferLength(Int additionalLength, Codegen* cg) { //:cgEnsureBufferLength
 // Ensures that the output buffer has space for at least that many bytes plus 10
@@ -6012,7 +6058,7 @@ private Codegen* generateCode(Compiler* cm, Arena* a) { //:generateCode
     return cg;
 }
 
-
+//}}}
 //}}}
 //{{{ Utils for tests & debugging
 
@@ -6411,7 +6457,15 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 //}}}
 //{{{ Main
 
-Codegen* compile(String* source) {
+
+Int prokCompilerInit() { //:prokCompilerInit
+// Perform global one-time initialization like creating all the immutable tables
+    buildLanguageDefinitions();
+    return dictionarizeCodegen();
+}
+
+
+Codegen* prokCompile(String* source) { //:prokCompile
     Arena* a = mkArena();
     Compiler* proto = createProtoCompiler(a);
 
@@ -6435,7 +6489,6 @@ Codegen* compile(String* source) {
 #ifndef TEST
 Int main(int argc, char** argv) { //:main
 /*
-    buildLanguageDefinitions();
     Arena* a = mkArena();
     String* sourceCode = readSourceFile("_bin/code.bil", a);
     if (sourceCode == null) {

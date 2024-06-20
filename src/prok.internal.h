@@ -108,21 +108,19 @@ typedef struct {
 } StandardText;
 
 //}}}
-//{{{ Int Hashmap
+//{{{ Dictionaries
 
 DEFINE_STACK_HEADER(int32_t)
-typedef struct {
+typedef struct { //:IntMap
     Arr(int*) dict;
     int dictSize;
     int len;
     Arena* a;
 } IntMap;
 
-//}}}
-//{{{ String Hashmap
 
 // Reference to first occurrence of a string identifier within input text
-typedef struct {
+typedef struct { //:StringValue
     Unt hash;
     Int indString;
 } StringValue;
@@ -134,7 +132,7 @@ typedef struct {
 } Bucket;
 
 // Hash map of all words/identifiers encountered in a source module
-typedef struct {
+typedef struct { //:StringDict
     Arr(Bucket*) dict;
     int dictSize;
     int len;
