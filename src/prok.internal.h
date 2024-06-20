@@ -446,6 +446,8 @@ typedef struct { // :Entity
     uint8_t class;
     bool isPublic;
     bool hasExceptionHandler;
+    uint8_t emit;
+    uint16_t externalNameId;
 } Entity;
 
 
@@ -627,6 +629,22 @@ typedef struct { // :TypeHeader
     Byte arity;  // for function types, equals arity. For structs, number of fields
     Unt nameAndLen; // startBt and lenBts
 } TypeHeader;
+
+
+
+
+
+//}}}
+//{{{ Codegen
+
+#define emitPrefix         0  // normal native names
+#define emitPrefixShielded 1  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
+#define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
+#define emitInfix          3  // infix operators that match between source code and target (e.g. arithmetic operators)
+#define emitInfixExternal  4  // infix operators that have a separate external name
+#define emitField          5  // emitted as field accesses, like ".length"
+#define emitInfixDot       6  // emitted as a "dot-call", like ".toString()"
+#define emitNop            7  // for unary operators that don't need to be emitted, like ","
 
 //}}}
 //{{{ Generics

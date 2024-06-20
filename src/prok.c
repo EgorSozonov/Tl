@@ -3953,10 +3953,12 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
 }
 
 
-private void buildOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildOperator
+private void buildOperator(Int operId, TypeId typeId, uint8_t emitAs, uint16_t externalNameId,
+        Compiler* cm) { //:buildOperator
 // Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
-    pushInentities((Entity){ .typeId = typeId, .class = classImmutable }, cm);
+    pushInentities((Entity){ .typeId = typeId, .class = classImmutable, .emit = emitAs,
+            .externalNameId = externalNameId }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
 }
 
@@ -3984,13 +3986,13 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     TypeId strOfStrStr     = addConcrFnType(2, (Int[]){ tokString, tokString, tokString}, cm);
     TypeId flOfFlFl        = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     TypeId flOfFl          = addConcrFnType(1, (Int[]){ tokDouble, tokDouble}, cm);
-    buildOperator(opBitwiseNeg,   boolOfBool, cm); // dummy
-    buildOperator(opNotEqual,     boolOfIntInt, cm);
-    buildOperator(opNotEqual,     boolOfFlFl, cm);
-    buildOperator(opNotEqual,     boolOfStrStr, cm);
-    buildOperator(opBoolNeg,      boolOfBool, cm);
-    buildOperator(opSize,         intOfStr, cm);
-    buildOperator(opSize,         intOfInt, cm);
+    buildOperator(opBitwiseNeg,   boolOfBool, emitPrefix, 0, cm); // !. emitted as ~ prefix
+    buildOperator(opNotEqual,     boolOfIntInt, emitInfix, 0, cm);
+    buildOperator(opNotEqual,     boolOfFlFl, emitInfix, 0, cm);
+    buildOperator(opNotEqual,     boolOfStrStr, emitInfix, 0, cm);
+    buildOperator(opBoolNeg,      boolOfBool, emitPrefix, 0, cm);
+    buildOperator(opSize,         intOfStr, emitField, strLen, cm);
+    buildOperator(opSize,         intOfInt, emitPrefixExternal, strAbsolute, cm);
     buildOperator(opToString,     strOfInt, cm);
     buildOperator(opToString,     strOfBool, cm);
     buildOperator(opToString,     strOfFloat, cm);
@@ -5411,10 +5413,19 @@ struct Codegen {
 };
 
 //}}}
+//{{{ Reserved
 
-const char codegenText = "printf";
+const char reservedWords[] = "autobreakcasecharconstcontinuedefaultdodoubleelseentryenumextern"
+    "floatforgotoifintlongprintfregisterreturnshortsignedsizeofstaticstructswitchtypedefunion"
+    "unsignedvoidvolatilewhile";
+const Int reservedLens[] = {
+    4, 5, 4, 4, 5, 8, 7, 2, 6, 4, 5, 4, 6, 
+    5, 3, 4, 2, 3, 4, 6, 8, 6, 5, 6, 6, 6, 6, 6, 7, 5, 
+    8, 4, 8, 5
+};
 
-const Int codegenStrings[] = { 6 };
+//}}}
+
 
 
 private void cgEnsureBufferLength(Int additionalLength, Codegen* cg) { //:cgEnsureBufferLength
@@ -5498,11 +5509,13 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) { //:writeExprPr
     switch (top->emit) {
     case emitField:
         writeChar(aDot, cg);
-        writeConstant(top->startInd, cg); return;
+        writeConstant(top->startInd, cg);
+        return;
     case emitInfix:
         writeChar(aSpace, cg);
         writeBytes(cg->sourceCode->cont + top->startInd, top->len, cg);
-        writeChar(aSpace, cg); return;
+        writeChar(aSpace, cg);
+        return;
     case emitInfixExternal:
         writeChar(aSpace, cg);
         writeConstant(top->startInd, cg);
