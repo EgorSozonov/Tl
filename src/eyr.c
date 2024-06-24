@@ -5366,6 +5366,11 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 
 //}}}
+//{{{ Interpreter
+
+
+
+//}}}
 //{{{ Utils for tests & debugging
 
 #ifdef TEST
@@ -5762,6 +5767,18 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 
 //}}}
 //{{{ Main
+
+int32_t eyrInitCompiler() {
+    return 0;
+}
+
+int32_t eyrCompile(unsigned char* fn) {
+    String* sourceCode = readSourceFile(fn, a);
+    if (sourceCode == NULL) {
+        goto cleanup;
+    }
+    return 0;
+}
 
 
 #ifndef TEST

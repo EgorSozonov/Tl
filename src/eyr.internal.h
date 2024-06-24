@@ -628,6 +628,27 @@ typedef struct { // :TypeHeader
 } TypeHeader;
 
 //}}}
+//{{{ Interpreter
+
+typedef struct { //:Interpreter
+    Arr(uint64_t) code;
+    Arr(Int) fns; // indices into @code
+} Interpreter;
+
+// Code layout (all are 8-byte sized):
+// length
+// actual code
+
+// Stack frame layout (all are 4-byte sized): 
+// prevFrame  - index into the runtime stack
+// fnId       - index into @Interpreter.code
+// ip         - index into @Interpreter.code
+
+typedef struct { //:CalFrame
+    Int ip;
+} CallFrame;
+
+//}}}
 //{{{ Generics
 
 #define pop(X) _Generic((X),\
