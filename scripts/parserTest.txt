@@ -5,7 +5,7 @@ if [[ ! "${DEBUGDIR}" ]]; then
 fi
 
 # main part
-APP=prok
+APP=eyr
 mkdir -p $DEBUGDIR/$APP
 gcc -g3 --std=c17 -o $DEBUGDIR/$APP/parserTest \
 -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \

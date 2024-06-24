@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <setjmp.h>
-#include "prok.internal.h"
+#include "eyr.internal.h"
 //}}}
 //{{{ Language definition
 //{{{ Lexical structure

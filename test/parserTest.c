@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../src/prok.internal.h"
-#include "prokTest.h"
+#include "../src/eyr.internal.h"
+#include "eyrTest.h"
 
 //{{{ Utils
 
