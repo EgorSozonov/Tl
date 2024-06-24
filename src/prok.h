@@ -1,2 +1,1 @@
-Int prokCompilerInit();
-int32_t prokCompile(unsigned char *);
+int32_t compile(unsigned char *);

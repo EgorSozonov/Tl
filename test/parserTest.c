@@ -4,7 +4,6 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include "../src/prok.internal.h"
-#include "../src/prok.h"
 #include "prokTest.h"
 
 //{{{ Utils
@@ -1608,12 +1607,8 @@ int main() {
               "Tests are cancelled");
         return 1;
     }
-    Int initStatus = prokCompilerInit();
-    if (initStatus != 0) {
-        printf("Compiler initialization error!");
-        return;
-    }
-    
+
+    buildLanguageDefinitions();
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);

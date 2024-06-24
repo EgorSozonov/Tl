@@ -1,6 +1,5 @@
 //{{{ Utils
 
-#include <stdint.h>
 #define Int int32_t
 #define StackInt Stackint32_t
 #define InListUns InListuint32_t
@@ -39,7 +38,7 @@
 typedef struct ArenaChunk ArenaChunk;
 
 struct ArenaChunk { // :ArenaChunk
-    Int size;
+    size_t size;
     ArenaChunk* next;
     char memory[]; // flexible array member
 };
@@ -47,7 +46,7 @@ struct ArenaChunk { // :ArenaChunk
 typedef struct { // :Arena
     ArenaChunk* firstChunk;
     ArenaChunk* currChunk;
-    Int currInd;
+    int currInd;
 } Arena;
 
 #define DEFINE_STACK_HEADER(T) \
@@ -108,19 +107,21 @@ typedef struct {
 } StandardText;
 
 //}}}
-//{{{ Dictionaries
+//{{{ Int Hashmap
 
 DEFINE_STACK_HEADER(int32_t)
-typedef struct { //:IntMap
+typedef struct {
     Arr(int*) dict;
     int dictSize;
     int len;
     Arena* a;
 } IntMap;
 
+//}}}
+//{{{ String Hashmap
 
 // Reference to first occurrence of a string identifier within input text
-typedef struct { //:StringValue
+typedef struct {
     Unt hash;
     Int indString;
 } StringValue;
@@ -132,7 +133,7 @@ typedef struct {
 } Bucket;
 
 // Hash map of all words/identifiers encountered in a source module
-typedef struct { //:StringDict
+typedef struct {
     Arr(Bucket*) dict;
     int dictSize;
     int len;
@@ -444,8 +445,6 @@ typedef struct { // :Entity
     uint8_t class;
     bool isPublic;
     bool hasExceptionHandler;
-    uint8_t emit;
-    uint16_t externalNameId;
 } Entity;
 
 
@@ -627,22 +626,6 @@ typedef struct { // :TypeHeader
     Byte arity;  // for function types, equals arity. For structs, number of fields
     Unt nameAndLen; // startBt and lenBts
 } TypeHeader;
-
-
-
-
-
-//}}}
-//{{{ Codegen
-
-#define emitPrefix         0  // normal native names
-#define emitPrefixShielded 1  // this is a native name that needs to be shielded from target reserved word (by appending a "_")
-#define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
-#define emitInfix          3  // infix operators that match between source code and target (e.g. arithmetic operators)
-#define emitInfixExternal  4  // infix operators that have a separate external name
-#define emitField          5  // emitted as field accesses, like ".length"
-#define emitInfixDot       6  // emitted as a "dot-call", like ".toString()"
-#define emitNop            7  // for unary operators that don't need to be emitted, like ","
 
 //}}}
 //{{{ Generics

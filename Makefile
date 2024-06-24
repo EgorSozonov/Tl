@@ -1,39 +1,26 @@
-#{{{ Boilerplate
 .RECIPEPREFIX = /
 
 ifndef VERBOSE
 .SILENT: # Silent mode unless you run it like "make all VERBOSE=1"
 endif
 
-ifndef EXEDIR
-EXEDIR = $(abspath ../../exes)
-endif
-
-ifndef DEBUGDIR
-DEBUGDIR = $(abspath ../../debug)
-endif
 .PHONY: all clean help parserTest
 
 CC=gcc --std=c2x
 CONFIG=-g3
-WARN=-Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
+WARN=-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
 -Werror=int-conversion -fstrict-flex-arrays=3 \
 -Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc
 DEPFLAGS=
-BUILDDIR=$(EXEDIR)/$(APP)
-
-#}}}
-
-LIBS=-lm -lgccjit
-APP=prok
+LIBS=-lm
+BIN=prok
 
 CFLAGS = $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(LIBS)
 
-SOURCE=src/$(APP).c src/$(APP).internal.h
+SOURCE=$(wildcard src/*.c)
 
-EXE=$(EXEDIR)/$(APP)/$(APP)
-
+OBJ=$(addprefix _bin/cache/, $(notdir $(SOURCE:.c=.o)))
 
 
 
@@ -42,11 +29,18 @@ all: _bin/$(BIN) ## Build the whole project
 / @echo "              BUILD SUCCESS              "
 / @echo "========================================="
 
-run:
-/ mkdir -p $(BUILDDIR)
-/ $(CC) $(CFLAGS) -o $(EXE) $(SOURCE)
-/ $(EXE)
+_bin/cache: | _bin
+/ mkdir -p _bin/cache
 
+$(OBJ): $(SOURCE) | _bin/cache
+/ $(CC) -c $^ $(CFLAGS) -o $@
+# $^ means "all prerequisites" and $@ means "current target"
+
+_bin/$(BIN): $(OBJ) | _bin
+/ $(CC)  $^ -o $@ $(CFLAGS)
+
+_bin:
+/ mkdir _bin
 
 clean: ## Delete cached build results
 / rm -rf _bin
