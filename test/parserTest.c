@@ -1608,7 +1608,7 @@ int main() {
         return 1;
     }
 
-    buildLanguageDefinitions();
+    eyrInitCompiler();
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);

@@ -1,6 +1,10 @@
 //{{{ Utils
 
 #define Int int32_t
+#define Long int64_t
+#define Ulong uint64_t
+#define Short int16_t
+#define Ushort uint16_t
 #define StackInt Stackint32_t
 #define InListUns InListuint32_t
 #define private static
@@ -410,8 +414,8 @@ typedef struct { // :OpDef
 typedef struct Compiler Compiler;
 
 
-typedef void (*LexerFunc)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void)
-typedef void (*ParserFunc)(Token, Arr(Token), Compiler*);
+typedef void (*LexerFn)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void)
+typedef void (*ParserFn)(Token, Arr(Token), Compiler*);
 
 
 typedef struct { // :Node
@@ -630,23 +634,97 @@ typedef struct { // :TypeHeader
 //}}}
 //{{{ Interpreter
 
-typedef struct { //:Interpreter
-    Arr(uint64_t) code;
-    Arr(Int) fns; // indices into @code
-} Interpreter;
-
 // Code layout (all are 8-byte sized):
 // length
 // actual code
+
+typedef struct {    //:Interpreter
+    Arr(Ulong) code;
+    Arr(Int) fns;   // indices into @code
+    Arr(char) text; // statically-allocated strings, all concatenated
+    Int currFrame;
+    Arr(char) memory; 
+    Int heapTop; // index into @memory
+} Interpreter;
 
 // Stack frame layout (all are 4-byte sized): 
 // prevFrame  - index into the runtime stack
 // fnId       - index into @Interpreter.code
 // ip         - index into @Interpreter.code
+#define stackFrameStart 12 // Skipped the 3 ints
 
-typedef struct { //:CalFrame
-    Int ip;
-} CallFrame;
+typedef Int (*InterpreterFn)(Ulong, Int, Interpreter*);
+
+// Instructions (opcodes)
+// An instruction is 8 byte long and consists of 6-bit opcode and some data
+// Notation: [A] is a 2-byte stack address, it's signed and is measured relative to currFrame
+//           [~A] is a 3-byte constant or offset
+//           {A} is a 4-byte constant or index into @Interpreter.text
+//           {{A}} is an 8-byte constant (i.e. it takes up a whole second instruction slot)
+#define iPlus              0 // [Dest] [Operand1] [Operand2]
+#define iMinus             1
+#define iTimes             2
+#define iDivBy             3
+#define iPlusFl            4
+#define iMinusFl           5
+#define iTimesFl           6 
+#define iDivByFl           7 // /end
+#define iPlusConst         8 // [Src=Dest] {Increment}
+#define iMinusConst        9 
+#define iTimesConst       10 
+#define iDivByConst       11 // /end
+#define iPlusFlConst      12 // [Src=Dest] {{Double constant}}
+#define iMinusFlConst     13 
+#define iTimesFlConst     14
+#define iDivByFlConst     15 // /end 
+#define iConcatStrs       16 // [Dest] [Operand1] [Operand2]
+#define iSubstring        17 // [Dest] [Src] {{ {Start} {Len}  }}
+#define iReverseString    18 // [Dest] [Src]
+#define iIndexOfSubstring 19 // [Dest] [String] [Substring]
+#define iGetFld           20 // [Dest] [Obj] [~Offset]
+#define iNewList          21 // [Dest] {Capacity}
+#define iGetElemPtr       22 // [Dest] [ArrAddress] {{ {0} {Elem index} }}
+#define iAddToList        23 // [List] {Value or reference}
+#define iRemoveFromList   24 // [List] {Elem Index}
+#define iSwap             25 // [List] {{ {Index1} {Index2} }}
+#define iConcatLists      26 // [Dest] [Operand1] [Operand2]
+#define iJump             27 // { Code pointer }
+#define iBranchLt         28 // [Operand] { Code pointer }
+#define iBranchEq         29
+#define iBranchGt         30 // /end
+#define iShortCircuit     31 // if [B] == [C] then [A] = [B] else ip += 1
+#define iCall             32 // { Code pointer }
+#define iReturn           33 // [Address of returned value]
+#define iSetLocal         34 // [Dest] {Value}
+#define iSetBigLocal      35 // [Dest] {{Value}}
+#define iPrint            36 // [String]
+                 
+#define countInstructions (iPrint + 1)
+                 
+Ulong instrArithmetic(Byte opCode, Short dest, Short operand1, Short operand2) {
+    return ((Ulong)opCode << 58) + ((Ulong)dest << 32) + ((Ulong)operand1 << 16) + operand2;
+}
+
+
+Ulong instrConstArithmetic(Byte opCode, Int increment) {
+    return ((Ulong)opCode << 58) + increment;
+}
+
+
+Ulong instrGetFld(Short dest, Short obj, Int offset) {
+    return ((Ulong)iGetFld << 58) + ((Ulong)dest << 40) + ((Ulong)obj << 24) 
+        + (offset && LOWER24BITS);
+}
+
+Ulong instrPrint(Short strAddress) {
+    return ((Ulong)iPrint << 58) + (Ulong)(Ushort)strAddress;
+}
+
+Ulong instrSetLocal(Short dest, Int value) {
+    Ulong a = (((Ulong)iSetLocal) << 58) + (((Ulong)((uint16_t)dest)) << 32) + (Ulong)(Unt)value;
+    return a;
+}
+
 
 //}}}
 //{{{ Generics

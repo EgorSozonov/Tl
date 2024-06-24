@@ -9,6 +9,7 @@
 #include <math.h>
 #include <setjmp.h>
 #include "eyr.internal.h"
+
 //}}}
 //{{{ Language definition
 //{{{ Lexical structure
@@ -64,12 +65,12 @@
 #define aGT           62
 
 
-LexerFunc LEX_TABLE[256]; // filled in by "tabulateLexer"
+private LexerFn LEX_TABLE[256]; // filled in by "tabulateLexer"
 
 //}}}
 //{{{ Operators
 
-static OpDef OPERATORS[countOperators] = {
+private OpDef OPERATORS[countOperators] = {
     { .arity=1, .bytes={ aExclamation, aDot, 0, 0 } },   // !.
     { .arity=2, .bytes={ aExclamation, aEqual, 0, 0 } }, // !=
     { .arity=1, .bytes={ aExclamation, 0, 0, 0 } },      // !
@@ -125,7 +126,12 @@ const int operatorStartSymbols[13] = {
 //}}}
 //{{{ Syntactical structure
 
-ParserFunc PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
+private ParserFn PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
+
+//}}}
+//{{{ Runtime (virtual machine)
+
+InterpreterFn INTERPRETER_TABLE[countInstructions]; // filled in by "tabulateInterpreter"
 
 //}}}
 //}}}
@@ -2390,7 +2396,7 @@ private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) { //:lexNonAsciiEr
 
 
 private void tabulateLexer() { //:tabulateLexer
-    LexerFunc* p = LEX_TABLE;
+    LexerFn* p = LEX_TABLE;
     for (Int i = 0; i < 128; i++) {
         p[i] = &lexUnexpectedSymbol;
     }
@@ -3506,7 +3512,7 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities,
 
 
 private void tabulateParser() { //:tabulateParser
-    ParserFunc* p = PARSE_TABLE;
+    ParserFn* p = PARSE_TABLE;
     int i = 0;
     while (i <= firstSpanTokenType) {
         p[i] = &parseErrorBareAtom;
@@ -3532,15 +3538,6 @@ private void tabulateParser() { //:tabulateParser
     p[tokElseIf]      = &pElseIf;
     p[tokElse]        = &pElse;
     p[tokFor]         = &pFor;
-}
-
-
-testable void buildLanguageDefinitions() { //:buildLanguageDefinitions
-// Definition of the operators, lexer dispatch and parser dispatch tables for the compiler.
-// This function should only be called once, at compiler init. Its results are global shared const.
-    setOperatorsLengths();
-    tabulateLexer();
-    tabulateParser();
 }
 
 
@@ -5368,7 +5365,75 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 //}}}
 //{{{ Interpreter
 
+private Int runPlus(Ulong instr, Int ip, Interpreter* rt) {
+    return ip + 1;
+}
 
+private Int runMinus(Ulong instr, Int ip, Interpreter* rt) {
+
+    return ip + 1;
+}
+
+private Int runTimes(Ulong instr, Int ip, Interpreter* rt) {
+    return ip + 1;
+}
+
+
+private Int runDivBy(Ulong instr, Int ip, Interpreter* rt) {
+    return ip + 1;
+}
+
+
+private Int runSetLocal(Ulong instr, Int ip, Interpreter* rt) {
+    Short dest = (instr >> 32) & LOWER16BITS;
+    Int* address = (Int*)(rt->memory + rt->currFrame + dest);
+    *address = (Int)(instr & LOWER32BITS);
+    return ip + 1;
+}
+
+private Int runReturn(Ulong instr, Int ip, Interpreter* rt) {
+    print("return");
+    rt->currFrame = rt->memory[rt->currFrame]; // take a call off the stack
+    return rt->memory[rt->currFrame + 1];
+}
+
+
+private Int runPrint(Ulong instr, Int ip, Interpreter* rt) {
+    //fwrite(rt->memory[], 1, rt->memory[], stdout);
+    return ip + 1;
+}
+
+
+private void tabulateInterpreter() {
+    InterpreterFn* p = INTERPRETER_TABLE;
+    p[iPlus]        = &runPlus;
+    p[iTimes]       = &runTimes;
+    p[iMinus]       = &runMinus;
+    p[iDivBy]       = &runDivBy;
+   /*
+    p[iPlusFl]      = &runPlus;
+    p[iMinusFl]       = &runMinusFl;
+    p[iTimesFl]       = &runTimesFl;
+    p[iDivByFl]       = &runDivByFl;
+    p[iPlusConst]       = &runPlusConst;
+    p[iMinusConst]       = &runMinusConst;
+    p[iTimesConst]       = &runTimesConst;
+    p[iDivByConst]       = &runDivByConst;
+    p[iPlusFlConst]       = &runPlusFlConst;
+    p[iMinusFlConst]       = &runMinusFlConst;
+    p[iTimesFlConst]       = &runTimesFlConst;
+    p[iDivByFlConst]       = &runDivByFlConst;
+    p[iConcatStrs]       = &runPlusFlConst;
+    p[iSubstring]       = &runSubstring;
+    p[iReverseString]       = &runTimesFlConst;
+    p[iIndexOfSubstring]       = &runIndexOfSubstring;
+    p[iGetFld]       = &runGetFld;
+    p[iNewList]       = &runNewList;
+   */
+    p[iSetLocal]       = &runSetLocal;
+    p[iReturn]       = &runReturn;
+    p[iPrint]       = &runPrint;
+}
 
 //}}}
 //{{{ Utils for tests & debugging
@@ -5768,34 +5833,71 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 //}}}
 //{{{ Main
 
-int32_t eyrInitCompiler() {
+Int eyrInitCompiler() { //:eyrInitCompiler
+// Definition of the operators, lexer dispatch and parser dispatch tables for the compiler.
+// This function should only be called once, at compiler init. Its results are global shared const.
+    setOperatorsLengths();
+    tabulateLexer();
+    tabulateParser();
+    tabulateInterpreter();
     return 0;
 }
 
-int32_t eyrCompile(unsigned char* fn) {
-    String* sourceCode = readSourceFile(fn, a);
-    if (sourceCode == NULL) {
-        goto cleanup;
-    }
+Int eyrCompile(unsigned char* fn) { //:eyrCompile
+//    String* sourceCode = readSourceFile(fn, a);
+//    if (sourceCode == NULL) {
+//        goto cleanup;
+//    }
     return 0;
 }
 
+private void tmpGetCode(Interpreter* in, Arena* a) {
+    Arr(Ulong) theCode = ((Ulong[]) {
+        4,
+        instrSetLocal(stackFrameStart, -1),
+        instrSetLocal(stackFrameStart + 4, 589000001),
+        instrPrint(stackFrameStart + 4),
+        (((Ulong)iReturn) << 58)
+    });
+    Int len = 5*sizeof(Ulong);
+    void* codeAddr = allocateOnArena(len, a);
+
+    memcpy(codeAddr, theCode, len);
+    in->code = (Arr(Ulong))codeAddr;
+}
 
 #ifndef TEST
+
+static char txt[] = "asdfBBCC";
 Int main(int argc, char** argv) { //:main
-    buildLanguageDefinitions();
+    eyrInitCompiler();
     Arena* a = mkArena();
-    String* sourceCode = readSourceFile("_bin/code.bil", a);
-    if (sourceCode == null) {
-        goto cleanup;
+
+    Interpreter* in = allocateOnArena(sizeof(in), a);
+    (*in) = (Interpreter)  {
+        .memory = (Arr(char))allocateOnArena(1000000, a),
+        .fns = allocateOnArena(4, a),
+        .heapTop = 200000,  // skipped the stack
+        .currFrame = 0
+    };
+
+    tmpGetCode(in, a);
+
+    in->fns[0] = 0;
+    //in->text = txt;
+
+    Int ip = 1; // skipping the function size
+    in->currFrame = 0;
+    in->memory[in->currFrame] = -1; // for the "main" call, there is no previous frame
+    in->memory[in->currFrame + 1] = ip;
+    while (ip > -1 && ip < 6) {
+        print("ip = %d", ip);
+        Ulong instr = in->code[ip];
+        print("instr %lx op code %d", instr, instr>>58);
+        ip = (INTERPRETER_TABLE[instr >> 58])(instr, ip, in);
     }
 
-/*
-    Codegen* cg = compile(sourceCode);
-    if (cg != null) {
-        fwrite(cg->buffer, 1, cg->len, stdout);
-    }
-*/
+
     cleanup:
     deleteArena(a);
     return 0;

@@ -10,7 +10,6 @@ DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 DEFINE_INTERNAL_LIST_HEADER(imports, EntityImport)
 
 
-void buildLanguageDefinitions();
 String* prepareInput(const char* content, Arena* a);
 Compiler* lexicallyAnalyze(String* input, Compiler*, Arena*);
 void printLexer(Compiler* a);

@@ -11,23 +11,23 @@ CONFIG=-g3
 WARN=-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
 -Werror=int-conversion -fstrict-flex-arrays=3 \
--Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc
-DEPFLAGS=
+-Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
+-fsanitize=address
+INCLUDES="-I src"
 LIBS=-lm
-BIN=eyr
+APP=eyr
 
-CFLAGS = $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(LIBS)
+CFLAGS= $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(INCLUDES) $(LIBS)
+TARGET=$(DEBUGDIR)/$(APP)/$(APP)
 
-SOURCE=$(wildcard src/*.c)
-
-OBJ=$(addprefix _bin/cache/, $(notdir $(SOURCE:.c=.o)))
-
-
-
-all: _bin/$(BIN) ## Build the whole project
+all: ## Build the whole project
+/ clear
+/ mkdir -p $DEBUGDIR/$APP
+/ $(CC) $(CFLAGS) -o $(TARGET) src/$(APP).c
 / @echo "========================================="
 / @echo "              BUILD SUCCESS              "
 / @echo "========================================="
+/ $(TARGET)
 
 _bin/cache: | _bin
 / mkdir -p _bin/cache

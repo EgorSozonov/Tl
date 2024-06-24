@@ -1056,7 +1056,7 @@ int main(int argc, char** argv) {
     printf("----------------------------\n");
     printf("--  LEXER TEST  --\n");
     printf("----------------------------\n");
-    buildLanguageDefinitions();
+    eyrInitCompiler();
     Arena *a = mkArena();
     Compiler* proto = createProtoCompiler(a);
 
