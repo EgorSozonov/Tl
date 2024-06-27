@@ -10,6 +10,9 @@
 #include <setjmp.h>
 #include "eyr.internal.h"
 
+
+char* ADDR = 0;
+Int LEN = 0;
 //}}}
 //{{{ Language definition
 //{{{ Lexical structure
@@ -325,16 +328,6 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
 }
 
 #define DEFINE_INTERNAL_LIST(fieldName, T, aName)            \
-    testable bool hasValuesIn##fieldName(Compiler* cm) {     \
-        return cm->fieldName.len > 0;                        \
-    }                                                        \
-    testable T popIn##fieldName(Compiler* cm) {              \
-        cm->fieldName.len -= 1;                              \
-        return cm->fieldName.cont[cm->fieldName.len];        \
-    }                                                        \
-    testable T peekIn##fieldName(Compiler* cm) {             \
-        return cm->fieldName.cont[cm->fieldName.len - 1];    \
-    }                                                          \
     testable void pushIn##fieldName(T newItem, Compiler* cm) {\
         if (cm->fieldName.len < cm->fieldName.cap) {\
             memcpy((T*)(cm->fieldName.cont) + (cm->fieldName.len), &newItem, sizeof(T));\
@@ -5364,6 +5357,35 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 //}}}
 //{{{ Interpreter
+//{{{ Utils
+
+private void* inDeref(Ptr address, Interpreter* rt) { //:inDeref
+    return (void*)rt->memory + ((Ulong)address)*4;
+}
+
+private Unt inGetFromStack(StackAddr addr, Interpreter* rt) { //:inGetFromStack
+    print("Stack deref dest %d", inDeref(rt->currFrame + (Unt)addr, rt) - (void*)rt->memory);
+    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)addr, rt));
+    return *p;
+}
+
+
+private void inSetOnStack(Short dest, Unt value, Interpreter* rt) { //:inSetOnStack
+    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)dest, rt));
+    *p = value;
+}
+
+
+private void inMoveHeapTop(Unt sz, Interpreter* in) { //:inMoveHeapTop
+// Moves the top of the heap after an allocation. "sz" is total size in bytes
+    in->heapTop += sz / 4;
+    if (sz % 4 > 0)  {
+        in->heapTop += 1;
+    }
+}
+
+
+//}}}
 
 private Int runPlus(Ulong instr, Int ip, Interpreter* rt) {
     return ip + 1;
@@ -5384,22 +5406,55 @@ private Int runDivBy(Ulong instr, Int ip, Interpreter* rt) {
 }
 
 
+private Int runNewString(Ulong instr, Int ip, Interpreter* rt) { //:runNewString
+// Creates a new string as a substring of the static text. Stores pointer to the new string
+// in the stack
+    Short dest = (Short)((instr >> 40) & LOWER16BITS);
+    Short startAddr = (Short)((instr >> 24) & LOWER16BITS); // address within the frame
+    Int len = (Int)(instr & LOWER24BITS);
+    Unt start = inGetFromStack(startAddr, rt); // actual starting symbol within the static text
+    
+    char* copyFrom = (char*)inDeref(rt->textStart, rt) + 4 + start;
+
+    const Ptr targetAddr = rt->heapTop;
+    Unt* target = (Unt*)(inDeref(targetAddr, rt));
+    
+    *target = len;
+    memcpy(target + 1, copyFrom, len);
+
+    inMoveHeapTop(len, rt); // update the heap top after this allocation
+    inSetOnStack(dest, targetAddr, rt);
+    
+    return ip + 1;
+}
+
+
+private Int runConcatStrings(Ulong instr, Int ip, Interpreter* rt) {
+    return ip + 1;
+}
+
+private Int runReverseString(Ulong instr, Int ip, Interpreter* rt) {
+    return ip + 1;
+}
+
 private Int runSetLocal(Ulong instr, Int ip, Interpreter* rt) {
     Short dest = (instr >> 32) & LOWER16BITS;
-    Int* address = (Int*)(rt->memory + rt->currFrame + dest);
-    *address = (Int)(instr & LOWER32BITS);
+    Unt* address = (Unt*)(inDeref(rt->currFrame + (Unt)dest, rt));
+    *address = (Unt)(instr & LOWER32BITS);
     return ip + 1;
 }
 
 private Int runReturn(Ulong instr, Int ip, Interpreter* rt) {
-    print("return");
     rt->currFrame = rt->memory[rt->currFrame]; // take a call off the stack
     return rt->memory[rt->currFrame + 1];
 }
 
 
 private Int runPrint(Ulong instr, Int ip, Interpreter* rt) {
-    //fwrite(rt->memory[], 1, rt->memory[], stdout);
+    Ptr address = inGetFromStack(instr & LOWER16BITS, rt);
+    Unt* sLen = (Unt*)(inDeref(address, rt));
+    fwrite(sLen + 1, 1, *sLen, stdout);
+    printf("\n");
     return ip + 1;
 }
 
@@ -5423,13 +5478,14 @@ private void tabulateInterpreter() {
     p[iMinusFlConst]       = &runMinusFlConst;
     p[iTimesFlConst]       = &runTimesFlConst;
     p[iDivByFlConst]       = &runDivByFlConst;
-    p[iConcatStrs]       = &runPlusFlConst;
-    p[iSubstring]       = &runSubstring;
-    p[iReverseString]       = &runTimesFlConst;
     p[iIndexOfSubstring]       = &runIndexOfSubstring;
     p[iGetFld]       = &runGetFld;
     p[iNewList]       = &runNewList;
+    p[iSubstring]       = &runSubstring;
    */
+    p[iNewstring]       = &runNewString;
+    p[iConcatStrs]       = &runConcatStrings;
+    p[iReverseString]       = &runReverseString;
     p[iSetLocal]       = &runSetLocal;
     p[iReturn]       = &runReturn;
     p[iPrint]       = &runPrint;
@@ -5851,52 +5907,81 @@ Int eyrCompile(unsigned char* fn) { //:eyrCompile
     return 0;
 }
 
-private void tmpGetCode(Interpreter* in, Arena* a) {
+
+private void tmpGetCode(Interpreter* rt, Arena* a) {
+    const Int len = 4;
     Arr(Ulong) theCode = ((Ulong[]) {
-        4,
-        instrSetLocal(stackFrameStart, -1),
-        instrSetLocal(stackFrameStart + 4, 589000001),
+        len,
+        instrSetLocal(stackFrameStart, 3),
+        instrNewString(stackFrameStart + 4, stackFrameStart, 4),
         instrPrint(stackFrameStart + 4),
         (((Ulong)iReturn) << 58)
     });
-    Int len = 5*sizeof(Ulong);
-    void* codeAddr = allocateOnArena(len, a);
+    Int lenBytes = (len + 1)*sizeof(Ulong);
+    void* codeAddr = allocateOnArena(lenBytes, a);
 
-    memcpy(codeAddr, theCode, len);
-    in->code = (Arr(Ulong))codeAddr;
+    memcpy(codeAddr, theCode, lenBytes);
+    rt->code = (Arr(Ulong))codeAddr;
 }
 
-#ifndef TEST
 
-static char txt[] = "asdfBBCC";
-Int main(int argc, char** argv) { //:main
-    eyrInitCompiler();
-    Arena* a = mkArena();
+private void tmpGetText(Interpreter* rt) {
+    char txt[] = "asdfBBCC";
+    const Int len = sizeof(txt) - 1; 
+    Unt* p = (Unt*)(inDeref(rt->heapTop, rt)); 
+    *p = len;
+    p += 1; 
+    memcpy(p, txt, len);
+    rt->textStart = rt->heapTop;
+    inMoveHeapTop(sizeof(txt), rt); 
+}
 
-    Interpreter* in = allocateOnArena(sizeof(in), a);
-    (*in) = (Interpreter)  {
+
+private void inPrintString(Unt address, Interpreter* rt) {
+    Unt* len = (Unt*)(inDeref(address, rt));
+    fwrite(len + 1, 1, *len, stdout);
+    printf("\n");
+}
+
+private Interpreter* createInterpreter(Arena* a) {
+    Interpreter* rt = allocateOnArena(sizeof(in), a);
+    (*rt) = (Interpreter)  {
         .memory = (Arr(char))allocateOnArena(1000000, a),
         .fns = allocateOnArena(4, a),
-        .heapTop = 200000,  // skipped the stack
-        .currFrame = 0
+        .heapTop = 50000,  // skipped the 200k of stack space
+        .currFrame = 0,
+        .textStart = 0,
     };
 
     tmpGetCode(in, a);
+    tmpGetText(in);
+    rt->fns[0] = 0;
+    rt->currFrame = 0;
+    rt->memory[in->currFrame] = -1; // for the "main" call, there is no previous frame
+    rt->memory[in->currFrame + 1] = ip;
+    return rt;
+}
 
-    in->fns[0] = 0;
-    //in->text = txt;
 
+private Int interpretCode(Interpreter* in) {
     Int ip = 1; // skipping the function size
-    in->currFrame = 0;
-    in->memory[in->currFrame] = -1; // for the "main" call, there is no previous frame
-    in->memory[in->currFrame + 1] = ip;
     while (ip > -1 && ip < 6) {
-        print("ip = %d", ip);
+        //print("ip = %d", ip);
         Ulong instr = in->code[ip];
-        print("instr %lx op code %d", instr, instr>>58);
+        //print("instr %lx op code %d", instr, instr>>58);
         ip = (INTERPRETER_TABLE[instr >> 58])(instr, ip, in);
     }
+}
 
+
+#ifndef TEST
+
+Int main(int argc, char** argv) { //:main
+    eyrInitCompiler();
+    Arena* a = mkArena();
+    
+    Interpreter* rt = createInterpreter(a);
+    Int interpResult = interpretCode(rt);
 
     cleanup:
     deleteArena(a);
