@@ -1731,7 +1731,7 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) { //:dec
         Int errorCode = calcFloating(&resultValue, -digitsAfterDot, source, lx);
         VALIDATEL(errorCode == 0, errNumericFloatWidthExceeded)
 
-        int64_t bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
+        Long bitsOfFloat = longOfDoubleBits((isNegative) ? (-resultValue) : resultValue);
         pushIntokens((Token){ .tp = tokDouble, .pl1 = (bitsOfFloat >> 32),
                     .pl2 = (bitsOfFloat & LOWER32BITS), .startBt = lx->i, .lenBts = j - lx->i}, lx);
     } else {
@@ -2489,7 +2489,7 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
 }
 
 
-private EntityId createEntity(Unt name, Byte class, Compiler* cm) { //:createEntity
+private EntityId createEntity(Unt name, EntityKind kind, Byte class, Compiler* cm) { //:createEntity
 // Validates a new binding (that it is unique), creates an entity for it,
 // and adds it to the current scope
     Int nameId = name & LOWER24BITS;
@@ -2498,7 +2498,7 @@ private EntityId createEntity(Unt name, Byte class, Compiler* cm) { //:createEnt
     // if it's a binding, it should be -1, and if overload, < -1
 
     Int newEntityId = cm->entities.len;
-    pushInentities(((Entity){ .name = name, .class = class }), cm);
+    pushInentities(((Entity){ .name = name, .kind = kind, .class = class }), cm);
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->len > 0) {
             addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
@@ -2509,9 +2509,10 @@ private EntityId createEntity(Unt name, Byte class, Compiler* cm) { //:createEnt
 }
 
 
-private Int createEntityWithType(Unt name, TypeId typeId, Byte class, Compiler* cm) {
+private Int createEntityWithType(Unt name, TypeId typeId, EntityKind kind, Byte class, 
+                                 Compiler* cm) {
 //:createEntityWithType
-    EntityId newEntityId = createEntity(name, class, cm);
+    EntityId newEntityId = createEntity(name, kind, class, cm);
     cm->entities.cont[newEntityId].typeId = typeId;
     return newEntityId;
 }
@@ -2797,7 +2798,8 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
                     errCannotMutateImmutable)
             leftType = cm->entities.cont[entityId].typeId;
         } else {
-            entityId = createEntity(newName, nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
+            entityId = createEntity(newName, uncallable, 
+                                    nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
         }
         addNode((Node){ .tp = nodBinding, .pl1 = entityId, .pl2 = 0 }, locOf(nameTk), cm);
     } else if (countLeftSide > 1) {
@@ -3497,8 +3499,12 @@ testable void importEntities(Arr(EntityImport) impts, Int countEntities,
                              Compiler* cm) { //:importEntities
     for (int j = 0; j < countEntities; j++) {
         EntityImport impt = impts[j];
-        importActivateEntity(
-                (Entity){.name = impt.name, .class = classImmutable, .typeId = impt.typeId }, cm);
+        importActivateEntity( (Entity){
+                .name = impt.name, .kind = impt.kind,
+                .emit = impt.emit,
+                .class = classImmutable, 
+                .typeId = impt.typeId }, 
+            cm);
     }
     cm->stats.countNonparsedEntities = cm->entities.len;
 }
@@ -4058,8 +4064,10 @@ private void importPrelude(Compiler* cm) { //:importPrelude
 //    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
 
     EntityImport imports[6] =  {
-        (EntityImport) { .name = nameOfStandard(strMathPi), .typeId = tokDouble},
-        (EntityImport) { .name = nameOfStandard(strMathE), .typeId = tokDouble},
+        (EntityImport) { .name = nameOfStandard(strMathPi), .typeId = tokDouble,
+                         .kind = uncallable, .emit = {.literal = longOfDoubleBits(3.14159265358)} },
+        (EntityImport) { .name = nameOfStandard(strMathE), .typeId = tokDouble,
+                         .kind = uncallable, .emit = {.literal = longOfDoubleBits(2.71)} },
         (EntityImport) { .name = nameOfStandard(strPrint), .typeId = strToVoid},
         (EntityImport) { .name = nameOfStandard(strPrint), .typeId = intToVoid},
         (EntityImport) { .name = nameOfStandard(strPrint), .typeId = floatToVoid},
@@ -4427,7 +4435,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
                 break;
             }
             Int newEntityId = createEntityWithType(
-                    nameOfToken(paramName), cm->types.cont[paramTypeInd],
+                    nameOfToken(paramName), cm->types.cont[paramTypeInd], callableDefined,
                     paramName.pl1 == 1 ? classMutable : classImmutable, cm
             );
             addNode(((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = 0}), locOf(paramName), cm);
@@ -5944,7 +5952,7 @@ private void inPrintString(Unt address, Interpreter* rt) {
 }
 
 private Interpreter* createInterpreter(Arena* a) {
-    Interpreter* rt = allocateOnArena(sizeof(in), a);
+    Interpreter* rt = allocateOnArena(sizeof(Interpreter), a);
     (*rt) = (Interpreter)  {
         .memory = (Arr(char))allocateOnArena(1000000, a),
         .fns = allocateOnArena(4, a),
@@ -5953,12 +5961,11 @@ private Interpreter* createInterpreter(Arena* a) {
         .textStart = 0,
     };
 
-    tmpGetCode(in, a);
-    tmpGetText(in);
+    tmpGetCode(rt, a);
+    tmpGetText(rt);
     rt->fns[0] = 0;
     rt->currFrame = 0;
-    rt->memory[in->currFrame] = -1; // for the "main" call, there is no previous frame
-    rt->memory[in->currFrame + 1] = ip;
+    rt->memory[rt->currFrame] = -1; // for the "main" call, there is no previous frame
     return rt;
 }
 

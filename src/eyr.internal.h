@@ -443,17 +443,40 @@ typedef struct { // :ParseFrame
 #define classImmutable 5
 
 
+typedef enum { //:EntityKind
+    uncallable,      // Just a datum
+    callableInstr,   // this function has a whole instruction dedicated to it
+    callableBuiltin, // a C function built into the interpreter
+    callableHost,    // a native API function exposed by the host
+    callableDefined  // an Eyr function defined in a script
+} EntityKind;
+
+
 typedef struct { // :Entity
     TypeId typeId;
     Unt name; // 8 bits of length, 24 bits of nameId
-    uint8_t class;
+    uint8_t class; // mutable or immutable
     bool isPublic;
-    bool hasExceptionHandler;
+    EntityKind kind;  
+    Int indEmit; // index into @emits
 } Entity;
+
+
+typedef union { // :Callable
+    // Used by codegen to define what to emit for different entities: 
+    // a literal, a native call, an instr etc
+    struct { Ulong literal; };    // iff Entity.kind = "uncallable"
+    struct { Byte opcode; };      // iff Entity.kind = "callableInstr"
+    struct { Int indexBuiltin; }; // iff Entity.kind = "callableBuiltin"
+    struct { Int indexHost; };    // iff Entity.kind = "callableHost"
+    struct { Int nodeInd; };      // iff Entity.kind = "callableDefined"
+} Emit;
 
 
 typedef struct { // :EntityImport
     Unt name;   // 8 bits of length, 24 bits of nameId
+    EntityKind kind;
+    Emit emit;
     TypeId typeId;
 } EntityImport;
 
@@ -503,6 +526,7 @@ DEFINE_INTERNAL_LIST_TYPE(Int)
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
 
 DEFINE_INTERNAL_LIST_TYPE(EntityImport)
+DEFINE_INTERNAL_LIST_TYPE(Emit)
 
 
 typedef struct {  // :ExprFrame
@@ -586,7 +610,7 @@ struct Compiler { // :Compiler
     StateForExprs* stateForExprs; // [aTmp]
     Arr(Int) activeBindings;    // [aTmp]
     InListNode nodes;
-    InListNode monoCode; // code for monorphizations of generic functions
+    InListNode monoCode; // ASTs for monorphizations of generic functions
     MultiAssocList* monoIds;
     InListEntity entities;
     MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
@@ -594,6 +618,9 @@ struct Compiler { // :Compiler
     InListInt types;
     StringDict* typesDict;
     StateForTypes* stateForTypes; // [aTmp]
+    
+    // CODEGEN
+    InListEmit emits;
 
     // GENERAL STATE
     Int i;
