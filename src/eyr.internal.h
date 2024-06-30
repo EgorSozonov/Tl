@@ -1,3 +1,6 @@
+#ifndef EYR_INTERNAL_H
+#define EYR_INTERNAL_H
+
 //{{{ Utils
 
 #define Int int32_t
@@ -8,7 +11,7 @@
 #define StackInt Stackint32_t
 #define InListUns InListuint32_t
 #define private static
-#define Byte unsigned char
+#define Byte uint8_t
 #define Bool bool
 #define Arr(T) T*
 #define Unt uint32_t
@@ -36,6 +39,10 @@
 #define SIXTEENPLUSONE 65537 // 2^16 + 1
 #define LEXER_INIT_SIZE 1000
 #define print(...) \
+  printf(__VA_ARGS__);\
+  printf("\n");
+  
+#define dg(...) \
   printf(__VA_ARGS__);\
   printf("\n");
 
@@ -125,19 +132,19 @@ typedef struct {
 //{{{ String Hashmap
 
 // Reference to first occurrence of a string identifier within input text
-typedef struct {
+typedef struct { //:StringValue
     Unt hash;
     Int indString;
 } StringValue;
 
 
-typedef struct {
+typedef struct { //:Bucket
     Unt capAndLen;
     StringValue cont[];
 } Bucket;
 
 // Hash map of all words/identifiers encountered in a source module
-typedef struct {
+typedef struct { //:StringDict
     Arr(Bucket*) dict;
     int dictSize;
     int len;
@@ -439,46 +446,47 @@ typedef struct { // :ParseFrame
 } ParseFrame;
 
 
-#define classMutable   1
-#define classImmutable 5
+// Public classes must always be even-valued, private - odd-valued. Mutable before immutable
+#define classMut      1
+#define classPubMut   2
+#define classImmut    5
+#define classPubImmut 6
 
 
 typedef enum { //:EntityKind
-    uncallable,      // Just a datum
+// Used by codegen to define what to emit for different entities: 
+// a literal, a native call, an instr etc
+    uncallableLiteral,
+    uncallableVar,
     callableInstr,   // this function has a whole instruction dedicated to it
     callableBuiltin, // a C function built into the interpreter
     callableHost,    // a native API function exposed by the host
     callableDefined  // an Eyr function defined in a script
-} EntityKind;
+} EmitKind;
+
+
+typedef union { // :EmitBody
+    struct { Ulong literal; };    // iff kind = "uncallableLiteral"
+    struct { Byte opcode; };      // iff kind = "callableInstr"
+    struct { Int indexBuiltin; }; // iff kind = "callableBuiltin"
+    struct { Int indexHost; };    // iff kind = "callableHost"
+    struct { Int nodeInd; };      // iff kind = "callableDefined"
+} EmitBody;
+
+
+typedef struct { //:Emit
+// Used by codegen to define what precisely to emit for different entities
+    EmitKind kind;
+    EmitBody body;
+} Emit;
 
 
 typedef struct { // :Entity
     TypeId typeId;
     Unt name; // 8 bits of length, 24 bits of nameId
-    uint8_t class; // mutable or immutable
-    bool isPublic;
-    EntityKind kind;  
-    Int indEmit; // index into @emits
-} Entity;
-
-
-typedef union { // :Callable
-    // Used by codegen to define what to emit for different entities: 
-    // a literal, a native call, an instr etc
-    struct { Ulong literal; };    // iff Entity.kind = "uncallable"
-    struct { Byte opcode; };      // iff Entity.kind = "callableInstr"
-    struct { Int indexBuiltin; }; // iff Entity.kind = "callableBuiltin"
-    struct { Int indexHost; };    // iff Entity.kind = "callableHost"
-    struct { Int nodeInd; };      // iff Entity.kind = "callableDefined"
-} Emit;
-
-
-typedef struct { // :EntityImport
-    Unt name;   // 8 bits of length, 24 bits of nameId
-    EntityKind kind;
+    Byte class; // mutable or immutable, public or private
     Emit emit;
-    TypeId typeId;
-} EntityImport;
+} Entity;
 
 
 typedef struct { // :Toplevel
@@ -515,17 +523,17 @@ DEFINE_STACK_HEADER(ParseFrame)
 DEFINE_STACK_HEADER(Node)
 DEFINE_STACK_HEADER(SourceLoc)
 
-DEFINE_INTERNAL_LIST_TYPE(Token)
+DEFINE_INTERNAL_LIST_TYPE(Token) //:InListToken
 DEFINE_INTERNAL_LIST_TYPE(Node)
 
 DEFINE_INTERNAL_LIST_TYPE(Entity)
 
 DEFINE_INTERNAL_LIST_TYPE(Toplevel)
+
 DEFINE_INTERNAL_LIST_TYPE(Int)
 
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
 
-DEFINE_INTERNAL_LIST_TYPE(EntityImport)
 DEFINE_INTERNAL_LIST_TYPE(Emit)
 
 
@@ -659,6 +667,22 @@ typedef struct { // :TypeHeader
 } TypeHeader;
 
 //}}}
+//{{{ Code generator
+
+typedef struct {
+    Int startInstr; // index of starting instruction
+    Int sentinel; // sentinel node of current function
+} BtCodegen;
+
+DEFINE_STACK_HEADER(BtCodegen)
+
+typedef struct { //:Codegen
+    Int i; // current index in @Compiler.nodes
+    StackBtCodegen* backtrack;
+} Codegen;
+
+
+//}}}
 //{{{ Interpreter
 
 // Function layout (all instructions are 8-byte sized):
@@ -731,48 +755,9 @@ typedef Int (*InterpreterFn)(Ulong, Int, Interpreter*);
 #define iSetLocal         35 // [Dest] {Value}
 #define iSetBigLocal      36 // [Dest] {{Value}}
 #define iPrint            37 // [String]
+#define iPrintErr         38 // [String]
                  
 #define countInstructions (iPrint + 1)
-                 
-Ulong instrArithmetic(Byte opCode, Short dest, Short operand1, Short operand2) {
-    return ((Ulong)opCode << 58) + ((Ulong)dest << 32) + ((Ulong)operand1 << 16) + operand2;
-}
-
-Ulong instrConstArithmetic(Byte opCode, Int increment) {
-    return ((Ulong)opCode << 58) + increment;
-}
-
-
-Ulong instrGetFld(Short dest, Short obj, Int offset) {
-    return ((Ulong)iGetFld << 58) + ((Ulong)dest << 40) + ((Ulong)obj << 24) 
-        + (offset & LOWER24BITS);
-}
-
-
-Ulong instrNewString(Short dest, Short start, Int len) {
-    return ((Ulong)iNewstring << 58) + ((Ulong)dest << 40) + ((Ulong)start << 24) 
-        + ((Ulong)len & LOWER24BITS);
-}
-
-
-Ulong instrConcatStrings(Short dest, Short op1, Short op2) {
-    return ((Ulong)iConcatStrs << 58) + ((Ulong)dest << 32) + ((Ulong)op1 << 16) 
-        + ((Ulong)op2);
-}
-
-Ulong instrReverseString(Short dest, Short src) {
-    return ((Ulong)iReverseString << 58) + ((Ulong)dest << 16) + ((Ulong)src << 16);
-}
-
-Ulong instrPrint(Short strAddress) {
-    return ((Ulong)iPrint << 58) + (Ulong)(Ushort)strAddress;
-}
-
-Ulong instrSetLocal(Short dest, Int value) {
-    Ulong a = (((Ulong)iSetLocal) << 58) + (((Ulong)((uint16_t)dest)) << 32) + (Ulong)(Unt)value;
-    return a;
-}
-
 
 //}}}
 //{{{ Generics
@@ -784,7 +769,8 @@ Ulong instrSetLocal(Short dest, Int value) {
     StackTypeFrame*: popTypeFrame,\
     Stackint32_t*: popint32_t,\
     StackNode*: popNode,\
-    StackSourceLoc*: popSourceLoc\
+    StackSourceLoc*: popSourceLoc,\
+    StackBtCodegen*: popBtCodegen\
     )(X)
 
 #define peek(X) _Generic((X),\
@@ -793,7 +779,8 @@ Ulong instrSetLocal(Short dest, Int value) {
     StackExprFrame*: peekExprFrame,\
     StackTypeFrame*: peekTypeFrame,\
     Stackint32_t*: peekint32_t,\
-    StackNode*: peekNode\
+    StackNode*: peekNode,\
+    StackBtCodegen*: peekBtCodegen\
     )(X)
 
 #define push(A, X) _Generic((X),\
@@ -803,7 +790,8 @@ Ulong instrSetLocal(Short dest, Int value) {
     StackTypeFrame*: pushTypeFrame,\
     Stackint32_t*: pushint32_t,\
     StackNode*: pushNode,\
-    StackSourceLoc*: pushSourceLoc\
+    StackSourceLoc*: pushSourceLoc,\
+    StackBtCodegen*: pushBtCodegen\
     )(A, X)
 
 #define hasValues(X) _Generic((X),\
@@ -811,7 +799,10 @@ Ulong instrSetLocal(Short dest, Int value) {
     StackParseFrame*: hasValuesParseFrame,\
     StackTypeFrame*: hasValuesTypeFrame,\
     Stackint32_t*:  hasValuesint32_t,\
-    StackNode*: hasValuesNode\
+    StackNode*: hasValuesNode,\
+    StackBtCodegen*: hasValuesBtCodegen\
     )(X)
+//:pop :peek :push :hasValues
 
 //}}}
+#endif

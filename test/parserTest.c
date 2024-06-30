@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include "../src/eyr.internal.h"
+#include "../src/eyr.h"
 #include "eyrTest.h"
 
 //{{{ Utils
@@ -78,7 +79,8 @@ private Int transformBindingEntityId(Int inp, Compiler* pr) {
 }
 
 
-private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { //:importTypes
+private Arr(TypeId) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { //:importTypes
+// Importing simple function types for testing purposes
     Int countImportedTypes = 0;
     Int j = 0;
     while (j < countTypes) {
@@ -106,7 +108,7 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { //:
             pushIntypes(types[k], cm);
         }
 
-        Int mergedTypeId = mergeType(initTypeId, cm);
+        TypeId mergedTypeId = mergeType(initTypeId, cm);
         typeIds[t] = mergedTypeId;
         t++;
         j = sentinel;
@@ -114,15 +116,16 @@ private Arr(Int) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { //:
     return typeIds;
 }
 
+
 private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes, Int countNodes,
                                Arr(Int) types, Int countTypes, Arr(TestEntityImport) imports,
                                Int countImports, Compiler* proto, Arena* a) { //:createTest0
-/** Creates a test with two parsers: one is the init parser (contains all the "imported" bindings and
-pre-defined nodes), and the other is the output parser (with all the stuff parsed from source code).
-When the test is run, the init parser will parse the tokens and then will be compared to the
-expected output parser.
-Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in nodBinding is 1,
-it will be inserted as 1 + (the number of built-in bindings) etc */
+// Creates a test with two parsers: one is the init parser (contains all the "imported" bindings and
+// pre-defined nodes), and the other is the output parser (with all the stuff parsed from source code).
+// When the test is run, the init parser will parse the tokens and then will be compared to the
+// expected output parser.
+// Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in nodBinding is 1,
+// it will be inserted as 1 + (the number of built-in bindings) etc
     Compiler* test = lexicallyAnalyze(sourceCode, proto, a);
     Compiler* control = lexicallyAnalyze(sourceCode, proto, a);
     if (control->stats.wasLexerError == true) {
@@ -131,19 +134,19 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
     }
     initializeParser(control, proto, a);
     initializeParser(test, proto, a);
-    Arr(Int) typeIds = importTypes(types, countTypes, control);
+    Arr(TypeId) typeIds = importTypes(types, countTypes, control);
     importTypes(types, countTypes, test);
 
     StandardText stText = getStandardTextLength();
     if (countImports > 0) {
-        Arr(EntityImport) importsForControl = allocateOnArena(countImports*sizeof(EntityImport), a);
-        Arr(EntityImport) importsForTest = allocateOnArena(countImports*sizeof(EntityImport), a);
+        Arr(Entity) importsForControl = allocateOnArena(countImports*sizeof(Entity), a);
+        Arr(Entity) importsForTest = allocateOnArena(countImports*sizeof(Entity), a);
 
         for (Int j = 0; j < countImports; j++) {
-            importsForControl[j] = (EntityImport) {
+            importsForControl[j] = (Entity) {
                 .name = nameOfStandard(strSentinel - 3 + imports[j].nameInd),
                 .typeId = typeIds[imports[j].typeInd] };
-            importsForTest[j] = (EntityImport) {
+            importsForTest[j] = (Entity) {
                 .name = nameOfStandard(strSentinel - 3 + imports[j].nameInd),
                 .typeId = typeIds[imports[j].typeInd] };
         }
@@ -176,6 +179,7 @@ it will be inserted as 1 + (the number of built-in bindings) etc */
     createTest0((name), (input), (nodes), sizeof(nodes)/sizeof(Node), (types), sizeof(types)/4, \
     (entities), sizeof(entities)/sizeof(TestEntityImport), proto, a)
 
+
 private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes,
                             Int countNodes, Arr(Int) types, Int countTypes, Arr(TestEntityImport) entities,
                             Int countEntities, Compiler* proto, Arena* a) {
@@ -189,7 +193,7 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
 
 #define createTestWithError(name, errorMessage, input, nodes, types, entities) \
     createTestWithError0((name), errorMessage, (input), (nodes), sizeof(nodes)/sizeof(Node), types,\
-    sizeof(types)/4, entities, sizeof(entities)/sizeof(EntityImport), proto, a)
+    sizeof(types)/4, entities, sizeof(entities)/sizeof(Entity), proto, a)
 
 
 private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) nodes,
@@ -214,8 +218,9 @@ private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) no
 
 #define createTestWithLocs(name, input, nodes, types, entities, locs) \
     createTestWithLocs0((name), (input), (nodes), sizeof(nodes)/sizeof(Node), types,\
-    sizeof(types)/4, entities, sizeof(entities)/sizeof(EntityImport),\
+    sizeof(types)/4, entities, sizeof(entities)/sizeof(TestEntityImport),\
     locs, sizeof(locs)/sizeof(SourceLoc), proto, a)
+
 
 int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool compareLocsToo) {
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
@@ -857,6 +862,21 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodId, .pl1 = 1,     .pl2 = 1  }, // x
                 (Node){ .tp = nodReturn,           .pl2 = 1  },
                 (Node){ .tp = nodId, .pl1 = 3,     .pl2 = 3  }
+            }),
+            ((Int[]) {}),
+            ((TestEntityImport[]) {})
+        ),
+        createTest(
+            s("Simple function definition 3"),
+            s("main = ((\n"
+              "     print `asdf`;\n"
+              "))"
+            ),
+            ((Node[]) {
+                (Node){ .tp = nodFnDef,      .pl2 = 3 },
+                (Node){ .tp = nodExpr,       .pl2 = 2 },
+                (Node){ .tp = tokString     },
+                (Node){ .tp = nodCall, .pl1 = I - 4, .pl2 = 1 }
             }),
             ((Int[]) {}),
             ((TestEntityImport[]) {})
@@ -1615,12 +1635,10 @@ int main() {
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
-   /* 
     runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
     runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
-   */ 
     runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");

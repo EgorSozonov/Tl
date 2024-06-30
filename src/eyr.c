@@ -1,4 +1,5 @@
 //{{{ Includes
+
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -10,9 +11,6 @@
 #include <setjmp.h>
 #include "eyr.internal.h"
 
-
-char* ADDR = 0;
-Int LEN = 0;
 //}}}
 //{{{ Language definition
 //{{{ Lexical structure
@@ -504,32 +502,32 @@ void dbgRawOverload(Int listInd, Compiler* cm) { //:dbgRawOverload
 //}}}
 //{{{ Datatypes a la carte
 
-DEFINE_STACK(int32_t)
-DEFINE_STACK(BtToken)
-DEFINE_STACK(Token)
-DEFINE_STACK(ParseFrame)
-DEFINE_STACK(ExprFrame)
-DEFINE_STACK(TypeFrame)
-DEFINE_STACK(SourceLoc)
+DEFINE_STACK(int32_t) //:createStackint32_t :pushint32_t :peekint32_t :hasValuesint32_t :popint32_t
+DEFINE_STACK(BtToken) //:createStackBtToken
+DEFINE_STACK(Token) //:createStackToken
+DEFINE_STACK(ParseFrame) //:createStackParseFrame
+DEFINE_STACK(ExprFrame) //:createStackExprFrame
+DEFINE_STACK(TypeFrame) //:createStackTypeFrame
+DEFINE_STACK(SourceLoc) //:createStackSourceLoc
 
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Token)
-DEFINE_INTERNAL_LIST(tokens, Token, a)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Token) //:createInListToken
+DEFINE_INTERNAL_LIST(tokens, Token, a) //:pushIntokens
 
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Toplevel)
-DEFINE_INTERNAL_LIST(toplevels, Toplevel, a)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Toplevel)  //:createInListToplevel
+DEFINE_INTERNAL_LIST(toplevels, Toplevel, a) //:pushIntoplevels
 
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node)
-DEFINE_INTERNAL_LIST(nodes, Node, a)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node) //:createInListNode
+DEFINE_INTERNAL_LIST(nodes, Node, a) //:pushInnodes
 
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity)
-DEFINE_INTERNAL_LIST(entities, Entity, a)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity) //:createEntity
+DEFINE_INTERNAL_LIST(entities, Entity, a) //:pushInentities
 
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int)
-DEFINE_INTERNAL_LIST(newlines, Int, a)
-DEFINE_INTERNAL_LIST(numeric, Int, a)
-DEFINE_INTERNAL_LIST(importNames, Int, a)
-DEFINE_INTERNAL_LIST(overloads, Int, a)
-DEFINE_INTERNAL_LIST(types, Int, a)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int) //:createInListInt
+DEFINE_INTERNAL_LIST(newlines, Int, a) //:pushInnewlines
+DEFINE_INTERNAL_LIST(numeric, Int, a) //:pushInnumeric
+DEFINE_INTERNAL_LIST(importNames, Int, a) //:pushInimportNames
+DEFINE_INTERNAL_LIST(overloads, Int, a) //:pushInoverloads
+DEFINE_INTERNAL_LIST(types, Int, a) //:pushIntypes
 
 //}}}
 //{{{ Strings
@@ -2489,7 +2487,7 @@ private Int getTypeOfVar(Int varId, Compiler* cm) {
 }
 
 
-private EntityId createEntity(Unt name, EntityKind kind, Byte class, Compiler* cm) { //:createEntity
+private EntityId createEntity(Unt name, Emit emit, Byte class, Compiler* cm) { //:createEntity
 // Validates a new binding (that it is unique), creates an entity for it,
 // and adds it to the current scope
     Int nameId = name & LOWER24BITS;
@@ -2498,7 +2496,7 @@ private EntityId createEntity(Unt name, EntityKind kind, Byte class, Compiler* c
     // if it's a binding, it should be -1, and if overload, < -1
 
     Int newEntityId = cm->entities.len;
-    pushInentities(((Entity){ .name = name, .kind = kind, .class = class }), cm);
+    pushInentities(((Entity){ .name = name, .emit = emit, .class = class }), cm);
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->len > 0) {
             addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
@@ -2509,10 +2507,10 @@ private EntityId createEntity(Unt name, EntityKind kind, Byte class, Compiler* c
 }
 
 
-private Int createEntityWithType(Unt name, TypeId typeId, EntityKind kind, Byte class, 
+private Int createEntityWithType(Unt name, TypeId typeId, Emit emit, Byte class, 
                                  Compiler* cm) {
 //:createEntityWithType
-    EntityId newEntityId = createEntity(name, kind, class, cm);
+    EntityId newEntityId = createEntity(name, emit, class, cm);
     cm->entities.cont[newEntityId].typeId = typeId;
     return newEntityId;
 }
@@ -2562,7 +2560,6 @@ private void pAddFunctionCall(Token tk, Int sentinel, StateForExprs* s) {
 
 testable void pushLexScope(ScopeStack* scopeStack);
 testable Int pTypeDef(P_CT);
-testable bool findOverload(FirstArgTypeId typeId, Int start, EntityId* entityId, Compiler* cm);
 
 #ifdef TEST
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
@@ -2794,12 +2791,15 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         Unt newName = ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1; // nameId + lenBts
         entityId = cm->activeBindings[nameTk.pl1];
         if (entityId > -1) {
-            VALIDATEP(cm->entities.cont[entityId].class == classMutable,
+            VALIDATEP(cm->entities.cont[entityId].class == classMut,
                     errCannotMutateImmutable)
             leftType = cm->entities.cont[entityId].typeId;
         } else {
-            entityId = createEntity(newName, uncallable, 
-                                    nameTk.pl2 == 1 ? classMutable : classImmutable, cm);
+            entityId = createEntity(
+                    newName, 
+                    (Emit){.kind = uncallableVar, .body = {}}, 
+                    nameTk.pl2 == 1 ? classMut: classImmut, cm
+            );
         }
         addNode((Node){ .tp = nodBinding, .pl1 = entityId, .pl2 = 0 }, locOf(nameTk), cm);
     } else if (countLeftSide > 1) {
@@ -3011,7 +3011,7 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     SourceLoc rawLoc = pop(stEx->locsCalls);
 
     const EntityId newEntityId = cm->entities.len;
-    pushInentities(((Entity) { .class = classImmutable }), cm);
+    pushInentities(((Entity) { .class = classImmut }), cm);
 
     Int countElements = 0;
     Int countNodes = scr->len - frame.startNode;
@@ -3336,7 +3336,7 @@ private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
 private void setClassToMutated(Int bindingId, Compiler* cm) { //:setClassToMutated
 // Changes a mutable variable to mutated. Throws an exception for an immutable one
     Int class = cm->entities.cont[bindingId].class;
-    VALIDATEP(class < classImmutable, errCannotMutateImmutable);
+    VALIDATEP(class < classImmut, errCannotMutateImmutable);
     if (class % 2 == 0) {
         cm->entities.cont[bindingId].class += 1;
     }
@@ -3495,16 +3495,10 @@ private EntityId importActivateEntity(Entity ent, Compiler* cm) { //:importActiv
 }
 
 
-testable void importEntities(Arr(EntityImport) impts, Int countEntities,
+testable void importEntities(Arr(Entity) impts, Int countEntities,
                              Compiler* cm) { //:importEntities
     for (int j = 0; j < countEntities; j++) {
-        EntityImport impt = impts[j];
-        importActivateEntity( (Entity){
-                .name = impt.name, .kind = impt.kind,
-                .emit = impt.emit,
-                .class = classImmutable, 
-                .typeId = impt.typeId }, 
-            cm);
+        importActivateEntity(impts[j], cm);
     }
     cm->stats.countNonparsedEntities = cm->entities.len;
 }
@@ -3820,18 +3814,18 @@ private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Com
 
 
 private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mergeTypeWorker
-    Byte* types = (Byte*)cm->types.cont;
+    Arr(Int) types = cm->types.cont;
     StringDict* hm = cm->typesDict;
-    Int startBt = startInd*4;
-    Int lenBts = lenInts*4;
-    Unt theHash = hashCode(types + startBt, lenBts);
+    const Int lenBts = lenInts*4; 
+    Unt theHash = hashCode((Byte*)(types + startInd), lenBts);
     Int hashOffset = theHash % (hm->dictSize);
+    
     if (*(hm->dict + hashOffset) == null) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue),
                 hm->a);
         newBucket->capAndLen = (initBucketSize << 16) + 1; // left u16 = cap, right u16 = len
         StringValue* firstElem = (StringValue*)newBucket->cont;
-        *firstElem = (StringValue){.hash = theHash, .indString = startBt };
+        *firstElem = (StringValue){.hash = theHash, .indString = startInd };
         *(hm->dict + hashOffset) = newBucket;
     } else {
         Bucket* p = *(hm->dict + hashOffset);
@@ -3839,13 +3833,13 @@ private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mer
         Arr(StringValue) stringValues = (StringValue*)p->cont;
         for (int i = 0; i < lenBucket; i++) {
             if (stringValues[i].hash == theHash
-                  && memcmp(types + stringValues[i].indString, types + startBt, lenBts) == 0) {
+                  && memcmp(types + stringValues[i].indString, types + startInd, lenBts) == 0) {
                 // key already present
                 cm->types.len -= lenInts;
-                return stringValues[i].indString/4;
+                return stringValues[i].indString;
             }
         }
-        addValueToBucket((hm->dict + hashOffset), startBt, lenBts, hm->a);
+        addValueToBucket((hm->dict + hashOffset), startInd, lenInts, hm->a);
     }
     hm->len += 1;
     return startInd;
@@ -3946,7 +3940,7 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
 private void buildOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildOperator
 // Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
-    pushInentities((Entity){ .typeId = typeId, .class = classImmutable }, cm);
+    pushInentities((Entity){ .typeId = typeId, .class = classImmut }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
 }
 
@@ -4063,16 +4057,28 @@ private void importPrelude(Compiler* cm) { //:importPrelude
 //    TypeId intToDoub = addConcrFnType(1, (Int[]){ tokInt, tokDouble}, cm);
 //    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
 
-    EntityImport imports[6] =  {
-        (EntityImport) { .name = nameOfStandard(strMathPi), .typeId = tokDouble,
-                         .kind = uncallable, .emit = {.literal = longOfDoubleBits(3.14159265358)} },
-        (EntityImport) { .name = nameOfStandard(strMathE), .typeId = tokDouble,
-                         .kind = uncallable, .emit = {.literal = longOfDoubleBits(2.71)} },
-        (EntityImport) { .name = nameOfStandard(strPrint), .typeId = strToVoid},
-        (EntityImport) { .name = nameOfStandard(strPrint), .typeId = intToVoid},
-        (EntityImport) { .name = nameOfStandard(strPrint), .typeId = floatToVoid},
-        (EntityImport) { .name = nameOfStandard(strPrintErr), .typeId = strToVoid}
-           // TODO functions for casting (int, double, unsigned)
+    Entity imports[6] =  {
+        (Entity){ .name = nameOfStandard(strMathPi), .typeId = tokDouble, .class = classPubImmut,
+                   .emit = {.kind = uncallableLiteral, 
+                            .body = {.literal = longOfDoubleBits(3.14159265358)} }
+        },
+        (Entity){ .name = nameOfStandard(strMathE), .typeId = tokDouble, .class = classPubImmut,
+                   .emit = {.kind = uncallableLiteral, .body = {.literal = longOfDoubleBits(2.71)}}
+        },
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = strToVoid, .class = classPubImmut,
+                   .emit = {.kind = callableInstr, .body = {.opcode = iPrint} }
+        },
+        // TODO define print x = print $x as AST nodes injected into every build
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = intToVoid,
+                   .emit = {.kind = callableDefined, .body = {.nodeInd = -1} }
+        },
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = floatToVoid,
+                   .emit = {.kind = callableDefined, .body = {.nodeInd = -1} }
+        },
+        (Entity){ .name = nameOfStandard(strPrintErr), .typeId = strToVoid,
+                   .emit = {.kind = callableInstr, .body = {.opcode = iPrintErr} }
+        }
+       // TODO functions for casting (int, double, unsigned)
     };
     // These base types occupy the first places in the stringTable and in the types table.
     // So for them nameId == typeId, unlike type funcs like L(ist) and A(rray)
@@ -4080,7 +4086,7 @@ private void importPrelude(Compiler* cm) { //:importPrelude
         cm->activeBindings[j - strInt + countOperators] = j - strInt;
     }
 
-    importEntities(imports, sizeof(imports)/sizeof(EntityImport), cm);
+    importEntities(imports, sizeof(imports)/sizeof(Entity), cm);
 }
 
 
@@ -4400,7 +4406,7 @@ testable void pFnSignature(Token fnDef, bool isToplevel, Unt name, Int voidToVoi
     }
 
     EntityId newFnEntityId = cm->entities.len;
-    pushInentities(((Entity){ .class = classImmutable, .typeId = newFnTypeId }), cm);
+    pushInentities(((Entity){ .class = classImmut, .typeId = newFnTypeId }), cm);
     addRawOverload(fnNameId, newFnTypeId, newFnEntityId, cm);
     pushIntoplevels((Toplevel){.indToken = fnStartTokenId, .sentinelToken = fnSentinelToken,
             .name = name, .entityId = newFnEntityId }, cm);
@@ -4435,8 +4441,10 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
                 break;
             }
             Int newEntityId = createEntityWithType(
-                    nameOfToken(paramName), cm->types.cont[paramTypeInd], callableDefined,
-                    paramName.pl1 == 1 ? classMutable : classImmutable, cm
+                    nameOfToken(paramName), cm->types.cont[paramTypeInd], (Emit){ 
+                        .kind = callableDefined, .body = {.nodeInd = -1} // to be filled in later
+                    },
+                    paramName.pl1 == 1 ? classMut : classImmut, cm
             );
             addNode(((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = 0}), locOf(paramName), cm);
 
@@ -5068,7 +5076,7 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
 // 1. outerType < -1: non-function generic types with outer generic, e.g. "U(Int)" => -2
 // 2. outerType = -1: 0-arity function
 // 3. outerType >=< 0 BIG: non-function types with outer concrete, e.g. "L(U)" => ind of L
-// 4. outerType >= BIG: function types (generic or concrete), e.g. "F(Int => String)" => BIG + 1
+// 4. outerType >= BIG: function types (generic or concrete), e.g. "(F Int -> String)" => BIG + 1
     const Int start = ovInd + 1;
     Arr(Int) overs = cm->overloads.cont;
     const Int countOverloads = overs[ovInd]/2;
@@ -5362,6 +5370,7 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 //}}}
 //{{{ Codegen
 
+DEFINE_STACK(BtCodegen)
 
 //}}}
 //{{{ Interpreter
@@ -5394,7 +5403,48 @@ private void inMoveHeapTop(Unt sz, Interpreter* in) { //:inMoveHeapTop
 
 
 //}}}
+//{{{ Generating bytecode
 
+testable Ulong instrArithmetic(Byte opCode, Short dest, Short operand1, Short operand2) {
+    return ((Ulong)opCode << 58) + ((Ulong)dest << 32) + ((Ulong)operand1 << 16) + operand2;
+}
+
+testable Ulong instrConstArithmetic(Byte opCode, Int increment) {
+    return ((Ulong)opCode << 58) + increment;
+}
+
+
+testable Ulong instrGetFld(Short dest, Short obj, Int offset) {
+    return ((Ulong)iGetFld << 58) + ((Ulong)dest << 40) + ((Ulong)obj << 24) 
+        + (offset & LOWER24BITS);
+}
+
+
+testable Ulong instrNewString(Short dest, Short start, Int len) {
+    return ((Ulong)iNewstring << 58) + ((Ulong)dest << 40) + ((Ulong)start << 24) 
+        + ((Ulong)len & LOWER24BITS);
+}
+
+
+testable Ulong instrConcatStrings(Short dest, Short op1, Short op2) {
+    return ((Ulong)iConcatStrs << 58) + ((Ulong)dest << 32) + ((Ulong)op1 << 16) 
+        + ((Ulong)op2);
+}
+
+testable Ulong instrReverseString(Short dest, Short src) {
+    return ((Ulong)iReverseString << 58) + ((Ulong)dest << 16) + ((Ulong)src << 16);
+}
+
+testable Ulong instrPrint(Short strAddress) {
+    return ((Ulong)iPrint << 58) + (Ulong)(Ushort)strAddress;
+}
+
+testable Ulong instrSetLocal(Short dest, Int value) {
+    Ulong a = (((Ulong)iSetLocal) << 58) + (((Ulong)((uint16_t)dest)) << 32) + (Ulong)(Unt)value;
+    return a;
+}
+
+//}}}
 private Int runPlus(Ulong instr, Int ip, Interpreter* rt) {
     return ip + 1;
 }
@@ -5978,6 +6028,7 @@ private Int interpretCode(Interpreter* in) {
         //print("instr %lx op code %d", instr, instr>>58);
         ip = (INTERPRETER_TABLE[instr >> 58])(instr, ip, in);
     }
+    return 0;
 }
 
 
@@ -5989,7 +6040,8 @@ Int main(int argc, char** argv) { //:main
     
     Interpreter* rt = createInterpreter(a);
     Int interpResult = interpretCode(rt);
-
+    printf("Interpretation result = %d\n", interpResult);
+    
     cleanup:
     deleteArena(a);
     return 0;

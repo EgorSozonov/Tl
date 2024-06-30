@@ -22,7 +22,7 @@ TARGET=$(DEBUGDIR)/$(APP)/$(APP)
 
 all: ## Build the whole project
 / clear
-/ mkdir -p $DEBUGDIR/$APP
+/ mkdir -p $(DEBUGDIR)/$(APP)
 / $(CC) $(CFLAGS) -o $(TARGET) src/$(APP).c
 / @echo "========================================="
 / @echo "              BUILD SUCCESS              "

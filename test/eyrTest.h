@@ -7,7 +7,7 @@ DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
 DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
 DEFINE_INTERNAL_LIST_HEADER(types, Int)
 DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
-DEFINE_INTERNAL_LIST_HEADER(imports, EntityImport)
+DEFINE_INTERNAL_LIST_HEADER(imports, Entity)
 
 
 String* prepareInput(const char* content, Arena* a);
@@ -75,7 +75,7 @@ extern const char errIndentation[];
 
 #ifdef PARSER_TEST
 
-void importEntities(Arr(EntityImport) impts, Int countBindings, Compiler* cm);
+void importEntities(Arr(Entity) impts, Int countBindings, Compiler* cm);
 void createCompiler(Compiler* lx, Arena* a);
 void parseMain(Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Compiler* cm);
@@ -174,3 +174,16 @@ Int overloadBinarySearch(Int typeIdToFind, Int startInd, Int endInd, Int* entity
 
 
 #endif
+
+//{{{ Interpreter testing
+
+Ulong instrArithmetic(Byte opCode, Short dest, Short operand1, Short operand2);
+Ulong instrConstArithmetic(Byte opCode, Int increment);
+Ulong instrGetFld(Short dest, Short obj, Int offset);
+Ulong instrNewString(Short dest, Short start, Int len);
+Ulong instrConcatStrings(Short dest, Short op1, Short op2);
+Ulong instrReverseString(Short dest, Short src);
+Ulong instrPrint(Short strAddress);
+Ulong instrSetLocal(Short dest, Int value);
+
+//}}}
