@@ -3975,7 +3975,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opBoolNeg,      boolOfBool, cm);
     buildOperator(opSize,         intOfStr, cm);
     buildOperator(opSize,         intOfInt, cm);
-    buildOperator(opToString,     strOfInt, cm);
+    buildOperator(opToString,     strOfInt, cm); // TODO
     buildOperator(opToString,     strOfBool, cm);
     buildOperator(opToString,     strOfFloat, cm);
     buildOperator(opRemainder,    intOfIntInt, cm);
@@ -5421,6 +5421,13 @@ testable Ulong instrCall(Short newFramePtr, Unt newIp) {
     return a;
 }
 
+
+testable Ulong instrReturn(Byte returnSize) { //:instrReturn
+// "returnSize" is either 0, 1 or 2 ("words", ie. 4-byte chunks).
+    Ulong a = (((Ulong)iReturn) << 58) + (Ulong)returnSize;
+    return a;
+}
+
 //}}}
 
 private void tmpGetCode(Interpreter* rt, Arena* a) {
@@ -5430,11 +5437,22 @@ private void tmpGetCode(Interpreter* rt, Arena* a) {
     const Int len = 4;
     Arr(Ulong) theCode = ((Ulong[]) {
         len,
-        instrSetLocal(stackFrameStart, 3),
-        instrNewString(stackFrameStart + 4, stackFrameStart, 4),
+        instrSetLocal(stackFrameStart + 4, 77),
+        instrCall(stackFrameStart, fnId),
         instrPrint(stackFrameStart + 4),
-        (((Ulong)iReturn) << 58)
+        instrReturn(0)
     });
+    
+    
+    
+//    const Int len = 4;
+//    Arr(Ulong) theCode = ((Ulong[]) {
+//        len,
+//        instrSetLocal(stackFrameStart, 3),
+//        instrNewString(stackFrameStart + 4, stackFrameStart, 4),
+//        instrPrint(stackFrameStart + 4),
+//        (((Ulong)iReturn) << 58)
+//    });
     Int lenBytes = (len + 1)*sizeof(Ulong);
     void* codeAddr = allocateOnArena(lenBytes, a);
 
@@ -5571,9 +5589,8 @@ private Unt runSetLocal(Ulong instr, Unt ip, Interpreter* rt) { //:runSetLocal
 
 private Unt runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
 // Creates and activates a new call frame. Stack frame layout (all are 4-byte sized):
-// prevFrame  - index into the runtime stack
-// fnId       - index into @Interpreter.code
-// ip         - index into @Interpreter.code
+// prevFrame  - Ptr index into the runtime stack
+// ip         - Unt index into @Interpreter.code
     Unt newFn = (Unt)(instr & LOWER32BITS);
     StackAddr newFrameRef = (Short)((instr >> 32) & LOWER16BITS);
     Ptr oldFrameRef = rt->currFrame;
@@ -5599,7 +5616,15 @@ private Unt runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
 
 
 private Unt runReturn(Ulong instr, Unt ip, Interpreter* rt) { //:runReturn
-    rt->currFrame = rt->memory[rt->currFrame]; // take a call off the stack
+// Return from function. The return value, if any, will be stored right after the header
+    Int returnSize = ip & (0xFF);
+    Unt* prevFrame = inDeref(rt->currFrame, rt);
+    
+    rt->topOfFrame = rt->currFrame + (stackFrameStart/4);
+    rt->currFrame = *prevFrame; // take a call off the stack
+    Unt* callerIp = (Unt*)inDeref(*prevFrame, rt) + 1;
+    rt->i = *callerIp;
+    print("after return, currFrame %d topOfFrame %d ip %d", rt->currFrame, rt->topOfFrame, rt->i);
     return rt->memory[rt->currFrame + 1];
 }
 

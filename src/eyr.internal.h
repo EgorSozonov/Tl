@@ -702,15 +702,15 @@ typedef struct {    //:Interpreter
     Ptr textStart;
 
     Ptr currFrame;
+    Ptr topOfFrame;
     Arr(char) memory;
     Ptr heapTop; // index into @memory
 } Interpreter;
 
 // Stack frame layout (all are 4-byte sized):
-// prevFrame  - index into the runtime stack
-// fnId       - index into @Interpreter.code
-// ip         - index into @Interpreter.code
-#define stackFrameStart 12 // Skipped the 3 ints
+// prevFrame  - Ptr index into the runtime stack
+// ip         - Unt index into @Interpreter.code
+#define stackFrameStart 8 // Skipped the 2 ints
 
 typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter*);
 
@@ -754,7 +754,7 @@ typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter*);
 #define iBranchGt         31 // /end
 #define iShortCircuit     32 // if [B] == [C] then [A] = [B] else ip += 1
 #define iCall             33 // [New frame pointer] { New instruction pointer }
-#define iReturn           34 // [Address of returned value]
+#define iReturn           34 // [Size of return value = 0, 1 or 2]
 #define iSetLocal         35 // [Dest] {Value}
 #define iSetBigLocal      36 // [Dest] {{Value}}
 #define iPrint            37 // [String]
