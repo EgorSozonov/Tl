@@ -41,7 +41,7 @@
 #define print(...) \
   printf(__VA_ARGS__);\
   printf("\n");
-  
+
 #define dg(...) \
   printf(__VA_ARGS__);\
   printf("\n");
@@ -454,7 +454,7 @@ typedef struct { // :ParseFrame
 
 
 typedef enum { //:EntityKind
-// Used by codegen to define what to emit for different entities: 
+// Used by codegen to define what to emit for different entities:
 // a literal, a native call, an instr etc
     uncallableLiteral,
     uncallableVar,
@@ -490,12 +490,13 @@ typedef struct { // :Entity
 
 
 typedef struct { // :Toplevel
-    // Toplevel definitions (functions, variables, types) for parsing order and name searchability
+// Toplevel definitions (functions, variables, types) for parsing order and name searchability
     Int indToken;
     Int sentinelToken;
     Unt name;
     EntityId entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
     bool isFunction;
+    Int indNode;
 } Toplevel;
 
 
@@ -626,7 +627,7 @@ struct Compiler { // :Compiler
     InListInt types;
     StringDict* typesDict;
     StateForTypes* stateForTypes; // [aTmp]
-    
+
     // CODEGEN
     InListEmit emits;
 
@@ -670,6 +671,7 @@ typedef struct { // :TypeHeader
 //{{{ Code generator
 
 typedef struct {
+    Byte tp; // instructions, i.e. the "i*" constants
     Int startInstr; // index of starting instruction
     Int sentinel; // sentinel node of current function
 } BtCodegen;
@@ -693,23 +695,24 @@ typedef struct { //:Codegen
 #define StackAddr int16_t // Negative values mean previous stack frame
 
 typedef struct {    //:Interpreter
+    Unt i; // current instruction pointer
     Arr(Ulong) code;
     Arr(Int) fns;   // indices into @code
     // global static string
     Ptr textStart;
-    
+
     Ptr currFrame;
-    Arr(char) memory; 
+    Arr(char) memory;
     Ptr heapTop; // index into @memory
 } Interpreter;
 
-// Stack frame layout (all are 4-byte sized): 
+// Stack frame layout (all are 4-byte sized):
 // prevFrame  - index into the runtime stack
 // fnId       - index into @Interpreter.code
 // ip         - index into @Interpreter.code
 #define stackFrameStart 12 // Skipped the 3 ints
 
-typedef Int (*InterpreterFn)(Ulong, Int, Interpreter*);
+typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter*);
 
 // Instructions (opcodes)
 // An instruction is 8 byte long and consists of 6-bit opcode and some data
@@ -723,16 +726,16 @@ typedef Int (*InterpreterFn)(Ulong, Int, Interpreter*);
 #define iDivBy             3
 #define iPlusFl            4
 #define iMinusFl           5
-#define iTimesFl           6 
+#define iTimesFl           6
 #define iDivByFl           7 // /end
 #define iPlusConst         8 // [Src=Dest] {Increment}
-#define iMinusConst        9 
-#define iTimesConst       10 
+#define iMinusConst        9
+#define iTimesConst       10
 #define iDivByConst       11 // /end
 #define iPlusFlConst      12 // [Src=Dest] {{Double constant}}
-#define iMinusFlConst     13 
+#define iMinusFlConst     13
 #define iTimesFlConst     14
-#define iDivByFlConst     15 // /end 
+#define iDivByFlConst     15 // /end
 #define iConcatStrs       16 // [Dest] [Operand1] [Operand2]
 #define iNewstring        17 // [Dest] [Start] [~Len]
 #define iSubstring        18 // [Dest] [Src] {{ {Start} {Len}  }}
@@ -750,13 +753,13 @@ typedef Int (*InterpreterFn)(Ulong, Int, Interpreter*);
 #define iBranchEq         30
 #define iBranchGt         31 // /end
 #define iShortCircuit     32 // if [B] == [C] then [A] = [B] else ip += 1
-#define iCall             33 // { Code pointer }
+#define iCall             33 // [New frame pointer] { New instruction pointer }
 #define iReturn           34 // [Address of returned value]
 #define iSetLocal         35 // [Dest] {Value}
 #define iSetBigLocal      36 // [Dest] {{Value}}
 #define iPrint            37 // [String]
 #define iPrintErr         38 // [String]
-                 
+
 #define countInstructions (iPrint + 1)
 
 //}}}

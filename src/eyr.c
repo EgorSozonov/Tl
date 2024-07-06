@@ -1274,12 +1274,13 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm);
 private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm);
 private Int tGetFnArity(TypeId fnType, Compiler* cm);
-#ifdef TEST
+#ifdef DEBUG
 void printParser(Compiler* cm, Arena* a);
 void dbgType(TypeId typeId, Compiler* cm);
 private void dbgExprFrames(StateForExprs* st);
 private void printStackInt(StackInt* st);
 void dbgTypeFrames(StackTypeFrame* st);
+void dbgCallFrames(Interpreter* rt);
 #endif
 
 //}}}
@@ -2507,9 +2508,8 @@ private EntityId createEntity(Unt name, Emit emit, Byte class, Compiler* cm) { /
 }
 
 
-private Int createEntityWithType(Unt name, TypeId typeId, Emit emit, Byte class, 
-                                 Compiler* cm) {
-//:createEntityWithType
+private EntityId createEntityWithType(Unt name, TypeId typeId, Emit emit, Byte class,
+                                 Compiler* cm) { //:createEntityWithType
     EntityId newEntityId = createEntity(name, emit, class, cm);
     cm->entities.cont[newEntityId].typeId = typeId;
     return newEntityId;
@@ -2796,8 +2796,8 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
             leftType = cm->entities.cont[entityId].typeId;
         } else {
             entityId = createEntity(
-                    newName, 
-                    (Emit){.kind = uncallableVar, .body = {}}, 
+                    newName,
+                    (Emit){.kind = uncallableVar, .body = {}},
                     nameTk.pl2 == 1 ? classMut: classImmut, cm
             );
         }
@@ -3816,10 +3816,10 @@ private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Com
 private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mergeTypeWorker
     Arr(Int) types = cm->types.cont;
     StringDict* hm = cm->typesDict;
-    const Int lenBts = lenInts*4; 
+    const Int lenBts = lenInts*4;
     Unt theHash = hashCode((Byte*)(types + startInd), lenBts);
     Int hashOffset = theHash % (hm->dictSize);
-    
+
     if (*(hm->dict + hashOffset) == null) {
         Bucket* newBucket = allocateOnArena(sizeof(Bucket) + initBucketSize*sizeof(StringValue),
                 hm->a);
@@ -4059,7 +4059,7 @@ private void importPrelude(Compiler* cm) { //:importPrelude
 
     Entity imports[6] =  {
         (Entity){ .name = nameOfStandard(strMathPi), .typeId = tokDouble, .class = classPubImmut,
-                   .emit = {.kind = uncallableLiteral, 
+                   .emit = {.kind = uncallableLiteral,
                             .body = {.literal = longOfDoubleBits(3.14159265358)} }
         },
         (Entity){ .name = nameOfStandard(strMathE), .typeId = tokDouble, .class = classPubImmut,
@@ -4413,9 +4413,11 @@ testable void pFnSignature(Token fnDef, bool isToplevel, Unt name, Int voidToVoi
 }
 
 
-private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler* cm) {
+private void pToplevelBody(Int indToplevel, Arr(Token) toks, Compiler* cm) {
 //:pToplevelBody Parses a top-level function. The result is the AST
-//L( FnDef ParamList body... )
+//[ FnDef ParamList body... ]
+    Toplevel toplevelSignature = cm->toplevels.cont[indToplevel];
+    cm->toplevels.cont[indToplevel].indNode = cm->nodes.len;
     Int fnStartInd = toplevelSignature.indToken;
 
     const Int fnSentinel = toplevelSignature.sentinelToken;
@@ -4441,7 +4443,7 @@ private void pToplevelBody(Toplevel toplevelSignature, Arr(Token) toks, Compiler
                 break;
             }
             Int newEntityId = createEntityWithType(
-                    nameOfToken(paramName), cm->types.cont[paramTypeInd], (Emit){ 
+                    nameOfToken(paramName), cm->types.cont[paramTypeInd], (Emit){
                         .kind = callableDefined, .body = {.nodeInd = -1} // to be filled in later
                     },
                     paramName.pl1 == 1 ? classMut : classImmut, cm
@@ -4462,7 +4464,7 @@ private void pFunctionBodies(Arr(Token) toks, Compiler* cm) { //:pFunctionBodies
 // Parses top-level function params and bodies
     for (int j = 0; j < cm->toplevels.len; j++) {
         cm->stats.loopCounter = 0;
-        pToplevelBody(cm->toplevels.cont[j], P_C);
+        pToplevelBody(j, P_C);
     }
 }
 
@@ -5372,6 +5374,111 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 DEFINE_STACK(BtCodegen)
 
+//{{{ Generating bytecode
+
+testable Ulong instrArithmetic(Byte opCode, Short dest, Short operand1, Short operand2) {
+    return ((Ulong)opCode << 58) + ((Ulong)dest << 32) + ((Ulong)operand1 << 16) + operand2;
+}
+
+testable Ulong instrConstArithmetic(Byte opCode, Int increment) {
+    return ((Ulong)opCode << 58) + increment;
+}
+
+
+testable Ulong instrGetFld(Short dest, Short obj, Int offset) {
+    return ((Ulong)iGetFld << 58) + ((Ulong)dest << 40) + ((Ulong)obj << 24)
+        + (offset & LOWER24BITS);
+}
+
+
+testable Ulong instrNewString(Short dest, Short start, Int len) {
+    return ((Ulong)iNewstring << 58) + ((Ulong)dest << 40) + ((Ulong)start << 24)
+        + ((Ulong)len & LOWER24BITS);
+}
+
+
+testable Ulong instrConcatStrings(Short dest, Short op1, Short op2) {
+    return ((Ulong)iConcatStrs << 58) + ((Ulong)dest << 32) + ((Ulong)op1 << 16)
+        + ((Ulong)op2);
+}
+
+testable Ulong instrReverseString(Short dest, Short src) {
+    return ((Ulong)iReverseString << 58) + ((Ulong)dest << 16) + ((Ulong)src << 16);
+}
+
+testable Ulong instrPrint(Short strAddress) {
+    return ((Ulong)iPrint << 58) + (Ulong)(Ushort)strAddress;
+}
+
+testable Ulong instrSetLocal(Short dest, Int value) {
+    Ulong a = (((Ulong)iSetLocal) << 58) + (((Ulong)((uint16_t)dest)) << 32) + (Ulong)(Unt)value;
+    return a;
+}
+
+
+testable Ulong instrCall(Short newFramePtr, Unt newIp) {
+    Ulong a = (((Ulong)iCall) << 58) + (((Ulong)((uint16_t)newFramePtr)) << 32) + (Ulong)newIp;
+    return a;
+}
+
+//}}}
+
+private void tmpGetCode(Interpreter* rt, Arena* a) {
+// Super-simple bytecode for writing a barebones codegen:
+// Code = "a = 77; print $a;"
+// Bytecode = "setLocal; call built-in; call instruction"
+    const Int len = 4;
+    Arr(Ulong) theCode = ((Ulong[]) {
+        len,
+        instrSetLocal(stackFrameStart, 3),
+        instrNewString(stackFrameStart + 4, stackFrameStart, 4),
+        instrPrint(stackFrameStart + 4),
+        (((Ulong)iReturn) << 58)
+    });
+    Int lenBytes = (len + 1)*sizeof(Ulong);
+    void* codeAddr = allocateOnArena(lenBytes, a);
+
+    memcpy(codeAddr, theCode, lenBytes);
+    rt->code = (Arr(Ulong))codeAddr;
+}
+
+
+private Interpreter* createInterpreter(Arena* a) { //:createInterpreter
+    Interpreter* rt = allocateOnArena(sizeof(Interpreter), a);
+    (*rt) = (Interpreter)  {
+        .memory = (Arr(char))allocateOnArena(1000000, a),
+        .fns = allocateOnArena(4, a),
+        .heapTop = 50000,  // skipped the 200k of stack space
+        .currFrame = 0,
+        .textStart = 0,
+    };
+
+    tmpGetCode(rt, a);
+    //tmpGetText(rt);
+    rt->fns[0] = 0;
+    rt->currFrame = 0;
+    rt->memory[rt->currFrame] = -1; // for the "main" call, there is no previous frame
+    return rt;
+}
+
+
+private void writeFunction(Int indNode, Compiler* cm, Interpreter* rt) { //:writeFunction
+// Generate bytecode for a single function
+    rt->i = indNode;
+    const Int sentinel = indNode + cm->nodes.cont[indNode].pl2 + 1;
+}
+
+private Interpreter* codegen(Compiler* cm) { //:codegen
+// Generate bytecode for a whole module
+    Interpreter* rt = createInterpreter(cm->a);
+
+    for (Int j = 0; j < cm->toplevels.len; j++) {
+        writeFunction(cm->toplevels.cont[j].indNode, cm, rt);
+    }
+
+    return rt;
+}
+
 //}}}
 //{{{ Interpreter
 //{{{ Utils
@@ -5403,118 +5510,122 @@ private void inMoveHeapTop(Unt sz, Interpreter* in) { //:inMoveHeapTop
 
 
 //}}}
-//{{{ Generating bytecode
 
-testable Ulong instrArithmetic(Byte opCode, Short dest, Short operand1, Short operand2) {
-    return ((Ulong)opCode << 58) + ((Ulong)dest << 32) + ((Ulong)operand1 << 16) + operand2;
-}
-
-testable Ulong instrConstArithmetic(Byte opCode, Int increment) {
-    return ((Ulong)opCode << 58) + increment;
-}
-
-
-testable Ulong instrGetFld(Short dest, Short obj, Int offset) {
-    return ((Ulong)iGetFld << 58) + ((Ulong)dest << 40) + ((Ulong)obj << 24) 
-        + (offset & LOWER24BITS);
-}
-
-
-testable Ulong instrNewString(Short dest, Short start, Int len) {
-    return ((Ulong)iNewstring << 58) + ((Ulong)dest << 40) + ((Ulong)start << 24) 
-        + ((Ulong)len & LOWER24BITS);
-}
-
-
-testable Ulong instrConcatStrings(Short dest, Short op1, Short op2) {
-    return ((Ulong)iConcatStrs << 58) + ((Ulong)dest << 32) + ((Ulong)op1 << 16) 
-        + ((Ulong)op2);
-}
-
-testable Ulong instrReverseString(Short dest, Short src) {
-    return ((Ulong)iReverseString << 58) + ((Ulong)dest << 16) + ((Ulong)src << 16);
-}
-
-testable Ulong instrPrint(Short strAddress) {
-    return ((Ulong)iPrint << 58) + (Ulong)(Ushort)strAddress;
-}
-
-testable Ulong instrSetLocal(Short dest, Int value) {
-    Ulong a = (((Ulong)iSetLocal) << 58) + (((Ulong)((uint16_t)dest)) << 32) + (Ulong)(Unt)value;
-    return a;
-}
-
-//}}}
-private Int runPlus(Ulong instr, Int ip, Interpreter* rt) {
+private Unt runPlus(Ulong instr, Unt ip, Interpreter* rt) {
     return ip + 1;
 }
 
-private Int runMinus(Ulong instr, Int ip, Interpreter* rt) {
+private Unt runMinus(Ulong instr, Unt ip, Interpreter* rt) {
 
     return ip + 1;
 }
 
-private Int runTimes(Ulong instr, Int ip, Interpreter* rt) {
+private Unt runTimes(Ulong instr, Unt ip, Interpreter* rt) {
     return ip + 1;
 }
 
 
-private Int runDivBy(Ulong instr, Int ip, Interpreter* rt) {
+private Unt runDivBy(Ulong instr, Unt ip, Interpreter* rt) {
     return ip + 1;
 }
 
 
-private Int runNewString(Ulong instr, Int ip, Interpreter* rt) { //:runNewString
+private Unt runNewString(Ulong instr, Unt ip, Interpreter* rt) { //:runNewString
 // Creates a new string as a substring of the static text. Stores pointer to the new string
 // in the stack
     Short dest = (Short)((instr >> 40) & LOWER16BITS);
     Short startAddr = (Short)((instr >> 24) & LOWER16BITS); // address within the frame
     Int len = (Int)(instr & LOWER24BITS);
     Unt start = inGetFromStack(startAddr, rt); // actual starting symbol within the static text
-    
+
     char* copyFrom = (char*)inDeref(rt->textStart, rt) + 4 + start;
 
     const Ptr targetAddr = rt->heapTop;
     Unt* target = (Unt*)(inDeref(targetAddr, rt));
-    
+
     *target = len;
     memcpy(target + 1, copyFrom, len);
 
     inMoveHeapTop(len, rt); // update the heap top after this allocation
     inSetOnStack(dest, targetAddr, rt);
-    
+
     return ip + 1;
 }
 
 
-private Int runConcatStrings(Ulong instr, Int ip, Interpreter* rt) {
+private Unt runConcatStrings(Ulong instr, Unt ip, Interpreter* rt) { //:runConcatStrings
     return ip + 1;
 }
 
-private Int runReverseString(Ulong instr, Int ip, Interpreter* rt) {
+private Unt runReverseString(Ulong instr, Unt ip, Interpreter* rt) { //:runReverseString
     return ip + 1;
 }
 
-private Int runSetLocal(Ulong instr, Int ip, Interpreter* rt) {
+private Unt runSetLocal(Ulong instr, Unt ip, Interpreter* rt) { //:runSetLocal
     Short dest = (instr >> 32) & LOWER16BITS;
     Unt* address = (Unt*)(inDeref(rt->currFrame + (Unt)dest, rt));
     *address = (Unt)(instr & LOWER32BITS);
     return ip + 1;
 }
 
-private Int runReturn(Ulong instr, Int ip, Interpreter* rt) {
+
+private Unt runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
+// Creates and activates a new call frame. Stack frame layout (all are 4-byte sized):
+// prevFrame  - index into the runtime stack
+// fnId       - index into @Interpreter.code
+// ip         - index into @Interpreter.code
+    Unt newFn = (Unt)(instr & LOWER32BITS);
+    StackAddr newFrameRef = (Short)((instr >> 32) & LOWER16BITS);
+    Ptr oldFrameRef = rt->currFrame;
+    Unt* oldFrame = inDeref(oldFrameRef, rt);
+
+    // save the ip of old function to its frame
+    print("saving old ip = %d", rt->i);
+    *(oldFrame + 2) = rt->i;
+
+    print("frame before call:")
+    dbgCallFrames(rt);
+
+    rt->currFrame = (Ptr)(oldFrameRef + (Int)newFrameRef);
+    Unt* newFrame = (Unt*)inDeref(rt->currFrame, rt);
+    *newFrame = *oldFrame;
+    *(newFrame + 1) = newFn;
+
+    print("frame after call:")
+    dbgCallFrames(rt);
+
+    return newFn;
+}
+
+
+private Unt runReturn(Ulong instr, Unt ip, Interpreter* rt) { //:runReturn
     rt->currFrame = rt->memory[rt->currFrame]; // take a call off the stack
     return rt->memory[rt->currFrame + 1];
 }
 
 
-private Int runPrint(Ulong instr, Int ip, Interpreter* rt) {
+private Unt runPrint(Ulong instr, Unt ip, Interpreter* rt) {
     Ptr address = inGetFromStack(instr & LOWER16BITS, rt);
     Unt* sLen = (Unt*)(inDeref(address, rt));
     fwrite(sLen + 1, 1, *sLen, stdout);
     printf("\n");
     return ip + 1;
 }
+
+
+private void tmpGetText(Interpreter* rt) {
+    char txt[] = "asdfBBCC";
+    const Int len = sizeof(txt) - 1;
+    Unt* p = (Unt*)(inDeref(rt->heapTop, rt));
+    *p = len;
+    p += 1;
+    memcpy(p, txt, len);
+    rt->textStart = rt->heapTop;
+    inMoveHeapTop(sizeof(txt), rt);
+}
+
+
+
 
 
 private void tabulateInterpreter() {
@@ -5541,18 +5652,19 @@ private void tabulateInterpreter() {
     p[iNewList]       = &runNewList;
     p[iSubstring]       = &runSubstring;
    */
-    p[iNewstring]       = &runNewString;
-    p[iConcatStrs]       = &runConcatStrings;
-    p[iReverseString]       = &runReverseString;
+    p[iNewstring]      = &runNewString;
+    p[iConcatStrs]     = &runConcatStrings;
+    p[iReverseString]  = &runReverseString;
     p[iSetLocal]       = &runSetLocal;
-    p[iReturn]       = &runReturn;
-    p[iPrint]       = &runPrint;
+    p[iCall]           = &runCall;
+    p[iReturn]         = &runReturn;
+    p[iPrint]          = &runPrint;
 }
 
 //}}}
 //{{{ Utils for tests & debugging
 
-#ifdef TEST
+#ifdef DEBUG
 
 //{{{ General utils
 
@@ -5941,7 +6053,25 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 }
 
 //}}}
+//{{{ Interpreter utils
 
+void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
+// Print the current call frame header, and the previous frame too (if applicable)
+    Unt* framePtr = inDeref(rt->currFrame, rt);
+    Ptr prevFrame = *framePtr;
+    Ptr fnCode = *(framePtr + 1);
+    printf("Current call frame: prevFrame = %d, fn code at %d\n", prevFrame, fnCode);
+    if ((Int)prevFrame != -1) {
+        Unt* prevFramePtr = inDeref(prevFrame, rt);
+        Ptr prevPrevFrame = *prevFramePtr;
+        Ptr prevFnCode = *(prevFramePtr + 1);
+        Ptr prevIp = *(prevFramePtr + 2);
+        printf("Prev call frame: ancestorFrame = %d, fn code at %d, execution stopped at ip %d",
+                prevPrevFrame, prevFnCode, prevIp);
+    }
+}
+
+//}}}
 #endif
 
 //}}}
@@ -5966,59 +6096,11 @@ Int eyrCompile(unsigned char* fn) { //:eyrCompile
 }
 
 
-private void tmpGetCode(Interpreter* rt, Arena* a) {
-    const Int len = 4;
-    Arr(Ulong) theCode = ((Ulong[]) {
-        len,
-        instrSetLocal(stackFrameStart, 3),
-        instrNewString(stackFrameStart + 4, stackFrameStart, 4),
-        instrPrint(stackFrameStart + 4),
-        (((Ulong)iReturn) << 58)
-    });
-    Int lenBytes = (len + 1)*sizeof(Ulong);
-    void* codeAddr = allocateOnArena(lenBytes, a);
-
-    memcpy(codeAddr, theCode, lenBytes);
-    rt->code = (Arr(Ulong))codeAddr;
-}
-
-
-private void tmpGetText(Interpreter* rt) {
-    char txt[] = "asdfBBCC";
-    const Int len = sizeof(txt) - 1; 
-    Unt* p = (Unt*)(inDeref(rt->heapTop, rt)); 
-    *p = len;
-    p += 1; 
-    memcpy(p, txt, len);
-    rt->textStart = rt->heapTop;
-    inMoveHeapTop(sizeof(txt), rt); 
-}
-
-
 private void inPrintString(Unt address, Interpreter* rt) {
     Unt* len = (Unt*)(inDeref(address, rt));
     fwrite(len + 1, 1, *len, stdout);
     printf("\n");
 }
-
-private Interpreter* createInterpreter(Arena* a) {
-    Interpreter* rt = allocateOnArena(sizeof(Interpreter), a);
-    (*rt) = (Interpreter)  {
-        .memory = (Arr(char))allocateOnArena(1000000, a),
-        .fns = allocateOnArena(4, a),
-        .heapTop = 50000,  // skipped the 200k of stack space
-        .currFrame = 0,
-        .textStart = 0,
-    };
-
-    tmpGetCode(rt, a);
-    tmpGetText(rt);
-    rt->fns[0] = 0;
-    rt->currFrame = 0;
-    rt->memory[rt->currFrame] = -1; // for the "main" call, there is no previous frame
-    return rt;
-}
-
 
 private Int interpretCode(Interpreter* in) {
     Int ip = 1; // skipping the function size
@@ -6037,15 +6119,16 @@ private Int interpretCode(Interpreter* in) {
 Int main(int argc, char** argv) { //:main
     eyrInitCompiler();
     Arena* a = mkArena();
-    
+
     Interpreter* rt = createInterpreter(a);
     Int interpResult = interpretCode(rt);
     printf("Interpretation result = %d\n", interpResult);
-    
+
     cleanup:
     deleteArena(a);
     return 0;
 }
+
 #endif
 
 //}}}
