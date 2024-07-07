@@ -1313,8 +1313,8 @@ const char standardText[] = "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
 #endif
                             ;
 // The :standardText prepended to all source code inputs and the hash table to provide a built-in
-// string set. Billtin's reserved words must be at the start and sorted lexicographically.
-// Also they must agree with the "standardStr" in billt.internal.h
+// string set. Eyr's reserved words must be at the start and sorted lexicographically.
+// Also they must agree with the "standardStr" in eyr.internal.h
 
 const Int standardStringLens[] = {
      5, 6, 5, 5, 8,
@@ -1966,7 +1966,7 @@ private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt
 
 
 private void wordInternal(Unt wordType, Arr(Byte) source, Compiler* lx) { //:wordInternal
-// Lexes a word (both reserved and identifier) according to Billtin's rules.
+// Lexes a word (both reserved and identifier) according to Eyr's rules.
 // Precondition: we are pointing at the first letter character of the word (i.e. past the possible
 // "." or ":")
 // Examples of acceptable words: A:B:c:d, asdf123, ab:cd45
@@ -2206,7 +2206,7 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
 
 
 private void lexComment(Arr(Byte) source, Compiler* lx) { //:lexComment
-// Billt separates between documentation comments (which live in meta info and are
+// Eyr separates between documentation comments (which live in meta info and are
 // spelt as "meta(`comment`)") and comments for, well, eliding text from code;
 // Elision comments are of the "//" form.
     lx->i += 2; // CONSUME the "//"
@@ -2439,7 +2439,7 @@ private void tabulateLexer() { //:tabulateLexer
 
 
 private void setOperatorsLengths() { //:setOperatorsLengths
-// The set of operators in the language. Must agree in order with billt.internal.h
+// The set of operators in the language. Must agree in order with eyr.internal.h
     for (Int k = 0; k < countOperators; k++) {
         Int m = 0;
         for (; m < 4 && OPERATORS[k].bytes[m] > 0; m++) {}
@@ -3953,7 +3953,7 @@ private void buildOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildOp
 private void buildOperators(Compiler* cm) { //:buildOperators
 // Operators are the first-ever functions to be defined. This function builds their @types,
 // @functions and overload counts. The order must agree with the order of operator
-// definitions in billt.internal.h, and every operator must have at least one type defined
+// definitions in eyr.internal.h, and every operator must have at least one type defined
     TypeId boolOfIntInt    = addConcrFnType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     TypeId boolOfIntIntInt = addConcrFnType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     TypeId boolOfFlFl      = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
@@ -4505,7 +4505,7 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 }
 
 
-// Must agree in order with node types in billt.internal.h
+// Must agree in order with node types in eyr.internal.h
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "id", "call", "binding", ".fld", "GEP", "GElem",
@@ -5381,16 +5381,14 @@ private void buiToStringInt(Interpreter* rt) { //:buiToStringInt
 // Reads the int right after call stack header and writes the string to the heap top, then
 // overwrites the int with the heap address
     Unt* arg = (Unt*)inDeref(rt->currFrame) + 2;
-    print("buiToStringInt got arg %d from currFrame %d address %p", *arg, rt->currFrame, arg);
-    
+
     Ptr targetAddr = rt->heapTop;
     char* target = (char*)inDeref(targetAddr);
     Int charsWritten = sprintf(target + 4, "%d", *arg);
     // it also wrote +1 char, the zero char, but we don't care. Eyr strings store their length
     // with them, so this zero char is safe to overwrite
-    
+
     *((Unt*)target) = charsWritten; // the length of the string
-    print("buiToStr chars written %d, writing Ptr %d to address %p", charsWritten, targetAddr, arg);
     inMoveHeapTop(charsWritten + 4, rt); // +4 for the length that precedes the char
     *arg = targetAddr; // store ref to new string on the stack
 }
@@ -5471,17 +5469,16 @@ private void tmpGetCode(Interpreter* rt, Arena* a) {
 // Code = "a = 77; print $a;"
 // Bytecode = "setLocal; call built-in; call instruction"
     const Int len = 4;
-    print("start of main frame %p", inDeref(rt->currFrame)) 
     Arr(Ulong) theCode = ((Ulong[]) {
         len,
-        instrSetLocal(8, 77),
+        instrSetLocal(2, 77),
         instrBuiltinCall(&buiToStringInt),
-        instrPrint(8),
+        instrPrint(2),
         instrReturn(0)
     });
-    
-    
-    
+
+
+
 //    const Int len = 4;
 //    Arr(Ulong) theCode = ((Ulong[]) {
 //        len,
@@ -5507,7 +5504,6 @@ private Interpreter* createInterpreter(Arena* a) { //:createInterpreter
         .currFrame = 0,
         .textStart = 0,
     };
-    print("curr frame at %p", inDeref(rt->currFrame))
     tmpGetCode(rt, a);
     //tmpGetText(rt);
     rt->fns[0] = 0;
@@ -5619,17 +5615,14 @@ private Unt runReverseString(Ulong instr, Unt ip, Interpreter* rt) { //:runRever
 
 private Unt runSetLocal(Ulong instr, Unt ip, Interpreter* rt) { //:runSetLocal
     StackAddr dest = (instr >> 32) & LOWER16BITS;
-    Unt* address = (Unt*)((char*)(inDeref(rt->currFrame)) + (Unt)dest);
-    print("setlocal to address %p", address)
+    Unt* address = (Unt*)(inDeref(rt->currFrame + (Unt)dest));
     *address = (Unt)(instr & LOWER32BITS);
     return ip + 1;
 }
 
 
 private Unt runBuiltinCall(Ulong instr, Unt ip, Interpreter* rt) { //:runBuiltinCall
-    Short indBuiltin = instr & (0xFF);
-    print("indBuiltin %d", indBuiltin)
-    BUILTINS_TABLE[indBuiltin](rt);
+    BUILTINS_TABLE[instr & (0xFF)](rt);
     return ip + 1;
 }
 
@@ -5663,31 +5656,24 @@ private Unt runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
 
 private Unt runReturn(Ulong instr, Unt ip, Interpreter* rt) { //:runReturn
 // Return from function. The return value, if any, will be stored right after the header
-    print("run return currFrame %d", rt->currFrame);
     Int returnSize = ip & (0xFF);
     Int* prevFrame = inDeref(rt->currFrame);
     if (*prevFrame == -1) {
         return -1;
     }
-    print("prev frame %d", *prevFrame)
-    
-    rt->topOfFrame = rt->currFrame + (stackFrameStart/4);
+
+    rt->topOfFrame = rt->currFrame + stackFrameStart + returnSize;
     rt->currFrame = *prevFrame; // take a call off the stack
     Unt* callerIp = (Unt*)inDeref(*prevFrame) + 1;
-    print("after return, currFrame %d topOfFrame %d ip %d", rt->currFrame, rt->topOfFrame, *callerIp);
     return *callerIp;
 }
 
 
 private Unt runPrint(Ulong instr, Unt ip, Interpreter* rt) { //:runPrint
-    print("print addr in instaruction %d", instr & LOWER16BITS)
-    Ptr address = inGetFromStack(instr & LOWER16BITS, rt);
-    print("runPrint address %d", address);
-    Unt* sLen = (Unt*)(inDeref(address));
-    if (*sLen < 100)  {
-        //fwrite(sLen + 1, 1, *sLen, stdout);
-        //printf("\n");
-    }
+    Unt* ref = (Unt*)(inDeref(rt->currFrame + (Int)(instr & LOWER16BITS)));
+    Unt* actualString = inDeref(*ref);
+    fwrite(actualString + 1, 1, *actualString, stdout);
+    printf("\n");
     return ip + 1;
 }
 
@@ -5790,7 +5776,7 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 //}}}
 //{{{ Lexer testing
 
-// Must agree in order with token types in billt.internal.h
+// Must agree in order with token types in eyr.internal.h
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "misc",
     "word", "Type", "'var", ":kwarg", "operator", ".field",

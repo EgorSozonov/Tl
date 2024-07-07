@@ -692,7 +692,7 @@ typedef struct { //:Codegen
 // actual code
 
 #define Ptr uint32_t // Pointers are aligned to 4 bytes
-#define StackAddr int16_t // Negative values mean previous stack frame
+#define StackAddr int16_t // Offset from "currFrame". Negative values mean previous stack frame
 
 typedef struct {    //:Interpreter
     //Unt i; // current instruction pointer
