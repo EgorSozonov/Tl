@@ -133,6 +133,8 @@ private ParserFn PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
 //{{{ Runtime (virtual machine)
 
 InterpreterFn INTERPRETER_TABLE[countInstructions]; // filled in by "tabulateInterpreter"
+#define countBuiltins 1
+BuiltinFn BUILTINS_TABLE[countBuiltins]; // filled in by "tabulateBuiltins"
 
 //}}}
 //}}}
@@ -1274,6 +1276,9 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm);
 private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm);
 private Int tGetFnArity(TypeId fnType, Compiler* cm);
+private void* inDeref0(Ptr address, Interpreter* rt);
+#define inDeref(ptr) inDeref0(ptr, rt)
+private void inMoveHeapTop(Unt sz, Interpreter* in);
 #ifdef DEBUG
 void printParser(Compiler* cm, Arena* a);
 void dbgType(TypeId typeId, Compiler* cm);
@@ -5370,6 +5375,27 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 //}}}
 //}}}
+//{{{ Built-ins
+
+private void buiToStringInt(Interpreter* rt) { //:buiToStringInt
+// Reads the int right after call stack header and writes the string to the heap top, then
+// overwrites the int with the heap address
+    Unt* arg = (Unt*)inDeref(rt->currFrame) + 2;
+    print("buiToStringInt got arg %d from currFrame %d address %p", *arg, rt->currFrame, arg);
+    
+    Ptr targetAddr = rt->heapTop;
+    char* target = (char*)inDeref(targetAddr);
+    Int charsWritten = sprintf(target + 4, "%d", *arg);
+    // it also wrote +1 char, the zero char, but we don't care. Eyr strings store their length
+    // with them, so this zero char is safe to overwrite
+    
+    *((Unt*)target) = charsWritten; // the length of the string
+    print("buiToStr chars written %d, writing Ptr %d to address %p", charsWritten, targetAddr, arg);
+    inMoveHeapTop(charsWritten + 4, rt); // +4 for the length that precedes the char
+    *arg = targetAddr; // store ref to new string on the stack
+}
+
+//}}}
 //{{{ Codegen
 
 DEFINE_STACK(BtCodegen)
@@ -5406,13 +5432,23 @@ testable Ulong instrReverseString(Short dest, Short src) {
     return ((Ulong)iReverseString << 58) + ((Ulong)dest << 16) + ((Ulong)src << 16);
 }
 
-testable Ulong instrPrint(Short strAddress) {
+testable Ulong instrPrint(StackAddr strAddress) {
     return ((Ulong)iPrint << 58) + (Ulong)(Ushort)strAddress;
 }
 
-testable Ulong instrSetLocal(Short dest, Int value) {
+testable Ulong instrSetLocal(StackAddr dest, Int value) {
     Ulong a = (((Ulong)iSetLocal) << 58) + (((Ulong)((uint16_t)dest)) << 32) + (Ulong)(Unt)value;
     return a;
+}
+
+
+testable Ulong instrBuiltinCall(BuiltinFn fn) {
+    for (Int j = 0; j < countBuiltins; j++) {
+        if (BUILTINS_TABLE[j] == fn) {
+            return (((Ulong)iBuiltinCall) << 58) + (Ulong)j;
+        }
+    }
+    return 0;
 }
 
 
@@ -5435,11 +5471,12 @@ private void tmpGetCode(Interpreter* rt, Arena* a) {
 // Code = "a = 77; print $a;"
 // Bytecode = "setLocal; call built-in; call instruction"
     const Int len = 4;
+    print("start of main frame %p", inDeref(rt->currFrame)) 
     Arr(Ulong) theCode = ((Ulong[]) {
         len,
-        instrSetLocal(stackFrameStart + 4, 77),
-        instrCall(stackFrameStart, fnId),
-        instrPrint(stackFrameStart + 4),
+        instrSetLocal(8, 77),
+        instrBuiltinCall(&buiToStringInt),
+        instrPrint(8),
         instrReturn(0)
     });
     
@@ -5470,19 +5507,20 @@ private Interpreter* createInterpreter(Arena* a) { //:createInterpreter
         .currFrame = 0,
         .textStart = 0,
     };
-
+    print("curr frame at %p", inDeref(rt->currFrame))
     tmpGetCode(rt, a);
     //tmpGetText(rt);
     rt->fns[0] = 0;
     rt->currFrame = 0;
-    rt->memory[rt->currFrame] = -1; // for the "main" call, there is no previous frame
+    Int* zeroPtr = (Int*)inDeref(rt->currFrame);
+    (*zeroPtr) = -1; // for the "main" call, there is no previous frame
     return rt;
 }
 
 
 private void writeFunction(Int indNode, Compiler* cm, Interpreter* rt) { //:writeFunction
 // Generate bytecode for a single function
-    rt->i = indNode;
+    //rt->i = indNode;
     const Int sentinel = indNode + cm->nodes.cont[indNode].pl2 + 1;
 }
 
@@ -5501,19 +5539,19 @@ private Interpreter* codegen(Compiler* cm) { //:codegen
 //{{{ Interpreter
 //{{{ Utils
 
-private void* inDeref(Ptr address, Interpreter* rt) { //:inDeref
+private void* inDeref0(Ptr address, Interpreter* rt) { //:inDeref0
     return (void*)rt->memory + ((Ulong)address)*4;
 }
 
+
 private Unt inGetFromStack(StackAddr addr, Interpreter* rt) { //:inGetFromStack
-    print("Stack deref dest %d", inDeref(rt->currFrame + (Unt)addr, rt) - (void*)rt->memory);
-    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)addr, rt));
+    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)addr));
     return *p;
 }
 
 
 private void inSetOnStack(Short dest, Unt value, Interpreter* rt) { //:inSetOnStack
-    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)dest, rt));
+    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)dest));
     *p = value;
 }
 
@@ -5556,10 +5594,10 @@ private Unt runNewString(Ulong instr, Unt ip, Interpreter* rt) { //:runNewString
     Int len = (Int)(instr & LOWER24BITS);
     Unt start = inGetFromStack(startAddr, rt); // actual starting symbol within the static text
 
-    char* copyFrom = (char*)inDeref(rt->textStart, rt) + 4 + start;
+    char* copyFrom = (char*)inDeref(rt->textStart) + 4 + start;
 
     const Ptr targetAddr = rt->heapTop;
-    Unt* target = (Unt*)(inDeref(targetAddr, rt));
+    Unt* target = (Unt*)(inDeref(targetAddr));
 
     *target = len;
     memcpy(target + 1, copyFrom, len);
@@ -5580,9 +5618,18 @@ private Unt runReverseString(Ulong instr, Unt ip, Interpreter* rt) { //:runRever
 }
 
 private Unt runSetLocal(Ulong instr, Unt ip, Interpreter* rt) { //:runSetLocal
-    Short dest = (instr >> 32) & LOWER16BITS;
-    Unt* address = (Unt*)(inDeref(rt->currFrame + (Unt)dest, rt));
+    StackAddr dest = (instr >> 32) & LOWER16BITS;
+    Unt* address = (Unt*)((char*)(inDeref(rt->currFrame)) + (Unt)dest);
+    print("setlocal to address %p", address)
     *address = (Unt)(instr & LOWER32BITS);
+    return ip + 1;
+}
+
+
+private Unt runBuiltinCall(Ulong instr, Unt ip, Interpreter* rt) { //:runBuiltinCall
+    Short indBuiltin = instr & (0xFF);
+    print("indBuiltin %d", indBuiltin)
+    BUILTINS_TABLE[indBuiltin](rt);
     return ip + 1;
 }
 
@@ -5594,19 +5641,18 @@ private Unt runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
     Unt newFn = (Unt)(instr & LOWER32BITS);
     StackAddr newFrameRef = (Short)((instr >> 32) & LOWER16BITS);
     Ptr oldFrameRef = rt->currFrame;
-    Unt* oldFrame = inDeref(oldFrameRef, rt);
+    Unt* oldFrame = inDeref(oldFrameRef);
 
     // save the ip of old function to its frame
-    print("saving old ip = %d", rt->i);
-    *(oldFrame + 2) = rt->i;
+    print("saving old ip = %d", ip);
+    *(oldFrame + 1) = ip;
 
     print("frame before call:")
     dbgCallFrames(rt);
 
     rt->currFrame = (Ptr)(oldFrameRef + (Int)newFrameRef);
-    Unt* newFrame = (Unt*)inDeref(rt->currFrame, rt);
+    Unt* newFrame = (Unt*)inDeref(rt->currFrame);
     *newFrame = *oldFrame;
-    *(newFrame + 1) = newFn;
 
     print("frame after call:")
     dbgCallFrames(rt);
@@ -5617,23 +5663,31 @@ private Unt runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
 
 private Unt runReturn(Ulong instr, Unt ip, Interpreter* rt) { //:runReturn
 // Return from function. The return value, if any, will be stored right after the header
+    print("run return currFrame %d", rt->currFrame);
     Int returnSize = ip & (0xFF);
-    Unt* prevFrame = inDeref(rt->currFrame, rt);
+    Int* prevFrame = inDeref(rt->currFrame);
+    if (*prevFrame == -1) {
+        return -1;
+    }
+    print("prev frame %d", *prevFrame)
     
     rt->topOfFrame = rt->currFrame + (stackFrameStart/4);
     rt->currFrame = *prevFrame; // take a call off the stack
-    Unt* callerIp = (Unt*)inDeref(*prevFrame, rt) + 1;
-    rt->i = *callerIp;
-    print("after return, currFrame %d topOfFrame %d ip %d", rt->currFrame, rt->topOfFrame, rt->i);
-    return rt->memory[rt->currFrame + 1];
+    Unt* callerIp = (Unt*)inDeref(*prevFrame) + 1;
+    print("after return, currFrame %d topOfFrame %d ip %d", rt->currFrame, rt->topOfFrame, *callerIp);
+    return *callerIp;
 }
 
 
-private Unt runPrint(Ulong instr, Unt ip, Interpreter* rt) {
+private Unt runPrint(Ulong instr, Unt ip, Interpreter* rt) { //:runPrint
+    print("print addr in instaruction %d", instr & LOWER16BITS)
     Ptr address = inGetFromStack(instr & LOWER16BITS, rt);
-    Unt* sLen = (Unt*)(inDeref(address, rt));
-    fwrite(sLen + 1, 1, *sLen, stdout);
-    printf("\n");
+    print("runPrint address %d", address);
+    Unt* sLen = (Unt*)(inDeref(address));
+    if (*sLen < 100)  {
+        //fwrite(sLen + 1, 1, *sLen, stdout);
+        //printf("\n");
+    }
     return ip + 1;
 }
 
@@ -5641,7 +5695,7 @@ private Unt runPrint(Ulong instr, Unt ip, Interpreter* rt) {
 private void tmpGetText(Interpreter* rt) {
     char txt[] = "asdfBBCC";
     const Int len = sizeof(txt) - 1;
-    Unt* p = (Unt*)(inDeref(rt->heapTop, rt));
+    Unt* p = (Unt*)(inDeref(rt->heapTop));
     *p = len;
     p += 1;
     memcpy(p, txt, len);
@@ -5650,10 +5704,7 @@ private void tmpGetText(Interpreter* rt) {
 }
 
 
-
-
-
-private void tabulateInterpreter() {
+private void tabulateInterpreter() { //:tabulateInterpreter
     InterpreterFn* p = INTERPRETER_TABLE;
     p[iPlus]        = &runPlus;
     p[iTimes]       = &runTimes;
@@ -5681,10 +5732,18 @@ private void tabulateInterpreter() {
     p[iConcatStrs]     = &runConcatStrings;
     p[iReverseString]  = &runReverseString;
     p[iSetLocal]       = &runSetLocal;
+    p[iBuiltinCall]    = &runBuiltinCall;
     p[iCall]           = &runCall;
     p[iReturn]         = &runReturn;
     p[iPrint]          = &runPrint;
 }
+
+
+private void tabulateBuiltins() { //:tabulateBuiltins
+    BuiltinFn* p = BUILTINS_TABLE;
+    p[0]         = &buiToStringInt;
+}
+
 
 //}}}
 //{{{ Utils for tests & debugging
@@ -6082,12 +6141,12 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 
 void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
 // Print the current call frame header, and the previous frame too (if applicable)
-    Unt* framePtr = inDeref(rt->currFrame, rt);
+    Unt* framePtr = inDeref(rt->currFrame);
     Ptr prevFrame = *framePtr;
     Ptr fnCode = *(framePtr + 1);
     printf("Current call frame: prevFrame = %d, fn code at %d\n", prevFrame, fnCode);
     if ((Int)prevFrame != -1) {
-        Unt* prevFramePtr = inDeref(prevFrame, rt);
+        Unt* prevFramePtr = inDeref(prevFrame);
         Ptr prevPrevFrame = *prevFramePtr;
         Ptr prevFnCode = *(prevFramePtr + 1);
         Ptr prevIp = *(prevFramePtr + 2);
@@ -6109,6 +6168,7 @@ Int eyrInitCompiler() { //:eyrInitCompiler
     tabulateLexer();
     tabulateParser();
     tabulateInterpreter();
+    tabulateBuiltins();
     return 0;
 }
 
@@ -6122,14 +6182,14 @@ Int eyrCompile(unsigned char* fn) { //:eyrCompile
 
 
 private void inPrintString(Unt address, Interpreter* rt) {
-    Unt* len = (Unt*)(inDeref(address, rt));
+    Unt* len = (Unt*)(inDeref(address));
     fwrite(len + 1, 1, *len, stdout);
     printf("\n");
 }
 
 private Int interpretCode(Interpreter* in) {
     Int ip = 1; // skipping the function size
-    while (ip > -1 && ip < 6) {
+    while (ip > -1) {
         //print("ip = %d", ip);
         Ulong instr = in->code[ip];
         //print("instr %lx op code %d", instr, instr>>58);

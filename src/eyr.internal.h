@@ -695,7 +695,7 @@ typedef struct { //:Codegen
 #define StackAddr int16_t // Negative values mean previous stack frame
 
 typedef struct {    //:Interpreter
-    Unt i; // current instruction pointer
+    //Unt i; // current instruction pointer
     Arr(Ulong) code;
     Arr(Int) fns;   // indices into @code
     // global static string
@@ -710,9 +710,10 @@ typedef struct {    //:Interpreter
 // Stack frame layout (all are 4-byte sized):
 // prevFrame  - Ptr index into the runtime stack
 // ip         - Unt index into @Interpreter.code
-#define stackFrameStart 8 // Skipped the 2 ints
+#define stackFrameStart 2 // Skipped the 2 ints
 
 typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter*);
+typedef void (*BuiltinFn)(Interpreter*);
 
 // Instructions (opcodes)
 // An instruction is 8 byte long and consists of 6-bit opcode and some data
@@ -754,11 +755,12 @@ typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter*);
 #define iBranchGt         31 // /end
 #define iShortCircuit     32 // if [B] == [C] then [A] = [B] else ip += 1
 #define iCall             33 // [New frame pointer] { New instruction pointer }
-#define iReturn           34 // [Size of return value = 0, 1 or 2]
-#define iSetLocal         35 // [Dest] {Value}
-#define iSetBigLocal      36 // [Dest] {{Value}}
-#define iPrint            37 // [String]
-#define iPrintErr         38 // [String]
+#define iBuiltinCall      34 // [Builtin index]
+#define iReturn           35 // [Size of return value = 0, 1 or 2]
+#define iSetLocal         36 // [Dest] {Value}
+#define iSetBigLocal      37 // [Dest] {{Value}}
+#define iPrint            38 // [String]
+#define iPrintErr         39 // [String]
 
 #define countInstructions (iPrint + 1)
 
