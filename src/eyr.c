@@ -130,6 +130,11 @@ const int operatorStartSymbols[13] = {
 private ParserFn PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
 
 //}}}
+//{{{ Code generator structure
+
+private CodegenFn CODEGEN_TABLE[countAstForms]; // filled in by "tabulateCodegen"
+
+//}}}
 //{{{ Runtime (virtual machine)
 
 InterpreterFn INTERPRETER_TABLE[countInstructions]; // filled in by "tabulateInterpreter"
@@ -150,7 +155,7 @@ private size_t minChunkSize(void) {
     return (size_t)(CHUNK_QUANT - 32);
 }
 
-testable Arena* mkArena(void) { //:mkArena
+testable Arena* createArena(void) { //:createArena
     Arena* result = malloc(sizeof(Arena));
 
     size_t firstChunkSize = minChunkSize();
@@ -181,33 +186,43 @@ private size_t calculateChunkSize(size_t allocSize) { //:calculateChunkSize
     return mallocMemory - 32;
 }
 
-testable void* allocateOnArena(size_t allocSize, Arena* ar) { //:allocateOnArena
+testable void* allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
 // Allocate memory in the arena, malloc'ing a new chunk if needed
-    if ((size_t)ar->currInd + allocSize >= ar->currChunk->size) {
-        size_t newSize = calculateChunkSize(allocSize);
-        ArenaChunk* newChunk = malloc(newSize);
-        if (!newChunk) {
-            perror("malloc error when allocating arena chunk");
-            exit(EXIT_FAILURE);
-        };
-        // sizeof counts everything but the flexible array member, that's why we subtract it
-        newChunk->size = newSize - sizeof(ArenaChunk);
-        newChunk->next = null;
+    if ((size_t)a->currInd + allocSize >= a->currChunk->size) {
+        if (a->currChunk->next != null && a->currChunk->next->size < allocSize) {
+            // the next chunk is big enough, so we skip the rest of this chunk and move on
+            print("reusing cleared memory from the arena!")
+            a->currChunk = a->currChunk->next;
+            a->currInd = 0;
+        } else { // we need to allocate new chunk
+            
+            size_t newSize = calculateChunkSize(allocSize);
+            ArenaChunk* newChunk = malloc(newSize);
+            if (!newChunk) {
+                perror("malloc error when allocating arena chunk");
+                exit(EXIT_FAILURE);
+            };
+            // sizeof counts everything but the flexible array member, that's why we subtract it
+            newChunk->size = newSize - sizeof(ArenaChunk);
+            newChunk->next = a->currChunk->next; // if the arena has a (small) tail, don't lose it
 
-        ar->currChunk->next = newChunk;
-        ar->currChunk = newChunk;
-        ar->currInd = 0;
+            a->currChunk->next = newChunk;
+            a->currChunk = newChunk;
+            a->currInd = 0;
+        }
+    
     }
-    void* result = (void*)(ar->currChunk->memory + (ar->currInd));
-    ar->currInd += allocSize;
+    void* result = (void*)(a->currChunk->memory + (a->currInd));
+    a->currInd += allocSize;
     if (allocSize % 4 != 0)  {
-        ar->currInd += (4 - (allocSize % 4));
+        a->currInd += (4 - (allocSize % 4));
     }
     return result;
 }
 
 
 testable void deleteArena(Arena* ar) { //:deleteArena
+// Returns memory of the arena to the OS
     ArenaChunk* curr = ar->firstChunk;
     while (curr != null) {
         ArenaChunk* nextToFree = curr->next;
@@ -215,6 +230,13 @@ testable void deleteArena(Arena* ar) { //:deleteArena
         curr = nextToFree;
     }
     free(ar);
+}
+
+
+testable void clearArena(Arena* a) { //:clearArena
+// Clears the memory of the arena for reuse. Does not free memory.
+    a->currChunk = a->firstChunk;
+    a->currInd = 0;
 }
 
 //}}}
@@ -530,6 +552,9 @@ DEFINE_INTERNAL_LIST(numeric, Int, a) //:pushInnumeric
 DEFINE_INTERNAL_LIST(importNames, Int, a) //:pushInimportNames
 DEFINE_INTERNAL_LIST(overloads, Int, a) //:pushInoverloads
 DEFINE_INTERNAL_LIST(types, Int, a) //:pushIntypes
+
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Ulong) //:createInListUlong
+DEFINE_INTERNAL_LIST(bytecode, Ulong, a) //:pushInbytecode
 
 //}}}
 //{{{ Strings
@@ -4100,7 +4125,7 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
 // copies it and performs initialization. Post-condition: i has been incremented by the
 // standardText size
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
-    Arena* aTmp = mkArena();
+    Arena* aTmp = createArena();
     (*lx) = (Compiler){
         // this assumes that the source code is prefixed with the "standardText"
         .i = sizeof(standardText) - 1,
@@ -4505,17 +4530,6 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 }
 
 
-// Must agree in order with node types in eyr.internal.h
-const char* nodeNames[] = {
-    "Int", "Long", "Double", "Bool", "String", "_", "misc",
-    "id", "call", "binding", ".fld", "GEP", "GElem",
-    "(do", "Expr", "=", "[]",
-    "alias", "assert", "breakCont", "catch", "defer",
-    "import", "(\\ fn)", "trait", "return", "try",
-    "for", "if", "eif", "impl", "match"
-};
-
-
 testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
     if (setjmp(excBuf) == 0) {
         pToplevelTypes(cm);
@@ -4529,6 +4543,7 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
         // The main parse (all top-level function bodies)
         pFunctionBodies(cm->tokens.cont, cm);
     }
+    clearArena(cm->aTmp);
     return cm;
 }
 
@@ -5471,6 +5486,33 @@ testable Ulong instrReturn(Byte returnSize) { //:instrReturn
 }
 
 //}}}
+//{{{ Codegen main
+
+private void cgExp(Node nd, Arr(Node) nodes, Compiler* cg) {
+     
+}
+
+//}}}
+//{{{ Codegen init
+
+private void tabulateCodegen() { //:tabulateCodegen
+    CodegenFn* p = CODEGEN_TABLE;
+    p[nodExpr]        = &cgExp;
+}
+
+
+testable void initializeCodegen(Compiler* cm, Arena* a) { //:initializeCodegen
+// Turns a parser into a code generator
+    if (cm->stats.wasError) {
+        return;
+    }
+
+    Compiler* cg = cm;
+    cg->i = 0;
+    cg->cgBtrack = createStackBtCodegen(16, cm->aTmp);
+    cg->bytecode = createInListUlong(128, a);
+}
+
 
 private void tmpGetCode(Interpreter* rt, Arena* a) {
 // Super-simple bytecode for writing a barebones codegen:
@@ -5502,46 +5544,25 @@ private void tmpGetCode(Interpreter* rt, Arena* a) {
     rt->code = (Arr(Ulong))codeAddr;
 }
 
+//}}}
 
-private void cgExp() {
+
+private void writeFunction(Int indNode, Compiler* cm) { //:writeFunction
+// Generate bytecode for a single function
+    //rt->i = indNode;
+    //const Int sentinel = indNode + cm->nodes.cont[indNode].pl2 + 1;
     
 }
 
-
-private Interpreter* createInterpreter(Arena* a) { //:createInterpreter
-    Interpreter* rt = allocateOnArena(sizeof(Interpreter), a);
-    (*rt) = (Interpreter)  {
-        .memory = (Arr(char))allocateOnArena(1000000, a),
-        .fns = allocateOnArena(4, a),
-        .heapTop = 50000,  // skipped the 200k of stack space
-        .currFrame = 0,
-        .textStart = 0,
-    };
-    tmpGetCode(rt, a);
-    //tmpGetText(rt);
-    rt->fns[0] = 0;
-    rt->currFrame = 0;
-    Int* zeroPtr = (Int*)inDeref(rt->currFrame);
-    (*zeroPtr) = -1; // for the "main" call, there is no previous frame
-    return rt;
-}
-
-
-private void writeFunction(Int indNode, Compiler* cm, Interpreter* rt) { //:writeFunction
-// Generate bytecode for a single function
-    //rt->i = indNode;
-    const Int sentinel = indNode + cm->nodes.cont[indNode].pl2 + 1;
-}
-
-private Interpreter* codegen(Compiler* cm) { //:codegen
+private void codegen(Compiler* cm) { //:codegen
 // Generate bytecode for a whole module
-    Interpreter* rt = createInterpreter(cm->a);
+    print("codegen")
+    initializeCodegen(cm, cm->a);
+    Compiler* cg = cm;
 
-    for (Int j = 0; j < cm->toplevels.len; j++) {
-        writeFunction(cm->toplevels.cont[j].indNode, cm, rt);
+    for (Int j = 0; j < cg->toplevels.len; j++) {
+        writeFunction(cg->toplevels.cont[j].indNode, cg);
     }
-
-    return rt;
 }
 
 //}}}
@@ -5575,6 +5596,7 @@ private void inMoveHeapTop(Unt sz, Interpreter* in) { //:inMoveHeapTop
 
 
 //}}}
+//{{{ Code running
 
 private Unt runPlus(Ulong instr, Unt ip, Interpreter* rt) {
     return ip + 1;
@@ -5690,6 +5712,8 @@ private Unt runPrint(Ulong instr, Unt ip, Interpreter* rt) { //:runPrint
     return ip + 1;
 }
 
+//}}}
+//{{{ Interpreter init
 
 private void tmpGetText(Interpreter* rt) {
     char txt[] = "asdfBBCC";
@@ -5744,6 +5768,26 @@ private void tabulateBuiltins() { //:tabulateBuiltins
 }
 
 
+private Interpreter* createInterpreter(Compiler* cg) { //:createInterpreter
+    Arena* a = cg->a;
+    Interpreter* rt = allocateOnArena(sizeof(Interpreter), a);
+    (*rt) = (Interpreter)  {
+        .memory = (Arr(char))allocateOnArena(1000000, a),
+        .fns = allocateOnArena(4, a),
+        .heapTop = 50000,  // skipped the 200k of stack space
+        .currFrame = 0,
+        .textStart = 0,
+        .code = cg->bytecode.cont
+    };
+    
+    //tmpGetText(rt);
+    rt->fns[0] = 0;
+    Int* zeroPtr = (Int*)inDeref(rt->currFrame);
+    (*zeroPtr) = -1; // for the "main" call, there is no previous frame
+    return rt;
+}
+
+//}}}
 //}}}
 //{{{ Utils for tests & debugging
 
@@ -5905,6 +5949,17 @@ testable void printLexer(Compiler* lx) { //:printLexer
 
 //}}}
 //{{{ Parser testing
+
+// Must agree in order with node types in eyr.internal.h
+const char* nodeNames[] = {
+    "Int", "Long", "Double", "Bool", "String", "_", "misc",
+    "id", "call", "binding", ".fld", "GEP", "GElem",
+    "(do", "Expr", "=", "[]",
+    "alias", "assert", "breakCont", "catch", "defer",
+    "import", "(\\ fn)", "trait", "return", "try",
+    "for", "if", "eif", "impl", "match"
+};
+
 
 void printParser(Compiler* cm, Arena* a) { //:printParser
     if (cm->stats.wasError) {
@@ -6138,6 +6193,22 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 //}}}
 //{{{ Interpreter utils
 
+
+// Must agree in order with instruction types in eyr.internal.h
+const char* instructionNames[] = {
+    "Int", "Long", "Double", "Bool", "String", "_", "misc",
+    "id", "call", "binding", ".fld", "GEP", "GElem",
+    "(do", "Expr", "=", "[]",
+    "alias", "assert", "breakCont", "catch", "defer",
+    "import", "(\\ fn)", "trait", "return", "try",
+    "for", "if", "eif", "impl", "match"
+};
+
+void dbgBytecode(Compiler* cg) { //:dbgBytecode
+// Print the bytecode
+    
+}
+
 void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
 // Print the current call frame header, and the previous frame too (if applicable)
     Unt* framePtr = inDeref(rt->currFrame);
@@ -6155,17 +6226,19 @@ void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
 }
 
 //}}}
+
 #endif
 
 //}}}
 //{{{ Main
 
 Int eyrInitCompiler() { //:eyrInitCompiler
-// Definition of the operators, lexer dispatch and parser dispatch tables for the compiler.
+// Definition of the operators, lexer dispatch, parser dispatch etc tables for the compiler.
 // This function should only be called once, at compiler init. Its results are global shared const.
     setOperatorsLengths();
     tabulateLexer();
     tabulateParser();
+    tabulateCodegen();
     tabulateInterpreter();
     tabulateBuiltins();
     return 0;
@@ -6186,6 +6259,7 @@ private void inPrintString(Unt address, Interpreter* rt) {
     printf("\n");
 }
 
+
 private Int interpretCode(Interpreter* in) {
     Int ip = 1; // skipping the function size
     while (ip > -1) {
@@ -6201,11 +6275,20 @@ private Int interpretCode(Interpreter* in) {
 #ifndef TEST
 
 Int main(int argc, char** argv) { //:main
-    eyrInitCompiler();
-    Arena* a = mkArena();
 
-    Interpreter* rt = createInterpreter(a);
-    Int interpResult = interpretCode(rt);
+    eyrInitCompiler();
+    Arena* a = createArena();
+    
+    
+    String* sourceCode = s("main = (( a = 78; print a))");
+
+    Compiler* proto = createProtoCompiler(a);
+    Compiler* cm = lexicallyAnalyze(sourceCode, proto, a);
+    cm = parse(cm, proto, a);
+    codegen(cm);
+    Interpreter* rt = createInterpreter(cm);
+    Int interpResult = 0;//interpretCode(rt);
+    
     printf("Interpretation result = %d\n", interpResult);
 
     cleanup:

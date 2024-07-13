@@ -9,6 +9,7 @@
 #define Short int16_t
 #define Ushort uint16_t
 #define StackInt Stackint32_t
+#define InListUlong InListuint64_t
 #define InListUns InListuint32_t
 #define private static
 #define Byte uint8_t
@@ -343,6 +344,7 @@ DEFINE_STACK_HEADER(Token)
 #define metaDoc         1  // Doc comments
 #define metaDefault     2  // Default values for type arguments
 
+#define countAstForms (nodMatch + 1)
 
 // There is a closed set of operators in the language.
 //
@@ -534,6 +536,7 @@ DEFINE_INTERNAL_LIST_TYPE(Toplevel)
 DEFINE_INTERNAL_LIST_TYPE(Int)
 
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
+DEFINE_INTERNAL_LIST_TYPE(uint64_t)
 
 DEFINE_INTERNAL_LIST_TYPE(Emit)
 
@@ -598,6 +601,14 @@ typedef struct { // :CompStats
 } CompStats;
 
 
+typedef struct {
+    Byte tp; // instructions, i.e. the "i*" constants
+    Int startInstr; // index of starting instruction
+    Int sentinel; // sentinel node of current function
+} BtCodegen;
+
+DEFINE_STACK_HEADER(BtCodegen)
+
 struct Compiler { // :Compiler
     // LEXING
     String* sourceCode;
@@ -630,7 +641,9 @@ struct Compiler { // :Compiler
 
     // CODEGEN
     InListEmit emits;
-
+    StackBtCodegen* cgBtrack;    // [aTmp]
+    InListUlong bytecode;
+    
     // GENERAL STATE
     Int i;
     Arena* a;
@@ -670,19 +683,7 @@ typedef struct { // :TypeHeader
 //}}}
 //{{{ Code generator
 
-typedef struct {
-    Byte tp; // instructions, i.e. the "i*" constants
-    Int startInstr; // index of starting instruction
-    Int sentinel; // sentinel node of current function
-} BtCodegen;
-
-DEFINE_STACK_HEADER(BtCodegen)
-
-typedef struct { //:Codegen
-    Int i; // current index in @Compiler.nodes
-    StackBtCodegen* backtrack;
-} Codegen;
-
+typedef void (*CodegenFn)(Node, Arr(Node), Compiler*);
 
 //}}}
 //{{{ Interpreter

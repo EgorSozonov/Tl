@@ -1,4 +1,4 @@
-Arena* mkArena();
+Arena* createArena();
 void* allocateOnArena(size_t allocSize, Arena* ar);
 void deleteArena(Arena* ar);
 
