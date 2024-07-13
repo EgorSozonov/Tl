@@ -5395,10 +5395,18 @@ private void buiToStringInt(Interpreter* rt) { //:buiToStringInt
 
 //}}}
 //{{{ Codegen
+//{{{ Definitions
 
-DEFINE_STACK(BtCodegen)
+DEFINE_STACK(BtCodegen) //:StackBtCodegen
 
-//{{{ Generating bytecode
+typedef struct { //:CgExpInterval
+    Int start; // starting node ind in the AST
+    Int end; // exclusive
+    Int size; // the size in memory (units of 4 bytes), either of an operand, or of a call result
+} CgExpInterval;
+
+//}}}
+//{{{ Generating instructions
 
 testable Ulong instrArithmetic(Byte opCode, Short dest, Short operand1, Short operand2) {
     return ((Ulong)opCode << 58) + ((Ulong)dest << 32) + ((Ulong)operand1 << 16) + operand2;
@@ -5492,6 +5500,11 @@ private void tmpGetCode(Interpreter* rt, Arena* a) {
 
     memcpy(codeAddr, theCode, lenBytes);
     rt->code = (Arr(Ulong))codeAddr;
+}
+
+
+private void cgExp() {
+    
 }
 
 
