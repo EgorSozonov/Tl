@@ -1,7 +1,7 @@
-# Billt
+# Ors
 ### A new embedded scripting language
 
-Goal: a practical embedded scripting language that doesn't suck
+Goal: a language for the browser that doesn't suck
 
 
 ### Language features

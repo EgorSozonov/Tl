@@ -5,7 +5,7 @@ if [[ ! "${DEBUGDIR}" ]]; then
 fi
 
 # main part
-APP=eyr
+APP=ors
 mkdir -p $DEBUGDIR/$APP
 gcc -g3 --std=c17 -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=incompatible-pointer-types \

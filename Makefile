@@ -15,7 +15,7 @@ WARN=-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -fsanitize=address
 INCLUDES="-I src"
 LIBS=-lm
-APP=eyr
+APP=ors
 
 CFLAGS= $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(INCLUDES) $(LIBS)
 TARGET=$(DEBUGDIR)/$(APP)/$(APP)
@@ -47,6 +47,8 @@ clean: ## Delete cached build results
 
 parserTest:
 / . scripts/parserTest.txt
+
+# grep -Pzo '//CUTSTART\n[\s\S.]*?\n//CUTEND' eyr.internal.h
 
 help: ## Show this help
 / @egrep -h '\s##\s' $(MAKEFILE_LIST) | sort | awk 'BEGIN {print "-- Help --";print ""; FS = ":.*?## "}; {printf "\033[32m%-10s\033[0m %s\n", $$1, $$2}'

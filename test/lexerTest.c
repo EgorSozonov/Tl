@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../src/eyr.internal.h"
-#include "eyrTest.h"
+#include "../src/ors.internal.h"
+#include "orsTest.h"
 
 
 typedef struct {
