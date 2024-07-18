@@ -135,13 +135,6 @@ private ParserFn PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
 private CodegenFn CODEGEN_TABLE[countAstForms]; // filled in by "tabulateCodegen"
 
 //}}}
-//{{{ Runtime (virtual machine)
-
-InterpreterFn INTERPRETER_TABLE[countInstructions]; // filled in by "tabulateInterpreter"
-#define countBuiltins 1
-BuiltinFn BUILTINS_TABLE[countBuiltins]; // filled in by "tabulateBuiltins"
-
-//}}}
 //}}}
 //{{{ Utils
 
@@ -195,7 +188,7 @@ testable void* allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
             a->currChunk = a->currChunk->next;
             a->currInd = 0;
         } else { // we need to allocate new chunk
-            
+
             size_t newSize = calculateChunkSize(allocSize);
             ArenaChunk* newChunk = malloc(newSize);
             if (!newChunk) {
@@ -210,7 +203,7 @@ testable void* allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
             a->currChunk = newChunk;
             a->currInd = 0;
         }
-    
+
     }
     void* result = (void*)(a->currChunk->memory + (a->currInd));
     a->currInd += allocSize;
@@ -1301,16 +1294,12 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm);
 private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm);
 private Int tGetFnArity(TypeId fnType, Compiler* cm);
-private void* inDeref0(Ptr address, Interpreter* rt);
-#define inDeref(ptr) inDeref0(ptr, rt)
-private void inMoveHeapTop(Unt sz, Interpreter* in);
 #ifdef DEBUG
 void printParser(Compiler* cm, Arena* a);
 void dbgType(TypeId typeId, Compiler* cm);
 private void dbgExprFrames(StateForExprs* st);
 private void printStackInt(StackInt* st);
 void dbgTypeFrames(StackTypeFrame* st);
-void dbgCallFrames(Interpreter* rt);
 #endif
 
 //}}}
@@ -4096,7 +4085,7 @@ private void importPrelude(Compiler* cm) { //:importPrelude
                    .emit = {.kind = uncallableLiteral, .body = {.literal = longOfDoubleBits(2.71)}}
         },
         (Entity){ .name = nameOfStandard(strPrint), .typeId = strToVoid, .class = classPubImmut,
-                   .emit = {.kind = callableInstr, .body = {.opcode = iPrint} }
+                   .emit = {.kind = callableHost, .body = {.indexHost = hostPrint} }
         },
         // TODO define print x = print $x as AST nodes injected into every build
         (Entity){ .name = nameOfStandard(strPrint), .typeId = intToVoid,
@@ -4106,7 +4095,7 @@ private void importPrelude(Compiler* cm) { //:importPrelude
                    .emit = {.kind = callableDefined, .body = {.nodeInd = -1} }
         },
         (Entity){ .name = nameOfStandard(strPrintErr), .typeId = strToVoid,
-                   .emit = {.kind = callableInstr, .body = {.opcode = iPrintErr} }
+                   .emit = {.kind = callableHost, .body = {.indexHost = hostPrintErr} }
         }
        // TODO functions for casting (int, double, unsigned)
     };
@@ -5390,25 +5379,6 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 //}}}
 //}}}
-//{{{ Built-ins
-
-private void buiToStringInt(Interpreter* rt) { //:buiToStringInt
-// Reads the int right after call stack header and writes the string to the heap top, then
-// overwrites the int with the heap address
-    Unt* arg = (Unt*)inDeref(rt->currFrame) + 2;
-
-    Ptr targetAddr = rt->heapTop;
-    char* target = (char*)inDeref(targetAddr);
-    Int charsWritten = sprintf(target + 4, "%d", *arg);
-    // it also wrote +1 char, the zero char, but we don't care. Ors strings store their length
-    // with them, so this zero char is safe to overwrite
-
-    *((Unt*)target) = charsWritten; // the length of the string
-    inMoveHeapTop(charsWritten + 4, rt); // +4 for the length that precedes the char
-    *arg = targetAddr; // store ref to new string on the stack
-}
-
-//}}}
 //{{{ Codegen
 //{{{ Definitions
 
@@ -5423,7 +5393,8 @@ typedef struct { //:CgExpInterval
 
 typedef struct Codegen Codegen;
 typedef void CgFunc(Node, bool, Arr(Node), Codegen*);
-typedef struct {
+
+typedef struct { //:CgCall
     Int startInd; // or externalNameId
     Int length; // only for native names
     uint8_t emit;
@@ -5436,12 +5407,12 @@ typedef struct {
 DEFINE_STACK_HEADER(CgCall)
 DEFINE_STACK(CgCall)
 
-struct Codegen {
+struct Codegen { //:Codegen
     Int i; // current node index
     Int indentation;
     Int length;
     Int capacity;
-    Arr(byte) buffer;
+    Arr(Byte) buffer;
     StackCgCall* calls; // temporary stack for generating expressions
 
     StackNode backtrack; // these "nodes" are modified from what is in the AST. .startBt = sentinelNode
@@ -5453,15 +5424,29 @@ struct Codegen {
 
 
 //}}}
+//{{{ Host strings for codegen
+
+const char cgStrings[] = "breakcasecatchclassconstcontinuedebuggerdefaultdeletedoelse"
+    "exportextendsfalsefinallyforfunctionifimportininstanceofletnew"
+    "nullreturnstaticsuperswitchthisthrowtruetrytypeofvarvoidwhile"
+    "withyield"
+    "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertprintlo";
+
+
+const Int cgOffsets[] = {
+    5, 4, 5, 5, 5, 8, 8, 7, 6, 2, 4,
+    6, 7, 5, 7, 3, 8, 2, 6, 2, 8, 2, 3, 3,
+    4, 5, // reserved words end here
+    8, 8, 7, 6, 3, 6, 8, 2, 2, 3, 5, 5, 2
+
+};
+
+//}}}
 //{{{ Codegen main
 
-private void cgExp(Node nd, Arr(Node) nodes, Compiler* cg) {
-     
-}
-
-
-/** Ensures that the buffer has space for at least that many bytes plus 10 by increasing its capacity if necessary */
-private void ensureBufferLength(Int additionalLength, Codegen* cg) {
+private void ensureBufferLength(Int additionalLength, Codegen* cg) { //:ensureBufferLength
+// Ensures that the buffer has space for at least that many bytes plus 10 by increasing its
+// capacity if necessary
     if (cg->length + additionalLength + 10 < cg->capacity) {
         return;
     }
@@ -5470,45 +5455,48 @@ private void ensureBufferLength(Int additionalLength, Codegen* cg) {
     while (newCap <= neededLength) {
         newCap *= 2;
     }
-    Arr(byte) new = allocateOnArena(newCap, cg->a);
+    Arr(Byte) new = allocateOnArena(newCap, cg->a);
     memcpy(new, cg->buffer, cg->length);
     cg->buffer = new;
     cg->capacity = newCap;
 }
 
 
-private void writeBytes(byte* ptr, Int countBytes, Codegen* cg) {
+private void writeBytes(Byte* ptr, Int countBytes, Codegen* cg) { //:writeBytes
     ensureBufferLength(countBytes + 10, cg);
     memcpy(cg->buffer + cg->length, ptr, countBytes);
     cg->length += countBytes;
 }
 
-/** Write a constant to codegen */
-private void writeConstant(Int indConst, Codegen* cg) {
-    Int len = constantOffsets[indConst + 1] - constantOffsets[indConst];
+
+private void writeConstant(Int indConst, Codegen* cg) { //:writeConstant
+// Write a constant to codegen
+    Int len = cgOffsets[indConst + 1] - cgOffsets[indConst];
     ensureBufferLength(len, cg);
-    memcpy(cg->buffer + cg->length, constantStrings + constantOffsets[indConst], len);
+    memcpy(cg->buffer + cg->length, cgStrings + cgOffsets[indConst], len);
     cg->length += len;
 }
 
-/** Write a constant to codegen and add a space after it */
-private void writeConstantWithSpace(Int indConst, Codegen* cg) {
-    Int len = constantOffsets[indConst + 1] - constantOffsets[indConst];
-    ensureBufferLength(len, cg); // no need for a "+ 1", for the function automatically ensures 10 extra bytes
-    memcpy(cg->buffer + cg->length, constantStrings + constantOffsets[indConst], len);
+
+private void writeConstantWithSpace(Int indConst, Codegen* cg) { //:writeConstantWithSpace
+// Write a constant to codegen and add a space after it
+    Int len = cgOffsets[indConst + 1] - cgOffsets[indConst];
+    ensureBufferLength(len, cg); // no need for a "+ 1", for the function automatically ensures 10
+                                 // extra bytes
+    memcpy(cg->buffer + cg->length, cgStrings + cgOffsets[indConst], len);
     cg->length += (len + 1);
     cg->buffer[cg->length - 1] = 32;
 }
 
 
-private void writeChar(byte chr, Codegen* cg) {
+private void writeChar(Byte chr, Codegen* cg) { //:writeChar
     ensureBufferLength(1, cg);
     cg->buffer[cg->length] = chr;
     ++cg->length;
 }
 
 
-private void writeChars0(Codegen* cg, Int count, Arr(byte) chars){
+private void writeChars0(Codegen* cg, Int count, Arr(Byte) chars) { //:writeChars0
     ensureBufferLength(count, cg);
     for (Int j = 0; j < count; j++) {
         cg->buffer[cg->length + j] = chars[j];
@@ -5518,30 +5506,31 @@ private void writeChars0(Codegen* cg, Int count, Arr(byte) chars){
 
 #define writeChars(cg, chars) writeChars0(cg, sizeof(chars), chars)
 
-private void writeStr(String* str, Codegen* cg) {
-    ensureBufferLength(str->length + 2, cg);
+
+private void writeStr(String* str, Codegen* cg) { //:writeStr
+    ensureBufferLength(str->len + 2, cg);
     cg->buffer[cg->length] = aBacktick;
-    memcpy(cg->buffer + cg->length + 1, str->content, str->length);
-    cg->length += (str->length + 2);
+    memcpy(cg->buffer + cg->length + 1, str->cont, str->len);
+    cg->length += (str->len + 2);
     cg->buffer[cg->length - 1] = aBacktick;
 }
 
-private void writeBytesFromSource(Node nd, Codegen* cg) {
-    writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+private void writeBytesFromSource(SourceLoc loc, Codegen* cg) { //:writeBytesFromSource
+    writeBytes(cg->sourceCode->cont + loc.startBt, loc.lenBts, cg);
 }
 
 
-private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
+private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) { //:writeExprProcessFirstArg
     if (top->countArgs != 1) {
         return;
     }
     switch (top->emit) {
-    case emitField:
+    case uncallableField:
         writeChar(aDot, cg);
         writeConstant(top->startInd, cg); return;
     case emitInfix:
         writeChar(aSpace, cg);
-        writeBytes(cg->sourceCode->content + top->startInd, top->length, cg);
+        writeBytes(cg->sourceCode->cont + top->startInd, top->length, cg);
         writeChar(aSpace, cg); return;
     case emitInfixExternal:
         writeChar(aSpace, cg);
@@ -5556,20 +5545,21 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) {
 }
 
 
-private void writeId(Node nd, Codegen* cg) {
-    Entity ent = cg->cm->entities.content[nd.pl1];
+private void writeId(Node nd, Codegen* cg) { //:writeId
+    Entity ent = cg->cm->entities.cont[nd.pl1];
     if (ent.emit == emitPrefix) {
-        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+        writeBytes(cg->sourceCode->cont + nd.startBt, nd.lenBts, cg);
     } else if (ent.emit == emitPrefixExternal) {
         writeConstant(ent.externalNameId, cg);
     } else if (ent.emit == emitPrefixShielded) {
-        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+        writeBytes(cg->sourceCode->cont + nd.startBt, nd.lenBts, cg);
         writeChar(aUnderscore, cg);
     }
 }
 
 
-private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
+private void writeExprOperand(Node n, Int countPrevArgs, SourceLoc loc, Codegen* cg) {
+//:writeExprOperand
     if (n.tp == nodId) {
         writeId(n, cg);
     } else if (n.tp == tokInt) {
@@ -5581,7 +5571,7 @@ private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
         Int lenWritten = sprintf(cg->buffer + cg->length, "%d", signedTotal);
         cg->length += lenWritten;
     } else if (n.tp == tokString) {
-        writeBytesFromSource(n, cg);
+        writeBytesFromSource(loc, cg);
     } else if (n.tp == tokFloat) {
         uint64_t upper = n.pl1;
         uint64_t lower = n.pl2;
@@ -5591,32 +5581,35 @@ private void writeExprOperand(Node n, Int countPrevArgs, Codegen* cg) {
         Int lenWritten = sprintf(cg->buffer + cg->length, "%f", floating);
         cg->length += lenWritten;
     } else if (n.tp == tokBool) {
-        writeBytesFromSource(n, cg);
+        writeBytesFromSource(loc, cg);
     }
 }
 
-/** Precondition: we are 1 past the expr node */
-private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
+
+private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) { //:writeExprWorker
+// Precondition: we are 1 past the expr node
     while (cg->i < sentinel) {
         Node n = nodes[cg->i];
         if (n.tp == nodCall) {
-            Entity ent = cg->cm->entities.content[n.pl1];
+            Entity ent = cg->cm->entities.cont[n.pl1];
             if (ent.emit == emitNop) {
                 ++cg->i;
                 continue;
             }
             CgCall new = (ent.emit == emitPrefix || ent.emit == emitInfix)
-                        ? (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = n.startBt, .length = n.lenBts }
-                        : (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0, .startInd = ent.externalNameId };
+                        ? (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0,
+                            .startInd = n.startBt, .length = n.lenBts }
+                        : (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0,
+                                   .startInd = ent.externalNameId };
 
             if (n.pl2 == 0) { // 0 arity
                 switch (ent.emit) {
                 case emitPrefix:
-                    writeBytesFromSource(n, cg); break;
+                    writeBytesFromSource(loc, cg); break;
                 case emitPrefixExternal:
                     writeConstant(ent.externalNameId, cg); break;
                 case emitPrefixShielded:
-                    writeBytesFromSource(n, cg);
+                    writeBytesFromSource(loc, cg);
                     writeChar(aUnderscore, cg); break;
 #ifdef SAFETY
                 default:
@@ -5629,13 +5622,13 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
             }
             switch (ent.emit) {
             case emitPrefix:
-                writeBytesFromSource(n, cg);
+                writeBytesFromSource(loc, cg);
                 new.needClosingParen = true; break;
             case emitPrefixExternal:
                 writeConstant(ent.externalNameId, cg);
                 new.needClosingParen = true; break;
             case emitPrefixShielded:
-                writeBytesFromSource(n, cg);
+                writeBytesFromSource(loc, cg);
                 writeChar(aUnderscore, cg);
                 new.needClosingParen = true; break;
             case emitField:
@@ -5647,8 +5640,8 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
                 writeChar(aParenLeft, cg);
             }
             pushCgCall(new, cg->calls);
-        } else {           
-            CgCall* top = cg->calls->content + (cg->calls->length - 1);
+        } else {
+            CgCall* top = cg->calls->cont + (cg->calls->length - 1);
             if (top->emit != emitInfix && top->emit != emitInfixExternal && top->countArgs > 0) {
                 writeChars(cg, ((byte[]){aComma, aSpace}));
             }
@@ -5663,7 +5656,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
                 if (!hasValuesCgCall(cg->calls)) {
                     break;
                 }
-                CgCall* second = cg->calls->content + (cg->calls->length - 1);
+                CgCall* second = cg->calls->cont + (cg->calls->length - 1);
                 ++second->countArgs;
                 writeExprProcessFirstArg(second, cg);
                 top = second;
@@ -5677,7 +5670,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Codegen* cg) {
 /** Precondition: we are looking 1 past the nodExpr/singular node. Consumes all nodes of the expr */
 private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
     if (nd.tp <= topVerbatimType) {
-        writeBytes(cg->sourceCode->content + nd.startBt, nd.lenBts, cg);
+        writeBytes(cg->sourceCode->cont + nd.startBt, nd.lenBts, cg);
     } else if (nd.tp == nodId) {
         writeId(nd, cg);
     } else {
@@ -5719,10 +5712,10 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         pushCgFrame(nd, cg);
         writeIndentation(cg);
         writeConstantWithSpace(strFunction, cg);
-        Entity fnEnt = cg->cm->entities.content[nd.pl1];
+        Entity fnEnt = cg->cm->entities.cont[nd.pl1];
 
         Node fnBinding = nodes[cg->i];
-        writeBytesFromSource(fnBinding, cg);
+        writeBytesFromSource(loc, cg);
         if (fnEnt.emit == emitPrefixShielded) {
             writeChar(aUnderscore, cg);
         }
@@ -5731,7 +5724,7 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         Int j = cg->i + 2; // +2 to skip the function binding node and nodScope
         if (nodes[j].tp == nodBinding) {
             Node binding = nodes[j];
-            writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+            writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
             ++j;
         }
 
@@ -5740,7 +5733,7 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
             writeChar(aComma, cg);
             writeChar(aSpace, cg);
             Node binding = nodes[j];
-            writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+            writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
             ++j;
         }
         cg->i = j;
@@ -5754,14 +5747,14 @@ private void writeFn(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) {
 }
 
 private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
-    
+
 }
 
 /** Pre-condition: we are looking at the binding node, 1 past the assignment node */
 private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
     Node binding = nodes[cg->i];
-    
-    writeBytes(cg->sourceCode->content + binding.startBt, binding.lenBts, cg);
+
+    writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
     writeChars(cg, ((byte[]){aSpace, aEqual, aSpace}));
 
     ++cg->i; // CONSUME the binding node
@@ -5778,20 +5771,20 @@ private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) {
 }
 
 /**
- * 
+ *
  */
 private void writeAssignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     Int sentinel = cg->i + fr.pl2;
     writeIndentation(cg);
     Node binding = nodes[cg->i];
-    Int class = cg->cm->entities.content[binding.pl1].class;
+    Int class = cg->cm->entities.cont[binding.pl1].class;
     if (class == classMutatedGuaranteed || class == classMutatedNullable) {
         writeConstantWithSpace(strLet, cg);
     } else {
         writeConstantWithSpace(strConst, cg);
     }
     writeAssignmentWorker(nodes, cg);
-    
+
     cg->i = sentinel; // CONSUME the whole assignment
 }
 
@@ -5812,7 +5805,7 @@ private void writeReturn(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
     Node rightSide = nodes[cg->i];
     ++cg->i; // CONSUME the expr node
     writeExprInternal(rightSide, nodes, cg);
-    
+
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
     cg->i = sentinel; // CONSUME the whole "return" statement
@@ -5901,12 +5894,12 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         Int sentinel = cg->i + fr.pl2;
         ++cg->i; // CONSUME the scope node immediately inside loop
         if (nodes[cg->i].tp == nodAssignment) { // there is at least one assignment, so an extra nested scope
-            // noting in .pl1 that we have a two scopes        
+            // noting in .pl1 that we have a two scopes
             push(((Node){.tp = fr.tp, .pl1 = 1, .pl2 = fr.pl2, .startBt = sentinel}), &cg->backtrack);
             writeIndentation(cg);
             writeChar(aCurlyLeft, cg);
             writeChar(aNewline, cg);
-            
+
             while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
                 ++cg->i; // CONSUME the assignment node
                 writeIndentation(cg);
@@ -5923,7 +5916,7 @@ private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
         Node cond = nodes[cg->i + 1];
         cg->i += 2; // CONSUME the loopCond node and expr/verbatim node
         writeExprInternal(cond, nodes, cg);
-        
+
         writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
         cg->indentation += 4;
     } else {
@@ -5963,11 +5956,11 @@ private void writeContinue(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) 
 
 private void maybeCloseCgFrames(Codegen* cg) {
     for (Int j = cg->backtrack.length - 1; j > -1; j--) {
-        if (cg->backtrack.content[j].startBt != cg->i) {
+        if (cg->backtrack.cont[j].startBt != cg->i) {
             return;
         }
         Node fr = pop(&cg->backtrack);
-        (*cg->cgTable[fr.tp - nodScope])(fr, false, cg->cm->nodes.content, cg);
+        (*cg->cgTable[fr.tp - nodScope])(fr, false, cg->cm->nodes.cont, cg);
     }
 }
 
@@ -5978,12 +5971,12 @@ private void tabulateCgDispatch(Codegen* cg) {
     }
     cg->cgTable[0] = writeScope;
     cg->cgTable[nodAssignment - nodScope] = &writeAssignment;
-    cg->cgTable[nodReassign   - nodScope] = &writeReassignment;    
+    cg->cgTable[nodReassign   - nodScope] = &writeReassignment;
     cg->cgTable[nodExpr       - nodScope] = &writeExpr;
     cg->cgTable[nodScope      - nodScope] = &writeScope;
     cg->cgTable[nodWhile      - nodScope] = &writeWhile;
     cg->cgTable[nodIf         - nodScope] = &writeIf;
-    cg->cgTable[nodIfClause   - nodScope] = &writeIfClause;    
+    cg->cgTable[nodIfClause   - nodScope] = &writeIfClause;
     cg->cgTable[nodFnDef      - nodScope] = &writeFn;
     cg->cgTable[nodReturn     - nodScope] = &writeReturn;
     cg->cgTable[nodBreak      - nodScope] = &writeBreak;
@@ -6013,10 +6006,10 @@ private Codegen* generateCode(Compiler* cm, Arena* a) {
     Codegen* cg = createCodegen(cm, a);
     const Int len = cm->nodes.length;
     while (cg->i < len) {
-        Node nd = cm->nodes.content[cg->i];
+        Node nd = cm->nodes.cont[cg->i];
         ++cg->i; // CONSUME the span node
-        
-        (cg->cgTable[nd.tp - nodScope])(nd, true, cg->cm->nodes.content, cg);
+
+        (cg->cgTable[nd.tp - nodScope])(nd, true, cg->cm->nodes.cont, cg);
         maybeCloseCgFrames(cg);
     }
     return cg;
@@ -6031,48 +6024,15 @@ private void tabulateCodegen() { //:tabulateCodegen
     p[nodExpr]        = &cgExp;
 }
 
-
-testable void initializeCodegen(Compiler* cm, Arena* a) { //:initializeCodegen
-// Turns a parser into a code generator
-    if (cm->stats.wasError) {
-        return;
-    }
-
-    Compiler* cg = cm;
-    cg->i = 0;
-    cg->cgBtrack = createStackBtCodegen(16, cm->aTmp);
-    cg->bytecode = createInListUlong(128, a);
-}
-
-
-private void tmpGetCode(Interpreter* rt, Arena* a) {
-// Super-simple bytecode for writing a barebones codegen:
-// Code = "a = 77; print $a;"
-// Bytecode = "setLocal; call built-in; call instruction"
-    const Int len = 4;
-    Arr(Ulong) theCode = ((Ulong[]) {
-        len,
-        instrSetLocal(2, 77),
-        instrBuiltinCall(&buiToStringInt),
-        instrPrint(2),
-        instrReturn(0)
-    });
-
-
-
-//    const Int len = 4;
-//    Arr(Ulong) theCode = ((Ulong[]) {
-//        len,
-//        instrSetLocal(stackFrameStart, 3),
-//        instrNewString(stackFrameStart + 4, stackFrameStart, 4),
-//        instrPrint(stackFrameStart + 4),
-//        (((Ulong)iReturn) << 58)
-//    });
-    Int lenBytes = (len + 1)*sizeof(Ulong);
-    void* codeAddr = allocateOnArena(lenBytes, a);
-
-    memcpy(codeAddr, theCode, lenBytes);
-    rt->code = (Arr(Ulong))codeAddr;
+private Codegen* createCodegen(Compiler* cm, Arena* a) {
+    Codegen* cg = allocateOnArena(sizeof(Codegen), a);
+    (*cg) = (Codegen) {
+        .i = 0, .backtrack = *createStackNode(16, a), .calls = createStackCgCall(16, a),
+        .length = 0, .capacity = 64, .buffer = allocateOnArena(64, a),
+        .sourceCode = cm->sourceCode, .cm = cm, .a = a
+    };
+    tabulateCgDispatch(cg);
+    return cg;
 }
 
 //}}}
@@ -6082,7 +6042,7 @@ private void writeFunction(Int indNode, Compiler* cm) { //:writeFunction
 // Generate bytecode for a single function
     //rt->i = indNode;
     //const Int sentinel = indNode + cm->nodes.cont[indNode].pl2 + 1;
-    
+
 }
 
 private void codegen(Compiler* cm) { //:codegen
@@ -6514,7 +6474,7 @@ const char* instructionNames[] = {
 
 void dbgBytecode(Compiler* cg) { //:dbgBytecode
 // Print the bytecode
-    
+
 }
 
 void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
@@ -6585,8 +6545,8 @@ private Int interpretCode(Interpreter* in) {
 Int main(int argc, char** argv) { //:main
     orsInitCompiler();
     Arena* a = createArena();
-    
-    
+
+
     String* sourceCode = s("main = (( a = 78; print a))");
 
     Compiler* proto = createProtoCompiler(a);
@@ -6595,7 +6555,7 @@ Int main(int argc, char** argv) { //:main
     codegen(cm);
     Interpreter* rt = createInterpreter(cm);
     Int interpResult = 0;//interpretCode(rt);
-    
+
     printf("Interpretation result = %d\n", interpResult);
 
     cleanup:

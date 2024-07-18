@@ -459,8 +459,8 @@ typedef enum { //:EntityKind
 // a literal, a native call, an instr etc
     uncallableLiteral,
     uncallableVar,
-    callableInstr,   // this function has a whole instruction dedicated to it
-    callableBuiltin, // a C function built into the interpreter
+    uncallableField,
+    callableBuiltin, // a JS function built into the compiler
     callableHost,    // a native API function exposed by the host
     callableDefined  // an Ors function defined in a script
 } EmitKind;
@@ -468,11 +468,22 @@ typedef enum { //:EntityKind
 
 typedef union { // :EmitBody
     struct { Ulong literal; };    // iff kind = "uncallableLiteral"
-    struct { Byte opcode; };      // iff kind = "callableInstr"
     struct { Int indexBuiltin; }; // iff kind = "callableBuiltin"
     struct { Int indexHost; };    // iff kind = "callableHost"
     struct { Int nodeInd; };      // iff kind = "callableDefined"
 } EmitBody;
+
+
+#define emitPrefix         0  // normal native names
+#define emitPrefixShielded 1  // this is a native name that needs to be shielded from target 
+                              // reserved word (by appending a "_")
+#define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
+#define emitInfix          3  // infix operators that match between source code and target (e.g.
+                              // arithmetic operators)
+#define emitInfixExternal  4  // infix operators that have a separate external name
+#define emitField          5  // emitted as field accesses, like ".length"
+#define emitInfixDot       6  // emitted as a "dot-call", like ".toString()"
+#define emitNop            7  // for unary operators that don't need to be emitted, like ","
 
 
 typedef struct { //:Emit
@@ -683,6 +694,10 @@ typedef struct { // :TypeHeader
 //{{{ Code generator
 
 typedef void (*CodegenFn)(Node, Arr(Node), Compiler*);
+
+#define hostPrint    0 // console.log
+#define hostPrintErr 1 // console.error
+                    
 
 //}}}
 //{{{ Generics
