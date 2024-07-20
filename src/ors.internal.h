@@ -16,7 +16,8 @@
 #define Arr(T) T*
 #define Unt uint32_t
 #define null NULL
-#define NameId int32_t
+#define NameId uint32_t // 8 bit of length, 24 bits of name index (in @stringTable)
+#define NameLoc uint32_t // 8 bit of length, 24 bits of startBt (in @standardText or @externalText)
 #define EntityId int32_t
 #define TypeId int32_t
 #define FirstArgTypeId int32_t
@@ -113,7 +114,7 @@ testable bool endsWith(String* a, String* b);
 
 typedef struct {
     Int len; // length of standardText
-    Int firstParsed; // the nameId for the first parsed word
+    Int firstParsed; // the name index for the first parsed word
     Int firstBuiltin; // the nameId for the first built-in word in standardStrings
 } StandardText;
 
@@ -454,54 +455,30 @@ typedef struct { // :ParseFrame
 #define classPubImmut 6
 
 
-typedef enum { //:EntityKind
-// Used by codegen to define what to emit for different entities:
-// a literal, a native call, an instr etc
-    uncallableLiteral,
-    uncallableVar,
-    uncallableField,
-    callableBuiltin, // a JS function built into the compiler
-    callableHost,    // a native API function exposed by the host
-    callableDefined  // an Ors function defined in a script
-} EmitKind;
-
-
-typedef union { // :EmitBody
-    struct { Ulong literal; };    // iff kind = "uncallableLiteral"
-    struct { Int indexBuiltin; }; // iff kind = "callableBuiltin"
-    struct { Int indexHost; };    // iff kind = "callableHost"
-    struct { Int nodeInd; };      // iff kind = "callableDefined"
-} EmitBody;
-
-
-#define emitPrefix         0  // normal native names
-#define emitPrefixShielded 1  // this is a native name that needs to be shielded from target 
-                              // reserved word (by appending a "_")
-#define emitPrefixExternal 2  // prefix names that are emitted differently than in source code
-#define emitInfix          3  // infix operators that match between source code and target (e.g.
-                              // arithmetic operators)
-#define emitInfixExternal  4  // infix operators that have a separate external name
-#define emitField          5  // emitted as field accesses, like ".length"
-#define emitInfixDot       6  // emitted as a "dot-call", like ".toString()"
-#define emitNop            7  // for unary operators that don't need to be emitted, like ","
-
-
-typedef struct { //:Emit
-// Used by codegen to define what precisely to emit for different entities
-    EmitKind kind;
-    EmitBody body;
+typedef enum { //:Emit
+// Used by codegen to define what to emit for different entities
+    emitPrefix,           // normal native names
+    emitPrefixShielded,   // this is a native name that needs to be shielded from target 
+                          // reserved word (by appending a "_")
+    emitPrefixExternal,   // prefix names that are emitted differently than in source code
+    emitInfix,            // infix operators like "+" that match between source code and target
+    emitInfixExternal,    // infix operators that have a separate external name
+    emitField,            // emitted as field accesses, like ".length"
+    emitInfixDot,         // emitted as a "dot-call", like ".toString()"
+    emitNop               // for unary operators that don't need to be emitted, like ","
 } Emit;
 
 
-typedef struct { // :Entity
+typedef struct { //:Entity
     TypeId typeId;
-    Unt name; // 8 bits of length, 24 bits of nameId
-    Byte class; // mutable or immutable, public or private
+    Unt name; // For native names, it's NameId. For externals, NameLoc. 
+              // For "emitInfix", this is operatorId. All determined by @emit
     Emit emit;
+    Byte class; // mutable or immutable, public or private
 } Entity;
 
 
-typedef struct { // :Toplevel
+typedef struct { //:Toplevel
 // Toplevel definitions (functions, variables, types) for parsing order and name searchability
     Int indToken;
     Int sentinelToken;
@@ -514,7 +491,7 @@ typedef struct { // :Toplevel
 
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
-struct ScopeChunk { // :ScopeChunk
+struct ScopeChunk { //:ScopeChunk
     ScopeChunk *next;
     int len; // length is divisible by 4
     Int cont[];
@@ -581,7 +558,7 @@ typedef struct {   // :TypeFrame
     Byte tp;       // "sor" and "tye" constants
     Int sentinel;  // token id sentinel
     Int countArgs; // accumulated number of type arguments
-    Int nameId;
+    NameId nameId;
 } TypeFrame;
 
 DEFINE_STACK_HEADER(TypeFrame)
@@ -629,7 +606,7 @@ struct Compiler { // :Compiler
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
     Stackint32_t* stringTable;  // operators, then standard strings, then imported ones, then parsed
-                                // Contains (8 bits of lenBts, 24 bits of startBt)
+                                // Contains NameLoc
     StringDict* stringDict;
 
     // PARSING
@@ -695,8 +672,59 @@ typedef struct { // :TypeHeader
 
 typedef void (*CodegenFn)(Node, Arr(Node), Compiler*);
 
-#define hostPrint    0 // console.log
-#define hostPrintErr 1 // console.error
+// Host string indices. Must agree in order with "externalText" and "cgOffsets"
+#define hostCase         0
+#define hostClass        1
+#define hostConst        2
+#define hostDebugger     3
+#define hostDefault      4
+#define hostDelete       5
+#define hostExport       6
+#define hostExtends      7
+#define hostFinally      8
+#define hostFunction     9
+#define hostIn          10
+#define hostInstanceof  11
+#define hostLet         12
+#define hostNew         13
+#define hostNull        14
+#define hostStatic      15
+#define hostSuper       16
+#define hostSwitch      17
+#define hostThis        18
+#define hostThrow       19
+#define hostTypeof      20
+#define hostVar         21
+#define hostVoid        22
+#define hostWhile       23
+#define hostWith        24
+#define hostYield       25
+#define hostBreak       26
+#define hostCatch       27
+#define hostContinue    28
+#define hostDo          29
+#define hostElse        30
+#define hostFalse       31
+#define hostFor         32
+#define hostIf          33
+#define hostImport      34
+#define hostReturn      35
+#define hostTrue        36
+#define hostTry         37
+#define hostToString    38
+#define hostMathPow     39
+#define hostMathPi      40
+#define hostMathE       41
+#define hostNotEquals   42
+#define hostLength      43
+#define hostMathAbs     44
+#define hostAnd         45
+#define hostOr          46
+#define hostEquals      47
+#define hostAlert       48
+#define hostPrint       49
+#define hostPrintErr    50
+
                     
 
 //}}}

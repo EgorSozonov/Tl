@@ -132,7 +132,10 @@ private ParserFn PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
 //}}}
 //{{{ Code generator structure
 
+#define cgCountToShield 26 // How many of strings from "cgText" to gather into "SHIELD_HASHTABLE"
+
 private CodegenFn CODEGEN_TABLE[countAstForms]; // filled in by "tabulateCodegen"
+private NameLoc SHIELD_HASHTABLE[cgCountToShield]; // filled in by "tabulateShield"
 
 //}}}
 //}}}
@@ -536,7 +539,7 @@ DEFINE_INTERNAL_LIST(toplevels, Toplevel, a) //:pushIntoplevels
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node) //:createInListNode
 DEFINE_INTERNAL_LIST(nodes, Node, a) //:pushInnodes
 
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity) //:createEntity
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity) //:createInListEntity
 DEFINE_INTERNAL_LIST(entities, Entity, a) //:pushInentities
 
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int) //:createInListInt
@@ -843,7 +846,7 @@ testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* st
         StringValue* firstElem = (StringValue*)newBucket->cont;
 
         newIndString = stringTable->len;
-        Unt newName = ((Unt)(lenBts) << 24) + (Unt)startBt;
+        NameLoc newName = ((Unt)(lenBts) << 24) + (Unt)startBt;
         push(newName, stringTable);
 
         *firstElem = (StringValue){.hash = hash, .indString = newIndString };
@@ -862,7 +865,7 @@ testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* st
         }
 
         newIndString = stringTable->len;
-        Unt newName = ((Unt)(lenBts) << 24) + (Unt)startBt;
+        NameLoc newName = ((Unt)(lenBts) << 24) + (Unt)startBt;
         push(newName, stringTable);
         addValueToBucket(hm->dict + hashOffset, newIndString, hash, hm->a);
     }
@@ -1294,6 +1297,9 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm);
 private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm);
 private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm);
 private Int tGetFnArity(TypeId fnType, Compiler* cm);
+
+
+testable NameLoc nameOfExternal(Int strId);
 #ifdef DEBUG
 void printParser(Compiler* cm, Arena* a);
 void dbgType(TypeId typeId, Compiler* cm);
@@ -1439,16 +1445,16 @@ testable String* prepareInput(const char* content, Arena* a) { //:prepareInput
     return result;
 }
 
-private Unt nameOfToken(Token tk) { //:nameOfToken
-    return ((Unt)tk.lenBts << 24) + (Unt)tk.pl1;
+private NameId nameOfToken(Token tk) { //:nameOfToken
+    return (NameId)(((Unt)tk.lenBts << 24) + (Unt)tk.pl1);
 }
 
 
-testable Unt nameOfStandard(Int strId) { //:nameOfStandard
-// Builds a name (nameId + length) for a standardString after "strFirstNonreserved"
+testable NameId nameOfStandard(Int strId) { //:nameOfStandard
+// Builds a name (nameInd + length) for a standardString after "strFirstNonreserved"
     Int length = standardStringLens[strId];
-    Int nameId = strId + countOperators;
-    return ((Unt)length << 24) + (Unt)(nameId);
+    Int nameInd = strId + countOperators;
+    return (NameId)(((Unt)length << 24) + (Unt)(nameInd));
 }
 
 
@@ -2516,7 +2522,7 @@ private EntityId createEntity(Unt name, Emit emit, Byte class, Compiler* cm) { /
     // if it's a binding, it should be -1, and if overload, < -1
 
     Int newEntityId = cm->entities.len;
-    pushInentities(((Entity){ .name = name, .emit = emit, .class = class }), cm);
+    pushInentities(((Entity){ .emit = emit, .class = class }), cm);
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->len > 0) {
             addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
@@ -2807,7 +2813,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     addNode((Node){ .tp = nodAssignment}, locOf(tok), cm);
     if (countLeftSide == 1)  {
         Token nameTk = toks[cm->i];
-        Unt newName = ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1; // nameId + lenBts
+        NameId newName = ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1;
         entityId = cm->activeBindings[nameTk.pl1];
         if (entityId > -1) {
             VALIDATEP(cm->entities.cont[entityId].class == classMut,
@@ -2816,7 +2822,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
         } else {
             entityId = createEntity(
                     newName,
-                    (Emit){.kind = uncallableVar, .body = {}},
+                    emitPrefix,
                     nameTk.pl2 == 1 ? classMut: classImmut, cm
             );
         }
@@ -4077,25 +4083,23 @@ private void importPrelude(Compiler* cm) { //:importPrelude
 //    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
 
     Entity imports[6] =  {
-        (Entity){ .name = nameOfStandard(strMathPi), .typeId = tokDouble, .class = classPubImmut,
-                   .emit = {.kind = uncallableLiteral,
-                            .body = {.literal = longOfDoubleBits(3.14159265358)} }
+        (Entity){ .name = nameOfExternal(hostMathPi), .typeId = tokDouble, .class = classPubImmut,
+                   .emit = emitPrefixExternal
         },
-        (Entity){ .name = nameOfStandard(strMathE), .typeId = tokDouble, .class = classPubImmut,
-                   .emit = {.kind = uncallableLiteral, .body = {.literal = longOfDoubleBits(2.71)}}
+        (Entity){ .name = nameOfExternal(hostMathE), .typeId = tokDouble, .class = classPubImmut,
+                   .emit = emitPrefixExternal
         },
-        (Entity){ .name = nameOfStandard(strPrint), .typeId = strToVoid, .class = classPubImmut,
-                   .emit = {.kind = callableHost, .body = {.indexHost = hostPrint} }
+        (Entity){ .name = nameOfExternal(hostPrint), .typeId = strToVoid, .class = classPubImmut,
+                   .emit = emitPrefixExternal
         },
-        // TODO define print x = print $x as AST nodes injected into every build
-        (Entity){ .name = nameOfStandard(strPrint), .typeId = intToVoid,
-                   .emit = {.kind = callableDefined, .body = {.nodeInd = -1} }
+        (Entity){ .name = nameOfExternal(hostPrint), .typeId = intToVoid,
+                   .emit = emitPrefixExternal
         },
-        (Entity){ .name = nameOfStandard(strPrint), .typeId = floatToVoid,
-                   .emit = {.kind = callableDefined, .body = {.nodeInd = -1} }
+        (Entity){ .name = nameOfExternal(hostPrint), .typeId = floatToVoid,
+                   .emit = emitPrefixExternal
         },
-        (Entity){ .name = nameOfStandard(strPrintErr), .typeId = strToVoid,
-                   .emit = {.kind = callableHost, .body = {.indexHost = hostPrintErr} }
+        (Entity){ .name = nameOfExternal(hostPrintErr), .typeId = strToVoid,
+                   .emit = emitPrefixExternal
         }
        // TODO functions for casting (int, double, unsigned)
     };
@@ -4512,7 +4516,7 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 
         // since this is an immutable definition tokAssignment, its pl1 is the nameId and
         // its bytes are same as the var name in source code
-        Unt name =  ((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1;
+        NameId name = (NameId)(((Unt)nameTk.lenBts << 24) + (Unt)nameTk.pl1);
         cm->i = fnInd + 1; // CONSUME the left side, tokAssignmentRight and tokFn
         pFnSignature(toks[fnInd], true, name, voidToVoid, cm);
     }
@@ -5426,20 +5430,27 @@ struct Codegen { //:Codegen
 //}}}
 //{{{ Host strings for codegen
 
-const char cgStrings[] = "breakcasecatchclassconstcontinuedebuggerdefaultdeletedoelse"
-    "exportextendsfalsefinallyforfunctionifimportininstanceofletnew"
-    "nullreturnstaticsuperswitchthisthrowtruetrytypeofvarvoidwhile"
-    "withyield"
-    "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertprintlo";
+const char externalText[] = "caseclassconstdebuggerdefaultdeleteexportextendsfinallyfunctionininstanceof"
+    "letnewnullstaticsuperswitchthisthrowtypeofvarvoidwhilewithyield"
+    // shield words end here
+    "breakcatchcontinuedoelsefalseforifimportreturntruetry"
+    "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertconsole.logconsole.error";
 
 
 const Int cgOffsets[] = {
-    5, 4, 5, 5, 5, 8, 8, 7, 6, 2, 4,
-    6, 7, 5, 7, 3, 8, 2, 6, 2, 8, 2, 3, 3,
-    4, 5, // reserved words end here
-    8, 8, 7, 6, 3, 6, 8, 2, 2, 3, 5, 5, 2
-
+    4, 5, 5, 8, 7, 6, 6, 7, 7, 8, 2, 10,
+    3, 3, 4, 6, 5, 6, 4, 5, 6, 3, 4,  5, 4, 5, // reserved words end here
+    5, 5, 8, 2, 4, 5, 3, 2, 6, 6, 4,  3,
+    8, 8, 7, 6, 3, 6, 8, 2, 2, 3, 5, 11, 13
 };
+
+
+testable NameLoc nameOfExternal(Int strId) { //:nameOfExternal
+// Builds a text location for a host text for codegen
+    Int length = standardStringLens[strId];
+    Int nameInd = strId + countOperators;
+    return (NameId)(((Unt)length << 24) + (Unt)(nameInd));
+}
 
 //}}}
 //{{{ Codegen main
@@ -6024,6 +6035,28 @@ private void tabulateCodegen() { //:tabulateCodegen
     p[nodExpr]        = &cgExp;
 }
 
+
+private void tabulateShield() { //:tabulateShield
+// The map of all strings that are keywords in the host language but not in Ors. Identifiers in
+// Ors that belong to this map need to be shielded by appending an "_" to them.
+    Int currInd = 0;
+    for (Int j = 0; j < cgCountToShield; j++) {
+        SHIELD_HASHTABLE[j] = 0;
+    }
+
+    for (Int j = 0; j < cgCountToShield; j++) {
+        Unt hash = hash(externalText, currInd, cgOffsets[j]);
+        Unt offset = hash % cgCountToShield;
+        if (SHIELD_HASHTABLE[offset] != 0) {
+            perror("Hashing error when creating shield table");
+        }
+        SHIELD_HASHTABLE[offset] = (cgOffsets[j] << 24) + (Unt)currInd;
+        currInd += cgOffsets[j];
+    }
+
+}
+
+
 private Codegen* createCodegen(Compiler* cm, Arena* a) {
     Codegen* cg = allocateOnArena(sizeof(Codegen), a);
     (*cg) = (Codegen) {
@@ -6036,7 +6069,6 @@ private Codegen* createCodegen(Compiler* cm, Arena* a) {
 }
 
 //}}}
-
 
 private void writeFunction(Int indNode, Compiler* cm) { //:writeFunction
 // Generate bytecode for a single function
@@ -6507,8 +6539,7 @@ Int orsInitCompiler() { //:orsInitCompiler
     tabulateLexer();
     tabulateParser();
     tabulateCodegen();
-    tabulateInterpreter();
-    tabulateBuiltins();
+    tabulateShield();
     return 0;
 }
 
