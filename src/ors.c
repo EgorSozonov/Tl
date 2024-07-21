@@ -80,7 +80,7 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = {
 
 
 
-const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<0<=<>===0>=<=><=>>.>0?:@^.||."
+const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<=><0<=<>===0>=<>>.>0?:@^.||."
                             "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
                             "ifimplimportmatchpubreturntraittruetry"
                             // reserved words end here; what follows may have arbitrary order
@@ -90,50 +90,8 @@ const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<0<=<>===0>=<=><=>>.>0?:@^.
                             "foobarinner"
 #endif
                             ;
-                    0, 2        
                             
-#define opBitwiseNeg        0 // !. bitwise negation
-#define opNotEqual          1 // !=
-#define opBoolNeg           2 // !
-#define opSize              3 // ##
-#define opToString          4 // $
-#define opRemainder         5 // %
-#define opBitwiseAnd        6 // &&. bitwise "and"
-#define opBoolAnd           7 // && logical "and"
-#define opPtr               8 // & pointers/values at type level
-#define opTimesExt          9 // *:
-#define opTimes            10 // *
-#define opPlusExt          11 // +:
-#define opPlus             12 // +
-#define opMinusExt         13 // -:
-#define opMinus            14 // -
-#define opDivByExt         15 // /:
-#define opIntersect        16 // /| type-level trait intersection ?
-#define opDivBy            17 // /
-#define opBitShiftL        18 // <<.
-#define opLTZero           19 // <0   less than zero
-#define opShiftL           20 // <<   shift smth, e.g. an iterator, left
-#define opLTEQ             21 // <=
-#define opComparator       22 // <>
-#define opLessTh           23 // <
-#define opRefEquality      24 // ===
-#define opIsNull           25 // =0
-#define opEquality         26 // ==
-#define opInterval         27 // >=<  left-inclusive interval check
-#define opBitShiftR        28 // >>.  unsigned right bit shift
-#define opGTZero           29 // >0   greater than zero
-#define opGTEQ             30 // >=
-#define opShiftR           31 // >>   shift right, e.g. an iterator
-#define opGreaterTh        32 // >
-#define opNullCoalesce     33 // ?:   null coalescing operator
-#define opQuestionMark     34 // ?    nullable type operator
-#define opUnused           35 // @    unused yet. await?
-#define opBitwiseXor       36 // ^.   bitwise XOR
-#define opExponent         37 // ^    exponentiation
-#define opBitwiseOr        38 // ||.  bitwise or
-#define opBoolOr           39 // ||   logical or
-                            
-const Int standardOperatorsLength = 54; // length of the operator part above
+const Int standardOperatorsLength = 53; // length of the operator part above
 
 // The :standardText prepended to all source code inputs and the hash table to provide a built-in
 // string set. Ors' reserved words must be at the start and sorted lexicographically.
@@ -167,53 +125,60 @@ const Int standardKeywords[] = {
 
 //}}}
 //{{{ Operators
-"!.!=##$%&&.*:+:-:/:/|<<.<0<=<>===0>=<=><=>>.>0?:@^.||."
-private OpDef OPERATORS[countOperators] = {
-    { .arity=1, .bytes={ aExclamation, aDot, 0, 0 }, .loc =  },   // !.
-    { .arity=2, .bytes={ aExclamation, aEqual, 0, 0 } }, // !=
-    { .arity=1, .bytes={ aExclamation, 0, 0, 0 } },      // !
-    { .arity=1, .bytes={ aSharp, aSharp, 0, 0 }, .overloadable=true }, // ##
-    { .arity=1, .bytes={ aDollar, 0, 0, 0 } },     // $
-    { .arity=2, .bytes={ aPercent, 0, 0, 0 } },    // %
-    { .arity=2, .bytes={ aAmp, aAmp, aDot, 0 } },  // &&.
-    { .arity=2, .bytes={ aAmp, aAmp, 0, 0 }, .assignable=true }, // &&
-    { .arity=1, .bytes={ aAmp, 0, 0, 0 }, .isTypelevel=true },   // &
-    { .arity=2, .bytes={ aTimes, aColon, 0, 0}, .assignable = true, .overloadable = true}, // *:
-    { .arity=2, .bytes={ aTimes, 0, 0, 0 }, .assignable = true, .overloadable = true},     // *
-    { .arity=2, .bytes={ aPlus, aColon, 0, 0 }, .assignable = true, .overloadable = true}, // +:
-    { .arity=2, .bytes={ aPlus, 0, 0, 0 }, .assignable = true, .overloadable = true},      // +
-    { .arity=2, .bytes={ aMinus, aColon, 0, 0}, .assignable = true, .overloadable = true}, // -:
-    { .arity=2, .bytes={ aMinus, 0, 0, 0}, .assignable = true, .overloadable = true },     // -
-    { .arity=2, .bytes={ aDivBy, aColon, 0, 0}, .assignable = true, .overloadable = true}, // /:
-    { .arity=2, .bytes={ aDivBy, aPipe, 0, 0}, .isTypelevel = true}, // /|
-    { .arity=2, .bytes={ aDivBy, 0, 0, 0}, .assignable = true, .overloadable = true}, // /
-    { .arity=2, .bytes={ aLT, aLT, aDot, 0} },     // <<.
-    { .arity=1, .bytes={ aLT, aDigit0, 0, 0} },    // <0
-    { .arity=2, .bytes={ aLT, aLT,    0, 0}, .overloadable = true }, // <<
-    { .arity=2, .bytes={ aLT, aEqual, 0, 0} },     // <=
-    { .arity=2, .bytes={ aLT, aGT, 0, 0} },        // <>
-    { .arity=2, .bytes={ aLT, 0, 0, 0 } },         // <
-    { .arity=2, .bytes={ aEqual, aEqual, aEqual, 0 } }, // ===
-    { .arity=1, .bytes={ aEqual, aDigit0, 0, 0 } }, // =0
-    { .arity=2, .bytes={ aEqual, aEqual, 0, 0 } }, // ==
-    { .arity=3, .bytes={ aGT, aEqual, aLT, aEqual } }, // >=<=
-    { .arity=3, .bytes={ aGT, aLT, aEqual, 0 } },  // ><=
-    { .arity=3, .bytes={ aGT, aEqual, aLT, 0 } },  // >=<
-    { .arity=2, .bytes={ aGT, aGT, aDot, 0}, .assignable=true, .overloadable = true}, // >>.
-    { .arity=1, .bytes={ aGT, aDigit0, 0, 0 } },   // >0
-    { .arity=3, .bytes={ aGT, aLT, 0, 0 } },       // ><
-    { .arity=2, .bytes={ aGT, aEqual, 0, 0 } },    // >=
-    { .arity=2, .bytes={ aGT, aGT, 0, 0 }, .overloadable = true }, // >>
-    { .arity=2, .bytes={ aGT, 0, 0, 0 } },         // >
-    { .arity=2, .bytes={ aQuestion, aColon, 0, 0 } }, // ?:
-    { .arity=1, .bytes={ aQuestion, 0, 0, 0 }, .isTypelevel=true }, // ?
-    { .arity=2, .bytes={ aAt, 0, 0, 0}, .overloadable = true}, // @
-    { .arity=2, .bytes={ aCaret, aDot, 0, 0} },    // ^.
-    { .arity=2, .bytes={ aCaret, 0, 0, 0}, .assignable=true, .overloadable = true}, // ^
-    { .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }, // ||.
-    { .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true } // ||
-}; // real operator overloads filled in by "buildOperators"
 
+#define nameLoc(start, len) ((len << 24) + start)
+                    
+private OpDef OPERATORS[countOperators] = {
+    { .arity=1, .name = nameLoc(0, 2), .firstSymbol = '!' },   // !.
+    { .arity=2, .name = nameLoc(2, 2), .firstSymbol = '!' }, // !=
+    { .arity=1, .name = nameLoc(0, 1), .firstSymbol = '!' },      // !
+    { .arity=1, .name = nameLoc(4, 2), .firstSymbol = '#', .overloadable=true }, // ##
+    { .arity=1, .name = nameLoc(6, 1), .firstSymbol = '$'  },     // $
+    { .arity=2, .name = nameLoc(7, 1), .firstSymbol = '%'  },    // %
+    { .arity=2, .name = nameLoc(8, 3), .firstSymbol = '&'  },  // &&.
+    { .arity=2, .name = nameLoc(8, 2), .firstSymbol = '&', .assignable=true }, // &&
+    { .arity=2, .name = nameLoc(11, 2), .firstSymbol = '*', .assignable = true, 
+      .overloadable = true},   // *:
+    { .arity=2, .name = nameLoc(11, 1), .firstSymbol = '*', .assignable = true, 
+       .overloadable = true},  // *
+    { .arity=2, .name = nameLoc(13, 2), .firstSymbol = '+', .assignable = true, 
+      .overloadable = true}, // +:
+    { .arity=2, .name = nameLoc(13, 1), .firstSymbol = '+', .assignable = true,
+      .overloadable = true},      // +
+    { .arity=2, .name = nameLoc(15, 2), .firstSymbol = '-', .assignable = true, 
+      .overloadable = true}, // -:
+    { .arity=2, .name = nameLoc(15, 1), .firstSymbol = '-', .assignable = true, 
+      .overloadable = true },     // -
+    { .arity=2, .name = nameLoc(17, 2), .firstSymbol = '/', .assignable = true,
+      .overloadable = true}, // /:
+    { .arity=2, .name = nameLoc(19, 2), .firstSymbol = '/', .isTypelevel = true}, // /|
+    { .arity=2, .name = nameLoc(19, 1), .firstSymbol = '/', .assignable = true, 
+      .overloadable = true}, // /
+    { .arity=2, .name = nameLoc(21, 3), .firstSymbol = '<' },  // <<.
+    { .arity=2, .name = nameLoc(24, 3), .firstSymbol = '<' },  // <=>
+    { .arity=1, .name = nameLoc(27, 2), .firstSymbol = '<' }, // <0
+    { .arity=2, .name = nameLoc(29, 2), .firstSymbol = '<', .overloadable = true }, // <<
+    { .arity=2, .name = nameLoc(24, 2), .firstSymbol = '<'  }, // <=
+    { .arity=2, .name = nameLoc(21, 1), .firstSymbol = '<'  }, // <
+    { .arity=2, .name = nameLoc(31, 3), .firstSymbol = '='  }, // ===
+    { .arity=1, .name = nameLoc(33, 2), .firstSymbol = '='  }, // =0
+    { .arity=2, .name = nameLoc(32, 2), .firstSymbol = '='  }, // ==
+    { .arity=3, .name = nameLoc(35, 3), .firstSymbol = '>' },  // >=<
+    { .arity=2, .name = nameLoc(38, 3), .firstSymbol = '>', 
+      .assignable=true, .overloadable = true}, // >>.
+    { .arity=1, .name = nameLoc(41, 2), .firstSymbol = '>' },   // >0
+    { .arity=2, .name = nameLoc(30, 2), .firstSymbol = '>' },    // >=
+    { .arity=2, .name = nameLoc(38, 2), .firstSymbol = '>', .overloadable = true }, // >>
+    { .arity=2, .name = nameLoc(26, 1), .firstSymbol = '>' },         // >
+    { .arity=2, .name = nameLoc(43, 2), .firstSymbol = '?' }, // ?:
+    { .arity=1, .name = nameLoc(43, 1), .firstSymbol = '?', .isTypelevel=true }, // ?
+    { .arity=2, .name = nameLoc(45, 1), .firstSymbol = '@', .overloadable = true}, // @
+    { .arity=2, .name = nameLoc(46, 2), .firstSymbol = '^' },    // ^.
+    { .arity=2, .name = nameLoc(46, 1), .firstSymbol = '^', .assignable=true, 
+      .overloadable = true}, // ^
+    { .arity=2, .name = nameLoc(48, 3), .firstSymbol = '|' }, // ||.
+    { .arity=2, .name = nameLoc(48, 2), .firstSymbol = '|', .assignable=true } // ||
+}; // real operator overloads filled in by "buildOperators"
 
 
 const int operatorStartSymbols[13] = {
@@ -1238,10 +1203,6 @@ private Int minPositiveOf(Int count, ...) { //:minPositiveOf
     return result;
 }
 
-
-#d
-
-
 //}}}
 
 //}}}
@@ -2121,7 +2082,7 @@ private void lexAssignment(Int opType, Compiler* lx) { //:lexAssignment
         ensureCapacityTokens(countLeftSide + 1, lx); // + 1 for the operator
 
         pushIntokens((Token){ .tp = tokOperator, .pl1 = opType,
-                    .pl2 = 0, .startBt = lx->i, .lenBts = OPERATORS[opType].lenBts}, lx);
+                    .pl2 = 0, .startBt = lx->i, .lenBts = (OPERATORS[opType].name >> 24)}, lx);
         memcpy(lx->tokens.cont + lx->tokens.len,
                lx->tokens.cont + assignmentStartInd + 1, countLeftSide*sizeof(Token));
         lx->tokens.len += countLeftSide;
@@ -2194,26 +2155,20 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     Byte firstSymbol = CURR_BT;
     Byte secondSymbol = (lx->stats.inpLength > lx->i + 1) ? source[lx->i + 1] : 0;
     Byte thirdSymbol = (lx->stats.inpLength > lx->i + 2) ? source[lx->i + 2] : 0;
-    Byte fourthSymbol = (lx->stats.inpLength > lx->i + 3) ? source[lx->i + 3] : 0;
     Int k = 0;
     Int opType = -1; // corresponds to the op... operator types
-    while (k < countOperators && OPERATORS[k].bytes[0] < firstSymbol) {
+    while (k < countOperators && OPERATORS[k].firstSymbol < firstSymbol) {
         k += 1;
     }
-    while (k < countOperators && OPERATORS[k].bytes[0] == firstSymbol) {
-        OpDef opDef = OPERATORS[k];
-        Byte secondTentative = opDef.bytes[1];
-        if (secondTentative != 0 && secondTentative != secondSymbol) {
+    while (k < countOperators && OPERATORS[k].firstSymbol == firstSymbol) {
+        NameLoc opName = OPERATORS[k].name;
+        Byte* opByte = source + (opName & LOWER24BITS) + 1;
+        Byte* sentinel = opByte + (opName >> 24);
+        if (opByte < sentinel && *opByte != secondSymbol) {
             k += 1;
             continue;
         }
-        Byte thirdTentative = opDef.bytes[2];
-        if (thirdTentative != 0 && thirdTentative != thirdSymbol) {
-            k += 1;
-            continue;
-        }
-        Byte fourthTentative = opDef.bytes[3];
-        if (fourthTentative != 0 && fourthTentative != fourthSymbol) {
+        if (opByte < sentinel && *opByte != thirdSymbol) {
             k += 1;
             continue;
         }
@@ -2225,9 +2180,8 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     OpDef opDef = OPERATORS[opType];
     bool isAssignment = false;
 
-    Int lengthOfBaseOper = (opDef.bytes[1] == 0) ? 1
-        : (opDef.bytes[2] == 0 ? 2 : (opDef.bytes[3] == 0 ? 3 : 4));
-    Int j = lx->i + lengthOfBaseOper;
+    Int lengthOfOper = opDef.name >> 24;
+    Int j = lx->i + lengthOfOper;
     if (opDef.assignable && j < lx->stats.inpLength && source[j] == aEqual) {
         isAssignment = true;
         j += 1;
@@ -2513,15 +2467,6 @@ private void tabulateLexer() { //:tabulateLexer
     //return result;
 }
 
-
-private void setOperatorsLengths() { //:setOperatorsLengths
-// The set of operators in the language. Must agree in order with ors.internal.h
-    for (Int k = 0; k < countOperators; k++) {
-        Int m = 0;
-        for (; m < 4 && OPERATORS[k].bytes[m] > 0; m++) {}
-        OPERATORS[k].lenBts = m;
-    }
-}
 
 private void populateStandardOffsets() { //:populateStandardOffsets
     Int curr = standardOperatorsLength;
@@ -4034,10 +3979,21 @@ private void buildInfixOperator(Int operId, TypeId typeId, Compiler* cm) { //:bu
 }
 
 
-private void buildOperator(Int operId, TypeId typeId, Emit emit, Compiler* cm) { //:buildOperator
-// Creates an entity, pushes it to [rawOverloads] and activates its name
+private void buildOperator(Int operId, TypeId typeId, Emit emit, Compiler* cm) {
+//:buildOperator Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
-    pushInentities((Entity){ .typeId = typeId, .class = classImmut, .emit = emitInfix }, cm);
+    pushInentities((Entity){ 
+            .typeId = typeId, .name = OPERATORS[operId].name, .class = classImmut, 
+            .emit = emitInfix }, cm);
+    addRawOverload(operId, typeId, newEntityId, cm);
+}
+
+
+private void buildHostOperator(Int operId, TypeId typeId, Emit emit, NameLoc name, Compiler* cm) {
+//:buildOperator Creates an entity, pushes it to [rawOverloads] and activates its name
+    Int newEntityId = cm->entities.len;
+    pushInentities((Entity){ 
+            .typeId = typeId, .name = name, .class = classImmut, .emit = emitInfix }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
 }
 
@@ -4065,70 +4021,70 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     TypeId strOfStrStr     = addConcrFnType(2, (Int[]){ tokString, tokString, tokString}, cm);
     TypeId flOfFlFl        = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     TypeId flOfFl          = addConcrFnType(1, (Int[]){ tokDouble, tokDouble}, cm);
-    buildOperator(opBitwiseNeg,   boolOfBool, emitPrefix, cm); // !. dummy
-    buildOperator(opNotEqual,     boolOfIntInt, emitInfixHost, cm);
-    buildOperator(opNotEqual,     boolOfFlFl, cm);
-    buildOperator(opNotEqual,     boolOfStrStr, cm);
-    buildOperator(opBoolNeg,      boolOfBool, cm);
-    buildOperator(opSize,         intOfStr, cm);
-    buildOperator(opSize,         intOfInt, cm);
-    buildOperator(opToString,     strOfInt, cm); // TODO
-    buildOperator(opToString,     strOfBool, cm);
-    buildOperator(opToString,     strOfFloat, cm);
-    buildOperator(opRemainder,    intOfIntInt, cm);
-    buildOperator(opBitwiseAnd,   boolOfBoolBool, cm); // dummy
-    buildOperator(opBoolAnd,      boolOfBoolBool, cm);
-    buildOperator(opPtr,          boolOfBoolBool, cm); // dummy
-    buildOperator(opTimesExt,     flOfFlFl, cm); // dummy
-    buildOperator(opTimes,        intOfIntInt, cm);
-    buildOperator(opTimes,        flOfFlFl, cm);
-    buildOperator(opPlusExt,      strOfStrStr, cm); // dummy
-    buildOperator(opPlus,         intOfIntInt, cm);
-    buildOperator(opPlus,         flOfFlFl, cm);
-    buildOperator(opPlus,         strOfStrStr, cm);
-    buildOperator(opMinusExt,     intOfIntInt, cm); // dummy
-    buildOperator(opMinus,        intOfIntInt, cm);
-    buildOperator(opMinus,        flOfFlFl, cm);
-    buildOperator(opDivByExt,     intOfIntInt, cm); // dummy
-    buildOperator(opIntersect,    intOfIntInt, cm); // dummy
-    buildOperator(opDivBy,        intOfIntInt, cm);
-    buildOperator(opDivBy,        flOfFlFl, cm);
-    buildOperator(opBitShiftL,    intOfFlFl, cm);  // dummy
-    buildOperator(opLTZero,       boolOfIntInt, cm);
-    buildOperator(opShiftL,       intOfIntInt, cm); // dummy
-    buildOperator(opLTEQ,         boolOfIntInt, cm);
-    buildOperator(opLTEQ,         boolOfFlFl, cm);
-    buildOperator(opLTEQ,         boolOfStrStr, cm);
-    buildOperator(opComparator,   intOfIntInt, cm);  // dummy
-    buildOperator(opComparator,   intOfFlFl, cm);  // dummy
-    buildOperator(opComparator,   intOfStrStr, cm);  // dummy
-    buildOperator(opLessTh,       boolOfIntInt, cm);
-    buildOperator(opLessTh,       boolOfFlFl, cm);
-    buildOperator(opLessTh,       boolOfStrStr, cm);
-    buildOperator(opRefEquality,  boolOfIntInt, cm); // dummy
-    buildOperator(opIsNull,       boolOfIntInt, cm); // dummy
-    buildOperator(opEquality,     boolOfIntInt, cm);
-    buildOperator(opInterval,    boolOfIntIntInt, cm); // dummy
-    buildOperator(opInterval,    boolOfFlFlFl, cm); // dummy
-    buildOperator(opBitShiftR,    boolOfBoolBool, cm); // dummy
-    buildOperator(opGTZero,       boolOfIntInt, cm);
-    buildOperator(opGTEQ,         boolOfIntInt, cm);
-    buildOperator(opGTEQ,         boolOfFlFl, cm);
-    buildOperator(opGTEQ,         boolOfStrStr, cm);
-    buildOperator(opShiftR,       intOfIntInt, cm);
-    buildOperator(opGreaterTh,    boolOfIntInt, cm);
-    buildOperator(opGreaterTh,    boolOfFlFl, cm);
-    buildOperator(opGreaterTh,    boolOfStrStr, cm);
-    buildOperator(opNullCoalesce, intOfIntInt, cm); // dummy
-    buildOperator(opQuestionMark, intOfIntInt, cm); // dummy
-    buildOperator(opBitwiseXor,   intOfIntInt, cm); // dummy
-    buildOperator(opExponent,     intOfIntInt, cm);
-    buildOperator(opExponent,     flOfFlFl, cm);
-    buildOperator(opUnused,       flOfFlFl, cm); // a dummy type
-    buildOperator(opBitwiseOr,    intOfIntInt, cm); // dummy
-    buildOperator(opBoolOr,       flOfFl, cm); // dummy
-    buildOperator(opGetElem,      flOfFl, cm); // dummy
-    buildOperator(opGetElemPtr,   flOfFl, cm); // dummy
+    
+    buildHostOperator(opBitwiseNeg, intOfInt, emitPrefixHost, "~", cm); // !. dummy
+    buildOperator(opNotEqual,      boolOfIntInt, emitInfix, cm);
+    buildOperator(opNotEqual,      boolOfFlFl, emitInfix, cm);
+    buildOperator(opNotEqual,      boolOfStrStr, emitInfix, cm);
+    buildOperator(opBoolNeg,       boolOfBool, emitPrefix, cm);
+    buildHostOperator(opSize,      intOfStr, emitPrefixHost, "size", cm);
+    buildHostOperator(opSize,      intOfInt, emitPrefixHost, "size", cm);
+    buildHostOperator(opToString,  strOfInt, emitInfixDot, "toString", cm);
+    buildHostOperator(opToString,  strOfBool, emitInfixDot, "toString", cm);
+    buildHostOperator(opToString,  strOfFloat, emitInfixDot, "toString", cm);
+    buildOperator(opRemainder,     intOfIntInt, emitInfix, cm);
+    buildHostOperator(opBitwiseAnd, boolOfBoolBool, emitPrefixHost, "&&.", cm);
+    buildOperator(opBoolAnd,       boolOfBoolBool, emitInfix, cm);
+    buildHostOperator(opTimesExt,  flOfFlFl, emitPrefixHost, cm); // dummy
+    buildOperator(opTimes,         intOfIntInt, emitInfix, cm);
+    buildOperator(opTimes,         flOfFlFl, emitInfix, cm);
+    buildHostOperator(opPlusExt,   strOfStrStr, emitPrefixHost, cm); // dummy
+    buildOperator(opPlus,          intOfIntInt, emitInfix, cm);
+    buildOperator(opPlus,          flOfFlFl, emitInfix, cm);
+    buildOperator(opPlus,          strOfStrStr, emitInfix, cm);
+    buildHostOperator(opMinusExt,  intOfIntInt, emitPrefixHost, cm); // dummy
+    buildOperator(opMinus,         intOfIntInt, emitInfix, cm);
+    buildOperator(opMinus,         flOfFlFl, emitInfix, cm);
+    buildHostOperator(opDivByExt,  intOfIntInt, emitPrefixHost, cm); // dummy
+    buildHostOperator(opIntersect, intOfIntInt, emitPrefixHost, cm); // dummy
+    buildOperator(opDivBy,         intOfIntInt, emitInfix, cm);
+    buildOperator(opDivBy,         flOfFlFl, emitInfix, cm);
+    buildHostOperator(opBitShiftL, intOfFlFl, emitInfixHost, cm);  // dummy
+    buildHostOperator(opLTZero,    boolOfIntInt, emitPrefixHost, cm);
+    buildHostOperator(opShiftL,    intOfIntInt, emitInfixHost, cm); // dummy
+    buildOperator(opLTEQ,          boolOfIntInt, emitInfix, cm);
+    buildOperator(opLTEQ,          boolOfFlFl, emitInfix, cm);
+    buildOperator(opLTEQ,          boolOfStrStr, emitInfix, cm);
+    buildHostOperator(opComparator, intOfIntInt, emitPrefixHost, cm);  // dummy
+    buildHostOperator(opComparator, intOfFlFl, emitPrefixHost, cm);  // dummy
+    buildHostOperator(opComparator, intOfStrStr, emitPrefixHost, cm);  // dummy
+    buildOperator(opLessTh,        boolOfIntInt, emitInfix, cm);
+    buildOperator(opLessTh,        boolOfFlFl, emitInfix, cm);
+    buildOperator(opLessTh,        boolOfStrStr, emitInfix, cm);
+    buildHostOperator(opRefEquality,   boolOfIntInt, emitPrefixHost, cm); // dummy
+    buildHostOperator(opIsNull,        boolOfIntInt, emitPrefixHost, cm); // dummy
+    buildOperator(opEquality,      boolOfIntInt, emitInfix, cm);
+    buildHostOperator(opInterval,      boolOfIntIntInt, emitPrefixHost, cm); // dummy
+    buildHostOperator(opInterval,      boolOfFlFlFl, emitPrefixHost, cm); // dummy
+    buildHostOperator(opBitShiftR,     boolOfBoolBool, emitInfixHost, cm); // dummy
+    buildHostOperator(opGTZero,        boolOfIntInt, emitPrefixHost, cm);
+    buildOperator(opGTEQ,          boolOfIntInt, emitInfix, cm);
+    buildOperator(opGTEQ,          boolOfFlFl, emitInfix, cm);
+    buildOperator(opGTEQ,          boolOfStrStr, emitInfix, cm);
+    buildHostOperator(opShiftR,        intOfIntInt, emitInfixHost, cm);
+    buildOperator(opGreaterTh,     boolOfIntInt, emitInfix, cm);
+    buildOperator(opGreaterTh,     boolOfFlFl, emitInfix, cm);
+    buildOperator(opGreaterTh,     boolOfStrStr, emitInfix, cm);
+    buildHostOperator(opNullCoalesce,  intOfIntInt, emitPrefixHost, cm); // dummy
+    buildHostOperator(opQuestionMark,  intOfIntInt, emitPrefixHost, cm); // dummy
+    buildHostOperator(opBitwiseXor,    intOfIntInt, emitInfixHost, cm); // dummy
+    buildOperator(opExponent,      intOfIntInt, emitInfix, cm);
+    buildOperator(opExponent,      flOfFlFl, emitInfix, cm);
+    buildHostOperator(opUnused,        flOfFlFl, emitPrefixHost, cm); // a dummy type
+    buildHostOperator(opBitwiseOr, intOfIntInt, emitInfixHost, cm);
+    buildOperator(opBoolOr,       flOfFl, emitInfix, cm); // dummy
+    buildHostOperator(opGetElem,      flOfFl, "[", cm); // dummy
+    buildHostOperator(opGetElemPtr,   flOfFl, "[", cm); // dummy
 }
 
 
@@ -6612,7 +6568,6 @@ void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
 Int orsInitCompiler() { //:orsInitCompiler
 // Definition of the operators, lexer dispatch, parser dispatch etc tables for the compiler.
 // This function should only be called once, at compiler init. Its results are global shared const.
-    setOperatorsLengths();
     populateStandardOffsets();
     tabulateLexer();
     tabulateParser();

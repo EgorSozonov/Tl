@@ -358,14 +358,13 @@ DEFINE_STACK_HEADER(Token)
 // Plus, many have automatic assignment counterparts.
 // For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
 typedef struct { // :OpDef
-    Byte bytes[4];
+    char firstSymbol;
     Int arity;
     // Whether this operator permits defining overloads as well as extended operators (e.g. +.= )
     bool overloadable;
     bool assignable;
     bool isTypelevel;
-    int8_t lenBts;
-    NameLoc loc;
+    NameLoc name;
 } OpDef;
 
 // :OperatorType
@@ -379,43 +378,42 @@ typedef struct { // :OpDef
 #define opRemainder         5 // %
 #define opBitwiseAnd        6 // &&. bitwise "and"
 #define opBoolAnd           7 // && logical "and"
-#define opPtr               8 // & pointers/values at type level
-#define opTimesExt          9 // *:
-#define opTimes            10 // *
-#define opPlusExt          11 // +:
-#define opPlus             12 // +
-#define opMinusExt         13 // -:
-#define opMinus            14 // -
-#define opDivByExt         15 // /:
-#define opIntersect        16 // /| type-level trait intersection ?
-#define opDivBy            17 // /
-#define opBitShiftL        18 // <<.
+#define opTimesExt          8 // *:
+#define opTimes             9 // *
+#define opPlusExt          10 // +:
+#define opPlus             11 // +
+#define opMinusExt         12 // -:
+#define opMinus            13 // -
+#define opDivByExt         14 // /:
+#define opIntersect        15 // /| type-level trait intersection ?
+#define opDivBy            16 // /
+#define opBitShiftL        17 // <<.
+#define opComparator       18 // <=>
 #define opLTZero           19 // <0   less than zero
 #define opShiftL           20 // <<   shift smth, e.g. an iterator, left
 #define opLTEQ             21 // <=
-#define opComparator       22 // <>
-#define opLessTh           23 // <
-#define opRefEquality      24 // ===
-#define opIsNull           25 // =0
-#define opEquality         26 // ==
-#define opInterval         27 // >=<  left-inclusive interval check
-#define opBitShiftR        28 // >>.  unsigned right bit shift
-#define opGTZero           29 // >0   greater than zero
-#define opGTEQ             30 // >=
-#define opShiftR           31 // >>   shift right, e.g. an iterator
-#define opGreaterTh        32 // >
-#define opNullCoalesce     33 // ?:   null coalescing operator
-#define opQuestionMark     34 // ?    nullable type operator
-#define opUnused           35 // @    unused yet. await?
-#define opBitwiseXor       36 // ^.   bitwise XOR
-#define opExponent         37 // ^    exponentiation
-#define opBitwiseOr        38 // ||.  bitwise or
-#define opBoolOr           39 // ||   logical or
-#define opGetElem          40 // Get list element
-#define opGetElemPtr       41 // Get pointer to list element
+#define opLessTh           22 // <
+#define opRefEquality      23 // ===
+#define opIsNull           24 // =0
+#define opEquality         25 // ==
+#define opInterval         26 // >=<  left-inclusive interval check
+#define opBitShiftR        27 // >>.  unsigned right bit shift
+#define opGTZero           28 // >0   greater than zero
+#define opGTEQ             29 // >=
+#define opShiftR           30 // >>   shift right, e.g. an iterator
+#define opGreaterTh        31 // >
+#define opNullCoalesce     32 // ?:   null coalescing operator
+#define opQuestionMark     33 // ?    nullable type operator
+#define opUnused           34 // @    unused yet. await?
+#define opBitwiseXor       35 // ^.   bitwise XOR
+#define opExponent         36 // ^    exponentiation
+#define opBitwiseOr        37 // ||.  bitwise or
+#define opBoolOr           38 // ||   logical or
+#define opGetElem          39 // Get list element
+#define opGetElemPtr       40 // Get pointer to list element
 
-#define countOperators     42
-#define countRealOperators 40 // The "unreal" ones, like "a[..]", which have a separate syntax
+#define countOperators     41
+#define countRealOperators 39 // The "unreal" ones, like "a[..]", which have a separate syntax
 
 
 typedef struct Compiler Compiler;
