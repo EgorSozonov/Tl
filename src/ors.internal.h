@@ -458,11 +458,11 @@ typedef struct { // :ParseFrame
 typedef enum { //:Emit
 // Used by codegen to define what to emit for different entities
     emitPrefix,           // normal native names
-    emitPrefixShielded,   // this is a native name that needs to be shielded from target 
+    emitPrefixShielded,   // this is a native name that needs to be shielded from target
                           // reserved word (by appending a "_")
-    emitPrefixExternal,   // prefix names that are emitted differently than in source code
+    emitPrefixHost,   // prefix names that are emitted differently than in source code
     emitInfix,            // infix operators like "+" that match between source code and target
-    emitInfixExternal,    // infix operators that have a separate external name
+    emitInfixHost,    // infix operators that have a separate external name
     emitField,            // emitted as field accesses, like ".length"
     emitInfixDot,         // emitted as a "dot-call", like ".toString()"
     emitNop               // for unary operators that don't need to be emitted, like ","
@@ -471,7 +471,7 @@ typedef enum { //:Emit
 
 typedef struct { //:Entity
     TypeId typeId;
-    Unt name; // For native names, it's NameId. For externals, NameLoc. 
+    Unt name; // For native names, it's NameId. For externals, NameLoc pointing into hostText.
               // For "emitInfix", this is operatorId. All determined by @emit
     Emit emit;
     Byte class; // mutable or immutable, public or private
@@ -630,7 +630,7 @@ struct Compiler { // :Compiler
     InListEmit emits;
     StackBtCodegen* cgBtrack;    // [aTmp]
     InListUlong bytecode;
-    
+
     // GENERAL STATE
     Int i;
     Arena* a;
@@ -670,7 +670,27 @@ typedef struct { // :TypeHeader
 //}}}
 //{{{ Code generator
 
-typedef void (*CodegenFn)(Node, Arr(Node), Compiler*);
+typedef struct { //:CgExpInterval
+    Int start; // starting node ind in the AST
+    Int end; // exclusive
+    Int size; // the size in memory (units of 4 bytes), either of an operand, or of a call result
+} CgExpInterval;
+
+
+typedef struct Codegen Codegen;
+typedef void CgFunc(Int, Arr(Node), Arr(SourceLoc), Codegen*);
+typedef void CgClosingFunc(Codegen*);
+
+typedef struct { //:CgCall
+    NameLoc name;
+    Byte emit;
+    Byte arity;
+    Byte countArgs;
+    bool needClosingParen;
+} CgCall;
+
+
+DEFINE_STACK_HEADER(CgCall)
 
 // Host string indices. Must agree in order with "externalText" and "cgOffsets"
 #define hostCase         0
@@ -725,7 +745,7 @@ typedef void (*CodegenFn)(Node, Arr(Node), Compiler*);
 #define hostPrint       49
 #define hostPrintErr    50
 
-                    
+
 
 //}}}
 //{{{ Generics
