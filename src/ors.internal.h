@@ -365,6 +365,7 @@ typedef struct { // :OpDef
     bool assignable;
     bool isTypelevel;
     int8_t lenBts;
+    NameLoc loc;
 } OpDef;
 
 // :OperatorType
@@ -397,27 +398,24 @@ typedef struct { // :OpDef
 #define opRefEquality      24 // ===
 #define opIsNull           25 // =0
 #define opEquality         26 // ==
-#define opIntervalBo       27 // >=<= inclusive interval check
-#define opIntervalR        28 // ><=  right-inclusive interval check
-#define opIntervalL        29 // >=<  left-inclusive interval check
-#define opBitShiftR        30 // >>.  unsigned right bit shift
-#define opGTZero           31 // >0   greater than zero
-#define opIntervalEx       32 // ><   exclusive interval check
-#define opGTEQ             33 // >=
-#define opShiftR           34 // >>   shift right, e.g. an iterator
-#define opGreaterTh        35 // >
-#define opNullCoalesce     36 // ?:   null coalescing operator
-#define opQuestionMark     37 // ?    nullable type operator
-#define opUnused           38 // @    unused yet
-#define opBitwiseXor       39 // ^.   bitwise XOR
-#define opExponent         40 // ^    exponentiation
-#define opBitwiseOr        41 // ||.  bitwise or
-#define opBoolOr           42 // ||   logical or
-#define opGetElem          43 // Get list element
-#define opGetElemPtr       44 // Get pointer to list element
+#define opInterval         27 // >=<  left-inclusive interval check
+#define opBitShiftR        28 // >>.  unsigned right bit shift
+#define opGTZero           29 // >0   greater than zero
+#define opGTEQ             30 // >=
+#define opShiftR           31 // >>   shift right, e.g. an iterator
+#define opGreaterTh        32 // >
+#define opNullCoalesce     33 // ?:   null coalescing operator
+#define opQuestionMark     34 // ?    nullable type operator
+#define opUnused           35 // @    unused yet. await?
+#define opBitwiseXor       36 // ^.   bitwise XOR
+#define opExponent         37 // ^    exponentiation
+#define opBitwiseOr        38 // ||.  bitwise or
+#define opBoolOr           39 // ||   logical or
+#define opGetElem          40 // Get list element
+#define opGetElemPtr       41 // Get pointer to list element
 
-#define countOperators     45
-#define countRealOperators 43 // The "unreal" ones, like "a[..]", which have a separate syntax
+#define countOperators     42
+#define countRealOperators 40 // The "unreal" ones, like "a[..]", which have a separate syntax
 
 
 typedef struct Compiler Compiler;

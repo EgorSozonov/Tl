@@ -68,11 +68,108 @@
 
 private LexerFn LEX_TABLE[256]; // filled in by "tabulateLexer"
 
+const Byte maxInt[19] = {
+    9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
+    8, 5, 4, 7, 7, 5, 8, 0, 7
+};
+// The ASCII notation for the highest signed 64-bit integer abs value, 9_223_372_036_854_775_807
+
+const Byte maximumPreciselyRepresentedFloatingInt[16] = {
+    9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
+// 2**53
+
+
+
+const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<0<=<>===0>=<=><=>>.>0?:@^.||."
+                            "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
+                            "ifimplimportmatchpubreturntraittruetry"
+                            // reserved words end here; what follows may have arbitrary order
+                            "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2print"
+                            "printErrmath:pimath:eTU"
+#ifdef TEST
+                            "foobarinner"
+#endif
+                            ;
+                    0, 2        
+                            
+#define opBitwiseNeg        0 // !. bitwise negation
+#define opNotEqual          1 // !=
+#define opBoolNeg           2 // !
+#define opSize              3 // ##
+#define opToString          4 // $
+#define opRemainder         5 // %
+#define opBitwiseAnd        6 // &&. bitwise "and"
+#define opBoolAnd           7 // && logical "and"
+#define opPtr               8 // & pointers/values at type level
+#define opTimesExt          9 // *:
+#define opTimes            10 // *
+#define opPlusExt          11 // +:
+#define opPlus             12 // +
+#define opMinusExt         13 // -:
+#define opMinus            14 // -
+#define opDivByExt         15 // /:
+#define opIntersect        16 // /| type-level trait intersection ?
+#define opDivBy            17 // /
+#define opBitShiftL        18 // <<.
+#define opLTZero           19 // <0   less than zero
+#define opShiftL           20 // <<   shift smth, e.g. an iterator, left
+#define opLTEQ             21 // <=
+#define opComparator       22 // <>
+#define opLessTh           23 // <
+#define opRefEquality      24 // ===
+#define opIsNull           25 // =0
+#define opEquality         26 // ==
+#define opInterval         27 // >=<  left-inclusive interval check
+#define opBitShiftR        28 // >>.  unsigned right bit shift
+#define opGTZero           29 // >0   greater than zero
+#define opGTEQ             30 // >=
+#define opShiftR           31 // >>   shift right, e.g. an iterator
+#define opGreaterTh        32 // >
+#define opNullCoalesce     33 // ?:   null coalescing operator
+#define opQuestionMark     34 // ?    nullable type operator
+#define opUnused           35 // @    unused yet. await?
+#define opBitwiseXor       36 // ^.   bitwise XOR
+#define opExponent         37 // ^    exponentiation
+#define opBitwiseOr        38 // ||.  bitwise or
+#define opBoolOr           39 // ||   logical or
+                            
+const Int standardOperatorsLength = 54; // length of the operator part above
+
+// The :standardText prepended to all source code inputs and the hash table to provide a built-in
+// string set. Ors' reserved words must be at the start and sorted lexicographically.
+// Also they must agree with the "standardStr" in ors.internal.h
+
+const Byte standardStringLens[] = {
+     5, 6, 5, 5, 8,
+     2, 4, 3, 4, 5,
+     3, 2, 4, 6, 5,
+     3, 6, 5, 4, 3,
+     // reserved words end here
+     3, 4, 6, 4, 3, // Str(ing)
+     4, 1, 1, 5, 1, // D(ict)
+     3, 4, 2, 7, 3, // len
+     3, 2, 2, 5, 8, // printErr
+     7, 6, 1, 1, // U
+#ifdef TEST
+     3, 3, 5
+#endif
+};
+
+static Int standardOffsets[sizeof(standardStringLens)]; // filled in by "populateStandardOffsets"
+
+const Int standardKeywords[] = {
+    tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue,
+    tokScope,     tokEach,    tokElseIf,  tokElse,    keywFalse,
+    tokFor,       tokIf,      tokImpl,    tokImport,  tokMatch,
+    tokMisc,      tokReturn,  tokTrait,   keywTrue,   tokTry
+};
+
+
 //}}}
 //{{{ Operators
-
+"!.!=##$%&&.*:+:-:/:/|<<.<0<=<>===0>=<=><=>>.>0?:@^.||."
 private OpDef OPERATORS[countOperators] = {
-    { .arity=1, .bytes={ aExclamation, aDot, 0, 0 } },   // !.
+    { .arity=1, .bytes={ aExclamation, aDot, 0, 0 }, .loc =  },   // !.
     { .arity=2, .bytes={ aExclamation, aEqual, 0, 0 } }, // !=
     { .arity=1, .bytes={ aExclamation, 0, 0, 0 } },      // !
     { .arity=1, .bytes={ aSharp, aSharp, 0, 0 }, .overloadable=true }, // ##
@@ -116,6 +213,8 @@ private OpDef OPERATORS[countOperators] = {
     { .arity=2, .bytes={ aPipe, aPipe, aDot, 0} }, // ||.
     { .arity=2, .bytes={ aPipe, aPipe, 0, 0}, .assignable=true } // ||
 }; // real operator overloads filled in by "buildOperators"
+
+
 
 const int operatorStartSymbols[13] = {
     // Symbols an operator may start with. "-" is absent because it's handled by lexMinus,
@@ -1140,6 +1239,9 @@ private Int minPositiveOf(Int count, ...) { //:minPositiveOf
 }
 
 
+#d
+
+
 //}}}
 
 //}}}
@@ -1312,55 +1414,6 @@ void dbgTypeFrames(StackTypeFrame* st);
 //}}}
 //{{{ Lexer
 //{{{ LexerConstants
-
-const Byte maxInt[19] = {
-    9, 2, 2, 3, 3, 7, 2, 0, 3, 6,
-    8, 5, 4, 7, 7, 5, 8, 0, 7
-};
-// The ASCII notation for the highest signed 64-bit integer abs value, 9_223_372_036_854_775_807
-
-const Byte maximumPreciselyRepresentedFloatingInt[16] = {
-    9, 0, 0, 7, 1, 9, 9, 2, 5, 4, 7, 4, 0, 9, 9, 2 };
-// 2**53
-
-
-const char standardText[] = "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
-                            "ifimplimportmatchpubreturntraittruetry"
-                            // reserved words end here; what follows may have arbitrary order
-                            "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2print"
-                            "printErrmath:pimath:eTU"
-#ifdef TEST
-                            "foobarinner"
-#endif
-                            ;
-// The :standardText prepended to all source code inputs and the hash table to provide a built-in
-// string set. Ors' reserved words must be at the start and sorted lexicographically.
-// Also they must agree with the "standardStr" in ors.internal.h
-
-const Byte standardStringLens[] = {
-     5, 6, 5, 5, 8,
-     2, 4, 3, 4, 5,
-     3, 2, 4, 6, 5,
-     3, 6, 5, 4, 3,
-     // reserved words end here
-     3, 4, 6, 4, 3, // Str(ing)
-     4, 1, 1, 5, 1, // D(ict)
-     3, 4, 2, 7, 3, // len
-     3, 2, 2, 5, 8, // printErr
-     7, 6, 1, 1, // U
-#ifdef TEST
-     3, 3, 5
-#endif
-};
-
-static Int standardOffsets[sizeof(standardStringLens)]; // filled in by "populateStandardOffsets"
-
-const Int standardKeywords[] = {
-    tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue,
-    tokScope,     tokEach,    tokElseIf,  tokElse,    keywFalse,
-    tokFor,       tokIf,      tokImpl,    tokImport,  tokMatch,
-    tokMisc,      tokReturn,  tokTrait,   keywTrue,   tokTry
-};
 
 
 StandardText getStandardTextLength(void) { //:getStandardTextLength
@@ -2471,7 +2524,7 @@ private void setOperatorsLengths() { //:setOperatorsLengths
 }
 
 private void populateStandardOffsets() { //:populateStandardOffsets
-    Int curr = 0;
+    Int curr = standardOperatorsLength;
     for (Int j = 0; j < sizeof(standardStringLens); j++) {
         standardOffsets[j] = curr;
         curr += standardStringLens[j];
@@ -3620,6 +3673,7 @@ testable Compiler* createProtoCompiler(Arena* a) { //:createProtoCompiler
         .rawOverloads = createMultiAssocList(a),
         .a = a
     };
+    // operators are always active, and take up the initial chunk of stringTable
     memset(proto->activeBindings, 0xFF, 4*countOperators);
     createBuiltins(proto);
     return proto;
@@ -3905,7 +3959,7 @@ testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm
 
 private void buildStandardStrings(Compiler* lx) { //:buildStandardStrings
 // Inserts all strings from the standardText into the string table and the hash table
-// But first inserts a reservation for every operator symbol ("countOperators" nameIds in all,
+// But first inserts a reservation for every operator symbol (that's "countOperators" nameIds,
 // the lx->stringTable contains zeros in those places)
     for (Int j = 0; j < countOperators; j++) {
         push(0, lx->stringTable);
@@ -3922,7 +3976,6 @@ testable NameId stToNameId(Int a) { //:stToNameId
 // Converts a standard string to its nameId. Doesn't work for reserved words, obviously
     return a + countOperators;
 }
-
 
 private Unt stToFullName(Int sta, Compiler* cm) { //:stToFullName
 // Converts a standard string to its nameId. Doesn't work for reserved words, obviously
@@ -4055,16 +4108,10 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opRefEquality,  boolOfIntInt, cm); // dummy
     buildOperator(opIsNull,       boolOfIntInt, cm); // dummy
     buildOperator(opEquality,     boolOfIntInt, cm);
-    buildOperator(opIntervalBo,   boolOfIntIntInt, cm); // dummy
-    buildOperator(opIntervalBo,   boolOfFlFlFl, cm); // dummy
-    buildOperator(opIntervalR,    boolOfIntIntInt, cm); // dummy
-    buildOperator(opIntervalR,    boolOfFlFlFl, cm); // dummy
-    buildOperator(opIntervalL,    boolOfIntIntInt, cm); // dummy
-    buildOperator(opIntervalL,    boolOfFlFlFl, cm); // dummy
+    buildOperator(opInterval,    boolOfIntIntInt, cm); // dummy
+    buildOperator(opInterval,    boolOfFlFlFl, cm); // dummy
     buildOperator(opBitShiftR,    boolOfBoolBool, cm); // dummy
     buildOperator(opGTZero,       boolOfIntInt, cm);
-    buildOperator(opIntervalEx,   boolOfIntIntInt, cm); // dummy
-    buildOperator(opIntervalEx,   boolOfFlFlFl, cm); // dummy
     buildOperator(opGTEQ,         boolOfIntInt, cm);
     buildOperator(opGTEQ,         boolOfFlFl, cm);
     buildOperator(opGTEQ,         boolOfStrStr, cm);
