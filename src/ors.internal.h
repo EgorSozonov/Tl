@@ -456,11 +456,12 @@ typedef enum { //:Emit
     emitPrefix,           // normal native names
     emitPrefixShielded,   // this is a native name that needs to be shielded from target
                           // reserved word (by appending a "_")
-    emitPrefixHost,   // prefix names that are emitted differently than in source code
+    emitPrefixHost,       // prefix names that are emitted differently than in source code
     emitInfix,            // infix operators like "+" that match between source code and target
-    emitInfixHost,    // infix operators that have a separate external name
+    emitInfixHost,        // infix operators that have a separate external name
     emitField,            // emitted as field accesses, like ".length"
-    emitInfixDot,         // emitted as a "dot-call", like ".toString()"
+    emitFieldHost,        // emitted as field accesses, like ".length"
+    emitInfixDot,         // host-strings emitted as a "dot-call", like ".toString()"
     emitNop               // for unary operators that don't need to be emitted, like ","
 } Emit;
 
@@ -666,13 +667,6 @@ typedef struct { // :TypeHeader
 //}}}
 //{{{ Code generator
 
-typedef struct { //:CgExpInterval
-    Int start; // starting node ind in the AST
-    Int end; // exclusive
-    Int size; // the size in memory (units of 4 bytes), either of an operand, or of a call result
-} CgExpInterval;
-
-
 typedef struct Codegen Codegen;
 typedef void CgFunc(Int, Arr(Node), Arr(SourceLoc), Codegen*);
 typedef void CgClosingFunc(Codegen*);
@@ -687,60 +681,6 @@ typedef struct { //:CgCall
 
 
 DEFINE_STACK_HEADER(CgCall)
-
-// Host string indices. Must agree in order with "externalText" and "cgOffsets"
-#define hostCase         0
-#define hostClass        1
-#define hostConst        2
-#define hostDebugger     3
-#define hostDefault      4
-#define hostDelete       5
-#define hostExport       6
-#define hostExtends      7
-#define hostFinally      8
-#define hostFunction     9
-#define hostIn          10
-#define hostInstanceof  11
-#define hostLet         12
-#define hostNew         13
-#define hostNull        14
-#define hostStatic      15
-#define hostSuper       16
-#define hostSwitch      17
-#define hostThis        18
-#define hostThrow       19
-#define hostTypeof      20
-#define hostVar         21
-#define hostVoid        22
-#define hostWhile       23
-#define hostWith        24
-#define hostYield       25
-#define hostBreak       26
-#define hostCatch       27
-#define hostContinue    28
-#define hostDo          29
-#define hostElse        30
-#define hostFalse       31
-#define hostFor         32
-#define hostIf          33
-#define hostImport      34
-#define hostReturn      35
-#define hostTrue        36
-#define hostTry         37
-#define hostToString    38
-#define hostMathPow     39
-#define hostMathPi      40
-#define hostMathE       41
-#define hostNotEquals   42
-#define hostLength      43
-#define hostMathAbs     44
-#define hostAnd         45
-#define hostOr          46
-#define hostEquals      47
-#define hostAlert       48
-#define hostPrint       49
-#define hostPrintErr    50
-
 
 
 //}}}

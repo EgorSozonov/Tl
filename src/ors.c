@@ -202,6 +202,103 @@ private CgFunc* CODEGEN_TABLE[countSpanForms]; // filled in by "tabulateCodegen"
 private CgClosingFunc* CODEGEN_CLOSING_TABLE[countSpanForms]; // filled in by "tabulateCodegen"
 private NameLoc SHIELD_HASHTABLE[cgCountToShield]; // filled in by "tabulateShield"
 
+const char hostText[] = "caseclassconstdebuggerdefaultdeleteexportextendsfinallyfunctionininstanceof"
+    "letnewnullstaticsuperswitchthisthrowtypeofvarvoidwhilewithyield"
+    // shield words end here
+    "breakcatchcontinuedoelsefalseforifimportreturntruetry"
+    "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertconsole.logconsole.error"
+    "~&*+-/<<>>"
+    "compare_Intcompare_Dblcompare_StrltZero_IntltZero_DblshiftLeft_IntshiftRight_Int"
+    "isNull_refinterval_Intinterval_DblgtZero_IntgtZero_DblbitwiseXor_bitwiseOr_nullCoalesce_";
+
+const Byte hostTextLens[] = {
+    4, 5, 5, 8, 7, 6, 6, 7, 7, 8, 2, 10,
+    3, 3, 4, 6, 5, 6, 4, 5, 6, 3, 4,  5, 4, 5, // reserved words end here
+    5, 5, 8, 2, 4, 5, 3, 2, 6, 6, 4,  3,
+    8, 8, 7, 6, 3, 6, 8, 2, 2, 3, 5, 11, 13,
+    1, 1, 1, 1, 1, 1, 2, 2,
+    11, 11, 11, 10, 10, 13, 14,
+    10, 12, 12, 10, 10, 11, 10, 13
+};
+
+static Int hostOffsets[sizeof(hostTextLens)]; // filled in by "populateHostOffsets"
+
+// Host string indices. Must agree in order with "hostTextLens" and "hostOffsets"
+#define hostCase         0
+#define hostClass        1
+#define hostConst        2
+#define hostDebugger     3
+#define hostDefault      4
+#define hostDelete       5
+#define hostExport       6
+#define hostExtends      7
+#define hostFinally      8
+#define hostFunction     9
+#define hostIn          10
+#define hostInstanceof  11
+#define hostLet         12
+#define hostNew         13
+#define hostNull        14
+#define hostStatic      15
+#define hostSuper       16
+#define hostSwitch      17
+#define hostThis        18
+#define hostThrow       19
+#define hostTypeof      20
+#define hostVar         21
+#define hostVoid        22
+#define hostWhile       23
+#define hostWith        24
+#define hostYield       25
+#define hostBreak       26
+#define hostCatch       27
+#define hostContinue    28
+#define hostDo          29
+#define hostElse        30
+#define hostFalse       31
+#define hostFor         32
+#define hostIf          33
+#define hostImport      34
+#define hostReturn      35
+#define hostTrue        36
+#define hostTry         37
+#define hostToString    38
+#define hostMathPow     39
+#define hostMathPi      40
+#define hostMathE       41
+#define hostNotEquals   42
+#define hostLength      43
+#define hostMathAbs     44
+#define hostAnd         45
+#define hostOr          46
+#define hostRefEquality 47
+#define hostAlert       48
+#define hostPrint       49
+#define hostPrintErr    50
+#define hostTilde       51
+#define hostAmpersand   52
+#define hostAsterisk    53
+#define hostPlus        54
+#define hostMinus       55
+#define hostDivBy       56
+#define hostBitShiftL   57
+#define hostBitShiftR   58
+#define hostCompareInt  59
+#define hostCompareDbl  60
+#define hostCompareStr  61
+#define hostLtZeroInt   62
+#define hostLtZeroDbl   63
+#define hostShiftLeft   64
+#define hostShiftRight  65
+#define hostIsNull      66
+#define hostIntervalInt 67
+#define hostIntervalDbl 68
+#define hostGtZeroInt   69
+#define hostGtZeroDbl   70
+#define hostBitwiseXor  71
+#define hostBitwiseOr   72
+#define hostNullCoalesce 73
+
 //}}}
 //}}}
 //{{{ Utils
@@ -3989,9 +4086,10 @@ private void buildOperator(Int operId, TypeId typeId, Emit emit, Compiler* cm) {
 }
 
 
-private void buildHostOperator(Int operId, TypeId typeId, Emit emit, NameLoc name, Compiler* cm) {
+private void buildHostOperator(Int operId, TypeId typeId, Emit emit, Int hostInd, Compiler* cm) {
 //:buildOperator Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
+    NameLoc name = (hostTextLens[hostInd] << 24) + hostOffsets[hostInd];
     pushInentities((Entity){ 
             .typeId = typeId, .name = name, .class = classImmut, .emit = emitInfix }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
@@ -4022,69 +4120,71 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     TypeId flOfFlFl        = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     TypeId flOfFl          = addConcrFnType(1, (Int[]){ tokDouble, tokDouble}, cm);
     
-    buildHostOperator(opBitwiseNeg, intOfInt, emitPrefixHost, "~", cm); // !. dummy
+    buildHostOperator(opBitwiseNeg, intOfInt, emitPrefixHost, hostTilde, cm); // !.
     buildOperator(opNotEqual,      boolOfIntInt, emitInfix, cm);
     buildOperator(opNotEqual,      boolOfFlFl, emitInfix, cm);
     buildOperator(opNotEqual,      boolOfStrStr, emitInfix, cm);
     buildOperator(opBoolNeg,       boolOfBool, emitPrefix, cm);
-    buildHostOperator(opSize,      intOfStr, emitPrefixHost, "size", cm);
-    buildHostOperator(opSize,      intOfInt, emitPrefixHost, "size", cm);
-    buildHostOperator(opToString,  strOfInt, emitInfixDot, "toString", cm);
-    buildHostOperator(opToString,  strOfBool, emitInfixDot, "toString", cm);
-    buildHostOperator(opToString,  strOfFloat, emitInfixDot, "toString", cm);
+    buildHostOperator(opSize,      intOfStr, emitFieldHost, hostLength, cm);
+    buildHostOperator(opSize,      intOfInt, emitPrefixHost, hostMathAbs, cm);
+    buildHostOperator(opToString,  strOfInt, emitInfixDot, hostToString, cm);
+    buildHostOperator(opToString,  strOfBool, emitInfixDot, hostToString, cm);
+    buildHostOperator(opToString,  strOfFloat, emitInfixDot, hostToString, cm);
     buildOperator(opRemainder,     intOfIntInt, emitInfix, cm);
-    buildHostOperator(opBitwiseAnd, boolOfBoolBool, emitPrefixHost, "&&.", cm);
+    buildHostOperator(opBitwiseAnd, intOfIntInt, emitInfixHost, hostAmpersand, cm);
     buildOperator(opBoolAnd,       boolOfBoolBool, emitInfix, cm);
-    buildHostOperator(opTimesExt,  flOfFlFl, emitPrefixHost, cm); // dummy
+    buildHostOperator(opTimesExt,  flOfFlFl, emitPrefixHost, hostAsterisk, cm);
     buildOperator(opTimes,         intOfIntInt, emitInfix, cm);
     buildOperator(opTimes,         flOfFlFl, emitInfix, cm);
-    buildHostOperator(opPlusExt,   strOfStrStr, emitPrefixHost, cm); // dummy
+    buildHostOperator(opPlusExt,   strOfStrStr, emitPrefixHost, hostPlus, cm);
     buildOperator(opPlus,          intOfIntInt, emitInfix, cm);
     buildOperator(opPlus,          flOfFlFl, emitInfix, cm);
     buildOperator(opPlus,          strOfStrStr, emitInfix, cm);
-    buildHostOperator(opMinusExt,  intOfIntInt, emitPrefixHost, cm); // dummy
+    buildHostOperator(opMinusExt,  intOfIntInt, emitPrefixHost, hostMinus, cm);
     buildOperator(opMinus,         intOfIntInt, emitInfix, cm);
     buildOperator(opMinus,         flOfFlFl, emitInfix, cm);
-    buildHostOperator(opDivByExt,  intOfIntInt, emitPrefixHost, cm); // dummy
-    buildHostOperator(opIntersect, intOfIntInt, emitPrefixHost, cm); // dummy
+    buildHostOperator(opDivByExt,  intOfIntInt, emitPrefixHost, hostDivBy, cm);
+    buildHostOperator(opIntersect, intOfIntInt, emitPrefixHost, hostAmpersand, cm); // dummy
     buildOperator(opDivBy,         intOfIntInt, emitInfix, cm);
     buildOperator(opDivBy,         flOfFlFl, emitInfix, cm);
-    buildHostOperator(opBitShiftL, intOfFlFl, emitInfixHost, cm);  // dummy
-    buildHostOperator(opLTZero,    boolOfIntInt, emitPrefixHost, cm);
-    buildHostOperator(opShiftL,    intOfIntInt, emitInfixHost, cm); // dummy
+    buildHostOperator(opBitShiftL, intOfFlFl, emitInfixHost, hostBitShiftL, cm);
+    buildHostOperator(opLTZero,    boolOfIntInt, emitPrefixHost, hostLtZeroInt, cm);
+    buildHostOperator(opLTZero,    boolOfFlFl, emitPrefixHost, hostLtZeroDbl, cm);
+    buildHostOperator(opShiftL,    intOfIntInt, emitInfixHost, hostShiftLeft, cm);
     buildOperator(opLTEQ,          boolOfIntInt, emitInfix, cm);
     buildOperator(opLTEQ,          boolOfFlFl, emitInfix, cm);
     buildOperator(opLTEQ,          boolOfStrStr, emitInfix, cm);
-    buildHostOperator(opComparator, intOfIntInt, emitPrefixHost, cm);  // dummy
-    buildHostOperator(opComparator, intOfFlFl, emitPrefixHost, cm);  // dummy
-    buildHostOperator(opComparator, intOfStrStr, emitPrefixHost, cm);  // dummy
-    buildOperator(opLessTh,        boolOfIntInt, emitInfix, cm);
-    buildOperator(opLessTh,        boolOfFlFl, emitInfix, cm);
-    buildOperator(opLessTh,        boolOfStrStr, emitInfix, cm);
-    buildHostOperator(opRefEquality,   boolOfIntInt, emitPrefixHost, cm); // dummy
-    buildHostOperator(opIsNull,        boolOfIntInt, emitPrefixHost, cm); // dummy
-    buildOperator(opEquality,      boolOfIntInt, emitInfix, cm);
-    buildHostOperator(opInterval,      boolOfIntIntInt, emitPrefixHost, cm); // dummy
-    buildHostOperator(opInterval,      boolOfFlFlFl, emitPrefixHost, cm); // dummy
-    buildHostOperator(opBitShiftR,     boolOfBoolBool, emitInfixHost, cm); // dummy
-    buildHostOperator(opGTZero,        boolOfIntInt, emitPrefixHost, cm);
-    buildOperator(opGTEQ,          boolOfIntInt, emitInfix, cm);
-    buildOperator(opGTEQ,          boolOfFlFl, emitInfix, cm);
-    buildOperator(opGTEQ,          boolOfStrStr, emitInfix, cm);
-    buildHostOperator(opShiftR,        intOfIntInt, emitInfixHost, cm);
-    buildOperator(opGreaterTh,     boolOfIntInt, emitInfix, cm);
-    buildOperator(opGreaterTh,     boolOfFlFl, emitInfix, cm);
-    buildOperator(opGreaterTh,     boolOfStrStr, emitInfix, cm);
-    buildHostOperator(opNullCoalesce,  intOfIntInt, emitPrefixHost, cm); // dummy
-    buildHostOperator(opQuestionMark,  intOfIntInt, emitPrefixHost, cm); // dummy
-    buildHostOperator(opBitwiseXor,    intOfIntInt, emitInfixHost, cm); // dummy
-    buildOperator(opExponent,      intOfIntInt, emitInfix, cm);
-    buildOperator(opExponent,      flOfFlFl, emitInfix, cm);
-    buildHostOperator(opUnused,        flOfFlFl, emitPrefixHost, cm); // a dummy type
-    buildHostOperator(opBitwiseOr, intOfIntInt, emitInfixHost, cm);
-    buildOperator(opBoolOr,       flOfFl, emitInfix, cm); // dummy
-    buildHostOperator(opGetElem,      flOfFl, "[", cm); // dummy
-    buildHostOperator(opGetElemPtr,   flOfFl, "[", cm); // dummy
+    buildHostOperator(opComparator,    intOfIntInt, emitPrefixHost, hostCompareInt, cm);
+    buildHostOperator(opComparator,    intOfFlFl, emitInfixHost, hostCompareDbl, cm);
+    buildHostOperator(opComparator,    intOfStrStr, emitPrefixHost, hostCompareStr, cm);
+    buildOperator(opLessTh,            boolOfIntInt, emitInfix, cm);
+    buildOperator(opLessTh,            boolOfFlFl, emitInfix, cm);
+    buildOperator(opLessTh,            boolOfStrStr, emitInfix, cm);
+    buildHostOperator(opRefEquality,   boolOfIntInt, emitPrefixHost, hostRefEquality, cm);
+    buildHostOperator(opIsNull,        boolOfIntInt, emitPrefixHost, hostIsNull, cm);
+    buildOperator(opEquality,          boolOfIntInt, emitInfix, cm);
+    buildHostOperator(opInterval,      boolOfIntIntInt, emitPrefixHost, hostIntervalInt, cm);
+    buildHostOperator(opInterval,      boolOfFlFlFl, emitPrefixHost, hostIntervalDbl, cm);
+    buildHostOperator(opBitShiftR,     boolOfBoolBool, emitInfixHost, hostBitShiftR, cm);
+    buildHostOperator(opGTZero,        boolOfIntInt, emitPrefixHost, hostGtZeroInt, cm);
+    buildHostOperator(opGTZero,        boolOfFlFl, emitPrefixHost, hostGtZeroDbl, cm);
+    buildOperator(opGTEQ,              boolOfIntInt, emitInfix, cm);
+    buildOperator(opGTEQ,              boolOfFlFl, emitInfix, cm);
+    buildOperator(opGTEQ,              boolOfStrStr, emitInfix, cm);
+    buildHostOperator(opShiftR,        intOfIntInt, emitInfixHost, hostShiftRight, cm);
+    buildOperator(opGreaterTh,         boolOfIntInt, emitInfix, cm);
+    buildOperator(opGreaterTh,         boolOfFlFl, emitInfix, cm);
+    buildOperator(opGreaterTh,         boolOfStrStr, emitInfix, cm);
+    buildHostOperator(opNullCoalesce,  intOfIntInt, emitPrefixHost, hostNullCoalesce, cm);
+    buildHostOperator(opQuestionMark,  intOfIntInt, emitPrefixHost, hostCase, cm); // dummy, type
+    buildHostOperator(opBitwiseXor,    intOfIntInt, emitInfixHost, hostBitwiseXor, cm);
+    buildOperator(opExponent,          intOfIntInt, emitInfix, cm);
+    buildOperator(opExponent,          flOfFlFl, emitInfix, cm);
+    buildHostOperator(opUnused,        flOfFlFl, emitPrefixHost, hostCase, cm); // unused
+    buildHostOperator(opBitwiseOr,     intOfIntInt, emitInfixHost, hostBitwiseOr, cm);
+    buildOperator(opBoolOr,            flOfFl, emitInfix, cm);
+    buildHostOperator(opGetElem,       flOfFl, emitPrefixHost, hostCase, cm); // dummy
+    buildHostOperator(opGetElemPtr,    flOfFl, emitPrefixHost, hostCase, cm); // dummy
 }
 
 
@@ -5406,6 +5506,16 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 //{{{ Codegen
 //{{{ Definitions
 
+typedef struct { //:CgFrame
+    Unt tp : 6;
+    Int pl;
+    Int startNd;
+} CgFrame;
+
+DEFINE_STACK_HEADER(CgFrame)
+DEFINE_STACK(CgFrame)
+
+
 DEFINE_STACK(CgCall)
 DEFINE_STACK(BtCodegen) //:StackBtCodegen
 struct Codegen { //:Codegen
@@ -5416,32 +5526,20 @@ struct Codegen { //:Codegen
     Arr(char) output;
     StackCgCall* calls; // temporary stack for generating expressions
 
-    StackNode backtrack; // these "nodes" are modified from what is in the AST. .startBt = sentinelNode
+    StackCgFrame backtrack; // these "nodes" are modified from what is in the AST. .startBt = sentinelNode
     String* sourceCode;
     Compiler* cm;
     Arena* a;
 };
 
 
+
 //}}}
-//{{{ Host strings for codegen
+//{{{ Utils for codegen
 
-const char hostText[] = "caseclassconstdebuggerdefaultdeleteexportextendsfinallyfunctionininstanceof"
-    "letnewnullstaticsuperswitchthisthrowtypeofvarvoidwhilewithyield"
-    // shield words end here
-    "breakcatchcontinuedoelsefalseforifimportreturntruetry"
-    "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertconsole.logconsole.error";
-
-
-const Byte hostTextLens[] = {
-    4, 5, 5, 8, 7, 6, 6, 7, 7, 8, 2, 10,
-    3, 3, 4, 6, 5, 6, 4, 5, 6, 3, 4,  5, 4, 5, // reserved words end here
-    5, 5, 8, 2, 4, 5, 3, 2, 6, 6, 4,  3,
-    8, 8, 7, 6, 3, 6, 8, 2, 2, 3, 5, 11, 13
-};
-
-static Int hostOffsets[sizeof(hostTextLens)];
-
+private NameLoc nameOfSourceLoc(SourceLoc loc) {
+    return ((Unt)(loc.lenBts) << 24) + (Unt)(loc.startBt & LOWER24BITS);
+}
 
 testable NameLoc nameOfHost(Int strId) { //:nameOfHost
 // Builds a text location for a host text for codegen
@@ -5449,6 +5547,13 @@ testable NameLoc nameOfHost(Int strId) { //:nameOfHost
     Int nameInd = strId + countOperators;
     return (NameId)(((Unt)length << 24) + (Unt)(nameInd));
 }
+
+//}}}
+//{{{ Core library
+
+static char coreLib[] = "function compare_Int(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }"
+    "function compare_Dbl(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }"
+;
 
 //}}}
 //{{{ Codegen main
@@ -5478,7 +5583,7 @@ private void writeBytes(Byte* ptr, Int len, Codegen* cg) { //:writeBytes
 }
 
 
-private void writeName(NameLoc loc, Codegen* cg) { //:writeHostName
+private void writeName(NameLoc loc, Codegen* cg) { //:writeName
     Int len = loc >> 24;
     ensureBufferLength(len + 10, cg);
     memcpy(cg->output + cg->len, cg->sourceCode->cont + (loc & LOWER24BITS), len);
@@ -5494,7 +5599,7 @@ private void writeHostName(NameLoc loc, Codegen* cg) { //:writeHostName
 }
 
 
-private void writeConst(Int indConst, Codegen* cg) { //:writeFromExternal
+private void writeConst(Int indConst, Codegen* cg) { //:writeConst
 // Write a constant from source code to codegen
     Int len = hostTextLens[indConst];
     ensureBufferLength(len, cg);
@@ -5503,9 +5608,9 @@ private void writeConst(Int indConst, Codegen* cg) { //:writeFromExternal
 }
 
 
-private void writeConstWithSpace(Int indConst, Codegen* cg) { //:writeFromExternalWithSpace
+private void writeConstWithSpace(Int indConst, Codegen* cg) { //:writeConstWithSpace
 // Write a constant to codegen and add a space after it
-    Int len = hostOffsets[indConst + 1] - hostOffsets[indConst];
+    const Int len = hostTextLens[indConst];
     ensureBufferLength(len, cg); // no need for a "+ 1", for the function automatically ensures 10
                                  // extra bytes
     memcpy(cg->output + cg->len, hostText + hostOffsets[indConst], len);
@@ -5549,6 +5654,8 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) { //:writeExprPr
     if (top->countArgs != 1) {
         return;
     }
+    Int startBt = top->name & LOWER24BITS;
+    Int len = top->name >> 24;
     switch (top->emit) {
     case emitPrefix:
         writeName(top->name, cg); return;
@@ -5560,16 +5667,16 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) { //:writeExprPr
         writeChar(aUnderscore, cg); return;
     case emitInfix:
         writeChar(aSpace, cg);
-        writeBytes(cg->sourceCode->cont + top->startInd, top->length, cg);
+        writeBytes(cg->sourceCode->cont + startBt, len, cg);
         writeChar(aSpace, cg); return;
     case emitInfixHost:
         writeChar(aSpace, cg);
-        writeConst(top->startInd, cg);
+        writeHostName(top->name, cg);
         writeChar(aSpace, cg); return;
     case emitInfixDot:
         writeChar(aParenRight, cg);
         writeChar(aDot, cg);
-        writeConst(top->startInd, cg);
+        writeHostName(top->name, cg);
         writeChar(aParenLeft, cg); return;
     }
 }
@@ -5629,16 +5736,16 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
             }
             CgCall new = (ent.emit == emitPrefix || ent.emit == emitInfix)
                         ? (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0,
-                            .startInd = loc.startBt, .length = loc.lenBts }
+                                   .name = nameOfSourceLoc(loc) }
                         : (CgCall){.emit = ent.emit, .arity = n.pl2, .countArgs = 0,
-                                   .startInd = ent.name };
+                                   .name = ent.name };
 
             if (n.pl2 == 0) { // 0 arity
                 switch (ent.emit) {
                 case emitPrefix:
                     writeBytesFromSource(loc, cg); break;
-                case emitPrefixExternal:
-                    writeConst(ent.externalNameId, cg); break;
+                case emitPrefixHost:
+                    writeHostName(ent.name, cg); break;
                 case emitPrefixShielded:
                     writeBytesFromSource(loc, cg);
                     writeChar(aUnderscore, cg); break;
@@ -5647,7 +5754,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
                     throwExcInternal(iErrorZeroArityFuncWrongEmit, cg->cm);
 #endif
                 }
-                writeChars(cg, ((byte[]){aParenLeft, aParenRight}));
+                writeChars(cg, ((Byte[]){aParenLeft, aParenRight}));
                 cg->i += 1;
                 continue;
             }
@@ -5655,8 +5762,8 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
             case emitPrefix:
                 writeBytesFromSource(loc, cg);
                 new.needClosingParen = true; break;
-            case emitPrefixExternal:
-                writeConst(ent.externalNameId, cg);
+            case emitPrefixHost:
+                writeHostName(ent.name, cg);
                 new.needClosingParen = true; break;
             case emitPrefixShielded:
                 writeBytesFromSource(loc, cg);
@@ -5665,18 +5772,18 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
             case emitField:
                 new.needClosingParen = false; break;
             default:
-                new.needClosingParen = cg->calls->length > 0;
+                new.needClosingParen = cg->calls->len > 0;
             }
             if (new.needClosingParen) {
                 writeChar(aParenLeft, cg);
             }
             pushCgCall(new, cg->calls);
         } else {
-            CgCall* top = cg->calls->cont + (cg->calls->length - 1);
-            if (top->emit != emitInfix && top->emit != emitInfixExternal && top->countArgs > 0) {
-                writeChars(cg, ((byte[]){aComma, aSpace}));
+            CgCall* top = cg->calls->cont + (cg->calls->len - 1);
+            if (top->emit != emitInfix && top->emit != emitInfixHost && top->countArgs > 0) {
+                writeChars(cg, ((Byte[]){aComma, aSpace}));
             }
-            writeExprOperand(n, top->countArgs, cg);
+            writeExprOperand(n, top->countArgs, loc, cg);
             ++top->countArgs;
             writeExprProcessFirstArg(top, cg);
             while (top->countArgs == top->arity) {
@@ -5687,7 +5794,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
                 if (!hasValuesCgCall(cg->calls)) {
                     break;
                 }
-                CgCall* second = cg->calls->cont + (cg->calls->length - 1);
+                CgCall* second = cg->calls->cont + (cg->calls->len - 1);
                 ++second->countArgs;
                 writeExprProcessFirstArg(second, cg);
                 top = second;
@@ -5699,13 +5806,15 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
 }
 
 // Precondition: we are looking 1 past the nodExpr/singular node. Consumes all nodes of the expr
-private void writeExprInternal(Node nd, Arr(Node) nodes, Codegen* cg) {
+private void writeExprInternal(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
+    Node nd = nodes[ind];
+    SourceLoc loc = locs[ind];
     if (nd.tp <= topVerbatimType) {
-        writeBytes(cg->sourceCode->cont + nd.startBt, nd.lenBts, cg);
+        writeBytes(cg->sourceCode->cont + loc.startBt, loc.lenBts, cg);
     } else if (nd.tp == nodId) {
         writeId(nd, loc, cg);
     } else {
-        writeExprWorker(cg->i + nd.pl2, nodes, cg);
+        writeExprWorker(cg->i + nd.pl2, nodes, locs, cg);
     }
 #if SAFETY
     if(nd.tp != nodExpr) {
@@ -5724,22 +5833,23 @@ private void writeIndentation(Codegen* cg) { //:writeIndentation
 
 private void writeExpr(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeExpr
     writeIndentation(cg);
-    writeExprInternal(fr, nodes, cg);
-    writeChars(cg, ((byte[]){ aSemicolon, aNewline}));
+    writeExprInternal(ind, nodes, locs, cg);
+    writeChars(cg, ((Byte[]){ aSemicolon, aNewline}));
 }
 
 
 private void pushCgFrame(Node nd, Codegen* cg) { //:pushCgFrame
-    push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = cg->i + nd.pl2}), &cg->backtrack);
+    push(((CgFrame){.tp = nd.tp, .pl = nd.pl2, .startNd = cg->i + nd.pl2}), &cg->backtrack);
 }
 
 private void pushCgFrameWithSentinel(Node nd, Int sentinel, Codegen* cg) {
 //:pushCgFrameWithSentinel
-    push(((Node){.tp = nd.tp, .pl2 = nd.pl2, .startBt = sentinel}), &cg->backtrack);
+    push(((CgFrame){.tp = nd.tp, .pl = nd.pl2, .startNd = sentinel}), &cg->backtrack);
 }
 
 
 private void writeFn(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeFn
+    Node nd = nodes[ind];
     pushCgFrame(nd, cg);
     writeIndentation(cg);
     writeConstWithSpace(strFunction, cg);
@@ -6066,7 +6176,7 @@ private void tabulateCodegen() { //:tabulateCodegen
 }
 
 
-private void populateExternalOffsets() { //:populateExternalOffsets
+private void populateHostOffsets() { //:populateHostOffsets
     Int curr = 0;
     for (Int j = 0; j < sizeof(hostTextLens); j++) {
         hostOffsets[j] = curr;
@@ -6572,7 +6682,7 @@ Int orsInitCompiler() { //:orsInitCompiler
     tabulateLexer();
     tabulateParser();
     tabulateCodegen();
-    populateExternalOffsets();
+    populateHostOffsets();
     tabulateShield();
     return 0;
 }
