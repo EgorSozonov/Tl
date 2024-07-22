@@ -963,9 +963,9 @@ private StringDict* createStringDict(int initSize, Arena* a) {
 }
 
 
-private Unt hashCode(Byte* start, Int len) {
+private Unt hashCode(char* start, Int len) { //:hashCode
     Unt result = 5381;
-    Byte* p = start;
+    char* p = start;
     for (Int i = 0; i < len; i++) {
         result = ((result << 5) + result) + p[i]; // hash*33 + c
     }
@@ -994,7 +994,7 @@ private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, Unt hash, 
 }
 
 
-testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable,
+testable Int addStringDict(char* text, Int startBt, Int lenBts, Stackint32_t* stringTable,
                            StringDict* hm) { //:addStringDict
 // Unique'ing of symbols within source code
     Unt hash = hashCode(text + startBt, lenBts);
@@ -1035,7 +1035,8 @@ testable Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* st
 }
 
 
-testable Int getStringDict(Byte* text, String* strToSearch, Stackint32_t* stringTable, StringDict* hm) {
+testable Int getStringDict(char* text, String* strToSearch, Stackint32_t* stringTable, 
+        StringDict* hm) { //:getStringDict
 // Returns the index of a string within the string table, or -1 if it's not present
     Int lenBts = strToSearch->len;
     Unt hash = hashCode(strToSearch->cont, lenBts);
@@ -1572,7 +1573,7 @@ testable NameId nameOfStandard(Int strId) { //:nameOfStandard
 }
 
 
-private void skipSpaces(Arr(Byte) source, Compiler* lx) { //:skipSpaces
+private void skipSpaces(Arr(char) source, Compiler* lx) { //:skipSpaces
     while (lx->i < lx->stats.inpLength) {
         Byte currBt = CURR_BT;
         if (!isSpace(currBt)) {
@@ -1654,7 +1655,7 @@ private void addStatementSpan(Unt stmtType, Int startBt, Compiler* lx) {
 }
 
 
-private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* lx) {
+private void wrapInAStatementStarting(Int startBt, Arr(char) source, Compiler* lx) {
 //:wrapInAStatementStarting
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel == slScope) {
@@ -1666,7 +1667,7 @@ private void wrapInAStatementStarting(Int startBt, Arr(Byte) source, Compiler* l
 }
 
 
-private void wrapInAStatement(Arr(Byte) source, Compiler* lx) { //:wrapInAStatement
+private void wrapInAStatement(Arr(char) source, Compiler* lx) { //:wrapInAStatement
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel == slScope) {
             addStatementSpan(tokStmt, lx->i, lx);
@@ -1726,7 +1727,7 @@ private int64_t calcHexNumber(Compiler* lx) { //:calcHexNumber
 }
 
 
-private void hexNumber(Arr(Byte) source, Compiler* lx) { //:hexNumber
+private void hexNumber(Arr(char) source, Compiler* lx) { //:hexNumber
 // Lexes a hexadecimal numeric literal (integer or floating-point)
 // Examples of accepted expressions: 0xCAFE'BABE, 0xdeadbeef, 0x123'45A
 // Examples of NOT accepted expressions: 0xCAFE'babe, 0x'deadbeef, 0x123'
@@ -1760,7 +1761,7 @@ private void hexNumber(Arr(Byte) source, Compiler* lx) { //:hexNumber
 }
 
 
-private Int calcFloating(double* result, Int powerOfTen, Arr(Byte) source, Compiler* lx) {
+private Int calcFloating(double* result, Int powerOfTen, Arr(char) source, Compiler* lx) {
 //:calcFloating Parses the floating-point numbers using just the "fast path" of David Gay's
 // "strtod" function, extended to 16 digits.
 // I.e. it handles only numbers with 15 digits or 16 digits with the first digit not 9,
@@ -1829,7 +1830,7 @@ private double doubleOfLongBits(int64_t i) { //:doubleOfLongBits
 }
 
 
-private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) { //:decNumber
+private void decNumber(bool isNegative, Arr(char) source, Compiler* lx) { //:decNumber
 // Lexes a decimal numeric literal (integer or floating-point). Adds a token.
 // TODO: add support for the '1.23E4' format
     Int j = (isNegative) ? (lx->i + 1) : lx->i;
@@ -1886,7 +1887,7 @@ private void decNumber(bool isNegative, Arr(Byte) source, Compiler* lx) { //:dec
 }
 
 
-private void lexNumber(Arr(Byte) source, Compiler* lx) { //:lexNumber
+private void lexNumber(Arr(char) source, Compiler* lx) { //:lexNumber
     wrapInAStatement(source, lx);
     Byte cByte = CURR_BT;
     if (lx->i == lx->stats.inpLength - 1 && isDigit(cByte)) {
@@ -1919,7 +1920,7 @@ private void openPunctuation(Unt tType, Unt spanLevel, Int startBt, Compiler* lx
 
 
 private void lexElseElseIf(Unt reservedWordType, Int startBt,
-               Arr(Byte) source, Compiler* lx) { //:lexElseElseIf
+               Arr(char) source, Compiler* lx) { //:lexElseElseIf
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(bt->len >= 1, errCoreFormInappropriate)
     if (peek(bt).tp != tokIf) {
@@ -1941,7 +1942,7 @@ private void lexElseElseIf(Unt reservedWordType, Int startBt,
 
 
 private void lexSyntaxForm(Unt reservedWordType, Int startBt,
-                           Arr(Byte) source, Compiler* lx) { //:lexSyntaxForm
+                           Arr(char) source, Compiler* lx) { //:lexSyntaxForm
 // Lexer action for a paren-type or statement-type syntax form.
 // Precondition: we are looking at the character immediately after the keyword
     StackBtToken* bt = lx->lexBtrack;
@@ -1969,7 +1970,7 @@ private void lexSyntaxForm(Unt reservedWordType, Int startBt,
 }
 
 
-private bool wordChunk(Arr(Byte) source, Compiler* lx) { //:wordChunk
+private bool wordChunk(Arr(char) source, Compiler* lx) { //:wordChunk
 // Lexes a single chunk of a word, i.e. the characters between two minuses (or the whole word
 // if there are no minuses). Returns True if the lexed chunk was capitalized
     bool result = false;
@@ -2033,7 +2034,7 @@ private void closeStatement(Compiler* lx) { //:closeStatement
 }
 
 
-private void tryOpenAccessor(Arr(Byte) source, Compiler* lx) { //:tryOpenAccessor
+private void tryOpenAccessor(Arr(char) source, Compiler* lx) { //:tryOpenAccessor
 // Checks whether there is a `[` right after a word, in which case it's an accessor
     if (lx->i < lx->stats.inpLength && CURR_BT == aBracketLeft) { // `a[i][j]`
         openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
@@ -2053,7 +2054,7 @@ private void tryChangeParensToTypeCall(Compiler* lx) {
 
 
 private void wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
-                        bool wasCapitalized, Arr(Byte) source, Compiler* lx) { //:wordNormal
+                        bool wasCapitalized, Arr(char) source, Compiler* lx) { //:wordNormal
     Int lenBts = lx->i - realStartBt;
     Token newToken = (Token){ .tp = wordType, .pl1 = uniqueStringId,
                              .startBt = realStartBt, .lenBts = lenBts };
@@ -2073,7 +2074,7 @@ private void wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realS
 
 
 private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt,
-                          Arr(Byte) source, Compiler* lx) { //:wordReserved
+                          Arr(char) source, Compiler* lx) { //:wordReserved
     Int keywordTp = standardKeywords[wordId];
     if (keywordTp < firstSpanTokenType) {
         if (keywordTp == keywTrue) {
@@ -2099,7 +2100,7 @@ private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt
 }
 
 
-private void wordInternal(Unt wordType, Arr(Byte) source, Compiler* lx) { //:wordInternal
+private void wordInternal(Unt wordType, Arr(char) source, Compiler* lx) { //:wordInternal
 // Lexes a word (both reserved and identifier) according to Ors' rules.
 // Precondition: we are pointing at the first letter character of the word (i.e. past the possible
 // "." or ":")
@@ -2138,12 +2139,12 @@ private void wordInternal(Unt wordType, Arr(Byte) source, Compiler* lx) { //:wor
     }
 }
 
-private void lexWord(Arr(Byte) source, Compiler* lx) { //:lexWord
+private void lexWord(Arr(char) source, Compiler* lx) { //:lexWord
     wordInternal(tokWord, source, lx);
 }
 
 
-private void lexDot(Arr(Byte) source, Compiler* lx) { //:lexDot
+private void lexDot(Arr(char) source, Compiler* lx) { //:lexDot
 // The dot is a start of a field accessor or a function call
     VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT) && lx->tokens.len > 0,
         errUnexpectedToken);
@@ -2187,7 +2188,7 @@ private void lexAssignment(Int opType, Compiler* lx) { //:lexAssignment
 }
 
 
-private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
+private void lexColon(Arr(char) source, Compiler* lx) { //:lexColon
 // Handles keyword arguments ":asdf" and intros like param lists "(\\x Int : ...)"
     if (lx->i < lx->stats.inpLength - 1 && isLowercaseLetter(NEXT_BT)) {
         lx->i += 1; // CONSUME the ":"
@@ -2211,7 +2212,7 @@ private void lexColon(Arr(Byte) source, Compiler* lx) { //:lexColon
 }
 
 
-private void lexApostrophe(Arr(Byte) source, Compiler* lx) { //:lexApostrophe
+private void lexApostrophe(Arr(char) source, Compiler* lx) { //:lexApostrophe
 // Handles keyword arguments ":asdf" and param lists "{{x Int : ...}}"
     VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT), errUnexpectedToken)
     lx->i += 1; // CONSUME the "'"
@@ -2219,7 +2220,7 @@ private void lexApostrophe(Arr(Byte) source, Compiler* lx) { //:lexApostrophe
 }
 
 
-private void lexSemicolon(Arr(Byte) source, Compiler* lx) { //:lexSemicolon
+private void lexSemicolon(Arr(char) source, Compiler* lx) { //:lexSemicolon
     VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
     BtToken top = peek(lx->lexBtrack);
     VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline);
@@ -2234,7 +2235,7 @@ private void lexSemicolon(Arr(Byte) source, Compiler* lx) { //:lexSemicolon
 }
 
 
-private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
+private void lexTilde(Arr(char) source, Compiler* lx) { //:lexTilde
     const Int lastInd = lx->tokens.len - 1;
     VALIDATEL(lx->tokens.len > 0, errWordTilde)
     Token lastTk = lx->tokens.cont[lastInd];
@@ -2246,7 +2247,7 @@ private void lexTilde(Arr(Byte) source, Compiler* lx) { //:lexTilde
 }
 
 
-private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
+private void lexOperator(Arr(char) source, Compiler* lx) { //:lexOperator
     wrapInAStatement(source, lx);
 
     Byte firstSymbol = CURR_BT;
@@ -2259,8 +2260,8 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
     }
     while (k < countOperators && OPERATORS[k].firstSymbol == firstSymbol) {
         NameLoc opName = OPERATORS[k].name;
-        Byte* opByte = source + (opName & LOWER24BITS) + 1;
-        Byte* sentinel = opByte + (opName >> 24);
+        char* opByte = source + (opName & LOWER24BITS) + 1;
+        char* sentinel = opByte + (opName >> 24);
         if (opByte < sentinel && *opByte != secondSymbol) {
             k += 1;
             continue;
@@ -2293,7 +2294,7 @@ private void lexOperator(Arr(Byte) source, Compiler* lx) { //:lexOperator
 }
 
 
-private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
+private void lexEqual(Arr(char) source, Compiler* lx) { //:lexEqual
 // The humble "=" can be the definition statement or a comparison "=="
     checkPrematureEnd(2, lx);
     Byte nextBt = NEXT_BT;
@@ -2306,7 +2307,7 @@ private void lexEqual(Arr(Byte) source, Compiler* lx) { //:lexEqual
 }
 
 
-private void lexUnderscore(Arr(Byte) source, Compiler* lx) { //:lexUnderscore
+private void lexUnderscore(Arr(char) source, Compiler* lx) { //:lexUnderscore
     if ((lx->i < lx->stats.inpLength - 1) && NEXT_BT == aUnderscore) {
         pushIntokens((Token){ .tp = tokMisc, .pl1 = miscUnderscore, .pl2 = 2,
                      .startBt = lx->i - 1, .lenBts = 2 }, lx);
@@ -2319,7 +2320,7 @@ private void lexUnderscore(Arr(Byte) source, Compiler* lx) { //:lexUnderscore
 }
 
 
-private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
+private void lexNewline(Arr(char) source, Compiler* lx) { //:lexNewline
     pushInnewlines(lx->i, lx);
 
     lx->i += 1;     // CONSUME the LF
@@ -2332,7 +2333,7 @@ private void lexNewline(Arr(Byte) source, Compiler* lx) { //:lexNewline
 }
 
 
-private void lexComment(Arr(Byte) source, Compiler* lx) { //:lexComment
+private void lexComment(Arr(char) source, Compiler* lx) { //:lexComment
 // Ors separates between documentation comments (which live in meta info and are
 // spelt as "meta(`comment`)") and comments for, well, eliding text from code;
 // Elision comments are of the "//" form.
@@ -2344,7 +2345,7 @@ private void lexComment(Arr(Byte) source, Compiler* lx) { //:lexComment
 }
 
 
-private void lexMinus(Arr(Byte) source, Compiler* lx) { //:lexMinus
+private void lexMinus(Arr(char) source, Compiler* lx) { //:lexMinus
 // Handles the binary operator as well as the unary negation operator
     if (lx->i == lx->stats.inpLength - 1) {
         lexOperator(source, lx);
@@ -2365,7 +2366,7 @@ private void lexMinus(Arr(Byte) source, Compiler* lx) { //:lexMinus
 }
 
 
-private void lexDivBy(Arr(Byte) source, Compiler* lx) { //:lexDivBy
+private void lexDivBy(Arr(char) source, Compiler* lx) { //:lexDivBy
 // Handles the binary operator as well as the comments
     if (lx->i + 1 < lx->stats.inpLength && NEXT_BT == aDivBy) {
         lexComment(source, lx);
@@ -2375,7 +2376,7 @@ private void lexDivBy(Arr(Byte) source, Compiler* lx) { //:lexDivBy
 }
 
 
-private void lexParenLeft(Arr(Byte) source, Compiler* lx) { //:lexParenLeft
+private void lexParenLeft(Arr(char) source, Compiler* lx) { //:lexParenLeft
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
     if (NEXT_BT == aParenLeft) {
@@ -2389,7 +2390,7 @@ private void lexParenLeft(Arr(Byte) source, Compiler* lx) { //:lexParenLeft
 }
 
 
-private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
+private void lexParenRight(Arr(char) source, Compiler* lx) { //:lexParenRight
 // A closing parenthesis may close the following configurations of lexer backtrack:
 // 1. [scope stmt] - if it's just a scope nested within another scope or a function
 // 2. [coreForm stmt] - eg. if it's closing the function body
@@ -2433,7 +2434,7 @@ private void lexParenRight(Arr(Byte) source, Compiler* lx) { //:lexParenRight
 }
 
 
-private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) { //:lexCurlyLeft
+private void lexCurlyLeft(Arr(char) source, Compiler* lx) { //:lexCurlyLeft
 // Handles objects/maps/sets "{}"
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
@@ -2442,7 +2443,7 @@ private void lexCurlyLeft(Arr(Byte) source, Compiler* lx) { //:lexCurlyLeft
 }
 
 
-private void lexCurlyRight(Arr(Byte) source, Compiler* lx) { //:lexCurlyRight
+private void lexCurlyRight(Arr(char) source, Compiler* lx) { //:lexCurlyRight
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
@@ -2457,14 +2458,14 @@ private void lexCurlyRight(Arr(Byte) source, Compiler* lx) { //:lexCurlyRight
 
 
 
-private void lexBracketLeft(Arr(Byte) source, Compiler* lx) { //:lexBracketLeft
+private void lexBracketLeft(Arr(char) source, Compiler* lx) { //:lexBracketLeft
     wrapInAStatement(source, lx);
     openPunctuation(tokDataList, slSubexpr, lx->i, lx);
     lx->i += 1; // CONSUME the `[`
 }
 
 
-private void lexBracketRight(Arr(Byte) source, Compiler* lx) { //:lexBracketRight
+private void lexBracketRight(Arr(char) source, Compiler* lx) { //:lexBracketRight
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
@@ -2480,7 +2481,7 @@ private void lexBracketRight(Arr(Byte) source, Compiler* lx) { //:lexBracketRigh
 }
 
 
-private void lexPipe(Arr(Byte) source, Compiler* lx) { //:lexPipe
+private void lexPipe(Arr(char) source, Compiler* lx) { //:lexPipe
 // Closes the current statement and changes its type to tokIntro
     Int j = lx->i + 1;
     if (j < lx->stats.inpLength && NEXT_BT == aPipe) {
@@ -2492,7 +2493,7 @@ private void lexPipe(Arr(Byte) source, Compiler* lx) { //:lexPipe
 }
 
 
-private void lexSpace(Arr(Byte) source, Compiler* lx) { //:lexSpace
+private void lexSpace(Arr(char) source, Compiler* lx) { //:lexSpace
     lx->i += 1; // CONSUME the space
     while (lx->i < lx->stats.inpLength && isSpace(CURR_BT)) {
         lx->i += 1; // CONSUME a space
@@ -2500,7 +2501,7 @@ private void lexSpace(Arr(Byte) source, Compiler* lx) { //:lexSpace
 }
 
 
-private void lexStringLiteral(Arr(Byte) source, Compiler* lx) { //:lexStringLiteral
+private void lexStringLiteral(Arr(char) source, Compiler* lx) { //:lexStringLiteral
     wrapInAStatement(source, lx);
     Int j = lx->i + 1;
     for (; j < lx->stats.inpLength && source[j] != aBacktick; j++);
@@ -2510,11 +2511,11 @@ private void lexStringLiteral(Arr(Byte) source, Compiler* lx) { //:lexStringLite
 }
 
 
-private void lexUnexpectedSymbol(Arr(Byte) source, Compiler* lx) { //:lexUnexpectedSymbol
+private void lexUnexpectedSymbol(Arr(char) source, Compiler* lx) { //:lexUnexpectedSymbol
     throwExcLexer(errUnrecognizedByte);
 }
 
-private void lexNonAsciiError(Arr(Byte) source, Compiler* lx) { //:lexNonAsciiError
+private void lexNonAsciiError(Arr(char) source, Compiler* lx) { //:lexNonAsciiError
     throwExcLexer(errNonAscii);
 }
 
@@ -3740,7 +3741,7 @@ testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* 
 // with StandardText
     Compiler* lx = createLexerFromProto(sourceCode, proto, a);
     const Int inpLength = lx->stats.inpLength;
-    Arr(Byte) inp = lx->sourceCode->cont;
+    Arr(char) inp = lx->sourceCode->cont;
     VALIDATEL(inpLength > 0, "Empty input")
 
     // Main loop over the input
@@ -3949,7 +3950,7 @@ private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mer
     Arr(Int) types = cm->types.cont;
     StringDict* hm = cm->typesDict;
     const Int lenBts = lenInts*4;
-    Unt theHash = hashCode((Byte*)(types + startInd), lenBts);
+    Unt theHash = hashCode((char*)(types + startInd), lenBts);
     Int hashOffset = theHash % (hm->dictSize);
 
     if (*(hm->dict + hashOffset) == null) {
@@ -5576,7 +5577,7 @@ private void ensureBufferLength(Int additionalLength, Codegen* cg) { //:ensureBu
 }
 
 
-private void writeBytes(Byte* ptr, Int len, Codegen* cg) { //:writeBytes
+private void writeBytes(char* ptr, Int len, Codegen* cg) { //:writeBytes
     ensureBufferLength(len + 10, cg);
     memcpy(cg->output + cg->len, ptr, len);
     cg->len += len;
@@ -5609,7 +5610,7 @@ private void writeConst(Int indConst, Codegen* cg) { //:writeConst
 
 
 private void writeConstWithSpace(Int indConst, Codegen* cg) { //:writeConstWithSpace
-// Write a constant to codegen and add a space after it
+// Write a host constant to codegen and add a space after it
     const Int len = hostTextLens[indConst];
     ensureBufferLength(len, cg); // no need for a "+ 1", for the function automatically ensures 10
                                  // extra bytes
@@ -5838,24 +5839,24 @@ private void writeExpr(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* c
 }
 
 
-private void pushCgFrame(Node nd, Codegen* cg) { //:pushCgFrame
-    push(((CgFrame){.tp = nd.tp, .pl = nd.pl2, .startNd = cg->i + nd.pl2}), &cg->backtrack);
+private void openCgFrame(Node nd, Codegen* cg) { //:openCgFrame
+    pushCgFrame(((CgFrame){.tp = nd.tp, .pl = nd.pl2, .startNd = cg->i + nd.pl2}), &cg->backtrack);
 }
 
-private void pushCgFrameWithSentinel(Node nd, Int sentinel, Codegen* cg) {
-//:pushCgFrameWithSentinel
-    push(((CgFrame){.tp = nd.tp, .pl = nd.pl2, .startNd = sentinel}), &cg->backtrack);
+private void openCgFrameWithSentinel(Node nd, Int sentinel, Codegen* cg) {
+//:openCgFrameWithSentinel
+    pushCgFrame(((CgFrame){.tp = nd.tp, .pl = nd.pl2, .startNd = sentinel}), &cg->backtrack);
 }
 
 
 private void writeFn(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeFn
     Node nd = nodes[ind];
-    pushCgFrame(nd, cg);
+    SourceLoc loc = locs[ind];
+    openCgFrame(nd, cg);
     writeIndentation(cg);
-    writeConstWithSpace(strFunction, cg);
+    writeConstWithSpace(hostFunction, cg);
     Entity fnEnt = cg->cm->entities.cont[nd.pl1];
 
-    Node fnBinding = nodes[cg->i];
     writeBytesFromSource(loc, cg);
     if (fnEnt.emit == emitPrefixShielded) {
         writeChar(aUnderscore, cg);
@@ -5864,7 +5865,7 @@ private void writeFn(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg)
     Int sentinel = cg->i + nd.pl2;
     Int j = cg->i + 2; // +2 to skip the function binding node and nodScope
     if (nodes[j].tp == nodBinding) {
-        Node binding = nodes[j];
+        SourceLoc binding = locs[j];
         writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
         ++j;
     }
@@ -5873,42 +5874,42 @@ private void writeFn(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg)
     while (j < sentinel && nodes[j].tp == nodBinding) {
         writeChar(aComma, cg);
         writeChar(aSpace, cg);
-        Node binding = nodes[j];
+        SourceLoc binding = locs[j];
         writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
         ++j;
     }
     cg->i = j;
-    writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
+    writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
     cg->indentation += 4;
 }
 
 
 private void writeClosingFn(Codegen* cg) { //:writeClosingFn
     cg->indentation -= 4;
-    writeChars(cg, ((byte[]){aCurlyRight, aNewline, aNewline}));
+    writeChars(cg, ((Byte[]){aCurlyRight, aNewline, aNewline}));
 }
 
 
-private void writeDummy(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {}
+private void writeDummy(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {}
 
 private void writeClosingDummy(Codegen* cg) {}
 
 
-private void writeAssignmentWorker(Arr(Node) nodes, Codegen* cg) { //:writeAssignmentWorker
-// Pre-condition: we are looking at the binding node, 1 past the assignment node
-    Node binding = nodes[cg->i];
+private void writeAssignmentWorker(Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
+//:writeAssignmentWorker Pre-condition: we are looking at the binding node, 1 past the assignment node
+    SourceLoc loc = locs[cg->i];
 
-    writeBytes(cg->sourceCode->cont + binding.startBt, binding.lenBts, cg);
-    writeChars(cg, ((byte[]){aSpace, aEqual, aSpace}));
+    writeBytes(cg->sourceCode->cont + loc.startBt, loc.lenBts, cg);
+    writeChars(cg, ((Byte[]){aSpace, aEqual, aSpace}));
 
     ++cg->i; // CONSUME the binding node
     Node rightSide = nodes[cg->i];
     if (rightSide.tp == nodId) {
-        writeId(rightSide, cg);
+        writeId(rightSide, locs[cg->i], cg);
         ++cg->i; // CONSUME the id node on the right side of the assignment
     } else {
         ++cg->i; // CONSUME the expr/verbatim node
-        writeExprInternal(rightSide, nodes, cg);
+        writeExprInternal(cg->i - 1, nodes, locs, cg);
     }
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
@@ -5922,37 +5923,38 @@ private void writeAssignment(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Code
     writeIndentation(cg);
     Node binding = nodes[cg->i];
     Int class = cg->cm->entities.cont[binding.pl1].class;
-    if (class == classMutatedGuaranteed || class == classMutatedNullable) {
+    if (class == classMut || class == classPubMut) {
         writeConstWithSpace(hostLet, cg);
     } else {
         writeConstWithSpace(hostConst, cg);
     }
-    writeAssignmentWorker(nodes, cg);
+    writeAssignmentWorker(nodes, locs, cg);
 
     cg->i = sentinel; // CONSUME the whole assignment
 }
 
 
-private void writeReassignment(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) {
+private void writeReassignment(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
 //:writeReassignment
+    Node fr = nodes[ind];
     Int sentinel = cg->i + fr.pl2;
     writeIndentation(cg);
 
-    writeAssignmentWorker(nodes, cg);
+    writeAssignmentWorker(nodes, locs, cg);
 
     cg->i = sentinel; // CONSUME the whole reassignment
 }
 
 
-private void writeReturn(Int ind, Arr(Node) nodes, Arr(SourceLocs) locs, Codegen* cg) {
+private void writeReturn(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
 //:writeReturn
+    Node fr = nodes[ind];
     Int sentinel = cg->i + fr.pl2;
     writeIndentation(cg);
     writeConstWithSpace(hostReturn, cg);
 
-    Node rightSide = nodes[cg->i];
-    ++cg->i; // CONSUME the expr node
-    writeExprInternal(rightSide, nodes, cg);
+    cg->i += 1; // CONSUME the expr node
+    writeExprInternal(cg->i - 1, nodes, locs, cg);
 
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
@@ -5960,11 +5962,11 @@ private void writeReturn(Int ind, Arr(Node) nodes, Arr(SourceLocs) locs, Codegen
 }
 
 
-private void writeScope(Int ind, Arr(Node) nodes, Arr(SourceLocs) locs, Codegen* cg) { //:writeScope
+private void writeScope(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeScope
     writeIndentation(cg);
     writeChar(aCurlyLeft, cg);
     cg->indentation += 4;
-    pushCgFrame(nodes[ind], cg);
+    openCgFrame(nodes[ind], cg);
 }
 
 
@@ -5974,119 +5976,118 @@ private void writeClosingScope(Codegen* cg) { //:writeClosingScope
 }
 
 
-private void writeIf(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) { //:writeIf
-    if (!isEntry) {
-        return;
-    }
-    pushCgFrame(fr, cg);
+private void writeIf(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeIf
+    openCgFrame(nodes[ind], cg);
     writeIndentation(cg);
-    writeConstWithSpace(strIf, cg);
+    writeConstWithSpace(hostIf, cg);
     writeChar(aParenLeft, cg);
 
-    Node expression = nodes[cg->i];
     ++cg->i; // CONSUME the expression node for the first condition
-    writeExprInternal(expression, nodes, cg);
-    writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft}));
+    writeExprInternal(cg->i - 1, nodes, locs, cg);
+    writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft}));
 }
 
 
-private void writeIfClause(Node nd, bool isEntry, Arr(Node) nodes, Codegen* cg) { //:writeIfClause
-    if (isEntry) {
-        pushCgFrame(nd, cg);
+private void writeIfClause(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
+//:writeIfClause
+    Node nd = nodes[ind];
+    Int sentinel = ind + nd.pl2 + 1;
+    cg->indentation -= 4;
+    writeIndentation(cg);
+    writeChar(aCurlyRight, cg);
+    CgFrame top = peekCgFrame(&cg->backtrack);
+    Int ifSentinel = top.startNd;
+    if (ifSentinel == sentinel) {
         writeChar(aNewline, cg);
-        cg->indentation += 4;
+        return;
+    } else if (nodes[sentinel].tp == nodElseIf) {
+        // there is only the "else" clause after this clause
+        writeChar(aSpace, cg);
+        writeConstWithSpace(strElse, cg);
+        writeChar(aCurlyLeft, cg);
     } else {
-        Int sentinel = nd.startBt;
-        cg->indentation -= 4;
-        writeIndentation(cg);
-        writeChar(aCurlyRight, cg);
-        Node top = peek(&cg->backtrack);
-        Int ifSentinel = top.startBt;
-        if (ifSentinel == sentinel) {
-            writeChar(aNewline, cg);
-            return;
-        } else if (nodes[sentinel].tp == nodIfClause) {
-            // there is only the "else" clause after this clause
-            writeChar(aSpace, cg);
-            writeConstWithSpace(strElse, cg);
-            writeChar(aCurlyLeft, cg);
-        } else {
-            // there is another condition after this clause, so we write it out as an "else if"
-            writeChar(aSpace, cg);
-            writeConstWithSpace(strElse, cg);
-            writeConstWithSpace(strIf, cg);
-            writeChar(aParenLeft, cg);
-            cg->i = sentinel; // CONSUME ???
-            Node expression = nodes[cg->i];
-            ++cg->i; // CONSUME the expr node for the "else if" clause
-            writeExprInternal(expression, nodes, cg);
-            writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft}));
-        }
+        // there is another condition after this clause, so we write it out as an "else if"
+        writeChar(aSpace, cg);
+        writeConstWithSpace(strElse, cg);
+        writeConstWithSpace(strIf, cg);
+        writeChar(aParenLeft, cg);
+        cg->i = sentinel; // CONSUME ???
+        ++cg->i; // CONSUME the expr node for the "else if" clause
+        writeExprInternal(cg->i - 1, nodes, locs, cg);
+        writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft}));
     }
+}
+
+
+private void writeCloseIfClause(Codegen* cg) { //:writeCloseIfClause
+    pushCgFrame(((CgFrame){.tp = nodElseIf, .startNd = cg->i}), &cg->backtrack);
+    writeChar(aNewline, cg);
+    cg->indentation += 4;
 }
 
 
 private void writeLoopLabel(Int labelId, Codegen* cg) { //:writeLoopLabel
-    writeConst(strLo, cg);
+    writeConst(hostCase, cg);
     ensureBufferLength(14, cg);
     Int lenWritten = sprintf(cg->output + cg->len, "%d", labelId);
     cg->len += lenWritten;
 }
 
 
-private void writeWhile(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) { //:writeWhile
-    if (isEntry) {
-        if (fr.pl1 > 0) { // this loop requires a label
-            writeIndentation(cg);
-            writeLoopLabel(fr.pl1, cg);
-            writeChars(cg, ((byte[]){ aColon, aNewline }));
-        }
-        Int sentinel = cg->i + fr.pl2;
-        ++cg->i; // CONSUME the scope node immediately inside loop
-        if (nodes[cg->i].tp == nodAssignment) { // there is at least one assignment, so an extra nested scope
-            // noting in .pl1 that we have a two scopes
-            push(((Node){.tp = fr.tp, .pl1 = 1, .pl2 = fr.pl2, .startBt = sentinel}), &cg->backtrack);
-            writeIndentation(cg);
-            writeChar(aCurlyLeft, cg);
-            writeChar(aNewline, cg);
-
-            while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
-                ++cg->i; // CONSUME the assignment node
-                writeIndentation(cg);
-                writeConstWithSpace(strLet, cg);
-                writeAssignmentWorker(nodes, cg);
-            }
-        } else {
-            pushCgFrameWithSentinel(fr, sentinel, cg);
-        }
-
+private void writeFor(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeFor
+    Node fr = nodes[ind];
+    if (fr.pl1 > 0) { // this loop requires a label
         writeIndentation(cg);
-        writeConstWithSpace(strWhile, cg);
-        writeChar(aParenLeft, cg);
-        Node cond = nodes[cg->i + 1];
-        cg->i += 2; // CONSUME the loopCond node and expr/verbatim node
-        writeExprInternal(cond, nodes, cg);
-
-        writeChars(cg, ((byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
-        cg->indentation += 4;
-    } else {
-        cg->indentation -= 4;
-        writeIndentation(cg);
-        if (fr.pl1 > 0) {
-            writeChars(cg, ((byte[]){aCurlyRight, aCurlyRight, aNewline}));
-        } else {
-            writeChars(cg, ((byte[]){aCurlyRight, aNewline}));
-        }
+        writeLoopLabel(fr.pl1, cg);
+        writeChars(cg, ((Byte[]){ aColon, aNewline }));
     }
+    Int sentinel = cg->i + fr.pl2;
+    ++cg->i; // CONSUME the scope node immediately inside loop
+    if (nodes[cg->i].tp == nodAssignment) { // there is at least one assignment, so 
+                                            // an extra nested scope
+        // noting in .pl1 that we have a two scopes
+        pushCgFrame(((CgFrame){.tp = fr.tp, .pl = fr.pl2, .startNd = sentinel}),
+                &cg->backtrack);
+        writeIndentation(cg);
+        writeChar(aCurlyLeft, cg);
+        writeChar(aNewline, cg);
+
+        while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
+            ++cg->i; // CONSUME the assignment node
+            writeIndentation(cg);
+            writeConstWithSpace(hostLet, cg);
+            writeAssignmentWorker(nodes, locs, cg);
+        }
+    } else {
+        openCgFrameWithSentinel(fr, sentinel, cg);
+    }
+
+    writeIndentation(cg);
+    writeConstWithSpace(hostWhile, cg);
+    writeChar(aParenLeft, cg);
+    cg->i += 2; // CONSUME the loopCond node and expr/verbatim node
+    writeExprInternal(cg->i - 1, nodes, locs, cg);
+
+    writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
+    cg->indentation += 4;
 }
 
 
-private void writeBreakContinue(Node fr, Int indKeyword, Codegen* cg) { //:writeBreakContinue
+private void writeWhileClose(Codegen* cg) {
+    cg->indentation -= 4;
+    writeIndentation(cg);
+    writeChars(cg, ((Byte[]){aCurlyRight, aNewline}));
+}
+
+
+private void writeBreakContinue(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
+//:writeBreakContinue
+    Node fr = nodes[ind];
     writeIndentation(cg);
     if (fr.pl1 == -1) {
-        writeConst(indKeyword, cg);
+        writeConst(hostBreak, cg);
     } else {
-        writeConstWithSpace(indKeyword, cg);
+        writeConstWithSpace(hostBreak, cg);
         writeLoopLabel(fr.pl1, cg);
     }
     writeChar(aSemicolon, cg);
@@ -6094,22 +6095,12 @@ private void writeBreakContinue(Node fr, Int indKeyword, Codegen* cg) { //:write
 }
 
 
-private void writeBreak(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) { //:writeBreak
-    writeBreakContinue(fr, strBreak, cg);
-}
-
-
-private void writeContinue(Node fr, bool isEntry, Arr(Node) nodes, Codegen* cg) { //:writeContinue
-    writeBreakContinue(fr, strContinue, cg);
-}
-
-
 private void maybeCloseCgFrames(Codegen* cg) { //:maybeCloseCgFrames
-    for (Int j = cg->backtrack.length - 1; j > -1; j--) {
-        if (cg->backtrack.cont[j].startBt != cg->i) {
+    for (Int j = cg->backtrack.len - 1; j > -1; j--) {
+        if (cg->backtrack.cont[j].startNd != cg->i) {
             return;
         }
-        Node fr = pop(&cg->backtrack);
+        CgFrame fr = popCgFrame(&cg->backtrack);
         (*CODEGEN_CLOSING_TABLE[fr.tp - nodScope])(cg);
     }
 }
@@ -6118,61 +6109,40 @@ private void maybeCloseCgFrames(Codegen* cg) { //:maybeCloseCgFrames
 private Codegen* createCodegen(Compiler* cm, Arena* a) { //:createCodegen
     Codegen* cg = allocateOnArena(sizeof(Codegen), a);
     (*cg) = (Codegen) {
-        .i = 0, .backtrack = *createStackNode(16, a), .calls = createStackCgCall(16, a),
-        .length = 0, .capacity = 64, .buffer = allocateOnArena(64, a),
+        .i = 0, .backtrack = *createStackCgFrame(16, a), .calls = createStackCgCall(16, a),
+        .len = 0, .cap = 64, .output = allocateOnArena(64, a),
         .sourceCode = cm->sourceCode, .cm = cm, .a = a
     };
     return cg;
 }
 
 
-private Codegen* generateCode(Compiler* cm, Arena* a) { //:generateCode
-#ifdef TRACE
-    printParser(cm, a);
-#endif
-    if (cm->wasError) {
-        return NULL;
-    }
-    Codegen* cg = createCodegen(cm, a);
-    const Int len = cm->nodes.length;
-    while (cg->i < len) {
-        Node nd = cm->nodes.cont[cg->i];
-        ++cg->i; // CONSUME the span node
-
-        (CODEGEN_TABLE[nd.tp - nodScope])(nd, true, cg->cm->nodes.cont, cg);
-        maybeCloseCgFrames(cg);
-    }
-    return cg;
-}
-
 
 //}}}
 //{{{ Codegen init
 
 private void tabulateCodegen() { //:tabulateCodegen
-    CodegenFn* p = CODEGEN_TABLE;
+    Arr(CgFunc*) p = CODEGEN_TABLE;
     for (Int j = 0; j < countSpanForms; j++) {
         p[j] = &writeDummy;
     }
     p[0] = writeScope;
     p[nodAssignment - nodScope] = &writeAssignment;
-    p[nodReassign   - nodScope] = &writeReassignment;
     p[nodExpr       - nodScope] = &writeExpr;
-    p[nodWhile      - nodScope] = &writeWhile;
+    p[nodFor        - nodScope] = &writeFor;
     p[nodIf         - nodScope] = &writeIf;
-    p[nodIfClause   - nodScope] = &writeIfClause;
+    p[nodElseIf     - nodScope] = &writeIfClause;
 //    p[nodFnDef      - nodScope] = &writeFn;
     p[nodReturn     - nodScope] = &writeReturn;
-    p[nodBreak      - nodScope] = &writeBreak;
-    p[nodContinue   - nodScope] = &writeContinue;
+    p[nodBreakCont  - nodScope] = &writeBreakContinue;
 
 
-    CodegenClosingFn* q = CODEGEN_CLOSING_TABLE;
+    Arr(CgClosingFunc*) q = CODEGEN_CLOSING_TABLE;
     for (Int j = 0; j < countSpanForms; j++) {
         q[j] = &writeClosingDummy;
     }
-    p[0] = writeClosingScope;
-    p[nodFnDef      - nodScope] = &writeClosingFn;
+    q[0] = writeClosingScope;
+    q[nodFnDef      - nodScope] = &writeClosingFn;
 }
 
 
@@ -6194,7 +6164,7 @@ private void tabulateShield() { //:tabulateShield
     }
 
     for (Int j = 0; j < cgCountToShield; j++) {
-        Unt hash = hash(hostText, currInd, hostOffsets[j]);
+        Unt hash = hashCode((char*)hostText + currInd, hostTextLens[j]);
         Unt offset = hash % cgCountToShield;
         if (SHIELD_HASHTABLE[offset] != 0) {
             perror("Hashing error when creating shield table");
@@ -6206,28 +6176,38 @@ private void tabulateShield() { //:tabulateShield
 }
 
 
-private Codegen* createCodegen(Compiler* cm, Arena* a) {
-    Codegen* cg = allocateOnArena(sizeof(Codegen), a);
-    (*cg) = (Codegen) {
-        .i = 0, .backtrack = *createStackNode(16, a), .calls = createStackCgCall(16, a),
-        .length = 0, .capacity = 64, .buffer = allocateOnArena(64, a),
-        .sourceCode = cm->sourceCode, .cm = cm, .a = a
-    };
-    tabulateCgDispatch(cg);
-    return cg;
-}
-
 //}}}
 
-private void generateCode(Compiler* cm) { //:generateCode
-// Generate host code for a whole module
-    print("codegen")
-    Arr(Node) nodes = cm->nodes.cont;
-    Arr(SourceLoc) locs = cm->locs.cont;
-    Compiler* cg = createCodegen(cm, cm->a);
+private void generateLoop(const Int sentinel, Codegen* cg) {
+    Arr(Node) nodes = cg->cm->nodes.cont;
+    Arr(SourceLoc) locs = cg->cm->sourceLocs->cont;
+    while (cg->i < sentinel) {
+        Node nd = nodes[cg->i]; 
+        ++cg->i; // CONSUME the span node
 
-    for (Int j = 0; j < cg->toplevels.len; j++) {
-        writeFn(cg->toplevels.cont[j].indNode, nodes, locs, cg);
+        (CODEGEN_TABLE[nd.tp - nodScope])(cg->i - 1, nodes, locs, cg);
+        maybeCloseCgFrames(cg);
+    }
+}
+
+
+private void generateCode(Compiler* cm, Arena* a) { //:generateCode
+// Generate host code for a whole module
+#ifdef TRACE
+    print("codegen")
+    printParser(cm, a);
+#endif
+
+    if (cm->stats.wasError) {
+        return;
+    }
+    
+    Arr(Node) nodes = cm->nodes.cont;
+    Arr(SourceLoc) locs = cm->sourceLocs->cont;
+    Codegen* cg = createCodegen(cm, cm->a);
+
+    for (Int j = 0; j < cm->toplevels.len; j++) {
+        writeFn(cm->toplevels.cont[j].indNode, nodes, locs, cg);
     }
 }
 
@@ -6235,7 +6215,6 @@ private void generateCode(Compiler* cm) { //:generateCode
 //{{{ Utils for tests & debugging
 
 #ifdef DEBUG
-
 //{{{ General utils
 
 void printIntArray(Int count, Arr(Int) arr) { //:printIntArray
@@ -6634,42 +6613,6 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 }
 
 //}}}
-//{{{ Interpreter utils
-
-
-// Must agree in order with instruction types in ors.internal.h
-const char* instructionNames[] = {
-    "Int", "Long", "Double", "Bool", "String", "_", "misc",
-    "id", "call", "binding", ".fld", "GEP", "GElem",
-    "(do", "Expr", "=", "[]",
-    "alias", "assert", "breakCont", "catch", "defer",
-    "import", "(\\ fn)", "trait", "return", "try",
-    "for", "if", "eif", "impl", "match"
-};
-
-void dbgBytecode(Compiler* cg) { //:dbgBytecode
-// Print the bytecode
-
-}
-
-void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
-// Print the current call frame header, and the previous frame too (if applicable)
-    Unt* framePtr = inDeref(rt->currFrame);
-    Ptr prevFrame = *framePtr;
-    Ptr fnCode = *(framePtr + 1);
-    printf("Current call frame: prevFrame = %d, fn code at %d\n", prevFrame, fnCode);
-    if ((Int)prevFrame != -1) {
-        Unt* prevFramePtr = inDeref(prevFrame);
-        Ptr prevPrevFrame = *prevFramePtr;
-        Ptr prevFnCode = *(prevFramePtr + 1);
-        Ptr prevIp = *(prevFramePtr + 2);
-        printf("Prev call frame: ancestorFrame = %d, fn code at %d, execution stopped at ip %d",
-                prevPrevFrame, prevFnCode, prevIp);
-    }
-}
-
-//}}}
-
 #endif
 
 //}}}
@@ -6696,25 +6639,6 @@ Int orsCompile(unsigned char* fn) { //:orsCompile
 }
 
 
-private void inPrintString(Unt address, Interpreter* rt) {
-    Unt* len = (Unt*)(inDeref(address));
-    fwrite(len + 1, 1, *len, stdout);
-    printf("\n");
-}
-
-
-private Int interpretCode(Interpreter* in) {
-    Int ip = 1; // skipping the function size
-    while (ip > -1) {
-        //print("ip = %d", ip);
-        Ulong instr = in->code[ip];
-        //print("instr %lx op code %d", instr, instr>>58);
-        ip = (INTERPRETER_TABLE[instr >> 58])(instr, ip, in);
-    }
-    return 0;
-}
-
-
 #ifndef TEST
 
 Int main(int argc, char** argv) { //:main
@@ -6727,11 +6651,7 @@ Int main(int argc, char** argv) { //:main
     Compiler* proto = createProtoCompiler(a);
     Compiler* cm = lexicallyAnalyze(sourceCode, proto, a);
     cm = parse(cm, proto, a);
-    codegen(cm);
-    Interpreter* rt = createInterpreter(cm);
-    Int interpResult = 0;//interpretCode(rt);
-
-    printf("Interpretation result = %d\n", interpResult);
+    generateCode(cm, a);
 
     cleanup:
     deleteArena(a);

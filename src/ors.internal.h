@@ -101,7 +101,7 @@ typedef struct { // :MultiAssocList
 
 typedef struct { // :String
     int len;
-    Byte cont[];
+    char cont[];
 } String;
 
 testable void printStringNoLn(String* s);
@@ -419,7 +419,7 @@ typedef struct { // :OpDef
 typedef struct Compiler Compiler;
 
 
-typedef void (*LexerFn)(Arr(Byte), Compiler*); // LexerFunc = &(Lexer* => void)
+typedef void (*LexerFn)(Arr(char), Compiler*); // LexerFunc = &(Lexer* => void)
 typedef void (*ParserFn)(Token, Arr(Token), Compiler*);
 
 
