@@ -15,7 +15,7 @@ WARN=-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -fsanitize=address
 INCLUDES="-I src"
 LIBS=-lm
-APP=ors
+APP=eyr
 
 CFLAGS= $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(INCLUDES) $(LIBS)
 TARGET=$(DEBUGDIR)/$(APP)/$(APP)

@@ -9,7 +9,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <setjmp.h>
-#include "ors.internal.h"
+#include "eyr.internal.h"
 
 //}}}
 //{{{ Language definition
@@ -80,7 +80,7 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = {
 
 
 
-const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<=><0<=<>===0>=<>>.>0?:@^.||."
+const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<=><0===0>=<>>.>0?:@^.||."
                             "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
                             "ifimplimportmatchpubreturntraittruetry"
                             // reserved words end here; what follows may have arbitrary order
@@ -91,11 +91,11 @@ const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<=><0<=<>===0>=<>>.>0?:@^.|
 #endif
                             ;
                             
-const Int standardOperatorsLength = 53; // length of the operator part above
+const Int standardOperatorsLength = 49; // length of the operator part above
 
 // The :standardText prepended to all source code inputs and the hash table to provide a built-in
-// string set. Ors' reserved words must be at the start and sorted lexicographically.
-// Also they must agree with the "standardStr" in ors.internal.h
+// string set. Eyr's reserved words must be at the start and sorted lexicographically.
+// Also they must agree with the "standardStr" in eyr.internal.h
 
 const Byte standardStringLens[] = {
      5, 6, 5, 5, 8,
@@ -157,27 +157,27 @@ private OpDef OPERATORS[countOperators] = {
     { .arity=2, .name = nameLoc(21, 3), .firstSymbol = '<' },  // <<.
     { .arity=2, .name = nameLoc(24, 3), .firstSymbol = '<' },  // <=>
     { .arity=1, .name = nameLoc(27, 2), .firstSymbol = '<' }, // <0
-    { .arity=2, .name = nameLoc(29, 2), .firstSymbol = '<', .overloadable = true }, // <<
+    { .arity=2, .name = nameLoc(21, 2), .firstSymbol = '<', .overloadable = true }, // <<
     { .arity=2, .name = nameLoc(24, 2), .firstSymbol = '<'  }, // <=
     { .arity=2, .name = nameLoc(21, 1), .firstSymbol = '<'  }, // <
-    { .arity=2, .name = nameLoc(31, 3), .firstSymbol = '='  }, // ===
-    { .arity=1, .name = nameLoc(33, 2), .firstSymbol = '='  }, // =0
-    { .arity=2, .name = nameLoc(32, 2), .firstSymbol = '='  }, // ==
-    { .arity=3, .name = nameLoc(35, 3), .firstSymbol = '>' },  // >=<
-    { .arity=2, .name = nameLoc(38, 3), .firstSymbol = '>', 
+    { .arity=2, .name = nameLoc(29, 3), .firstSymbol = '='  }, // ===
+    { .arity=1, .name = nameLoc(31, 2), .firstSymbol = '='  }, // =0
+    { .arity=2, .name = nameLoc(30, 2), .firstSymbol = '='  }, // ==
+    { .arity=3, .name = nameLoc(33, 3), .firstSymbol = '>' },  // >=<
+    { .arity=2, .name = nameLoc(36, 3), .firstSymbol = '>', 
       .assignable=true, .overloadable = true}, // >>.
-    { .arity=1, .name = nameLoc(41, 2), .firstSymbol = '>' },   // >0
-    { .arity=2, .name = nameLoc(30, 2), .firstSymbol = '>' },    // >=
-    { .arity=2, .name = nameLoc(38, 2), .firstSymbol = '>', .overloadable = true }, // >>
+    { .arity=1, .name = nameLoc(39, 2), .firstSymbol = '>' },   // >0
+    { .arity=2, .name = nameLoc(33, 2), .firstSymbol = '>' },    // >=
+    { .arity=2, .name = nameLoc(36, 2), .firstSymbol = '>', .overloadable = true }, // >>
     { .arity=2, .name = nameLoc(26, 1), .firstSymbol = '>' },         // >
-    { .arity=2, .name = nameLoc(43, 2), .firstSymbol = '?' }, // ?:
-    { .arity=1, .name = nameLoc(43, 1), .firstSymbol = '?', .isTypelevel=true }, // ?
-    { .arity=2, .name = nameLoc(45, 1), .firstSymbol = '@', .overloadable = true}, // @
-    { .arity=2, .name = nameLoc(46, 2), .firstSymbol = '^' },    // ^.
-    { .arity=2, .name = nameLoc(46, 1), .firstSymbol = '^', .assignable=true, 
+    { .arity=2, .name = nameLoc(41, 2), .firstSymbol = '?' }, // ?:
+    { .arity=1, .name = nameLoc(41, 1), .firstSymbol = '?', .isTypelevel=true }, // ?
+    { .arity=2, .name = nameLoc(43, 1), .firstSymbol = '@', .overloadable = true}, // @
+    { .arity=2, .name = nameLoc(44, 2), .firstSymbol = '^' },    // ^.
+    { .arity=2, .name = nameLoc(44, 1), .firstSymbol = '^', .assignable=true, 
       .overloadable = true}, // ^
-    { .arity=2, .name = nameLoc(48, 3), .firstSymbol = '|' }, // ||.
-    { .arity=2, .name = nameLoc(48, 2), .firstSymbol = '|', .assignable=true } // ||
+    { .arity=2, .name = nameLoc(46, 3), .firstSymbol = '|' }, // ||.
+    { .arity=2, .name = nameLoc(46, 2), .firstSymbol = '|', .assignable=true } // ||
 }; // real operator overloads filled in by "buildOperators"
 
 
@@ -197,10 +197,11 @@ private ParserFn PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
 //{{{ Code generator structure
 
 #define cgCountToShield 26 // How many of strings from "cgText" to gather into "SHIELD_HASHTABLE"
+#define cgShieldHashtableSz 181 // Hash table size to avoid hash remainder collisions
 
 private CgFunc* CODEGEN_TABLE[countSpanForms]; // filled in by "tabulateCodegen"
 private CgClosingFunc* CODEGEN_CLOSING_TABLE[countSpanForms]; // filled in by "tabulateCodegen"
-private NameLoc SHIELD_HASHTABLE[cgCountToShield]; // filled in by "tabulateShield"
+private NameLoc SHIELD_HASHTABLE[cgShieldHashtableSz]; // filled in by "tabulateShield"
 
 const char hostText[] = "caseclassconstdebuggerdefaultdeleteexportextendsfinallyfunctionininstanceof"
     "letnewnullstaticsuperswitchthisthrowtypeofvarvoidwhilewithyield"
@@ -2101,7 +2102,7 @@ private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt
 
 
 private void wordInternal(Unt wordType, Arr(char) source, Compiler* lx) { //:wordInternal
-// Lexes a word (both reserved and identifier) according to Ors' rules.
+// Lexes a word (both reserved and identifier) according to Eyr's rules.
 // Precondition: we are pointing at the first letter character of the word (i.e. past the possible
 // "." or ":")
 // Examples of acceptable words: A:B:c:d, asdf123, ab:cd45
@@ -2261,12 +2262,19 @@ private void lexOperator(Arr(char) source, Compiler* lx) { //:lexOperator
     while (k < countOperators && OPERATORS[k].firstSymbol == firstSymbol) {
         NameLoc opName = OPERATORS[k].name;
         char* opByte = source + (opName & LOWER24BITS) + 1;
-        char* sentinel = opByte + (opName >> 24);
-        if (opByte < sentinel && *opByte != secondSymbol) {
+        char* sentinel = opByte + (opName >> 24) - 1;
+        if (opByte == sentinel)  {
+            opType = k;
+            break;
+        } else if (*opByte != secondSymbol) {
             k += 1;
             continue;
         }
-        if (opByte < sentinel && *opByte != thirdSymbol) {
+        opByte += 1;
+        if (opByte == sentinel)  {
+            opType = k;
+            break;
+        } else if (*opByte != thirdSymbol) {
             k += 1;
             continue;
         }
@@ -2334,7 +2342,7 @@ private void lexNewline(Arr(char) source, Compiler* lx) { //:lexNewline
 
 
 private void lexComment(Arr(char) source, Compiler* lx) { //:lexComment
-// Ors separates between documentation comments (which live in meta info and are
+// Eyr separates between documentation comments (which live in meta info and are
 // spelt as "meta(`comment`)") and comments for, well, eliding text from code;
 // Elision comments are of the "//" form.
     lx->i += 2; // CONSUME the "//"
@@ -4007,11 +4015,9 @@ private void buildStandardStrings(Compiler* lx) { //:buildStandardStrings
     for (Int j = 0; j < countOperators; j++) {
         push(0, lx->stringTable);
     }
-    int startBt = 0;
     for (Int i = 0; i < strSentinel; i++) {
-        addStringDict(lx->sourceCode->cont, startBt, standardStringLens[i],
+        addStringDict(lx->sourceCode->cont, standardOffsets[i], standardStringLens[i],
                       lx->stringTable, lx->stringDict);
-        startBt += standardStringLens[i];
     }
 }
 
@@ -4100,7 +4106,7 @@ private void buildHostOperator(Int operId, TypeId typeId, Emit emit, Int hostInd
 private void buildOperators(Compiler* cm) { //:buildOperators
 // Operators are the first-ever functions to be defined. This function builds their @types,
 // @functions and overload counts. The order must agree with the order of operator
-// definitions in ors.internal.h, and every operator must have at least one type defined
+// definitions in eyr.internal.h, and every operator must have at least one type defined
     TypeId boolOfIntInt    = addConcrFnType(2, (Int[]){ tokInt, tokInt, tokBool}, cm);
     TypeId boolOfIntIntInt = addConcrFnType(3, (Int[]){ tokInt, tokInt, tokInt, tokBool}, cm);
     TypeId boolOfFlFl      = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokBool}, cm);
@@ -5544,20 +5550,12 @@ private NameLoc nameOfSourceLoc(SourceLoc loc) {
 
 testable NameLoc nameOfHost(Int strId) { //:nameOfHost
 // Builds a text location for a host text for codegen
-    Int length = standardStringLens[strId];
+print("name of host %d", strId)
+    Int length = hostTextLens[strId];
     Int nameInd = strId + countOperators;
     return (NameId)(((Unt)length << 24) + (Unt)(nameInd));
 }
 
-//}}}
-//{{{ Core library
-
-static char coreLib[] = "function compare_Int(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }"
-    "function compare_Dbl(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }"
-;
-
-//}}}
-//{{{ Codegen main
 
 private void ensureBufferLength(Int additionalLength, Codegen* cg) { //:ensureBufferLength
 // Ensures that the buffer has space for at least that many bytes plus 10 by increasing its
@@ -5576,6 +5574,15 @@ private void ensureBufferLength(Int additionalLength, Codegen* cg) { //:ensureBu
     cg->cap = newCap;
 }
 
+//}}}
+//{{{ Core library
+
+static char coreLib[] = "function compare_Int(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }"
+    "function compare_Dbl(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }"
+;
+
+//}}}
+//{{{ Codegen main
 
 private void writeBytes(char* ptr, Int len, Codegen* cg) { //:writeBytes
     ensureBufferLength(len + 10, cg);
@@ -6116,7 +6123,13 @@ private Codegen* createCodegen(Compiler* cm, Arena* a) { //:createCodegen
     return cg;
 }
 
-
+private void writeCoreLib(Codegen* cg) { //:writeCoreLib
+    print("writecorelib");
+    ensureBufferLength(sizeof(coreLib), cg);
+    print("sizeo f core lib %d", sizeof(coreLib));
+    memcpy(cg->output, coreLib, sizeof(coreLib));
+    cg->len = sizeof(coreLib);
+}
 
 //}}}
 //{{{ Codegen init
@@ -6156,21 +6169,23 @@ private void populateHostOffsets() { //:populateHostOffsets
 
 
 private void tabulateShield() { //:tabulateShield
-// The map of all strings that are keywords in the host language but not in Ors. Identifiers in
-// Ors that belong to this map need to be shielded by appending an "_" to them.
+// The map of all strings that are keywords in the host language but not in Eyr. Identifiers in
+// Eyr that belong to this map need to be shielded by appending an "_" to them.
     Int currInd = 0;
-    for (Int j = 0; j < cgCountToShield; j++) {
+    for (Int j = 0; j < cgShieldHashtableSz; j++) {
         SHIELD_HASHTABLE[j] = 0;
     }
 
     for (Int j = 0; j < cgCountToShield; j++) {
         Unt hash = hashCode((char*)hostText + currInd, hostTextLens[j]);
-        Unt offset = hash % cgCountToShield;
+        Unt offset = hash % cgShieldHashtableSz;
         if (SHIELD_HASHTABLE[offset] != 0) {
-            perror("Hashing error when creating shield table");
+            fprintf(stderr, "Hashing error when creating shield table for %d at %d\n", j,
+                    SHIELD_HASHTABLE[offset] & LOWER24BITS);
+            exit(1);
         }
-        SHIELD_HASHTABLE[offset] = (hostOffsets[j] << 24) + (Unt)currInd;
-        currInd += hostOffsets[j];
+        SHIELD_HASHTABLE[offset] = (hostTextLens[j] << 24) + (Unt)currInd;
+        currInd += hostTextLens[j];
     }
 
 }
@@ -6206,6 +6221,7 @@ private void generateCode(Compiler* cm, Arena* a) { //:generateCode
     Arr(SourceLoc) locs = cm->sourceLocs->cont;
     Codegen* cg = createCodegen(cm, cm->a);
 
+    writeCoreLib(cg);
     for (Int j = 0; j < cm->toplevels.len; j++) {
         writeFn(cm->toplevels.cont[j].indNode, nodes, locs, cg);
     }
@@ -6255,14 +6271,14 @@ void printName(NameId nameId, Compiler* cm) { //:printName
 //}}}
 //{{{ Lexer testing
 
-// Must agree in order with token types in ors.internal.h
+// Must agree in order with token types in eyr.internal.h
 const char* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "misc",
     "word", "Type", "'var", ":kwarg", "operator", ".field",
     "stmt", "()", "(T ...)", "intro:", "[]", "{}", "a[]",
     "=", "=...", "alias", "assert", "breakCont",
     "trait", "import", "return",
-    "(do", "(\\", "(try", "(catch",
+    "(do", "((fn", "(try", "(catch",
     "(if", "match{", "elseIf", "else", "(impl", "(for", "(each"
 };
 
@@ -6372,7 +6388,7 @@ testable void printLexer(Compiler* lx) { //:printLexer
 //}}}
 //{{{ Parser testing
 
-// Must agree in order with node types in ors.internal.h
+// Must agree in order with node types in eyr.internal.h
 const char* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "id", "call", "binding", ".fld", "GEP", "GElem",
@@ -6618,7 +6634,7 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 //}}}
 //{{{ Main
 
-Int orsInitCompiler() { //:orsInitCompiler
+Int eyrInitCompiler() { //:eyrInitCompiler
 // Definition of the operators, lexer dispatch, parser dispatch etc tables for the compiler.
 // This function should only be called once, at compiler init. Its results are global shared const.
     populateStandardOffsets();
@@ -6630,7 +6646,7 @@ Int orsInitCompiler() { //:orsInitCompiler
     return 0;
 }
 
-Int orsCompile(unsigned char* fn) { //:orsCompile
+Int eyrCompile(unsigned char* fn) { //:eyrCompile
 //    String* sourceCode = readSourceFile(fn, a);
 //    if (sourceCode == NULL) {
 //        goto cleanup;
@@ -6642,7 +6658,7 @@ Int orsCompile(unsigned char* fn) { //:orsCompile
 #ifndef TEST
 
 Int main(int argc, char** argv) { //:main
-    orsInitCompiler();
+    eyrInitCompiler();
     Arena* a = createArena();
 
 
