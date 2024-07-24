@@ -1629,7 +1629,7 @@ int main() {
     }
 
     eyrInitCompiler();
-    Arena *a = mkArena();
+    Arena *a = createArena();
     Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);
     createOverloads(protoOvs);

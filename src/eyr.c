@@ -3615,30 +3615,23 @@ private void pReturn(Token tok, P_CT) { //:pReturn
 }
 
 
-private EntityId importActivateEntity(Entity ent, Compiler* cm) { //:importActivateEntity
-// Adds an import to the entities table, activates it and, if function, adds its overload
-    Int nameId = ent.name & LOWER24BITS;
-    Int existingBinding = cm->activeBindings[nameId];
-    Int isAFunc = isFunction(ent.typeId, cm);
-    VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
-
-    Int newEntityId = cm->entities.len;
-    pushInentities(ent, cm);
-
-    if (isAFunc > -1) {
-        addRawOverload(nameId, ent.typeId, newEntityId, cm);
-        pushInimportNames(nameId, cm);
-    } else {
-        cm->activeBindings[nameId] = newEntityId;
-    }
-    return newEntityId;
-}
-
-
-testable void importEntities(Arr(Entity) impts, Int countEntities,
-                             Compiler* cm) { //:importEntities
+testable void importEntities(Arr(Entity) impts, Int countEntities, Compiler* cm) { //:importEntities
     for (int j = 0; j < countEntities; j++) {
-        importActivateEntity(impts[j], cm);
+        Entity ent = impts[j]; 
+        Int nameId = ent.name & LOWER24BITS;
+        Int existingBinding = cm->activeBindings[nameId];
+        Int isAFunc = isFunction(ent.typeId, cm);
+        VALIDATEP(existingBinding == -1 || isAFunc > -1, errAssignmentShadowing)
+
+        Int newEntityId = cm->entities.len;
+        pushInentities(ent, cm);
+
+        if (isAFunc > -1) {
+            addRawOverload(nameId, ent.typeId, newEntityId, cm);
+            pushInimportNames(nameId, cm);
+        } else {
+            cm->activeBindings[nameId] = newEntityId;
+        }
     }
     cm->stats.countNonparsedEntities = cm->entities.len;
 }
@@ -4155,15 +4148,15 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opDivBy,         intOfIntInt, emitInfix, cm);
     buildOperator(opDivBy,         flOfFlFl, emitInfix, cm);
     buildHostOperator(opBitShiftL, intOfFlFl, emitInfixHost, hostBitShiftL, cm);
+    buildHostOperator(opComparator,    intOfIntInt, emitPrefixHost, hostCompareInt, cm);
+    buildHostOperator(opComparator,    intOfFlFl, emitInfixHost, hostCompareDbl, cm);
+    buildHostOperator(opComparator,    intOfStrStr, emitPrefixHost, hostCompareStr, cm);
     buildHostOperator(opLTZero,    boolOfIntInt, emitPrefixHost, hostLtZeroInt, cm);
     buildHostOperator(opLTZero,    boolOfFlFl, emitPrefixHost, hostLtZeroDbl, cm);
     buildHostOperator(opShiftL,    intOfIntInt, emitInfixHost, hostShiftLeft, cm);
     buildOperator(opLTEQ,          boolOfIntInt, emitInfix, cm);
     buildOperator(opLTEQ,          boolOfFlFl, emitInfix, cm);
     buildOperator(opLTEQ,          boolOfStrStr, emitInfix, cm);
-    buildHostOperator(opComparator,    intOfIntInt, emitPrefixHost, hostCompareInt, cm);
-    buildHostOperator(opComparator,    intOfFlFl, emitInfixHost, hostCompareDbl, cm);
-    buildHostOperator(opComparator,    intOfStrStr, emitPrefixHost, hostCompareStr, cm);
     buildOperator(opLessTh,            boolOfIntInt, emitInfix, cm);
     buildOperator(opLessTh,            boolOfFlFl, emitInfix, cm);
     buildOperator(opLessTh,            boolOfStrStr, emitInfix, cm);
@@ -4184,10 +4177,10 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opGreaterTh,         boolOfStrStr, emitInfix, cm);
     buildHostOperator(opNullCoalesce,  intOfIntInt, emitPrefixHost, hostNullCoalesce, cm);
     buildHostOperator(opQuestionMark,  intOfIntInt, emitPrefixHost, hostCase, cm); // dummy, type
+    buildHostOperator(opUnused,        flOfFlFl, emitPrefixHost, hostCase, cm); // unused
     buildHostOperator(opBitwiseXor,    intOfIntInt, emitInfixHost, hostBitwiseXor, cm);
     buildOperator(opExponent,          intOfIntInt, emitInfix, cm);
     buildOperator(opExponent,          flOfFlFl, emitInfix, cm);
-    buildHostOperator(opUnused,        flOfFlFl, emitPrefixHost, hostCase, cm); // unused
     buildHostOperator(opBitwiseOr,     intOfIntInt, emitInfixHost, hostBitwiseOr, cm);
     buildOperator(opBoolOr,            flOfFl, emitInfix, cm);
     buildHostOperator(opGetElem,       flOfFl, emitPrefixHost, hostCase, cm); // dummy
@@ -4207,28 +4200,27 @@ private void importPrelude(Compiler* cm) { //:importPrelude
     buildPreludeTypes(cm);
     TypeId strToVoid = addConcrFnType(1, (Int[]){ tokString, tokMisc }, cm);
     TypeId intToVoid = addConcrFnType(1, (Int[]){ tokInt, tokMisc }, cm);
-    TypeId floatToVoid = addConcrFnType(1, (Int[]){ tokDouble, tokMisc }, cm);
+    TypeId dblToVoid = addConcrFnType(1, (Int[]){ tokDouble, tokMisc }, cm);
 //    TypeId intToDoub = addConcrFnType(1, (Int[]){ tokInt, tokDouble}, cm);
 //    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
-
     Entity imports[6] =  {
-        (Entity){ .name = nameOfHost(hostMathPi), .typeId = tokDouble, .class = classPubImmut,
-                   .emit = emitPrefixHost
+        (Entity){ .name = nameOfStandard(strMathPi), .typeId = tokDouble, .class = classPubImmut,
+                  .emit = emitPrefixHost, .emitName = nameOfHost(hostMathPi)
         },
-        (Entity){ .name = nameOfHost(hostMathE), .typeId = tokDouble, .class = classPubImmut,
-                   .emit = emitPrefixHost
+        (Entity){ .name = nameOfStandard(strMathE), .typeId = tokDouble, .class = classPubImmut,
+                  .emit = emitPrefixHost, .emitName = nameOfHost(hostMathE)
         },
-        (Entity){ .name = nameOfHost(hostPrint), .typeId = strToVoid, .class = classPubImmut,
-                   .emit = emitPrefixHost
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = strToVoid, .class = classPubImmut,
+                  .emit = emitPrefixHost, .emitName = nameOfHost(hostPrint)
         },
-        (Entity){ .name = nameOfHost(hostPrint), .typeId = intToVoid,
-                   .emit = emitPrefixHost
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = intToVoid, .class = classPubImmut,
+                  .emit = emitPrefixHost, .emitName = nameOfHost(hostPrint)
         },
-        (Entity){ .name = nameOfHost(hostPrint), .typeId = floatToVoid,
-                   .emit = emitPrefixHost
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = dblToVoid, .class = classPubImmut,
+                  .emit = emitPrefixHost, .emitName = nameOfHost(hostPrint)
         },
-        (Entity){ .name = nameOfHost(hostPrintErr), .typeId = strToVoid,
-                   .emit = emitPrefixHost
+        (Entity){ .name = nameOfStandard(strPrintErr), .typeId = strToVoid, .class = classPubImmut,
+                  .emit = emitPrefixHost, .emitName = nameOfHost(hostPrintErr)
         }
        // TODO functions for casting (int, double, unsigned)
     };
@@ -4237,7 +4229,6 @@ private void importPrelude(Compiler* cm) { //:importPrelude
     for (Int j = strInt; j <= strVoid; j++) {
         cm->activeBindings[j - strInt + countOperators] = j - strInt;
     }
-
     importEntities(imports, sizeof(imports)/sizeof(Entity), cm);
 }
 
@@ -4310,6 +4301,7 @@ testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:ini
     if (extraActive > 0) {
         memset(cm->activeBindings + countOperators, 0xFF, extraActive*4);
     }
+    
     cm->entities = createInListEntity(proto->entities.cap, a);
     memcpy(cm->entities.cont, proto->entities.cont, proto->entities.len*sizeof(Entity));
     cm->entities.len = proto->entities.len;
@@ -5550,7 +5542,6 @@ private NameLoc nameOfSourceLoc(SourceLoc loc) {
 
 testable NameLoc nameOfHost(Int strId) { //:nameOfHost
 // Builds a text location for a host text for codegen
-print("name of host %d", strId)
     Int length = hostTextLens[strId];
     Int nameInd = strId + countOperators;
     return (NameId)(((Unt)length << 24) + (Unt)(nameInd));

@@ -468,9 +468,10 @@ typedef enum { //:Emit
 
 typedef struct { //:Entity
     TypeId typeId;
-    Unt name; // For native names, it's NameId. For externals, NameLoc pointing into hostText.
-              // For "emitInfix", this is operatorId. All determined by @emit
+    Unt name; // For native names, it's NameId. For "emitInfix", this is operatorId
     Emit emit;
+    NameLoc emitName; // 0xFFFFFFFF for native-emitted entities. For host-named, NameLoc pointing
+                      // into @hostText
     Byte class; // mutable or immutable, public or private
 } Entity;
 
