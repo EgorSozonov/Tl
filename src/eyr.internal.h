@@ -8,6 +8,7 @@
 #define Short int16_t
 #define Ushort uint16_t
 #define StackInt Stackint32_t
+#define StackUnt Stackuint32_t
 #define InListUlong InListuint64_t
 #define InListUns InListuint32_t
 #define private static
@@ -16,7 +17,7 @@
 #define Arr(T) T*
 #define Unt uint32_t
 #define null NULL
-#define NameId uint32_t // 8 bit of length, 24 bits of name index (in @stringTable)
+#define NameId int32_t // name index (in @stringTable)
 #define NameLoc uint32_t // 8 bit of length, 24 bits of startBt (in @standardText or @externalText)
 #define EntityId int32_t
 #define TypeId int32_t
@@ -122,6 +123,7 @@ typedef struct {
 //{{{ Int Hashmap
 
 DEFINE_STACK_HEADER(int32_t)
+DEFINE_STACK_HEADER(uint32_t)
 typedef struct {
     Arr(int*) dict;
     int dictSize;
@@ -478,12 +480,12 @@ typedef struct { //:Entity
 
 typedef struct { //:Toplevel
 // Toplevel definitions (functions, variables, types) for parsing order and name searchability
-    Int indToken;
+    Int tokenInd;
     Int sentinelToken;
-    Unt name;
+    NameId nameId;
     EntityId entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
     bool isFunction;
-    Int indNode;
+    Int nodeInd;
 } Toplevel;
 
 
@@ -603,8 +605,8 @@ struct Compiler { // :Compiler
     StackSourceLoc* sourceLocs;
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
-    Stackint32_t* stringTable;  // operators, then standard strings, then imported ones, then parsed
-                                // Contains NameLoc
+    Stackuint32_t* stringTable;  // Operators, then standard strings, then imported ones, then 
+                                 // parsed. Contains NameLoc pointing into @sourceCode
     StringDict* stringDict;
 
     // PARSING
@@ -714,6 +716,7 @@ DEFINE_STACK_HEADER(CgCall)
     StackExprFrame*: pushExprFrame,\
     StackTypeFrame*: pushTypeFrame,\
     Stackint32_t*: pushint32_t,\
+    Stackuint32_t*: pushuint32_t,\
     StackNode*: pushNode,\
     StackSourceLoc*: pushSourceLoc,\
     StackBtCodegen*: pushBtCodegen\

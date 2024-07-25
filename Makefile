@@ -11,9 +11,10 @@ CONFIG=-g3
 WARN=-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
 -Werror=int-conversion -fstrict-flex-arrays=3 \
--Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc \
--fsanitize=address
+#-fsanitize=address \
+-Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc 
 INCLUDES="-I src"
+OPT="-DTRACE"
 LIBS=-lm
 APP=eyr
 
