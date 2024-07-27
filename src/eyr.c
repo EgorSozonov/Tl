@@ -5507,6 +5507,20 @@ typedef struct { //:CgFrame
 DEFINE_STACK_HEADER(CgFrame)
 DEFINE_STACK(CgFrame)
 
+typedef struct { //:CgCall
+    NameLoc name;
+    Byte emit;
+    Byte arity;
+    Byte countArgs; // how many args we've encountered when scanning the expression
+    Int firstArg; // index of the node at the start of the first param of this function
+    Bool activatedFirstArg; // infix-emitted funcs need to know if the first arg has already
+                            // started so that after next CgCall wraps up, this one's name may
+                            // be written
+} CgCall;
+
+
+DEFINE_STACK_HEADER(CgOperand)
+
 
 DEFINE_STACK(CgCall) //:StackCgCall :pushCgCall
 DEFINE_STACK(BtCodegen) //:StackBtCodegen
@@ -5518,13 +5532,11 @@ struct Codegen { //:Codegen
     Arr(char) output;
     StackCgCall* calls; // temporary stack for generating expressions
 
-    StackCgFrame backtrack; // these "nodes" are modified from what is in the AST. .startBt = sentinelNode
+    StackCgFrame backtrack;
     String* sourceCode;
     Compiler* cm;
     Arena* a;
 };
-
-
 
 //}}}
 //{{{ Utils for codegen
@@ -5564,7 +5576,7 @@ private void writeBytes(char* ptr, Int len, Codegen* cg) { //:writeBytes
 }
 
 
-private void writeName(NameLoc loc, Codegen* cg) { //:writeName
+private void writeLoc(NameLoc loc, Codegen* cg) { //:writeLoc
     Int len = loc >> 24;
     ensureBufferLength(len + 10, cg);
     memcpy(cg->output + cg->len, cg->sourceCode->cont + (loc & LOWER24BITS), len);
@@ -5582,7 +5594,7 @@ private void writeHostName(NameLoc loc, Codegen* cg) { //:writeHostName
 
 private void writeNameId(NameId nameId, Codegen* cg) {
     NameLoc nameLoc = cg->cm->stringTable->cont[nameId];
-    writeName(nameLoc, cg);
+    writeLoc(nameLoc, cg);
 }
 
 //}}}
@@ -5648,7 +5660,7 @@ private void writeBytesFromSource(SourceLoc loc, Codegen* cg) { //:writeBytesFro
 }
 
 
-private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) { //:writeExprProcessFirstArg
+private void writeExprProcessFirstArg(CgOperand* top, Codegen* cg) { //:writeExprProcessFirstArg
     if (top->countArgs != 1) {
         return;
     }
@@ -5656,9 +5668,9 @@ private void writeExprProcessFirstArg(CgCall* top, Codegen* cg) { //:writeExprPr
     Int len = top->name >> 24;
     switch (top->emit) {
     case emitPrefix:
-        writeName(top->name, cg); return;
+        writeLoc(top->name, cg); return;
     case emitPrefixShielded:
-        writeName(top->name, cg);
+        writeLoc(top->name, cg);
         writeChar(aUnderscore, cg); return;
     case emitPrefixHost:
         writeHostName(top->name, cg);
@@ -5693,7 +5705,7 @@ private void writeId(Node nd, SourceLoc loc, Codegen* cg) { //:writeId
 }
 
 
-private void writeExprOperand(Node n, Int countPrevArgs, SourceLoc loc, Codegen* cg) {
+private void writeExprOperand(Node n, SourceLoc loc, Codegen* cg) {
 //:writeExprOperand
     if (n.tp == nodId) {
         writeId(n, loc, cg);
@@ -5721,14 +5733,69 @@ private void writeExprOperand(Node n, Int countPrevArgs, SourceLoc loc, Codegen*
 }
 
 
-private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:writeExprWorker Precondition: we are 1 past the expr node
+private void wExprBuildCallStack(Int sentinel, Arr(Node) nodes, Codegen* cg) {
+//:wExprBuildCallStack Doesn't consume any nodes, clears and populates @Codegen.calls
+    cg->calls->len = 0;
+
+    for (Int j = sentinel - 1; j >= cg->i; j -= 1) {
+        Node nd = nodes[j];
+        if (nd.tp == nodCall) {
+            Entity ent = cg->cm->entities.cont[nd.pl1];
+            pushCgCall((CgCall){
+                .name = ent.emitName,
+                .emit = ent.emit,
+                .arity = nd.pl2,
+                .countArgs = 0,
+                .firstArg = -1,
+                .activatedFirstArg = false
+            }, cg->calls);
+        } else {
+            Int k = cg->calls->len - 1;
+            for (CgCall* call = cg->calls->cont + k; k > -1; k -= 1) {
+                call->countArgs += 1;
+                if (call->countArgs < call->arity)  {
+                    break;
+                }
+            }
+        }
+    }
+ 
+}
+
+
+
+private void wExprEmitComplex(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
+//:wExprEmitComplex Consumes the whole expression.
+    
+}
+
+
+
+private void wExprComplex(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
+//:wExprComplex Writes out a complex expression. Precondition: we are 1 past the expr node
+// Works in two fases: first walks the exp backwards to create a stack of CgCalls that contains all
+// the function calls, then walks the same exp forwards while writing the output and updating stack
+
+    wExprBuildCallStack(sentinel, nodes, cg);
+    wExprEmitComplex(sentinel, nodes, locs, cg);
+
+
+
+
+
+
+
+
+
     while (cg->i < sentinel) {
         Node n = nodes[cg->i];
         SourceLoc loc = locs[cg->i];
         if (n.tp == nodCall) {
-        
-            print("call") 
+            if (cg->ands->len > 0) {
+                CgOperand* top = peekCgOperand(cg->ands);
+                
+            }
+            
             Entity ent = cg->cm->entities.cont[n.pl1];
             if (ent.emit == emitNop) {
                 cg->i += 1;
@@ -5758,7 +5825,7 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
                 cg->i += 1;
                 continue;
             }
-            print("ent emit %d", ent.emit)
+            
             switch (ent.emit) {
             case emitPrefix:
                 writeBytesFromSource(loc, cg);
@@ -5772,22 +5839,24 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
                 new.needClosingParen = true; break;
             case emitField:
                 new.needClosingParen = false; break;
-            default:
-                new.needClosingParen = cg->calls->len > 0;
+            default: 
+                new.needClosingParen = (cg->calls->len > 0);
             }
             if (new.needClosingParen) {
                 writeChar(aParenLeft, cg);
             }
-            print("cg calls %p %p len %d cap %d new name %d", cg->calls, cg->calls->cont,
-                    cg->calls->len, cg->calls->cap, new.name)
+            print("aaa")
             pushCgCall(new, cg->calls);
+            print("not here len is %d", cg->calls->len)
         } else {
+            print("in ids") 
             CgCall* top = cg->calls->cont + (cg->calls->len - 1);
+            print("in after %d", cg->calls->len)
             if (top->emit != emitInfix && top->emit != emitInfixHost && top->countArgs > 0) {
                 writeChars(cg, ((Byte[]){aComma, aSpace}));
             }
-            writeExprOperand(n, top->countArgs, loc, cg);
-            ++top->countArgs;
+            writeExprOperand(n, loc, cg);
+            top->countArgs += 1;
             writeExprProcessFirstArg(top, cg);
             while (top->countArgs == top->arity) {
                 popCgCall(cg->calls);
@@ -5803,14 +5872,15 @@ private void writeExprWorker(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs,
                 top = second;
             }
         }
-        print("not here")
         cg->i += 1;
     }
     cg->i = sentinel;
 }
 
-// Precondition: we are looking 1 past the nodExpr/singular node. Consumes all nodes of the expr
-private void writeExprInternal(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
+
+private void wExprOrSingleItem(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
+//:wExprOrSingleItem Precondition: we are looking 1 past the nodExpr/singular node. Consumes all
+// nodes of the expr
     Node nd = nodes[ind];
     SourceLoc loc = locs[ind];
     if (nd.tp <= topVerbatimType) {
@@ -5818,7 +5888,7 @@ private void writeExprInternal(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Co
     } else if (nd.tp == nodId) {
         writeId(nd, loc, cg);
     } else {
-        writeExprWorker(cg->i + nd.pl2, nodes, locs, cg);
+        wExprComplex(cg->i + nd.pl2, nodes, locs, cg);
     }
 #if SAFETY
     if(nd.tp != nodExpr) {
@@ -5838,7 +5908,7 @@ private void writeIndentation(Codegen* cg) { //:writeIndentation
 private void writeExpr(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeExpr
 print("writeExpr")
     writeIndentation(cg);
-    writeExprInternal(ind, nodes, locs, cg);
+    wExprOrSingleItem(ind, nodes, locs, cg);
     writeChars(cg, ((Byte[]){ aSemicolon, aNewline}));
 }
 
@@ -5869,9 +5939,9 @@ private void generateLoop(const Int sentinel, Codegen* cg) {
     Arr(SourceLoc) locs = cg->cm->sourceLocs->cont;
     while (cg->i < sentinel) {
         Node nd = nodes[cg->i]; 
-        print("loop i %d going ", cg->i); 
+        print("loop i %d going sizeof %d", cg->i, sizeof(CgCall)); 
         cg->i += 1; // CONSUME the span node
-
+        print("init len %d", cg->calls->len)
         (CODEGEN_TABLE[nd.tp - nodScope])(cg->i - 1, nodes, locs, cg);
         maybeCloseCgFrames(cg);
     }
@@ -5881,7 +5951,6 @@ private void generateLoop(const Int sentinel, Codegen* cg) {
 private void writeToplevelFn(Toplevel fn, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
 //:writeToplevelFn
     Node nd = nodes[fn.nodeInd];
-    SourceLoc loc = locs[fn.nodeInd];
     Entity fnEnt = cg->cm->entities.cont[fn.entityId];
     
     openCgFrame(nd, cg);
@@ -5935,14 +6004,13 @@ private void writeAssignmentWorker(Arr(Node) nodes, Arr(SourceLoc) locs, Codegen
     writeBytes(cg->sourceCode->cont + loc.startBt, loc.lenBts, cg);
     writeChars(cg, ((Byte[]){aSpace, aEqual, aSpace}));
 
-    ++cg->i; // CONSUME the binding node
+    cg->i += 1; // CONSUME the binding node
     Node rightSide = nodes[cg->i];
     if (rightSide.tp == nodId) {
         writeId(rightSide, locs[cg->i], cg);
-        ++cg->i; // CONSUME the id node on the right side of the assignment
+        cg->i += 1; // CONSUME the id node on the right side of the assignment
     } else {
-        ++cg->i; // CONSUME the expr/verbatim node
-        writeExprInternal(cg->i - 1, nodes, locs, cg);
+        writeExprInternal(cg->i, nodes, locs, cg);
     }
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
@@ -6223,7 +6291,6 @@ private Codegen* generateCode(Compiler* cm, Arena* a) { //:generateCode
     Arr(Node) nodes = cm->nodes.cont;
     Arr(SourceLoc) locs = cm->sourceLocs->cont;
     Codegen* cg = createCodegen(cm, cm->a);
-
     writeCoreLib(cg);
     for (Int j = 0; j < cm->toplevels.len; j++) {
         writeToplevelFn(cm->toplevels.cont[j], nodes, locs, cg);

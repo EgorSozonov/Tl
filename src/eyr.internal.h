@@ -674,17 +674,6 @@ typedef struct Codegen Codegen;
 typedef void CgFunc(Int, Arr(Node), Arr(SourceLoc), Codegen*);
 typedef void CgClosingFunc(Codegen*);
 
-typedef struct { //:CgCall
-    NameLoc name;
-    Byte emit;
-    Byte arity;
-    Byte countArgs;
-    bool needClosingParen;
-} CgCall;
-
-
-DEFINE_STACK_HEADER(CgCall)
-
 
 //}}}
 //{{{ Generics
