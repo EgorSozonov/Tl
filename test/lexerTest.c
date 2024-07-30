@@ -1043,12 +1043,12 @@ LexerTestSet* typeTests(Compiler* proto, Arena* a) {
 //}}}
 
 
-void runATestSet(LexerTestSet* (*testGenerator)(Compiler*, Arena*), int* countPassed, int* coUntests,
+void runATestSet(LexerTestSet* (*testGenerator)(Compiler*, Arena*), int* countPassed, int* countTests,
                  Compiler* proto, Arena* a) {
     LexerTestSet* testSet = (testGenerator)(proto, a);
     for (int j = 0; j < testSet->totalTests; j++) {
         LexerTest test = testSet->tests[j];
-        runLexerTest(test, countPassed, coUntests, proto, a);
+        runLexerTest(test, countPassed, countTests, proto, a);
     }
 }
 
@@ -1062,22 +1062,22 @@ int main(int argc, char** argv) {
     Compiler* proto = createProtoCompiler(a);
 
     int countPassed = 0;
-    int coUntests = 0;
-    runATestSet(&wordTests, &countPassed, &coUntests, proto, a);
-    runATestSet(&stringTests, &countPassed, &coUntests, proto, a);
-    runATestSet(&operatorTests, &countPassed, &coUntests, proto, a);
-    runATestSet(&punctuationTests, &countPassed, &coUntests, proto, a);
-    runATestSet(&numericTests, &countPassed, &coUntests, proto, a);
-    runATestSet(&coreFormTests, &countPassed, &coUntests, proto, a);
-    runATestSet(&typeTests, &countPassed, &coUntests, proto, a);
+    int countTests = 0;
+    runATestSet(&wordTests, &countPassed, &countTests, proto, a);
+    runATestSet(&stringTests, &countPassed, &countTests, proto, a);
+    runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
+    runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
+    runATestSet(&numericTests, &countPassed, &countTests, proto, a);
+    runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
+    runATestSet(&typeTests, &countPassed, &countTests, proto, a);
 
-    //runATestSet(&metaTests, &countPassed, &coUntests, proto, a);
-    if (coUntests == 0) {
+    //runATestSet(&metaTests, &countPassed, &countTests, proto, a);
+    if (countTests == 0) {
         print("\nThere were no tests to run!");
-    } else if (countPassed == coUntests) {
-        print("\nAll %d tests passed!", coUntests);
+    } else if (countPassed == countTests) {
+        print("\nAll %d tests passed!", countTests);
     } else {
-        print("\nFailed %d tests out of %d!", (coUntests - countPassed), coUntests);
+        print("\nFailed %d tests out of %d!", (countTests - countPassed), countTests);
     }
 
     deleteArena(a);

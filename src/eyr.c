@@ -5764,16 +5764,16 @@ private void wExprOpenCall(CgCall call, Codegen* cg) { //:wExprOpenCall
 
 
 private void wExprProcessFirstArg(CgCall* call, Codegen* cg) { //:wExprProcessFirstArg
-    switch (call.emit) {
+    switch (call->emit) {
     case emitPrefix:
-        writeName(call.name, cg);
+        writeName(call->name, cg);
         writeChar(aParenLeft, cg); break;
     case emitPrefixShielded:
-        writeName(call.name, cg);
+        writeName(call->name, cg);
         writeChar(aUnderscore, cg);
         writeChar(aParenLeft, cg); break;
     case emitPrefixHost:
-        writeHostName(call.name, cg); break;
+        writeHostName(call->name, cg); break;
     case emitInfix:
     case emitInfixHost:
     case emitField:
@@ -5792,11 +5792,11 @@ private void wExprCloseCall(Codegen* cg) { //:wExprCloseCall
     if (call.arity == 0) {
         switch (call.emit) {
         case emitPrefix:
-            writeBytesFromSource(loc, cg); break;
+            writeName(call.name, cg); break;
         case emitPrefixHost:
-            writeHostName(ent.name, cg); break;
+            writeHostName(call.name, cg); break;
         case emitPrefixShielded:
-            writeBytesFromSource(loc, cg);
+            writeName(call.name, cg);
             writeChar(aUnderscore, cg); break;
 #ifdef SAFETY
         default:
@@ -5807,7 +5807,7 @@ private void wExprCloseCall(Codegen* cg) { //:wExprCloseCall
     }
     writeChar(aParenRight, cg);
     if (hasValuesCgCall(cg->calls) && peekCgCall(cg->calls).activatedFirstArg) {
-        wExprProcessFirstArg(peekCgCall(cg->calls), cg);
+        wExprProcessFirstArg(cg->calls->cont + cg->calls->len - 1, cg);
     }
     
 }
@@ -5818,7 +5818,7 @@ private void wExprOperand(Node nd, SourceLoc loc, Codegen* cg) { //:wExprOperand
         writeBytes(cg->sourceCode->cont + loc.startBt, loc.lenBts, cg);
     } else if (nd.tp == nodId) {
         writeId(nd, loc, cg);
-    } else {
+    }
 }
 
 
@@ -5980,7 +5980,7 @@ private void writeAssignmentWorker(Arr(Node) nodes, Arr(SourceLoc) locs, Codegen
         writeId(rightSide, locs[cg->i], cg);
         cg->i += 1; // CONSUME the id node on the right side of the assignment
     } else {
-        writeExprInternal(cg->i, nodes, locs, cg);
+        wExprOrSingleItem(cg->i, nodes, locs, cg);
     }
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
