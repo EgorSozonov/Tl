@@ -242,9 +242,9 @@ DEFINE_STACK_HEADER(Token)
 #define tokDouble       2
 #define tokBool         3  // pl2 = value (1 or 0)
 #define tokString       4
+
 #define tokMisc         5  // pl1 = see the misc* constants. pl2 = underscore count iff miscUscore
                            // Also stands for "Void" among the primitive types
-
 #define tokWord         6  // pl1 = nameId (index in the string table). pl2 = 1 iff followed by ~
 #define tokTypeName     7  // same as tokWord
 #define tokTypeVar      8  // same as tokWord. The `'a`. May be lower- or upper-case
@@ -283,8 +283,8 @@ DEFINE_STACK_HEADER(Token)
 #define tokFor         36
 #define tokEach        37
 
-#define topVerbatimTokenVariant tokMisc
-#define topVerbatimType    topVerbatimTokenVariant
+#define topVerbatimTokenVariant tokString
+#define topVerbatimType    tokMisc
 #define firstSpanTokenType tokStmt
 #define firstScopeTokenType tokScope
 #define firstResumableSpanTokenType tokIf
@@ -299,12 +299,14 @@ DEFINE_STACK_HEADER(Token)
 #define keywContinue    4
 
 #define miscPub        0     // pub. It must be 0 because it's the only one denoted by a keyword
-#define miscUnderscore 1     // ,
+#define miscUnderscore 1     // _
 #define miscArrow      2     // ->
 
 #define assiDefinition 0
 #define assiType       2
 
+//}}}
+//{{{ Parser
 
 // AST nodes
 #define nodId           7  // pl1 = index of entity, pl2 = index of name
@@ -461,9 +463,9 @@ typedef enum { //:Emit
     emitPrefixHost,       // prefix names that are emitted differently than in source code
     emitInfix,            // infix operators like "+" that match between source code and target
     emitInfixHost,        // infix operators that have a separate external name
+    emitInfixDot,         // host-strings emitted as a "dot-call", like ".toString()"
     emitField,            // emitted as field accesses, like ".length"
     emitFieldHost,        // emitted as field accesses, like ".length"
-    emitInfixDot,         // host-strings emitted as a "dot-call", like ".toString()"
     emitNop               // for unary operators that don't need to be emitted, like ","
 } Emit;
 
