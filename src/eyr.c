@@ -5750,7 +5750,8 @@ private void wExprOpenCall(CgCall call, Codegen* cg) { //:wExprOpenCall
         writeChar(aUnderscore, cg);
         writeChar(aParenLeft, cg); break;
     case emitPrefixHost:
-        writeHostName(call.name, cg); break;
+        writeHostName(call.name, cg);
+        writeChar(aParenLeft, cg); break;
     case emitInfix:
     case emitInfixHost:
     case emitField:
@@ -5806,10 +5807,12 @@ private void wExprCloseCall(Codegen* cg) { //:wExprCloseCall
         writeChar(aParenLeft, cg);
     }
     writeChar(aParenRight, cg);
-    if (hasValuesCgCall(cg->calls) && peekCgCall(cg->calls).activatedFirstArg) {
-        wExprProcessFirstArg(cg->calls->cont + cg->calls->len - 1, cg);
+    for (Int k = cg->calls->len - 1; k > -1; k -= 1) {
+        if (cg->calls->cont[k].activatedFirstArg) {
+            wExprProcessFirstArg(cg->calls->cont + k, cg);
+            break;
+        }
     }
-    
 }
 
 
@@ -5953,6 +5956,10 @@ private void writeToplevelFn(Toplevel fn, Arr(Node) nodes, Arr(SourceLoc) locs, 
     cg->indentation += 4;
     
     generateLoop(sentinel, cg);
+    
+    cg->indentation -= 4;
+    writeIndentation(cg);
+    writeChar(aCurlyRight, cg);
 }
 
 
@@ -6025,7 +6032,7 @@ private void writeReturn(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen*
     writeConstWithSpace(hostReturn, cg);
 
     cg->i += 1; // CONSUME the expr node
-    writeExprInternal(cg->i - 1, nodes, locs, cg);
+    wExprOrSingleItem(cg->i - 1, nodes, locs, cg);
 
     writeChar(aSemicolon, cg);
     writeChar(aNewline, cg);
@@ -6054,7 +6061,7 @@ private void writeIf(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg)
     writeChar(aParenLeft, cg);
 
     ++cg->i; // CONSUME the expression node for the first condition
-    writeExprInternal(cg->i - 1, nodes, locs, cg);
+    wExprOrSingleItem(cg->i - 1, nodes, locs, cg);
     writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft}));
 }
 
@@ -6084,7 +6091,7 @@ private void writeIfClause(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codege
         writeChar(aParenLeft, cg);
         cg->i = sentinel; // CONSUME ???
         ++cg->i; // CONSUME the expr node for the "else if" clause
-        writeExprInternal(cg->i - 1, nodes, locs, cg);
+        wExprOrSingleItem(cg->i - 1, nodes, locs, cg);
         writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft}));
     }
 }
@@ -6137,7 +6144,7 @@ private void writeFor(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg
     writeConstWithSpace(hostWhile, cg);
     writeChar(aParenLeft, cg);
     cg->i += 2; // CONSUME the loopCond node and expr/verbatim node
-    writeExprInternal(cg->i - 1, nodes, locs, cg);
+    wExprOrSingleItem(cg->i - 1, nodes, locs, cg);
 
     writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
     cg->indentation += 4;
