@@ -101,9 +101,16 @@ typedef struct { // :MultiAssocList
 
 
 typedef struct { // :String
-    int len;
-    char cont[];
+    Arr(char) cont;
+    Int len;
 } String;
+
+
+typedef struct { // :StringBuilder
+    Arr(char) cont;
+    Int len;
+    Int cap;
+} StringBuilder;
 
 testable void printStringNoLn(String* s);
 testable void printString(String* s);

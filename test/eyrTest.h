@@ -2,6 +2,8 @@ Arena* createArena();
 void* allocateOnArena(size_t allocSize, Arena* ar);
 void deleteArena(Arena* ar);
 
+extern Compiler PROTO;
+
 DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
 DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
 DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
@@ -11,20 +13,19 @@ DEFINE_INTERNAL_LIST_HEADER(imports, Entity)
 
 
 String* prepareInput(const char* content, Arena* a);
-Compiler* lexicallyAnalyze(String* input, Compiler*, Arena*);
+Compiler* lexicallyAnalyze(String* input, const Compiler*, Arena*);
 void printLexer(Compiler* a);
 int64_t longOfDoubleBits(double d);
 void printIntArray(Int count, Arr(Int) arr);
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
-void initializeParser(Compiler* lx, Compiler* proto, Arena* a);
+void initializeParser(Compiler* lx, const Compiler* proto, Arena* a);
 void addNode(Node node, SourceLoc loc, Compiler* cm);
 Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
 Compiler* createProtoCompiler(Arena* a);
 StandardText getStandardTextLength();
 void typePrint(Int, Compiler*);
 void pushIntokens(Token, Compiler*);
-Int stToNameId(Int a);
-Unt nameOfStandard(Int strId);
+NameId nameOfStandard(Int strId);
 void printRawOverload(Int listInd, Compiler* cm);
 void printName(Int name, Compiler* cm);
 
@@ -32,7 +33,7 @@ void printName(Int name, Compiler* cm);
 
 Int getStringDict(Byte* text, String* strToSearch, StackInt* stringTable, StringDict* hm);
 
-Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
+Compiler* createLexerFromProto(String* sourceCode, const Compiler* proto, Arena* a);
 void printLexer(Compiler* a);
 int equalityLexer(Compiler a, Compiler b);
 

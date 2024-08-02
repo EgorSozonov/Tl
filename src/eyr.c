@@ -301,6 +301,19 @@ static Int hostOffsets[sizeof(hostTextLens)]; // filled in by "populateHostOffse
 #define hostNullCoalesce 73
 
 //}}}
+//{{{ Proto compiler
+
+testable Compiler PROTO = {
+        .sourceCode = null,
+        .stringTable = null, .stringDict = null,
+        .typesDict = null,
+        .activeBindings = null,
+        .rawOverloads = null,
+        .a = null,
+        .i = -1
+    };
+
+//}}}
 //}}}
 //{{{ Utils
 
@@ -722,9 +735,9 @@ DEFINE_INTERNAL_LIST(bytecode, Ulong, a) //:pushInbytecode
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
-testable String* str(const char* content, Arena* a) { //:str
-// Allocates a C string literal into an arena. The length of the literal is determined in O(N)
-    if (content == null) return null;
+
+testable String str(const char* content) { //:str
+    if (content == null) return (String){.cont = null, .len = 0};
     const char* ind = content;
     int len = 0;
     for (; *ind != '\0'; ind++)
@@ -735,6 +748,7 @@ testable String* str(const char* content, Arena* a) { //:str
     memcpy(result->cont, content, len + 1);
     return result;
 }
+
 
 testable bool endsWith(String* a, String* b) { //:endsWith
 // Does string "a" end with string "b"?
@@ -2598,7 +2612,7 @@ private void mbCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
 private EntityId importActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
-testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a);
+testable Compiler* createLexerFromProto(String* sourceCode, const Compiler* proto, Arena* a);
 private void eLinearize(Int sentinel, P_CT);
 private TypeId exprHeadless(Int sentinel, SourceLoc loc, P_CT);
 private void pExpr(Token tk, P_CT);
@@ -3737,7 +3751,7 @@ private void finalizeLexer(Compiler* lx) { //:finalizeLexer
 }
 
 
-testable Compiler* lexicallyAnalyze(String* sourceCode, Compiler* proto, Arena* a) {
+testable Compiler* lexicallyAnalyze(String* sourceCode, const Compiler* proto, Arena* a) {
 //:lexicallyAnalyze Main lexer function. Precondition: the input Byte array has been prepended
 // with StandardText
     Compiler* lx = createLexerFromProto(sourceCode, proto, a);
@@ -4228,7 +4242,7 @@ private void importPrelude(Compiler* cm) { //:importPrelude
 }
 
 
-testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Arena* a) {
+testable Compiler* createLexerFromProto(String* sourceCode, const Compiler* proto, Arena* a) {
 //:createLexerFromProto A proto compiler contains just the built-in definitions and tables. This fn
 // copies it and performs initialization. Post-condition: i has been incremented by the
 // standardText size
@@ -4257,12 +4271,11 @@ testable Compiler* createLexerFromProto(String* sourceCode, Compiler* proto, Are
 }
 
 
-testable void initializeParser(Compiler* lx, Compiler* proto, Arena* a) { //:initializeParser
+testable void initializeParser(Compiler* lx, const Compiler* proto, Arena* a) { //:initializeParser
 // Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
     if (lx->stats.wasLexerError) {
         return;
     }
-
     Compiler* cm = lx;
     Int initNodeCap = lx->tokens.len > 64 ? lx->tokens.len : 64;
     cm->scopeStack = createScopeStack();
@@ -4653,7 +4666,7 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
 }
 
 
-testable Compiler* parse(Compiler* cm, Compiler* proto, Arena* a) { //:parse
+testable Compiler* parse(Compiler* cm, const Compiler* proto, Arena* a) { //:parse
 // Parses a single file in 4 passes, see docs/parser.txt
     initializeParser(cm, proto, a);
     return parseMain(cm, a);
@@ -5527,9 +5540,8 @@ DEFINE_STACK(BtCodegen) //:StackBtCodegen
 struct Codegen { //:Codegen
     Int i; // current node index
     Unt indentation;
-    Unt len;
     Unt cap;
-    Arr(char) output;
+    String* output; 
     StackCgCall* calls; // temporary stack for generating expressions
 
     StackCgFrame backtrack;
@@ -5544,7 +5556,7 @@ struct Codegen { //:Codegen
 private void ensureBufferLength(Int additionalLength, Codegen* cg) { //:ensureBufferLength
 // Ensures that the buffer has space for at least that many bytes plus 10 by increasing its
 // capacity if necessary
-    if (cg->len + additionalLength + 10 < cg->cap) {
+    if (cg->output->len + additionalLength + 10 < cg->cap) {
         return;
     }
     Int neededLength = cg->len + additionalLength + 10;
@@ -5553,7 +5565,7 @@ private void ensureBufferLength(Int additionalLength, Codegen* cg) { //:ensureBu
         newCap *= 2;
     }
     Arr(char) new = allocateOnArena(newCap, cg->a);
-    memcpy(new, cg->output, cg->len);
+    memcpy(new, cg->output->cont, cg->output->len);
     cg->output = new;
     cg->cap = newCap;
 }
@@ -6177,9 +6189,10 @@ private Codegen* createCodegen(Compiler* cm, Arena* a) { //:createCodegen
     Codegen* cg = allocateOnArena(sizeof(Codegen), a);
     (*cg) = (Codegen) {
         .i = 0, .backtrack = *createStackCgFrame(16, a), .calls = createStackCgCall(16, a),
-        .len = 0, .cap = 64, .output = allocateOnArena(64, a),
+        .cap = 64, .output = allocateOnArena(68, a),
         .sourceCode = cm->sourceCode, .cm = cm, .a = a
     };
+    cg->output.len = 0;
     return cg;
 }
 
@@ -6707,15 +6720,29 @@ Int eyrInitCompiler() { //:eyrInitCompiler
     tabulateCodegen();
     populateHostOffsets();
     tabulateShield();
+    Arena* aGlobal = createArena();
+    PROTO = *createProtoCompiler(aGlobal);
     return 0;
 }
 
-Int eyrCompile(unsigned char* fn) { //:eyrCompile
-//    String* sourceCode = readSourceFile(fn, a);
-//    if (sourceCode == NULL) {
-//        goto cleanup;
-//    }
+String* eyrCompile(String* sourceCode) { //:eyrCompile
+    if (sourceCode == null || PROTO.i == -1) {
+        return null;
+    }
+    Arena* a = createArena();
+    Compiler* cm = lexicallyAnalyze(sourceCode, &PROTO, a);
+    cm = parse(cm, &PROTO, a);
+    Codegen* mbOutput = generateCode(cm, a);
+    deleteArena(a);
     return 0;
+}
+
+
+String* eyrCompileFile(char* fn) { //:eyrCompileFile
+    Arena* a = createArena();
+    String* sourceCode = readSourceFile(fn, a);
+    deleteArena(a); 
+    return eyrCompile(sourceCode);
 }
 
 

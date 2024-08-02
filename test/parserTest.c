@@ -119,7 +119,7 @@ private Arr(TypeId) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { 
 
 private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes, Int countNodes,
                                Arr(Int) types, Int countTypes, Arr(TestEntityImport) imports,
-                               Int countImports, Compiler* proto, Arena* a) { //:createTest0
+                               Int countImports, const Compiler* proto, Arena* a) { //:createTest0
 // Creates a test with two parsers: one is the init parser (contains all the "imported" bindings and
 // pre-defined nodes), and the other is the output parser (with all the stuff parsed from source code).
 // When the test is run, the init parser will parse the tokens and then will be compared to the
@@ -180,9 +180,9 @@ private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes
     (entities), sizeof(entities)/sizeof(TestEntityImport), proto, a)
 
 
-private ParserTest createTestWithError0(String* name, String* message, String* input, Arr(Node) nodes,
-                            Int countNodes, Arr(Int) types, Int countTypes, Arr(TestEntityImport) entities,
-                            Int countEntities, Compiler* proto, Arena* a) {
+private ParserTest createTestWithError0(String* name, String* message, String* input, 
+        Arr(Node) nodes, Int countNodes, Arr(Int) types, Int countTypes,
+        Arr(TestEntityImport) entities, Int countEntities, const Compiler* proto, Arena* a) {
 // Creates a test with two parsers where the expected result is an error in parser
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);
@@ -199,7 +199,7 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
 private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) nodes,
                             Int countNodes, Arr(Int) types, Int countTypes, Arr(TestEntityImport) entities,
                             Int countEntities, Arr(SourceLoc) locs, Int countLocs,
-                            Compiler* proto, Arena* a) {
+                            const Compiler* proto, Arena* a) {
 // Creates a test with two parsers where the source locs are specified (unlike most parser tests)
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);
@@ -320,7 +320,7 @@ private Node doubleNd(double value) {
 //}}}
 //{{{ Assignment tests
 
-ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* assignmentTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple assignment"),
@@ -433,7 +433,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodExpr, .pl1 = 1,  .pl2 = 7,        },
                 (Node){ .tp = nodAssignment,      .pl2 = 5, .pl3 = 2  },
                 (Node){ .tp = nodBinding,      .pl1 = 2, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3, .pl3 = 3 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 3, .pl3 = 3 },
                 (Node){ .tp = tokInt,             .pl2 = 1 },
                 (Node){ .tp = tokInt,             .pl2 = 2 },
                 (Node){ .tp = tokInt,             .pl2 = 3 },
@@ -474,7 +474,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodExpr, .pl1 = 1, .pl2 = 6 },
                 (Node){ .tp = nodAssignment, .pl2 = 4, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 2, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 2, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 1 },
                 (Node){ .tp = tokInt, .pl2 = 2 },
                 (Node){ .tp = nodId, .pl1 = 2, .pl2 = -1 },
@@ -504,19 +504,19 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
                 (Node){ .tp = nodAssignment, .pl2 = 4, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 2, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 2, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 1 },
                 (Node){ .tp = tokInt, .pl2 = 2 },
 
                 (Node){ .tp = nodAssignment, .pl2 = 4, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 3, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 2, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 4 },
                 (Node){ .tp = tokInt, .pl2 = 3 },
 
                 (Node){ .tp = nodAssignment, .pl2 = 4, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 4, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 2, .pl3 = 2 },
                 (Node){ .tp = nodId, .pl1 = 2, .pl2 = -1 },
                 (Node){ .tp = nodId, .pl1 = 3, .pl2 = -1 },
 
@@ -540,7 +540,7 @@ ParserTestSet* assignmentTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //}}}
 //{{{ Expression tests
 
-ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* expressionTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple function call"),
@@ -576,7 +576,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 5, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3,
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 3,
                         .pl3 = 3 },
                 (Node){ .tp = tokInt, .pl2 = 1 },
                 (Node){ .tp = tokInt, .pl2 = 2 },
@@ -597,7 +597,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 4, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2,
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 2,
                         .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 1 },
                 (Node){ .tp = tokBool, .pl2 = 1 },
@@ -615,7 +615,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 7, .pl3 = 2 },
                 (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 5, .pl3 = 2 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 5, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 4 },
                 (Node){ .tp = nodExpr, .pl1 = 0, .pl2 = 3 },
                 (Node){ .tp = tokInt, .pl2 = 2 },
@@ -637,12 +637,12 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 3, .pl3 = 2 }, // [1]
                 (Node){ .tp = nodBinding, .pl1 = 1, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 1, .pl3 = 1 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 1, .pl3 = 1 },
                 (Node){ .tp = tokInt, .pl2 = 1 },
 
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 7, .pl3 = 2 }, // [2 (2 - 7)]
                 (Node){ .tp = nodBinding, .pl1 = 2, .pl2 = -1 }, // [2 (2 - 7)]
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 5, .pl3 = 2 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 5, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 4 },
                 (Node){ .tp = nodExpr, .pl1 = 0, .pl2 = 3 },
                 (Node){ .tp = tokInt, .pl2 = 2 },
@@ -651,13 +651,13 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 4, .pl3 = 2 }, // [2 3]
                 (Node){ .tp = nodBinding, .pl1 = 3, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 2, .pl3 = 2 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 2, .pl3 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 2 },
                 (Node){ .tp = tokInt, .pl2 = 3 },
 
                 (Node){ .tp = nodAssignment, .pl1 = 0, .pl2 = 5, .pl3 = 2 }, // [2 3]
                 (Node){ .tp = nodBinding, .pl1 = 4, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3, .pl3 = 3 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 3, .pl3 = 3 },
                 (Node){ .tp = nodId, .pl1 = 1, .pl2 = -1 },
                 (Node){ .tp = nodId, .pl1 = 2, .pl2 = -1 },
                 (Node){ .tp = nodId, .pl1 = 3, .pl2 = -1 },
@@ -800,7 +800,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
                 (Node){ .tp = nodExpr,  .pl1 = 1, .pl2 = 7 },
                 (Node){ .tp = nodAssignment,      .pl2 = 5, .pl3 = 2 },
                 (Node){ .tp = nodBinding,  .pl1 = 1, .pl2 = -1 },
-                (Node){ .tp = nodDataAlloc, .pl1 = stToNameId(strL), .pl2 = 3, .pl3 = 3 },
+                (Node){ .tp = nodDataAlloc, .pl1 = nameOfStandard(strL), .pl2 = 3, .pl3 = 3 },
                 (Node){ .tp = tokBool,            .pl2 = 1 },
                 (Node){ .tp = tokBool,            .pl2 = 0 },
                 (Node){ .tp = tokBool,            .pl2 = 1 },
@@ -822,7 +822,7 @@ ParserTestSet* expressionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //}}}
 //{{{ Function tests
 
-ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* functionTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple function definition 1"),
@@ -999,7 +999,8 @@ ParserTestSet* functionTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 
 //}}}
 //{{{ If tests
-ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
+
+ParserTestSet* ifTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("If test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple if"),
@@ -1161,7 +1162,7 @@ ParserTestSet* ifTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //}}}
 //{{{ Loop tests
 
-ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* loopTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
         createTest(
             s("Simple loop"),
@@ -1608,8 +1609,9 @@ ParserTestSet* loopTests(Compiler* proto, Compiler* protoOvs, Arena* a) {
 //}}}
 
 
-void runATestSet(ParserTestSet* (*testGenerator)(Compiler*, Compiler*, Arena*), int* countPassed,
-                 int* countTests, Compiler* proto, Compiler* protoOvs, Arena* a) {
+void runATestSet(ParserTestSet* (*testGenerator)(const Compiler*, Compiler*, Arena*), 
+                 int* countPassed, int* countTests, 
+                 const Compiler* proto, Compiler* protoOvs, Arena* a) {
     ParserTestSet* testSet = (testGenerator)(proto, protoOvs, a);
     for (int j = 0; j < testSet->totalTests; j++) {
         ParserTest test = testSet->tests[j];
@@ -1630,16 +1632,15 @@ int main() {
 
     eyrInitCompiler();
     Arena *a = createArena();
-    Compiler* proto = createProtoCompiler(a);
     Compiler* protoOvs = createProtoCompiler(a);
     createOverloads(protoOvs);
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&assignmentTests, &countPassed, &countTests, proto, protoOvs, a);
-    runATestSet(&expressionTests, &countPassed, &countTests, proto, protoOvs, a);
-    runATestSet(&functionTests, &countPassed, &countTests, proto, protoOvs, a);
-    runATestSet(&ifTests, &countPassed, &countTests, proto, protoOvs, a);
-    runATestSet(&loopTests, &countPassed, &countTests, proto, protoOvs, a);
+    runATestSet(&assignmentTests, &countPassed, &countTests, &PROTO, protoOvs, a);
+    runATestSet(&expressionTests, &countPassed, &countTests, &PROTO, protoOvs, a);
+    runATestSet(&functionTests, &countPassed, &countTests, &PROTO, protoOvs, a);
+    runATestSet(&ifTests, &countPassed, &countTests, &PROTO, protoOvs, a);
+    runATestSet(&loopTests, &countPassed, &countTests, &PROTO, protoOvs, a);
     if (countTests == 0) {
         printf("\nThere were no tests to run!\n");
     } else if (countPassed == countTests) {

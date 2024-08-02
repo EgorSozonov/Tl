@@ -1059,17 +1059,16 @@ int main(int argc, char** argv) {
     printf("----------------------------\n");
     eyrInitCompiler();
     Arena *a = createArena();
-    Compiler* proto = createProtoCompiler(a);
 
     int countPassed = 0;
     int countTests = 0;
-    runATestSet(&wordTests, &countPassed, &countTests, proto, a);
-    runATestSet(&stringTests, &countPassed, &countTests, proto, a);
-    runATestSet(&operatorTests, &countPassed, &countTests, proto, a);
-    runATestSet(&punctuationTests, &countPassed, &countTests, proto, a);
-    runATestSet(&numericTests, &countPassed, &countTests, proto, a);
-    runATestSet(&coreFormTests, &countPassed, &countTests, proto, a);
-    runATestSet(&typeTests, &countPassed, &countTests, proto, a);
+    runATestSet(&wordTests, &countPassed, &countTests, &PROTO, a);
+    runATestSet(&stringTests, &countPassed, &countTests, &PROTO, a);
+    runATestSet(&operatorTests, &countPassed, &countTests, &PROTO, a);
+    runATestSet(&punctuationTests, &countPassed, &countTests, &PROTO, a);
+    runATestSet(&numericTests, &countPassed, &countTests, &PROTO, a);
+    runATestSet(&coreFormTests, &countPassed, &countTests, &PROTO, a);
+    runATestSet(&typeTests, &countPassed, &countTests, &PROTO, a);
 
     //runATestSet(&metaTests, &countPassed, &countTests, proto, a);
     if (countTests == 0) {
