@@ -90,7 +90,7 @@ const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<=><0===0>=<>>.>0?:@^.||."
                             "foobarinner"
 #endif
                             ;
-                            
+
 const Int standardOperatorsLength = 49; // length of the operator part above
 
 // The :standardText prepended to all source code inputs and the hash table to provide a built-in
@@ -127,7 +127,7 @@ const Int standardKeywords[] = {
 //{{{ Operators
 
 #define nameLoc(start, len) ((len << 24) + start)
-                    
+
 private OpDef OPERATORS[countOperators] = {
     { .arity=1, .name = nameLoc(0, 2), .firstSymbol = '!' },   // !.
     { .arity=2, .name = nameLoc(2, 2), .firstSymbol = '!' }, // !=
@@ -137,22 +137,22 @@ private OpDef OPERATORS[countOperators] = {
     { .arity=2, .name = nameLoc(7, 1), .firstSymbol = '%'  },    // %
     { .arity=2, .name = nameLoc(8, 3), .firstSymbol = '&'  },  // &&.
     { .arity=2, .name = nameLoc(8, 2), .firstSymbol = '&', .assignable=true }, // &&
-    { .arity=2, .name = nameLoc(11, 2), .firstSymbol = '*', .assignable = true, 
+    { .arity=2, .name = nameLoc(11, 2), .firstSymbol = '*', .assignable = true,
       .overloadable = true},   // *:
-    { .arity=2, .name = nameLoc(11, 1), .firstSymbol = '*', .assignable = true, 
+    { .arity=2, .name = nameLoc(11, 1), .firstSymbol = '*', .assignable = true,
        .overloadable = true},  // *
-    { .arity=2, .name = nameLoc(13, 2), .firstSymbol = '+', .assignable = true, 
+    { .arity=2, .name = nameLoc(13, 2), .firstSymbol = '+', .assignable = true,
       .overloadable = true}, // +:
     { .arity=2, .name = nameLoc(13, 1), .firstSymbol = '+', .assignable = true,
       .overloadable = true},      // +
-    { .arity=2, .name = nameLoc(15, 2), .firstSymbol = '-', .assignable = true, 
+    { .arity=2, .name = nameLoc(15, 2), .firstSymbol = '-', .assignable = true,
       .overloadable = true}, // -:
-    { .arity=2, .name = nameLoc(15, 1), .firstSymbol = '-', .assignable = true, 
+    { .arity=2, .name = nameLoc(15, 1), .firstSymbol = '-', .assignable = true,
       .overloadable = true },     // -
     { .arity=2, .name = nameLoc(17, 2), .firstSymbol = '/', .assignable = true,
       .overloadable = true}, // /:
     { .arity=2, .name = nameLoc(19, 2), .firstSymbol = '/', .isTypelevel = true}, // /|
-    { .arity=2, .name = nameLoc(19, 1), .firstSymbol = '/', .assignable = true, 
+    { .arity=2, .name = nameLoc(19, 1), .firstSymbol = '/', .assignable = true,
       .overloadable = true}, // /
     { .arity=2, .name = nameLoc(21, 3), .firstSymbol = '<' },  // <<.
     { .arity=2, .name = nameLoc(24, 3), .firstSymbol = '<' },  // <=>
@@ -164,7 +164,7 @@ private OpDef OPERATORS[countOperators] = {
     { .arity=1, .name = nameLoc(31, 2), .firstSymbol = '='  }, // =0
     { .arity=2, .name = nameLoc(30, 2), .firstSymbol = '='  }, // ==
     { .arity=3, .name = nameLoc(33, 3), .firstSymbol = '>' },  // >=<
-    { .arity=2, .name = nameLoc(36, 3), .firstSymbol = '>', 
+    { .arity=2, .name = nameLoc(36, 3), .firstSymbol = '>',
       .assignable=true, .overloadable = true}, // >>.
     { .arity=1, .name = nameLoc(39, 2), .firstSymbol = '>' },   // >0
     { .arity=2, .name = nameLoc(33, 2), .firstSymbol = '>' },    // >=
@@ -174,7 +174,7 @@ private OpDef OPERATORS[countOperators] = {
     { .arity=1, .name = nameLoc(41, 1), .firstSymbol = '?', .isTypelevel=true }, // ?
     { .arity=2, .name = nameLoc(43, 1), .firstSymbol = '@', .overloadable = true}, // @
     { .arity=2, .name = nameLoc(44, 2), .firstSymbol = '^' },    // ^.
-    { .arity=2, .name = nameLoc(44, 1), .firstSymbol = '^', .assignable=true, 
+    { .arity=2, .name = nameLoc(44, 1), .firstSymbol = '^', .assignable=true,
       .overloadable = true}, // ^
     { .arity=2, .name = nameLoc(46, 3), .firstSymbol = '|' }, // ||.
     { .arity=2, .name = nameLoc(46, 2), .firstSymbol = '|', .assignable=true } // ||
@@ -303,7 +303,7 @@ static Int hostOffsets[sizeof(hostTextLens)]; // filled in by "populateHostOffse
 //}}}
 //{{{ Proto compiler
 
-testable Compiler PROTO = {
+private Compiler PROTO = {
         .sourceCode = null,
         .stringTable = null, .stringDict = null,
         .typesDict = null,
@@ -312,6 +312,10 @@ testable Compiler PROTO = {
         .a = null,
         .i = -1
     };
+
+private Bool _wasInit = false;
+
+private Int initCompiler();
 
 //}}}
 //}}}
@@ -329,6 +333,7 @@ private size_t minChunkSize(void) {
     return (size_t)(CHUNK_QUANT - 32);
 }
 
+
 testable Arena* createArena(void) { //:createArena
     Arena* result = malloc(sizeof(Arena));
 
@@ -343,6 +348,7 @@ testable Arena* createArena(void) { //:createArena
 
     return result;
 }
+
 
 private size_t calculateChunkSize(size_t allocSize) { //:calculateChunkSize
 // Calculates memory for a new chunk. Memory is quantized and is always 32 bytes less
@@ -359,6 +365,7 @@ private size_t calculateChunkSize(size_t allocSize) { //:calculateChunkSize
 
     return mallocMemory - 32;
 }
+
 
 testable void* allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
 // Allocate memory in the arena, malloc'ing a new chunk if needed
@@ -701,7 +708,7 @@ void dbgRawOverload(Int listInd, Compiler* cm) { //:dbgRawOverload
 //{{{ Datatypes a la carte
 
 DEFINE_STACK(int32_t) //:createStackint32_t :pushint32_t :peekint32_t :hasValuesint32_t :popint32_t
-DEFINE_STACK(uint32_t) //:createStackuint32_t :pushuint32_t :peekuint32_t :hasValuesuint32_t 
+DEFINE_STACK(uint32_t) //:createStackuint32_t :pushuint32_t :peekuint32_t :hasValuesuint32_t
                        //:popuint32_t
 DEFINE_STACK(BtToken) //:createStackBtToken
 DEFINE_STACK(Token) //:createStackToken
@@ -743,7 +750,7 @@ testable String str(const char* content) { //:str
     Int len = 0;
     for (const char* p = content; *p != '\0'; p++) {
         len += 1;
-    } 
+    }
 
     return (String){.cont = content, .len = len };
 }
@@ -763,7 +770,7 @@ testable Bool endsWith(String a, String b) { //:endsWith
 }
 
 
-private Bool equal(String a, String b) { //:equal
+testable Bool equal(String a, String b) { //:equal
     if (a.len != b.len) {
         return false;
     }
@@ -1056,7 +1063,7 @@ testable Int addStringDict(const char* text, Int startBt, Int lenBts, StackUnt* 
 }
 
 
-testable Int getStringDict(Arr(char) text, String strToSearch, StackUnt* stringTable, 
+testable Int getStringDict(Arr(char) text, String strToSearch, StackUnt* stringTable,
         StringDict* hm) { //:getStringDict
 // Returns the index of a string within the string table, or -1 if it's not present
     Int lenBts = strToSearch.len;
@@ -2613,7 +2620,7 @@ private void mbCloseSpans(Compiler* cm);
 private void popScopeFrame(Compiler* cm);
 private EntityId importActivateEntity(Entity ent, Compiler* cm);
 private void createBuiltins(Compiler* cm);
-testable Compiler* createLexerFromProto(String sourceCode, const Compiler* proto, Arena* a);
+testable Compiler* createLexer(String sourceCode, Arena* a);
 private void eLinearize(Int sentinel, P_CT);
 private TypeId exprHeadless(Int sentinel, SourceLoc loc, P_CT);
 private void pExpr(Token tk, P_CT);
@@ -2964,7 +2971,7 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
     cm->i = rightInd + 1; // CONSUME the left side of an assignment and the assignRight
     cm->nodes.cont[assignmentNodeInd].pl3 = cm->nodes.len - assignmentNodeInd;
     const Int rightNodeInd = cm->nodes.len;
-    
+
     if (countLeftSide > 1) {
         assignmentMutateComplexLeft(rightNodeInd, P_C);
     }
@@ -3632,7 +3639,7 @@ private void pReturn(Token tok, P_CT) { //:pReturn
 
 testable void importEntities(Arr(Entity) impts, Int countEntities, Compiler* cm) { //:importEntities
     for (int j = 0; j < countEntities; j++) {
-        Entity ent = impts[j]; 
+        Entity ent = impts[j];
         Int nameId = ent.name & LOWER24BITS;
         Int existingBinding = cm->activeBindings[nameId];
         Int isAFunc = isFunction(ent.typeId, cm);
@@ -3716,17 +3723,17 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) { //:copyStringDi
 }
 
 
-testable Compiler* createProtoCompiler(Arena* a) { //:createProtoCompiler
+private void createProtoCompiler(OUT Compiler* proto, Arena* a) { //:createProtoCompiler
 // Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned
 // for every source code module. The proto-compiler contains the following data:
 // - types that are sufficient for the built-in operators
 // - entities with the built-in operator entities
 // - overloadIds with counts
-    Compiler* proto = allocateOnArena(sizeof(Compiler), a);
+    Stackuint32_t* st = createStackuint32_t(16, a);
     (*proto) = (Compiler){
         .entities = createInListEntity(32, a),
         .sourceCode = str(standardText),
-        .stringTable = createStackuint32_t(16, a), .stringDict = createStringDict(128, a),
+        .stringTable = st, .stringDict = createStringDict(128, a),
         .types = createInListInt(64, a), .typesDict = createStringDict(128, a),
         .activeBindings = allocateOnArena(4*countOperators, a),
         .rawOverloads = createMultiAssocList(a),
@@ -3735,7 +3742,6 @@ testable Compiler* createProtoCompiler(Arena* a) { //:createProtoCompiler
     // operators are always active, and take up the initial chunk of stringTable
     memset(proto->activeBindings, 0xFF, 4*countOperators);
     createBuiltins(proto);
-    return proto;
 }
 
 
@@ -3752,10 +3758,10 @@ private void finalizeLexer(Compiler* lx) { //:finalizeLexer
 }
 
 
-testable Compiler* lexicallyAnalyze(String sourceCode, const Compiler* proto, Arena* a) {
+testable Compiler* lexicallyAnalyze(String sourceCode, Arena* a) {
 //:lexicallyAnalyze Main lexer function. Precondition: the input Byte array has been prepended
 // with StandardText
-    Compiler* lx = createLexerFromProto(sourceCode, proto, a);
+    Compiler* lx = createLexer(sourceCode, a);
     const Int inpLength = lx->stats.inpLength;
     const Arr(char) inp = lx->sourceCode.cont;
     VALIDATEL(inpLength > 0, "Empty input")
@@ -4089,8 +4095,8 @@ private void buildInfixOperator(Int operId, TypeId typeId, Compiler* cm) { //:bu
 private void buildOperator(Int operId, TypeId typeId, Emit emit, Compiler* cm) {
 //:buildOperator Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
-    pushInentities((Entity){ 
-            .typeId = typeId, .name = OPERATORS[operId].name, .class = classImmut, 
+    pushInentities((Entity){
+            .typeId = typeId, .name = OPERATORS[operId].name, .class = classImmut,
             .emit = emitInfix }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
 }
@@ -4100,7 +4106,7 @@ private void buildHostOperator(Int operId, TypeId typeId, Emit emit, Int hostInd
 //:buildOperator Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
     NameLoc name = (hostTextLens[hostInd] << 24) + hostOffsets[hostInd];
-    pushInentities((Entity){ 
+    pushInentities((Entity){
             .typeId = typeId, .name = name, .class = classImmut, .emit = emitInfix }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
 }
@@ -4129,7 +4135,7 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     TypeId strOfStrStr     = addConcrFnType(2, (Int[]){ tokString, tokString, tokString}, cm);
     TypeId flOfFlFl        = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     TypeId flOfFl          = addConcrFnType(1, (Int[]){ tokDouble, tokDouble}, cm);
-    
+
     buildHostOperator(opBitwiseNeg, intOfInt, emitPrefixHost, hostTilde, cm); // !.
     buildOperator(opNotEqual,      boolOfIntInt, emitInfix, cm);
     buildOperator(opNotEqual,      boolOfFlFl, emitInfix, cm);
@@ -4243,36 +4249,40 @@ private void importPrelude(Compiler* cm) { //:importPrelude
 }
 
 
-testable Compiler* createLexerFromProto(String sourceCode, const Compiler* proto, Arena* a) {
-//:createLexerFromProto A proto compiler contains just the built-in definitions and tables. This fn
+testable Compiler* createLexer(String sourceCode, Arena* a) {
+//:createLexer A proto compiler contains just the built-in definitions and tables. This fn
 // copies it and performs initialization. Post-condition: i has been incremented by the
 // standardText size
+    if (!_wasInit) {
+        initCompiler();
+    }
     Compiler* lx = allocateOnArena(sizeof(Compiler), a);
     Arena* aTmp = createArena();
+
     (*lx) = (Compiler){
         // this assumes that the source code is prefixed with the "standardText"
         .i = sizeof(standardText) - 1,
-        .sourceCode = prepareInput((const char *)sourceCode.cont, a),
+        .sourceCode = prepareInput(sourceCode.cont, a),
         .tokens = createInListToken(LEXER_INIT_SIZE, a),
         .metas = createInListToken(100, a),
         .newlines = createInListInt(500, a),
         .numeric = createInListInt(50, aTmp),
         .lexBtrack = createStackBtToken(16, aTmp),
-        .stringTable = copyStringTable(proto->stringTable, a),
-        .stringDict = copyStringDict(proto->stringDict, a),
+        .stringTable = copyStringTable(PROTO.stringTable, a),
+        .stringDict = copyStringDict(PROTO.stringDict, a),
         .a = a, .aTmp = aTmp
     };
     lx->stats = (CompStats){
         .inpLength = sourceCode.len + sizeof(standardText) - 1,
-        .countOverloads = proto->stats.countOverloads,
-        .countOverloadedNames = proto->stats.countOverloadedNames,
+        .countOverloads = PROTO.stats.countOverloads,
+        .countOverloadedNames = PROTO.stats.countOverloadedNames,
         .wasLexerError = false, .wasError = false, .errMsg = empty
     };
     return lx;
 }
 
 
-testable void initializeParser(Compiler* lx, const Compiler* proto, Arena* a) { //:initializeParser
+testable void initializeParser(Compiler* lx, Arena* a) { //:initializeParser
 // Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
     if (lx->stats.wasLexerError) {
         return;
@@ -4300,28 +4310,28 @@ testable void initializeParser(Compiler* lx, const Compiler* proto, Arena* a) { 
     };
     cm->stateForExprs = stForExprs;
 
-    cm->rawOverloads = copyMultiAssocList(proto->rawOverloads, cm->aTmp);
+    cm->rawOverloads = copyMultiAssocList(PROTO.rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
 
     cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
-    memcpy(cm->activeBindings, proto->activeBindings, 4*countOperators); // operators only
+    memcpy(cm->activeBindings, PROTO.activeBindings, 4*countOperators); // operators only
 
     Int extraActive = lx->stringTable->len - countOperators;
     if (extraActive > 0) {
         memset(cm->activeBindings + countOperators, 0xFF, extraActive*4);
     }
-    
-    cm->entities = createInListEntity(proto->entities.cap, a);
-    memcpy(cm->entities.cont, proto->entities.cont, proto->entities.len*sizeof(Entity));
-    cm->entities.len = proto->entities.len;
-    cm->entities.cap = proto->entities.cap;
 
-    cm->types.cont = allocateOnArena(proto->types.cap*8, a);
-    memcpy(cm->types.cont, proto->types.cont, proto->types.len*4);
-    cm->types.len = proto->types.len;
-    cm->types.cap = proto->types.cap*2;
+    cm->entities = createInListEntity(PROTO.entities.cap, a);
+    memcpy(cm->entities.cont, PROTO.entities.cont, PROTO.entities.len*sizeof(Entity));
+    cm->entities.len = PROTO.entities.len;
+    cm->entities.cap = PROTO.entities.cap;
 
-    cm->typesDict = copyStringDict(proto->typesDict, a);
+    cm->types.cont = allocateOnArena(PROTO.types.cap*8, a);
+    memcpy(cm->types.cont, PROTO.types.cont, PROTO.types.len*4);
+    cm->types.len = PROTO.types.len;
+    cm->types.cap = PROTO.types.cap*2;
+
+    cm->typesDict = copyStringDict(PROTO.typesDict, a);
 
     cm->importNames = createInListInt(8, lx->aTmp);
     cm->toplevels = createInListToplevel(8, lx->a);
@@ -4387,7 +4397,7 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
     }
 }
 
-#ifdef TEST
+#ifdef DEBUG
 void printIntArray(Int count, Arr(Int) arr);
 #endif
 
@@ -4667,9 +4677,9 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
 }
 
 
-testable Compiler* parse(Compiler* cm, const Compiler* proto, Arena* a) { //:parse
+testable Compiler* parse(Compiler* cm, Arena* a) { //:parse
 // Parses a single file in 4 passes, see docs/parser.txt
-    initializeParser(cm, proto, a);
+    initializeParser(cm, a);
     return parseMain(cm, a);
 }
 
@@ -5541,7 +5551,7 @@ DEFINE_STACK(BtCodegen) //:StackBtCodegen
 struct Codegen { //:Codegen
     Int i; // current node index
     Unt indentation;
-    StringBuilder output; 
+    StringBuilder output;
     StackCgCall* calls; // temporary stack for generating expressions
 
     StackCgFrame backtrack;
@@ -5641,12 +5651,29 @@ private void writeChars0(Codegen* cg, Int count, Arr(Byte) chars) { //:writeChar
 
 #define writeChars(cg, chars) writeChars0(cg, sizeof(chars), chars)
 
+
+private Codegen* createCodegen(Compiler* cm, Arena* a) { //:createCodegen
+    Codegen* cg = allocateOnArena(sizeof(Codegen), a);
+    Arr(char) outputBuffer = allocateOnArena(64, a);
+    (*cg) = (Codegen) {
+        .i = 0, .backtrack = *createStackCgFrame(16, a), .calls = createStackCgCall(16, a),
+        .output = (StringBuilder){.cont = outputBuffer, .len = 0, .cap = 64},
+        .sourceCode = cm->sourceCode, .cm = cm, .a = a
+    };
+    return cg;
+}
+
+
 //}}}
 //{{{ Core library
 
 static char coreLib[] = "function compare_Int(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }\n"
     "function compare_Dbl(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }\n"
 ;
+
+testable Int getCoreLibSize() { //:getCoreLibSize
+    return sizeof(coreLib) - 1; // -1 to avoid C's "zero" character
+}
 
 //}}}
 //{{{ Codegen main
@@ -5801,7 +5828,7 @@ private void wExprProcessFirstArg(CgCall* call, Codegen* cg) { //:wExprProcessFi
 
 private void wExprCloseCall(Codegen* cg) { //:wExprCloseCall
     CgCall call = popCgCall(cg->calls);
-    
+
     if (call.arity == 0) {
         switch (call.emit) {
         case emitPrefix:
@@ -5862,7 +5889,7 @@ private void wExprComplex(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Co
 // the function calls, then walks the same exp forwards while writing the output and updating stack
     wExprBuildCallStack(sentinel, nodes, cg);
     dbgCgCalls(cg);
-    
+
     wExprEmitComplex(sentinel, nodes, locs, cg);
 }
 
@@ -5870,6 +5897,7 @@ private void wExprComplex(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Co
 private void wExprOrSingleItem(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
 //:wExprOrSingleItem Precondition: we are looking 1 past the nodExpr/singular node. Consumes all
 // nodes of the expr
+    print("expr ind %d", ind);
     Node nd = nodes[ind];
     SourceLoc loc = locs[ind];
     if (nd.tp <= topVerbatimTokenVariant) {
@@ -5879,15 +5907,15 @@ private void wExprOrSingleItem(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Co
         writeId(nd, loc, cg);
         cg->i += 1; // CONSUME the whole expression
     } else {
+#if SAFETY
+        if(nd.tp != nodExpr) {
+            throwExcInternal(iErrorExpressionIsNotAnExpr, cg->cm);
+        }
+#endif
         const Int sentinel = cg->i + nd.pl2;
         wExprComplex(sentinel, nodes, locs, cg);
         cg->i = sentinel; // CONSUME the whole expression
     }
-#if SAFETY
-    if(nd.tp != nodExpr) {
-        throwExcInternal(iErrorExpressionIsNotAnExpr, cg->cm);
-    }
-#endif
 }
 
 
@@ -5923,10 +5951,9 @@ private void generateLoop(const Int sentinel, Codegen* cg) {
     Arr(Node) nodes = cg->cm->nodes.cont;
     Arr(SourceLoc) locs = cg->cm->sourceLocs->cont;
     while (cg->i < sentinel) {
-        Node nd = nodes[cg->i]; 
-        print("loop i %d going sizeof %d", cg->i, sizeof(CgCall)); 
+        Node nd = nodes[cg->i];
+        print("loop i %d going sizeof %d", cg->i, sizeof(CgCall));
         cg->i += 1; // CONSUME the span node
-        print("init len %d", cg->calls->len)
         (CODEGEN_TABLE[nd.tp - nodScope])(cg->i - 1, nodes, locs, cg);
         maybeCloseCgFrames(cg);
     }
@@ -5937,7 +5964,7 @@ private void writeToplevelFn(Toplevel fn, Arr(Node) nodes, Arr(SourceLoc) locs, 
 //:writeToplevelFn
     Node nd = nodes[fn.nodeInd];
     Entity fnEnt = cg->cm->entities.cont[fn.entityId];
-    
+
     openCgFrame(nd, cg);
     writeIndentation(cg);
     writeConstWithSpace(hostFunction, cg);
@@ -5966,9 +5993,9 @@ private void writeToplevelFn(Toplevel fn, Arr(Node) nodes, Arr(SourceLoc) locs, 
     cg->i = j;
     writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
     cg->indentation += 4;
-    
+
     generateLoop(sentinel, cg);
-    
+
     cg->indentation -= 4;
     writeIndentation(cg);
     writeChar(aCurlyRight, cg);
@@ -6133,7 +6160,7 @@ private void writeFor(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg
     }
     Int sentinel = cg->i + fr.pl2;
     ++cg->i; // CONSUME the scope node immediately inside loop
-    if (nodes[cg->i].tp == nodAssignment) { // there is at least one assignment, so 
+    if (nodes[cg->i].tp == nodAssignment) { // there is at least one assignment, so
                                             // an extra nested scope
         // noting in .pl1 that we have a two scopes
         pushCgFrame(((CgFrame){.tp = fr.tp, .pl = fr.pl2, .startNd = sentinel}),
@@ -6185,20 +6212,8 @@ private void writeBreakContinue(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, C
 }
 
 
-private Codegen* createCodegen(Compiler* cm, Arena* a) { //:createCodegen
-    Codegen* cg = allocateOnArena(sizeof(Codegen), a);
-    Arr(char) outputBuffer = allocateOnArena(64, a);
-    (*cg) = (Codegen) {
-        .i = 0, .backtrack = *createStackCgFrame(16, a), .calls = createStackCgCall(16, a),
-        .output = (StringBuilder){.cont = outputBuffer, .len = 0, .cap = 64},
-        .sourceCode = cm->sourceCode, .cm = cm, .a = a
-    };
-    return cg;
-}
-
-
 private void writeCoreLib(Codegen* cg) { //:writeCoreLib
-    Int len = sizeof(coreLib) - 1; // -1 to avoid C's "zero" character
+    Int len = getCoreLibSize();
     ensureBufferLength(len, cg);
     memcpy(cg->output.cont, coreLib, len);
     cg->output.len = len;
@@ -6260,32 +6275,53 @@ private void tabulateShield() { //:tabulateShield
         SHIELD_HASHTABLE[offset] = (hostTextLens[j] << 24) + (Unt)currInd;
         currInd += hostTextLens[j];
     }
-
 }
 
 
 //}}}
 
 private Codegen* generateCode(Compiler* cm, Arena* a) { //:generateCode
-// Generate host code for a whole module
+// Generate host code for a whole module. Must be called with a non-errored compiler
 #ifdef TRACE
-    print("codegen, parser = ")
+    print("codegenning, parser = ")
     printParser(cm, a);
-    printf("\n\n"); 
+    printf("\n\n");
 #endif
 
-    if (cm->stats.wasError) {
-        return null;
-    }
-    
     Arr(Node) nodes = cm->nodes.cont;
     Arr(SourceLoc) locs = cm->sourceLocs->cont;
     Codegen* cg = createCodegen(cm, cm->a);
     writeCoreLib(cg);
-    for (Int j = 0; j < cm->toplevels.len; j++) {
-        writeToplevelFn(cm->toplevels.cont[j], nodes, locs, cg);
+
+
+    // Main loop over the input
+    if (setjmp(excBuf) == 0) {
+        for (Int j = 0; j < cm->toplevels.len; j++) {
+            writeToplevelFn(cm->toplevels.cont[j], nodes, locs, cg);
+        }
+    } else {
+        print("Code generation error");
     }
+
     return cg;
+}
+
+//}}}
+//{{{ Init
+
+private Int initCompiler() { //:initCompiler
+// Definition of the operators, lexer dispatch, parser dispatch etc tables for the compiler.
+// This function should only be called once, at compiler init. Its results are global shared const.
+    populateStandardOffsets();
+    tabulateLexer();
+    tabulateParser();
+    tabulateCodegen();
+    populateHostOffsets();
+    tabulateShield();
+    Arena* aGlobal = createArena(); // it's ok to leak it. Will be cleaned up on process exit
+    createProtoCompiler(&PROTO, aGlobal);
+    _wasInit = true;
+    return 0;
 }
 
 //}}}
@@ -6697,7 +6733,7 @@ void dbgCgCalls(Codegen* cg) { //:dbgCgCalls
     StackCgCall* calls = cg->calls;
     for (Int j = 0; j < calls->len; j += 1) {
         CgCall c = calls->cont[j];
-        printf("(emit %d arity %d countArgs %d) ", c.emit, c.arity, c.countArgs); 
+        printf("(emit %d arity %d countArgs %d) ", c.emit, c.arity, c.countArgs);
         if (j % 4 == 0)  {
             printf("\n ");
         }
@@ -6711,37 +6747,36 @@ void dbgCgCalls(Codegen* cg) { //:dbgCgCalls
 //}}}
 //{{{ Main
 
-Int eyrInitCompiler() { //:eyrInitCompiler
-// Definition of the operators, lexer dispatch, parser dispatch etc tables for the compiler.
-// This function should only be called once, at compiler init. Its results are global shared const.
-    populateStandardOffsets();
-    tabulateLexer();
-    tabulateParser();
-    tabulateCodegen();
-    populateHostOffsets();
-    tabulateShield();
-    Arena* aGlobal = createArena();
-    PROTO = *createProtoCompiler(aGlobal);
-    return 0;
-}
-
 String eyrCompile(String sourceCode) { //:eyrCompile
-    if (sourceCode.len == 0 || PROTO.i == -1) {
+    if (sourceCode.len == 0) {
         return empty;
     }
     Arena* a = createArena();
-    Compiler* cm = lexicallyAnalyze(sourceCode, &PROTO, a);
-    cm = parse(cm, &PROTO, a);
-    Codegen* mbOutput = generateCode(cm, a);
+    Compiler* cm = lexicallyAnalyze(sourceCode, a);
+    if (cm->stats.wasLexerError) {
+        print("lexer error")
+        return empty;
+    }
+
+    cm = parse(cm, a);
+    if (cm->stats.wasError) {
+        print("parse error")
+        return empty;
+    }
+
+    Codegen* hostCode = generateCode(cm, a);
     deleteArena(a);
-    return empty;
+    return (String){.cont = hostCode->output.cont, .len = hostCode->output.len};
 }
 
 
 String eyrCompileFile(char* fn) { //:eyrCompileFile
+    if (!_wasInit) {
+        initCompiler();
+    }
     Arena* a = createArena();
     String sourceCode = readSourceFile(fn, a);
-    deleteArena(a); 
+    deleteArena(a);
     return eyrCompile(sourceCode);
 }
 
@@ -6749,24 +6784,11 @@ String eyrCompileFile(char* fn) { //:eyrCompileFile
 #ifndef TEST
 
 Int main(int argc, char** argv) { //:main
-    eyrInitCompiler();
-    Arena* a = createArena();
-
-
     String sourceCode = s("main = (( a = 78; print a))");
+    String hostCode = eyrCompile(sourceCode);
 
-    Compiler* proto = createProtoCompiler(a);
-    Compiler* cm = lexicallyAnalyze(sourceCode, proto, a);
-    cm = parse(cm, proto, a);
-    Codegen* mbOutput = generateCode(cm, a);
-    if (mbOutput == null) {
-        print("Error when generating code!");
-    } else {
-        printStringBuilder(mbOutput->output);
-    }
+    printString(hostCode);
 
-    cleanup:
-    deleteArena(a);
     return 0;
 }
 

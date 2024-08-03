@@ -7,7 +7,7 @@ fi
 # main part
 APP=eyr
 mkdir -p $DEBUGDIR/$APP
-gcc -g3 --std=c17 -o $DEBUGDIR/$APP/parserTest \
+gcc -g3 --std=c2x -o $DEBUGDIR/$APP/parserTest \
 -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=int-conversion -Werror=implicit-int \
 -Werror=incompatible-pointer-types \

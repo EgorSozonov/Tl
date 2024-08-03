@@ -26,9 +26,10 @@ typedef struct {
 #define S   70000000 // A constant larger than the largest allowed file size. Separates parsed
                      // names from others
 
-private Compiler* buildExpectedLexer(Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
-    Compiler* result = createLexerFromProto(empty, proto, a);
+private Compiler* buildExpectedLexer(Arena *a, int totalTokens, Arr(Token) tokens) {
+    Compiler* result = createLexer(empty, a);
     if (result == NULL) return result;
+
     StandardText stText = getStandardTextLength();
     if (tokens == NULL) {
         return result;
@@ -52,20 +53,20 @@ private Compiler* buildExpectedLexer(Compiler* proto, Arena *a, int totalTokens,
     return result;
 }
 
-#define expect(toks) buildExpectedLexer(proto, a, sizeof(toks)/sizeof(Token), toks)
-#define expectEmpty(toks) buildExpectedLexer(proto, a, 0, NULL)
+#define expect(toks) buildExpectedLexer(a, sizeof(toks)/sizeof(Token), toks)
+#define expectEmpty(toks) buildExpectedLexer(a, 0, NULL)
 
 
-private Compiler* buildLexerWithError0(String errMsg, Compiler* proto, Arena *a,
+private Compiler* buildLexerWithError0(String errMsg, Arena *a,
                                        Int totalTokens, Arr(Token) tokens) {
-    Compiler* result = buildExpectedLexer(proto, a, totalTokens, tokens);
+    Compiler* result = buildExpectedLexer(a, totalTokens, tokens);
     result->stats.wasLexerError = true;
     result->stats.errMsg = errMsg;
     return result;
 }
 
-#define buildLexerWithError(msg, toks) buildLexerWithError0(msg, proto, a, sizeof(toks)/sizeof(Token), toks)
-#define expectEmptyWithError(msg) buildLexerWithError0(msg, proto, a, 0, NULL)
+#define buildLexerWithError(msg, toks) buildLexerWithError0(msg, a, sizeof(toks)/sizeof(Token), toks)
+#define expectEmptyWithError(msg) buildLexerWithError0(msg, a, 0, NULL)
 
 
 private LexerTestSet* createTestSet0(String name, Arena *a, int count, Arr(LexerTest) tests) {
@@ -83,14 +84,14 @@ private LexerTestSet* createTestSet0(String name, Arena *a, int count, Arr(Lexer
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(LexerTest), tests)
 
 
-void runLexerTest(LexerTest test, int* countPassed, int* countTests, Compiler* proto, Arena *a) {
+void runLexerTest(LexerTest test, TestContext* ct) {
 // Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code
-    (*countTests)++;
-    Compiler* result = lexicallyAnalyze(test.input, proto, a);
+    ct->countTests += 1;
+    Compiler* result = lexicallyAnalyze(test.input, ct->a);
 
     int equalityStatus = equalityLexer(*result, *test.expectedOutput);
     if (equalityStatus == -2) {
-        (*countPassed)++;
+        ct->countPassed += 1;
         return;
     } else if (equalityStatus == -1) {
         printf("\n\nERROR IN [");
@@ -114,7 +115,7 @@ void runLexerTest(LexerTest test, int* countPassed, int* countTests, Compiler* p
 //}}}
 //{{{ Word
 
-LexerTestSet* wordTests(Compiler* proto, Arena* a) {
+LexerTestSet* wordTests(Arena* a) {
     return createTestSet(s("Word lexer test"), a, ((LexerTest[]) {
         (LexerTest) {
             .name = s("Simple word lexing"),
@@ -214,7 +215,7 @@ LexerTestSet* wordTests(Compiler* proto, Arena* a) {
 //}}}
 //{{{ Numeric
 
-LexerTestSet* numericTests(Compiler* proto, Arena* a) {
+LexerTestSet* numericTests(Arena* a) {
     return createTestSet(s("Numeric lexer test"), a, ((LexerTest[]) {
         (LexerTest) {
             .name = s("Hex numeric 1"),
@@ -450,7 +451,7 @@ LexerTestSet* numericTests(Compiler* proto, Arena* a) {
 //}}}
 //{{{ String
 
-LexerTestSet* stringTests(Compiler* proto, Arena* a) {
+LexerTestSet* stringTests(Arena* a) {
     return createTestSet(s("String literals lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("String simple literal"),
             .input = s("`asdfn't`"),
@@ -476,7 +477,7 @@ LexerTestSet* stringTests(Compiler* proto, Arena* a) {
 //}}}
 //{{{ Meta
 /*
-LexerTestSet* metaTests(Compiler* proto, Arena* a) {
+LexerTestSet* metaTests(Arena* a) {
     return createTestSet(s("Metaexpressions lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Comment simple"),
             .input = s("[`this is a comment`]"),
@@ -493,7 +494,7 @@ LexerTestSet* metaTests(Compiler* proto, Arena* a) {
 //}}}
 //{{{ Punctuation
 
-LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
+LexerTestSet* punctuationTests(Arena* a) {
     return createTestSet(s("Punctuation lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Parens simple"),
             .input = s("(car cdr)"),
@@ -666,7 +667,7 @@ LexerTestSet* punctuationTests(Compiler* proto, Arena* a) {
 //}}}
 //{{{ Operator
 
-LexerTestSet* operatorTests(Compiler* proto, Arena* a) {
+LexerTestSet* operatorTests(Arena* a) {
     return createTestSet(s("Operator lexer tests"), a, ((LexerTest[]) {
         (LexerTest) { .name = s("Operator simple 1"),
             .input = s("+"),
@@ -818,7 +819,7 @@ LexerTestSet* operatorTests(Compiler* proto, Arena* a) {
 //}}}
 //{{{ Core forms
 
-LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
+LexerTestSet* coreFormTests(Arena* a) {
     return createTestSet(s("Core form lexer tests"), a, ((LexerTest[]) {
          (LexerTest) { .name = s("Statement-type core form"),
              .input = s("x = 9; assert (== x 55) `Error!`"),
@@ -990,7 +991,7 @@ LexerTestSet* coreFormTests(Compiler* proto, Arena* a) {
 //}}}
 //{{{ Types
 
-LexerTestSet* typeTests(Compiler* proto, Arena* a) {
+LexerTestSet* typeTests(Arena* a) {
     return createTestSet(s("Type forms lexer tests"), a, ((LexerTest[]) {
          (LexerTest) { .name = s("Simple type call"),
              .input = s("(Foo Bar Baz)"),
@@ -1043,12 +1044,11 @@ LexerTestSet* typeTests(Compiler* proto, Arena* a) {
 //}}}
 
 
-void runATestSet(LexerTestSet* (*testGenerator)(Compiler*, Arena*), int* countPassed, int* countTests,
-                 Compiler* proto, Arena* a) {
-    LexerTestSet* testSet = (testGenerator)(proto, a);
+void runATestSet(LexerTestSet* (*testGenerator)(Arena*), TestContext* ct) {
+    LexerTestSet* testSet = (testGenerator)(ct->a);
     for (int j = 0; j < testSet->totalTests; j++) {
         LexerTest test = testSet->tests[j];
-        runLexerTest(test, countPassed, countTests, proto, a);
+        runLexerTest(test, ct);
     }
 }
 
@@ -1057,27 +1057,25 @@ int main(int argc, char** argv) {
     printf("----------------------------\n");
     printf("--  LEXER TEST  --\n");
     printf("----------------------------\n");
-    eyrInitCompiler();
-    Arena *a = createArena();
 
-    int countPassed = 0;
-    int countTests = 0;
-    runATestSet(&wordTests, &countPassed, &countTests, &PROTO, a);
-    runATestSet(&stringTests, &countPassed, &countTests, &PROTO, a);
-    runATestSet(&operatorTests, &countPassed, &countTests, &PROTO, a);
-    runATestSet(&punctuationTests, &countPassed, &countTests, &PROTO, a);
-    runATestSet(&numericTests, &countPassed, &countTests, &PROTO, a);
-    runATestSet(&coreFormTests, &countPassed, &countTests, &PROTO, a);
-    runATestSet(&typeTests, &countPassed, &countTests, &PROTO, a);
+    auto ct = (TestContext){.countTests = 0, .countPassed = 0, .a = createArena() };
 
-    //runATestSet(&metaTests, &countPassed, &countTests, proto, a);
-    if (countTests == 0) {
+    runATestSet(&wordTests, &ct);
+    runATestSet(&stringTests, &ct);
+    runATestSet(&operatorTests, &ct);
+    runATestSet(&punctuationTests, &ct);
+    runATestSet(&numericTests, &ct);
+    runATestSet(&coreFormTests, &ct);
+    runATestSet(&typeTests, &ct);
+
+    //runATestSet(&metaTests, &countPassed, &countTests, a);
+    if (ct.countTests == 0) {
         print("\nThere were no tests to run!");
-    } else if (countPassed == countTests) {
-        print("\nAll %d tests passed!", countTests);
+    } else if (ct.countPassed == ct.countTests) {
+        print("\nAll %d tests passed!", ct.countTests);
     } else {
-        print("\nFailed %d tests out of %d!", (countTests - countPassed), countTests);
+        print("\nFailed %d tests out of %d!", (ct.countTests - ct.countPassed), ct.countTests);
     }
 
-    deleteArena(a);
+    deleteArena(ct.a);
 }

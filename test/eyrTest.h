@@ -1,8 +1,8 @@
+//{{{ Common
+
 Arena* createArena();
 void* allocateOnArena(size_t allocSize, Arena* ar);
 void deleteArena(Arena* ar);
-
-extern Compiler PROTO;
 
 DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
 DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
@@ -10,18 +10,24 @@ DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
 DEFINE_INTERNAL_LIST_HEADER(types, Int)
 DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 DEFINE_INTERNAL_LIST_HEADER(imports, Entity)
+Bool equal(String a, String b);
 
+typedef struct {
+    Int countTests;
+    Int countPassed;
+    Arena* a;
+} TestContext;
 
 String prepareInput(const char* content, Arena* a);
-Compiler* lexicallyAnalyze(String input, const Compiler*, Arena*);
+Compiler* lexicallyAnalyze(String input, Arena*);
 void printLexer(Compiler* a);
 int64_t longOfDoubleBits(double d);
 void printIntArray(Int count, Arr(Int) arr);
 void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
-void initializeParser(Compiler* lx, const Compiler* proto, Arena* a);
+void initializeParser(Compiler* lx, Arena* a);
 void addNode(Node node, SourceLoc loc, Compiler* cm);
-Compiler* parse(Compiler* lx, Compiler* proto, Arena* a);
-Compiler* createProtoCompiler(Arena* a);
+Compiler* createLexer(String sourceCode, Arena* a);
+Compiler* parse(Compiler* lx, Arena* a);
 StandardText getStandardTextLength();
 void typePrint(Int, Compiler*);
 void pushIntokens(Token, Compiler*);
@@ -29,11 +35,13 @@ NameId nameOfStandard(Int strId);
 void printRawOverload(Int listInd, Compiler* cm);
 void printName(Int name, Compiler* cm);
 
+//}}}
+//{{{ Lexer
+
 #ifdef LEXER_TEST
 
 Int getStringDict(Byte* text, String strToSearch, StackInt* stringTable, StringDict* hm);
 
-Compiler* createLexerFromProto(String sourceCode, const Compiler* proto, Arena* a);
 void printLexer(Compiler* a);
 int equalityLexer(Compiler a, Compiler b);
 
@@ -72,7 +80,8 @@ extern const char errCoreMissingParen[];
 extern const char errIndentation[];
 
 #endif
-
+//}}}
+//{{{ Parser
 
 #ifdef PARSER_TEST
 
@@ -150,7 +159,8 @@ extern const char errTypeOfNotList[];
 extern const char errTypeOfListIndex[];
 
 #endif
-
+//}}}
+//{{{ Utils
 
 #ifdef UTILS_TEST
 
@@ -173,18 +183,15 @@ bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr);
 bool makeSureOverloadsUnique(Int startInd, Int endInd, Arr(Int) overloads);
 Int overloadBinarySearch(Int typeIdToFind, Int startInd, Int endInd, Int* entityId, Arr(Int) overloads);
 
-
 #endif
 
-//{{{ Interpreter testing
+//}}}
+//{{{ Codegen
 
-Ulong instrArithmetic(Byte opCode, Short dest, Short operand1, Short operand2);
-Ulong instrConstArithmetic(Byte opCode, Int increment);
-Ulong instrGetFld(Short dest, Short obj, Int offset);
-Ulong instrNewString(Short dest, Short start, Int len);
-Ulong instrConcatStrings(Short dest, Short op1, Short op2);
-Ulong instrReverseString(Short dest, Short src);
-Ulong instrPrint(Short strAddress);
-Ulong instrSetLocal(Short dest, Int value);
+#ifdef CODEGEN_TEST
+
+testable Int getCoreLibSize();
+
+#endif
 
 //}}}

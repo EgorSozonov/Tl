@@ -7,12 +7,12 @@ fi
 # main part
 APP=eyr
 mkdir -p $DEBUGDIR/$APP
-gcc -g3 --std=c17 -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
+gcc -g3 --std=c2x -Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
 -Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
 -Werror=int-conversion \
 -I src -I test \
 -o $DEBUGDIR/$APP/codegenTest \
--DLEXER_TEST -DTEST -DDEBUG -DSAFETY \
+-DCODEGEN_TEST -DTEST -DDEBUG -DTRACE -DSAFETY \
 test/codegenTest.c src/$APP.c -lm &&
 $DEBUGDIR/$APP/codegenTest \
 #-fstrict-flex-arrays=3 -Wsuggest-attribute=pure -Wsuggest-attribute=const\

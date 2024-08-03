@@ -10,16 +10,16 @@
 //{{{ Definitions
 
 typedef struct {
-    String* name;
-    String* input;
-    String* expectedOutput;
+    String name;
+    String input;
+    String expectedOutput;
 } CodegenTest;
 
 
 typedef struct {
-    String* name;
+    String name;
     Int totalTests;
-    CodegenTest* tests;
+    Arr(CodegenTest) tests;
 } CodegenTestSet;
 
 //}}}
@@ -29,7 +29,7 @@ typedef struct {
                      // names from others
 
 
-private CodegenTestSet* createTestSet0(String* name, Arena *a, int count, Arr(CodegenTest) tests) {
+private CodegenTestSet* createTestSet0(String name, Arena *a, int count, Arr(CodegenTest) tests) {
     CodegenTestSet* result = allocateOnArena(sizeof(CodegenTestSet), a);
     result->name = name;
     result->totalTests = count;
@@ -44,33 +44,38 @@ private CodegenTestSet* createTestSet0(String* name, Arena *a, int count, Arr(Co
 #define createTestSet(n, a, tests) createTestSet0(n, a, sizeof(tests)/sizeof(CodegenTest), tests)
 
 
-void runCodegenTest(CodegenTest test, int* countPassed, int* countTests, Compiler* proto, 
-                    Arena *a) {
+void runCodegenTest(CodegenTest test, TestContext* ct) {
 // Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code
-    *countTests += 1;
-    Compiler* result = lexicallyAnalyze(test.input, proto, a);
+    ct->countTests += 1;
+    String result = eyrCompile(test.input);
+    printString(test.input);
+    printString(result);
+    const Int coreSize = getCoreLibSize();
 
-    int equalityStatus = equalityLexer(*result, *test.expectedOutput);
-    if (equalityStatus == -2) {
-        (*countPassed)++;
-        return;
-    } else if (equalityStatus == -1) {
+    String interestingPart = result.len > 0 ?
+        (String){
+            .cont = result.cont + coreSize, // +1 for the newline char
+            .len = result.len - coreSize
+        }
+        : empty ;
+    if (equal(interestingPart, test.expectedOutput)) {
+        ct->countPassed += 1;
+    } else {
         printf("\n\nERROR IN [");
         printStringNoLn(test.name);
-        printf("]\nError msg: ");
-        printString(result->stats.errMsg);
-        if (test.expectedOutput->stats.wasError) {
-            printf("\nBut was expected: ");
-            printString(test.expectedOutput->stats.errMsg);
-        } else {
-            printf("\nBut was expected to be error-free\n");
-        }
-        printLexer(result);
-    } else {
-        printf("ERROR IN ");
-        printString(test.name);
-        printf("On token %d\n", equalityStatus);
-        printLexer(result);
+        printf("]\nExpected: \n");
+        printString(test.expectedOutput);
+        printf("\nBut got: \n");
+        printString(interestingPart);
+    }
+}
+
+
+void runATestSet(CodegenTestSet* (*testGenerator)(Arena*), TestContext* ct) {
+    CodegenTestSet* testSet = (testGenerator)(ct->a);
+    for (int j = 0; j < testSet->totalTests; j++) {
+        CodegenTest test = testSet->tests[j];
+        runCodegenTest(test, ct);
     }
 }
 
@@ -80,34 +85,31 @@ void runCodegenTest(CodegenTest test, int* countPassed, int* countTests, Compile
 CodegenTestSet* exprTests(Arena* a) {
     return createTestSet(s("Expression test set"), a, ((CodegenTest[]){
         (CodegenTest){.name = s("Simple assignment"),
-            .input = s("x = 12"),
-            .output = s("function main() {\n"
-                    "    const x = 12;\n"
+            .input = s("main = (( a = 78; print a))"),
+            .expectedOutput = s("function main() {\n"
+                    "    const a = 78;\n"
+                    "    console.log(a);\n"
                     "}")
-            })
-    });
+            }
+    }));
 }
 //}}}
 
-int main(int argc, char** argc) {
+int main(int argc, char** argv) {
     printf("----------------------------\n");
     printf("--  CODEGEN TEST  --\n");
     printf("----------------------------\n");
-    eyrInitCompiler();
-    Arena *a = createArena();
-    Compiler* proto = createProtoCompiler(a);
 
-    int countPassed = 0;
-    int countTests = 0;
-    runATestSet(&exprTests, &countPassed, &countTests, proto, a);
+    auto ct = (TestContext){ .countTests = 0, .countPassed = 0, .a = createArena() };
+    runATestSet(&exprTests, &ct);
 
-    if (countTests == 0) {
+    if (ct.countTests == 0) {
         print("\nThere were no tests to run!");
-    } else if (countPassed == countTests) {
-        print("\nAll %d tests passed!", countTests);
+    } else if (ct.countPassed == ct.countTests) {
+        print("\nAll %d tests passed!", ct.countTests);
     } else {
-        print("\nFailed %d tests out of %d!", (countTests - countPassed), countTests);
+        print("\nFailed %d tests out of %d!", (ct.countTests - ct.countPassed), ct.countTests);
     }
 
-    deleteArena(a);
+    deleteArena(ct.a);
 }

@@ -20,7 +20,7 @@ typedef struct { //:ParserTest
 typedef struct {
     String name;
     Int totalTests;
-    ParserTest* tests;
+    Arr(ParserTest) tests;
 } ParserTestSet;
 
 typedef struct { // :TestEntityImport
@@ -119,21 +119,21 @@ private Arr(TypeId) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { 
 
 private ParserTest createTest0(String name, String sourceCode, Arr(Node) nodes, Int countNodes,
                                Arr(Int) types, Int countTypes, Arr(TestEntityImport) imports,
-                               Int countImports, const Compiler* proto, Arena* a) { //:createTest0
+                               Int countImports, Arena* a) { //:createTest0
 // Creates a test with two parsers: one is the init parser (contains all the "imported" bindings and
 // pre-defined nodes), and the other is the output parser (with all the stuff parsed from source code).
 // When the test is run, the init parser will parse the tokens and then will be compared to the
 // expected output parser.
 // Nontrivial: this handles binding ids inside nodes, so that e.g. if the pl1 in nodBinding is 1,
 // it will be inserted as 1 + (the number of built-in bindings) etc
-    Compiler* test = lexicallyAnalyze(sourceCode, proto, a);
-    Compiler* control = lexicallyAnalyze(sourceCode, proto, a);
+    Compiler* test = lexicallyAnalyze(sourceCode, a);
+    Compiler* control = lexicallyAnalyze(sourceCode, a);
     if (control->stats.wasLexerError == true) {
         return (ParserTest) {
             .name = name, .test = test, .control = control, .compareLocsToo = false };
     }
-    initializeParser(control, proto, a);
-    initializeParser(test, proto, a);
+    initializeParser(control, a);
+    initializeParser(test, a);
     Arr(TypeId) typeIds = importTypes(types, countTypes, control);
     importTypes(types, countTypes, test);
 
@@ -177,15 +177,15 @@ private ParserTest createTest0(String name, String sourceCode, Arr(Node) nodes, 
 
 #define createTest(name, input, nodes, types, entities) \
     createTest0((name), (input), (nodes), sizeof(nodes)/sizeof(Node), (types), sizeof(types)/4, \
-    (entities), sizeof(entities)/sizeof(TestEntityImport), proto, a)
+    (entities), sizeof(entities)/sizeof(TestEntityImport), a)
 
 
-private ParserTest createTestWithError0(String name, String message, String input, 
+private ParserTest createTestWithError0(String name, String message, String input,
         Arr(Node) nodes, Int countNodes, Arr(Int) types, Int countTypes,
-        Arr(TestEntityImport) entities, Int countEntities, const Compiler* proto, Arena* a) {
+        Arr(TestEntityImport) entities, Int countEntities, Arena* a) {
 // Creates a test with two parsers where the expected result is an error in parser
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
-                                     countEntities, proto, a);
+                                     countEntities, a);
     theTest.control->stats.wasError = true;
     theTest.control->stats.errMsg = message;
     return theTest;
@@ -193,16 +193,16 @@ private ParserTest createTestWithError0(String name, String message, String inpu
 
 #define createTestWithError(name, errorMessage, input, nodes, types, entities) \
     createTestWithError0((name), errorMessage, (input), (nodes), sizeof(nodes)/sizeof(Node), types,\
-    sizeof(types)/4, entities, sizeof(entities)/sizeof(Entity), proto, a)
+    sizeof(types)/4, entities, sizeof(entities)/sizeof(Entity), a)
 
 
 private ParserTest createTestWithLocs0(String name, String input, Arr(Node) nodes,
                     Int countNodes, Arr(Int) types, Int countTypes, Arr(TestEntityImport) entities,
                     Int countEntities, Arr(SourceLoc) locs, Int countLocs,
-                    const Compiler* proto, Arena* a) {
+                    Arena* a) {
 // Creates a test with two parsers where the source locs are specified (unlike most parser tests)
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
-                                     countEntities, proto, a);
+                                     countEntities, a);
     if (theTest.control->stats.wasLexerError) {
         return theTest;
     }
@@ -219,7 +219,7 @@ private ParserTest createTestWithLocs0(String name, String input, Arr(Node) node
 #define createTestWithLocs(name, input, nodes, types, entities, locs) \
     createTestWithLocs0((name), (input), (nodes), sizeof(nodes)/sizeof(Node), types,\
     sizeof(types)/4, entities, sizeof(entities)/sizeof(TestEntityImport),\
-    locs, sizeof(locs)/sizeof(SourceLoc), proto, a)
+    locs, sizeof(locs)/sizeof(SourceLoc), a)
 
 
 int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool compareLocsToo) {
@@ -271,9 +271,9 @@ int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool
 }
 
 
-void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
+void runTest(ParserTest test, TestContext* ct) {
 // Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code
-    (*countTests)++;
+    ct->countTests += 1;
     if (test.test->tokens.len == 0) {
         print("Lexer result empty");
         return;
@@ -282,11 +282,11 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
         printLexer(test.control);
         return;
     }
-    parseMain(test.test, a);
+    parseMain(test.test, ct->a);
 
     int equalityStatus = equalityParser(*test.test, *test.control, test.compareLocsToo);
     if (equalityStatus == -2) {
-        (*countPassed)++;
+        ct->countPassed += 1;
         return;
     } else if (equalityStatus == -1) {
         printf("\n\nERROR IN [");
@@ -299,7 +299,7 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
         print("    LEXER:")
         printLexer(test.test);
         print("    PARSER:")
-        printParser(test.test, a);
+        printParser(test.test, ct->a);
     } else {
         printf("ERROR IN ");
         printString(test.name);
@@ -307,7 +307,7 @@ void runTest(ParserTest test, int* countPassed, int* countTests, Arena *a) {
         print("    LEXER:")
         printLexer(test.test);
         print("    PARSER:")
-        printParser(test.test, a);
+        printParser(test.test, ct->a);
     }
 }
 
@@ -320,7 +320,7 @@ private Node doubleNd(double value) {
 //}}}
 //{{{ Assignment tests
 
-ParserTestSet* assignmentTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* assignmentTests(Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Assignment test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple assignment"),
@@ -540,7 +540,7 @@ ParserTestSet* assignmentTests(const Compiler* proto, Compiler* protoOvs, Arena*
 //}}}
 //{{{ Expression tests
 
-ParserTestSet* expressionTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* expressionTests(Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Expression test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple function call"),
@@ -822,7 +822,7 @@ ParserTestSet* expressionTests(const Compiler* proto, Compiler* protoOvs, Arena*
 //}}}
 //{{{ Function tests
 
-ParserTestSet* functionTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* functionTests(Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple function definition 1"),
@@ -1000,7 +1000,7 @@ ParserTestSet* functionTests(const Compiler* proto, Compiler* protoOvs, Arena* a
 //}}}
 //{{{ If tests
 
-ParserTestSet* ifTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* ifTests(Compiler* protoOvs, Arena* a) {
     return createTestSet(s("If test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple if"),
@@ -1162,7 +1162,7 @@ ParserTestSet* ifTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
 //}}}
 //{{{ Loop tests
 
-ParserTestSet* loopTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
+ParserTestSet* loopTests(Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Loops test set"), a, ((ParserTest[]){
         createTest(
             s("Simple loop"),
@@ -1503,7 +1503,7 @@ ParserTestSet* loopTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 56 },
 
-                (Node){ .tp = nodFor,  .pl1 = 1, .pl2 = 55, .pl3 = 9 }, // for #1. It's being 
+                (Node){ .tp = nodFor,  .pl1 = 1, .pl2 = 55, .pl3 = 9 }, // for #1. It's being
                                                                         // "broken" from
                 (Node){ .tp = nodScope, .pl2 = 54 },
 
@@ -1609,50 +1609,52 @@ ParserTestSet* loopTests(const Compiler* proto, Compiler* protoOvs, Arena* a) {
 //}}}
 
 
-void runATestSet(ParserTestSet* (*testGenerator)(const Compiler*, Compiler*, Arena*), 
-                 int* countPassed, int* countTests, 
-                 const Compiler* proto, Compiler* protoOvs, Arena* a) {
-    ParserTestSet* testSet = (testGenerator)(proto, protoOvs, a);
-    for (int j = 0; j < testSet->totalTests; j++) {
+void runATestSet(ParserTestSet* (*testGenerator)(Compiler*, Arena*),
+                 TestContext* ct,
+                 Compiler* protoOvs) {
+    ParserTestSet* testSet = (testGenerator)(protoOvs, ct->a);
+    for (Int j = 0; j < testSet->totalTests; j++) {
         ParserTest test = testSet->tests[j];
-        runTest(test, countPassed, countTests, a);
+        runTest(test, ct);
     }
 }
 
 
 int main() {
-    printf("----------------------------\n");
-    printf("--  PARSER TEST  --\n");
-    printf("----------------------------\n");
     if (sizeof(TypeHeader) != 8)  {
         print("Sizeof TypeHeader != 8, but it should be 8. Something fishy goin' on! "
               "Tests are cancelled");
         return 1;
     }
 
-    eyrInitCompiler();
-    Arena *a = createArena();
-    Compiler* protoOvs = createProtoCompiler(a);
+    printf("----------------------------\n");
+    printf("--  PARSER TEST  --\n");
+    printf("----------------------------\n");
+    auto ct = (TestContext){.countTests = 0, .countPassed = 0, .a = createArena() };
+
+    // An empty compiler that we need for the built-in overloads
+    Compiler* protoOvs = createLexer(empty, ct.a);
+    initializeParser(protoOvs, ct.a);
     createOverloads(protoOvs);
-    int countPassed = 0;
-    int countTests = 0;
-    runATestSet(&assignmentTests, &countPassed, &countTests, &PROTO, protoOvs, a);
-    runATestSet(&expressionTests, &countPassed, &countTests, &PROTO, protoOvs, a);
-    runATestSet(&functionTests, &countPassed, &countTests, &PROTO, protoOvs, a);
-    runATestSet(&ifTests, &countPassed, &countTests, &PROTO, protoOvs, a);
-    runATestSet(&loopTests, &countPassed, &countTests, &PROTO, protoOvs, a);
-    if (countTests == 0) {
+
+    runATestSet(&assignmentTests, &ct, protoOvs);
+    runATestSet(&expressionTests, &ct, protoOvs);
+    runATestSet(&functionTests, &ct, protoOvs);
+    runATestSet(&ifTests, &ct, protoOvs);
+    runATestSet(&loopTests, &ct, protoOvs);
+
+    if (ct.countTests == 0) {
         printf("\nThere were no tests to run!\n");
-    } else if (countPassed == countTests) {
-        if (countTests > 1) {
-            printf("\nPassed all %d tests!\n", countTests);
+    } else if (ct.countPassed == ct.countTests) {
+        if (ct.countTests > 1) {
+            printf("\nPassed all %d tests!\n", ct.countTests);
         } else {
             printf("\nThe test was passed.\n");
         }
 
     } else {
-        printf("\nFailed %d tests out of %d!\n", (countTests - countPassed), countTests);
+        printf("\nFailed %d tests out of %d!\n", (ct.countTests - ct.countPassed), ct.countTests);
     }
 
-    deleteArena(a);
+    deleteArena(ct.a);
 }

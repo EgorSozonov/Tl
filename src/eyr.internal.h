@@ -614,7 +614,7 @@ struct Compiler { // :Compiler
     StackSourceLoc* sourceLocs;
     InListInt numeric;          // [aTmp]
     StackBtToken* lexBtrack;    // [aTmp]
-    Stackuint32_t* stringTable;  // Operators, then standard strings, then imported ones, then 
+    Stackuint32_t* stringTable;  // Operators, then standard strings, then imported ones, then
                                  // parsed. Contains NameLoc pointing into @sourceCode
     StringDict* stringDict;
 
