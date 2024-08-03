@@ -12,8 +12,8 @@ DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 DEFINE_INTERNAL_LIST_HEADER(imports, Entity)
 
 
-String* prepareInput(const char* content, Arena* a);
-Compiler* lexicallyAnalyze(String* input, const Compiler*, Arena*);
+String prepareInput(const char* content, Arena* a);
+Compiler* lexicallyAnalyze(String input, const Compiler*, Arena*);
 void printLexer(Compiler* a);
 int64_t longOfDoubleBits(double d);
 void printIntArray(Int count, Arr(Int) arr);
@@ -31,9 +31,9 @@ void printName(Int name, Compiler* cm);
 
 #ifdef LEXER_TEST
 
-Int getStringDict(Byte* text, String* strToSearch, StackInt* stringTable, StringDict* hm);
+Int getStringDict(Byte* text, String strToSearch, StackInt* stringTable, StringDict* hm);
 
-Compiler* createLexerFromProto(String* sourceCode, const Compiler* proto, Arena* a);
+Compiler* createLexerFromProto(String sourceCode, const Compiler* proto, Arena* a);
 void printLexer(Compiler* a);
 int equalityLexer(Compiler a, Compiler b);
 

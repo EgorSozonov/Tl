@@ -9,14 +9,14 @@
 
 
 typedef struct {
-    String* name;
-    String* input;
+    String name;
+    String input;
     Compiler* expectedOutput;
 } LexerTest;
 
 
 typedef struct {
-    String* name;
+    String name;
     int totalTests;
     LexerTest* tests;
 } LexerTestSet;
@@ -27,7 +27,7 @@ typedef struct {
                      // names from others
 
 private Compiler* buildExpectedLexer(Compiler* proto, Arena *a, int totalTokens, Arr(Token) tokens) {
-    Compiler* result = createLexerFromProto(&empty, proto, a);
+    Compiler* result = createLexerFromProto(empty, proto, a);
     if (result == NULL) return result;
     StandardText stText = getStandardTextLength();
     if (tokens == NULL) {
@@ -56,7 +56,7 @@ private Compiler* buildExpectedLexer(Compiler* proto, Arena *a, int totalTokens,
 #define expectEmpty(toks) buildExpectedLexer(proto, a, 0, NULL)
 
 
-private Compiler* buildLexerWithError0(String* errMsg, Compiler* proto, Arena *a,
+private Compiler* buildLexerWithError0(String errMsg, Compiler* proto, Arena *a,
                                        Int totalTokens, Arr(Token) tokens) {
     Compiler* result = buildExpectedLexer(proto, a, totalTokens, tokens);
     result->stats.wasLexerError = true;
@@ -68,7 +68,7 @@ private Compiler* buildLexerWithError0(String* errMsg, Compiler* proto, Arena *a
 #define expectEmptyWithError(msg) buildLexerWithError0(msg, proto, a, 0, NULL)
 
 
-private LexerTestSet* createTestSet0(String* name, Arena *a, int count, Arr(LexerTest) tests) {
+private LexerTestSet* createTestSet0(String name, Arena *a, int count, Arr(LexerTest) tests) {
     LexerTestSet* result = allocateOnArena(sizeof(LexerTestSet), a);
     result->name = name;
     result->totalTests = count;

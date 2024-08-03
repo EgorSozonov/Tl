@@ -10,7 +10,7 @@
 //{{{ Utils
 
 typedef struct { //:ParserTest
-    String* name;
+    String name;
     Compiler* test;
     Compiler* control;
     Bool compareLocsToo;
@@ -18,7 +18,7 @@ typedef struct { //:ParserTest
 
 
 typedef struct {
-    String* name;
+    String name;
     Int totalTests;
     ParserTest* tests;
 } ParserTestSet;
@@ -36,7 +36,7 @@ typedef struct { // :TestEntityImport
 #define O  280000000 // The base index for operators
 
 
-private ParserTestSet* createTestSet0(String* name, Arena *a, int count, Arr(ParserTest) tests) {
+private ParserTestSet* createTestSet0(String name, Arena *a, int count, Arr(ParserTest) tests) {
     ParserTestSet* result = allocateOnArena(sizeof(ParserTestSet), a);
     result->name = name;
     result->totalTests = count;
@@ -117,7 +117,7 @@ private Arr(TypeId) importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { 
 }
 
 
-private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes, Int countNodes,
+private ParserTest createTest0(String name, String sourceCode, Arr(Node) nodes, Int countNodes,
                                Arr(Int) types, Int countTypes, Arr(TestEntityImport) imports,
                                Int countImports, const Compiler* proto, Arena* a) { //:createTest0
 // Creates a test with two parsers: one is the init parser (contains all the "imported" bindings and
@@ -180,7 +180,7 @@ private ParserTest createTest0(String* name, String* sourceCode, Arr(Node) nodes
     (entities), sizeof(entities)/sizeof(TestEntityImport), proto, a)
 
 
-private ParserTest createTestWithError0(String* name, String* message, String* input, 
+private ParserTest createTestWithError0(String name, String message, String input, 
         Arr(Node) nodes, Int countNodes, Arr(Int) types, Int countTypes,
         Arr(TestEntityImport) entities, Int countEntities, const Compiler* proto, Arena* a) {
 // Creates a test with two parsers where the expected result is an error in parser
@@ -196,10 +196,10 @@ private ParserTest createTestWithError0(String* name, String* message, String* i
     sizeof(types)/4, entities, sizeof(entities)/sizeof(Entity), proto, a)
 
 
-private ParserTest createTestWithLocs0(String* name, String* input, Arr(Node) nodes,
-                            Int countNodes, Arr(Int) types, Int countTypes, Arr(TestEntityImport) entities,
-                            Int countEntities, Arr(SourceLoc) locs, Int countLocs,
-                            const Compiler* proto, Arena* a) {
+private ParserTest createTestWithLocs0(String name, String input, Arr(Node) nodes,
+                    Int countNodes, Arr(Int) types, Int countTypes, Arr(TestEntityImport) entities,
+                    Int countEntities, Arr(SourceLoc) locs, Int countLocs,
+                    const Compiler* proto, Arena* a) {
 // Creates a test with two parsers where the source locs are specified (unlike most parser tests)
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, proto, a);

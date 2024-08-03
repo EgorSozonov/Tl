@@ -101,7 +101,7 @@ typedef struct { // :MultiAssocList
 
 
 typedef struct { // :String
-    Arr(char) cont;
+    const char* cont;
     Int len;
 } String;
 
@@ -112,13 +112,13 @@ typedef struct { // :StringBuilder
     Int cap;
 } StringBuilder;
 
-testable void printStringNoLn(String* s);
-testable void printString(String* s);
-extern String empty;
-testable String* str(const char* content, Arena* a);
-testable bool endsWith(String* a, String* b);
+testable void printStringNoLn(String s);
+testable void printString(String s);
+extern const String empty;
+testable String str(const char* content);
+testable Bool endsWith(String a, String b);
 
-#define s(lit) str(lit, a)
+#define s(lit) str(lit)
 
 typedef struct {
     Int len; // length of standardText
@@ -430,7 +430,7 @@ typedef struct { // :OpDef
 typedef struct Compiler Compiler;
 
 
-typedef void (*LexerFn)(Arr(char), Compiler*); // LexerFunc = &(Lexer* => void)
+typedef void (*LexerFn)(const Arr(char), Compiler*); // LexerFunc = &(Lexer* => void)
 typedef void (*ParserFn)(Token, Arr(Token), Compiler*);
 
 
@@ -593,7 +593,7 @@ typedef struct { // :CompStats
     Int countOverloadedNames;
     Int loopCounter;
     Bool wasError;
-    String* errMsg;
+    String errMsg;
 } CompStats;
 
 
@@ -607,7 +607,7 @@ DEFINE_STACK_HEADER(BtCodegen)
 
 struct Compiler { // :Compiler
     // LEXING
-    String* sourceCode;
+    String sourceCode;
     InListToken tokens;
     InListToken metas; // TODO - metas with links back into parent span tokens
     InListInt newlines;
