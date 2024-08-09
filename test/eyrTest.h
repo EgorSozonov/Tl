@@ -43,7 +43,7 @@ void printName(Int name, Compiler* cm);
 Int getStringDict(Byte* text, String strToSearch, StackInt* stringTable, StringDict* hm);
 
 void printLexer(Compiler* a);
-int equalityLexer(Compiler a, Compiler b);
+Int equalityLexer(Compiler a, Compiler b);
 
 extern const char errNonAscii[];
 extern const char errPrematureEndOfInput[];

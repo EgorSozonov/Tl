@@ -6405,7 +6405,7 @@ void dbgLexBtrack(Compiler* lx) { //:dbgLexBtrack
 }
 
 
-int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
+Int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
 // differing token otherwise
     if (a.stats.wasLexerError != b.stats.wasLexerError
