@@ -5888,7 +5888,6 @@ private void wExprComplex(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Co
 // Works in two fases: first walks the exp backwards to create a stack of CgCalls that contains all
 // the function calls, then walks the same exp forwards while writing the output and updating stack
     wExprBuildCallStack(sentinel, nodes, cg);
-    dbgCgCalls(cg);
 
     wExprEmitComplex(sentinel, nodes, locs, cg);
 }
@@ -5897,7 +5896,6 @@ private void wExprComplex(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Co
 private void wExprOrSingleItem(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
 //:wExprOrSingleItem Precondition: we are looking 1 past the nodExpr/singular node. Consumes all
 // nodes of the expr
-    print("expr ind %d", ind);
     Node nd = nodes[ind];
     SourceLoc loc = locs[ind];
     if (nd.tp <= topVerbatimTokenVariant) {
@@ -5952,7 +5950,6 @@ private void generateLoop(const Int sentinel, Codegen* cg) {
     Arr(SourceLoc) locs = cg->cm->sourceLocs->cont;
     while (cg->i < sentinel) {
         Node nd = nodes[cg->i];
-        print("loop i %d going sizeof %d", cg->i, sizeof(CgCall));
         cg->i += 1; // CONSUME the span node
         (CODEGEN_TABLE[nd.tp - nodScope])(cg->i - 1, nodes, locs, cg);
         maybeCloseCgFrames(cg);
@@ -6282,7 +6279,7 @@ private void tabulateShield() { //:tabulateShield
 
 private Codegen* generateCode(Compiler* cm, Arena* a) { //:generateCode
 // Generate host code for a whole module. Must be called with a non-errored compiler
-#ifdef TRACE
+#if defined(TRACE) && defined(DEBUG)
     print("codegenning, parser = ")
     printParser(cm, a);
     printf("\n\n");

@@ -9,24 +9,25 @@ endif
 CC=gcc --std=c2x
 CONFIG=-g3
 WARN=-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
--Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
--Werror=int-conversion -fstrict-flex-arrays=3 \
-#-fsanitize=address \
--Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc 
+    -Werror=implicit-function-declaration -Werror=incompatible-pointer-types \
+    -Werror=int-conversion -fstrict-flex-arrays=3 \
+    -Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc 
+SANITIZE=-fsanitize=address
 INCLUDES="-I src"
 OPT="-DTRACE"
 LIBS=-lm
 APP=eyr
 
 CFLAGS= $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(INCLUDES) $(LIBS)
+#CFLAGS= $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(INCLUDES) $(SANITIZE) $(LIBS)
 TARGET=$(DEBUGDIR)/$(APP)/$(APP)
 
 all: ## Build the whole project
 / clear
 / mkdir -p $(DEBUGDIR)/$(APP)
-/ $(CC) $(CFLAGS) -o $(TARGET) -DDEBUG src/$(APP).c
-/ @echo "========================================="
-/ @echo "              BUILD SUCCESS              "
+/ $(CC) $(CFLAGS) -o $(TARGET) src/$(APP).c
+/ @echo "_________________________________________"
+/ @echo "|            BUILD SUCCESS              |"
 / @echo "========================================="
 / $(TARGET)
 

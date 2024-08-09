@@ -4,7 +4,7 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include "../src/eyr.internal.h"
-#include "../src/eyr.h"
+#include "../include/eyr.h"
 #include "eyrTest.h"
 
 //{{{ Definitions
