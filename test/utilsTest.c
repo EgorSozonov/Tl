@@ -4,8 +4,8 @@
 #include <stdarg.h>
 #include <stdint.h>
 #include <setjmp.h>
-#include "../source/ors.internal.h"
-#include "orsTest.h"
+#include "../eyr.internal.h"
+#include "eyrTest.h"
 
 extern jmp_buf excBuf;
 //{{{ Utils

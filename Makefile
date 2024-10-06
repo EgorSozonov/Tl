@@ -15,7 +15,7 @@ WARN=-Wpedantic -Wreturn-type -Wunused-variable -Wshadow -Wfatal-errors \
     -Werror=int-conversion -fstrict-flex-arrays=3 \
     -Wsuggest-attribute=pure -Wsuggest-attribute=const -Wsuggest-attribute=malloc 
 SANITIZE=-fsanitize=address # include it occasionally
-INCLUDES=-iquote src
+INCLUDES=-iquote .
 OPT=
 LIBS=-lm
 APP=eyr
@@ -41,7 +41,7 @@ $(DEBUG_TGT):
 
 all: $(DEBUG_TGT) ## Build the whole compiler
 / clear
-/ $(COMPILE) -o $(EXE) src/$(APP).c
+/ $(COMPILE) -o $(EXE) $(APP).c
 / @echo "_________________________________________"
 / @echo "|            BUILD SUCCESS              |"
 / @echo "========================================="
@@ -53,17 +53,17 @@ clean: ## Delete cached build results
 
 
 testLexer: $(DEBUG_TGT) ## Test the lexical analyzer
-/ $(TEST_COMPILE) -DLEXER_TEST -o $(DEBUG_TGT)/lexerTest test/lexerTest.c src/$(APP).c
+/ $(TEST_COMPILE) -DLEXER_TEST -o $(DEBUG_TGT)/lexerTest test/lexerTest.c $(APP).c
 / $(DEBUG_TGT)/lexerTest
 
 
 testParser: $(DEBUG_TGT) ## Test the parser & typechecker
-/ $(TEST_COMPILE) -DPARSER_TEST -o $(DEBUG_TGT)/parserTest test/parserTest.c src/$(APP).c
+/ $(TEST_COMPILE) -DPARSER_TEST -o $(DEBUG_TGT)/parserTest test/parserTest.c $(APP).c
 / $(DEBUG_TGT)/parserTest
 
 
 testCodegen: $(DEBUG_TGT) ## Test the code generator
-/ $(TEST_COMPILE) -DCODEGEN_TEST -o $(DEBUG_TGT)/codegenTest test/codegenTest.c src/$(APP).c
+/ $(TEST_COMPILE) -DCODEGEN_TEST -o $(DEBUG_TGT)/codegenTest test/codegenTest.c $(APP).c
 / $(DEBUG_TGT)/codegenTest
 
 
