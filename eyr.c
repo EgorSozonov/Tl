@@ -194,113 +194,6 @@ const int operatorStartSymbols[13] = {
 private ParserFn PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
 
 //}}}
-//{{{ Code generator structure
-
-#define cgCountToShield 26 // How many of strings from "cgText" to gather into "SHIELD_HASHTABLE"
-#define cgShieldHashtableSz 181 // Hash table size to avoid hash remainder collisions
-
-private CgFunc* CODEGEN_TABLE[countSpanForms]; // filled in by "tabulateCodegen"
-private CgClosingFunc* CODEGEN_CLOSING_TABLE[countSpanForms]; // filled in by "tabulateCodegen"
-private NameLoc SHIELD_HASHTABLE[cgShieldHashtableSz]; // filled in by "tabulateShield"
-
-const char hostText[] = "caseclassconstdebuggerdefaultdeleteexportextendsfinallyfunctionininstanceof"
-    "letnewnullstaticsuperswitchthisthrowtypeofvarvoidwhilewithyield"
-    // shield words end here
-    "breakcatchcontinuedoelsefalseforifimportreturntruetry"
-    "toStringMath.powMath.PIMath.E!==lengthMath.abs&&||===alertconsole.logconsole.error"
-    "~&*+-/<<>>"
-    "compare_Intcompare_Dblcompare_StrltZero_IntltZero_DblshiftLeft_IntshiftRight_Int"
-    "isNull_refinterval_Intinterval_DblgtZero_IntgtZero_DblbitwiseXor_bitwiseOr_nullCoalesce_";
-
-const Byte hostTextLens[] = {
-    4, 5, 5, 8, 7, 6, 6, 7, 7, 8, 2, 10,
-    3, 3, 4, 6, 5, 6, 4, 5, 6, 3, 4,  5, 4, 5, // reserved words end here
-    5, 5, 8, 2, 4, 5, 3, 2, 6, 6, 4,  3,
-    8, 8, 7, 6, 3, 6, 8, 2, 2, 3, 5, 11, 13,
-    1, 1, 1, 1, 1, 1, 2, 2,
-    11, 11, 11, 10, 10, 13, 14,
-    10, 12, 12, 10, 10, 11, 10, 13
-};
-
-static Int hostOffsets[sizeof(hostTextLens)]; // filled in by "populateHostOffsets"
-
-// Host string indices. Must agree in order with "hostTextLens" and "hostOffsets"
-#define hostCase         0
-#define hostClass        1
-#define hostConst        2
-#define hostDebugger     3
-#define hostDefault      4
-#define hostDelete       5
-#define hostExport       6
-#define hostExtends      7
-#define hostFinally      8
-#define hostFunction     9
-#define hostIn          10
-#define hostInstanceof  11
-#define hostLet         12
-#define hostNew         13
-#define hostNull        14
-#define hostStatic      15
-#define hostSuper       16
-#define hostSwitch      17
-#define hostThis        18
-#define hostThrow       19
-#define hostTypeof      20
-#define hostVar         21
-#define hostVoid        22
-#define hostWhile       23
-#define hostWith        24
-#define hostYield       25
-#define hostBreak       26
-#define hostCatch       27
-#define hostContinue    28
-#define hostDo          29
-#define hostElse        30
-#define hostFalse       31
-#define hostFor         32
-#define hostIf          33
-#define hostImport      34
-#define hostReturn      35
-#define hostTrue        36
-#define hostTry         37
-#define hostToString    38
-#define hostMathPow     39
-#define hostMathPi      40
-#define hostMathE       41
-#define hostNotEquals   42
-#define hostLength      43
-#define hostMathAbs     44
-#define hostAnd         45
-#define hostOr          46
-#define hostRefEquality 47
-#define hostAlert       48
-#define hostPrint       49
-#define hostPrintErr    50
-#define hostTilde       51
-#define hostAmpersand   52
-#define hostAsterisk    53
-#define hostPlus        54
-#define hostMinus       55
-#define hostDivBy       56
-#define hostBitShiftL   57
-#define hostBitShiftR   58
-#define hostCompareInt  59
-#define hostCompareDbl  60
-#define hostCompareStr  61
-#define hostLtZeroInt   62
-#define hostLtZeroDbl   63
-#define hostShiftLeft   64
-#define hostShiftRight  65
-#define hostIsNull      66
-#define hostIntervalInt 67
-#define hostIntervalDbl 68
-#define hostGtZeroInt   69
-#define hostGtZeroDbl   70
-#define hostBitwiseXor  71
-#define hostBitwiseOr   72
-#define hostNullCoalesce 73
-
-//}}}
 //{{{ Proto compiler
 
 private Compiler PROTO = {
@@ -318,23 +211,31 @@ private Bool _wasInit = false;
 private Int initCompiler();
 
 //}}}
+//{{{ Runtime (virtual machine)
+
+InterpreterFn INTERPRETER_TABLE[countInstructions]; // filled in by "tabulateInterpreter"
+#define countBuiltins 1
+BuiltinFn BUILTINS_TABLE[countBuiltins]; // filled in by "tabulateBuiltins"
+
+//}}}
 //}}}
 //{{{ Utils
 
 jmp_buf excBuf;
 
-const String empty = {.cont = null, .len = 0};
+constexpr String empty = {.cont = null, .len = 0};
 
 //{{{ Arena
 
 #define CHUNK_QUANT 32768
 
-private size_t minChunkSize(void) {
+private size_t
+minChunkSize(void) {
     return (size_t)(CHUNK_QUANT - 32);
 }
 
-
-testable Arena* createArena(void) { //:createArena
+testable Arena*
+createArena(void) { //:createArena
     Arena* result = malloc(sizeof(Arena));
 
     size_t firstChunkSize = minChunkSize();
@@ -349,8 +250,8 @@ testable Arena* createArena(void) { //:createArena
     return result;
 }
 
-
-private size_t calculateChunkSize(size_t allocSize) { //:calculateChunkSize
+private size_t
+calculateChunkSize(size_t allocSize) { //:calculateChunkSize
 // Calculates memory for a new chunk. Memory is quantized and is always 32 bytes less
 // 32 for any possible padding malloc might use internally,
 // so that the total allocation size is a good even number of OS memory pages
@@ -366,8 +267,8 @@ private size_t calculateChunkSize(size_t allocSize) { //:calculateChunkSize
     return mallocMemory - 32;
 }
 
-
-testable void* allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
+testable void*
+allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
 // Allocate memory in the arena, malloc'ing a new chunk if needed
     if ((size_t)a->currInd + allocSize >= a->currChunk->size) {
         if (a->currChunk->next != null && a->currChunk->next->size < allocSize) {
@@ -401,8 +302,8 @@ testable void* allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
     return result;
 }
 
-
-testable void deleteArena(Arena* ar) { //:deleteArena
+testable void
+deleteArena(Arena* ar) { //:deleteArena
 // Returns memory of the arena to the OS
     ArenaChunk* curr = ar->firstChunk;
     while (curr != null) {
@@ -413,8 +314,8 @@ testable void deleteArena(Arena* ar) { //:deleteArena
     free(ar);
 }
 
-
-testable void clearArena(Arena* a) { //:clearArena
+testable void
+clearArena(Arena* a) { //:clearArena
 // Clears the memory of the arena for reuse. Does not free memory.
     a->currChunk = a->firstChunk;
     a->currInd = 0;
@@ -548,7 +449,8 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
 
 void dbgType(TypeId typeId, Compiler* cm);
 
-MultiAssocList* createMultiAssocList(Arena* a) { //:createMultiAssocList
+MultiAssocList*
+createMultiAssocList(Arena* a) { //:createMultiAssocList
     MultiAssocList* ml = allocateOnArena(sizeof(MultiAssocList), a);
     Arr(Int) content = allocateOnArena(12*4, a);
     (*ml) = (MultiAssocList) {
@@ -561,8 +463,8 @@ MultiAssocList* createMultiAssocList(Arena* a) { //:createMultiAssocList
     return ml;
 }
 
-
-private Int multiListFindFree(Int neededCap, MultiAssocList* ml) { //:multiListFindFree
+private Int
+multiListFindFree(Int neededCap, MultiAssocList* ml) { //:multiListFindFree
     Int freeInd = ml->freeList;
     Int prevFreeInd = -1;
     Int freeStep = 0;
@@ -583,8 +485,8 @@ private Int multiListFindFree(Int neededCap, MultiAssocList* ml) { //:multiListF
     return -1;
 }
 
-
-private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, MultiAssocList* ml) {
+private void
+multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, MultiAssocList* ml) {
 //:multiListReallocToEnd
     ml->cont[ml->len] = listLen;
     ml->cont[ml->len + 1] = neededCap;
@@ -592,8 +494,8 @@ private void multiListReallocToEnd(Int listInd, Int listLen, Int neededCap, Mult
     ml->len += neededCap + 2;
 }
 
-
-private void multiListDoubleCap(MultiAssocList* ml) {
+private void
+multiListDoubleCap(MultiAssocList* ml) {
 //:multiListDoubleCap
     Int newMultiCap = ml->cap*2;
     Arr(Int) newAlloc = allocateOnArena(newMultiCap*4, ml->a);
@@ -603,7 +505,8 @@ private void multiListDoubleCap(MultiAssocList* ml) {
 }
 
 
-testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocList* ml) {
+testable Int
+addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocList* ml) {
 //:addMultiAssocList Add a new key-value pair to a particular list within the MultiAssocList.
 // Returns the new index for this list in case it had to be reallocated, -1 if not. Throws exception
 // if key already exists
@@ -639,8 +542,8 @@ testable Int addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocLi
     return newListInd;
 }
 
-
-testable Int listAddMultiAssocList(Int newKey, Int newVal, MultiAssocList* ml) {
+testable Int
+listAddMultiAssocList(Int newKey, Int newVal, MultiAssocList* ml) {
 //:listAddMultiAssocList Adds a new list to the MultiAssocList and populates it with one key-value
 // pair. Returns its index
     Int initCap = 8;
@@ -660,7 +563,6 @@ testable Int listAddMultiAssocList(Int newKey, Int newVal, MultiAssocList* ml) {
     return newInd;
 }
 
-
 testable Int searchMultiAssocList(Int searchKey, Int listInd, MultiAssocList* ml) {
 //:searchMultiAssocList Search for a key in a particular list within the MultiAssocList. Returns
 // the value if found, -1 otherwise
@@ -674,8 +576,8 @@ testable Int searchMultiAssocList(Int searchKey, Int listInd, MultiAssocList* ml
     return -1;
 }
 
-
-private MultiAssocList* copyMultiAssocList(MultiAssocList* ml, Arena* a) { //:copyMultiAssocList
+private MultiAssocList*
+copyMultiAssocList(MultiAssocList* ml, Arena* a) { //:copyMultiAssocList
     MultiAssocList* result = allocateOnArena(sizeof(MultiAssocList), a);
     Arr(Int) cont = allocateOnArena(4*ml->cap, a);
     memcpy(cont, ml->cont, 4*ml->cap);
@@ -687,7 +589,8 @@ private MultiAssocList* copyMultiAssocList(MultiAssocList* ml, Arena* a) { //:co
 
 #ifdef TEST
 
-void dbgRawOverload(Int listInd, Compiler* cm) { //:dbgRawOverload
+void
+dbgRawOverload(Int listInd, Compiler* cm) { //:dbgRawOverload
     MultiAssocList* ml = cm->rawOverloads;
     Int len = ml->cont[listInd]/2;
     printf("[");
@@ -745,7 +648,8 @@ DEFINE_INTERNAL_LIST(bytecode, Ulong, a) //:pushInbytecode
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 #define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
 
-testable String str(const char* content) { //:str
+testable String
+str(const char* content) { //:str
     if (content == null) return (String){.cont = null, .len = 0};
     Int len = 0;
     for (const char* p = content; *p != '\0'; p++) {
@@ -755,8 +659,8 @@ testable String str(const char* content) { //:str
     return (String){.cont = content, .len = len };
 }
 
-
-testable Bool endsWith(String a, String b) { //:endsWith
+testable Bool
+endsWith(String a, String b) { //:endsWith
 // Does string "a" end with string "b"?
     if (a.len < b.len) {
         return false;
@@ -769,8 +673,8 @@ testable Bool endsWith(String a, String b) { //:endsWith
     return cmpResult == 0;
 }
 
-
-testable Bool equal(String a, String b) { //:equal
+testable Bool
+equal(String a, String b) { //:equal
     if (a.len != b.len) {
         return false;
     }
@@ -779,8 +683,8 @@ testable Bool equal(String a, String b) { //:equal
     return cmpResult == 0;
 }
 
-
-private Int stringLenOfInt(Int n) { //:stringLenOfInt
+private Int
+stringLenOfInt(Int n) { //:stringLenOfInt
     if (n < 0) n = (n == INT_MIN) ? INT_MAX : -n;
     if (n < 10) return 1;
     if (n < 100) return 2;
@@ -794,29 +698,29 @@ private Int stringLenOfInt(Int n) { //:stringLenOfInt
     return 10;
 }
 
-
-private String stringOfInt(Int i, Arena* a) { //:stringOfInt
+private String
+stringOfInt(Int i, Arena* a) { //:stringOfInt
     Int stringLen = stringLenOfInt(i);
     char* cont = allocateOnArena(stringLen + 1, a);
     sprintf(cont, "%d", i);
     return (String){.cont = cont, .len = stringLen};
 }
 
-
-testable void printString(String s) { //:printString
+testable void
+printString(String s) { //:printString
     if (s.len == 0) return;
     fwrite(s.cont, 1, s.len, stdout);
     printf("\n");
 }
 
-
-testable void printStringNoLn(String s) { //:printStringNoLn
+testable void
+printStringNoLn(String s) { //:printStringNoLn
     if (s.len == 0) return;
     fwrite(s.cont, 1, s.len, stdout);
 }
 
-
-private void printStringBuilder(StringBuilder s) { //:printStringBuilder
+private void
+printStringBuilder(StringBuilder s) { //:printStringBuilder
     if (s.len == 0) return;
     fwrite(s.cont, 1, s.len, stdout);
     printf("\n");
@@ -853,7 +757,8 @@ private bool isSpace(Byte a) { //:isSpace
 //}}}
 //{{{ Int Hashmap
 
-testable IntMap* createIntMap(int initSize, Arena* a) { //:createIntMap
+testable IntMap*
+createIntMap(int initSize, Arena* a) { //:createIntMap
     IntMap* result = allocateOnArena(sizeof(IntMap), a);
     int realInitSize = (initSize >= 4 && initSize < 1024) ? initSize : (initSize >= 4 ? 1024 : 4);
     Arr(int*) dict = allocateOnArena(sizeof(int*)*realInitSize, a);
@@ -871,8 +776,8 @@ testable IntMap* createIntMap(int initSize, Arena* a) { //:createIntMap
     return result;
 }
 
-
-testable void addIntMap(int key, int value, IntMap* hm) { //:addIntMap
+testable void
+addIntMap(int key, int value, IntMap* hm) { //:addIntMap
     if (key < 0) return;
 
     int hash = key % (hm->dictSize);
@@ -907,8 +812,8 @@ testable void addIntMap(int key, int value, IntMap* hm) { //:addIntMap
     }
 }
 
-
-testable bool hasKeyIntMap(int key, IntMap* hm) { //:hasKeyIntMap
+testable bool
+hasKeyIntMap(int key, IntMap* hm) { //:hasKeyIntMap
     if (key < 0) return false;
 
     int hash = key % hm->dictSize;
@@ -924,8 +829,8 @@ testable bool hasKeyIntMap(int key, IntMap* hm) { //:hasKeyIntMap
     return false;
 }
 
-
-private int getIntMap(int key, int* value, IntMap* hm) { //:getIntMap
+private int
+getIntMap(int key, int* value, IntMap* hm) { //:getIntMap
     int hash = key % (hm->dictSize);
     if (*(hm->dict + hash) == null) {
         return 1;
@@ -942,8 +847,8 @@ private int getIntMap(int key, int* value, IntMap* hm) { //:getIntMap
     return 1;
 }
 
-
-private int getUnsafeIntMap(int key, IntMap* hm) { //:getUnsafeIntMap
+private int
+getUnsafeIntMap(int key, IntMap* hm) { //:getUnsafeIntMap
 // Throws an exception when key is absent
     int hash = key % (hm->dictSize);
     if (*(hm->dict + hash) == null) {
@@ -961,7 +866,8 @@ private int getUnsafeIntMap(int key, IntMap* hm) { //:getUnsafeIntMap
 }
 
 
-private bool hasKeyValueIntMap(int key, int value, IntMap* hm) { //:hasKeyValueIntMap
+private bool
+hasKeyValueIntMap(int key, int value, IntMap* hm) { //:hasKeyValueIntMap
     return false;
 }
 
@@ -970,7 +876,8 @@ private bool hasKeyValueIntMap(int key, int value, IntMap* hm) { //:hasKeyValueI
 
 #define initBucketSize 8
 
-private StringDict* createStringDict(int initSize, Arena* a) {
+private StringDict*
+createStringDict(int initSize, Arena* a) {
     StringDict* result = allocateOnArena(sizeof(StringDict), a);
     int realInitSize = (initSize >= initBucketSize && initSize < 2048)
         ? initSize
@@ -990,8 +897,8 @@ private StringDict* createStringDict(int initSize, Arena* a) {
     return result;
 }
 
-
-private Unt hashCode(const char* start, Int len) { //:hashCode
+private Unt
+hashCode(const char* start, Int len) { //:hashCode
     Unt result = 5381;
     const char* p = start;
     for (Int i = 0; i < len; i++) {
@@ -1001,8 +908,8 @@ private Unt hashCode(const char* start, Int len) { //:hashCode
     return result;
 }
 
-
-private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, Unt hash, Arena* a) {
+private void
+addValueToBucket(Bucket** ptrToBucket, Int newIndString, Unt hash, Arena* a) {
     Bucket* p = *ptrToBucket;
     Int capacity = (p->capAndLen) >> 16;
     Int lenBucket = (p->capAndLen & 0xFFFF);
@@ -1022,8 +929,9 @@ private void addValueToBucket(Bucket** ptrToBucket, Int newIndString, Unt hash, 
 }
 
 
-testable Int addStringDict(const char* text, Int startBt, Int lenBts, StackUnt* stringTable,
-                           StringDict* hm) { //:addStringDict
+testable Int
+addStringDict(const char* text, Int startBt, Int lenBts, StackUnt* stringTable,
+              StringDict* hm) { //:addStringDict
 // Unique'ing of symbols within source code
     Unt hash = hashCode(text + startBt, lenBts);
     Int hashOffset = hash % (hm->dictSize);
@@ -1063,7 +971,8 @@ testable Int addStringDict(const char* text, Int startBt, Int lenBts, StackUnt* 
 }
 
 
-testable Int getStringDict(Arr(char) text, String strToSearch, StackUnt* stringTable,
+testable Int
+getStringDict(Arr(char) text, String strToSearch, StackUnt* stringTable,
         StringDict* hm) { //:getStringDict
 // Returns the index of a string within the string table, or -1 if it's not present
     Int lenBts = strToSearch.len;
@@ -1090,7 +999,8 @@ testable Int getStringDict(Arr(char) text, String strToSearch, StackUnt* stringT
 //}}}
 //{{{ Algorithms
 
-testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) { //:sortPairsDisjoint
+testable void
+sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) { //:sortPairsDisjoint
 // Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every swap of keys, the
 // same swap on values is also performed.
 // Example of such a swap: [type1 type2 type3 entity1 entity2 entity3] ->
@@ -1126,8 +1036,8 @@ testable void sortPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) { //:sor
     }
 }
 
-
-testable void sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) arr) {
+testable void
+sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) arr) {
 //:sortPairsDistant Performs a "twin" ASC sort for faraway (Struct-of-arrays) pairs: for every
 // swap of keys, the same swap on values is also performed.
 // Example of such a swap: [type1 type2 type3 ... entity1 entity2 entity3 ...] ->
@@ -1164,8 +1074,8 @@ testable void sortPairsDistant(Int startInd, Int endInd, Int distance, Arr(Int) 
     }
 }
 
-
-testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) { //:sortPairs
+testable void
+sortPairs(Int startInd, Int endInd, Arr(Int) arr) { //:sortPairs
 // Performs an ASC sort for compact pairs (array-of-structs) by key:
 // Params: startInd = the first index of the overload (the one with the count of concrete overloads)
 //        endInd = the last index belonging to the overload (the one with the last entityId)
@@ -1196,8 +1106,8 @@ testable void sortPairs(Int startInd, Int endInd, Arr(Int) arr) { //:sortPairs
     }
 }
 
-
-private void sortStackInts(StackInt* st) { //:sortStackInts
+private void
+sortStackInts(StackInt* st) { //:sortStackInts
 // Performs an ASC sort
     const Int len = st->len;
     if (len == 2) return;
@@ -1219,8 +1129,8 @@ private void sortStackInts(StackInt* st) { //:sortStackInts
     }
 }
 
-
-testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
+testable bool
+verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) arr) {
 //:verifyUniquenessPairsDisjoint For disjoint (struct-of-arrays) pairs, makes sure the keys are
 // unique and sorted ascending
 // Params: startInd = inclusive
@@ -1238,8 +1148,8 @@ testable bool verifyUniquenessPairsDisjoint(Int startInd, Int endInd, Arr(Int) a
     return true;
 }
 
-
-private Int binarySearch(Int key, Int start, Int end, Arr(Int) arr) { //:binarySearch
+private Int
+binarySearch(Int key, Int start, Int end, Arr(Int) arr) { //:binarySearch
     if (end <= start) {
         return -1;
     }
@@ -1268,8 +1178,8 @@ private Int binarySearch(Int key, Int start, Int end, Arr(Int) arr) { //:binaryS
     return -1;
 }
 
-
-private void removeDuplicatesInStack(StackInt* list) { //:removeDuplicatesInStack
+private void
+removeDuplicatesInStack(StackInt* list) { //:removeDuplicatesInStack
 // [55 55 55 56] => [55 56]
 // Precondition: the stack must be sorted
     Int initLen = list->len;
@@ -1289,8 +1199,8 @@ private void removeDuplicatesInStack(StackInt* list) { //:removeDuplicatesInStac
     list->len = prevInd + 1;
 }
 
-
-private void removeDuplicatesInList(InListInt* list) { //:removeDuplicatesInList
+private void
+removeDuplicatesInList(InListInt* list) { //:removeDuplicatesInList
 // [55 55 55 56] => [55 56]
 // Precondition: the list must be sorted
     Int initLen = list->len;
@@ -1310,8 +1220,8 @@ private void removeDuplicatesInList(InListInt* list) { //:removeDuplicatesInList
     list->len = prevInd + 1;
 }
 
-
-private Int minPositiveOf(Int count, ...) { //:minPositiveOf
+private Int
+minPositiveOf(Int count, ...) { //:minPositiveOf
 // Returns the minimum positive integer of a list, or 0 if none of them are positive
     if (count == 0) {
         return 0;
@@ -1330,7 +1240,6 @@ private Int minPositiveOf(Int count, ...) { //:minPositiveOf
 }
 
 //}}}
-
 //}}}
 //{{{ Errors
 
@@ -1502,8 +1411,8 @@ void dbgCgCalls(Codegen* cg);
 //{{{ Lexer
 //{{{ LexerConstants
 
-
-StandardText getStandardTextLength(void) { //:getStandardTextLength
+StandardText
+getStandardTextLength(void) { //:getStandardTextLength
     return (StandardText){
         .len = sizeof(standardText) - 1,
         .firstParsed = (strSentinel + countOperators),
@@ -1533,7 +1442,8 @@ typedef union {
 } FloatingBits;
 
 
-private String readSourceFile(const Arr(char) fName, Arena* a) { //:readSourceFile
+private String
+readSourceFile(const Arr(char) fName, Arena* a) { //:readSourceFile
     FILE *file = fopen(fName, "r");
     if (file == null) {
         goto cleanup;
@@ -1569,8 +1479,8 @@ private String readSourceFile(const Arr(char) fName, Arena* a) { //:readSourceFi
     return (String){.cont = result, .len = len};
 }
 
-
-testable String prepareInput(const char* content, Arena* a) { //:prepareInput
+testable String
+prepareInput(const char* content, Arena* a) { //:prepareInput
 // Allocates source code into an arena after prepending it with the standardText
     if (content == null) return empty;
     const char* ind = content;
@@ -1586,19 +1496,20 @@ testable String prepareInput(const char* content, Arena* a) { //:prepareInput
     return (String){.cont = result, .len = lenStandard + lenSource};
 }
 
-private NameId nameOfToken(Token tk) { //:nameOfToken
+private NameId
+nameOfToken(Token tk) { //:nameOfToken
     return (NameId)((Unt)tk.pl1);
 }
 
-
-testable NameId nameOfStandard(Int strId) { //:nameOfStandard
+testable NameId
+nameOfStandard(Int strId) { //:nameOfStandard
 // Converts a standard string to its nameId. Doesn't work for reserved words, obviously. So the
 // argument must be >= "strFirstNonreserved"
     return (NameId)((Unt)(strId + countOperators));
 }
 
-
-private void skipSpaces(const Arr(char) source, Compiler* lx) { //:skipSpaces
+private void
+skipSpaces(const Arr(char) source, Compiler* lx) { //:skipSpaces
     while (lx->i < lx->stats.inpLength) {
         Byte currBt = CURR_BT;
         if (!isSpace(currBt)) {
@@ -1608,8 +1519,8 @@ private void skipSpaces(const Arr(char) source, Compiler* lx) { //:skipSpaces
     }
 }
 
-
-_Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {
+_Noreturn private void
+throwExcInternal0(Int errInd, Int lineNumber, Compiler* cm) {
     cm->stats.wasError = true;
     printf("Internal error %d at line %d\n", errInd, lineNumber);
     cm->stats.errMsg = stringOfInt(errInd, cm->a);
@@ -1619,7 +1530,8 @@ _Noreturn private void throwExcInternal0(Int errInd, Int lineNumber, Compiler* c
 
 #define throwExcInternal(errInd, cm) throwExcInternal0(errInd, __LINE__, cm)
 
-_Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compiler* lx) {
+_Noreturn private void
+throwExcLexer0(const char errMsg[], Int lineNumber, Compiler* lx) {
 // Sets i to beyond input's length to communicate to callers that lexing is over
     lx->stats.wasLexerError = true;
 #ifdef TRACE
@@ -1634,29 +1546,30 @@ _Noreturn private void throwExcLexer0(const char errMsg[], Int lineNumber, Compi
 //}}}
 //{{{ Lexer proper
 
-private void checkPrematureEnd(Int requiredSymbols, Compiler* lx) { //:checkPrematureEnd
+private void
+checkPrematureEnd(Int requiredSymbols, Compiler* lx) { //:checkPrematureEnd
 // Checks that there are at least 'requiredSymbols' symbols left in the input
     VALIDATEL(lx->i + requiredSymbols <= lx->stats.inpLength, errPrematureEndOfInput)
 }
 
-
-private void setSpanLengthLexer(Int tokenInd, Compiler* lx) { //:setSpanLengthLexer
+private void
+setSpanLengthLexer(Int tokenInd, Compiler* lx) { //:setSpanLengthLexer
 // Finds the top-level punctuation opener by its index, and sets its lengths.
 // Called when the matching closer is lexed. Does not pop anything from the "lexBtrack"
     lx->tokens.cont[tokenInd].lenBts = lx->i - lx->tokens.cont[tokenInd].startBt + 1;
     lx->tokens.cont[tokenInd].pl2 = lx->tokens.len - tokenInd - 1;
 }
 
-
-private BtToken getLexContext(Compiler* lx) { //:getLexContext
+private BtToken
+getLexContext(Compiler* lx) { //:getLexContext
     if (!hasValues(lx->lexBtrack)) {
         return (BtToken) { .tp = tokInt, .tokenInd = -1, .spanLevel = 0 };
     }
     return peek(lx->lexBtrack);
 }
 
-
-private void setStmtSpanLength(Int tokenInd, Compiler* lx) { //:setStmtSpanLength
+private void
+setStmtSpanLength(Int tokenInd, Compiler* lx) { //:setStmtSpanLength
 // Correctly calculates the lenBts for a single-line, statement-type span.
 // This is for correctly calculating lengths of statements when they are ended by parens in
 // case of a gap before ")", for example:
@@ -1672,15 +1585,15 @@ private void setStmtSpanLength(Int tokenInd, Compiler* lx) { //:setStmtSpanLengt
     lx->tokens.cont[tokenInd].pl2 = lx->tokens.len - tokenInd - 1;
 }
 
-
-private void addStatementSpan(Unt stmtType, Int startBt, Compiler* lx) {
+private void
+addStatementSpan(Unt stmtType, Int startBt, Compiler* lx) {
     push(((BtToken){ .tp = stmtType, .tokenInd = lx->tokens.len, .spanLevel = slStmt }),
                     lx->lexBtrack);
     pushIntokens((Token){ .tp = stmtType, .startBt = startBt, .lenBts = 0 }, lx);
 }
 
-
-private void wrapInAStatementStarting(Int startBt, const Arr(char) source, Compiler* lx) {
+private void
+wrapInAStatementStarting(Int startBt, const Arr(char) source, Compiler* lx) {
 //:wrapInAStatementStarting
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel == slScope) {
@@ -1691,8 +1604,8 @@ private void wrapInAStatementStarting(Int startBt, const Arr(char) source, Compi
     }
 }
 
-
-private void wrapInAStatement(const Arr(char) source, Compiler* lx) { //:wrapInAStatement
+private void
+wrapInAStatement(const Arr(char) source, Compiler* lx) { //:wrapInAStatement
     if (hasValues(lx->lexBtrack)) {
         if (peek(lx->lexBtrack).spanLevel == slScope) {
             addStatementSpan(tokStmt, lx->i, lx);
@@ -1702,8 +1615,8 @@ private void wrapInAStatement(const Arr(char) source, Compiler* lx) { //:wrapInA
     }
 }
 
-
-private int64_t calcIntegerWithinLimits(Compiler* lx) { //:calcIntegerWithinLimits
+private int64_t
+calcIntegerWithinLimits(Compiler* lx) { //:calcIntegerWithinLimits
     int64_t powerOfTen = (int64_t)1;
     int64_t result = 0;
     Int j = lx->numeric.len - 1;
@@ -1717,8 +1630,8 @@ private int64_t calcIntegerWithinLimits(Compiler* lx) { //:calcIntegerWithinLimi
     return result;
 }
 
-
-private bool integerWithinDigits(const Byte* b, Int bLength, Compiler* lx) { //:integerWithinDigits
+private bool
+integerWithinDigits(const Byte* b, Int bLength, Compiler* lx) { //:integerWithinDigits
 // Is the current numeric <= b if they are regarded as arrays of decimal digits (0 to 9)?
     if (lx->numeric.len != bLength) return (lx->numeric.len < bLength);
     for (Int j = 0; j < lx->numeric.len; j++) {
@@ -1728,15 +1641,15 @@ private bool integerWithinDigits(const Byte* b, Int bLength, Compiler* lx) { //:
     return true;
 }
 
-
-private Int calcInteger(int64_t* result, Compiler* lx) { //:calcInteger
+private Int
+calcInteger(int64_t* result, Compiler* lx) { //:calcInteger
     if (lx->numeric.len > 19 || !integerWithinDigits(maxInt, sizeof(maxInt), lx)) return -1;
     *result = calcIntegerWithinLimits(lx);
     return 0;
 }
 
-
-private int64_t calcHexNumber(Compiler* lx) { //:calcHexNumber
+private int64_t
+calcHexNumber(Compiler* lx) { //:calcHexNumber
     int64_t result = 0;
     int64_t powerOfSixteen = 1;
     Int j = lx->numeric.len - 1;
@@ -1751,8 +1664,8 @@ private int64_t calcHexNumber(Compiler* lx) { //:calcHexNumber
     return result;
 }
 
-
-private void hexNumber(const Arr(char) source, Compiler* lx) { //:hexNumber
+private void
+hexNumber(const Arr(char) source, Compiler* lx) { //:hexNumber
 // Lexes a hexadecimal numeric literal (integer or floating-point)
 // Examples of accepted expressions: 0xCAFE'BABE, 0xdeadbeef, 0x123'45A
 // Examples of NOT accepted expressions: 0xCAFE'babe, 0x'deadbeef, 0x123'
@@ -1786,7 +1699,8 @@ private void hexNumber(const Arr(char) source, Compiler* lx) { //:hexNumber
 }
 
 
-private Int calcFloating(double* result, Int powerOfTen, const Arr(char) source, Compiler* lx) {
+private Int
+calcFloating(double* result, Int powerOfTen, const Arr(char) source, Compiler* lx) {
 //:calcFloating Parses the floating-point numbers using just the "fast path" of David Gay's
 // "strtod" function, extended to 16 digits.
 // I.e. it handles only numbers with 15 digits or 16 digits with the first digit not 9,
@@ -1842,20 +1756,20 @@ private Int calcFloating(double* result, Int powerOfTen, const Arr(char) source,
     return 0;
 }
 
-
-testable int64_t longOfDoubleBits(double d) { //:longOfDoubleBits
+testable int64_t
+longOfDoubleBits(double d) { //:longOfDoubleBits
     FloatingBits un = {.d = d};
     return un.i;
 }
 
-
-private double doubleOfLongBits(int64_t i) { //:doubleOfLongBits
+private double
+doubleOfLongBits(int64_t i) { //:doubleOfLongBits
     FloatingBits un = {.i = i};
     return un.d;
 }
 
-
-private void decNumber(bool isNegative, const Arr(char) source, Compiler* lx) { //:decNumber
+private void
+decNumber(bool isNegative, const Arr(char) source, Compiler* lx) { //:decNumber
 // Lexes a decimal numeric literal (integer or floating-point). Adds a token.
 // TODO: add support for the '1.23E4' format
     Int j = (isNegative) ? (lx->i + 1) : lx->i;
@@ -1911,8 +1825,8 @@ private void decNumber(bool isNegative, const Arr(char) source, Compiler* lx) { 
     lx->i = j; // CONSUME the decimal number
 }
 
-
-private void lexNumber(const Arr(char) source, Compiler* lx) { //:lexNumber
+private void
+lexNumber(const Arr(char) source, Compiler* lx) { //:lexNumber
     wrapInAStatement(source, lx);
     Byte cByte = CURR_BT;
     if (lx->i == lx->stats.inpLength - 1 && isDigit(cByte)) {
@@ -1931,8 +1845,8 @@ private void lexNumber(const Arr(char) source, Compiler* lx) { //:lexNumber
     lx->numeric.len = 0;
 }
 
-
-private void openPunctuation(Unt tType, Unt spanLevel, Int startBt, Compiler* lx) {
+private void
+openPunctuation(Unt tType, Unt spanLevel, Int startBt, Compiler* lx) {
 //:openPunctuation Adds a token which serves punctuation purposes, i.e. either a ( or  a [
 // These tokens are used to define the structure, that is, nesting within the AST.
 // Upon addition, they are saved to the backtracking stack to be updated with their length
@@ -1943,8 +1857,8 @@ private void openPunctuation(Unt tType, Unt spanLevel, Int startBt, Compiler* lx
                           .startBt = startBt }, lx);
 }
 
-
-private void lexElseElseIf(Unt reservedWordType, Int startBt,
+private void
+lexElseElseIf(Unt reservedWordType, Int startBt,
                            const Arr(char) source, Compiler* lx) { //:lexElseElseIf
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(bt->len >= 1, errCoreFormInappropriate)
@@ -1965,8 +1879,8 @@ private void lexElseElseIf(Unt reservedWordType, Int startBt,
     openPunctuation(reservedWordType, slScope, startBt, lx);
 }
 
-
-private void lexSyntaxForm(Unt reservedWordType, Int startBt,
+private void
+lexSyntaxForm(Unt reservedWordType, Int startBt,
                            const Arr(char) source, Compiler* lx) { //:lexSyntaxForm
 // Lexer action for a paren-type or statement-type syntax form.
 // Precondition: we are looking at the character immediately after the keyword
@@ -1994,8 +1908,8 @@ private void lexSyntaxForm(Unt reservedWordType, Int startBt,
     }
 }
 
-
-private Bool wordChunk(const Arr(char) source, Compiler* lx) { //:wordChunk
+private Bool
+wordChunk(const Arr(char) source, Compiler* lx) { //:wordChunk
 // Lexes a single chunk of a word, i.e. the characters between two minuses (or the whole word
 // if there are no minuses). Returns True if the lexed chunk was capitalized
     bool result = false;
@@ -2013,8 +1927,8 @@ private Bool wordChunk(const Arr(char) source, Compiler* lx) { //:wordChunk
     return result;
 }
 
-
-private void mbCloseAssignRight(BtToken* top, Compiler* cm) { //:mbCloseAssignRight
+private void
+mbCloseAssignRight(BtToken* top, Compiler* cm) { //:mbCloseAssignRight
 // Handles the case we are closing a tokAssignRight: we need to close its parent tokAssignment!
     if (top->tp != tokAssignRight) {
         return;
@@ -2029,7 +1943,8 @@ private void mbCloseAssignRight(BtToken* top, Compiler* cm) { //:mbCloseAssignRi
 }
 
 
-private void lxCloseFnDef(BtToken* top, Compiler* cm) { //:lxCloseFnDef
+private void
+lxCloseFnDef(BtToken* top, Compiler* cm) { //:lxCloseFnDef
 // Handles the case we are closing a function definition: we need to close its parent tokAssignment!
     StackBtToken* bt = cm->lexBtrack;
     setStmtSpanLength(top->tokenInd, cm);
@@ -2046,8 +1961,8 @@ private void lxCloseFnDef(BtToken* top, Compiler* cm) { //:lxCloseFnDef
     setStmtSpanLength(top->tokenInd, cm);
 }
 
-
-private void closeStatement(Compiler* lx) { //:closeStatement
+private void
+closeStatement(Compiler* lx) { //:closeStatement
 // Closes the current statement. Consumes no tokens
     BtToken top = peek(lx->lexBtrack);
     VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline)
@@ -2058,8 +1973,8 @@ private void closeStatement(Compiler* lx) { //:closeStatement
     }
 }
 
-
-private void tryOpenAccessor(const Arr(char) source, Compiler* lx) { //:tryOpenAccessor
+private void
+tryOpenAccessor(const Arr(char) source, Compiler* lx) { //:tryOpenAccessor
 // Checks whether there is a `[` right after a word, in which case it's an accessor
     if (lx->i < lx->stats.inpLength && CURR_BT == aBracketLeft) { // `a[i][j]`
         openPunctuation(tokAccessor, slSubexpr, lx->i, lx);
@@ -2067,8 +1982,8 @@ private void tryOpenAccessor(const Arr(char) source, Compiler* lx) { //:tryOpenA
     }
 }
 
-
-private void tryChangeParensToTypeCall(Compiler* lx) {
+private void
+tryChangeParensToTypeCall(Compiler* lx) {
     if (!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).tp != tokParens
             || lx->tokens.cont[lx->tokens.len - 1].tp != tokParens) {
         return;
@@ -2077,8 +1992,8 @@ private void tryChangeParensToTypeCall(Compiler* lx) {
     lx->tokens.cont[lx->tokens.len - 1].tp = tokTypeCall;
 }
 
-
-private void wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
+private void
+wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
                         bool wasCapitalized, const Arr(char) source, Compiler* lx) { //:wordNormal
     Int lenBts = lx->i - realStartBt;
     Token newToken = (Token){ .tp = wordType, .pl1 = uniqueStringId,
@@ -2097,8 +2012,8 @@ private void wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realS
     }
 }
 
-
-private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt,
+private void
+wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt,
                           const Arr(char) source, Compiler* lx) { //:wordReserved
     const Int keywordTp = standardKeywords[wordId];
     if (keywordTp < firstSpanTokenType) {
@@ -2124,8 +2039,8 @@ private void wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt
     }
 }
 
-
-private void wordInternal(Unt wordType, const Arr(char) source, Compiler* lx) { //:wordInternal
+private void
+wordInternal(Unt wordType, const Arr(char) source, Compiler* lx) { //:wordInternal
 // Lexes a word (both reserved and identifier) according to Eyr's rules.
 // Precondition: we are pointing at the first letter character of the word (i.e. past the possible
 // "." or ":")
@@ -2164,12 +2079,13 @@ private void wordInternal(Unt wordType, const Arr(char) source, Compiler* lx) { 
     }
 }
 
-private void lexWord(const Arr(char) source, Compiler* lx) { //:lexWord
+private void
+lexWord(const Arr(char) source, Compiler* lx) { //:lexWord
     wordInternal(tokWord, source, lx);
 }
 
-
-private void lexDot(const Arr(char) source, Compiler* lx) { //:lexDot
+private void
+lexDot(const Arr(char) source, Compiler* lx) { //:lexDot
 // The dot is a start of a field accessor or a function call
     VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT) && lx->tokens.len > 0,
         errUnexpectedToken);
@@ -2180,8 +2096,8 @@ private void lexDot(const Arr(char) source, Compiler* lx) { //:lexDot
     wordInternal(tokFieldAcc, source, lx);
 }
 
-
-private void lexAssignment(const Int opType, Compiler* lx) { //:lexAssignment
+private void
+lexAssignment(const Int opType, Compiler* lx) { //:lexAssignment
 // Params: opType is the operator for mutations (like `*=`), -1 for normal assignments.
 // Handles the "=", and "+=" tokens (for the latter, inserts the operator and duplicates the
 // tokens from the left side). Changes existing stmt token into tokAssignment and opens up a new
@@ -2212,8 +2128,8 @@ private void lexAssignment(const Int opType, Compiler* lx) { //:lexAssignment
     }
 }
 
-
-private void lexColon(const Arr(char) source, Compiler* lx) { //:lexColon
+private void
+lexColon(const Arr(char) source, Compiler* lx) { //:lexColon
 // Handles keyword arguments ":asdf" and intros like param lists "(\\x Int : ...)"
     if (lx->i < lx->stats.inpLength - 1 && isLowercaseLetter(NEXT_BT)) {
         lx->i += 1; // CONSUME the ":"
@@ -2236,16 +2152,16 @@ private void lexColon(const Arr(char) source, Compiler* lx) { //:lexColon
     }
 }
 
-
-private void lexApostrophe(const Arr(char) source, Compiler* lx) { //:lexApostrophe
+private void
+lexApostrophe(const Arr(char) source, Compiler* lx) { //:lexApostrophe
 // Handles keyword arguments ":asdf" and param lists "{{x Int : ...}}"
     VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT), errUnexpectedToken)
     lx->i += 1; // CONSUME the "'"
     wordInternal(tokTypeVar, source, lx);
 }
 
-
-private void lexSemicolon(const Arr(char) source, Compiler* lx) { //:lexSemicolon
+private void
+lexSemicolon(const Arr(char) source, Compiler* lx) { //:lexSemicolon
     VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
     BtToken top = peek(lx->lexBtrack);
     VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline);
@@ -2259,8 +2175,8 @@ private void lexSemicolon(const Arr(char) source, Compiler* lx) { //:lexSemicolo
     lx->i += 1;  // CONSUME the ";"
 }
 
-
-private void lexTilde(const Arr(char) source, Compiler* lx) { //:lexTilde
+private void
+lexTilde(const Arr(char) source, Compiler* lx) { //:lexTilde
     const Int lastInd = lx->tokens.len - 1;
     VALIDATEL(lx->tokens.len > 0, errWordTilde)
     Token lastTk = lx->tokens.cont[lastInd];
@@ -2271,8 +2187,8 @@ private void lexTilde(const Arr(char) source, Compiler* lx) { //:lexTilde
     lx->i += 1;  // CONSUME the "~"
 }
 
-
-private void lexOperator(const Arr(char) source, Compiler* lx) { //:lexOperator
+private void
+lexOperator(const Arr(char) source, Compiler* lx) { //:lexOperator
     wrapInAStatement(source, lx);
 
     Byte firstSymbol = CURR_BT;
@@ -2325,8 +2241,8 @@ private void lexOperator(const Arr(char) source, Compiler* lx) { //:lexOperator
     lx->i = j; // CONSUME the operator
 }
 
-
-private void lexEqual(const Arr(char) source, Compiler* lx) { //:lexEqual
+private void
+lexEqual(const Arr(char) source, Compiler* lx) { //:lexEqual
 // The humble "=" can be the definition statement or a comparison "=="
     checkPrematureEnd(2, lx);
     Byte nextBt = NEXT_BT;
@@ -2338,8 +2254,8 @@ private void lexEqual(const Arr(char) source, Compiler* lx) { //:lexEqual
     }
 }
 
-
-private void lexUnderscore(const Arr(char) source, Compiler* lx) { //:lexUnderscore
+private void
+lexUnderscore(const Arr(char) source, Compiler* lx) { //:lexUnderscore
     if ((lx->i < lx->stats.inpLength - 1) && NEXT_BT == aUnderscore) {
         pushIntokens((Token){ .tp = tokMisc, .pl1 = miscUnderscore, .pl2 = 2,
                      .startBt = lx->i - 1, .lenBts = 2 }, lx);
@@ -2351,8 +2267,8 @@ private void lexUnderscore(const Arr(char) source, Compiler* lx) { //:lexUndersc
     }
 }
 
-
-private void lexNewline(const Arr(char) source, Compiler* lx) { //:lexNewline
+private void
+lexNewline(const Arr(char) source, Compiler* lx) { //:lexNewline
     pushInnewlines(lx->i, lx);
 
     lx->i += 1;     // CONSUME the LF
@@ -2365,7 +2281,8 @@ private void lexNewline(const Arr(char) source, Compiler* lx) { //:lexNewline
 }
 
 
-private void lexComment(const Arr(char) source, Compiler* lx) { //:lexComment
+private void
+lexComment(const Arr(char) source, Compiler* lx) { //:lexComment
 // Eyr separates between documentation comments (which live in meta info and are
 // spelt as "meta(`comment`)") and comments for, well, eliding text from code;
 // Elision comments are of the "//" form.
@@ -2376,8 +2293,8 @@ private void lexComment(const Arr(char) source, Compiler* lx) { //:lexComment
     }
 }
 
-
-private void lexMinus(const Arr(char) source, Compiler* lx) { //:lexMinus
+private void
+lexMinus(const Arr(char) source, Compiler* lx) { //:lexMinus
 // Handles the binary operator as well as the unary negation operator
     if (lx->i == lx->stats.inpLength - 1) {
         lexOperator(source, lx);
@@ -2397,8 +2314,8 @@ private void lexMinus(const Arr(char) source, Compiler* lx) { //:lexMinus
     }
 }
 
-
-private void lexDivBy(const Arr(char) source, Compiler* lx) { //:lexDivBy
+private void
+lexDivBy(const Arr(char) source, Compiler* lx) { //:lexDivBy
 // Handles the binary operator as well as the comments
     if (lx->i + 1 < lx->stats.inpLength && NEXT_BT == aDivBy) {
         lexComment(source, lx);
@@ -2407,8 +2324,8 @@ private void lexDivBy(const Arr(char) source, Compiler* lx) { //:lexDivBy
     }
 }
 
-
-private void lexParenLeft(const Arr(char) source, Compiler* lx) { //:lexParenLeft
+private void
+lexParenLeft(const Arr(char) source, Compiler* lx) { //:lexParenLeft
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
     if (NEXT_BT == aParenLeft) {
@@ -2421,8 +2338,8 @@ private void lexParenLeft(const Arr(char) source, Compiler* lx) { //:lexParenLef
     }
 }
 
-
-private void lexParenRight(const Arr(char) source, Compiler* lx) { //:lexParenRight
+private void
+lexParenRight(const Arr(char) source, Compiler* lx) { //:lexParenRight
 // A closing parenthesis may close the following configurations of lexer backtrack:
 // 1. [scope stmt] - if it's just a scope nested within another scope or a function
 // 2. [coreForm stmt] - eg. if it's closing the function body
@@ -2465,8 +2382,8 @@ private void lexParenRight(const Arr(char) source, Compiler* lx) { //:lexParenRi
     lx->i += 1; // CONSUME the closing ")"
 }
 
-
-private void lexCurlyLeft(const Arr(char) source, Compiler* lx) { //:lexCurlyLeft
+private void
+lexCurlyLeft(const Arr(char) source, Compiler* lx) { //:lexCurlyLeft
 // Handles objects/maps/sets "{}"
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
@@ -2474,8 +2391,8 @@ private void lexCurlyLeft(const Arr(char) source, Compiler* lx) { //:lexCurlyLef
     lx->i += 1; // CONSUME the left bracket
 }
 
-
-private void lexCurlyRight(const Arr(char) source, Compiler* lx) { //:lexCurlyRight
+private void
+lexCurlyRight(const Arr(char) source, Compiler* lx) { //:lexCurlyRight
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
@@ -2488,15 +2405,15 @@ private void lexCurlyRight(const Arr(char) source, Compiler* lx) { //:lexCurlyRi
     lx->i += 1; // CONSUME the closing "}"
 }
 
-
-private void lexBracketLeft(const Arr(char) source, Compiler* lx) { //:lexBracketLeft
+private void
+lexBracketLeft(const Arr(char) source, Compiler* lx) { //:lexBracketLeft
     wrapInAStatement(source, lx);
     openPunctuation(tokDataList, slSubexpr, lx->i, lx);
     lx->i += 1; // CONSUME the `[`
 }
 
-
-private void lexBracketRight(const Arr(char) source, Compiler* lx) { //:lexBracketRight
+private void
+lexBracketRight(const Arr(char) source, Compiler* lx) { //:lexBracketRight
     Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
@@ -2511,8 +2428,8 @@ private void lexBracketRight(const Arr(char) source, Compiler* lx) { //:lexBrack
     tryOpenAccessor(source, lx);
 }
 
-
-private void lexPipe(const Arr(char) source, Compiler* lx) { //:lexPipe
+private void
+lexPipe(const Arr(char) source, Compiler* lx) { //:lexPipe
 // Closes the current statement and changes its type to tokIntro
     Int j = lx->i + 1;
     if (j < lx->stats.inpLength && NEXT_BT == aPipe) {
@@ -2523,16 +2440,16 @@ private void lexPipe(const Arr(char) source, Compiler* lx) { //:lexPipe
     }
 }
 
-
-private void lexSpace(const Arr(char) source, Compiler* lx) { //:lexSpace
+private void
+lexSpace(const Arr(char) source, Compiler* lx) { //:lexSpace
     lx->i += 1; // CONSUME the space
     while (lx->i < lx->stats.inpLength && isSpace(CURR_BT)) {
         lx->i += 1; // CONSUME a space
     }
 }
 
-
-private void lexStringLiteral(const Arr(char) source, Compiler* lx) { //:lexStringLiteral
+private void
+lexStringLiteral(const Arr(char) source, Compiler* lx) { //:lexStringLiteral
     wrapInAStatement(source, lx);
     Int j = lx->i + 1;
     for (; j < lx->stats.inpLength && source[j] != aBacktick; j++);
@@ -2541,17 +2458,18 @@ private void lexStringLiteral(const Arr(char) source, Compiler* lx) { //:lexStri
     lx->i = j + 1; // CONSUME the string literal, including the closing quote character
 }
 
-
-private void lexUnexpectedSymbol(const Arr(char) source, Compiler* lx) { //:lexUnexpectedSymbol
+private void
+lexUnexpectedSymbol(const Arr(char) source, Compiler* lx) { //:lexUnexpectedSymbol
     throwExcLexer(errUnrecognizedByte);
 }
 
-private void lexNonAsciiError(const Arr(char) source, Compiler* lx) { //:lexNonAsciiError
+private void
+lexNonAsciiError(const Arr(char) source, Compiler* lx) { //:lexNonAsciiError
     throwExcLexer(errNonAscii);
 }
 
-
-private void tabulateLexer() { //:tabulateLexer
+private void
+tabulateLexer() { //:tabulateLexer
     LexerFn* p = LEX_TABLE;
     for (Int i = 0; i < 128; i++) {
         p[i] = &lexUnexpectedSymbol;
@@ -2596,8 +2514,8 @@ private void tabulateLexer() { //:tabulateLexer
     //return result;
 }
 
-
-private void populateStandardOffsets() { //:populateStandardOffsets
+private void
+populateStandardOffsets() { //:populateStandardOffsets
     Int curr = standardOperatorsLength;
     for (Int j = 0; j < sizeof(standardStringLens); j++) {
         standardOffsets[j] = curr;
@@ -2627,7 +2545,8 @@ private void pExpr(Token tk, P_CT);
 private Int pExprWorker(Token tk, P_CT);
 
 
-_Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
+_Noreturn private void
+throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
     cm->stats.wasError = true;
 #ifdef TRACE
     printf("Error on i = %d line %d\n", cm->i, lineNumber);
@@ -2639,19 +2558,21 @@ _Noreturn private void throwExcParser0(const char errMsg[], Int lineNumber, Comp
 #define throwExcParser(errMsg) throwExcParser0(errMsg, __LINE__, cm)
 
 
-private EntityId getActiveVar(NameId nameId, Compiler* cm) { //:getActiveVar
+private EntityId
+getActiveVar(NameId nameId, Compiler* cm) { //:getActiveVar
 // Resolves an active binding, throws if it's not active
     Int rawValue = cm->activeBindings[nameId];
     VALIDATEP(rawValue > -1 && rawValue < BIG, errUnknownBinding)
     return rawValue;
 }
 
-private Int getTypeOfVar(Int varId, Compiler* cm) {
+private Int
+getTypeOfVar(Int varId, Compiler* cm) {
     return cm->entities.cont[varId].typeId;
 }
 
-
-private EntityId createEntity(NameId nameId, Emit emit, Byte class, Compiler* cm) { //:createEntity
+private EntityId
+createEntity(NameId nameId, Emit emit, Byte class, Compiler* cm) { //:createEntity
 // Validates a new binding (that it is unique), creates an entity for it,
 // and adds it to the current scope
     Int mbBinding = cm->activeBindings[nameId];
@@ -2669,28 +2590,28 @@ private EntityId createEntity(NameId nameId, Emit emit, Byte class, Compiler* cm
     return newEntityId;
 }
 
-
-private EntityId createEntityWithType(NameId nameId, TypeId typeId, Emit emit, Byte class,
+private EntityId
+createEntityWithType(NameId nameId, TypeId typeId, Emit emit, Byte class,
                                  Compiler* cm) { //:createEntityWithType
     EntityId newEntityId = createEntity(nameId, emit, class, cm);
     cm->entities.cont[newEntityId].typeId = typeId;
     return newEntityId;
 }
 
-
-private Int calcSentinel(Token tok, Int tokInd) { //:calcSentinel
+private Int
+calcSentinel(Token tok, Int tokInd) { //:calcSentinel
 // Calculates the sentinel token for a token at a specific index
     return (tok.tp >= firstSpanTokenType ? (tokInd + tok.pl2 + 1) : (tokInd + 1));
 }
 
-
-testable void addNode(Node node, SourceLoc loc, Compiler* cm) { //:addNode
+testable void
+addNode(Node node, SourceLoc loc, Compiler* cm) { //:addNode
     pushInnodes(node, cm);
     push(loc, cm->sourceLocs);
 }
 
-
-private void pAddAccessorCall(Int sentinel, SourceLoc loc, StateForExprs* s) {
+private void
+pAddAccessorCall(Int sentinel, SourceLoc loc, StateForExprs* s) {
 //:pAddAccessorCall Pushes a list accessor call to the temporary stacks during expression parsing
     push(((ExprFrame) { .tp = exfrCall, .startNode = -1, .sentinel = sentinel,
                         .argCount = 1 }), s->frames);
@@ -2698,8 +2619,8 @@ private void pAddAccessorCall(Int sentinel, SourceLoc loc, StateForExprs* s) {
     push(loc, s->locsCalls);
 }
 
-
-private void pAddUnaryCall(Token tok, StateForExprs* s) {
+private void
+pAddUnaryCall(Token tok, StateForExprs* s) {
 //:pAddUnaryCall Pushes a unary, prefix call to the temporary stacks during expression parsing
     push(((ExprFrame) { .tp = exfrUnaryCall, .startNode = -1, .sentinel = -1,
                         .argCount = 1 }), s->frames);
@@ -2707,8 +2628,8 @@ private void pAddUnaryCall(Token tok, StateForExprs* s) {
     push(((SourceLoc) { .startBt = tok.startBt, .lenBts = tok.lenBts }), s->locsCalls);
 }
 
-
-private void pAddFunctionCall(Token tk, Int sentinel, StateForExprs* s) {
+private void
+pAddFunctionCall(Token tk, Int sentinel, StateForExprs* s) {
 //:pAddFunctionCall Pushes a call to the temporary stacks during expression parsing
     push(
         ((ExprFrame) {.tp = exfrCall, .sentinel = sentinel, .argCount = 0 }),
@@ -2729,11 +2650,11 @@ void printIntArrayOff(Int startInd, Int count, Arr(Int) arr);
 
 //}}}
 
-private SourceLoc locOf(Token tk) {
-    return (SourceLoc){.startBt = tk.startBt, .lenBts = tk.lenBts};
-}
+private SourceLoc
+locOf(Token tk) { return (SourceLoc){.startBt = tk.startBt, .lenBts = tk.lenBts}; }
 
-private void openParsedScope(Int sentinelToken, SourceLoc loc, Compiler* cm) {
+private void
+openParsedScope(Int sentinelToken, SourceLoc loc, Compiler* cm) {
 //:openParsedScope Performs coordinated insertions to start a scope within the parser
     push(((ParseFrame){
             .tp = nodScope, .startNodeInd = cm->nodes.len, .sentinel = sentinelToken }),
@@ -2743,8 +2664,9 @@ private void openParsedScope(Int sentinelToken, SourceLoc loc, Compiler* cm) {
 }
 
 
-private void openFnScope(EntityId fnEntity, NameId name, TypeId fnType, Token fnTk, Int sentinel,
-                         Compiler* cm) {
+private void
+openFnScope(EntityId fnEntity, NameId name, TypeId fnType, Token fnTk, Int sentinel,
+            Compiler* cm) {
 //:openFnScope Performs coordinated insertions to start a function definition
     push(((ParseFrame){ .tp = nodFnDef, .startNodeInd = cm->nodes.len, .sentinel = sentinel,
                         .typeId = fnType }), cm->backtrack);
@@ -2753,15 +2675,18 @@ private void openFnScope(EntityId fnEntity, NameId name, TypeId fnType, Token fn
             locOf(fnTk), cm);
 }
 
-private void parseMisc(Token tok, P_CT) {
+private void
+parseMisc(Token tok, P_CT) {
 }
 
 
-private void pScope(Token tok, P_CT) { //:pScope
+private void
+pScope(Token tok, P_CT) { //:pScope
     openParsedScope(cm->i + tok.pl2, locOf(tok), cm);
 }
 
-private void parseTry(Token tok, P_CT) {
+private void
+parseTry(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
@@ -2795,8 +2720,8 @@ private void ifFindNextClause(Int start, Int sentinel, OUT Int* nextTokenInd, OU
     }
 }
 
-
-private void ifCondition(Token tok, P_CT) { //:ifCondition
+private void
+ifCondition(Token tok, P_CT) { //:ifCondition
 // Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
     VALIDATEP(tok.tp == tokIntro, errIfLeft)
@@ -2807,8 +2732,8 @@ private void ifCondition(Token tok, P_CT) { //:ifCondition
     mbCloseSpans(cm);
 }
 
-
-private void ifOpenSpan(Unt tp, Int sentinel, Int indNextClause, SourceLoc loc, Compiler* cm) {
+private void
+ifOpenSpan(Unt tp, Int sentinel, Int indNextClause, SourceLoc loc, Compiler* cm) {
 
     ParseFrame newParseFrame = (ParseFrame){ .tp = tp, .startNodeInd = cm->nodes.len,
             .sentinel = sentinel };
@@ -2817,7 +2742,8 @@ private void ifOpenSpan(Unt tp, Int sentinel, Int indNextClause, SourceLoc loc, 
             loc, cm);
 }
 
-private void pIf(Token tok, P_CT) { //:pIf
+private void
+pIf(Token tok, P_CT) { //:pIf
     const Int ifSentinel = cm->i + tok.pl2;
     Int indNextClause;
     Int lastByteBeforeNextClause;
@@ -2841,8 +2767,8 @@ private void pIf(Token tok, P_CT) { //:pIf
     }
 }
 
-
-private void pElseIf(Token tok, P_CT) { //:pElseIf
+private void
+pElseIf(Token tok, P_CT) { //:pElseIf
 // ElseIf spans go inside an if: (if expr (scope ...) (elseif expr (scope ...))
     const Int ifSentinel = cm->i + tok.pl2;
     ifOpenSpan(nodElseIf, ifSentinel, 0, locOf(tok), cm);
@@ -2853,8 +2779,8 @@ private void pElseIf(Token tok, P_CT) { //:pElseIf
     openParsedScope(ifSentinel, locOf(tok), cm);
 }
 
-
-private void pElse(Token tok, P_CT) { //:pElse
+private void
+pElse(Token tok, P_CT) { //:pElse
 // "Else" is a special case of "ElseIf" marked with .pl3 = 0
     mbCloseSpans(cm);
 
@@ -2863,8 +2789,8 @@ private void pElse(Token tok, P_CT) { //:pElse
     openParsedScope(ifSentinel, locOf(tok), cm);
 }
 
-
-private TypeId assignmentComplexLeftSide(Int sentinel, P_CT) { //:assignmentComplexLeftSide
+private TypeId
+assignmentComplexLeftSide(Int sentinel, P_CT) { //:assignmentComplexLeftSide
 // A left side with more than one token must consist of a known var with a series of accessors.
 // It gets transformed like this:
 // arr[i][j*2][k + 3] ==> arr i getElem j 2 *(2) getElem k 3 +(2) getElemPtr
@@ -2894,8 +2820,8 @@ private TypeId assignmentComplexLeftSide(Int sentinel, P_CT) { //:assignmentComp
     return leftType;
 }
 
-
-private void assignmentMutateComplexLeft(Int rightNodeInd, P_CT) {
+private void
+assignmentMutateComplexLeft(Int rightNodeInd, P_CT) {
 //:assignmentMutateComplexLeft Mutating the last opGetElem to opGetElemPtr, but only after the whole
 // left side has been copied to the right (in case we are in a mutation like `x[i] += 2`)
     Node lastNode = cm->nodes.cont[rightNodeInd - 1];
@@ -2907,8 +2833,8 @@ private void assignmentMutateComplexLeft(Int rightNodeInd, P_CT) {
     }
 }
 
-
-private TypeId pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, P_CT) {
+private TypeId
+pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, P_CT) {
 //:pAssignmentRight The right side of an assignment
     if (rightTk.tp == tokFn) {
         return -1;
@@ -2923,7 +2849,8 @@ private TypeId pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, P_
 }
 
 
-private void pAssignment(Token tok, P_CT) { //:pAssignment
+private void
+pAssignment(Token tok, P_CT) { //:pAssignment
     if (tok.pl1 == assiType) {
         pTypeDef(P_C);
         return;
@@ -2987,8 +2914,9 @@ private void pAssignment(Token tok, P_CT) { //:pAssignment
 }
 
 
-private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
-                         P_CT) { //:preambleFor
+private void
+preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
+            P_CT) { //:preambleFor
 // Pre-processes a "for" loop and finds its key tokens: the loop condition and the intro
 // Every out index is either positive or 0 for "not found".
 // One of "stepInd" and "bodyInd" is guaranteed to be found & positive. If they are both present,
@@ -3050,7 +2978,8 @@ private void preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT I
 }
 
 
-private void pFor(Token forTk, P_CT) { //:pFor
+private void
+pFor(Token forTk, P_CT) { //:pFor
 // For loops. Look like "(for x~ = 0;  x < 100; x += 1:  ... )"
 //                            ^initInd ^condInd ^stepInd ^bodyInd
 // At least a step or a body is syntactically required.
@@ -3115,20 +3044,20 @@ private void pFor(Token forTk, P_CT) { //:pFor
     cm->i = minPositiveOf(2, stepInd, bodyInd); // CONSUME the "for" until the loop body + step
 }
 
-
-private void setSpanLengthParser(Int nodeInd, Compiler* cm) { //:setSpanLengthParser
+private void
+setSpanLengthParser(Int nodeInd, Compiler* cm) { //:setSpanLengthParser
 // Finds the top-level punctuation opener by its index, and sets its node length.
 // Called when the parsing of a span is finished
     cm->nodes.cont[nodeInd].pl2 = cm->nodes.len - nodeInd - 1;
 }
 
-
-private void parseErrorBareAtom(Token tok, P_CT) {
+private void
+parseErrorBareAtom(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
-
-private ParseFrame popFrame(Compiler* cm) { //:popFrame
+private ParseFrame
+popFrame(Compiler* cm) { //:popFrame
     ParseFrame frame = pop(cm->backtrack);
     if (frame.tp == nodScope || frame.tp == nodFnDef) { // a nodFnDef acts as a scope itself
         popScopeFrame(cm);
@@ -3137,8 +3066,8 @@ private ParseFrame popFrame(Compiler* cm) { //:popFrame
     return frame;
 }
 
-
-private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
+private Int
+exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
 // A single-item expression, like "foo". Consumes no tokens.
 // Pre-condition: we are 1 token past the token we're parsing.
 // Returns the type of the single item
@@ -3162,8 +3091,8 @@ private Int exprSingleItem(Token tk, Compiler* cm) { //:exprSingleItem
     return typeId;
 }
 
-
-private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler* cm) {
+private void
+subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler* cm) {
 //:subexDataAllocation Creates an assignment in main. Then walks over the data allocator nodes
 // and counts elements that are subexpressions. Then copies the nodes from scratch to main,
 // careful to wrap subexpressions in a nodExpr. Finally, replaces the copied nodes in scr with
@@ -3205,8 +3134,8 @@ private void subexDataAllocation(ExprFrame frame, StateForExprs* stEx, Compiler*
     scr->cont[frame.startNode] = (Node){ .tp = nodId, .pl1 = newEntityId, .pl2 = -1 };
 }
 
-
-private void eBumpArgCount(StateForExprs* stEx) { //:eBumpArgCount
+private void
+eBumpArgCount(StateForExprs* stEx) { //:eBumpArgCount
     const Int ind = stEx->frames->len - 1;
     const Int tp = stEx->frames->cont[ind].tp;
     if (tp == exfrCall || tp == exfrDataAlloc) {
@@ -3214,8 +3143,8 @@ private void eBumpArgCount(StateForExprs* stEx) { //:eBumpArgCount
     }
 }
 
-
-private void ePopUnaryCalls(StateForExprs* stEx) { //:ePopUnaryCalls
+private void
+ePopUnaryCalls(StateForExprs* stEx) { //:ePopUnaryCalls
     ExprFrame* zero = stEx->frames->cont;
     ExprFrame* parent = zero + (stEx->frames->len - 1);
     Bool poppedAnyUnaries = false;
@@ -3230,8 +3159,8 @@ private void ePopUnaryCalls(StateForExprs* stEx) { //:ePopUnaryCalls
     }
 }
 
-
-private void eClose(StateForExprs* stEx, Compiler* cm) { //:eClose
+private void
+eClose(StateForExprs* stEx, Compiler* cm) { //:eClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
     StackNode* scr = stEx->scr;
     while (stEx->frames->len > 0 && cm->i == peek(stEx->frames).sentinel) {
@@ -3261,8 +3190,8 @@ private void eClose(StateForExprs* stEx, Compiler* cm) { //:eClose
     }
 }
 
-
-private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFromScratch
+private void
+exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFromScratch
     StateForExprs* stEx = cm->stateForExprs;
     StackNode* scr = stEx->scr;
     StackSourceLoc* locs = stEx->locsScr;
@@ -3294,8 +3223,8 @@ private void exprCopyFromScratch(Int startNodeInd, Compiler* cm) { //:exprCopyFr
     cm->sourceLocs->len += scr->len;
 }
 
-
-private void eLinearize(Int sentinel, P_CT) { //:eLinearize
+private void
+eLinearize(Int sentinel, P_CT) { //:eLinearize
 // The core code of the general, long expression parse. Starts at cm->i and parses until
 // "sentinel". Produces a linear sequence of operands and operators with arg counts in
 // Reverse Polish Notation. Handles data allocations, too. But not single-item exprs
@@ -3377,8 +3306,8 @@ private void eLinearize(Int sentinel, P_CT) { //:eLinearize
     eClose(stEx, cm);
 }
 
-
-private TypeId exprUpToWithFrame(ParseFrame frame, SourceLoc loc, P_CT) {
+private TypeId
+exprUpToWithFrame(ParseFrame frame, SourceLoc loc, P_CT) {
 //:exprUpToWithFrame The main "big" expression parser. Parses an expression whether there is a
 // token or not. Starts from cm->i and goes up to the sentinel token. Returns the expression's type
 // Precondition: we are looking 1 past the tokExpr or tokParens
@@ -3401,8 +3330,8 @@ private TypeId exprUpToWithFrame(ParseFrame frame, SourceLoc loc, P_CT) {
     return exprType;
 }
 
-
-private TypeId exprUpTo(Int sentinelToken, SourceLoc loc, P_CT) { //:exprUpTo
+private TypeId
+exprUpTo(Int sentinelToken, SourceLoc loc, P_CT) { //:exprUpTo
 // The main "big" expression parser. Parses an expression whether there is a token or not.
 // Precondition: we are looking 1 past the tokExpr or tokParens
 // Starts from cm->i and goes up to the sentinel token.
@@ -3419,8 +3348,8 @@ private TypeId exprUpTo(Int sentinelToken, SourceLoc loc, P_CT) { //:exprUpTo
     return exprType;
 }
 
-
-private TypeId exprHeadless(Int sentinel, SourceLoc loc, P_CT) { //:exprHeadless
+private TypeId
+exprHeadless(Int sentinel, SourceLoc loc, P_CT) { //:exprHeadless
 // Precondition: we are looking at the first token of expr which does not have a
 // tokStmt/tokParens header. If "omitSpan" is set, this function will not emit a nodExpr nor
 // create a ParseFrame.
@@ -3435,8 +3364,8 @@ private TypeId exprHeadless(Int sentinel, SourceLoc loc, P_CT) { //:exprHeadless
     return exprUpTo(sentinel, loc, P_C);
 }
 
-
-private Int pExprWorker(Token tok, P_CT) { //:pExprWorker
+private Int
+pExprWorker(Token tok, P_CT) { //:pExprWorker
 // Precondition: we are looking 1 past the first token of expr, which is the first parameter.
 // Consumes 1 or more tokens. Handles single items also Returns the type of parsed expression
     if (tok.tp == tokStmt || tok.tp == tokParens || tok.tp == tokIntro) {
@@ -3455,13 +3384,12 @@ private Int pExprWorker(Token tok, P_CT) { //:pExprWorker
     }
 }
 
-
-private void pExpr(Token tok, P_CT) {
-    pExprWorker(tok, P_C);
-}
+private void
+pExpr(Token tok, P_CT) { pExprWorker(tok, P_C); }
 
 
-private void mbCloseSpans(Compiler* cm) { //:mbCloseSpans
+private void
+mbCloseSpans(Compiler* cm) { //:mbCloseSpans
 // When we are at the end of a function parsing a parse frame, we might be at the end of said frame
 // (otherwise => we've encountered a nested frame, like in "1 + { x = 2; x + 1}"),
 // in which case this function handles all the corresponding stack poppin'.
@@ -3483,8 +3411,8 @@ private void mbCloseSpans(Compiler* cm) { //:mbCloseSpans
     }
 }
 
-
-private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
+private void
+parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
 // Parses anything from current cm->i to "sentinelToken"
     while (cm->i < sentinelToken) {
         Token currTok = toks[cm->i];
@@ -3494,8 +3422,8 @@ private void parseUpTo(Int sentinelToken, P_CT) { //:parseUpTo
     }
 }
 
-
-private void setClassToMutated(Int bindingId, Compiler* cm) { //:setClassToMutated
+private void
+setClassToMutated(Int bindingId, Compiler* cm) { //:setClassToMutated
 // Changes a mutable variable to mutated. Throws an exception for an immutable one
     Int class = cm->entities.cont[bindingId].class;
     VALIDATEP(class < classImmut, errCannotMutateImmutable);
@@ -3504,27 +3432,27 @@ private void setClassToMutated(Int bindingId, Compiler* cm) { //:setClassToMutat
     }
 }
 
-
-private void pAlias(Token tok, P_CT) { //:pAlias
+private void
+pAlias(Token tok, P_CT) { //:pAlias
     throwExcParser(errTemp);
 }
 
-private void parseAssert(Token tok, P_CT) {
+private void
+parseAssert(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
-
-private void parseAssertDbg(Token tok, P_CT) {
+private void
+parseAssertDbg(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
-
-private void parseAwait(Token tok, P_CT) {
-    throwExcParser(errTemp);
-}
+private void
+parseAwait(Token tok, P_CT) { throwExcParser(errTemp); }
 
 
-private Int breakContinue(Token tok, Int* sentinel, P_CT) { //:breakContinue
+private Int
+breakContinue(Token tok, Int* sentinel, P_CT) { //:breakContinue
 // Returns the number of levels to break/continue to, or 1 if there weren't any specified
     VALIDATEP(tok.pl2 <= 1, errBreakContinueTooComplex);
     Int unwindLevel = 1;
@@ -3557,8 +3485,8 @@ private Int breakContinue(Token tok, Int* sentinel, P_CT) { //:breakContinue
     throwExcParser(errBreakContinueInvalidDepth);
 }
 
-
-private void pBreakCont(Token tok, P_CT) { //:pBreakCont
+private void
+pBreakCont(Token tok, P_CT) { //:pBreakCont
     Int sentinel = cm->i;
     Int loopId = breakContinue(tok, &sentinel, P_C);
     if (tok.pl1 > 0) { // continue
@@ -3568,8 +3496,8 @@ private void pBreakCont(Token tok, P_CT) { //:pBreakCont
     cm->i = sentinel; // CONSUME the whole break statement
 }
 
-
-private void parseCatch(Token tok, P_CT) {
+private void
+parseCatch(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
@@ -3607,8 +3535,8 @@ private void parsePackage(Token tok, P_CT) {
     throwExcParser(errTemp);
 }
 
-
-private void typecheckFnReturn(Int typeId, Compiler* cm) { //:typecheckFnReturn
+private void
+typecheckFnReturn(Int typeId, Compiler* cm) { //:typecheckFnReturn
     Int j = cm->backtrack->len - 1;
     while (j > -1 && cm->backtrack->cont[j].tp != nodFnDef) {
         j -= 1;
@@ -3618,8 +3546,8 @@ private void typecheckFnReturn(Int typeId, Compiler* cm) { //:typecheckFnReturn
     VALIDATEP(returnType == typeId, errTypeWrongReturnType)
 }
 
-
-private void pReturn(Token tok, P_CT) { //:pReturn
+private void
+pReturn(Token tok, P_CT) { //:pReturn
     Int lenTokens = tok.pl2;
     Int sentinelToken = cm->i + lenTokens;
 
@@ -3636,8 +3564,8 @@ private void pReturn(Token tok, P_CT) { //:pReturn
     }
 }
 
-
-testable void importEntities(Arr(Entity) impts, Int countEntities, Compiler* cm) { //:importEntities
+testable void
+importEntities(Arr(Entity) impts, Int countEntities, Compiler* cm) { //:importEntities
     for (int j = 0; j < countEntities; j++) {
         Entity ent = impts[j];
         Int nameId = ent.name & LOWER24BITS;
@@ -3658,8 +3586,8 @@ testable void importEntities(Arr(Entity) impts, Int countEntities, Compiler* cm)
     cm->stats.countNonparsedEntities = cm->entities.len;
 }
 
-
-private void tabulateParser() { //:tabulateParser
+private void
+tabulateParser() { //:tabulateParser
     ParserFn* p = PARSE_TABLE;
     int i = 0;
     while (i <= firstSpanTokenType) {
@@ -3688,8 +3616,8 @@ private void tabulateParser() { //:tabulateParser
     p[tokFor]         = &pFor;
 }
 
-
-private StackUnt* copyStringTable(StackUnt* table, Arena* a) { //:copyStringTable
+private StackUnt*
+copyStringTable(StackUnt* table, Arena* a) { //:copyStringTable
     StackUnt* result = createStackuint32_t(table->cap, a);
     result->len = table->len;
     result->cap = table->cap;
@@ -3697,8 +3625,8 @@ private StackUnt* copyStringTable(StackUnt* table, Arena* a) { //:copyStringTabl
     return result;
 }
 
-
-private StringDict* copyStringDict(StringDict* from, Arena* a) { //:copyStringDict
+private StringDict*
+copyStringDict(StringDict* from, Arena* a) { //:copyStringDict
     StringDict* result = allocateOnArena(sizeof(StringDict), a);
     const Int dictSize = from->dictSize;
     Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*dictSize, a);
@@ -3722,8 +3650,8 @@ private StringDict* copyStringDict(StringDict* from, Arena* a) { //:copyStringDi
     return result;
 }
 
-
-private void createProtoCompiler(OUT Compiler* proto, Arena* a) { //:createProtoCompiler
+private void
+createProtoCompiler(OUT Compiler* proto, Arena* a) { //:createProtoCompiler
 // Creates a proto-compiler, which is used not for compilation but as a seed value to be cloned
 // for every source code module. The proto-compiler contains the following data:
 // - types that are sufficient for the built-in operators
@@ -3744,8 +3672,8 @@ private void createProtoCompiler(OUT Compiler* proto, Arena* a) { //:createProto
     createBuiltins(proto);
 }
 
-
-private void finalizeLexer(Compiler* lx) { //:finalizeLexer
+private void
+finalizeLexer(Compiler* lx) { //:finalizeLexer
 // Finalizes the lexing of a single input: checks for unclosed scopes, and closes semicolons and
 // an open statement, if any
     if (!hasValues(lx->lexBtrack)) {
@@ -3757,8 +3685,8 @@ private void finalizeLexer(Compiler* lx) { //:finalizeLexer
     VALIDATEL(top.spanLevel != slScope && !hasValues(lx->lexBtrack), errPunctuationExtraOpening)
 }
 
-
-testable Compiler* lexicallyAnalyze(String sourceCode, Arena* a) {
+testable Compiler*
+lexicallyAnalyze(String sourceCode, Arena* a) {
 //:lexicallyAnalyze Main lexer function. Precondition: the input Byte array has been prepended
 // with StandardText
     Compiler* lx = createLexer(sourceCode, a);
@@ -3776,8 +3704,8 @@ testable Compiler* lexicallyAnalyze(String sourceCode, Arena* a) {
     return lx;
 }
 
-
-struct ScopeStackFrame {
+struct
+ScopeStackFrame {
 // This frame corresponds either to a lexical scope or a subexpression.
 // It contains string ids introduced in the current scope, used not for cleanup after the frame
 // is popped. Otherwise, it contains the function call of the subexpression
@@ -3795,13 +3723,15 @@ struct ScopeStackFrame {
 
 DEFINE_STACK(Node)
 
-private size_t ceiling4(size_t sz) {
+private size_t
+ceiling4(size_t sz) {
     size_t rem = sz % 4;
     return sz + 4 - rem;
 }
 
 
-private size_t floor4(size_t sz) {
+private size_t
+floor4(size_t sz) {
     size_t rem = sz % 4;
     return sz - rem;
 }
@@ -3810,7 +3740,8 @@ private size_t floor4(size_t sz) {
 #define FRESH_CHUNK_LEN floor4(CHUNK_SIZE - sizeof(ScopeChunk))/4
 
 
-testable ScopeStack* createScopeStack(void) {
+testable ScopeStack*
+createScopeStack(void) {
 // TODO put it into an arena?
     ScopeStack* result = malloc(sizeof(ScopeStack));
 
@@ -3834,8 +3765,8 @@ testable ScopeStack* createScopeStack(void) {
     return result;
 }
 
-
-private void mbNewChunk(ScopeStack* scopeStack) { //:mbNewChunk
+private void
+mbNewChunk(ScopeStack* scopeStack) { //:mbNewChunk
     if (scopeStack->currChunk->next != null) {
         return;
     }
@@ -3846,8 +3777,8 @@ private void mbNewChunk(ScopeStack* scopeStack) { //:mbNewChunk
     scopeStack->lastChunk = null;
 }
 
-
-testable void pushLexScope(ScopeStack* scopeStack) { //:pushLexScope
+testable void
+pushLexScope(ScopeStack* scopeStack) { //:pushLexScope
 // Allocates a new scope, either within this chunk or within a pre-existing lastChunk or within
 // a brand new chunk. Scopes have a simple size policy: 64 elements at first, then 256, then
 // throw exception. This is because only 256 local variables are allowed in one function, and
@@ -3878,9 +3809,9 @@ testable void pushLexScope(ScopeStack* scopeStack) { //:pushLexScope
     scopeStack->len += 1;
 }
 
-
-private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope,
-                                         ScopeStack* scopeStack) { //:resizeScopeArrayIfNecessary
+private void
+resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope,
+                            ScopeStack* scopeStack) { //:resizeScopeArrayIfNecessary
     int newLength = scopeStack->topScope->len + 1;
     if (newLength == initLength) {
         int remainingSpace = scopeStack->currChunk->len - scopeStack->nextInd + 1;
@@ -3897,8 +3828,8 @@ private void resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topSco
     }
 }
 
-
-private void addBinding(NameId nameId, Int bindingId, Compiler* cm) { //:addBinding
+private void
+addBinding(NameId nameId, Int bindingId, Compiler* cm) { //:addBinding
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
     resizeScopeArrayIfNecessary(64, topScope, cm->scopeStack);
 
@@ -3908,8 +3839,8 @@ private void addBinding(NameId nameId, Int bindingId, Compiler* cm) { //:addBind
     cm->activeBindings[nameId] = bindingId;
 }
 
-
-private void popScopeFrame(Compiler* cm) { //:popScopeFrame
+private void
+popScopeFrame(Compiler* cm) { //:popScopeFrame
 // Pops a frame from the ScopeStack. For a scope type of frame, also deactivates its bindings.
 // Returns pointer to previous frame (which will be top after this call) or null if there isn't any
     ScopeStackFrame* topScope = cm->scopeStack->topScope;
@@ -3948,8 +3879,8 @@ private void popScopeFrame(Compiler* cm) { //:popScopeFrame
     scopeStack->len -= 1;
 }
 
-
-private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm) {
+private void
+addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Compiler* cm) {
 //:addRawOverload Adds an overload of a function to the [rawOverloads] and activates it, if needed
     Int mbListId = -cm->activeBindings[nameId] - 2;
     FirstArgTypeId firstParamType = getFirstParamType(typeId, cm);
@@ -3967,8 +3898,8 @@ private void addRawOverload(NameId nameId, TypeId typeId, EntityId entityId, Com
     cm->stats.countOverloads += 1;
 }
 
-
-private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mergeTypeWorker
+private TypeId
+mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mergeTypeWorker
     Arr(Int) types = cm->types.cont;
     StringDict* hm = cm->typesDict;
     const Int lenBts = lenInts*4;
@@ -4000,7 +3931,8 @@ private TypeId mergeTypeWorker(Int startInd, Int lenInts, Compiler* cm) { //:mer
     return startInd;
 }
 
-testable TypeId mergeType(Int startInd, Compiler* cm) { //:mergeType
+testable TypeId
+mergeType(Int startInd, Compiler* cm) { //:mergeType
 // Unique'ing of types. Precondition: the type is parked at the end of cm->types, forming its
 // tail. Returns the resulting index of this type and updates the length of cm->types if
 // appropriate
@@ -4008,8 +3940,8 @@ testable TypeId mergeType(Int startInd, Compiler* cm) { //:mergeType
     return mergeTypeWorker(startInd, lenInts, cm);
 }
 
-
-testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
+testable TypeId
+addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
 //:addConcrFnType Function types are stored as: (length, paramType1, paramType2, ..., returnType)
     Int newInd = cm->types.len;
     pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
@@ -4021,8 +3953,8 @@ testable TypeId addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm
     return mergeType(newInd, cm);
 }
 
-
-private void buildStandardStrings(Compiler* lx) { //:buildStandardStrings
+private void
+buildStandardStrings(Compiler* lx) { //:buildStandardStrings
 // Inserts all strings from the standardText into the string table and the hash table
 // But first inserts a reservation for every operator symbol (that's "countOperators" nameIds,
 // the lx->stringTable contains zeros in those places)
@@ -4035,13 +3967,14 @@ private void buildStandardStrings(Compiler* lx) { //:buildStandardStrings
     }
 }
 
-private Unt stToFullName(Int sta, Compiler* cm) { //:stToFullName
+private Unt
+stToFullName(Int sta, Compiler* cm) { //:stToFullName
 // Converts a standard string to its nameId. Doesn't work for reserved words, obviously
     return cm->stringTable->cont[sta + countOperators];
 }
 
-
-private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
+private void
+buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
 // Creates the built-in types in the proto compiler
     for (int i = strInt; i <= strVoid; i++) {
         cm->activeBindings[nameOfStandard(i)] = i - strInt;
@@ -4083,16 +4016,16 @@ private void buildPreludeTypes(Compiler* cm) { //:buildPreludeTypes
     cm->activeBindings[nameOfStandard(strTu)] = typeIndTu;
 }
 
-
-private void buildInfixOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildInfixOperator
+private void
+buildInfixOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildInfixOperator
 // Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
     pushInentities((Entity){ .typeId = typeId, .class = classImmut, .emit = emitInfix }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
 }
 
-
-private void buildOperator(Int operId, TypeId typeId, Emit emit, Compiler* cm) {
+private void
+buildOperator(Int operId, TypeId typeId, Emit emit, Compiler* cm) {
 //:buildOperator Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
     pushInentities((Entity){
@@ -4101,18 +4034,8 @@ private void buildOperator(Int operId, TypeId typeId, Emit emit, Compiler* cm) {
     addRawOverload(operId, typeId, newEntityId, cm);
 }
 
-
-private void buildHostOperator(Int operId, TypeId typeId, Emit emit, Int hostInd, Compiler* cm) {
-//:buildOperator Creates an entity, pushes it to [rawOverloads] and activates its name
-    Int newEntityId = cm->entities.len;
-    NameLoc name = (hostTextLens[hostInd] << 24) + hostOffsets[hostInd];
-    pushInentities((Entity){
-            .typeId = typeId, .name = name, .class = classImmut, .emit = emitInfix }, cm);
-    addRawOverload(operId, typeId, newEntityId, cm);
-}
-
-
-private void buildOperators(Compiler* cm) { //:buildOperators
+private void
+buildOperators(Compiler* cm) { //:buildOperators
 // Operators are the first-ever functions to be defined. This function builds their @types,
 // @functions and overload counts. The order must agree with the order of operator
 // definitions in eyr.internal.h, and every operator must have at least one type defined
@@ -4136,71 +4059,71 @@ private void buildOperators(Compiler* cm) { //:buildOperators
     TypeId flOfFlFl        = addConcrFnType(2, (Int[]){ tokDouble, tokDouble, tokDouble}, cm);
     TypeId flOfFl          = addConcrFnType(1, (Int[]){ tokDouble, tokDouble}, cm);
 
-    buildHostOperator(opBitwiseNeg, intOfInt, emitPrefixHost, hostTilde, cm); // !.
-    buildOperator(opNotEqual,      boolOfIntInt, emitInfix, cm);
-    buildOperator(opNotEqual,      boolOfFlFl, emitInfix, cm);
-    buildOperator(opNotEqual,      boolOfStrStr, emitInfix, cm);
-    buildOperator(opBoolNeg,       boolOfBool, emitPrefix, cm);
-    buildHostOperator(opSize,      intOfStr, emitFieldHost, hostLength, cm);
-    buildHostOperator(opSize,      intOfInt, emitPrefixHost, hostMathAbs, cm);
-    buildHostOperator(opToString,  strOfInt, emitInfixDot, hostToString, cm);
-    buildHostOperator(opToString,  strOfBool, emitInfixDot, hostToString, cm);
-    buildHostOperator(opToString,  strOfFloat, emitInfixDot, hostToString, cm);
+    buildOperator(opBitwiseNeg, intOfInt, cm); // !.
+    buildOperator(opNotEqual,      boolOfIntInt, cm);
+    buildOperator(opNotEqual,      boolOfFlFl, cm);
+    buildOperator(opNotEqual,      boolOfStrStr, cm);
+    buildOperator(opBoolNeg,       boolOfBool, cm);
+    buildOperator(opSize,      intOfStr, cm);
+    buildOperator(opSize,      intOfInt, cm);
+    buildOperator(opToString,  strOfInt, cm);
+    buildOperator(opToString,  strOfBool, cm);
+    buildOperator(opToString,  strOfFloat, cm);
     buildOperator(opRemainder,     intOfIntInt, emitInfix, cm);
-    buildHostOperator(opBitwiseAnd, intOfIntInt, emitInfixHost, hostAmpersand, cm);
+    buildOperator(opBitwiseAnd, intOfIntInt, emitInfixHost, hostAmpersand, cm);
     buildOperator(opBoolAnd,       boolOfBoolBool, emitInfix, cm);
-    buildHostOperator(opTimesExt,  flOfFlFl, emitPrefixHost, hostAsterisk, cm);
+    buildOperator(opTimesExt,  flOfFlFl, emitPrefixHost, hostAsterisk, cm);
     buildOperator(opTimes,         intOfIntInt, emitInfix, cm);
     buildOperator(opTimes,         flOfFlFl, emitInfix, cm);
-    buildHostOperator(opPlusExt,   strOfStrStr, emitPrefixHost, hostPlus, cm);
+    buildOperator(opPlusExt,   strOfStrStr, emitPrefixHost, hostPlus, cm);
     buildOperator(opPlus,          intOfIntInt, emitInfix, cm);
     buildOperator(opPlus,          flOfFlFl, emitInfix, cm);
     buildOperator(opPlus,          strOfStrStr, emitInfix, cm);
-    buildHostOperator(opMinusExt,  intOfIntInt, emitPrefixHost, hostMinus, cm);
+    buildOperator(opMinusExt,  intOfIntInt, emitPrefixHost, hostMinus, cm);
     buildOperator(opMinus,         intOfIntInt, emitInfix, cm);
     buildOperator(opMinus,         flOfFlFl, emitInfix, cm);
-    buildHostOperator(opDivByExt,  intOfIntInt, emitPrefixHost, hostDivBy, cm);
-    buildHostOperator(opIntersect, intOfIntInt, emitPrefixHost, hostAmpersand, cm); // dummy
+    buildOperator(opDivByExt,  intOfIntInt, emitPrefixHost, hostDivBy, cm);
+    buildOperator(opIntersect, intOfIntInt, emitPrefixHost, hostAmpersand, cm); // dummy
     buildOperator(opDivBy,         intOfIntInt, emitInfix, cm);
     buildOperator(opDivBy,         flOfFlFl, emitInfix, cm);
-    buildHostOperator(opBitShiftL, intOfFlFl, emitInfixHost, hostBitShiftL, cm);
-    buildHostOperator(opComparator,    intOfIntInt, emitPrefixHost, hostCompareInt, cm);
-    buildHostOperator(opComparator,    intOfFlFl, emitInfixHost, hostCompareDbl, cm);
-    buildHostOperator(opComparator,    intOfStrStr, emitPrefixHost, hostCompareStr, cm);
-    buildHostOperator(opLTZero,    boolOfIntInt, emitPrefixHost, hostLtZeroInt, cm);
-    buildHostOperator(opLTZero,    boolOfFlFl, emitPrefixHost, hostLtZeroDbl, cm);
-    buildHostOperator(opShiftL,    intOfIntInt, emitInfixHost, hostShiftLeft, cm);
+    buildOperator(opBitShiftL, intOfFlFl, emitInfixHost, hostBitShiftL, cm);
+    buildOperator(opComparator,    intOfIntInt, emitPrefixHost, hostCompareInt, cm);
+    buildOperator(opComparator,    intOfFlFl, emitInfixHost, hostCompareDbl, cm);
+    buildOperator(opComparator,    intOfStrStr, emitPrefixHost, hostCompareStr, cm);
+    buildOperator(opLTZero,    boolOfIntInt, emitPrefixHost, hostLtZeroInt, cm);
+    buildOperator(opLTZero,    boolOfFlFl, emitPrefixHost, hostLtZeroDbl, cm);
+    buildOperator(opShiftL,    intOfIntInt, emitInfixHost, hostShiftLeft, cm);
     buildOperator(opLTEQ,          boolOfIntInt, emitInfix, cm);
     buildOperator(opLTEQ,          boolOfFlFl, emitInfix, cm);
     buildOperator(opLTEQ,          boolOfStrStr, emitInfix, cm);
     buildOperator(opLessTh,            boolOfIntInt, emitInfix, cm);
     buildOperator(opLessTh,            boolOfFlFl, emitInfix, cm);
     buildOperator(opLessTh,            boolOfStrStr, emitInfix, cm);
-    buildHostOperator(opRefEquality,   boolOfIntInt, emitPrefixHost, hostRefEquality, cm);
-    buildHostOperator(opIsNull,        boolOfIntInt, emitPrefixHost, hostIsNull, cm);
+    buildOperator(opRefEquality,   boolOfIntInt, emitPrefixHost, hostRefEquality, cm);
+    buildOperator(opIsNull,        boolOfIntInt, emitPrefixHost, hostIsNull, cm);
     buildOperator(opEquality,          boolOfIntInt, emitInfix, cm);
-    buildHostOperator(opInterval,      boolOfIntIntInt, emitPrefixHost, hostIntervalInt, cm);
-    buildHostOperator(opInterval,      boolOfFlFlFl, emitPrefixHost, hostIntervalDbl, cm);
-    buildHostOperator(opBitShiftR,     boolOfBoolBool, emitInfixHost, hostBitShiftR, cm);
-    buildHostOperator(opGTZero,        boolOfIntInt, emitPrefixHost, hostGtZeroInt, cm);
-    buildHostOperator(opGTZero,        boolOfFlFl, emitPrefixHost, hostGtZeroDbl, cm);
+    buildOperator(opInterval,      boolOfIntIntInt, emitPrefixHost, hostIntervalInt, cm);
+    buildOperator(opInterval,      boolOfFlFlFl, emitPrefixHost, hostIntervalDbl, cm);
+    buildOperator(opBitShiftR,     boolOfBoolBool, emitInfixHost, hostBitShiftR, cm);
+    buildOperator(opGTZero,        boolOfIntInt, emitPrefixHost, hostGtZeroInt, cm);
+    buildOperator(opGTZero,        boolOfFlFl, emitPrefixHost, hostGtZeroDbl, cm);
     buildOperator(opGTEQ,              boolOfIntInt, emitInfix, cm);
     buildOperator(opGTEQ,              boolOfFlFl, emitInfix, cm);
     buildOperator(opGTEQ,              boolOfStrStr, emitInfix, cm);
-    buildHostOperator(opShiftR,        intOfIntInt, emitInfixHost, hostShiftRight, cm);
+    buildOperator(opShiftR,        intOfIntInt, emitInfixHost, hostShiftRight, cm);
     buildOperator(opGreaterTh,         boolOfIntInt, emitInfix, cm);
     buildOperator(opGreaterTh,         boolOfFlFl, emitInfix, cm);
     buildOperator(opGreaterTh,         boolOfStrStr, emitInfix, cm);
-    buildHostOperator(opNullCoalesce,  intOfIntInt, emitPrefixHost, hostNullCoalesce, cm);
-    buildHostOperator(opQuestionMark,  intOfIntInt, emitPrefixHost, hostCase, cm); // dummy, type
-    buildHostOperator(opUnused,        flOfFlFl, emitPrefixHost, hostCase, cm); // unused
-    buildHostOperator(opBitwiseXor,    intOfIntInt, emitInfixHost, hostBitwiseXor, cm);
+    buildOperator(opNullCoalesce,  intOfIntInt, emitPrefixHost, hostNullCoalesce, cm);
+    buildOperator(opQuestionMark,  intOfIntInt, emitPrefixHost, hostCase, cm); // dummy, type
+    buildOperator(opUnused,        flOfFlFl, emitPrefixHost, hostCase, cm); // unused
+    buildOperator(opBitwiseXor,    intOfIntInt, emitInfixHost, hostBitwiseXor, cm);
     buildOperator(opExponent,          intOfIntInt, emitInfix, cm);
     buildOperator(opExponent,          flOfFlFl, emitInfix, cm);
-    buildHostOperator(opBitwiseOr,     intOfIntInt, emitInfixHost, hostBitwiseOr, cm);
+    buildOperator(opBitwiseOr,     intOfIntInt, emitInfixHost, hostBitwiseOr, cm);
     buildOperator(opBoolOr,            flOfFl, emitInfix, cm);
-    buildHostOperator(opGetElem,       flOfFl, emitPrefixHost, hostCase, cm); // dummy
-    buildHostOperator(opGetElemPtr,    flOfFl, emitPrefixHost, hostCase, cm); // dummy
+    buildOperator(opGetElem,       flOfFl, emitPrefixHost, hostCase, cm); // dummy
+    buildOperator(opGetElemPtr,    flOfFl, emitPrefixHost, hostCase, cm); // dummy
 }
 
 
@@ -4690,20 +4613,21 @@ testable Compiler* parse(Compiler* cm, Arena* a) { //:parse
 #define TYPE_PREFIX_LEN 3 // sizeof(TypeHeader)/4 + 1. Length (in ints) of the prefix in type repr
 #define TYPE_DEFINE_EXP const StackInt* exp = st->exp
 
-private Int typeEncodeTag(Unt sort, Int depth, Int arity, Compiler* cm) {
+private Int
+typeEncodeTag(Unt sort, Int depth, Int arity, Compiler* cm) {
     return (Int)((Unt)(sort << 16) + (depth << 8) + arity);
 }
 
-
-testable void typeAddHeader(TypeHeader hdr, Compiler* cm) { //:typeAddHeader
+testable void
+typeAddHeader(TypeHeader hdr, Compiler* cm) { //:typeAddHeader
 // Writes the bytes for the type header to the tail of the cm->types table.
 // Adds two 4-byte elements
     pushIntypes((Int)((Unt)((Unt)hdr.sort << 16) + ((Unt)hdr.arity << 8) + hdr.tyrity), cm);
     pushIntypes((Int)hdr.nameAndLen, cm);
 }
 
-
-testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm) { //:typeReadHeader
+testable TypeHeader
+typeReadHeader(TypeId typeId, Compiler* cm) { //:typeReadHeader
 // Reads a type header from the type array
     Int tag = cm->types.cont[typeId + 1];
     return (TypeHeader){ .sort = ((Unt)tag >> 16) & LOWER16BITS,
@@ -4711,8 +4635,8 @@ testable TypeHeader typeReadHeader(TypeId typeId, Compiler* cm) { //:typeReadHea
             .nameAndLen = (Unt)cm->types.cont[typeId + 2] };
 }
 
-
-private Int typeGetTyrity(TypeId typeId, Compiler* cm) { //:typeGetTyrity
+private Int
+typeGetTyrity(TypeId typeId, Compiler* cm) { //:typeGetTyrity
     if (cm->types.cont[typeId] == 0) {
         return 0;
     }
@@ -4720,8 +4644,8 @@ private Int typeGetTyrity(TypeId typeId, Compiler* cm) { //:typeGetTyrity
     return tag & 0xFF;
 }
 
-
-private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeGetOuter
+private OuterTypeId
+typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeGetOuter
 // A          => A  (concrete types)
 // (A B)      => A  (concrete generic types)
 // A + (A B)  => -2 (param generic types)
@@ -4739,13 +4663,14 @@ private OuterTypeId typeGetOuter(FirstArgTypeId typeId, Compiler* cm) { //:typeG
     }
 }
 
-private TypeId getGenericParam(TypeId t, Int ind, Compiler* cm) { //:getGenericParam
+private TypeId
+getGenericParam(TypeId t, Int ind, Compiler* cm) { //:getGenericParam
 // (L Foo) -> Foo
     return cm->types.cont[t + TYPE_PREFIX_LEN + ind];
 }
 
-
-private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm) { //:tGetIndexOfFnFirstParam
+private TypeId
+tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm) { //:tGetIndexOfFnFirstParam
     TypeHeader hdr = typeReadHeader(fnType, cm);
 #ifdef SAFETY
     VALIDATEI(hdr.sort == sorFunction, iErrorNotAFunction);
@@ -4753,8 +4678,8 @@ private TypeId tGetIndexOfFnFirstParam(TypeId fnType, Compiler* cm) { //:tGetInd
     return fnType + TYPE_PREFIX_LEN + hdr.tyrity;
 }
 
-
-private Int tGetFnArity(TypeId fnType, Compiler* cm) { //:tGetFnArity
+private Int
+tGetFnArity(TypeId fnType, Compiler* cm) { //:tGetFnArity
     TypeHeader hdr = typeReadHeader(fnType, cm);
 #ifdef SAFETY
     VALIDATEI(hdr.sort == sorFunction, iErrorNotAFunction);
@@ -4762,8 +4687,8 @@ private Int tGetFnArity(TypeId fnType, Compiler* cm) { //:tGetFnArity
     return hdr.arity;
 }
 
-
-private Int isFunction(TypeId typeId, Compiler* cm) { //:isFunction
+private Int
+isFunction(TypeId typeId, Compiler* cm) { //:isFunction
 // Returns the function's arity if the type is a function type,
 // -1 otherwise
     if (typeId < topVerbatimType) {
@@ -4776,18 +4701,20 @@ private Int isFunction(TypeId typeId, Compiler* cm) { //:isFunction
 //}}}
 //{{{ Parsing type names
 
-testable void typeAddTypeParam(Int paramInd, Int tyrity, Compiler* cm) { //:typeAddTypeParam
+testable void
+typeAddTypeParam(Int paramInd, Int tyrity, Compiler* cm) { //:typeAddTypeParam
 // Adds a type param to a TypeCall-sort type. Tyrity > 0 means the param is a type call
     pushIntypes((0xFF << 24) + (paramInd << 8) + tyrity, cm);
 }
 
-testable void typeAddTypeCall(Int typeInd, Int arity, Compiler* cm) {
+testable void
+typeAddTypeCall(Int typeInd, Int arity, Compiler* cm) {
 // Known type fn call
     pushIntypes((arity << 24) + typeInd, cm);
 }
 
-
-testable Int typeSingleItem(Token tk, Compiler* cm) {
+testable Int
+typeSingleItem(Token tk, Compiler* cm) {
 // A single-item type, like "Int". Consumes no tokens.
 // Pre-condition: we are 1 token past the token we're parsing.
 // Returns the type of the single item, or in case it's a type param, (-nameId - 1)
@@ -4806,8 +4733,8 @@ testable Int typeSingleItem(Token tk, Compiler* cm) {
     }
 }
 
-
-testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) { //:typeParamBinarySearch
+testable Int
+typeParamBinarySearch(Int nameIdToFind, Compiler* cm) { //:typeParamBinarySearch
 // Performs a binary search of the binary params in {typeParams}. Returns index of found type param,
 // or -1 if nothing is found
     StackInt* params = cm->stateForTypes->params;
@@ -4846,7 +4773,8 @@ testable Int typeParamBinarySearch(Int nameIdToFind, Compiler* cm) { //:typePara
 //}}}
 //{{{ Type expressions
 
-private Int tSubexValidateNamesUnique(StateForTypes* st, Int start, Compiler* cm) {
+private Int
+tSubexValidateNamesUnique(StateForTypes* st, Int start, Compiler* cm) {
 //:tSubexValidateNamesUnique Validates that the names in a record or function sign are unique.
 // Returns function/record's arity
     const Int end = st->names->len;
@@ -4919,7 +4847,8 @@ private TypeId typeCreateRecord(StateForTypes* st, Int startInd, Unt nameAndLen,
 */
 
 
-private TypeId tCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame frame,
+private TypeId
+tCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame frame,
                                   Compiler* cm) { //:tCreateTypeCall
 // Creates/merges a new type call from a sequence of pairs in @exp and a list of type params
 // in @params. Handles ordinary type calls and function types.
@@ -4942,8 +4871,8 @@ private TypeId tCreateTypeCall(StateForTypes* st, Int startInd, TypeFrame frame,
     return mergeType(tentativeTypeId, cm);
 }
 
-
-private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm) {
+private TypeId
+tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* cm) {
 //:tCreateSingleParamTypeCall Creates a type like (L Int)
     const Int tentativeTypeId = cm->types.len;
     pushIntypes(0, cm);
@@ -4956,9 +4885,8 @@ private TypeId tCreateSingleParamTypeCall(TypeId outer, TypeId param, Compiler* 
     return mergeType(tentativeTypeId, cm);
 }
 
-
-private StackInt* tDetermineUniqueParamsInDef(const StateForTypes* st, Int startInd,
-                                                 Compiler* cm) {
+private StackInt*
+tDetermineUniqueParamsInDef(const StateForTypes* st, Int startInd, Compiler* cm) {
 //:tDetermineUniqueParamsInDef Counts how many unique type parameters are used in a type def
 // TODO take care of nesting of typecalls
     TYPE_DEFINE_EXP;
@@ -4992,9 +4920,9 @@ private StackInt* tDetermineUniqueParamsInDef(const StateForTypes* st, Int start
     return st->subParams;
 }
 
-
-private TypeId tCreateFnSignature(StateForTypes* st, Int startInd,
-                                  Unt fnNameAndLen, Compiler* cm) { //:tCreateFnSignature
+private TypeId
+tCreateFnSignature(StateForTypes* st, Int startInd,
+                   Unt fnNameAndLen, Compiler* cm) { //:tCreateFnSignature
 // Creates/merges a new struct type from a sequence of pairs in "exp" and a list of type params
 // in "params". The sequence must be flat, i.e. not include any nested structs.
 // Returns the typeId of the new type
@@ -5032,7 +4960,8 @@ private TypeId tCreateFnSignature(StateForTypes* st, Int startInd,
 #define maxTypeParams 254
 
 
-private void teClose(StateForTypes* st, Compiler* cm) { //:teClose
+private void
+teClose(StateForTypes* st, Compiler* cm) { //:teClose
 // Flushes the finished subexpr frames from the top of the funcall stack. Handles data allocations
     StackInt* exp = st->exp;
     StackTypeFrame* frames = st->frames;
@@ -5062,8 +4991,8 @@ private void teClose(StateForTypes* st, Compiler* cm) { //:teClose
     }
 }
 
-
-private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:tDefinition
+private TypeId
+tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:tDefinition
 // Parses a type definition like `Rec(id Int name Str)` or `a Double b (L Bool) -> String`.
 // Precondition: we are looking at the first token in actual type definition.
 // @typeStack may be non-empty (for example, when parsing a function signature,
@@ -5157,14 +5086,15 @@ private TypeId tDefinition(StateForTypes* st, Int sentinel, Compiler* cm) { //:t
     return exp->cont[0];
 }
 
-
-private void typeNameNewType(TypeId newTypeId, Unt name, Compiler* cm) { //:typeNameNewType
+private void
+typeNameNewType(TypeId newTypeId, Unt name, Compiler* cm) { //:typeNameNewType
     cm->activeBindings[(name & LOWER24BITS)] = newTypeId;
     cm->types.cont[newTypeId + 1] = name;
 }
 
 
-testable Int pTypeDef(P_CT) { //:pTypeDef
+testable Int
+pTypeDef(P_CT) { //:pTypeDef
 // Builds a type expression from a type definition or a function signature.
 // Example 1: `Foo = id Int name String`
 // Example 2: `a Double b Bool => String`
@@ -5192,7 +5122,8 @@ testable Int pTypeDef(P_CT) { //:pTypeDef
 //}}}
 //{{{ Overloads, type check & resolve
 
-private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) { //:getFirstParamType
+private FirstArgTypeId
+getFirstParamType(TypeId funcTypeId, Compiler* cm) { //:getFirstParamType
 // Gets the type of the first param of a function. Returns -1 iff it's zero arity
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
     if (hdr.arity == 0) {
@@ -5201,25 +5132,26 @@ private FirstArgTypeId getFirstParamType(TypeId funcTypeId, Compiler* cm) { //:g
     return cm->types.cont[funcTypeId + 3 + hdr.tyrity]; // +3 skips the type length, type tag & name
 }
 
-private Int getFirstParamInd(TypeId funcTypeId, Compiler* cm) { //:getFirstParamInd
+private Int
+getFirstParamInd(TypeId funcTypeId, Compiler* cm) { //:getFirstParamInd
 // Gets the ind of the first param of a function. Precondition: function has a non-zero arity!
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
     return funcTypeId + 3 + hdr.tyrity; // +3 skips the type length, type tag & name
 }
 
-
-private TypeId getFunctionReturnType(TypeId funcTypeId, Compiler* cm) { //:getFunctionReturnType
+private TypeId
+getFunctionReturnType(TypeId funcTypeId, Compiler* cm) { //:getFunctionReturnType
     TypeHeader hdr = typeReadHeader(funcTypeId, cm);
     return cm->types.cont[funcTypeId + 3 + hdr.tyrity + hdr.arity];
 }
 
-
-private bool isFunctionWithParams(TypeId typeId, Compiler* cm) { //:isFunctionWithParams
+private bool
+isFunctionWithParams(TypeId typeId, Compiler* cm) { //:isFunctionWithParams
     return cm->types.cont[typeId] > 1;
 }
 
-
-testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entityId, Compiler* cm) {
+testable bool
+findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entityId, Compiler* cm) {
 //:findOverload Params: typeId = type of the first function parameter, or -1 if it's 0-arity
 //         ovInd = ind in [overloads], which is found via [activeBindings]
 //         entityId = address where to store the result, if successful
@@ -5278,8 +5210,8 @@ testable bool findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entit
     return false;
 }
 
-
-private void shiftStackLeft(Int startInd, Int byHowMany, Compiler* cm) { //:shiftStackLeft
+private void
+shiftStackLeft(Int startInd, Int byHowMany, Compiler* cm) { //:shiftStackLeft
 // Shifts ints from start and until the end to the left.
 // E.g. the call with args (4, 2) takes the stack from [x x x x 1 2 3] to [x x 1 2 3]
 // startInd and byHowMany are measured in units of Int
@@ -5296,8 +5228,8 @@ private void shiftStackLeft(Int startInd, Int byHowMany, Compiler* cm) { //:shif
     exp->len -= byHowMany;
 }
 
-
-private void populateExp(Int indExpr, Int sentinelNode, Compiler* cm) {
+private void
+populateExp(Int indExpr, Int sentinelNode, Compiler* cm) {
 //:populateExp Populates the expression's type stack with the operands and functions of an
 // expression. First we need to skip possible internal assignments (in cases with data allocations)
     StackInt* exp = cm->stateForExprs->exp;
@@ -5331,8 +5263,8 @@ private void populateExp(Int indExpr, Int sentinelNode, Compiler* cm) {
     }
 }
 
-
-testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
+testable void
+typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
 //:typeReduceExpr Runs the typechecking "evaluation" on a pure expression, i.e. one that doesn't
 // contain any nested subexpressions (i.e. data allocations or lambdas)
     // We go from left to right: resolving the calls, typechecking & collapsing args, and replacing
@@ -5432,8 +5364,8 @@ testable void typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
     }
 }
 
-
-testable TypeId typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
+testable TypeId
+typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
 //:typeCheckBigExpr Typechecks and resolves overloads in a single expression. "Big" refers to
 // the fact that this expr may contain sub-assignments for data allocation.
 // "indExpr" is the index of nodExpr or nodAssignmentRight
@@ -5449,8 +5381,8 @@ testable TypeId typeCheckBigExpr(Int indExpr, Int sentinelNode, Compiler* cm) {
     }
 }
 
-
-private TypeId typecheckAndProcessListElt(Int* j, Compiler* cm) { //:typecheckAndProcessListElt
+private TypeId
+typecheckAndProcessListElt(Int* j, Compiler* cm) { //:typecheckAndProcessListElt
 // Also updates the current index to skip the current element
     Node nd = cm->nodes.cont[*j];
     if (nd.tp <= topVerbatimTokenVariant) {
@@ -5467,8 +5399,8 @@ private TypeId typecheckAndProcessListElt(Int* j, Compiler* cm) { //:typecheckAn
     }
 }
 
-
-private TypeId typecheckList(Int startInd, Compiler* cm) { //:typecheckList
+private TypeId
+typecheckList(Int startInd, Compiler* cm) { //:typecheckList
     Int j = startInd;
     TypeId fstType = typecheckAndProcessListElt(&j, cm);
     for (; j < cm->nodes.len; ) {
@@ -5481,7 +5413,8 @@ private TypeId typecheckList(Int startInd, Compiler* cm) { //:typecheckList
 //}}}
 //{{{ Generic types
 
-testable void typeSkipNode(Int* ind, Compiler* cm) {
+testable void
+typeSkipNode(Int* ind, Compiler* cm) {
 // Completely skips the current node in a type, whether the node is concrete or param,
 // a call or not
     Int toSkip = 1;
@@ -5500,7 +5433,8 @@ testable void typeSkipNode(Int* ind, Compiler* cm) {
 
 #define typeGenTag(val) ((val >> 24) & 0xFF)
 
-private Int typeEltArgcount(Int typeElt) {
+private Int
+typeEltArgcount(Int typeElt) {
 // Get type-arg-count from a type element (which may be a type call, concrete type, type param etc)
     Unt genericTag = typeGenTag(typeElt);
     if (genericTag == 255) {
@@ -5510,8 +5444,8 @@ private Int typeEltArgcount(Int typeElt) {
     }
 }
 
-
-private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
+private Int
+typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 // Takes a single call from within a concrete type, and merges it into the type dictionary
 // as a whole, separate type. Returns the unique typeId
     return -1;
@@ -5519,794 +5453,232 @@ private Int typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 
 //}}}
 //}}}
-//{{{ Codegen
-//{{{ Definitions
+//{{{ Interpreter
+//{{{ Utils
 
-typedef struct { //:CgFrame
-    Unt tp : 6;
-    Int pl;
-    Int startNd;
-} CgFrame;
+private void*
+inDeref0(Ptr address, Interpreter* rt) { //:inDeref0
+    return (void*)rt->memory + ((Ulong)address)*4;
+}
 
-DEFINE_STACK_HEADER(CgFrame)
-DEFINE_STACK(CgFrame)
+private Unt
+inGetFromStack(StackAddr addr, Interpreter* rt) { //:inGetFromStack
+    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)addr));
+    return *p;
+}
 
-typedef struct { //:CgCall
-    NameLoc name;
-    Byte emit;
-    Byte arity;
-    Byte countArgs; // how many args we've encountered when scanning the expression
-    Int firstArg; // index of the node at the start of the first param of this function
-    Bool activatedFirstArg; // infix-emitted funcs need to know if the first arg has already
-                            // started so that after next CgCall wraps up, this one's name may
-                            // be written
-} CgCall;
+private void
+inSetOnStack(Short dest, Unt value, Interpreter* rt) { //:inSetOnStack
+    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)dest));
+    *p = value;
+}
 
-
-DEFINE_STACK_HEADER(CgCall)
-
-
-DEFINE_STACK(CgCall) //:StackCgCall :pushCgCall
-DEFINE_STACK(BtCodegen) //:StackBtCodegen
-struct Codegen { //:Codegen
-    Int i; // current node index
-    Unt indentation;
-    StringBuilder output;
-    StackCgCall* calls; // temporary stack for generating expressions
-
-    StackCgFrame backtrack;
-    String sourceCode;
-    Compiler* cm;
-    Arena* a;
-};
+private void
+inMoveHeapTop(Unt sz, Interpreter* in) { //:inMoveHeapTop
+// Moves the top of the heap after an allocation. "sz" is total size in bytes
+    in->heapTop += sz / 4;
+    if (sz % 4 > 0)  {
+        in->heapTop += 1;
+    }
+}
 
 //}}}
-//{{{ Utils for codegen
+//{{{ Code running
 
-private void ensureBufferLength(Int additionalLength, Codegen* cg) { //:ensureBufferLength
-// Ensures that the buffer has space for at least that many bytes plus 10 by increasing its
-// capacity if necessary
-    if (cg->output.len + additionalLength + 10 < cg->output.cap) {
-        return;
+private Unt
+runPlus(Ulong instr, Unt ip, Interpreter* rt) {  return ip + 1; }
+
+private Unt
+runMinus(Ulong instr, Unt ip, Interpreter* rt) { return ip + 1; }
+
+private Unt
+runTimes(Ulong instr, Unt ip, Interpreter* rt) { return ip + 1; }
+
+private Unt
+runDivBy(Ulong instr, Unt ip, Interpreter* rt) { return ip + 1; }
+
+private Unt
+runNewString(Ulong instr, Unt ip, Interpreter* rt) { //:runNewString
+// Creates a new string as a substring of the static text. Stores pointer to the new string
+// in the stack
+    Short dest = (Short)((instr >> 40) & LOWER16BITS);
+    Short startAddr = (Short)((instr >> 24) & LOWER16BITS); // address within the frame
+    Int len = (Int)(instr & LOWER24BITS);
+    Unt start = inGetFromStack(startAddr, rt); // actual starting symbol within the static text
+
+    char* copyFrom = (char*)inDeref(rt->textStart) + 4 + start;
+
+    const Ptr targetAddr = rt->heapTop;
+    Unt* target = (Unt*)(inDeref(targetAddr));
+
+    *target = len;
+    memcpy(target + 1, copyFrom, len);
+
+    inMoveHeapTop(len, rt); // update the heap top after this allocation
+    inSetOnStack(dest, targetAddr, rt);
+
+    return ip + 1;
+}
+
+private Unt
+runConcatStrings(Ulong instr, Unt ip, Interpreter* rt) { //:runConcatStrings
+    return ip + 1;
+}
+
+private Unt
+runReverseString(Ulong instr, Unt ip, Interpreter* rt) { //:runReverseString
+    return ip + 1;
+}
+
+private Unt
+runSetLocal(Ulong instr, Unt ip, Interpreter* rt) { //:runSetLocal
+    StackAddr dest = (instr >> 32) & LOWER16BITS;
+    Unt* address = (Unt*)(inDeref(rt->currFrame + (Unt)dest));
+    *address = (Unt)(instr & LOWER32BITS);
+    return ip + 1;
+}
+
+private Unt
+runBuiltinCall(Ulong instr, Unt ip, Interpreter* rt) { //:runBuiltinCall
+    BUILTINS_TABLE[instr & (0xFF)](rt);
+    return ip + 1;
+}
+
+private Unt
+runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
+// Creates and activates a new call frame. Stack frame layout (all are 4-byte sized):
+// prevFrame  - Ptr index into the runtime stack
+// ip         - Unt index into @Interpreter.code
+    Unt newFn = (Unt)(instr & LOWER32BITS);
+    StackAddr newFrameRef = (Short)((instr >> 32) & LOWER16BITS);
+    Ptr oldFrameRef = rt->currFrame;
+    Unt* oldFrame = inDeref(oldFrameRef);
+
+    // save the ip of old function to its frame
+    print("saving old ip = %d", ip);
+    *(oldFrame + 1) = ip;
+
+    print("frame before call:")
+    dbgCallFrames(rt);
+
+    rt->currFrame = (Ptr)(oldFrameRef + (Int)newFrameRef);
+    Unt* newFrame = (Unt*)inDeref(rt->currFrame);
+    *newFrame = *oldFrame;
+
+    print("frame after call:")
+    dbgCallFrames(rt);
+
+    return newFn;
+}
+
+private Unt
+runReturn(Ulong instr, Unt ip, Interpreter* rt) { //:runReturn
+// Return from function. The return value, if any, will be stored right after the header
+    Int returnSize = ip & (0xFF);
+    Int* prevFrame = inDeref(rt->currFrame);
+    if (*prevFrame == -1) {
+        return -1;
     }
-    Int neededLength = cg->output.len + additionalLength + 10;
-    Int newCap = 2*cg->output.cap;
-    while (newCap <= neededLength) {
-        newCap *= 2;
-    }
-    Arr(char) new = allocateOnArena(newCap, cg->a);
-    memcpy(new, cg->output.cont, cg->output.len);
-    const Int oldLen = cg->output.len;
-    cg->output = (StringBuilder){.cont = new, .len = oldLen, .cap = newCap};
+
+    rt->topOfFrame = rt->currFrame + stackFrameStart + returnSize;
+    rt->currFrame = *prevFrame; // take a call off the stack
+    Unt* callerIp = (Unt*)inDeref(*prevFrame) + 1;
+    return *callerIp;
 }
 
-private NameLoc nameOfSourceLoc(SourceLoc loc) {
-    return ((Unt)(loc.lenBts) << 24) + (Unt)(loc.startBt & LOWER24BITS);
+private Unt
+runPrint(Ulong instr, Unt ip, Interpreter* rt) { //:runPrint
+    Unt* ref = (Unt*)(inDeref(rt->currFrame + (Int)(instr & LOWER16BITS)));
+    Unt* actualString = inDeref(*ref);
+    fwrite(actualString + 1, 1, *actualString, stdout);
+    printf("\n");
+    return ip + 1;
 }
 
+//}}}
+//{{{ Interpreter init
 
-testable NameLoc nameOfHost(Int strId) { //:nameOfHost
-// Builds a text location for a host text for codegen
-    Int length = hostTextLens[strId];
-    return (NameLoc)(((Unt)length << 24) + (Unt)(hostOffsets[strId]));
+private void
+tmpGetText(Interpreter* rt) {
+    char txt[] = "asdfBBCC";
+    const Int len = sizeof(txt) - 1;
+    Unt* p = (Unt*)(inDeref(rt->heapTop));
+    *p = len;
+    p += 1;
+    memcpy(p, txt, len);
+    rt->textStart = rt->heapTop;
+    inMoveHeapTop(sizeof(txt), rt);
 }
 
-
-private void writeBytes(const char* ptr, Int len, Codegen* cg) { //:writeBytes
-    ensureBufferLength(len + 10, cg);
-    memcpy(cg->output.cont + cg->output.len, ptr, len);
-    cg->output.len += len;
-}
-
-
-private void writeName(NameLoc loc, Codegen* cg) { //:writeName
-// Write a name from the source code
-    Int len = loc >> 24;
-    ensureBufferLength(len + 10, cg);
-    memcpy(cg->output.cont + cg->output.len, cg->sourceCode.cont + (loc & LOWER24BITS), len);
-    cg->output.len += len;
-}
-
-
-private void writeHostName(NameLoc loc, Codegen* cg) { //:writeHostName
-// Write a name from the host text
-    Int len = loc >> 24;
-    ensureBufferLength(len + 10, cg);
-    memcpy(cg->output.cont + cg->output.len, hostText + (loc & LOWER24BITS), len);
-    cg->output.len += len;
-}
-
-
-private void writeNameId(NameId nameId, Codegen* cg) {
-    NameLoc nameLoc = cg->cm->stringTable->cont[nameId];
-    writeName(nameLoc, cg);
-}
-
-
-private void writeIndentation(Codegen* cg) { //:writeIndentation
-    ensureBufferLength(cg->indentation, cg);
-    memset(cg->output.cont + cg->output.len, aSpace, cg->indentation);
-    cg->output.len += cg->indentation;
-}
-
-private void writeBytesFromSource(SourceLoc loc, Codegen* cg) { //:writeBytesFromSource
-    writeBytes(cg->sourceCode.cont + loc.startBt, loc.lenBts, cg);
-}
-
-
-private void writeChar(Byte chr, Codegen* cg) { //:writeChar
-    ensureBufferLength(1, cg);
-    cg->output.cont[cg->output.len] = chr;
-    cg->output.len += 1;
+private void
+tabulateInterpreter() { //:tabulateInterpreter
+    InterpreterFn* p = INTERPRETER_TABLE;
+    p[iPlus]        = &runPlus;
+    p[iTimes]       = &runTimes;
+    p[iMinus]       = &runMinus;
+    p[iDivBy]       = &runDivBy;
+   /*
+    p[iPlusFl]      = &runPlus;
+    p[iMinusFl]       = &runMinusFl;
+    p[iTimesFl]       = &runTimesFl;
+    p[iDivByFl]       = &runDivByFl;
+    p[iPlusConst]       = &runPlusConst;
+    p[iMinusConst]       = &runMinusConst;
+    p[iTimesConst]       = &runTimesConst;
+    p[iDivByConst]       = &runDivByConst;
+    p[iPlusFlConst]       = &runPlusFlConst;
+    p[iMinusFlConst]       = &runMinusFlConst;
+    p[iTimesFlConst]       = &runTimesFlConst;
+    p[iDivByFlConst]       = &runDivByFlConst;
+    p[iIndexOfSubstring]       = &runIndexOfSubstring;
+    p[iGetFld]       = &runGetFld;
+    p[iNewList]       = &runNewList;
+    p[iSubstring]       = &runSubstring;
+   */
+    p[iNewstring]      = &runNewString;
+    p[iConcatStrs]     = &runConcatStrings;
+    p[iReverseString]  = &runReverseString;
+    p[iSetLocal]       = &runSetLocal;
+    p[iBuiltinCall]    = &runBuiltinCall;
+    p[iCall]           = &runCall;
+    p[iReturn]         = &runReturn;
+    p[iPrint]          = &runPrint;
 }
 
 
-private void writeChars0(Codegen* cg, Int count, Arr(Byte) chars) { //:writeChars0
-    ensureBufferLength(count, cg);
-    for (Int j = 0; j < count; j++) {
-        cg->output.cont[cg->output.len + j] = chars[j];
-    }
-    cg->output.len += count;
+private void
+tabulateBuiltins() { //:tabulateBuiltins
+    BuiltinFn* p = BUILTINS_TABLE;
+    p[0]         = &buiToStringInt;
 }
 
-#define writeChars(cg, chars) writeChars0(cg, sizeof(chars), chars)
 
-
-private Codegen* createCodegen(Compiler* cm, Arena* a) { //:createCodegen
-    Codegen* cg = allocateOnArena(sizeof(Codegen), a);
-    Arr(char) outputBuffer = allocateOnArena(64, a);
-    (*cg) = (Codegen) {
-        .i = 0, .backtrack = *createStackCgFrame(16, a), .calls = createStackCgCall(16, a),
-        .output = (StringBuilder){.cont = outputBuffer, .len = 0, .cap = 64},
-        .sourceCode = cm->sourceCode, .cm = cm, .a = a
+private Interpreter*
+createInterpreter(Compiler* cg) { //:createInterpreter
+    Arena* a = cg->a;
+    Interpreter* rt = allocateOnArena(sizeof(Interpreter), a);
+    (*rt) = (Interpreter)  {
+        .memory = (Arr(char))allocateOnArena(1000000, a),
+        .fns = allocateOnArena(4, a),
+        .heapTop = 50000,  // skipped the 200k of stack space
+        .currFrame = 0,
+        .textStart = 0,
+        .code = cg->bytecode.cont
     };
-    return cg;
-}
-
-
-//}}}
-//{{{ Core library
-
-static char coreLib[] = "function compare_Int(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }\n"
-    "function compare_Dbl(a, b){ return a < b ? -1 : (a == b ? 0 : 1); }\n"
-;
-
-testable Int getCoreLibSize() { //:getCoreLibSize
-    return sizeof(coreLib) - 1; // -1 to avoid C's "zero" character
+    
+    //tmpGetText(rt);
+    rt->fns[0] = 0;
+    Int* zeroPtr = (Int*)inDeref(rt->currFrame);
+    (*zeroPtr) = -1; // for the "main" call, there is no previous frame
+    return rt;
 }
 
 //}}}
-//{{{ Codegen main
-
-private void writeConst(Int indConst, Codegen* cg) { //:writeConst
-// Write a constant from source code to codegen
-    Int len = hostTextLens[indConst];
-    ensureBufferLength(len, cg);
-    memcpy(cg->output.cont + cg->output.len, hostText + hostOffsets[indConst], len);
-    cg->output.len += len;
-}
-
-
-private void writeConstWithSpace(Int indConst, Codegen* cg) { //:writeConstWithSpace
-// Write a host constant to codegen and add a space after it
-    const Int len = hostTextLens[indConst];
-    ensureBufferLength(len, cg); // no need for a "+ 1", for the function automatically ensures 10
-                                 // extra bytes
-    memcpy(cg->output.cont + cg->output.len, hostText + hostOffsets[indConst], len);
-    cg->output.len += (len + 1);
-    cg->output.cont[cg->output.len - 1] = aSpace;
-}
-
-
-private void writeStr(String str, Codegen* cg) { //:writeStr
-    ensureBufferLength(str.len + 2, cg);
-    cg->output.cont[cg->output.len] = aBacktick;
-    memcpy(cg->output.cont + cg->output.len + 1, str.cont, str.len);
-    cg->output.len += (str.len + 2);
-    cg->output.cont[cg->output.len - 1] = aBacktick;
-}
-
-
-private void writeId(Node nd, SourceLoc loc, Codegen* cg) { //:writeId
-    Entity ent = cg->cm->entities.cont[nd.pl1];
-    if (ent.emit == emitPrefix) {
-        writeBytes(cg->sourceCode.cont + loc.startBt, loc.lenBts, cg);
-    } else if (ent.emit == emitPrefixHost) {
-        writeHostName(ent.name, cg);
-    } else if (ent.emit == emitPrefixShielded) {
-        writeBytes(cg->sourceCode.cont + loc.startBt, loc.lenBts, cg);
-        writeChar(aUnderscore, cg);
-    }
-}
-
-
-private void writeExprOperand(Node n, SourceLoc loc, Codegen* cg) { //:writeExprOperand
-    if (n.tp == nodId) {
-        writeId(n, loc, cg);
-    } else if (n.tp == tokInt) {
-        uint64_t upper = n.pl1;
-        uint64_t lower = n.pl2;
-        uint64_t total = (upper << 32) + lower;
-        int64_t signedTotal = (int64_t)total;
-        ensureBufferLength(45, cg);
-        Int lenWritten = sprintf(cg->output.cont + cg->output.len, "%d", signedTotal);
-        cg->output.len += lenWritten;
-    } else if (n.tp == tokString) {
-        writeBytesFromSource(loc, cg);
-    } else if (n.tp == tokDouble) {
-        uint64_t upper = n.pl1;
-        uint64_t lower = n.pl2;
-        int64_t total = (int64_t)((upper << 32) + lower);
-        double floating = doubleOfLongBits(total);
-        ensureBufferLength(45, cg);
-        Int lenWritten = sprintf(cg->output.cont + cg->output.len, "%f", floating);
-        cg->output.len += lenWritten;
-    } else if (n.tp == tokBool) {
-        writeBytesFromSource(loc, cg);
-    }
-}
-
-
-private void wExprBuildCallStack(Int sentinel, Arr(Node) nodes, Codegen* cg) {
-//:wExprBuildCallStack First part of expression codegen. Walks the expr backwards collecting
-// all calls. Doesn't consume any nodes, clears and populates @Codegen.calls
-    cg->calls->len = 0;
-
-    for (Int j = sentinel - 1; j >= cg->i; j -= 1) {
-        Node nd = nodes[j];
-        if (nd.tp == nodCall) {
-            Entity ent = cg->cm->entities.cont[nd.pl1];
-            pushCgCall((CgCall){
-                .name = ent.emitName,
-                .emit = ent.emit,
-                .arity = nd.pl2,
-                .countArgs = 0,
-                .firstArg = -1,
-                .activatedFirstArg = false
-            }, cg->calls);
-        } else {
-            Int k = cg->calls->len - 1;
-            for (CgCall* call = cg->calls->cont + k; k > -1; k -= 1) {
-                call->countArgs += 1;
-                if (call->countArgs == call->arity)  {
-                    call->firstArg = j;
-                } else {
-                    break;
-                }
-            }
-        }
-    }
-}
-
-
-private void wExprOpenCall(CgCall call, Codegen* cg) { //:wExprOpenCall
-    switch (call.emit) {
-    case emitPrefix:
-        writeName(call.name, cg);
-        writeChar(aParenLeft, cg); break;
-    case emitPrefixShielded:
-        writeName(call.name, cg);
-        writeChar(aUnderscore, cg);
-        writeChar(aParenLeft, cg); break;
-    case emitPrefixHost:
-        writeHostName(call.name, cg);
-        writeChar(aParenLeft, cg); break;
-    case emitInfix:
-    case emitInfixHost:
-    case emitField:
-        writeChar(aParenLeft, cg); break;
-    case emitInfixDot:
-    case emitNop:
-        break;
-    }
-    cg->i += 1;
-}
-
-
-private void wExprProcessFirstArg(CgCall* call, Codegen* cg) { //:wExprProcessFirstArg
-    switch (call->emit) {
-    case emitPrefix:
-        writeName(call->name, cg);
-        writeChar(aParenLeft, cg); break;
-    case emitPrefixShielded:
-        writeName(call->name, cg);
-        writeChar(aUnderscore, cg);
-        writeChar(aParenLeft, cg); break;
-    case emitPrefixHost:
-        writeHostName(call->name, cg); break;
-    case emitInfix:
-    case emitInfixHost:
-    case emitField:
-        writeChar(aParenLeft, cg); break;
-    case emitInfixDot:
-    case emitNop:
-        break;
-    }
-    call->activatedFirstArg = false;
-}
-
-
-private void wExprCloseCall(Codegen* cg) { //:wExprCloseCall
-    CgCall call = popCgCall(cg->calls);
-
-    if (call.arity == 0) {
-        switch (call.emit) {
-        case emitPrefix:
-            writeName(call.name, cg); break;
-        case emitPrefixHost:
-            writeHostName(call.name, cg); break;
-        case emitPrefixShielded:
-            writeName(call.name, cg);
-            writeChar(aUnderscore, cg); break;
-#ifdef SAFETY
-        default:
-            throwExcInternal(iErrorZeroArityFuncWrongEmit, cg->cm);
-#endif
-        }
-        writeChar(aParenLeft, cg);
-    }
-    writeChar(aParenRight, cg);
-    for (Int k = cg->calls->len - 1; k > -1; k -= 1) {
-        if (cg->calls->cont[k].activatedFirstArg) {
-            wExprProcessFirstArg(cg->calls->cont + k, cg);
-            break;
-        }
-    }
-}
-
-
-private void wExprOperand(Node nd, SourceLoc loc, Codegen* cg) { //:wExprOperand
-    if (nd.tp <= topVerbatimTokenVariant) {
-        writeBytes(cg->sourceCode.cont + loc.startBt, loc.lenBts, cg);
-    } else if (nd.tp == nodId) {
-        writeId(nd, loc, cg);
-    }
-}
-
-
-private void wExprEmitComplex(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:wExprEmitComplex Consumes the whole expression.
-    StackCgCall* calls = cg->calls;
-    for (Int j = cg->i; j < sentinel; j += 1) {
-        Node nd = nodes[j];
-        if (nd.tp == nodCall) {
-            wExprCloseCall(cg);
-        } else {
-            for (Int c = 0; c < calls->len; c += 1) {
-                if (calls->cont[c].firstArg == j) {
-                    wExprOpenCall(calls->cont[c], cg);
-                }
-                wExprOperand(nd, locs[j], cg);
-            }
-        }
-    }
-}
-
-
-private void wExprComplex(Int sentinel, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:wExprComplex Writes out a complex expression. Precondition: we are 1 past the expr node
-// Works in two fases: first walks the exp backwards to create a stack of CgCalls that contains all
-// the function calls, then walks the same exp forwards while writing the output and updating stack
-    wExprBuildCallStack(sentinel, nodes, cg);
-
-    wExprEmitComplex(sentinel, nodes, locs, cg);
-}
-
-
-private void wExprOrSingleItem(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:wExprOrSingleItem Precondition: we are looking 1 past the nodExpr/singular node. Consumes all
-// nodes of the expr
-    Node nd = nodes[ind];
-    SourceLoc loc = locs[ind];
-    if (nd.tp <= topVerbatimTokenVariant) {
-        writeBytes(cg->sourceCode.cont + loc.startBt, loc.lenBts, cg);
-        cg->i += 1; // CONSUME the whole expression
-    } else if (nd.tp == nodId) {
-        writeId(nd, loc, cg);
-        cg->i += 1; // CONSUME the whole expression
-    } else {
-#if SAFETY
-        if(nd.tp != nodExpr) {
-            throwExcInternal(iErrorExpressionIsNotAnExpr, cg->cm);
-        }
-#endif
-        const Int sentinel = cg->i + nd.pl2;
-        wExprComplex(sentinel, nodes, locs, cg);
-        cg->i = sentinel; // CONSUME the whole expression
-    }
-}
-
-
-private void writeExpr(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeExpr
-    writeIndentation(cg);
-    wExprOrSingleItem(ind, nodes, locs, cg);
-    writeChars(cg, ((Byte[]){ aSemicolon, aNewline}));
-}
-
-
-private void openCgFrame(Node nd, Codegen* cg) { //:openCgFrame
-    pushCgFrame(((CgFrame){.tp = nd.tp, .pl = nd.pl2, .startNd = cg->i + nd.pl2}), &cg->backtrack);
-}
-
-private void openCgFrameWithSentinel(Node nd, Int sentinel, Codegen* cg) {
-//:openCgFrameWithSentinel
-    pushCgFrame(((CgFrame){.tp = nd.tp, .pl = nd.pl2, .startNd = sentinel}), &cg->backtrack);
-}
-
-
-private void maybeCloseCgFrames(Codegen* cg) { //:maybeCloseCgFrames
-    for (Int j = cg->backtrack.len - 1; j > -1; j--) {
-        if (cg->backtrack.cont[j].startNd != cg->i) {
-            return;
-        }
-        CgFrame fr = popCgFrame(&cg->backtrack);
-        (*CODEGEN_CLOSING_TABLE[fr.tp - nodScope])(cg);
-    }
-}
-
-
-private void generateLoop(const Int sentinel, Codegen* cg) {
-    Arr(Node) nodes = cg->cm->nodes.cont;
-    Arr(SourceLoc) locs = cg->cm->sourceLocs->cont;
-    while (cg->i < sentinel) {
-        Node nd = nodes[cg->i];
-        cg->i += 1; // CONSUME the span node
-        (CODEGEN_TABLE[nd.tp - nodScope])(cg->i - 1, nodes, locs, cg);
-        maybeCloseCgFrames(cg);
-    }
-}
-
-
-private void writeToplevelFn(Toplevel fn, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:writeToplevelFn
-    Node nd = nodes[fn.nodeInd];
-    Entity fnEnt = cg->cm->entities.cont[fn.entityId];
-
-    openCgFrame(nd, cg);
-    writeIndentation(cg);
-    writeConstWithSpace(hostFunction, cg);
-
-    writeNameId(fn.nameId, cg);
-    if (fnEnt.emit == emitPrefixShielded) {
-        writeChar(aUnderscore, cg);
-    }
-    writeChar(aParenLeft, cg);
-    Int sentinel = cg->i + nd.pl2;
-    Int j = cg->i + 1; // +1 to skip the function node
-    if (nodes[j].tp == nodBinding) {
-        SourceLoc binding = locs[j];
-        writeBytes(cg->sourceCode.cont + binding.startBt, binding.lenBts, cg);
-        j += 1;
-    }
-
-    // function params
-    while (j < sentinel && nodes[j].tp == nodBinding) {
-        writeChar(aComma, cg);
-        writeChar(aSpace, cg);
-        SourceLoc binding = locs[j];
-        writeBytes(cg->sourceCode.cont + binding.startBt, binding.lenBts, cg);
-        j += 1;
-    }
-    cg->i = j;
-    writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
-    cg->indentation += 4;
-
-    generateLoop(sentinel, cg);
-
-    cg->indentation -= 4;
-    writeIndentation(cg);
-    writeChar(aCurlyRight, cg);
-}
-
-
-private void writeClosingFn(Codegen* cg) { //:writeClosingFn
-    cg->indentation -= 4;
-    writeChars(cg, ((Byte[]){aCurlyRight, aNewline, aNewline}));
-}
-
-
-private void writeDummy(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {}
-
-private void writeClosingDummy(Codegen* cg) {}
-
-
-private void writeAssignmentWorker(Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:writeAssignmentWorker Pre-condition: we are looking at the binding node, 1 past the assignment node
-    SourceLoc loc = locs[cg->i];
-
-    writeBytes(cg->sourceCode.cont + loc.startBt, loc.lenBts, cg);
-    writeChars(cg, ((Byte[]){aSpace, aEqual, aSpace}));
-
-    cg->i += 1; // CONSUME the binding node
-    Node rightSide = nodes[cg->i];
-    if (rightSide.tp == nodId) {
-        writeId(rightSide, locs[cg->i], cg);
-        cg->i += 1; // CONSUME the id node on the right side of the assignment
-    } else {
-        wExprOrSingleItem(cg->i, nodes, locs, cg);
-    }
-    writeChar(aSemicolon, cg);
-    writeChar(aNewline, cg);
-}
-
-
-private void writeAssignment(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:writeAssignment
-    Node nd = nodes[ind];
-    Int sentinel = cg->i + nd.pl2;
-    writeIndentation(cg);
-    Node binding = nodes[cg->i];
-    Int class = cg->cm->entities.cont[binding.pl1].class;
-    if (class == classMut || class == classPubMut) {
-        writeConstWithSpace(hostLet, cg);
-    } else {
-        writeConstWithSpace(hostConst, cg);
-    }
-    writeAssignmentWorker(nodes, locs, cg);
-
-    cg->i = sentinel; // CONSUME the whole assignment
-}
-
-
-private void writeReassignment(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:writeReassignment
-    Node fr = nodes[ind];
-    Int sentinel = cg->i + fr.pl2;
-    writeIndentation(cg);
-
-    writeAssignmentWorker(nodes, locs, cg);
-
-    cg->i = sentinel; // CONSUME the whole reassignment
-}
-
-
-private void writeReturn(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:writeReturn
-    Node fr = nodes[ind];
-    Int sentinel = cg->i + fr.pl2;
-    writeIndentation(cg);
-    writeConstWithSpace(hostReturn, cg);
-
-    cg->i += 1; // CONSUME the expr node
-    wExprOrSingleItem(cg->i - 1, nodes, locs, cg);
-
-    writeChar(aSemicolon, cg);
-    writeChar(aNewline, cg);
-    cg->i = sentinel; // CONSUME the whole "return" statement
-}
-
-
-private void writeScope(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeScope
-    writeIndentation(cg);
-    writeChar(aCurlyLeft, cg);
-    cg->indentation += 4;
-    openCgFrame(nodes[ind], cg);
-}
-
-
-private void writeClosingScope(Codegen* cg) { //:writeClosingScope
-    cg->indentation -= 4;
-    writeChar(aCurlyRight, cg);
-}
-
-
-private void writeIf(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeIf
-    openCgFrame(nodes[ind], cg);
-    writeIndentation(cg);
-    writeConstWithSpace(hostIf, cg);
-    writeChar(aParenLeft, cg);
-
-    ++cg->i; // CONSUME the expression node for the first condition
-    wExprOrSingleItem(cg->i - 1, nodes, locs, cg);
-    writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft}));
-}
-
-
-private void writeIfClause(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:writeIfClause
-    Node nd = nodes[ind];
-    Int sentinel = ind + nd.pl2 + 1;
-    cg->indentation -= 4;
-    writeIndentation(cg);
-    writeChar(aCurlyRight, cg);
-    CgFrame top = peekCgFrame(&cg->backtrack);
-    Int ifSentinel = top.startNd;
-    if (ifSentinel == sentinel) {
-        writeChar(aNewline, cg);
-        return;
-    } else if (nodes[sentinel].tp == nodElseIf) {
-        // there is only the "else" clause after this clause
-        writeChar(aSpace, cg);
-        writeConstWithSpace(strElse, cg);
-        writeChar(aCurlyLeft, cg);
-    } else {
-        // there is another condition after this clause, so we write it out as an "else if"
-        writeChar(aSpace, cg);
-        writeConstWithSpace(strElse, cg);
-        writeConstWithSpace(strIf, cg);
-        writeChar(aParenLeft, cg);
-        cg->i = sentinel; // CONSUME ???
-        ++cg->i; // CONSUME the expr node for the "else if" clause
-        wExprOrSingleItem(cg->i - 1, nodes, locs, cg);
-        writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft}));
-    }
-}
-
-
-private void writeCloseIfClause(Codegen* cg) { //:writeCloseIfClause
-    pushCgFrame(((CgFrame){.tp = nodElseIf, .startNd = cg->i}), &cg->backtrack);
-    writeChar(aNewline, cg);
-    cg->indentation += 4;
-}
-
-
-private void writeLoopLabel(Int labelId, Codegen* cg) { //:writeLoopLabel
-    writeConst(hostCase, cg);
-    ensureBufferLength(14, cg);
-    Int lenWritten = sprintf(cg->output.cont + cg->output.len, "%d", labelId);
-    cg->output.len += lenWritten;
-}
-
-
-private void writeFor(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) { //:writeFor
-    Node fr = nodes[ind];
-    if (fr.pl1 > 0) { // this loop requires a label
-        writeIndentation(cg);
-        writeLoopLabel(fr.pl1, cg);
-        writeChars(cg, ((Byte[]){ aColon, aNewline }));
-    }
-    Int sentinel = cg->i + fr.pl2;
-    ++cg->i; // CONSUME the scope node immediately inside loop
-    if (nodes[cg->i].tp == nodAssignment) { // there is at least one assignment, so
-                                            // an extra nested scope
-        // noting in .pl1 that we have a two scopes
-        pushCgFrame(((CgFrame){.tp = fr.tp, .pl = fr.pl2, .startNd = sentinel}),
-                &cg->backtrack);
-        writeIndentation(cg);
-        writeChar(aCurlyLeft, cg);
-        writeChar(aNewline, cg);
-
-        while (cg->i < sentinel && nodes[cg->i].tp == nodAssignment) {
-            ++cg->i; // CONSUME the assignment node
-            writeIndentation(cg);
-            writeConstWithSpace(hostLet, cg);
-            writeAssignmentWorker(nodes, locs, cg);
-        }
-    } else {
-        openCgFrameWithSentinel(fr, sentinel, cg);
-    }
-
-    writeIndentation(cg);
-    writeConstWithSpace(hostWhile, cg);
-    writeChar(aParenLeft, cg);
-    cg->i += 2; // CONSUME the loopCond node and expr/verbatim node
-    wExprOrSingleItem(cg->i - 1, nodes, locs, cg);
-
-    writeChars(cg, ((Byte[]){aParenRight, aSpace, aCurlyLeft, aNewline}));
-    cg->indentation += 4;
-}
-
-
-private void writeWhileClose(Codegen* cg) {
-    cg->indentation -= 4;
-    writeIndentation(cg);
-    writeChars(cg, ((Byte[]){aCurlyRight, aNewline}));
-}
-
-
-private void writeBreakContinue(Int ind, Arr(Node) nodes, Arr(SourceLoc) locs, Codegen* cg) {
-//:writeBreakContinue
-    Node fr = nodes[ind];
-    writeIndentation(cg);
-    if (fr.pl1 == -1) {
-        writeConst(hostBreak, cg);
-    } else {
-        writeConstWithSpace(hostBreak, cg);
-        writeLoopLabel(fr.pl1, cg);
-    }
-    writeChar(aSemicolon, cg);
-    writeChar(aNewline, cg);
-}
-
-
-private void writeCoreLib(Codegen* cg) { //:writeCoreLib
-    Int len = getCoreLibSize();
-    ensureBufferLength(len, cg);
-    memcpy(cg->output.cont, coreLib, len);
-    cg->output.len = len;
-}
-
-//}}}
-//{{{ Codegen init
-
-private void tabulateCodegen() { //:tabulateCodegen
-    Arr(CgFunc*) p = CODEGEN_TABLE;
-    for (Int j = 0; j < countSpanForms; j++) {
-        p[j] = &writeDummy;
-    }
-    p[0] = writeScope;
-    p[nodAssignment - nodScope] = &writeAssignment;
-    p[nodExpr       - nodScope] = &writeExpr;
-    p[nodFor        - nodScope] = &writeFor;
-    p[nodIf         - nodScope] = &writeIf;
-    p[nodElseIf     - nodScope] = &writeIfClause;
-//    p[nodFnDef      - nodScope] = &writeFn;
-    p[nodReturn     - nodScope] = &writeReturn;
-    p[nodBreakCont  - nodScope] = &writeBreakContinue;
-
-
-    Arr(CgClosingFunc*) q = CODEGEN_CLOSING_TABLE;
-    for (Int j = 0; j < countSpanForms; j++) {
-        q[j] = &writeClosingDummy;
-    }
-    q[0] = writeClosingScope;
-    q[nodFnDef      - nodScope] = &writeClosingFn;
-}
-
-
-private void populateHostOffsets() { //:populateHostOffsets
-    Int curr = 0;
-    for (Int j = 0; j < sizeof(hostTextLens); j++) {
-        hostOffsets[j] = curr;
-        curr += hostTextLens[j];
-    }
-}
-
-
-private void tabulateShield() { //:tabulateShield
-// The map of all strings that are keywords in the host language but not in Eyr. Identifiers in
-// Eyr that belong to this map need to be shielded by appending an "_" to them.
-    Int currInd = 0;
-    for (Int j = 0; j < cgShieldHashtableSz; j++) {
-        SHIELD_HASHTABLE[j] = 0;
-    }
-
-    for (Int j = 0; j < cgCountToShield; j++) {
-        Unt hash = hashCode((char*)hostText + currInd, hostTextLens[j]);
-        Unt offset = hash % cgShieldHashtableSz;
-        if (SHIELD_HASHTABLE[offset] != 0) {
-            fprintf(stderr, "Hashing error when creating shield table for %d at %d\n", j,
-                    SHIELD_HASHTABLE[offset] & LOWER24BITS);
-            exit(1);
-        }
-        SHIELD_HASHTABLE[offset] = (hostTextLens[j] << 24) + (Unt)currInd;
-        currInd += hostTextLens[j];
-    }
-}
-
-
-//}}}
-
-private Codegen* generateCode(Compiler* cm, Arena* a) { //:generateCode
-// Generate host code for a whole module. Must be called with a non-errored compiler
-#if defined(TRACE) && defined(DEBUG)
-    print("codegenning, parser = ")
-    printParser(cm, a);
-    printf("\n\n");
-#endif
-
-    Arr(Node) nodes = cm->nodes.cont;
-    Arr(SourceLoc) locs = cm->sourceLocs->cont;
-    Codegen* cg = createCodegen(cm, cm->a);
-    writeCoreLib(cg);
-
-
-    // Main loop over the input
-    if (setjmp(excBuf) == 0) {
-        for (Int j = 0; j < cm->toplevels.len; j++) {
-            writeToplevelFn(cm->toplevels.cont[j], nodes, locs, cg);
-        }
-    } else {
-        print("Code generation error");
-    }
-
-    return cg;
-}
-
 //}}}
 //{{{ Init
 
-private Int initCompiler() { //:initCompiler
+private Int
+initCompiler() { //:initCompiler
 // Definition of the operators, lexer dispatch, parser dispatch etc tables for the compiler.
 // This function should only be called once, at compiler init. Its results are global shared const.
     populateStandardOffsets();
@@ -6744,7 +6116,8 @@ void dbgCgCalls(Codegen* cg) { //:dbgCgCalls
 //}}}
 //{{{ Main
 
-String eyrCompile(String sourceCode) { //:eyrCompile
+String
+eyrCompile(String sourceCode) { //:eyrCompile
     if (sourceCode.len == 0) {
         return empty;
     }
@@ -6767,7 +6140,8 @@ String eyrCompile(String sourceCode) { //:eyrCompile
 }
 
 
-String eyrCompileFile(char* fn) { //:eyrCompileFile
+String
+eyrCompileFile(char* fn) { //:eyrCompileFile
     if (!_wasInit) {
         initCompiler();
     }
@@ -6780,7 +6154,8 @@ String eyrCompileFile(char* fn) { //:eyrCompileFile
 
 #ifndef TEST
 
-Int main(int argc, char** argv) { //:main
+Int
+main(int argc, char** argv) { //:main
     String sourceCode = s("main = (( a = 78; print a))");
     String hostCode = eyrCompile(sourceCode);
 
