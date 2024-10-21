@@ -223,8 +223,6 @@ BuiltinFn BUILTINS_TABLE[countBuiltins]; // filled in by "tabulateBuiltins"
 
 jmp_buf excBuf;
 
-constexpr String empty = {.cont = null, .len = 0};
-
 //{{{ Arena
 
 #define CHUNK_QUANT 32768
@@ -363,8 +361,8 @@ clearArena(Arena* a) { //:clearArena
 private void dbgStackNode(StackNode*, Arena*);
 #endif
 
-
-void saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:saveNodes
+void
+saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:saveNodes
 // Pushes the tail of scratch space (from a specified index onward) into the main node list
     const Int pushCount = scr->len - startInd;
     if (pushCount == 0)  {
@@ -396,7 +394,8 @@ void saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm)
     cm->sourceLocs->len += pushCount;
 }
 
-void ensureCapacityTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
+void
+ensureCapacityTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
 //:ensureCapacityTokenBuf Reserve space in the temp buffer used to shuffle tokens
     st->len = 0;
     if (neededSpace >= st->cap) {
@@ -406,8 +405,8 @@ void ensureCapacityTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
     }
 }
 
-
-private void ensureCapacityTokens(Int neededSpace, Compiler* cm) {
+private void
+ensureCapacityTokens(Int neededSpace, Compiler* cm) {
 //:ensureCapacityNodes Reserve space in the main nodes list
     if (cm->tokens.len + neededSpace - 1 >= cm->tokens.cap) {
         const Int newCap = (2*(cm->tokens.cap) > cm->tokens.cap + neededSpace)
@@ -419,7 +418,6 @@ private void ensureCapacityTokens(Int neededSpace, Compiler* cm) {
         cm->tokens.cont = newContent;
     }
 }
-
 
 //}}}
 //{{{ Internal list
@@ -503,7 +501,6 @@ multiListDoubleCap(MultiAssocList* ml) {
     ml->cap = newMultiCap;
     ml->cont = newAlloc;
 }
-
 
 testable Int
 addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocList* ml) {
@@ -865,7 +862,6 @@ getUnsafeIntMap(int key, IntMap* hm) { //:getUnsafeIntMap
     longjmp(excBuf, 1);
 }
 
-
 private bool
 hasKeyValueIntMap(int key, int value, IntMap* hm) { //:hasKeyValueIntMap
     return false;
@@ -969,7 +965,6 @@ addStringDict(const char* text, Int startBt, Int lenBts, StackUnt* stringTable,
     }
     return newIndString;
 }
-
 
 testable Int
 getStringDict(Arr(char) text, String strToSearch, StackUnt* stringTable,
@@ -1372,7 +1367,6 @@ const char errTypeOfListIndex[]             = "The type of a list/array index mu
 //}}}
 //{{{ Forward decls
 
-
 #define P_CT Arr(Token) toks, Compiler* cm // parser context signature fragment
 #define P_C toks, cm // parser context args fragment
 private void closeStatement(Compiler* lx);
@@ -1440,7 +1434,6 @@ typedef union {
     uint64_t i;
     double   d;
 } FloatingBits;
-
 
 private String
 readSourceFile(const Arr(char) fName, Arena* a) { //:readSourceFile
@@ -1698,7 +1691,6 @@ hexNumber(const Arr(char) source, Compiler* lx) { //:hexNumber
     lx->i = j; // CONSUME the hex number
 }
 
-
 private Int
 calcFloating(double* result, Int powerOfTen, const Arr(char) source, Compiler* lx) {
 //:calcFloating Parses the floating-point numbers using just the "fast path" of David Gay's
@@ -1941,7 +1933,6 @@ mbCloseAssignRight(BtToken* top, Compiler* cm) { //:mbCloseAssignRight
     *top = pop(cm->lexBtrack);
     setStmtSpanLength(top->tokenInd, cm);
 }
-
 
 private void
 lxCloseFnDef(BtToken* top, Compiler* cm) { //:lxCloseFnDef
@@ -2280,7 +2271,6 @@ lexNewline(const Arr(char) source, Compiler* lx) { //:lexNewline
     }
 }
 
-
 private void
 lexComment(const Arr(char) source, Compiler* lx) { //:lexComment
 // Eyr separates between documentation comments (which live in meta info and are
@@ -2572,7 +2562,7 @@ getTypeOfVar(Int varId, Compiler* cm) {
 }
 
 private EntityId
-createEntity(NameId nameId, Emit emit, Byte class, Compiler* cm) { //:createEntity
+createEntity(NameId nameId, Byte class, Compiler* cm) { //:createEntity
 // Validates a new binding (that it is unique), creates an entity for it,
 // and adds it to the current scope
     Int mbBinding = cm->activeBindings[nameId];
@@ -2580,7 +2570,7 @@ createEntity(NameId nameId, Emit emit, Byte class, Compiler* cm) { //:createEnti
     // if it's a binding, it should be -1, and if overload, < -1
 
     Int newEntityId = cm->entities.len;
-    pushInentities(((Entity){ .emit = emit, .class = class }), cm);
+    pushInentities(((Entity){ .class = class }), cm);
     if (nameId > -1) { // nameId == -1 only for the built-in operators
         if (cm->scopeStack->len > 0) {
             addBinding(nameId, newEntityId, cm); // adds it to the ScopeStack
@@ -2591,9 +2581,9 @@ createEntity(NameId nameId, Emit emit, Byte class, Compiler* cm) { //:createEnti
 }
 
 private EntityId
-createEntityWithType(NameId nameId, TypeId typeId, Emit emit, Byte class,
+createEntityWithType(NameId nameId, TypeId typeId, Byte class,
                                  Compiler* cm) { //:createEntityWithType
-    EntityId newEntityId = createEntity(nameId, emit, class, cm);
+    EntityId newEntityId = createEntity(nameId, class, cm);
     cm->entities.cont[newEntityId].typeId = typeId;
     return newEntityId;
 }
@@ -2848,7 +2838,6 @@ pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, P_CT) {
     }
 }
 
-
 private void
 pAssignment(Token tok, P_CT) { //:pAssignment
     if (tok.pl1 == assiType) {
@@ -2886,7 +2875,6 @@ pAssignment(Token tok, P_CT) { //:pAssignment
         } else {
             entityId = createEntity(
                     newName,
-                    emitPrefix,
                     nameTk.pl2 == 1 ? classMut: classImmut, cm
             );
         }
@@ -2912,7 +2900,6 @@ pAssignment(Token tok, P_CT) { //:pAssignment
 
     mbCloseSpans(cm);
 }
-
 
 private void
 preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
@@ -2976,7 +2963,6 @@ preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
         memcpy(toks + (*stepInd), buf->cont, lenBody*sizeof(Token));
     }
 }
-
 
 private void
 pFor(Token forTk, P_CT) { //:pFor
@@ -3729,7 +3715,6 @@ ceiling4(size_t sz) {
     return sz + 4 - rem;
 }
 
-
 private size_t
 floor4(size_t sz) {
     size_t rem = sz % 4;
@@ -3738,7 +3723,6 @@ floor4(size_t sz) {
 
 #define CHUNK_SIZE 65536
 #define FRESH_CHUNK_LEN floor4(CHUNK_SIZE - sizeof(ScopeChunk))/4
-
 
 testable ScopeStack*
 createScopeStack(void) {
@@ -3946,7 +3930,8 @@ addConcrFnType(Int arity, Arr(Int) paramsAndReturn, Compiler* cm) {
     Int newInd = cm->types.len;
     pushIntypes(arity + 3, cm); // +3 because the header takes 2 ints, 1 more for the return typeId
     typeAddHeader(
-        (TypeHeader){.sort = sorFunction, .tyrity = 0, .arity = arity, .nameAndLen = -1}, cm);
+        (TypeHeader){.sort = sorFunction, .tyrity = 0, .arity = arity, .nameAndLen = -1}, cm
+    );
     for (Int k = 0; k <= arity; k++) { // <= because there are (arity + 1) elts - the return type!
         pushIntypes(paramsAndReturn[k], cm);
     }
@@ -4020,17 +4005,17 @@ private void
 buildInfixOperator(Int operId, TypeId typeId, Compiler* cm) { //:buildInfixOperator
 // Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
-    pushInentities((Entity){ .typeId = typeId, .class = classImmut, .emit = emitInfix }, cm);
+    pushInentities((Entity){ .typeId = typeId, .class = classImmut }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
 }
 
 private void
-buildOperator(Int operId, TypeId typeId, Emit emit, Compiler* cm) {
+buildOperator(Int operId, TypeId typeId, Compiler* cm) {
 //:buildOperator Creates an entity, pushes it to [rawOverloads] and activates its name
     Int newEntityId = cm->entities.len;
     pushInentities((Entity){
-            .typeId = typeId, .name = OPERATORS[operId].name, .class = classImmut,
-            .emit = emitInfix }, cm);
+            .typeId = typeId, .name = OPERATORS[operId].name, .class = classImmut
+        }, cm);
     addRawOverload(operId, typeId, newEntityId, cm);
 }
 
@@ -4069,72 +4054,72 @@ buildOperators(Compiler* cm) { //:buildOperators
     buildOperator(opToString,  strOfInt, cm);
     buildOperator(opToString,  strOfBool, cm);
     buildOperator(opToString,  strOfFloat, cm);
-    buildOperator(opRemainder,     intOfIntInt, emitInfix, cm);
-    buildOperator(opBitwiseAnd, intOfIntInt, emitInfixHost, hostAmpersand, cm);
-    buildOperator(opBoolAnd,       boolOfBoolBool, emitInfix, cm);
-    buildOperator(opTimesExt,  flOfFlFl, emitPrefixHost, hostAsterisk, cm);
-    buildOperator(opTimes,         intOfIntInt, emitInfix, cm);
-    buildOperator(opTimes,         flOfFlFl, emitInfix, cm);
-    buildOperator(opPlusExt,   strOfStrStr, emitPrefixHost, hostPlus, cm);
-    buildOperator(opPlus,          intOfIntInt, emitInfix, cm);
-    buildOperator(opPlus,          flOfFlFl, emitInfix, cm);
-    buildOperator(opPlus,          strOfStrStr, emitInfix, cm);
-    buildOperator(opMinusExt,  intOfIntInt, emitPrefixHost, hostMinus, cm);
-    buildOperator(opMinus,         intOfIntInt, emitInfix, cm);
-    buildOperator(opMinus,         flOfFlFl, emitInfix, cm);
-    buildOperator(opDivByExt,  intOfIntInt, emitPrefixHost, hostDivBy, cm);
-    buildOperator(opIntersect, intOfIntInt, emitPrefixHost, hostAmpersand, cm); // dummy
-    buildOperator(opDivBy,         intOfIntInt, emitInfix, cm);
-    buildOperator(opDivBy,         flOfFlFl, emitInfix, cm);
-    buildOperator(opBitShiftL, intOfFlFl, emitInfixHost, hostBitShiftL, cm);
-    buildOperator(opComparator,    intOfIntInt, emitPrefixHost, hostCompareInt, cm);
-    buildOperator(opComparator,    intOfFlFl, emitInfixHost, hostCompareDbl, cm);
-    buildOperator(opComparator,    intOfStrStr, emitPrefixHost, hostCompareStr, cm);
-    buildOperator(opLTZero,    boolOfIntInt, emitPrefixHost, hostLtZeroInt, cm);
-    buildOperator(opLTZero,    boolOfFlFl, emitPrefixHost, hostLtZeroDbl, cm);
-    buildOperator(opShiftL,    intOfIntInt, emitInfixHost, hostShiftLeft, cm);
-    buildOperator(opLTEQ,          boolOfIntInt, emitInfix, cm);
-    buildOperator(opLTEQ,          boolOfFlFl, emitInfix, cm);
-    buildOperator(opLTEQ,          boolOfStrStr, emitInfix, cm);
-    buildOperator(opLessTh,            boolOfIntInt, emitInfix, cm);
-    buildOperator(opLessTh,            boolOfFlFl, emitInfix, cm);
-    buildOperator(opLessTh,            boolOfStrStr, emitInfix, cm);
-    buildOperator(opRefEquality,   boolOfIntInt, emitPrefixHost, hostRefEquality, cm);
-    buildOperator(opIsNull,        boolOfIntInt, emitPrefixHost, hostIsNull, cm);
-    buildOperator(opEquality,          boolOfIntInt, emitInfix, cm);
-    buildOperator(opInterval,      boolOfIntIntInt, emitPrefixHost, hostIntervalInt, cm);
-    buildOperator(opInterval,      boolOfFlFlFl, emitPrefixHost, hostIntervalDbl, cm);
-    buildOperator(opBitShiftR,     boolOfBoolBool, emitInfixHost, hostBitShiftR, cm);
-    buildOperator(opGTZero,        boolOfIntInt, emitPrefixHost, hostGtZeroInt, cm);
-    buildOperator(opGTZero,        boolOfFlFl, emitPrefixHost, hostGtZeroDbl, cm);
-    buildOperator(opGTEQ,              boolOfIntInt, emitInfix, cm);
-    buildOperator(opGTEQ,              boolOfFlFl, emitInfix, cm);
-    buildOperator(opGTEQ,              boolOfStrStr, emitInfix, cm);
-    buildOperator(opShiftR,        intOfIntInt, emitInfixHost, hostShiftRight, cm);
-    buildOperator(opGreaterTh,         boolOfIntInt, emitInfix, cm);
-    buildOperator(opGreaterTh,         boolOfFlFl, emitInfix, cm);
-    buildOperator(opGreaterTh,         boolOfStrStr, emitInfix, cm);
-    buildOperator(opNullCoalesce,  intOfIntInt, emitPrefixHost, hostNullCoalesce, cm);
-    buildOperator(opQuestionMark,  intOfIntInt, emitPrefixHost, hostCase, cm); // dummy, type
-    buildOperator(opUnused,        flOfFlFl, emitPrefixHost, hostCase, cm); // unused
-    buildOperator(opBitwiseXor,    intOfIntInt, emitInfixHost, hostBitwiseXor, cm);
-    buildOperator(opExponent,          intOfIntInt, emitInfix, cm);
-    buildOperator(opExponent,          flOfFlFl, emitInfix, cm);
-    buildOperator(opBitwiseOr,     intOfIntInt, emitInfixHost, hostBitwiseOr, cm);
-    buildOperator(opBoolOr,            flOfFl, emitInfix, cm);
-    buildOperator(opGetElem,       flOfFl, emitPrefixHost, hostCase, cm); // dummy
-    buildOperator(opGetElemPtr,    flOfFl, emitPrefixHost, hostCase, cm); // dummy
+    buildOperator(opRemainder,     intOfIntInt, cm);
+    buildOperator(opBitwiseAnd, intOfIntInt, cm);
+    buildOperator(opBoolAnd,       boolOfBoolBool, cm);
+    buildOperator(opTimesExt,  flOfFlFl, cm);
+    buildOperator(opTimes,         intOfIntInt, cm);
+    buildOperator(opTimes,         flOfFlFl, cm);
+    buildOperator(opPlusExt,   strOfStrStr, cm);
+    buildOperator(opPlus,          intOfIntInt, cm);
+    buildOperator(opPlus,          flOfFlFl, cm);
+    buildOperator(opPlus,          strOfStrStr, cm);
+    buildOperator(opMinusExt,  intOfIntInt, cm);
+    buildOperator(opMinus,         intOfIntInt, cm);
+    buildOperator(opMinus,         flOfFlFl, cm);
+    buildOperator(opDivByExt,  intOfIntInt, cm);
+    buildOperator(opIntersect, intOfIntInt, cm); // dummy
+    buildOperator(opDivBy,         intOfIntInt, cm);
+    buildOperator(opDivBy,         flOfFlFl, cm);
+    buildOperator(opBitShiftL, intOfFlFl, cm);
+    buildOperator(opComparator,    intOfIntInt, cm);
+    buildOperator(opComparator,    intOfFlFl, cm);
+    buildOperator(opComparator,    intOfStrStr, cm);
+    buildOperator(opLTZero,    boolOfIntInt, cm);
+    buildOperator(opLTZero,    boolOfFlFl, cm);
+    buildOperator(opShiftL,    intOfIntInt, cm);
+    buildOperator(opLTEQ,          boolOfIntInt, cm);
+    buildOperator(opLTEQ,          boolOfFlFl, cm);
+    buildOperator(opLTEQ,          boolOfStrStr, cm);
+    buildOperator(opLessTh,            boolOfIntInt, cm);
+    buildOperator(opLessTh,            boolOfFlFl, cm);
+    buildOperator(opLessTh,            boolOfStrStr, cm);
+    buildOperator(opRefEquality,   boolOfIntInt, cm);
+    buildOperator(opIsNull,        boolOfIntInt, cm);
+    buildOperator(opEquality,          boolOfIntInt, cm);
+    buildOperator(opInterval,      boolOfIntIntInt, cm);
+    buildOperator(opInterval,      boolOfFlFlFl, cm);
+    buildOperator(opBitShiftR,     boolOfBoolBool, cm);
+    buildOperator(opGTZero,        boolOfIntInt, cm);
+    buildOperator(opGTZero,        boolOfFlFl, cm);
+    buildOperator(opGTEQ,              boolOfIntInt, cm);
+    buildOperator(opGTEQ,              boolOfFlFl, cm);
+    buildOperator(opGTEQ,              boolOfStrStr, cm);
+    buildOperator(opShiftR,        intOfIntInt, cm);
+    buildOperator(opGreaterTh,         boolOfIntInt, cm);
+    buildOperator(opGreaterTh,         boolOfFlFl, cm);
+    buildOperator(opGreaterTh,         boolOfStrStr, cm);
+    buildOperator(opNullCoalesce,  intOfIntInt, cm);
+    buildOperator(opQuestionMark,  intOfIntInt, cm); // dummy, type
+    buildOperator(opUnused,        flOfFlFl, cm); // unused
+    buildOperator(opBitwiseXor,    intOfIntInt, cm);
+    buildOperator(opExponent,          intOfIntInt, cm);
+    buildOperator(opExponent,          flOfFlFl, cm);
+    buildOperator(opBitwiseOr,     intOfIntInt, cm);
+    buildOperator(opBoolOr,            flOfFl, cm);
+    buildOperator(opGetElem,       flOfFl, cm); // dummy
+    buildOperator(opGetElemPtr,    flOfFl, cm); // dummy
 }
 
-
-private void createBuiltins(Compiler* cm) { //:createBuiltins
+private void
+createBuiltins(Compiler* cm) { //:createBuiltins
 // Entities and functions for the built-in operators, types and functions
     buildStandardStrings(cm);
     buildOperators(cm);
 }
 
-
-private void importPrelude(Compiler* cm) { //:importPrelude
+private void
+importPrelude(Compiler* cm) { //:importPrelude
 // Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
     TypeId strToVoid = addConcrFnType(1, (Int[]){ tokString, tokMisc }, cm);
@@ -4143,23 +4128,17 @@ private void importPrelude(Compiler* cm) { //:importPrelude
 //    TypeId intToDoub = addConcrFnType(1, (Int[]){ tokInt, tokDouble}, cm);
 //    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
     Entity imports[6] =  {
-        (Entity){ .name = nameOfStandard(strMathPi), .typeId = tokDouble, .class = classPubImmut,
-                  .emit = emitPrefixHost, .emitName = nameOfHost(hostMathPi)
+        (Entity){ .name = nameOfStandard(strMathPi), .typeId = tokDouble, .class = classPubImmut
         },
-        (Entity){ .name = nameOfStandard(strMathE), .typeId = tokDouble, .class = classPubImmut,
-                  .emit = emitPrefixHost, .emitName = nameOfHost(hostMathE)
+        (Entity){ .name = nameOfStandard(strMathE), .typeId = tokDouble, .class = classPubImmut
         },
-        (Entity){ .name = nameOfStandard(strPrint), .typeId = strToVoid, .class = classPubImmut,
-                  .emit = emitPrefixHost, .emitName = nameOfHost(hostPrint)
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = strToVoid, .class = classPubImmut
         },
-        (Entity){ .name = nameOfStandard(strPrint), .typeId = intToVoid, .class = classPubImmut,
-                  .emit = emitPrefixHost, .emitName = nameOfHost(hostPrint)
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = intToVoid, .class = classPubImmut
         },
-        (Entity){ .name = nameOfStandard(strPrint), .typeId = dblToVoid, .class = classPubImmut,
-                  .emit = emitPrefixHost, .emitName = nameOfHost(hostPrint)
+        (Entity){ .name = nameOfStandard(strPrint), .typeId = dblToVoid, .class = classPubImmut
         },
-        (Entity){ .name = nameOfStandard(strPrintErr), .typeId = strToVoid, .class = classPubImmut,
-                  .emit = emitPrefixHost, .emitName = nameOfHost(hostPrintErr)
+        (Entity){ .name = nameOfStandard(strPrintErr), .typeId = strToVoid, .class = classPubImmut
         }
        // TODO functions for casting (int, double, unsigned)
     };
@@ -4171,8 +4150,8 @@ private void importPrelude(Compiler* cm) { //:importPrelude
     importEntities(imports, sizeof(imports)/sizeof(Entity), cm);
 }
 
-
-testable Compiler* createLexer(String sourceCode, Arena* a) {
+testable Compiler*
+createLexer(String sourceCode, Arena* a) {
 //:createLexer A proto compiler contains just the built-in definitions and tables. This fn
 // copies it and performs initialization. Post-condition: i has been incremented by the
 // standardText size
@@ -4204,8 +4183,8 @@ testable Compiler* createLexer(String sourceCode, Arena* a) {
     return lx;
 }
 
-
-testable void initializeParser(Compiler* lx, Arena* a) { //:initializeParser
+testable void
+initializeParser(Compiler* lx, Arena* a) { //:initializeParser
 // Turns a lexer into a parser. Initializes all the parser & typer stuff after lexing is done
     if (lx->stats.wasLexerError) {
         return;
@@ -4275,8 +4254,8 @@ testable void initializeParser(Compiler* lx, Arena* a) { //:initializeParser
     importPrelude(cm);
 }
 
-
-private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm) {
+private void
+validateNameOverloads(Int listId, Int countOverloads, Compiler* cm) {
 // :validateNameOverloads Validates the overloads for a name don't intersect via their outer types
 // 1. For parameter outer types, their arities must be unique and not match any other outer types
 // 2. A zero-arity function, if any, must be unique
@@ -4324,8 +4303,8 @@ private void validateNameOverloads(Int listId, Int countOverloads, Compiler* cm)
 void printIntArray(Int count, Arr(Int) arr);
 #endif
 
-
-testable Int createNameOverloads(NameId nameId, Compiler* cm) { //:createNameOverloads
+testable Int
+createNameOverloads(NameId nameId, Compiler* cm) { //:createNameOverloads
 // Creates a final subtable in {overloads} for a name and returns the index of said subtable
 // Precondition: {rawOverloads} contain twoples of (typeId ref)
 // (typeId = the full type of a function)(ref = entityId or monoId)(yes, "twople" = tuple of two)
@@ -4362,8 +4341,8 @@ testable Int createNameOverloads(NameId nameId, Compiler* cm) { //:createNameOve
     return newInd;
 }
 
-
-testable void createOverloads(Compiler* cm) { //:createOverloads
+testable void
+createOverloads(Compiler* cm) { //:createOverloads
 // Fills {overloads} from {rawOverloads}. Replaces all indices in
 // {activeBindings} to point to the new overloads table (they pointed to {rawOverloads} previously)
     cm->overloads.cont = allocateOnArena(
@@ -4389,8 +4368,8 @@ testable void createOverloads(Compiler* cm) { //:createOverloads
     }
 }
 
-
-private void pToplevelTypes(Compiler* cm) { //:pToplevelTypes
+private void
+pToplevelTypes(Compiler* cm) { //:pToplevelTypes
 // Parses top-level types but not functions. Writes them to the types table and adds
 // their bindings to the scope
     cm->i = 0;
@@ -4407,8 +4386,8 @@ private void pToplevelTypes(Compiler* cm) { //:pToplevelTypes
     }
 }
 
-
-private void pToplevelConstants(Compiler* cm) { //:pToplevelConstants
+private void
+pToplevelConstants(Compiler* cm) { //:pToplevelConstants
 // Parses top-level constants but not functions, and adds their bindings to the scope
     cm->i = 0;
     Arr(Token) toks = cm->tokens.cont;
@@ -4430,9 +4409,10 @@ private void pToplevelConstants(Compiler* cm) { //:pToplevelConstants
     }
 }
 
-
 #ifdef SAFETY
-private void validateOverloadsFull(Compiler* cm) {
+
+private void
+validateOverloadsFull(Compiler* cm) {
 /*
     Int lenTypes = cm->types.len; Int lenEntities = cm->entities.len;
     for (Int i = 1; i < cm->overloadIds.len; i++) {
@@ -4467,8 +4447,8 @@ private void validateOverloadsFull(Compiler* cm) {
 }
 #endif
 
-
-testable void pFnSignature(Token fnDef, bool isToplevel, NameId nameId, Int voidToVoid,
+testable void
+pFnSignature(Token fnDef, bool isToplevel, NameId nameId, Int voidToVoid,
                                Compiler* cm) { //:pFnSignature
 // Parses a function signature. Emits no nodes, adds data to @toplevels, @functions, @overloads.
 // Pre-condition: we are 1 token past the tokFn
@@ -4496,8 +4476,8 @@ testable void pFnSignature(Token fnDef, bool isToplevel, NameId nameId, Int void
             .nameId = nameId, .entityId = newFnEntityId }, cm);
 }
 
-
-private void pToplevelBody(Int indToplevel, Arr(Token) toks, Compiler* cm) {
+private void
+pToplevelBody(Int indToplevel, Arr(Token) toks, Compiler* cm) {
 //:pToplevelBody Parses a top-level function. The result is the AST
 //[ FnDef ParamList body... ]
     Toplevel toplevelSignature = cm->toplevels.cont[indToplevel];
@@ -4527,7 +4507,7 @@ private void pToplevelBody(Int indToplevel, Arr(Token) toks, Compiler* cm) {
                 break;
             }
             Int newEntityId = createEntityWithType(
-                    nameOfToken(paramName), cm->types.cont[paramTypeInd], emitInfix,
+                    nameOfToken(paramName), cm->types.cont[paramTypeInd], 
                     paramName.pl1 == 1 ? classMut : classImmut, cm
             );
             addNode(((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = 0}), locOf(paramName), cm);
@@ -4541,8 +4521,8 @@ private void pToplevelBody(Int indToplevel, Arr(Token) toks, Compiler* cm) {
     parseUpTo(fnSentinel, P_C);
 }
 
-
-private void pFunctionBodies(Arr(Token) toks, Compiler* cm) { //:pFunctionBodies
+private void
+pFunctionBodies(Arr(Token) toks, Compiler* cm) { //:pFunctionBodies
 // Parses top-level function params and bodies
     for (int j = 0; j < cm->toplevels.len; j++) {
         cm->stats.loopCounter = 0;
@@ -4550,8 +4530,8 @@ private void pFunctionBodies(Arr(Token) toks, Compiler* cm) { //:pFunctionBodies
     }
 }
 
-
-private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
+private void
+pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
 // Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
 // Result: the overload counts and the list of toplevel functions to parse. No nodes emitted
     cm->i = 0;
@@ -4581,8 +4561,8 @@ private void pToplevelSignatures(Compiler* cm) { //:pToplevelSignatures
     }
 }
 
-
-testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
+testable Compiler*
+parseMain(Compiler* cm, Arena* a) { //:parseMain
     if (setjmp(excBuf) == 0) {
         pToplevelTypes(cm);
         // This gives the complete overloads & overloadIds tables + list of toplevel functions
@@ -4599,8 +4579,8 @@ testable Compiler* parseMain(Compiler* cm, Arena* a) { //:parseMain
     return cm;
 }
 
-
-testable Compiler* parse(Compiler* cm, Arena* a) { //:parse
+testable Compiler*
+parse(Compiler* cm, Arena* a) { //:parse
 // Parses a single file in 4 passes, see docs/parser.txt
     initializeParser(cm, a);
     return parseMain(cm, a);
@@ -4958,7 +4938,6 @@ tCreateFnSignature(StateForTypes* st, Int startInd,
 
 
 #define maxTypeParams 254
-
 
 private void
 teClose(StateForTypes* st, Compiler* cm) { //:teClose
@@ -5456,10 +5435,11 @@ typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 //{{{ Interpreter
 //{{{ Utils
 
-private void*
+private char*
 inDeref0(Ptr address, Interpreter* rt) { //:inDeref0
-    return (void*)rt->memory + ((Ulong)address)*4;
+    return (char*)rt->memory + ((Ulong)address)*4;
 }
+#define inDeref(ptr) inDeref0(ptr, rt)
 
 private Unt
 inGetFromStack(StackAddr addr, Interpreter* rt) { //:inGetFromStack
@@ -5506,7 +5486,7 @@ runNewString(Ulong instr, Unt ip, Interpreter* rt) { //:runNewString
     Int len = (Int)(instr & LOWER24BITS);
     Unt start = inGetFromStack(startAddr, rt); // actual starting symbol within the static text
 
-    char* copyFrom = (char*)inDeref(rt->textStart) + 4 + start;
+    char* copyFrom = inDeref(rt->textStart) + 4 + start;
 
     const Ptr targetAddr = rt->heapTop;
     Unt* target = (Unt*)(inDeref(targetAddr));
@@ -5645,13 +5625,11 @@ tabulateInterpreter() { //:tabulateInterpreter
     p[iPrint]          = &runPrint;
 }
 
-
 private void
 tabulateBuiltins() { //:tabulateBuiltins
     BuiltinFn* p = BUILTINS_TABLE;
     p[0]         = &buiToStringInt;
 }
-
 
 private Interpreter*
 createInterpreter(Compiler* cg) { //:createInterpreter
@@ -5749,17 +5727,18 @@ const char* tokNames[] = {
 };
 
 
-Int pos(Compiler* lx) {
+Int
+pos(Compiler* lx) {
     return lx->i - sizeof(standardText) + 1;
 }
 
-
-Int posInd(Int ind) {
+Int
+posInd(Int ind) {
     return ind - sizeof(standardText) + 1;
 }
 
-
-void dbgLexBtrack(Compiler* lx) { //:dbgLexBtrack
+void
+dbgLexBtrack(Compiler* lx) { //:dbgLexBtrack
     StackBtToken* bt = lx->lexBtrack;
     printf("lexBtTrack = [");
 
@@ -5776,8 +5755,8 @@ void dbgLexBtrack(Compiler* lx) { //:dbgLexBtrack
     printf("  ]\n");
 }
 
-
-Int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
+Int
+equalityLexer(Compiler a, Compiler b) { //:equalityLexer
 // Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
 // differing token otherwise
     if (a.stats.wasLexerError != b.stats.wasLexerError
@@ -5814,8 +5793,8 @@ Int equalityLexer(Compiler a, Compiler b) { //:equalityLexer
     return (a.tokens.len == b.tokens.len) ? -2 : i;
 }
 
-
-testable void printLexer(Compiler* lx) { //:printLexer
+testable void
+printLexer(Compiler* lx) { //:printLexer
     if (lx->stats.wasLexerError) {
         printf("Error: ");
         printString(lx->stats.errMsg);
@@ -5961,7 +5940,8 @@ private void dbgExprFrames(StateForExprs* st) { //:dbgExprFrames
 //}}}
 //{{{ Types testing
 
-private void dbgTypeGenElt(Int v) { //:dbgTypeGenElt
+private void
+dbgTypeGenElt(Int v) { //:dbgTypeGenElt
     Int upper = (v >> 24) & 0xFF;
     Int lower = v & LOWER24BITS;
     if (upper == 0) {
@@ -5986,7 +5966,8 @@ typedef struct {
 DEFINE_STACK_HEADER(TypeLoc)
 DEFINE_STACK(TypeLoc)
 
-void dbgTypeOuter(TypeId currT, Compiler* cm) { //:dbgTypeOuter
+void
+dbgTypeOuter(TypeId currT, Compiler* cm) { //:dbgTypeOuter
 // Print the name of the outer type. `(Tu Int Double)` -> `Tu`
     Arr(Int) t = cm->types.cont;
     TypeHeader currHdr = typeReadHeader(currT, cm);
@@ -6003,8 +5984,8 @@ void dbgTypeOuter(TypeId currT, Compiler* cm) { //:dbgTypeOuter
     }
 }
 
-
-void dbgType(TypeId typeId, Compiler* cm) { //:dbgType
+void
+dbgType(TypeId typeId, Compiler* cm) { //:dbgType
 // Print a single type fully for debugging purposes
     //printf("Printing the type [ind = %d, len = %d]\n", typeId, cm->types.cont[typeId]);
     if (typeId <= topVerbatimType)  {
@@ -6049,8 +6030,8 @@ void dbgType(TypeId typeId, Compiler* cm) { //:dbgType
     printf("\n");
 }
 
-
-void dbgTypeFrames(StackTypeFrame* st) { //:dbgTypeFrames
+void
+dbgTypeFrames(StackTypeFrame* st) { //:dbgTypeFrames
     print(">>> Type frames cnt %d", st->len);
     for (Int j = 0; j < st->len; j += 1) {
         TypeFrame fr = st->cont[j];
@@ -6065,8 +6046,8 @@ void dbgTypeFrames(StackTypeFrame* st) { //:dbgTypeFrames
     printf(">>>\n\n");
 }
 
-
-void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
+void
+dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
     Int listId = -cm->activeBindings[nameId] - 2;
     if (listId < 0) {
         print("Overloads for name %d not found", nameId)
@@ -6097,7 +6078,8 @@ void dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 //}}}
 //{{{ Codegen utils
 
-void dbgCgCalls(Codegen* cg) { //:dbgCgCalls
+void
+dbgCgCalls(Codegen* cg) { //:dbgCgCalls
     printf("{Codegen call stack}\n[");
     StackCgCall* calls = cg->calls;
     for (Int j = 0; j < calls->len; j += 1) {

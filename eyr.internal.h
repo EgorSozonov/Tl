@@ -114,7 +114,9 @@ typedef struct { // :StringBuilder
 
 testable void printStringNoLn(String s);
 testable void printString(String s);
-extern const String empty;
+//extern String empty;
+
+constexpr String empty = {.cont = null, .len = 0};
 testable String str(const char* content);
 testable Bool endsWith(String a, String b);
 
@@ -388,7 +390,7 @@ typedef struct { // :OpDef
 #define opToString          4 // $
 #define opRemainder         5 // %
 #define opBitwiseAnd        6 // &&. bitwise "and"
-#define opBoolAnd           7 // && logical "and"
+#define opBoolAnd           7 // &&  logical "and"
 #define opTimesExt          8 // *:
 #define opTimes             9 // *
 #define opPlusExt          10 // +:
@@ -396,7 +398,7 @@ typedef struct { // :OpDef
 #define opMinusExt         12 // -:
 #define opMinus            13 // -
 #define opDivByExt         14 // /:
-#define opIntersect        15 // /| type-level trait intersection ?
+#define opIntersect        15 // /|   type-level trait intersection ?
 #define opDivBy            16 // /
 #define opBitShiftL        17 // <<.
 #define opComparator       18 // <=>
@@ -405,26 +407,27 @@ typedef struct { // :OpDef
 #define opLTEQ             21 // <=
 #define opLessTh           22 // <
 #define opRefEquality      23 // ===
-#define opIsNull           24 // =0
+#define opIsNull           24 // =0 //gonna cut it because will have references and deref
 #define opEquality         25 // ==
 #define opInterval         26 // >=<  left-inclusive interval check
 #define opBitShiftR        27 // >>.  unsigned right bit shift
 #define opGTZero           28 // >0   greater than zero
 #define opGTEQ             29 // >=
-#define opShiftR           30 // >>   shift right, e.g. an iterator
+#define opShiftR           30 // >>   shift right, e.g. an iterator. Unary op
 #define opGreaterTh        31 // >
 #define opNullCoalesce     32 // ?:   null coalescing operator
 #define opQuestionMark     33 // ?    nullable type operator
-#define opUnused           34 // @    unused yet. await?
+#define opUnused           34 // @    unused yet. await? seems yep
 #define opBitwiseXor       35 // ^.   bitwise XOR
-#define opExponent         36 // ^    exponentiation
+#define opExponent         36 // ^    exponentiation - gonna cut it to prevent confusion
+                              //      (in math everyone's used to it being right-associated)
 #define opBitwiseOr        37 // ||.  bitwise or
 #define opBoolOr           38 // ||   logical or
 #define opGetElem          39 // Get list element
 #define opGetElemPtr       40 // Get pointer to list element
 
 #define countOperators     41
-#define countRealOperators 39 // The "unreal" ones, like "a[..]", which have a separate syntax
+#define countRealOperators 39 // The "unreal" ones, like "a[..]", have a separate syntax
 
 
 typedef struct Compiler Compiler;
@@ -462,27 +465,9 @@ typedef struct { // :ParseFrame
 #define classPubImmut 6
 
 
-typedef enum { //:Emit
-// Used by codegen to define what to emit for different entities
-    emitPrefix,           // normal native names
-    emitPrefixShielded,   // this is a native name that needs to be shielded from target
-                          // reserved word (by appending a "_")
-    emitPrefixHost,       // prefix names that are emitted differently than in source code
-    emitInfix,            // infix operators like "+" that match between source code and target
-    emitInfixHost,        // infix operators that have a separate external name
-    emitInfixDot,         // host-strings emitted as a "dot-call", like ".toString()"
-    emitField,            // emitted as field accesses, like ".length"
-    emitFieldHost,        // emitted as field accesses, like ".length"
-    emitNop               // for unary operators that don't need to be emitted, like ","
-} Emit;
-
-
 typedef struct { //:Entity
     TypeId typeId;
     Unt name; // For native names, it's NameId. For "emitInfix", this is operatorId
-    Emit emit;
-    NameLoc emitName; // 0xFFFFFFFF for native-emitted entities. For host-named, NameLoc pointing
-                      // into @hostText
     Byte class; // mutable or immutable, public or private
 } Entity;
 
@@ -533,8 +518,6 @@ DEFINE_INTERNAL_LIST_TYPE(Int)
 
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
 DEFINE_INTERNAL_LIST_TYPE(uint64_t)
-
-DEFINE_INTERNAL_LIST_TYPE(Emit)
 
 
 typedef struct {  // :ExprFrame
@@ -636,7 +619,6 @@ struct Compiler { // :Compiler
     StateForTypes* stateForTypes; // [aTmp]
 
     // CODEGEN
-    InListEmit emits;
     StackBtCodegen* cgBtrack;    // [aTmp]
     InListUlong bytecode;
 
@@ -683,8 +665,9 @@ typedef struct { // :TypeHeader
 // length
 // actual code
 
-#define Ptr uint32_t // Pointers are aligned to 4 bytes
-#define StackAddr int16_t // Offset from "currFrame". Negative values mean previous stack frame
+#define Ptr uint32_t //:Ptr Pointers are aligned to 4 bytes
+#define StackAddr int16_t //:StackAddr Offset from "currFrame". Negative values mean previous stack frame
+
 
 typedef struct {    //:Interpreter
     //Unt i; // current instruction pointer
