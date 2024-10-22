@@ -79,7 +79,6 @@ const Byte maximumPreciselyRepresentedFloatingInt[16] = {
 // 2**53
 
 
-
 const char standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<=><0===0>=<>>.>0?:@^.||."
                             "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
                             "ifimplimportmatchpubreturntraittruetry"
@@ -191,34 +190,34 @@ const int operatorStartSymbols[13] = {
 //}}}
 //{{{ Syntactical structure
 
-void parseErrorBareAtom(Token, Arr(Token), Compiler*);
-void pScope(Token, Arr(Token), Compiler*);
-void pExpr(Token, Arr(Token), Compiler*);
-void pAssignment(Token, Arr(Token), Compiler*);
-void pMisc(Token, Arr(Token), Compiler*);
-void pAlias(Token, Arr(Token), Compiler*); 
-void parseAssert(Token, Arr(Token), Compiler*);
-void pBreakCont(Token, Arr(Token), Compiler*);
-void pReturn(Token, Arr(Token), Compiler*);
-void pIf(Token, Arr(Token), Compiler*);
-void pElseIf(Token, Arr(Token), Compiler*);
-void pElse(Token, Arr(Token), Compiler*);
-void pFor(Token, Arr(Token), Compiler*);
+private void parseErrorBareAtom(Token, Arr(Token), Compiler*);
+private void pScope(Token, Arr(Token), Compiler*);
+private void pExpr(Token, Arr(Token), Compiler*);
+private void pAssignment(Token, Arr(Token), Compiler*);
+private void pMisc(Token, Arr(Token), Compiler*);
+private void pAlias(Token, Arr(Token), Compiler*);
+private void parseAssert(Token, Arr(Token), Compiler*);
+private void pBreakCont(Token, Arr(Token), Compiler*);
+private void pReturn(Token, Arr(Token), Compiler*);
+private void pIf(Token, Arr(Token), Compiler*);
+private void pElseIf(Token, Arr(Token), Compiler*);
+private void pElse(Token, Arr(Token), Compiler*);
+private void pFor(Token, Arr(Token), Compiler*);
 
-static ParserFn const PARSE_TABLE[countSyntaxForms] =  {
-    [tokInt]          = &parseErrorBareAtom,
-    [tokLong]         = &parseErrorBareAtom,
-    [tokDouble]       = &parseErrorBareAtom,
-    [tokBool]         = &parseErrorBareAtom,
-    [tokString]       = &parseErrorBareAtom,
-    [tokMisc]         = &parseErrorBareAtom,
-    [tokWord]         = &parseErrorBareAtom,
-    [tokTypeName]     = &parseErrorBareAtom,
-    [tokTypeVar]      = &parseErrorBareAtom,
-    [tokKwArg]        = &parseErrorBareAtom,
-    [tokOperator]     = &parseErrorBareAtom,
-    [tokFieldAcc]     = &parseErrorBareAtom,
-    
+static ParserFn const PARSE_TABLE[countSyntaxForms] = {
+    [tokInt]         = &parseErrorBareAtom,
+    [tokLong]        = &parseErrorBareAtom,
+    [tokDouble]      = &parseErrorBareAtom,
+    [tokBool]        = &parseErrorBareAtom,
+    [tokString]      = &parseErrorBareAtom,
+    [tokMisc]        = &parseErrorBareAtom,
+    [tokWord]        = &parseErrorBareAtom,
+    [tokTypeName]    = &parseErrorBareAtom,
+    [tokTypeVar]     = &parseErrorBareAtom,
+    [tokKwArg]       = &parseErrorBareAtom,
+    [tokOperator]    = &parseErrorBareAtom,
+    [tokFieldAcc]    = &parseErrorBareAtom,
+
     [tokScope]       = &pScope,
     [tokStmt]        = &pExpr,
     [tokParens]      = &parseErrorBareAtom,
@@ -1492,7 +1491,7 @@ void dbgType(TypeId typeId, Compiler* cm);
 private void dbgExprFrames(StateForExprs* st);
 private void printStackInt(StackInt* st);
 void dbgTypeFrames(StackTypeFrame* st);
-void dbgCgCalls(Codegen* cg);
+void dbgCallFrames(Interpreter* rt);
 #endif
 
 //}}}
@@ -2412,14 +2411,9 @@ private void
 lexParenLeft(const Arr(char) source, Compiler* lx) { //:lexParenLeft
     Int j = lx->i + 1;
     VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
-    if (NEXT_BT == aParenLeft) {
-        openPunctuation(tokFn, slScope, lx->i, lx);
-        lx->i += 2; // CONSUME the "(("
-    } else {
-        wrapInAStatement(source, lx);
-        openPunctuation(tokParens, slSubexpr, lx->i, lx);
-        lx->i += 1; // CONSUME the left parenthesis
-    }
+    wrapInAStatement(source, lx);
+    openPunctuation(tokParens, slSubexpr, lx->i, lx);
+    lx->i += 1; // CONSUME the left parenthesis
 }
 
 private void
@@ -2470,9 +2464,15 @@ private void
 lexCurlyLeft(const Arr(char) source, Compiler* lx) { //:lexCurlyLeft
 // Handles objects/maps/sets "{}"
     Int j = lx->i + 1;
-    VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
-    openPunctuation(tokDataMap, slSubexpr, lx->i, lx);
-    lx->i += 1; // CONSUME the left bracket
+
+    if (NEXT_BT == aCurlyLeft) {
+        openPunctuation(tokFn, slScope, lx->i, lx);
+        lx->i += 2; // CONSUME the "{{"
+    } else {
+        VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
+        openPunctuation(tokDataMap, slSubexpr, lx->i, lx);
+        lx->i += 1; // CONSUME the left bracket
+    }
 }
 
 private void
@@ -2625,7 +2625,6 @@ private void createBuiltins(Compiler* cm);
 testable Compiler* createLexer(String sourceCode, Arena* a);
 private void eLinearize(Int sentinel, P_CT);
 private TypeId exprHeadless(Int sentinel, SourceLoc loc, P_CT);
-private void pExpr(Token tk, P_CT);
 private Int pExprWorker(Token tk, P_CT);
 
 
@@ -4571,7 +4570,7 @@ pToplevelBody(Int indToplevel, Arr(Token) toks, Compiler* cm) {
                 break;
             }
             Int newEntityId = createEntityWithType(
-                    nameOfToken(paramName), cm->types.cont[paramTypeInd], 
+                    nameOfToken(paramName), cm->types.cont[paramTypeInd],
                     paramName.pl1 == 1 ? classMut : classImmut, cm
             );
             addNode(((Node){.tp = nodBinding, .pl1 = newEntityId, .pl2 = 0}), locOf(paramName), cm);
@@ -5535,15 +5534,15 @@ rtMoveHeapTop(Unt sz, Interpreter* in) { //:rtMoveHeapTop
     }
 }
 
-private StackFrameHeader
-getFrame(EyrPtr frame, Interpreter* rt) {
-    return (StackFrameHeader){
+private CallHeader
+getCallFrame(EyrPtr frame, Interpreter* rt) {
+    return (CallHeader){
         .prevFrame = (EyrPtr)rt->memory[frame], .ip = rt->memory[frame + 1]
     };
 }
 
 private void
-setFrame(EyrPtr frame, StackFrameHeader hdr, Interpreter* rt) {
+setCallFrame(EyrPtr frame, CallHeader hdr, Interpreter* rt) {
     rt->memory[frame] = (Unt)hdr.prevFrame;
     rt->memory[frame + 1] = (Unt)hdr.ip;
 }
@@ -5598,9 +5597,10 @@ runReverseString(Ulong instr, Unt ip, Interpreter* rt) { //:runReverseString
 
 private Unt
 runSetLocal(Ulong instr, Unt ip, Interpreter* rt) { //:runSetLocal
+// iSetLocal Sets the value of a local variable in the stack
     StackAddr dest = (instr >> 32) & LOWER16BITS;
-    Unt* address = (Unt*)(rtDeref(rt->currFrame + (Unt)dest));
-    *address = (Unt)(instr & LOWER32BITS);
+    Unt address = rtStackDeref(dest);
+    *(rt->memory + address) = (Unt)(instr & LOWER32BITS);
     return ip + 1;
 }
 
@@ -5612,17 +5612,14 @@ runBuiltinCall(Ulong instr, Unt ip, Interpreter* rt) { //:runBuiltinCall
 
 private Unt
 runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
-// Creates and activates a new call frame. Stack frame layout (all are 4-byte sized):
-// prevFrame  - Ptr index into the runtime stack
-// ip         - Unt index into @Interpreter.code
+// iCall Creates and activates a new call frame.
     Unt newFn = (Unt)(instr & LOWER32BITS);
-    StackAddr newFrameRef = (Short)((instr >> 32) & LOWER16BITS);
-    EyrPtr oldFrameRef = rt->currFrame;
-    Unt* oldFrame = rtDeref(oldFrameRef);
+    StackAddr newFrameRef = (StackAddr)((instr >> 32) & LOWER16BITS);
 
-    // save the ip of old function to its frame
+    // save the current IP to its frame
+    EyrPtr oldFrame = rtDeref(rt->currFrame);
     print("saving old ip = %d", ip);
-    *(oldFrame + 1) = ip;
+    *(rt->memory + oldFrame + 1) = ip;
 
     print("frame before call:")
     dbgCallFrames(rt);
@@ -5694,8 +5691,8 @@ createInterpreter(Compiler* cg) { //:createInterpreter
         .textStart = 0,
         .code = cg->bytecode.cont
     };
-    
-    //tmpGetText(rt);
+
+    tmpGetText(rt);
     rt->fns[0] = 0;
     Int* zeroPtr = (Int*)rtDeref(rt->currFrame);
     (*zeroPtr) = -1; // for the "main" call, there is no previous frame
@@ -6124,20 +6121,37 @@ dbgOverloads(Int nameId, Compiler* cm) { //:dbgOverloads
 }
 
 //}}}
-//{{{ Codegen utils
+//{{{ Interpreter utils
 
-void
-dbgCgCalls(Codegen* cg) { //:dbgCgCalls
-    printf("{Codegen call stack}\n[");
-    StackCgCall* calls = cg->calls;
-    for (Int j = 0; j < calls->len; j += 1) {
-        CgCall c = calls->cont[j];
-        printf("(emit %d arity %d countArgs %d) ", c.emit, c.arity, c.countArgs);
-        if (j % 4 == 0)  {
-            printf("\n ");
-        }
+// Must agree in order with instruction types in eyr.internal.h
+const char* instructionNames[] = {
+    "Int", "Long", "Double", "Bool", "String", "_", "misc",
+    "id", "call", "binding", ".fld", "GEP", "GElem",
+    "(do", "Expr", "=", "[]",
+    "alias", "assert", "breakCont", "catch", "defer",
+    "import", "(\\ fn)", "trait", "return", "try",
+    "for", "if", "eif", "impl", "match"
+};
+
+void dbgBytecode(Compiler* cg) { //:dbgBytecode
+// Print the bytecode
+
+}
+
+void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
+// Print the current call frame header, and the previous frame too (if applicable)
+    Unt* framePtr = inDeref(rt->currFrame);
+    Ptr prevFrame = *framePtr;
+    Ptr fnCode = *(framePtr + 1);
+    printf("Current call frame: prevFrame = %d, fn code at %d\n", prevFrame, fnCode);
+    if ((Int)prevFrame != -1) {
+        Unt* prevFramePtr = inDeref(prevFrame);
+        Ptr prevPrevFrame = *prevFramePtr;
+        Ptr prevFnCode = *(prevFramePtr + 1);
+        Ptr prevIp = *(prevFramePtr + 2);
+        printf("Prev call frame: ancestorFrame = %d, fn code at %d, execution stopped at ip %d",
+                prevPrevFrame, prevFnCode, prevIp);
     }
-    printf("]\n");
 }
 
 //}}}
@@ -6199,8 +6213,8 @@ Int
 main(int argc, char** argv) { //:main
     eyrInitCompiler();
     Arena* a = createArena();
-    
-    
+
+
     String* sourceCode = s("main = (( a = 78; print a))");
 
     Compiler* proto = createProtoCompiler(a);
@@ -6209,7 +6223,7 @@ main(int argc, char** argv) { //:main
     codegen(cm);
     Interpreter* rt = createInterpreter(cm);
     Int interpResult = 0;//interpretCode(rt);
-    
+
     printf("Interpretation result = %d\n", interpResult);
 
     cleanup:

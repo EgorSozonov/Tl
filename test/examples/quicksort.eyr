@@ -1,8 +1,8 @@
-swap = (\ E: i Int j Int arr (L E):
+swap = {{ E: i Int j Int arr (L E):
     tmp = arr[i];
     arr[i] = arr[j];
     arr[j] = tmp
-)
+}}
 
 quickSort = (\ E: arr (L E):
     stack (L Int) = [];

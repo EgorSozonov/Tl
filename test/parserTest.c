@@ -826,7 +826,7 @@ ParserTestSet* functionTests(Compiler* protoOvs, Arena* a) {
     return createTestSet(s("Functions test set"), a, ((ParserTest[]){
         createTestWithLocs(
             s("Simple function definition 1"),
-            s("newFn = ((x Int y (L Bool) -> : a = x))"),
+            s("newFn = {{x Int y (L Bool) -> : a = x}}"),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,             .pl2 = 5 },
                 (Node){ .tp = nodBinding, .pl1 = 1 },  // param x
@@ -848,10 +848,10 @@ ParserTestSet* functionTests(Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Simple function definition 2"),
-            s("newFn = ((x Str y Double -> Str:\n"
+            s("newFn = {{x Str y Double -> Str:\n"
               "    a = x;\n"
               "    return a\n"
-              "))"
+              "}}"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,            .pl2 = 7 },
@@ -868,9 +868,9 @@ ParserTestSet* functionTests(Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Simple function definition 3"),
-            s("main = ((\n"
+            s("main = {{\n"
               "     print `asdf`;\n"
-              "))"
+              "}}"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,      .pl2 = 3 },
@@ -884,10 +884,10 @@ ParserTestSet* functionTests(Compiler* protoOvs, Arena* a) {
         createTestWithError(
             s("Function definition wrong return type"),
             s(errTypeWrongReturnType),
-            s("newFn = ((x Double y Double -> Str:\n"
+            s("newFn = {{x Double y Double -> Str:\n"
               "    a = x;\n"
               "    return a\n"
-              "))"
+              "}}"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef                       },
@@ -904,8 +904,8 @@ ParserTestSet* functionTests(Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Function definition with complex return"),
-            s("newFn = ((x Int y Double -> Str:\n"
-              "    return $(- (foo x) y)))"
+            s("newFn = {{x Int y Double -> Str:\n"
+              "    return $(- (foo x) y))}}"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,            .pl2 = 9 },
@@ -924,13 +924,13 @@ ParserTestSet* functionTests(Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Mutually recursive function definitions"),
-            s("func1 = ((x Int y Double -> Int:\n"
+            s("func1 = {{x Int y Double -> Int:\n"
               "    a = x;\n"
               "    return func2 y a\n"
-              "))\n"
-              "func2 = ((x Double y Int -> Int:\n"
+              "}}\n"
+              "func2 = {{x Double y Int -> Int:\n"
               "    return func1 y x\n"
-              "))"
+              "}}"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,            .pl2 = 10  }, // func1
@@ -960,13 +960,13 @@ ParserTestSet* functionTests(Compiler* protoOvs, Arena* a) {
         ),
         createTest(
             s("Function definition with nested scope"),
-            s("main = ((x Int y Double ->:\n"
+            s("main = {{x Int y Double ->:\n"
               "    (do\n"
               "        a = 5\n"
               "    )\n"
               "    a = - (foo x) y;\n"
               "    print $a\n"
-              "))"
+              "}}"
             ),
             ((Node[]) {
                 (Node){ .tp = nodFnDef,           .pl2 = 17 },

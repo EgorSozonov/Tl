@@ -686,7 +686,7 @@ typedef struct {    //:Interpreter
 typedef struct {
     EyrPtr prevFrame;
     Unt ip;        // Unt index into @Interpreter.code
-} StackFrameHeader;
+} CallHeader;
 
 #define stackFrameStart 2 // Skipped the 2 ints
 

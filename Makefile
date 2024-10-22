@@ -23,7 +23,6 @@ APP=eyr
 RELEASE_FLAGS = $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(INCLUDES)
 COMPILE = $(CC) $(RELEASE_FLAGS) $(LIBS)
 
-
 TEST_FLAGS = -g3 -DTEST -DDEBUG -DSAFETY 
 TEST_INCLUDES = -iquote test
 TEST_COMPILE = $(CC) $(RELEASE_FLAGS) $(TEST_FLAGS) $(TEST_INCLUDES) $(LIBS)
@@ -41,7 +40,7 @@ $(DEBUG_TGT):
 
 all: $(DEBUG_TGT) ## Build the whole compiler
 / clear
-/ $(COMPILE) -o $(EXE) $(APP).c
+/ $(COMPILE) -DDEBUG -o $(EXE) $(APP).c
 / @echo "_________________________________________"
 / @echo "|            BUILD SUCCESS              |"
 / @echo "========================================="
