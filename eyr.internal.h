@@ -665,7 +665,7 @@ typedef struct { // :TypeHeader
 // length
 // actual code
 
-#define Ptr uint32_t //:Ptr Pointers are aligned to 4 bytes
+#define EyrPtr uint32_t //:Ptr Pointers are aligned to 4 bytes
 #define StackAddr int16_t //:StackAddr Offset from "currFrame". Negative values mean previous stack frame
 
 
@@ -674,17 +674,20 @@ typedef struct {    //:Interpreter
     Arr(Ulong) code;
     Arr(Int) fns;   // indices into @code
     // global static string
-    Ptr textStart;
+    EyrPtr textStart;
 
-    Ptr currFrame;
-    Ptr topOfFrame;
-    Arr(char) memory;
-    Ptr heapTop; // index into @memory
+    EyrPtr currFrame;
+    EyrPtr topOfFrame;
+    Arr(Unt) memory;
+    StackAddr stackTop;
+    EyrPtr heapTop; // index into @memory
 } Interpreter;
 
-// Stack frame layout (all are 4-byte sized):
-// prevFrame  - Ptr index into the runtime stack
-// ip         - Unt index into @Interpreter.code
+typedef struct {
+    EyrPtr prevFrame;
+    Unt ip;        // Unt index into @Interpreter.code
+} StackFrameHeader;
+
 #define stackFrameStart 2 // Skipped the 2 ints
 
 typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter*);

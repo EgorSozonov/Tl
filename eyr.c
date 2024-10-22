@@ -191,7 +191,54 @@ const int operatorStartSymbols[13] = {
 //}}}
 //{{{ Syntactical structure
 
-private ParserFn PARSE_TABLE[countSyntaxForms]; // filled in by "tabulateParser"
+void parseErrorBareAtom(Token, Arr(Token), Compiler*);
+void pScope(Token, Arr(Token), Compiler*);
+void pExpr(Token, Arr(Token), Compiler*);
+void pAssignment(Token, Arr(Token), Compiler*);
+void pMisc(Token, Arr(Token), Compiler*);
+void pAlias(Token, Arr(Token), Compiler*); 
+void parseAssert(Token, Arr(Token), Compiler*);
+void pBreakCont(Token, Arr(Token), Compiler*);
+void pReturn(Token, Arr(Token), Compiler*);
+void pIf(Token, Arr(Token), Compiler*);
+void pElseIf(Token, Arr(Token), Compiler*);
+void pElse(Token, Arr(Token), Compiler*);
+void pFor(Token, Arr(Token), Compiler*);
+
+static ParserFn const PARSE_TABLE[countSyntaxForms] =  {
+    [tokInt]          = &parseErrorBareAtom,
+    [tokLong]         = &parseErrorBareAtom,
+    [tokDouble]       = &parseErrorBareAtom,
+    [tokBool]         = &parseErrorBareAtom,
+    [tokString]       = &parseErrorBareAtom,
+    [tokMisc]         = &parseErrorBareAtom,
+    [tokWord]         = &parseErrorBareAtom,
+    [tokTypeName]     = &parseErrorBareAtom,
+    [tokTypeVar]      = &parseErrorBareAtom,
+    [tokKwArg]        = &parseErrorBareAtom,
+    [tokOperator]     = &parseErrorBareAtom,
+    [tokFieldAcc]     = &parseErrorBareAtom,
+    
+    [tokScope]       = &pScope,
+    [tokStmt]        = &pExpr,
+    [tokParens]      = &parseErrorBareAtom,
+    [tokAssignment]  = &pAssignment,
+
+    [tokAlias]       = &pAlias,
+    [tokAssert]      = &parseAssert,
+    [tokBreakCont]   = &pBreakCont,
+    [tokCatch]       = &pAlias,
+    [tokFn]          = &pAlias,
+    [tokTrait]       = &pAlias,
+    [tokImport]      = &pAlias,
+    [tokReturn]      = &pReturn,
+    [tokTry]         = &pAlias,
+
+    [tokIf]          = &pIf,
+    [tokElseIf]      = &pElseIf,
+    [tokElse]        = &pElse,
+    [tokFor]         = &pFor
+};
 
 //}}}
 //{{{ Proto compiler
@@ -213,9 +260,56 @@ private Int initCompiler();
 //}}}
 //{{{ Runtime (virtual machine)
 
-InterpreterFn INTERPRETER_TABLE[countInstructions]; // filled in by "tabulateInterpreter"
+
+private Unt runPlus(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runMinus(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runTimes(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runDivBy(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runNewString(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runConcatStrings(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runReverseString(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runSetLocal(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runBuiltinCall(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runCall(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runReturn(Ulong instr, Unt ip, Interpreter* rt);
+private Unt runPrint(Ulong instr, Unt ip, Interpreter* rt);
+
+static InterpreterFn const INTERPRETER_TABLE[countInstructions] = {
+    [iPlus]        = &runPlus,
+    [iTimes]       = &runTimes,
+    [iMinus]       = &runMinus,
+    [iDivBy]       = &runDivBy,
+   /*
+    [iPlusFl]      = &runPlus;
+    [iMinusFl]       = &runMinusFl;
+    [iTimesFl]       = &runTimesFl;
+    [iDivByFl]       = &runDivByFl;
+    [iPlusConst]       = &runPlusConst;
+    [iMinusConst]       = &runMinusConst;
+    [iTimesConst]       = &runTimesConst;
+    [iDivByConst]       = &runDivByConst;
+    [iPlusFlConst]       = &runPlusFlConst;
+    [iMinusFlConst]       = &runMinusFlConst;
+    [iTimesFlConst]       = &runTimesFlConst;
+    [iDivByFlConst]       = &runDivByFlConst;
+    [iIndexOfSubstring]       = &runIndexOfSubstring;
+    [iGetFld]       = &runGetFld;
+    [iNewList]       = &runNewList;
+    [iSubstring]       = &runSubstring;
+   */
+    [iNewstring]      = &runNewString,
+    [iConcatStrs]     = &runConcatStrings,
+    [iReverseString]  = &runReverseString,
+    [iSetLocal]       = &runSetLocal,
+    [iBuiltinCall]    = &runBuiltinCall,
+    [iCall]           = &runCall,
+    [iReturn]         = &runReturn,
+    [iPrint]          = &runPrint
+};
+
 #define countBuiltins 1
 BuiltinFn BUILTINS_TABLE[countBuiltins]; // filled in by "tabulateBuiltins"
+#define EYR_NULL 0
 
 //}}}
 //}}}
@@ -2666,7 +2760,7 @@ openFnScope(EntityId fnEntity, NameId name, TypeId fnType, Token fnTk, Int senti
 }
 
 private void
-parseMisc(Token tok, P_CT) {
+pMisc(Token tok, P_CT) {
 }
 
 
@@ -3570,36 +3664,6 @@ importEntities(Arr(Entity) impts, Int countEntities, Compiler* cm) { //:importEn
         }
     }
     cm->stats.countNonparsedEntities = cm->entities.len;
-}
-
-private void
-tabulateParser() { //:tabulateParser
-    ParserFn* p = PARSE_TABLE;
-    int i = 0;
-    while (i <= firstSpanTokenType) {
-        p[i] = &parseErrorBareAtom;
-        i += 1;
-    }
-    p[tokScope]       = &pScope;
-    p[tokStmt]        = &pExpr;
-    p[tokParens]      = &parseErrorBareAtom;
-    p[tokAssignment]  = &pAssignment;
-    p[tokMisc]        = &parseMisc;
-
-    p[tokAlias]       = &pAlias;
-    p[tokAssert]      = &parseAssert;
-    p[tokBreakCont]   = &pBreakCont;
-    p[tokCatch]       = &pAlias;
-    p[tokFn]          = &pAlias;
-    p[tokTrait]       = &pAlias;
-    p[tokImport]      = &pAlias;
-    p[tokReturn]      = &pReturn;
-    p[tokTry]         = &pAlias;
-
-    p[tokIf]          = &pIf;
-    p[tokElseIf]      = &pElseIf;
-    p[tokElse]        = &pElse;
-    p[tokFor]         = &pFor;
 }
 
 private StackUnt*
@@ -5435,31 +5499,53 @@ typeMergeTypeCall(Int startInd, Int len, Compiler* cm) {
 //{{{ Interpreter
 //{{{ Utils
 
-private char*
-inDeref0(Ptr address, Interpreter* rt) { //:inDeref0
-    return (char*)rt->memory + ((Ulong)address)*4;
+private Unt
+rtDeref0(EyrPtr address, Interpreter* rt) { //:rtDeref0
+// Gets value at pointer as an integer
+    return *(rt->memory + address);
 }
-#define inDeref(ptr) inDeref0(ptr, rt)
+
+#define rtDeref(ptr) rtDeref0(ptr, rt)
+
+private EyrPtr
+rtPtrFromStack(StackAddr stackAddr, Interpreter* rt) { //:rtPtrFromStack
+    return rt->currFrame + stackAddr;
+}
 
 private Unt
-inGetFromStack(StackAddr addr, Interpreter* rt) { //:inGetFromStack
-    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)addr));
-    return *p;
+rtStackDeref0(StackAddr address, Interpreter* rt) { //:rtStackDeref0
+// Gets value at pointer as an integer
+    return *(rt->memory + rtPtrFromStack(address, rt));
+}
+
+#define rtStackDeref(ptr) rtStackDeref0(ptr, rt)
+
+private void
+rtSetOnStack(StackAddr dest, Unt value, Interpreter* rt) { //:rtSetOnStack
+    Unt p = (rtDeref(rtPtrFromStack(dest, rt)));
+    *(rt->memory + p) = value;
 }
 
 private void
-inSetOnStack(Short dest, Unt value, Interpreter* rt) { //:inSetOnStack
-    Unt* p = (Unt*)(inDeref(rt->currFrame + (Unt)dest));
-    *p = value;
-}
-
-private void
-inMoveHeapTop(Unt sz, Interpreter* in) { //:inMoveHeapTop
+rtMoveHeapTop(Unt sz, Interpreter* in) { //:rtMoveHeapTop
 // Moves the top of the heap after an allocation. "sz" is total size in bytes
     in->heapTop += sz / 4;
     if (sz % 4 > 0)  {
         in->heapTop += 1;
     }
+}
+
+private StackFrameHeader
+getFrame(EyrPtr frame, Interpreter* rt) {
+    return (StackFrameHeader){
+        .prevFrame = (EyrPtr)rt->memory[frame], .ip = rt->memory[frame + 1]
+    };
+}
+
+private void
+setFrame(EyrPtr frame, StackFrameHeader hdr, Interpreter* rt) {
+    rt->memory[frame] = (Unt)hdr.prevFrame;
+    rt->memory[frame + 1] = (Unt)hdr.ip;
 }
 
 //}}}
@@ -5479,24 +5565,24 @@ runDivBy(Ulong instr, Unt ip, Interpreter* rt) { return ip + 1; }
 
 private Unt
 runNewString(Ulong instr, Unt ip, Interpreter* rt) { //:runNewString
-// Creates a new string as a substring of the static text. Stores pointer to the new string
-// in the stack
-    Short dest = (Short)((instr >> 40) & LOWER16BITS);
-    Short startAddr = (Short)((instr >> 24) & LOWER16BITS); // address within the frame
+// iNewstring. Creates a new string as a substring of the static text. Stores pointer to the new
+// string on the stack
+    StackAddr dest = (StackAddr)((instr >> 40) & LOWER16BITS);
+    StackAddr startAddr = (StackAddr)((instr >> 24) & LOWER16BITS);
     Int len = (Int)(instr & LOWER24BITS);
-    Unt start = inGetFromStack(startAddr, rt); // actual starting symbol within the static text
+    Unt start = rtStackDeref(startAddr); // actual starting symbol within the static text
 
-    char* copyFrom = inDeref(rt->textStart) + 4 + start;
+    char* copyFrom = (char*)(rt->memory + rtDeref(rt->textStart) + 1) + start;
+    EyrPtr eyrTarget = rtStackDeref(dest);
+    char* target = (char*)(rt->memory + eyrTarget);
+    print("copyFrom %p target %p", copyFrom, target);
 
-    const Ptr targetAddr = rt->heapTop;
-    Unt* target = (Unt*)(inDeref(targetAddr));
+    memcpy(target, copyFrom, len);
+    rtSetOnStack(rt->stackTop, eyrTarget, rt);
+    rtSetOnStack(rt->stackTop + 1, len, rt);
+    rt->stackTop += 2; // 1 for the pointer, 1 for the length
 
-    *target = len;
-    memcpy(target + 1, copyFrom, len);
-
-    inMoveHeapTop(len, rt); // update the heap top after this allocation
-    inSetOnStack(dest, targetAddr, rt);
-
+    rtMoveHeapTop(len, rt); // update the heap top after this allocation
     return ip + 1;
 }
 
@@ -5513,7 +5599,7 @@ runReverseString(Ulong instr, Unt ip, Interpreter* rt) { //:runReverseString
 private Unt
 runSetLocal(Ulong instr, Unt ip, Interpreter* rt) { //:runSetLocal
     StackAddr dest = (instr >> 32) & LOWER16BITS;
-    Unt* address = (Unt*)(inDeref(rt->currFrame + (Unt)dest));
+    Unt* address = (Unt*)(rtDeref(rt->currFrame + (Unt)dest));
     *address = (Unt)(instr & LOWER32BITS);
     return ip + 1;
 }
@@ -5531,8 +5617,8 @@ runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
 // ip         - Unt index into @Interpreter.code
     Unt newFn = (Unt)(instr & LOWER32BITS);
     StackAddr newFrameRef = (Short)((instr >> 32) & LOWER16BITS);
-    Ptr oldFrameRef = rt->currFrame;
-    Unt* oldFrame = inDeref(oldFrameRef);
+    EyrPtr oldFrameRef = rt->currFrame;
+    Unt* oldFrame = rtDeref(oldFrameRef);
 
     // save the ip of old function to its frame
     print("saving old ip = %d", ip);
@@ -5541,8 +5627,8 @@ runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
     print("frame before call:")
     dbgCallFrames(rt);
 
-    rt->currFrame = (Ptr)(oldFrameRef + (Int)newFrameRef);
-    Unt* newFrame = (Unt*)inDeref(rt->currFrame);
+    rt->currFrame = (EyrPtr)(oldFrameRef + (Int)newFrameRef);
+    Unt* newFrame = (Unt*)rtDeref(rt->currFrame);
     *newFrame = *oldFrame;
 
     print("frame after call:")
@@ -5553,23 +5639,23 @@ runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
 
 private Unt
 runReturn(Ulong instr, Unt ip, Interpreter* rt) { //:runReturn
-// Return from function. The return value, if any, will be stored right after the header
+// Return from function. The return value, if any, will be stored right over the header
     Int returnSize = ip & (0xFF);
-    Int* prevFrame = inDeref(rt->currFrame);
-    if (*prevFrame == -1) {
+    EyrPtr prevFrame = rtDeref(rt->currFrame);
+    if (prevFrame == EYR_NULL) {
         return -1;
     }
 
     rt->topOfFrame = rt->currFrame + stackFrameStart + returnSize;
     rt->currFrame = *prevFrame; // take a call off the stack
-    Unt* callerIp = (Unt*)inDeref(*prevFrame) + 1;
+    Unt* callerIp = (Unt*)rtDeref(*prevFrame) + 1;
     return *callerIp;
 }
 
 private Unt
 runPrint(Ulong instr, Unt ip, Interpreter* rt) { //:runPrint
-    Unt* ref = (Unt*)(inDeref(rt->currFrame + (Int)(instr & LOWER16BITS)));
-    Unt* actualString = inDeref(*ref);
+    Unt* ref = (Unt*)(rtDeref(rt->currFrame + (Int)(instr & LOWER16BITS)));
+    Unt* actualString = rtDeref(*ref);
     fwrite(actualString + 1, 1, *actualString, stdout);
     printf("\n");
     return ip + 1;
@@ -5582,53 +5668,18 @@ private void
 tmpGetText(Interpreter* rt) {
     char txt[] = "asdfBBCC";
     const Int len = sizeof(txt) - 1;
-    Unt* p = (Unt*)(inDeref(rt->heapTop));
+    Unt* p = (Unt*)(rtDeref(rt->heapTop));
     *p = len;
     p += 1;
     memcpy(p, txt, len);
     rt->textStart = rt->heapTop;
-    inMoveHeapTop(sizeof(txt), rt);
-}
-
-private void
-tabulateInterpreter() { //:tabulateInterpreter
-    InterpreterFn* p = INTERPRETER_TABLE;
-    p[iPlus]        = &runPlus;
-    p[iTimes]       = &runTimes;
-    p[iMinus]       = &runMinus;
-    p[iDivBy]       = &runDivBy;
-   /*
-    p[iPlusFl]      = &runPlus;
-    p[iMinusFl]       = &runMinusFl;
-    p[iTimesFl]       = &runTimesFl;
-    p[iDivByFl]       = &runDivByFl;
-    p[iPlusConst]       = &runPlusConst;
-    p[iMinusConst]       = &runMinusConst;
-    p[iTimesConst]       = &runTimesConst;
-    p[iDivByConst]       = &runDivByConst;
-    p[iPlusFlConst]       = &runPlusFlConst;
-    p[iMinusFlConst]       = &runMinusFlConst;
-    p[iTimesFlConst]       = &runTimesFlConst;
-    p[iDivByFlConst]       = &runDivByFlConst;
-    p[iIndexOfSubstring]       = &runIndexOfSubstring;
-    p[iGetFld]       = &runGetFld;
-    p[iNewList]       = &runNewList;
-    p[iSubstring]       = &runSubstring;
-   */
-    p[iNewstring]      = &runNewString;
-    p[iConcatStrs]     = &runConcatStrings;
-    p[iReverseString]  = &runReverseString;
-    p[iSetLocal]       = &runSetLocal;
-    p[iBuiltinCall]    = &runBuiltinCall;
-    p[iCall]           = &runCall;
-    p[iReturn]         = &runReturn;
-    p[iPrint]          = &runPrint;
+    rtMoveHeapTop(sizeof(txt), rt);
 }
 
 private void
 tabulateBuiltins() { //:tabulateBuiltins
     BuiltinFn* p = BUILTINS_TABLE;
-    p[0]         = &buiToStringInt;
+    //p[0]         = &buiToStringInt;
 }
 
 private Interpreter*
@@ -5646,7 +5697,7 @@ createInterpreter(Compiler* cg) { //:createInterpreter
     
     //tmpGetText(rt);
     rt->fns[0] = 0;
-    Int* zeroPtr = (Int*)inDeref(rt->currFrame);
+    Int* zeroPtr = (Int*)rtDeref(rt->currFrame);
     (*zeroPtr) = -1; // for the "main" call, there is no previous frame
     return rt;
 }
@@ -5661,10 +5712,7 @@ initCompiler() { //:initCompiler
 // This function should only be called once, at compiler init. Its results are global shared const.
     populateStandardOffsets();
     tabulateLexer();
-    tabulateParser();
-    tabulateCodegen();
-    populateHostOffsets();
-    tabulateShield();
+    tabulateInterpreter();
     Arena* aGlobal = createArena(); // it's ok to leak it. Will be cleaned up on process exit
     createProtoCompiler(&PROTO, aGlobal);
     _wasInit = true;
@@ -6133,16 +6181,39 @@ eyrCompileFile(char* fn) { //:eyrCompileFile
     return eyrCompile(sourceCode);
 }
 
+private Int interpretCode(Interpreter* in) {
+    Int ip = 1; // skipping the function size
+    while (ip > -1) {
+        //print("ip = %d", ip);
+        Ulong instr = in->code[ip];
+        //print("instr %lx op code %d", instr, instr>>58);
+        ip = (INTERPRETER_TABLE[instr >> 58])(instr, ip, in);
+    }
+    return 0;
+}
+
 
 #ifndef TEST
 
 Int
 main(int argc, char** argv) { //:main
-    String sourceCode = s("main = (( a = 78; print a))");
-    String hostCode = eyrCompile(sourceCode);
+    eyrInitCompiler();
+    Arena* a = createArena();
+    
+    
+    String* sourceCode = s("main = (( a = 78; print a))");
 
-    printString(hostCode);
+    Compiler* proto = createProtoCompiler(a);
+    Compiler* cm = lexicallyAnalyze(sourceCode, proto, a);
+    cm = parse(cm, proto, a);
+    codegen(cm);
+    Interpreter* rt = createInterpreter(cm);
+    Int interpResult = 0;//interpretCode(rt);
+    
+    printf("Interpretation result = %d\n", interpResult);
 
+    cleanup:
+    deleteArena(a);
     return 0;
 }
 
