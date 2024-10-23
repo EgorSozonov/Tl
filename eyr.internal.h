@@ -426,8 +426,8 @@ typedef struct { // :OpDef
 typedef struct Compiler Compiler;
 
 
-typedef void (*LexerFn)(const Arr(char), Compiler*); // LexerFunc = &(Lexer* => void)
-typedef void (*ParserFn)(Token, Arr(Token), Compiler*);
+typedef void (*LexerFn)(const Arr(char), Compiler* restrict); // LexerFunc = &(Lexer* => void)
+typedef void (*ParserFn)(Token, Arr(Token), Compiler* restrict);
 
 
 typedef struct { // :Node
@@ -663,11 +663,11 @@ typedef struct { // :TypeHeader
 
 
 typedef struct {    //:Interpreter
-    //Unt i; // current instruction pointer
+    Unt ip; // current instruction pointer
     Arr(Ulong) code;
     Arr(Int) fns;   // indices into @code
     // global static string
-    EyrPtr textStart;
+    char* textStart;
 
     EyrPtr currFrame;
     EyrPtr topOfFrame;
@@ -677,14 +677,15 @@ typedef struct {    //:Interpreter
     String errMsg;
 } Interpreter;
 
-typedef struct {
+typedef struct { //:CallHeader
     EyrPtr prevFrame;
     Unt ip;        // Unt index into @Interpreter.code
+    Unt fnId;     // Index into @Interpreter.fns
 } CallHeader;
 
 #define stackFrameStart 2 // Skipped the 2 ints
 
-typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter*);
+typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter* restrict);
 typedef void (*BuiltinFn)(Interpreter*);
 
 // Instructions (opcodes)
