@@ -4,12 +4,13 @@ Arena* createArena();
 void* allocateOnArena(size_t allocSize, Arena* ar);
 void deleteArena(Arena* ar);
 
-DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
-DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
-DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
-DEFINE_INTERNAL_LIST_HEADER(types, Int)
-DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
-DEFINE_INTERNAL_LIST_HEADER(imports, Entity)
+
+//~DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
+//~DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
+//~DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
+//~DEFINE_INTERNAL_LIST_HEADER(types, Int)
+//~DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
+//~DEFINE_INTERNAL_LIST_HEADER(imports, Entity)
 Bool equal(String a, String b);
 
 typedef struct {

@@ -1,2 +1,10 @@
-String eyrCompile(String); // Returns empty if compilation error
-String eyrCompileFile(unsigned char *); // Returns empty if compilation error
+typedef struct { // :String
+    const char* cont;
+    int32_t len;
+} String;
+
+void
+eyrRunFile(String filename);
+
+void
+eyrRun(String sourceCode);

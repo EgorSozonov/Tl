@@ -21,11 +21,13 @@ LIBS=-lm
 APP=eyr
 
 RELEASE_FLAGS = $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(INCLUDES)
-COMPILE = $(CC) $(RELEASE_FLAGS) $(LIBS)
+DEBUG_FLAGS = $(RELEASE_FLAGS) -DDEBUG -DSAFETY
 
-TEST_FLAGS = -g3 -DTEST -DDEBUG -DSAFETY 
+TEST_FLAGS = $(RELEASE_FLAGS) -g3 -DTEST -DSAFETY 
 TEST_INCLUDES = -iquote test
-TEST_COMPILE = $(CC) $(RELEASE_FLAGS) $(TEST_FLAGS) $(TEST_INCLUDES) $(LIBS)
+COMPILE_TEST = $(CC) $(TEST_FLAGS) $(TEST_INCLUDES) $(LIBS)
+COMPILE_RELEASE = $(CC) $(RELEASE_FLAGS) $(LIBS)
+COMPILE_DEBUG = $(CC) $(DEBUG_FLAGS) $(LIBS)
 
 DEBUG_DIR ?= $(HOME)/debug
 DEBUG_TGT=$(realpath $(DEBUG_DIR)/$(APP))
@@ -40,7 +42,7 @@ $(DEBUG_TGT):
 
 all: $(DEBUG_TGT) ## Build the whole compiler
 / clear
-/ $(COMPILE) -DDEBUG -o $(EXE) $(APP).c
+/ $(COMPILE_DEBUG) -o $(EXE) $(APP).c
 / @echo "_________________________________________"
 / @echo "|            BUILD SUCCESS              |"
 / @echo "========================================="

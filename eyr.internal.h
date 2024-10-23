@@ -99,13 +99,6 @@ typedef struct { // :MultiAssocList
     Arena* a;
 } MultiAssocList;
 
-
-typedef struct { // :String
-    const char* cont;
-    Int len;
-} String;
-
-
 typedef struct { // :StringBuilder
     Arr(char) cont;
     Int len;
@@ -580,7 +573,7 @@ typedef struct { // :CompStats
 } CompStats;
 
 
-typedef struct {
+typedef struct { //:BtCodegen Backtrack for generating code
     Byte tp; // instructions, i.e. the "i*" constants
     Int startInstr; // index of starting instruction
     Int sentinel; // sentinel node of current function
@@ -681,6 +674,7 @@ typedef struct {    //:Interpreter
     Arr(Unt) memory;
     StackAddr stackTop;
     EyrPtr heapTop; // index into @memory
+    String errMsg;
 } Interpreter;
 
 typedef struct {

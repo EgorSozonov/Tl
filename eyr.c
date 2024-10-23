@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <setjmp.h>
+#include "include/eyr.h"
 #include "eyr.internal.h"
 
 //}}}
@@ -1620,7 +1621,7 @@ _Noreturn private void
 throwExcLexer0(const char errMsg[], Int lineNumber, Compiler* lx) {
 // Sets i to beyond input's length to communicate to callers that lexing is over
     lx->stats.wasLexerError = true;
-#ifdef TRACE
+#ifdef DEBUG
     printf("Error on code line %d, i = %d: %s\n", lineNumber, IND_BT, errMsg);
 #endif
     lx->stats.errMsg = str(errMsg);
@@ -2608,7 +2609,6 @@ populateStandardOffsets() { //:populateStandardOffsets
 }
 
 //}}}
-
 //}}}
 //{{{ Parser
 //{{{ Parser utils
@@ -2631,7 +2631,7 @@ private Int pExprWorker(Token tk, P_CT);
 _Noreturn private void
 throwExcParser0(const char errMsg[], Int lineNumber, Compiler* cm) {
     cm->stats.wasError = true;
-#ifdef TRACE
+#ifdef DEBUG
     printf("Error on i = %d line %d\n", cm->i, lineNumber);
 #endif
     cm->stats.errMsg = str(errMsg);
@@ -3912,7 +3912,7 @@ popScopeFrame(Compiler* cm) { //:popScopeFrame
             scopeStack->lastChunk->next = null;
             do {
                 ScopeChunk* nextToDelete = ch->next;
-#ifdef TRACE
+#ifdef DEBUG
                 printf("ScopeStack is freeing a chunk of memory at %p next = %p\n", ch, nextToDelete);
 #endif
                 free(ch);
@@ -5349,7 +5349,7 @@ typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             Int indOverl = -cm->activeBindings[o] - 2;
             bool ovFound = findOverload(-1, indOverl, &entityId, cm);
 
-#if defined(TRACE) && defined(TEST) //{{{
+#if defined(DEBUG) && defined(TEST) //{{{
             if (!ovFound) {
                 print("Overload not found, stack is:")
                 printStackInt(exp);
@@ -5370,7 +5370,7 @@ typeReduceExpr(StackInt* exp, Int indExpr, Compiler* cm) {
             Int entityId;
             Int indOverl = -cm->activeBindings[-o - 2] - 2;
             const Bool ovFound = findOverload(tpFstArg, indOverl, &entityId, cm);
-#if defined(TRACE) && defined(TEST) //{{{
+#if defined(DEBUG) && defined(TEST) //{{{
             if (!ovFound) {
                 printStackInt(exp);
             }
@@ -5620,9 +5620,11 @@ runCall(Ulong instr, Unt ip, Interpreter* rt) { //:runCall
     EyrPtr oldFrame = rtDeref(rt->currFrame);
     print("saving old ip = %d", ip);
     *(rt->memory + oldFrame + 1) = ip;
-
+    
+#ifdef DEBUG
     print("frame before call:")
     dbgCallFrames(rt);
+#endif 
 
     rt->currFrame = (EyrPtr)(oldFrameRef + (Int)newFrameRef);
     Unt* newFrame = (Unt*)rtDeref(rt->currFrame);
@@ -5679,12 +5681,11 @@ tabulateBuiltins() { //:tabulateBuiltins
     //p[0]         = &buiToStringInt;
 }
 
-private Interpreter*
-createInterpreter(Compiler* cg) { //:createInterpreter
+private void
+initInterpreter(Compiler* cg, OUT Interpreter* rt) { //:initInterpreter
     Arena* a = cg->a;
-    Interpreter* rt = allocateOnArena(sizeof(Interpreter), a);
     (*rt) = (Interpreter)  {
-        .memory = (Arr(char))allocateOnArena(1000000, a),
+        .memory = (Arr(Unt))allocateOnArena(1000000, a),
         .fns = allocateOnArena(4, a),
         .heapTop = 50000,  // skipped the 200k of stack space
         .currFrame = 0,
@@ -5696,20 +5697,21 @@ createInterpreter(Compiler* cg) { //:createInterpreter
     rt->fns[0] = 0;
     Int* zeroPtr = (Int*)rtDeref(rt->currFrame);
     (*zeroPtr) = -1; // for the "main" call, there is no previous frame
-    return rt;
 }
 
 //}}}
 //}}}
 //{{{ Init
 
-private Int
+private void
 initCompiler() { //:initCompiler
 // Definition of the operators, lexer dispatch, parser dispatch etc tables for the compiler.
 // This function should only be called once, at compiler init. Its results are global shared const.
+    if (_wasInit) {
+        return;
+    }
     populateStandardOffsets();
     tabulateLexer();
-    tabulateInterpreter();
     Arena* aGlobal = createArena(); // it's ok to leak it. Will be cleaned up on process exit
     createProtoCompiler(&PROTO, aGlobal);
     _wasInit = true;
@@ -6140,8 +6142,7 @@ void dbgBytecode(Compiler* cg) { //:dbgBytecode
 
 void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
 // Print the current call frame header, and the previous frame too (if applicable)
-    Unt* framePtr = inDeref(rt->currFrame);
-    Ptr prevFrame = *framePtr;
+    EyrPtr* prevFrame = rtDeref(rt->currFrame);
     Ptr fnCode = *(framePtr + 1);
     printf("Current call frame: prevFrame = %d, fn code at %d\n", prevFrame, fnCode);
     if ((Int)prevFrame != -1) {
@@ -6160,42 +6161,44 @@ void dbgCallFrames(Interpreter* rt) { //:dbgCallFrame
 //}}}
 //{{{ Main
 
-String
+private Interpreter
 eyrCompile(String sourceCode) { //:eyrCompile
+    Interpreter rt = (Interpreter){ .errMsg = empty };
     if (sourceCode.len == 0) {
-        return empty;
+        return rt;
     }
+    eyrInitCompiler();
     Arena* a = createArena();
     Compiler* cm = lexicallyAnalyze(sourceCode, a);
     if (cm->stats.wasLexerError) {
-        print("lexer error")
-        return empty;
+        rt.errMsg = str("lexer error");
+        return rt;
     }
 
     cm = parse(cm, a);
     if (cm->stats.wasError) {
-        print("parse error")
-        return empty;
+        rt.errMsg = str("parse error");
+        return rt;
     }
 
-    Codegen* hostCode = generateCode(cm, a);
-    deleteArena(a);
-    return (String){.cont = hostCode->output.cont, .len = hostCode->output.len};
+    initInterpreter(cm, &rt);
+    return rt;
 }
 
-
-String
-eyrCompileFile(char* fn) { //:eyrCompileFile
-    if (!_wasInit) {
-        initCompiler();
+private Interpreter*
+eyrCompileFile(String fn) { //:eyrCompileFile
+    if (fn.len == 0) {
+        return null;
     }
+    eyrInitCompiler();
     Arena* a = createArena();
     String sourceCode = readSourceFile(fn, a);
     deleteArena(a);
     return eyrCompile(sourceCode);
 }
 
-private Int interpretCode(Interpreter* in) {
+private Int
+interpretCode(Interpreter* in) {
     Int ip = 1; // skipping the function size
     while (ip > -1) {
         //print("ip = %d", ip);
@@ -6206,25 +6209,25 @@ private Int interpretCode(Interpreter* in) {
     return 0;
 }
 
+void
+eyrRunFile(String filename) {
+    
+}
+
+void
+eyrRun(String sourceCode) {
+    
+}
+
 
 #ifndef TEST
 
 Int
 main(int argc, char** argv) { //:main
-    eyrInitCompiler();
     Arena* a = createArena();
 
-
-    String* sourceCode = s("main = (( a = 78; print a))");
-
-    Compiler* proto = createProtoCompiler(a);
-    Compiler* cm = lexicallyAnalyze(sourceCode, proto, a);
-    cm = parse(cm, proto, a);
-    codegen(cm);
-    Interpreter* rt = createInterpreter(cm);
-    Int interpResult = 0;//interpretCode(rt);
-
-    printf("Interpretation result = %d\n", interpResult);
+    String sourceCode = s("main = (( a = 78; print a))");
+    eyrRun(sourceCode);
 
     cleanup:
     deleteArena(a);
