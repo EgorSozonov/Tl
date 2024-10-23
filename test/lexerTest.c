@@ -3,8 +3,8 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include "../eyr.internal.h"
 #include "../include/eyr.h"
+#include "../eyr.internal.h"
 #include "eyrTest.h"
 
 
@@ -931,7 +931,7 @@ LexerTestSet* coreFormTests(Arena* a) {
                 (Token){ .tp = tokBool, .pl2 = 1, .startBt = 46, .lenBts = 4 }
          }))},
          (LexerTest) { .name = s("Function simple 1"),
-             .input = s("noo = (( x Int y Int -> Int: return - x y))"),
+             .input = s("noo = {{ x Int y Int -> Int } return - x y}"),
              .expectedOutput = expect(((Token[]){
                  (Token){ .tp = tokAssignment,         .pl2 = 14,
                           .startBt = 0, .lenBts = 43 },

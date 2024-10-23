@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdint.h>
+#include "../include/eyr.h"
 #include "../eyr.internal.h"
 #include "eyrTest.h"
 

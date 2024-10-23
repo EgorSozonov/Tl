@@ -258,23 +258,23 @@ DEFINE_STACK_HEADER(Token)
 #define tokStmt        12  // firstSpanTokenType
 #define tokParens      13  // subexpressions and struct/sum type instances
 #define tokTypeCall    14  // `(Tu Int Str)`
-#define tokIntro       15  // Introduction to a syntax form, like a param list or an if condition
+#define tokIntro       15  // Introduction to a syntax form, like an if condition
                            // pl1 = original tp of this token before it was converted to tokIntro
-#define tokDataList    16  // []
-#define tokDataMap     17  // {}
-#define tokAccessor    18  // x[]
-#define tokAssignment  19  // pl1 == 2 iff type assignment
-#define tokAssignRight 20  // Right-hand side of assignment
-#define tokAlias       21
-#define tokAssert      22
-#define tokBreakCont   23  // pl1 = 1 iff it's a continue
-#define tokTrait       24
-#define tokImport      25  // For test files and package decls
-#define tokReturn      26
+#define tokData        16  // []
+#define tokAccessor    17  // x[]
+#define tokAssignment  18  // pl1 == 2 iff type assignment
+#define tokAssignRight 19  // Right-hand side of assignment
+#define tokAlias       20
+#define tokAssert      21
+#define tokBreakCont   22  // pl1 = 1 iff it's a continue
+#define tokTrait       23
+#define tokImport      24  // For test files and package decls
+#define tokReturn      25
 
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
-#define tokScope       27  // `(do ...)` firstScopeTokenType
-#define tokFn          28  // `(\ a Int -> Str: body)`. pl1 = entityId
+#define tokScope       26  // `(do ...)` firstScopeTokenType
+#define tokFn          27  // `{{ a Int -> Str } body)`. pl1 = entityId
+#define tokFnParams    28  //  `{ a Int -> Str }`. pl1 = entityId
 #define tokTry         29  // `(try`
 #define tokCatch       30  // `(catch e MyExc:`
 #define tokIf          31  // `(if ... `

@@ -21,13 +21,15 @@ LIBS=-lm
 APP=eyr
 
 RELEASE_FLAGS = $(CONFIG) $(WARN) $(OPT) $(DEPFLAGS) $(INCLUDES)
-DEBUG_FLAGS = $(RELEASE_FLAGS) -DDEBUG -DSAFETY
-
-TEST_FLAGS = $(RELEASE_FLAGS) -g3 -DTEST -DSAFETY 
-TEST_INCLUDES = -iquote test
-COMPILE_TEST = $(CC) $(TEST_FLAGS) $(TEST_INCLUDES) $(LIBS)
 COMPILE_RELEASE = $(CC) $(RELEASE_FLAGS) $(LIBS)
+
+TEST_INCLUDES = -iquote test
+TEST_FLAGS = $(RELEASE_FLAGS) -g3 -DTEST -DSAFETY 
+COMPILE_TEST = $(CC) $(TEST_FLAGS) $(TEST_INCLUDES) $(LIBS)
+
+DEBUG_FLAGS = $(RELEASE_FLAGS) -DDEBUG -DSAFETY
 COMPILE_DEBUG = $(CC) $(DEBUG_FLAGS) $(LIBS)
+
 
 DEBUG_TGT = _target/debug
 EXE=$(DEBUG_TGT)/$(APP)
@@ -53,17 +55,17 @@ clean: ## Delete cached build results
 
 
 testLexer: $(DEBUG_TGT) ## Test the lexical analyzer
-/ $(TEST_COMPILE) -DLEXER_TEST -o $(DEBUG_TGT)/lexerTest test/lexerTest.c $(APP).c
+/ $(COMPILE_TEST) -DLEXER_TEST -o $(DEBUG_TGT)/lexerTest test/lexerTest.c $(APP).c
 / $(DEBUG_TGT)/lexerTest
 
 
 testParser: $(DEBUG_TGT) ## Test the parser & typechecker
-/ $(TEST_COMPILE) -DPARSER_TEST -o $(DEBUG_TGT)/parserTest test/parserTest.c $(APP).c
+/ $(COMPILE_TEST) -DPARSER_TEST -o $(DEBUG_TGT)/parserTest test/parserTest.c $(APP).c
 / $(DEBUG_TGT)/parserTest
 
 
 testCodegen: $(DEBUG_TGT) ## Test the code generator
-/ $(TEST_COMPILE) -DCODEGEN_TEST -o $(DEBUG_TGT)/codegenTest test/codegenTest.c $(APP).c
+/ $(COMPILE_TEST) -DCODEGEN_TEST -o $(DEBUG_TGT)/codegenTest test/codegenTest.c $(APP).c
 / $(DEBUG_TGT)/codegenTest
 
 

@@ -1389,9 +1389,10 @@ char const errNumericIntWidthExceeded[]    = "Integer literals must be within th
 char const errPunctuationExtraOpening[]    = "Extra opening punctuation";
 char const errPunctuationExtraClosing[]    = "Extra closing punctuation";
 char const errPunctuationOnlyInMultiline[] = "The statement separator is not allowed inside expressions!";
-char const errPunctuationParamList[]       = "The intro separator `:` must be directly in a statement";
+char const errPunctuationFnNotInStmt[]     = "Function definitions must be directly in a statement";
 char const errPunctuationUnmatched[]       = "Unmatched closing punctuation";
 char const errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
+char const errColonNotInStmt[]             = "The colon separator mey only be present in statements";
 char const errOperatorUnknown[]            = "Unknown operator";
 char const errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name(s) or l-value!";
 char const errToplevelAssignment[]         = "Toplevel assignments must have only single word on the left!";
@@ -2227,19 +2228,19 @@ lexAssignment(Int const opType, LX) { //:lexAssignment
 
 private void
 lexColon(SRC, LX) { //:lexColon
-// Handles keyword arguments ":asdf" and intros like param lists "(\\x Int : ...)"
+// Handles keyword arguments ":asdf" and intros like if conds "x > 5: ..."
     if (lx->i < lx->stats.inpLength - 1 && isLowercaseLetter(NEXT_BT)) {
         lx->i += 1; // CONSUME the ":"
         wordInternal(tokKwArg, source, lx);
     } else {
         VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
         BtToken top = peek(lx->lexBtrack);
-        VALIDATEL(top.spanLevel == slStmt, errPunctuationParamList)
+        VALIDATEL(top.spanLevel == slStmt, errColonNotInStmt)
 
         lx->stats.lastClosingPunctInd = lx->i;
         setStmtSpanLength(top.tokenInd, lx);
         pop(lx->lexBtrack);
-        mbCloseAssignRight(&top, lx);
+        mbCloseAssignRight(&top, lx); // TODO is it really necessary here?
 
         Token* tok = lx->tokens.cont + top.tokenInd;
         tok->pl1 = tok->tp;
@@ -2251,7 +2252,6 @@ lexColon(SRC, LX) { //:lexColon
 
 private void
 lexApostrophe(SRC, LX) { //:lexApostrophe
-// Handles keyword arguments ":asdf" and param lists "{{x Int : ...}}"
     VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT), errUnexpectedToken)
     lx->i += 1; // CONSUME the "'"
     wordInternal(tokTypeVar, source, lx);
@@ -2423,7 +2423,7 @@ lexDivBy(SRC, LX) { //:lexDivBy
 private void
 lexParenLeft(SRC, LX) { //:lexParenLeft
     Int j = lx->i + 1;
-    VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
+    VALIDATEL(j < lx->stats.inpLength, errPunctuationExtraOpening)
     wrapInAStatement(source, lx);
     openPunctuation(tokParens, slSubexpr, lx->i, lx);
     lx->i += 1; // CONSUME the left parenthesis
@@ -2444,15 +2444,6 @@ lexParenRight(SRC, LX) { //:lexParenRight
 
     mbCloseAssignRight(&top, lx);
 
-    // since a closing paren may be closing something with statements inside it, like a lex scope
-    // or a function, we need to close that statement before closing its parent
-    if (top.spanLevel == slStmt) {
-        VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel == slScope,
-                  errPunctuationUnmatched);
-        setStmtSpanLength(top.tokenInd, lx);
-        top = pop(bt);
-    }
-
     lx->stats.lastClosingPunctInd = startInd; // this must be here, after possible statement close
     if (top.tp == tokFn
             && lx->i + 1 < lx->stats.inpLength && NEXT_BT == aParenRight) {
@@ -2467,10 +2458,22 @@ lexParenRight(SRC, LX) { //:lexParenRight
         top = pop(bt);
     }
 
-    VALIDATEL(top.spanLevel == slSubexpr || top.spanLevel == slScope, errPunctuationUnmatched)
+    VALIDATEL(top.spanLevel == slSubexpr || top.spanLevel == slScope, errPunctuationParamListh)
 
     setSpanLengthLexer(top.tokenInd, lx);
     lx->i += 1; // CONSUME the closing ")"
+}
+
+
+private void
+lexFn(SRC, LX) { //:lexFn
+    VALIDATEL(hasValues(lx->lexBtrack), errUnexpectedToken)
+    BtToken top = peek(lx->lexBtrack);
+    VALIDATEL(top.spanLevel == slStmt, errPunctuationFnNotInStmt)
+    
+    openPunctuation(tokFn, slScope, lx->i, lx);
+    openPunctuation(tokFnParams, slStmt, lx->i, lx);
+    lx->i += 2; // CONSUME the "{{"
 }
 
 private void
@@ -2479,12 +2482,9 @@ lexCurlyLeft(SRC, LX) { //:lexCurlyLeft
     Int j = lx->i + 1;
 
     if (NEXT_BT == aCurlyLeft) {
-        openPunctuation(tokFn, slScope, lx->i, lx);
         lx->i += 2; // CONSUME the "{{"
     } else {
-        VALIDATEL(j < lx->stats.inpLength, errPunctuationUnmatched)
-        openPunctuation(tokDataMap, slSubexpr, lx->i, lx);
-        lx->i += 1; // CONSUME the left bracket
+        lexFn(source, lx);
     }
 }
 
@@ -2494,12 +2494,21 @@ lexCurlyRight(SRC, LX) { //:lexCurlyRight
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
-    VALIDATEL(top.tp == tokDataMap, errPunctuationUnmatched)
+    
+    VALIDATEL(top.tp == tokFnParams || top.spanLevel == slScope, errPunctuationUnmatched)
+
+    // since a closing brace may be closing something with statements inside it, like a lex scope
+    // or a function, we need to close that statement before closing its parent
+    if (top.spanLevel == slStmt) {
+        VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel == slScope,
+                  errPunctuationUnmatched);
+        setStmtSpanLength(top.tokenInd, lx);
+        top = pop(bt);
+    }
 
     setSpanLengthLexer(top.tokenInd, lx);
-
     if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
-    lx->i += 1; // CONSUME the closing "}"
+    lx->i += 1; // CONSUME the "}"
 }
 
 private void
@@ -2515,7 +2524,7 @@ lexBracketRight(SRC, LX) { //:lexBracketRight
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
-    VALIDATEL(top.tp == tokDataList || top.tp == tokAccessor, errPunctuationUnmatched)
+    VALIDATEL(top.tp == tokDataList || top.tp == tokAccessor, errPunctuationParamListh)
 
     setSpanLengthLexer(top.tokenInd, lx);
 
@@ -5744,7 +5753,7 @@ initCompiler() { //:initCompiler
 //}}}
 //{{{ Utils for tests & debugging
 
-#ifdef DEBUG
+#if defined(DEBUG) || defined(TEST)
 //{{{ General utils
 
 void printIntArray(Int count, Arr(Int) arr) { //:printIntArray
@@ -5792,8 +5801,8 @@ char const* tokNames[] = {
     "stmt", "()", "(T ...)", "intro:", "[]", "{}", "a[]",
     "=", "=...", "alias", "assert", "breakCont",
     "trait", "import", "return",
-    "(do", "((fn", "(try", "(catch",
-    "(if", "match{", "elseIf", "else", "(impl", "(for", "(each"
+    "{do", "{{fn", "{fn params}", "{try", "{catch",
+    "Pif", "match{", "elseIf", "else", "{impl", "{for", "{each"
 };
 
 
@@ -6219,7 +6228,7 @@ compileFile(String fn) { //:eyrCompileFile
     return compile(sourceCode);
 }
 
-private Int
+private void
 interpretCode(RT) {
     Int ip = 1; // skipping the function size
     while (ip > -1) {
@@ -6228,7 +6237,6 @@ interpretCode(RT) {
         //print("instr %lx op code %d", instr, instr>>58);
         ip = (INTERPRETER_TABLE[instr >> 58])(instr, ip, rt);
     }
-    return 0;
 }
 
 void
@@ -6238,7 +6246,12 @@ eyrRunFile(String filename) {
 
 void
 eyrRun(String sourceCode) {
-    
+    Interpreter rt = compile(sourceCode);
+    if (rt.errMsg.len > 0) {
+        printString(rt.errMsg);
+        return;
+    }
+    interpretCode(&rt);    
 }
 
 
