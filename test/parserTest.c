@@ -46,7 +46,7 @@ private ParserTestSet* createTestSet0(String name, Arena *a, int count, Arr(Pars
     for (int i = 0; i < count; i++) {
         result->tests[i] = tests[i];
     }
-    printString(tests[0].control->stats.errMsg);
+    printString(getStats(tests[0].control).errMsg);
     return result;
 }
 
@@ -56,7 +56,7 @@ private ParserTestSet* createTestSet0(String name, Arena *a, int count, Arr(Pars
 private Int tryGetOper0(Int opType, Int typeId, Compiler* protoOvs) {
 // Try and convert test value to operator entityId
     Int entityId;
-    Int ovInd = -protoOvs->activeBindings[opType] - 2;
+    Int ovInd = -getBinding(opType, protoOvs) - 2;
     bool foundOv = findOverload(typeId, ovInd, protoOvs, OUT &entityId);
     if (foundOv)  {
         return entityId + O;
@@ -68,18 +68,18 @@ private Int tryGetOper0(Int opType, Int typeId, Compiler* protoOvs) {
 #define oper(opType, typeId) tryGetOper0(opType, typeId, protoOvs)
 
 private Int
-transformBindingEntityId(Int inp, Compiler* pr) {
+transformBindingEntityId(Int inp, CompStats const* stats) {
     if (inp < S) { // parsed stuff
-        return inp + pr->stats.countNonparsedEntities;
+        return inp + stats->countNonparsedEntities;
     } else if (inp < O){ // imported but not operators: "foo", "bar"
-        return inp - I + pr->stats.countNonparsedEntities;
+        return inp - I + stats->countNonparsedEntities;
     } else { // operators
         return inp - O;
     }
 }
 
 private Arr(TypeId)
-importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { //:importTypes
+importTypes(Arr(Int) types, Int countTypes, Compiler* cm, Arena* aTmp) { //:importTypes
 // Importing simple function types for testing purposes
     Int countImportedTypes = 0;
     Int j = 0;
@@ -90,13 +90,13 @@ importTypes(Arr(Int) types, Int countTypes, Compiler* cm) { //:importTypes
         ++(countImportedTypes);
         j += types[j] + 1;
     }
-    Arr(TypeId) typeIds = allocateOnArena(countImportedTypes*4, cm->aTmp);
+    Arr(TypeId) typeIds = allocateOnArena(countImportedTypes*4, aTmp);
     j = 0;
     Int t = 0;
     while (j < countTypes) {
         const Int importLen = types[j];
         const Int sentinel = j + importLen + 1;
-        TypeId initTypeId = cm->types.len;
+        TypeId initTypeId = getStats(cm).typesLen;
 
         pushIntypes(importLen + 2, cm); // +3 because the header takes 2 ints, 1 more for
                                         // the return typeId
@@ -128,14 +128,15 @@ private ParserTest createTest0(String name, String sourceCode, Arr(Node) nodes, 
 // it will be inserted as 1 + (the number of built-in bindings) etc
     Compiler* test = lexicallyAnalyze(sourceCode, a);
     Compiler* control = lexicallyAnalyze(sourceCode, a);
-    if (control->stats.wasLexerError == true) {
+    CompStats controlStats = getStats(control);
+    if (controlStats.wasLexerError == true) {
         return (ParserTest) {
             .name = name, .test = test, .control = control, .compareLocsToo = false };
     }
     initializeParser(control, a);
     initializeParser(test, a);
-    Arr(TypeId) typeIds = importTypes(types, countTypes, control);
-    importTypes(types, countTypes, test);
+    Arr(TypeId) typeIds = importTypes(types, countTypes, control, a);
+    importTypes(types, countTypes, test, a);
 
     StandardText stText = getStandardTextLength();
     if (countImports > 0) {
@@ -161,7 +162,7 @@ private ParserTest createTest0(String name, String sourceCode, Arr(Node) nodes, 
         // All the node types which contain entityIds in their pl1
         if (nodeType == nodId || nodeType == nodCall || nodeType == nodBinding
                 || nodeType == nodFnDef) {
-            nd.pl1 = transformBindingEntityId(nd.pl1, control);
+            nd.pl1 = transformBindingEntityId(nd.pl1, &controlStats);
         }
         // transform pl2/pl3 if it holds NameId
         if (nodeType == nodId && nd.pl2 != -1)  {
@@ -186,8 +187,7 @@ private ParserTest createTestWithError0(String name, String message, String inpu
 // Creates a test with two parsers where the expected result is an error in parser
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, a);
-    theTest.control->stats.wasError = true;
-    theTest.control->stats.errMsg = message;
+    setStats((CompStats){.wasError = true, .errMsg = message}, theTest.control);
     return theTest;
 }
 
@@ -203,14 +203,14 @@ private ParserTest createTestWithLocs0(String name, String input, Arr(Node) node
 // Creates a test with two parsers where the source locs are specified (unlike most parser tests)
     ParserTest theTest = createTest0(name, input, nodes, countNodes, types, countTypes, entities,
                                      countEntities, a);
-    if (theTest.control->stats.wasLexerError) {
+    if (getStats(theTest.control).wasLexerError) {
         return theTest;
     }
     StandardText stText = getStandardTextLength();
     for (Int j = 0; j < countLocs; ++j) {
         SourceLoc loc = locs[j];
         loc.startBt += stText.len;
-        theTest.control->sourceLocs->cont[j] = loc;
+        setLoc(loc, theTest.control);
     }
     theTest.compareLocsToo = true;
     return theTest;
@@ -222,69 +222,22 @@ private ParserTest createTestWithLocs0(String name, String input, Arr(Node) node
     locs, sizeof(locs)/sizeof(SourceLoc), a)
 
 
-int equalityParser(/* test specimen */Compiler a, /* expected */Compiler b, Bool compareLocsToo) {
-// Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
-// differing token otherwise
-    if (a.stats.wasError != b.stats.wasError || (!endsWith(a.stats.errMsg, b.stats.errMsg))) {
-        return -1;
-    }
-    int commonLength = a.nodes.len < b.nodes.len ? a.nodes.len : b.nodes.len;
-    int i = 0;
-    for (; i < commonLength; i++) {
-        Node nodA = a.nodes.cont[i];
-        Node nodB = b.nodes.cont[i];
-        if (nodA.tp != nodB.tp
-            || nodA.pl1 != nodB.pl1 || nodA.pl2 != nodB.pl2 || nodA.pl3 != nodB.pl3) {
-            printf("\n\nUNEQUAL RESULTS on %d\n", i);
-            if (nodA.tp != nodB.tp) {
-                printf("Diff in tp, %d but was expected %d\n", nodA.tp, nodB.tp);
-            }
-            if (nodA.pl1 != nodB.pl1) {
-                printf("Diff in pl1, %d but was expected %d\n", nodA.pl1, nodB.pl1);
-            }
-            if (nodA.pl2 != nodB.pl2) {
-                printf("Diff in pl2, %d but was expected %d\n", nodA.pl2, nodB.pl2);
-            }
-            if (nodA.pl3 != nodB.pl3) {
-                printf("Diff in pl3, %d but was expected %d\n", nodA.pl3, nodB.pl3);
-            }
-            return i;
-        }
-    }
-    if (compareLocsToo) {
-        for (i = 0; i < commonLength; ++i) {
-            SourceLoc locA = a.sourceLocs->cont[i];
-            SourceLoc locB = b.sourceLocs->cont[i];
-            if (locA.startBt != locB.startBt || locA.lenBts != locB.lenBts) {
-                printf("\n\nUNEQUAL SOURCE LOCS on %d\n", i);
-                if (locA.lenBts != locB.lenBts) {
-                    printf("Diff in lenBts, %d but was expected %d\n", locA.lenBts, locB.lenBts);
-                }
-                if (locA.startBt != locB.startBt) {
-                    printf("Diff in startBt, %d but was expected %d\n", locA.startBt, locB.startBt);
-                }
-                return i;
-            }
-        }
-    }
-    return (a.nodes.len == b.nodes.len) ? -2 : i;
-}
-
-
 void runTest(ParserTest test, TestContext* ct) {
 // Runs a single lexer test and prints err msg to stdout in case of failure. Returns error code
     ct->countTests += 1;
-    if (test.test->tokens.len == 0) {
+    CompStats testStats = getStats(test.test);
+    CompStats controlStats = getStats(test.control);
+    if (testStats.toksLen == 0) {
         print("Lexer result empty");
         return;
-    } else if (test.control->stats.wasLexerError) {
+    } else if (controlStats.wasLexerError) {
         print("Lexer error");
         printLexer(test.control);
         return;
     }
     parseMain(test.test, ct->a);
 
-    int equalityStatus = equalityParser(*test.test, *test.control, test.compareLocsToo);
+    int equalityStatus = equalityParser(test.test, test.control, test.compareLocsToo);
     if (equalityStatus == -2) {
         ct->countPassed += 1;
         return;
@@ -292,9 +245,9 @@ void runTest(ParserTest test, TestContext* ct) {
         printf("\n\nERROR IN [");
         printStringNoLn(test.name);
         printf("]\nError msg: ");
-        printString(test.test->stats.errMsg);
+        printString(testStats.errMsg);
         printf("\nBut was expected: ");
-        printString(test.control->stats.errMsg);
+        printString(controlStats.errMsg);
         printf("\n");
         print("    LEXER:")
         printLexer(test.test);

@@ -74,7 +74,7 @@ extern char const errPunctuationScope[];
 
 extern char const errOperatorUnknown[];
 extern char const errOperatorAssignmentPunct[];
-extern char const errToplevelAssignment[];
+extern char const errToplevelEmptyRight[];
 extern char const errOperatorTypeDeclPunct[];
 extern char const errOperatorMutationInDef[];
 extern char const errCoreNotInsideStmt[];
@@ -88,15 +88,21 @@ extern char const errIndentation[];
 
 #ifdef PARSER_TEST
 
-void importEntities(Arr(Entity) impts, Int countBindings, Compiler* cm);
+#define CM Compiler* restrict cm
+void importEntities(Arr(Entity) impts, Int countBindings, CM);
 void createCompiler(Compiler* lx, Arena* a);
 void parseMain(Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Compiler* cm);
 void printParser(Compiler* cm, Arena* a);
 bool findOverload(Int typeId, Int ovInd, Compiler* restrict cm, Int* entityId);
 Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringDict* hm);
-Arr(Int) createOverloads(Compiler* cm);
+Arr(Int) createOverloads(Compiler* restrict cm);
 void typeAddHeader(TypeHeader hdr, Compiler* restrict cm);
+CompStats getStats(Compiler* restrict cm);
+void setStats(CompStats stats, Compiler* restrict cm);
+Int getBinding(Int id, Compiler* restrict cm);
+void setLoc(SourceLoc loc, CM);
+Int equalityParser(Compiler* a, Compiler* b, Bool compareLocsToo);
 
 extern char const errBareAtom[];
 extern char const errImportsNonUnique[];

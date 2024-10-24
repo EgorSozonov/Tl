@@ -442,15 +442,6 @@ typedef struct { // :SourceLoc
     Int lenBts;
 } SourceLoc;
 
-typedef struct { // :ParseFrame
-    Unt tp : 6;
-    Int startNodeInd;
-    Int sentinel;    // sentinel token
-    Int typeId;      // valid only for fnDef, if, loopCond and the like.
-                     // For nodFor, contains the loop depth
-} ParseFrame;
-
-
 // Public classes must always be even-valued, private - odd-valued. Mutable before immutable
 #define classMut      1
 #define classPubMut   2
@@ -465,100 +456,8 @@ typedef struct { //:Entity
 } Entity;
 
 
-typedef struct { //:Toplevel
-// Toplevel definitions (functions, variables, types) for parsing order and name searchability
-    Int tokenInd;      // index of the tokDef
-    Int rightTokenInd; // index of the tokAssignRight
-    Int sentinelToken;
-    NameId nameId;
-    EntityId entityId; // if n < 0 => -n - 1 is an index into @functions, otherwise n => @entities
-    bool isFunction;
-    Int nodeInd;
-} Toplevel;
-
-
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
-struct ScopeChunk { //:ScopeChunk
-    ScopeChunk *next;
-    int len; // length is divisible by 4
-    Int cont[];
-};
-
-
-typedef struct { // :ScopeStack
-    // Either currChunk->next == NULL or currChunk->next->next == NULL
-    ScopeChunk* firstChunk;
-    ScopeChunk* currChunk;
-    ScopeChunk* lastChunk;
-    ScopeStackFrame* topScope;
-    Int len;
-    int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
-} ScopeStack;
-
-
-DEFINE_STACK_HEADER(ParseFrame)
-DEFINE_STACK_HEADER(Node)
-DEFINE_STACK_HEADER(SourceLoc)
-
-DEFINE_INTERNAL_LIST_TYPE(Token) //:InListToken
-DEFINE_INTERNAL_LIST_TYPE(Node)
-
-DEFINE_INTERNAL_LIST_TYPE(Entity)
-
-DEFINE_INTERNAL_LIST_TYPE(Toplevel)
-
-DEFINE_INTERNAL_LIST_TYPE(Int)
-
-DEFINE_INTERNAL_LIST_TYPE(uint32_t)
-DEFINE_INTERNAL_LIST_TYPE(uint64_t)
-
-
-typedef struct {  // :ExprFrame
-    Byte tp;      // "exfr" constants below
-    Int sentinel; // token sentinel
-    Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
-    Int startNode; // used for all?
-} ExprFrame;
-
-#define exfrParen      1
-#define exfrCall       2
-#define exfrUnaryCall  3
-#define exfrDataAlloc  4
-#define exfrAccessor   5
-
-DEFINE_STACK_HEADER(ExprFrame)
-
-typedef struct { // :StateForExprs
-    StackInt* exp;   // [aTmp]
-    StackExprFrame* frames;
-    StackNode* scr;
-    StackSourceLoc* locsScr;
-    StackNode* calls;
-    StackSourceLoc* locsCalls;
-    Bool metAnAllocation;
-    StackToken* reorderBuf;
-} StateForExprs;
-
-typedef struct {   // :TypeFrame
-    Byte tp;       // "sor" and "tye" constants
-    Int sentinel;  // token id sentinel
-    Int countArgs; // accumulated number of type arguments
-    NameId nameId;
-} TypeFrame;
-
-DEFINE_STACK_HEADER(TypeFrame)
-
-typedef struct { // :StateForTypes
-    StackInt* exp;   // [aTmp] Higher 8 bits are the "sor"/"tye" sorts, lower 24 bits are TypeId
-    StackInt* params;  // [aTmp] Params of a whole type expression
-    StackInt* subParams;  // [aTmp] Type params of a subexpression
-    StackInt* paramRenumberings;  // [aTmp]
-    StackTypeFrame* frames;  // [aTmp]
-    StackInt* names; // [aTmp]
-    StackInt* tmp; // [aTmp]
-} StateForTypes;
-
 
 typedef struct { // :CompStats
     Int inpLength;
@@ -567,68 +466,27 @@ typedef struct { // :CompStats
     Int countNonparsedEntities;
     Int countOverloads;
     Int countOverloadedNames;
+    Int toksLen;
+    Int nodesLen;
+    Int typesLen;
     Int loopCounter;
     Bool wasError;
     String errMsg;
 } CompStats;
 
+DEFINE_STACK_HEADER(Node)
+DEFINE_STACK_HEADER(SourceLoc)
 
-typedef struct { //:BtCodegen Backtrack for generating code
-    Byte tp; // instructions, i.e. the "i*" constants
-    Int startInstr; // index of starting instruction
-    Int sentinel; // sentinel node of current function
-} BtCodegen;
+DEFINE_INTERNAL_LIST_TYPE(Token) //:InListToken
+DEFINE_INTERNAL_LIST_TYPE(Node)
 
-DEFINE_STACK_HEADER(BtCodegen)
+DEFINE_INTERNAL_LIST_TYPE(Entity)
 
-struct Compiler { // :Compiler
-    // LEXING
-    String sourceCode;
-    InListToken tokens;
-    InListToken metas; // TODO - metas with links back into parent span tokens
-    InListInt newlines;
-    StackSourceLoc* sourceLocs;
-    InListInt numeric;          // [aTmp]
-    StackBtToken* lexBtrack;    // [aTmp]
-    Stackuint32_t* stringTable;  // Operators, then standard strings, then imported ones, then
-                                 // parsed. Contains NameLoc pointing into @sourceCode
-    StringDict* stringDict;
+DEFINE_INTERNAL_LIST_TYPE(Int)
 
-    // PARSING
-    InListToplevel toplevels;
-    InListInt importNames;
-    StackParseFrame* backtrack; // [aTmp]
-    ScopeStack* scopeStack;
-    StateForExprs* stateForExprs; // [aTmp]
-    Arr(Int) activeBindings;    // [aTmp]
-    InListNode nodes;
-    InListNode monoCode; // ASTs for monorphizations of generic functions
-    MultiAssocList* monoIds;
-    InListEntity entities;
-    MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
-    InListInt overloads;
-    InListInt types;
-    StringDict* typesDict;
-    StateForTypes* stateForTypes; // [aTmp]
+DEFINE_INTERNAL_LIST_TYPE(uint32_t)
+DEFINE_INTERNAL_LIST_TYPE(uint64_t)
 
-    // CODEGEN
-    StackBtCodegen* cgBtrack;    // [aTmp]
-    InListUlong bytecode;
-
-    // GENERAL STATE
-    Int i;
-    Arena* a;
-    Arena* aTmp;
-    CompStats stats;
-};
-
-
-// Span levels, must all be more than 0
-#define slScope        1 // scopes (denoted by brackets): newlines and commas have no effect there
-#define slStmt         2 // single-line statements: newlines and semicolons break 'em
-#define slSubexpr      3 // parenthesized forms: newlines have no effect, semi-colons error out
-#define slUnbraced     4 // A scope that hasn't met its first brace, like an "if" before its "{"
-#define slSingleBraced 5 // A "for" scope that has met exactly 1 curly brace
 
 
 //}}}

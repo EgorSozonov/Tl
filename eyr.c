@@ -13,6 +13,156 @@
 #include "eyr.internal.h"
 
 //}}}
+//{{{ Internal types
+
+typedef struct { // :ParseFrame
+    Unt tp : 6;
+    Int startNodeInd;
+    Int sentinel;    // sentinel token
+    Int typeId;      // valid only for fnDef, if, loopCond and the like.
+                     // For nodFor, contains the loop depth
+} ParseFrame;
+
+DEFINE_STACK_HEADER(ParseFrame)
+
+struct ScopeChunk { //:ScopeChunk
+    ScopeChunk *next;
+    int len; // length is divisible by 4
+    Int cont[];
+};
+
+
+typedef struct { // :ScopeStack
+    // Either currChunk->next == NULL or currChunk->next->next == NULL
+    ScopeChunk* firstChunk;
+    ScopeChunk* currChunk;
+    ScopeChunk* lastChunk;
+    ScopeStackFrame* topScope;
+    Int len;
+    int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
+} ScopeStack;
+
+
+typedef struct {  // :ExprFrame
+    Byte tp;      // "exfr" constants below
+    Int sentinel; // token sentinel
+    Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
+    Int startNode; // used for all?
+} ExprFrame;
+
+#define exfrParen      1
+#define exfrCall       2
+#define exfrUnaryCall  3
+#define exfrDataAlloc  4
+#define exfrAccessor   5
+
+DEFINE_STACK_HEADER(ExprFrame)
+
+typedef struct { // :StateForExprs
+    StackInt* exp;   // [aTmp]
+    StackExprFrame* frames;
+    StackNode* scr;
+    StackSourceLoc* locsScr;
+    StackNode* calls;
+    StackSourceLoc* locsCalls;
+    Bool metAnAllocation;
+    StackToken* reorderBuf;
+} StateForExprs;
+
+typedef struct {   // :TypeFrame
+    Byte tp;       // "sor" and "tye" constants
+    Int sentinel;  // token id sentinel
+    Int countArgs; // accumulated number of type arguments
+    NameId nameId;
+} TypeFrame;
+
+DEFINE_STACK_HEADER(TypeFrame)
+
+typedef struct { // :StateForTypes
+    StackInt* exp;   // [aTmp] Higher 8 bits are the "sor"/"tye" sorts, lower 24 bits are TypeId
+    StackInt* params;  // [aTmp] Params of a whole type expression
+    StackInt* subParams;  // [aTmp] Type params of a subexpression
+    StackInt* paramRenumberings;  // [aTmp]
+    StackTypeFrame* frames;  // [aTmp]
+    StackInt* names; // [aTmp]
+    StackInt* tmp; // [aTmp]
+} StateForTypes;
+
+
+typedef struct { //:Assignment
+// Toplevel definitions (functions, variables, types) for parsing order and name searchability
+    Int tokenInd;      // index of the tokDef
+    Int rightTokenInd; // index of the tokAssignRight
+    Int sentinel;
+    NameId nameId;
+    EntityId entityId; // if n < 0 => -n - 1 is an index into @functions, otherwise n => @entities
+    bool isFunction;
+    Int nodeInd;
+} Assignment;
+
+
+DEFINE_INTERNAL_LIST_TYPE(Assignment)
+
+
+typedef struct { //:BtCodegen Backtrack for generating code
+    Byte tp; // instructions, i.e. the "i*" constants
+    Int startInstr; // index of starting instruction
+    Int sentinel; // sentinel node of current function
+} BtCodegen;
+
+DEFINE_STACK_HEADER(BtCodegen)
+
+// Span levels, must all be more than 0
+#define slScope        1 // scopes (denoted by brackets): newlines and commas have no effect there
+#define slStmt         2 // single-line statements: newlines and semicolons break 'em
+#define slSubexpr      3 // parenthesized forms: newlines have no effect, semi-colons error out
+#define slUnbraced     4 // A scope that hasn't met its first brace, like an "if" before its "{"
+#define slSingleBraced 5 // A "for" scope that has met exactly 1 curly brace
+
+
+struct Compiler { // :Compiler
+    // LEXING
+    String sourceCode;
+    InListToken tokens;
+    InListToken metas; // TODO - metas with links back into parent span tokens
+    InListInt newlines;
+    StackSourceLoc* sourceLocs;
+    InListInt numeric;          // [aTmp]
+    StackBtToken* lexBtrack;    // [aTmp]
+    Stackuint32_t* stringTable;  // Operators, then standard strings, then imported ones, then
+                                 // parsed. Contains NameLoc pointing into @sourceCode
+    StringDict* stringDict;
+
+    // PARSING
+    InListToplevel toplevels;
+    InListInt importNames;
+    StackParseFrame* backtrack; // [aTmp]
+    ScopeStack* scopeStack;
+    StateForExprs* stateForExprs; // [aTmp]
+    Arr(Int) activeBindings;    // [aTmp]
+    InListNode nodes;
+    InListNode monoCode; // ASTs for monorphizations of generic functions
+    MultiAssocList* monoIds;
+    InListEntity entities;
+    MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
+    InListInt overloads;
+    InListInt types;
+    StringDict* typesDict;
+    StateForTypes* stateForTypes; // [aTmp]
+
+    // CODEGEN
+    StackBtCodegen* cgBtrack;    // [aTmp]
+    InListUlong bytecode;
+
+    // GENERAL STATE
+    Int i;
+    Arena* a;
+    Arena* aTmp;
+    CompStats stats;
+};
+
+
+//}}}
 //{{{ Language definition
 //{{{ Lexical structure
 
@@ -1399,7 +1549,7 @@ char const errPunctuationUnmatched[]       = "Unmatched closing punctuation";
 char const errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms or in `for`, `if` forms";
 char const errOperatorUnknown[]            = "Unknown operator";
 char const errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name(s) or l-value!";
-char const errToplevelAssignment[]         = "Toplevel assignments must have only single word on the left!";
+char const errToplevelEmptyRight[]         = "Toplevel definition with empty right side";
 char const errOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
 char const errOperatorMutationInDef[]      = "Mutation (e.g. `+=`) is not allowed for defs which signify compile-time known constants";
 char const errCoreNotInsideStmt[]          = "Core form must be directly inside statement";
@@ -2912,7 +3062,7 @@ pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, TOKS, CM) {
 }
 
 private void
-pAssignment(Token tok, TOKS, CM) { //:pAssignment
+pAssignment(Token tok, Toplevel toplevel, TOKS, CM) { //:pAssignment
 // Parses both assignments and compile-time defs
     Unt const tp = (tok.tp == tokDef) ? nodDef : nodAssignment;
     if (tok.pl1 == assiType) {
@@ -2921,18 +3071,11 @@ pAssignment(Token tok, TOKS, CM) { //:pAssignment
     }
 
     TypeId leftType = -1;
-    Int j = cm->i;
-    for (; j < cm->stats.inpLength && toks[j].tp != tokAssignRight;
-            j += 1) {
-    }
-    Int const rightInd = j;
-    Int const sentinel = calcSentinel(tok, cm->i - 1);
-    Int const countLeftSide = j - cm->i;
-    Token rightTk = toks[j];
+    Int const countLeftSide = toplevel.rightTokenInd - toplevel.tokenInd;
+    Token rightTk = toks[toplevel.rightTokenInd];
 
-#ifdef SAFETY
-    VALIDATEI(countLeftSide < (tok.pl2 - 1), iErrorInconsistentSpans)
-#endif
+    VALIDATEP(toplevel.rightTokenInd < toplevel.sentinel && rightTk.pl2 > 0, 
+              errToplevelEmptyRight)
 
     EntityId entityId = -1;
     Int const assignmentNodeInd = cm->nodes.len;
@@ -4426,6 +4569,7 @@ determineIfFnDef(Int tokInd, Int const sentinel, TOKS, CM, OUT Int* indRight) {
     return (toks[(*indRight) + 1].tp == tokFn);
 }
 
+
 private void
 pToplevelTypes(CM) { //:pToplevelTypes
 // Parses top-level types but not functions. Writes them to the types table and adds
@@ -4455,13 +4599,16 @@ pToplevelConstants(CM) { //:pToplevelConstants
         Token tok = toks[cm->i];
         if (tok.tp == tokDef) {
             Int indRight;
-            if (determineIfFnDef(cm->i, calcSentinel(tok, cm->i), toks, cm, OUT &indRight)) {
+            Int const sentinel = calcSentinel(tok, cm->i);
+            if (determineIfFnDef(cm->i, sentinel, toks, cm, OUT &indRight)) {
                 cm->i = calcSentinel(tok, cm->i); // CONSUME the top-level assignment
                 continue;
             }
             
             cm->i += 1; // CONSUME the left and right assignment
-            pAssignment(tok, toks, cm);
+            Assignment newConst = (Assignment){ .isFunction = false, .tokenInd = cm->i, 
+                        .rightTokenInd = indRight, .sentinel = sentinel};
+            pAssignment(newConst, toks, cm);
         } else {
             cm->i = calcSentinel(tok, cm->i);
         }
@@ -4507,7 +4654,7 @@ validateOverloadsFull(CM) {
 #endif
 
 testable void
-pFnSignature(Toplevel newFn, Int voidToVoid, TOKS, CM) { //:pFnSignature
+pFnSignature(Assignment newFn, Int voidToVoid, TOKS, CM) { //:pFnSignature
 // Parses a function signature. Emits no nodes, adds data to @toplevels, @functions, @overloads.
 // Pre-condition: we are 1 token past the tokFn
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
@@ -4534,7 +4681,7 @@ private void
 pToplevelBody(Int indToplevel, TOKS, CM) {
 //:pToplevelBody Parses a top-level function. The result is the AST
 //[ FnDef ParamList body... ]
-    Toplevel toplevelSignature = cm->toplevels.cont[indToplevel];
+    Assignment toplevelSignature = cm->toplevels.cont[indToplevel];
     cm->toplevels.cont[indToplevel].nodeInd = cm->nodes.len;
     Int fnStartInd = toplevelSignature.tokenInd;
 
@@ -4621,7 +4768,7 @@ pToplevelSignatures(TOKS, CM) { //:pToplevelSignatures
     }
 }
 
-testable Compiler*
+testable void
 parseMain(CM, Arena* a) { //:parseMain
     if (setjmp(excBuf) == 0) {
         Arr(Token) toks = cm->tokens.cont;
@@ -4644,7 +4791,10 @@ testable Compiler*
 parse(CM, Arena* a) { //:parse
 // Parses a single file in 4 passes, see docs/parser.txt
     initializeParser(cm, a);
-    return parseMain(cm, a);
+    parseMain(cm, a);
+    cm->stats.toksLen = cm->tokens.len;
+    cm->stats.nodesLen = cm->nodes.len;
+    cm->stats.typesLen = cm->types.len;
 }
 
 //}}}
@@ -5944,7 +6094,8 @@ void printParser(CM, Arena* a) { //:printParser
     }
 }
 
-private void dbgStackNode(StackNode* st, Arena* a) { //:dbgStackNode
+void
+dbgStackNode(StackNode* st, Arena* a) { //:dbgStackNode
     Int indent = 0;
     Stackint32_t* sentinels = createStackint32_t(16, a);
     for (int i = 0; i < st->len; i++) {
@@ -5978,7 +6129,8 @@ private void dbgStackNode(StackNode* st, Arena* a) { //:dbgStackNode
 }
 
 
-private void dbgExprFrames(StateForExprs* st) { //:dbgExprFrames
+void
+dbgExprFrames(StateForExprs* st) { //:dbgExprFrames
     print(">>> Expr frames");
     for (Int j = 0; j < st->frames->len; j += 1) {
         ExprFrame fr = st->frames->cont[j];
@@ -5992,6 +6144,69 @@ private void dbgExprFrames(StateForExprs* st) { //:dbgExprFrames
         printf(" %d %d; ", fr.argCount, fr.sentinel);
     }
     printf(">>>\n\n");
+}
+
+CompStats
+getStats(CM) { return cm->stats; }
+
+void
+setStats(CompStats stats, CM) { cm->stats = stats; }
+
+Int
+getBinding(Int id, CM) { return cm->activeBindings[id]; }
+
+void
+setLoc(SourceLoc loc, CM) { cm->sourceLocs->cont[j] = loc; }
+
+Int
+equalityParser(/* test specimen */Compiler* a, /* expected */Compiler* b, Bool compareLocsToo) {
+// Returns -2 if lexers are equal, -1 if they differ in errorfulness, and the index of the first
+// differing token otherwise
+    CompStats statsA = a->stats;
+    CompStats statsB = b->stats;
+    if (statsA.wasError != statsB.wasError || (!endsWith(statsA.errMsg, statsB.errMsg))) {
+        return -1;
+    }
+    int commonLength = statsA.nodesLen < statsB.nodesLen ? statsA.nodesLen : statsB.nodesLen;
+    int i = 0;
+    for (; i < commonLength; i++) {
+        Node nodA = a.nodes.cont[i];
+        Node nodB = b.nodes.cont[i];
+        if (nodA.tp != nodB.tp
+            || nodA.pl1 != nodB.pl1 || nodA.pl2 != nodB.pl2 || nodA.pl3 != nodB.pl3) {
+            printf("\n\nUNEQUAL RESULTS on %d\n", i);
+            if (nodA.tp != nodB.tp) {
+                printf("Diff in tp, %d but was expected %d\n", nodA.tp, nodB.tp);
+            }
+            if (nodA.pl1 != nodB.pl1) {
+                printf("Diff in pl1, %d but was expected %d\n", nodA.pl1, nodB.pl1);
+            }
+            if (nodA.pl2 != nodB.pl2) {
+                printf("Diff in pl2, %d but was expected %d\n", nodA.pl2, nodB.pl2);
+            }
+            if (nodA.pl3 != nodB.pl3) {
+                printf("Diff in pl3, %d but was expected %d\n", nodA.pl3, nodB.pl3);
+            }
+            return i;
+        }
+    }
+    if (compareLocsToo) {
+        for (i = 0; i < commonLength; ++i) {
+            SourceLoc locA = a.sourceLocs->cont[i];
+            SourceLoc locB = b.sourceLocs->cont[i];
+            if (locA.startBt != locB.startBt || locA.lenBts != locB.lenBts) {
+                printf("\n\nUNEQUAL SOURCE LOCS on %d\n", i);
+                if (locA.lenBts != locB.lenBts) {
+                    printf("Diff in lenBts, %d but was expected %d\n", locA.lenBts, locB.lenBts);
+                }
+                if (locA.startBt != locB.startBt) {
+                    printf("Diff in startBt, %d but was expected %d\n", locA.startBt, locB.startBt);
+                }
+                return i;
+            }
+        }
+    }
+    return (a.nodes.len == b.nodes.len) ? -2 : i;
 }
 
 //}}}
