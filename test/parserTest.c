@@ -100,9 +100,7 @@ importTypes(Arr(Int) types, Int countTypes, Compiler* cm, Arena* aTmp) { //:impo
 
         pushIntypes(importLen + 2, cm); // +3 because the header takes 2 ints, 1 more for
                                         // the return typeId
-        typeAddHeader(
-           (TypeHeader){.sort = sorFunction, .tyrity = 0, .arity = importLen - 1,
-                        .nameAndLen = -1}, cm);
+        addTypeHeaderForTestFunction(importLen - 1, cm);
         for (Int k = j + 1; k < sentinel; k++) { // <= because there are (arity + 1) elts -
                                                  // +1 for the return type!
             pushIntypes(types[k], cm);

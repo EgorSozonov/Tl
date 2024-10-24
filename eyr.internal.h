@@ -73,7 +73,6 @@ typedef struct { // :Token
     Unt pl2;
 } Token;
 
-DEFINE_STACK_HEADER(Token)
 
 // Atomic (leaf) Token types
 // The following group of variants are transferred to the AST byte for byte, with no analysis
@@ -253,20 +252,9 @@ typedef struct { // :SourceLoc
     Int lenBts;
 } SourceLoc;
 
-// Public classes must always be even-valued, private - odd-valued. Mutable before immutable
-#define classMut      1
-#define classPubMut   2
-#define classImmut    5
-#define classPubImmut 6
-
-
-typedef struct { //:Entity
-    TypeId typeId;
-    Unt name; // For native names, it's NameId. For "emitInfix", this is operatorId
-    Byte class; // mutable or immutable, public or private
-} Entity;
 
 typedef struct StandardText StandardText;
+typedef struct Entity Entity;
 
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
@@ -289,6 +277,56 @@ typedef struct { // :CompStats
     Int firstParsed; // the name index for the first parsed word
     Int firstBuiltin; // the nameId for the first built-in word in standardStrings
 } CompStats;
+
+//}}}
+//{{{ Interpreter
+
+// Instructions (opcodes)
+// An instruction is 8 byte long and consists of 6-bit opcode and some data
+// Notation: [A] is a 2-byte stack address, it's signed and is measured relative to currFrame
+//           [~A] is a 3-byte constant or offset
+//           {A} is a 4-byte constant or address
+//           {{A}} is an 8-byte constant (i.e. it takes up a whole second instruction slot)
+#define iPlus              0 // [Dest] [Operand1] [Operand2]
+#define iMinus             1
+#define iTimes             2
+#define iDivBy             3
+#define iPlusFl            4
+#define iMinusFl           5
+#define iTimesFl           6
+#define iDivByFl           7 // /end
+#define iPlusConst         8 // [Src=Dest] {Increment}
+#define iMinusConst        9
+#define iTimesConst       10
+#define iDivByConst       11 // /end
+#define iPlusFlConst      12 // [Src=Dest] {{Double constant}}
+#define iMinusFlConst     13
+#define iTimesFlConst     14
+#define iDivByFlConst     15 // /end
+#define iConcatStrs       16 // [Dest] [Operand1] [Operand2]
+#define iNewstring        17 // [Dest] [Start] [~Len]
+#define iSubstring        18 // [Dest] [Src] {{ {Start} {Len}  }}
+#define iReverseString    19 // [Dest] [Src]
+#define iIndexOfSubstring 20 // [Dest] [String] [Substring]
+#define iGetFld           21 // [Dest] [Obj] [~Offset]
+#define iNewList          22 // [Dest] {Capacity}
+#define iGetElemPtr       23 // [Dest] [ArrAddress] {{ {0} {Elem index} }}
+#define iAddToList        24 // [List] {Value or reference}
+#define iRemoveFromList   25 // [List] {Elem Index}
+#define iSwap             26 // [List] {{ {Index1} {Index2} }}
+#define iConcatLists      27 // [Dest] [Operand1] [Operand2]
+#define iJump             28 // { Code pointer }
+#define iBranchLt         29 // [Operand] { Code pointer }
+#define iBranchEq         30
+#define iBranchGt         31 // /end
+#define iShortCircuit     32 // if [B] == [C] then [A] = [B] else ip += 1
+#define iCall             33 // [New frame pointer] { New instruction pointer }
+#define iBuiltinCall      34 // [Builtin index]
+#define iReturn           35 // [Size of return value = 0, 1 or 2]
+#define iSetLocal         36 // [Dest] {Value}
+#define iSetBigLocal      37 // [Dest] {{Value}}
+#define iPrint            38 // [String]
+#define iPrintErr         39 // [String]
 
 //}}}
 

@@ -275,26 +275,9 @@ static ParserFn const PARSE_TABLE[countSyntaxForms] = {
 };
 
 //}}}
-//{{{ Proto compiler
-
-private Compiler PROTO = {
-        .sourceCode = null,
-        .stringTable = null, .stringDict = null,
-        .typesDict = null,
-        .activeBindings = null,
-        .rawOverloads = null,
-        .a = null,
-        .i = -1
-    };
-
-private Bool _wasInit = false;
-
-private void initCompiler();
-
-//}}}
 //{{{ Runtime (virtual machine)
 
-
+typedef struct Interpreter Interpreter;
 #define RT Interpreter* restrict rt
 private Unt runPlus(Ulong instr, Unt ip, RT);
 private Unt runMinus(Ulong instr, Unt ip, RT);
@@ -309,6 +292,9 @@ private Unt runCall(Ulong instr, Unt ip, RT);
 private Unt runReturn(Ulong instr, Unt ip, RT);
 private Unt runPrint(Ulong instr, Unt ip, RT);
 
+typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter* restrict);
+
+#define countInstructions (iPrint + 1)
 static InterpreterFn const INTERPRETER_TABLE[countInstructions] = {
     [iPlus]        = &runPlus,
     [iTimes]       = &runTimes,
@@ -343,10 +329,179 @@ static InterpreterFn const INTERPRETER_TABLE[countInstructions] = {
 };
 
 #define countBuiltins 1
+
+typedef void (*BuiltinFn)(Interpreter*);
 BuiltinFn BUILTINS_TABLE[countBuiltins]; // filled in by "tabulateBuiltins"
 #define EYR_NULL 0
 
 //}}}
+//}}}
+//{{{ Generics
+
+testable Any* allocateOnArena(size_t, Arena*);
+#define allocate(T, a) (T*)allocateOnArena(sizeof(T), a)
+#define allocateArray(cap, T, a) (T*)allocateOnArena(cap*sizeof(T), a)
+
+//{{{ Stack
+
+#define DEFINE_STACK_HEADER(T) \
+    typedef struct {\
+        Int cap;\
+        Int len;\
+        Arena* arena;\
+        T* cont;\
+    } Stack##T;\
+    testable Stack ## T * createStack ## T (Int initCapacity, Arena* a);\
+    testable Bool hasValues ## T (Stack ## T * st);\
+    testable T pop ## T (Stack ## T * st);\
+    testable T peek ## T(Stack ## T * st);\
+    testable void push ## T (T newItem, Stack ## T * st);
+
+#define DEFINE_STACK(T)\
+    testable Stack##T * createStack##T (int initCapacity, Arena* a) {\
+        int capacity = initCapacity < 4 ? 4 : initCapacity;\
+        Stack##T * result = allocate(Stack##T, a);\
+        result->cap = capacity;\
+        result->len = 0;\
+        result->arena = a;\
+        T* arr = allocateArray(capacity, T, a);\
+        result->cont = arr;\
+        return result;\
+    }\
+    testable bool hasValues ## T (Stack ## T * st) {\
+        return st->len > 0;\
+    }\
+    testable T pop##T (Stack ## T * st) {\
+        st->len -= 1;\
+        return st->cont[st->len];\
+    }\
+    testable T peek##T(Stack##T * st) {\
+        return st->cont[st->len - 1];\
+    }\
+    testable void push##T (T newItem, Stack ## T * st) {\
+        if (st->len < st->cap) {\
+            memcpy((T*)(st->cont) + (st->len), &newItem, sizeof(T));\
+        } else {\
+            T* newContent = allocateArray(2*(st->cap), T, st->arena);\
+            memcpy(newContent, st->cont, st->len*sizeof(T));\
+            memcpy((T*)(newContent) + (st->len), &newItem, sizeof(T));\
+            st->cap *= 2;\
+            st->cont = newContent;\
+        }\
+        st->len += 1;\
+    }\
+
+
+DEFINE_STACK_HEADER(SourceLoc)
+DEFINE_STACK(SourceLoc) //:createStackSourceLoc
+
+DEFINE_STACK_HEADER(Node)
+DEFINE_STACK(Node)
+
+#ifdef TEST
+private void dbgStackNode(StackNode*, Arena*);
+#endif
+
+//}}}
+
+// Backtrack token, used during lexing to keep track of all the nested stuff
+typedef struct { // :BtToken
+    Unt tp : 6;
+    Int tokenInd;
+    Unt spanLevel : 3;
+} BtToken;
+
+DEFINE_STACK_HEADER(BtToken)
+DEFINE_STACK(BtToken) //:createStackBtToken
+
+DEFINE_STACK_HEADER(Token)
+
+
+DEFINE_STACK(Token) //:createStackToken
+typedef struct { // :ParseFrame
+    Unt tp : 6;
+    Int startNodeInd;
+    Int sentinel;    // sentinel token
+    Int typeId;      // valid only for fnDef, if, loopCond and the like.
+                     // For nodFor, contains the loop depth
+} ParseFrame;
+
+DEFINE_STACK_HEADER(ParseFrame)
+DEFINE_STACK(ParseFrame) //:createStackParseFrame
+
+
+typedef struct {  // :ExprFrame
+    Byte tp;      // "exfr" constants below
+    Int sentinel; // token sentinel
+    Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
+    Int startNode; // used for all?
+} ExprFrame;
+
+DEFINE_STACK_HEADER(ExprFrame)
+DEFINE_STACK(ExprFrame) //:createStackExprFrame
+
+typedef struct {   // :TypeFrame
+    Byte tp;       // "sor" and "tye" constants
+    Int sentinel;  // token id sentinel
+    Int countArgs; // accumulated number of type arguments
+    NameId nameId;
+} TypeFrame;
+
+DEFINE_STACK_HEADER(TypeFrame)
+DEFINE_STACK(TypeFrame) //:createStackTypeFrame
+
+typedef struct { //:BtCodegen Backtrack for generating code
+    Byte tp; // instructions, i.e. the "i*" constants
+    Int startInstr; // index of starting instruction
+    Int sentinel; // sentinel node of current function
+} BtCodegen;
+
+DEFINE_STACK_HEADER(BtCodegen)
+
+
+#define pop(X) _Generic((X),\
+    StackBtToken*: popBtToken,\
+    StackParseFrame*: popParseFrame,\
+    StackExprFrame*: popExprFrame,\
+    StackTypeFrame*: popTypeFrame,\
+    Stackint32_t*: popint32_t,\
+    StackNode*: popNode,\
+    StackSourceLoc*: popSourceLoc,\
+    StackBtCodegen*: popBtCodegen\
+    )(X)
+
+#define peek(X) _Generic((X),\
+    StackBtToken*: peekBtToken,\
+    StackParseFrame*: peekParseFrame,\
+    StackExprFrame*: peekExprFrame,\
+    StackTypeFrame*: peekTypeFrame,\
+    Stackint32_t*: peekint32_t,\
+    StackNode*: peekNode,\
+    StackBtCodegen*: peekBtCodegen\
+    )(X)
+
+#define push(A, X) _Generic((X),\
+    StackBtToken*: pushBtToken,\
+    StackParseFrame*: pushParseFrame,\
+    StackExprFrame*: pushExprFrame,\
+    StackTypeFrame*: pushTypeFrame,\
+    Stackint32_t*: pushint32_t,\
+    Stackuint32_t*: pushuint32_t,\
+    StackNode*: pushNode,\
+    StackSourceLoc*: pushSourceLoc,\
+    StackBtCodegen*: pushBtCodegen\
+    )(A, X)
+
+#define hasValues(X) _Generic((X),\
+    StackBtToken*: hasValuesBtToken,\
+    StackParseFrame*: hasValuesParseFrame,\
+    StackTypeFrame*: hasValuesTypeFrame,\
+    Stackint32_t*:  hasValuesint32_t,\
+    StackNode*: hasValuesNode,\
+    StackBtCodegen*: hasValuesBtCodegen\
+    )(X)
+//:pop :peek :push :hasValues
+
 //}}}
 //{{{ Utils
 
@@ -372,11 +527,11 @@ struct ArenaChunk { // :ArenaChunk
     char memory[]; // flexible array member
 };
 
-typedef struct { // :Arena
+struct Arena { // :Arena
     ArenaChunk* firstChunk;
     ArenaChunk* currChunk;
     int currInd;
-} Arena;
+};
 
 
 private size_t
@@ -452,8 +607,6 @@ allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
     return result;
 }
 
-#define allocate(T, a) (T*)allocateOnArena(sizeof(T), a)
-#define allocateArray(cap, T, a) (T*)allocateOnArena(cap*sizeof(T), a)
 
 testable void
 deleteArena(Arena* ar) { //:deleteArena
@@ -475,119 +628,6 @@ clearArena(Arena* a) { //:clearArena
 }
 
 //}}}
-//{{{ Stack
-
-#define DEFINE_STACK_HEADER(T) \
-    typedef struct {\
-        Int cap;\
-        Int len;\
-        Arena* arena;\
-        T* cont;\
-    } Stack##T;\
-    testable Stack ## T * createStack ## T (Int initCapacity, Arena* a);\
-    testable Bool hasValues ## T (Stack ## T * st);\
-    testable T pop ## T (Stack ## T * st);\
-    testable T peek ## T(Stack ## T * st);\
-    testable void push ## T (T newItem, Stack ## T * st);
-
-#define DEFINE_STACK(T)\
-    testable Stack##T * createStack##T (int initCapacity, Arena* a) {\
-        int capacity = initCapacity < 4 ? 4 : initCapacity;\
-        Stack##T * result = allocate(Stack##T, a);\
-        result->cap = capacity;\
-        result->len = 0;\
-        result->arena = a;\
-        T* arr = allocateArray(capacity, T, a);\
-        result->cont = arr;\
-        return result;\
-    }\
-    testable bool hasValues ## T (Stack ## T * st) {\
-        return st->len > 0;\
-    }\
-    testable T pop##T (Stack ## T * st) {\
-        st->len -= 1;\
-        return st->cont[st->len];\
-    }\
-    testable T peek##T(Stack##T * st) {\
-        return st->cont[st->len - 1];\
-    }\
-    testable void push##T (T newItem, Stack ## T * st) {\
-        if (st->len < st->cap) {\
-            memcpy((T*)(st->cont) + (st->len), &newItem, sizeof(T));\
-        } else {\
-            T* newContent = allocateArray(2*(st->cap), T, st->arena);\
-            memcpy(newContent, st->cont, st->len*sizeof(T));\
-            memcpy((T*)(newContent) + (st->len), &newItem, sizeof(T));\
-            st->cap *= 2;\
-            st->cont = newContent;\
-        }\
-        st->len += 1;\
-    }\
-
-
-#ifdef TEST
-private void dbgStackNode(StackNode*, Arena*);
-#endif
-
-void
-saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:saveNodes
-// Pushes the tail of scratch space (from a specified index onward) into the main node list
-    Int const pushCount = scr->len - startInd;
-    if (pushCount == 0)  {
-        return;
-    }
-    if (cm->nodes.len + pushCount + 1 < cm->nodes.cap) {
-        memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont + startInd,
-                pushCount*sizeof(Node));
-        memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont + startInd,
-                pushCount*sizeof(SourceLoc));
-    } else {
-        Int newCap = 2*(cm->nodes.cap) + pushCount;
-        Arr(Node) newContent = allocateArray(newCap, Node, cm->a);
-        memcpy(newContent, cm->nodes.cont + startInd, cm->nodes.len*sizeof(Node));
-        memcpy((Node*)(newContent) + (cm->nodes.len),
-                scr->cont + startInd,
-                pushCount*sizeof(Node));
-        cm->nodes.cap = newCap;
-        cm->nodes.cont = newContent;
-
-        Arr(SourceLoc) newLocs = allocateArray(newCap, SourceLoc, cm->a);
-        memcpy(newLocs, cm->sourceLocs->cont + startInd, pushCount*sizeof(SourceLoc));
-        memcpy((SourceLoc*)(newLocs) + (cm->sourceLocs->len), locs->cont + startInd,
-                pushCount*sizeof(SourceLoc));
-        cm->sourceLocs->cap = newCap;
-        cm->sourceLocs->cont = newLocs;
-    }
-    cm->nodes.len += pushCount;
-    cm->sourceLocs->len += pushCount;
-}
-
-void
-ensureCapacityTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
-//:ensureCapacityTokenBuf Reserve space in the temp buffer used to shuffle tokens
-    st->len = 0;
-    if (neededSpace >= st->cap) {
-        Arr(Token) newContent = allocateArray(2*(st->cap), Token, cm->a);
-        st->cap *= 2;
-        st->cont = newContent;
-    }
-}
-
-private void
-ensureCapacityTokens(Int neededSpace, Compiler* cm) {
-//:ensureCapacityNodes Reserve space in the main nodes list
-    if (cm->tokens.len + neededSpace - 1 >= cm->tokens.cap) {
-        Int const newCap = (2*(cm->tokens.cap) > cm->tokens.cap + neededSpace)
-            ? 2*cm->tokens.cap
-            : cm->tokens.cap + neededSpace;
-        Arr(Token) newContent = allocateArray(newCap, Token, cm->a);
-        memcpy(newContent, cm->tokens.cont, cm->tokens.len*sizeof(Token));
-        cm->tokens.cap = newCap;
-        cm->tokens.cont = newContent;
-    }
-}
-
-//}}}
 //{{{ Internal list
 
 #define DEFINE_INTERNAL_LIST_TYPE(T)\
@@ -596,11 +636,6 @@ typedef struct {\
     Int cap;\
     Arr(T) cont;\
 } InList##T;
-
-#define DEFINE_INTERNAL_LIST_HEADER(fieldName, T)\
-    InList##T createInList ## T (Int initCapacity, Arena* a);\
-    void pushIn ## fieldName (T newItem, Compiler* cm);
-
 
 #define DEFINE_INTERNAL_LIST_CONSTRUCTOR(T)                 \
 testable InList##T createInList##T(Int initCap, Arena* a) { \
@@ -777,60 +812,20 @@ copyMultiAssocList(MultiAssocList* ml, Arena* a) { //:copyMultiAssocList
     return result;
 }
 
-#ifdef TEST
-
-void
-dbgRawOverload(Int listInd, Compiler* cm) { //:dbgRawOverload
-    MultiAssocList* ml = cm->rawOverloads;
-    Int len = ml->cont[listInd]/2;
-    printf("[");
-    for (Int j = 0; j < len; j++) {
-        printf("%d: %d ", ml->cont[listInd + 2 + 2*j], ml->cont[listInd + 2*j + 3]);
-    }
-    print("]");
-    printf("types: ");
-    for (Int j = 0; j < len; j++) {
-        dbgType(ml->cont[listInd + 2 + 2*j], cm);
-        printf("\n");
-    }
-}
-
-#endif
-
 //}}}
 //{{{ Datatypes a la carte
 
+DEFINE_STACK_HEADER(int32_t)
 DEFINE_STACK(int32_t) //:createStackint32_t :pushint32_t :peekint32_t :hasValuesint32_t :popint32_t
+DEFINE_STACK_HEADER(uint32_t)
 DEFINE_STACK(uint32_t) //:createStackuint32_t :pushuint32_t :peekuint32_t :hasValuesuint32_t
                        //:popuint32_t
-DEFINE_STACK(BtToken) //:createStackBtToken
-DEFINE_STACK(Token) //:createStackToken
-DEFINE_STACK(ParseFrame) //:createStackParseFrame
-DEFINE_STACK(ExprFrame) //:createStackExprFrame
-DEFINE_STACK(TypeFrame) //:createStackTypeFrame
-DEFINE_STACK(SourceLoc) //:createStackSourceLoc
 
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Token) //:createInListToken
-DEFINE_INTERNAL_LIST(tokens, Token, a) //:pushIntokens
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Toplevel)  //:createInListToplevel
-DEFINE_INTERNAL_LIST(toplevels, Toplevel, a) //:pushIntoplevels
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node) //:createInListNode
-DEFINE_INTERNAL_LIST(nodes, Node, a) //:pushInnodes
-
-DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity) //:createInListEntity
-DEFINE_INTERNAL_LIST(entities, Entity, a) //:pushInentities
-
+DEFINE_INTERNAL_LIST_TYPE(Int)
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Int) //:createInListInt
-DEFINE_INTERNAL_LIST(newlines, Int, a) //:pushInnewlines
-DEFINE_INTERNAL_LIST(numeric, Int, a) //:pushInnumeric
-DEFINE_INTERNAL_LIST(importNames, Int, a) //:pushInimportNames
-DEFINE_INTERNAL_LIST(overloads, Int, a) //:pushInoverloads
-DEFINE_INTERNAL_LIST(types, Int, a) //:pushIntypes
 
+DEFINE_INTERNAL_LIST_TYPE(uint64_t)
 DEFINE_INTERNAL_LIST_CONSTRUCTOR(Ulong) //:createInListUlong
-DEFINE_INTERNAL_LIST(bytecode, Ulong, a) //:pushInbytecode
 
 //}}}
 //{{{ Strings
@@ -951,8 +946,6 @@ private bool isSpace(Byte a) { //:isSpace
 //}}}
 //{{{ Int Hashmap
 
-DEFINE_STACK_HEADER(int32_t)
-DEFINE_STACK_HEADER(uint32_t)
 
 typedef struct {
     Arr(int*) dict;
@@ -1468,15 +1461,6 @@ minPositiveOf(Int count, ...) { //:minPositiveOf
 //}}}
 //{{{ Internal types
 
-typedef struct { // :ParseFrame
-    Unt tp : 6;
-    Int startNodeInd;
-    Int sentinel;    // sentinel token
-    Int typeId;      // valid only for fnDef, if, loopCond and the like.
-                     // For nodFor, contains the loop depth
-} ParseFrame;
-
-DEFINE_STACK_HEADER(ParseFrame)
 
 struct ScopeChunk { //:ScopeChunk
     ScopeChunk *next;
@@ -1496,20 +1480,26 @@ typedef struct { // :ScopeStack
 } ScopeStack;
 
 
-typedef struct {  // :ExprFrame
-    Byte tp;      // "exfr" constants below
-    Int sentinel; // token sentinel
-    Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
-    Int startNode; // used for all?
-} ExprFrame;
-
 #define exfrParen      1
 #define exfrCall       2
 #define exfrUnaryCall  3
 #define exfrDataAlloc  4
 #define exfrAccessor   5
 
-DEFINE_STACK_HEADER(ExprFrame)
+
+// Public classes must always be even-valued, private - odd-valued. Mutable before immutable
+#define classMut      1
+#define classPubMut   2
+#define classImmut    5
+#define classPubImmut 6
+
+
+struct Entity { //:Entity
+    TypeId typeId;
+    Unt name; // For native names, it's NameId. For "emitInfix", this is operatorId
+    Byte class; // mutable or immutable, public or private
+};
+
 
 typedef struct { // :StateForExprs
     StackInt* exp;   // [aTmp]
@@ -1521,15 +1511,6 @@ typedef struct { // :StateForExprs
     Bool metAnAllocation;
     StackToken* reorderBuf;
 } StateForExprs;
-
-typedef struct {   // :TypeFrame
-    Byte tp;       // "sor" and "tye" constants
-    Int sentinel;  // token id sentinel
-    Int countArgs; // accumulated number of type arguments
-    NameId nameId;
-} TypeFrame;
-
-DEFINE_STACK_HEADER(TypeFrame)
 
 typedef struct { // :StateForTypes
     StackInt* exp;   // [aTmp] Higher 8 bits are the "sor"/"tye" sorts, lower 24 bits are TypeId
@@ -1553,29 +1534,18 @@ typedef struct { //:Assignment
     Int nodeInd;
 } Assignment;
 
-
-DEFINE_STACK_HEADER(Node)
-DEFINE_STACK_HEADER(SourceLoc)
-
-DEFINE_INTERNAL_LIST_TYPE(Token) //:InListToken
-DEFINE_INTERNAL_LIST_TYPE(Node)
+DEFINE_INTERNAL_LIST_TYPE(Assignment)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Assignment)  //:createInListToplevel
 
 DEFINE_INTERNAL_LIST_TYPE(Entity)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Entity) //:createInListEntity
 
-DEFINE_INTERNAL_LIST_TYPE(Int)
+DEFINE_INTERNAL_LIST_TYPE(Token) //:InListToken
 
 DEFINE_INTERNAL_LIST_TYPE(uint32_t)
-DEFINE_INTERNAL_LIST_TYPE(uint64_t)
 
-DEFINE_INTERNAL_LIST_TYPE(Assignment)
-
-typedef struct { //:BtCodegen Backtrack for generating code
-    Byte tp; // instructions, i.e. the "i*" constants
-    Int startInstr; // index of starting instruction
-    Int sentinel; // sentinel node of current function
-} BtCodegen;
-
-DEFINE_STACK_HEADER(BtCodegen)
+DEFINE_INTERNAL_LIST_TYPE(Node)
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Node) //:createInListNode
 
 // Span levels, must all be more than 0
 #define slScope        1 // scopes (denoted by brackets): newlines and commas have no effect there
@@ -1583,6 +1553,7 @@ DEFINE_STACK_HEADER(BtCodegen)
 #define slSubexpr      3 // parenthesized forms: newlines have no effect, semi-colons error out
 #define slUnbraced     4 // A scope that hasn't met its first brace, like an "if" before its "{"
 #define slSingleBraced 5 // A "for" scope that has met exactly 1 curly brace
+
 
 struct Compiler { // :Compiler
     // LEXING
@@ -1598,7 +1569,7 @@ struct Compiler { // :Compiler
     StringDict* stringDict;
 
     // PARSING
-    InListToplevel toplevels;
+    InListAssignment toplevels;
     InListInt importNames;
     StackParseFrame* backtrack; // [aTmp]
     ScopeStack* scopeStack;
@@ -1625,6 +1596,17 @@ struct Compiler { // :Compiler
     CompStats stats;
 };
 
+DEFINE_INTERNAL_LIST(newlines, Int, a) //:pushInnewlines
+DEFINE_INTERNAL_LIST(numeric, Int, a) //:pushInnumeric
+DEFINE_INTERNAL_LIST(importNames, Int, a) //:pushInimportNames
+DEFINE_INTERNAL_LIST(overloads, Int, a) //:pushInoverloads
+DEFINE_INTERNAL_LIST(types, Int, a) //:pushIntypes
+DEFINE_INTERNAL_LIST(bytecode, Ulong, a) //:pushInbytecode
+DEFINE_INTERNAL_LIST_CONSTRUCTOR(Token) //:createInListToken
+DEFINE_INTERNAL_LIST(tokens, Token, a) //:pushIntokens
+DEFINE_INTERNAL_LIST(toplevels, Assignment, a) //:pushIntoplevels
+DEFINE_INTERNAL_LIST(entities, Entity, a) //:pushInentities
+DEFINE_INTERNAL_LIST(nodes, Node, a) //:pushInnodes
 
 // see the Type layout chapter in the docs
 #define sorRecord       1 // Used for records and for primitive types
@@ -1656,7 +1638,7 @@ typedef struct { // :TypeHeader
 #define StackAddr int16_t //:StackAddr Offset from "currFrame". Negative values mean previous stack frame
 
 
-typedef struct {    //:Interpreter
+struct Interpreter {    //:Interpreter
     Unt ip; // current instruction pointer
     Arr(Ulong) code;
     Arr(Int) fns;   // indices into @code
@@ -1669,7 +1651,7 @@ typedef struct {    //:Interpreter
     StackAddr stackTop;
     EyrPtr heapTop; // index into @memory
     String errMsg;
-} Interpreter;
+};
 
 typedef struct { //:CallHeader
     EyrPtr prevFrame;
@@ -1679,104 +1661,24 @@ typedef struct { //:CallHeader
 
 #define stackFrameStart 2 // Skipped the 2 ints
 
-typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter* restrict);
-typedef void (*BuiltinFn)(Interpreter*);
-
-// Instructions (opcodes)
-// An instruction is 8 byte long and consists of 6-bit opcode and some data
-// Notation: [A] is a 2-byte stack address, it's signed and is measured relative to currFrame
-//           [~A] is a 3-byte constant or offset
-//           {A} is a 4-byte constant or address
-//           {{A}} is an 8-byte constant (i.e. it takes up a whole second instruction slot)
-#define iPlus              0 // [Dest] [Operand1] [Operand2]
-#define iMinus             1
-#define iTimes             2
-#define iDivBy             3
-#define iPlusFl            4
-#define iMinusFl           5
-#define iTimesFl           6
-#define iDivByFl           7 // /end
-#define iPlusConst         8 // [Src=Dest] {Increment}
-#define iMinusConst        9
-#define iTimesConst       10
-#define iDivByConst       11 // /end
-#define iPlusFlConst      12 // [Src=Dest] {{Double constant}}
-#define iMinusFlConst     13
-#define iTimesFlConst     14
-#define iDivByFlConst     15 // /end
-#define iConcatStrs       16 // [Dest] [Operand1] [Operand2]
-#define iNewstring        17 // [Dest] [Start] [~Len]
-#define iSubstring        18 // [Dest] [Src] {{ {Start} {Len}  }}
-#define iReverseString    19 // [Dest] [Src]
-#define iIndexOfSubstring 20 // [Dest] [String] [Substring]
-#define iGetFld           21 // [Dest] [Obj] [~Offset]
-#define iNewList          22 // [Dest] {Capacity}
-#define iGetElemPtr       23 // [Dest] [ArrAddress] {{ {0} {Elem index} }}
-#define iAddToList        24 // [List] {Value or reference}
-#define iRemoveFromList   25 // [List] {Elem Index}
-#define iSwap             26 // [List] {{ {Index1} {Index2} }}
-#define iConcatLists      27 // [Dest] [Operand1] [Operand2]
-#define iJump             28 // { Code pointer }
-#define iBranchLt         29 // [Operand] { Code pointer }
-#define iBranchEq         30
-#define iBranchGt         31 // /end
-#define iShortCircuit     32 // if [B] == [C] then [A] = [B] else ip += 1
-#define iCall             33 // [New frame pointer] { New instruction pointer }
-#define iBuiltinCall      34 // [Builtin index]
-#define iReturn           35 // [Size of return value = 0, 1 or 2]
-#define iSetLocal         36 // [Dest] {Value}
-#define iSetBigLocal      37 // [Dest] {{Value}}
-#define iPrint            38 // [String]
-#define iPrintErr         39 // [String]
-
-#define countInstructions (iPrint + 1)
 
 //}}}
 //}}}
-//{{{ Generics
+//{{{ Proto compiler
 
-#define pop(X) _Generic((X),\
-    StackBtToken*: popBtToken,\
-    StackParseFrame*: popParseFrame,\
-    StackExprFrame*: popExprFrame,\
-    StackTypeFrame*: popTypeFrame,\
-    Stackint32_t*: popint32_t,\
-    StackNode*: popNode,\
-    StackSourceLoc*: popSourceLoc,\
-    StackBtCodegen*: popBtCodegen\
-    )(X)
+private Compiler PROTO = {
+        .sourceCode = null,
+        .stringTable = null, .stringDict = null,
+        .typesDict = null,
+        .activeBindings = null,
+        .rawOverloads = null,
+        .a = null,
+        .i = -1
+    };
 
-#define peek(X) _Generic((X),\
-    StackBtToken*: peekBtToken,\
-    StackParseFrame*: peekParseFrame,\
-    StackExprFrame*: peekExprFrame,\
-    StackTypeFrame*: peekTypeFrame,\
-    Stackint32_t*: peekint32_t,\
-    StackNode*: peekNode,\
-    StackBtCodegen*: peekBtCodegen\
-    )(X)
+private Bool _wasInit = false;
 
-#define push(A, X) _Generic((X),\
-    StackBtToken*: pushBtToken,\
-    StackParseFrame*: pushParseFrame,\
-    StackExprFrame*: pushExprFrame,\
-    StackTypeFrame*: pushTypeFrame,\
-    Stackint32_t*: pushint32_t,\
-    Stackuint32_t*: pushuint32_t,\
-    StackNode*: pushNode,\
-    StackSourceLoc*: pushSourceLoc,\
-    StackBtCodegen*: pushBtCodegen\
-    )(A, X)
-
-#define hasValues(X) _Generic((X),\
-    StackBtToken*: hasValuesBtToken,\
-    StackParseFrame*: hasValuesParseFrame,\
-    StackTypeFrame*: hasValuesTypeFrame,\
-    Stackint32_t*:  hasValuesint32_t,\
-    StackNode*: hasValuesNode,\
-    StackBtCodegen*: hasValuesBtCodegen\
-    )(X)
-//:pop :peek :push :hasValues
+private void initCompiler();
 
 //}}}
 //{{{ Errors
@@ -1950,14 +1852,7 @@ void dbgCallFrames(Interpreter* rt);
 //{{{ Lexer
 //{{{ LexerConstants
 
-StandardText
-getStandardTextLength(void) { //:getStandardTextLength
-    return (StandardText){
-        .len = sizeof(standardText) - 1,
-        .firstParsed = (strSentinel + countOperators),
-        .firstBuiltin = countOperators };
-}
-
+#define maxWordLength 255
 //{{{ Standard strings :standardStr
 
 #define strAlias      0
@@ -2012,19 +1907,6 @@ getStandardTextLength(void) { //:getStandardTextLength
 #endif
 
 //}}}
-
-
-// Backtrack token, used during lexing to keep track of all the nested stuff
-typedef struct { // :BtToken
-    Unt tp : 6;
-    Int tokenInd;
-    Unt spanLevel : 3;
-} BtToken;
-
-DEFINE_STACK_HEADER(BtToken)
-
-#define maxWordLength 255
-
 //}}}
 //{{{ LexerUtils
 
@@ -2123,6 +2005,34 @@ skipSpaces(Arr(char const) source, LX) { //:skipSpaces
         lx->i += 1;
     }
 }
+
+
+void
+ensureCapacityTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
+//:ensureCapacityTokenBuf Reserve space in the temp buffer used to shuffle tokens
+    st->len = 0;
+    if (neededSpace >= st->cap) {
+        Arr(Token) newContent = allocateArray(2*(st->cap), Token, cm->a);
+        st->cap *= 2;
+        st->cont = newContent;
+    }
+}
+
+private void
+ensureCapacityTokens(Int neededSpace, Compiler* cm) {
+//:ensureCapacityNodes Reserve space in the main nodes list
+    if (cm->tokens.len + neededSpace - 1 >= cm->tokens.cap) {
+        Int const newCap = (2*(cm->tokens.cap) > cm->tokens.cap + neededSpace)
+            ? 2*cm->tokens.cap
+            : cm->tokens.cap + neededSpace;
+        Arr(Token) newContent = allocateArray(newCap, Token, cm->a);
+        memcpy(newContent, cm->tokens.cont, cm->tokens.len*sizeof(Token));
+        cm->tokens.cap = newCap;
+        cm->tokens.cont = newContent;
+    }
+}
+
+
 
 _Noreturn private void
 throwExcInternal0(Int errInd, Int lineNumber, CM) {
@@ -3204,6 +3114,41 @@ pAddFunctionCall(Token tk, Int sentinel, StateForExprs* s) {
     push(((SourceLoc) { .startBt = tk.startBt, .lenBts = tk.lenBts }), s->locsCalls);
 }
 
+void
+saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //:saveNodes
+// Pushes the tail of scratch space (from a specified index onward) into the main node list
+    Int const pushCount = scr->len - startInd;
+    if (pushCount == 0)  {
+        return;
+    }
+    if (cm->nodes.len + pushCount + 1 < cm->nodes.cap) {
+        memcpy((Node*)(cm->nodes.cont) + (cm->nodes.len), scr->cont + startInd,
+                pushCount*sizeof(Node));
+        memcpy((SourceLoc*)(cm->sourceLocs->cont) + (cm->sourceLocs->len), locs->cont + startInd,
+                pushCount*sizeof(SourceLoc));
+    } else {
+        Int newCap = 2*(cm->nodes.cap) + pushCount;
+        Arr(Node) newContent = allocateArray(newCap, Node, cm->a);
+        memcpy(newContent, cm->nodes.cont + startInd, cm->nodes.len*sizeof(Node));
+        memcpy((Node*)(newContent) + (cm->nodes.len),
+                scr->cont + startInd,
+                pushCount*sizeof(Node));
+        cm->nodes.cap = newCap;
+        cm->nodes.cont = newContent;
+
+        Arr(SourceLoc) newLocs = allocateArray(newCap, SourceLoc, cm->a);
+        memcpy(newLocs, cm->sourceLocs->cont + startInd, pushCount*sizeof(SourceLoc));
+        memcpy((SourceLoc*)(newLocs) + (cm->sourceLocs->len), locs->cont + startInd,
+                pushCount*sizeof(SourceLoc));
+        cm->sourceLocs->cap = newCap;
+        cm->sourceLocs->cont = newLocs;
+    }
+    cm->nodes.len += pushCount;
+    cm->sourceLocs->len += pushCount;
+}
+
+
+
 //}}}
 //{{{ Forward decls
 
@@ -3412,25 +3357,19 @@ pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, TOKS, CM) {
 }
 
 private void
-pAssignment(Token tok, Toplevel toplevel, TOKS, CM) { //:pAssignment
-// Parses both assignments and compile-time defs
+pAssignmentWorker(Token tok, Assignment assignment, TOKS, CM) {
     Unt const tp = (tok.tp == tokDef) ? nodDef : nodAssignment;
-    if (tok.pl1 == assiType) {
-        pTypeDef(toks, cm);
-        return;
-    }
-
     TypeId leftType = -1;
-    Int const countLeftSide = toplevel.rightTokenInd - toplevel.tokenInd;
-    Token rightTk = toks[toplevel.rightTokenInd];
+    Int const countLeftSide = assignment.rightTokenInd - assignment.tokenInd;
+    Token rightTk = toks[assignment.rightTokenInd];
 
-    VALIDATEP(toplevel.rightTokenInd < toplevel.sentinel && rightTk.pl2 > 0, 
+    VALIDATEP(assignment.rightTokenInd < assignment.sentinel && rightTk.pl2 > 0, 
               errToplevelEmptyRight)
 
     EntityId entityId = -1;
     Int const assignmentNodeInd = cm->nodes.len;
     push(((ParseFrame){.tp = tp, .startNodeInd = assignmentNodeInd,
-                       .sentinel = sentinel}), cm->backtrack);
+                       .sentinel = assignment.sentinel}), cm->backtrack);
     addNode((Node){ .tp = tp}, locOf(tok), cm);
     if (countLeftSide == 1)  {
         Token nameTk = toks[cm->i];
@@ -3451,14 +3390,14 @@ pAssignment(Token tok, Toplevel toplevel, TOKS, CM) { //:pAssignment
         leftType = assignmentComplexLeftSide(cm->i + countLeftSide, toks, cm);
     }
 
-    cm->i = rightInd + 1; // CONSUME the left side of an assignment and the assignRight
+    cm->i = assignment.rightTokenInd + 1; // CONSUME everything up to body of right side
     cm->nodes.cont[assignmentNodeInd].pl3 = cm->nodes.len - assignmentNodeInd;
     Int const rightNodeInd = cm->nodes.len;
 
     if (countLeftSide > 1) {
         assignmentMutateComplexLeft(rightNodeInd, toks, cm);
     }
-    const TypeId rightType = pAssignmentRight(leftType, rightTk, sentinel, toks, cm);
+    const TypeId rightType = pAssignmentRight(leftType, rightTk, assignment.sentinel, toks, cm);
 
     if (entityId > -1 && rightType > -1 && leftType == -1) {
         cm->entities.cont[entityId].typeId = rightType; // inferring the type of left binding
@@ -3467,6 +3406,16 @@ pAssignment(Token tok, Toplevel toplevel, TOKS, CM) { //:pAssignment
     }
 
     mbCloseSpans(cm);
+}
+
+private void
+pAssignment(Token tok, TOKS, CM) { //:pAssignment
+// Parses both assignments and compile-time defs
+    if (tok.pl1 == assiType) {
+        pTypeDef(toks, cm);
+        return;
+    }
+    pAssignmentWorker(tok, (Assignment), toks, cm);
 }
 
 private void
@@ -4244,7 +4193,6 @@ ScopeStackFrame {
 
 
 
-DEFINE_STACK(Node)
 
 private size_t
 ceiling4(size_t sz) {
@@ -6450,6 +6398,22 @@ void printParser(CM, Arena* a) { //:printParser
 }
 
 void
+dbgRawOverload(Int listInd, Compiler* cm) { //:dbgRawOverload
+    MultiAssocList* ml = cm->rawOverloads;
+    Int len = ml->cont[listInd]/2;
+    printf("[");
+    for (Int j = 0; j < len; j++) {
+        printf("%d: %d ", ml->cont[listInd + 2 + 2*j], ml->cont[listInd + 2*j + 3]);
+    }
+    print("]");
+    printf("types: ");
+    for (Int j = 0; j < len; j++) {
+        dbgType(ml->cont[listInd + 2 + 2*j], cm);
+        printf("\n");
+    }
+}
+
+void
 dbgStackNode(StackNode* st, Arena* a) { //:dbgStackNode
     Int indent = 0;
     Stackint32_t* sentinels = createStackint32_t(16, a);
@@ -6512,6 +6476,13 @@ getBinding(Int id, CM) { return cm->activeBindings[id]; }
 
 void
 setLoc(SourceLoc loc, CM) { cm->sourceLocs->cont[j] = loc; }
+
+void
+addTypeHeaderForTestFunction(Int arity, CM) {
+    typeAddHeader(
+       (TypeHeader){.sort = sorFunction, .tyrity = 0, .arity = arity,
+                    .nameAndLen = -1}, cm);
+}
 
 Int
 equalityParser(/* test specimen */Compiler* a, /* expected */Compiler* b, Bool compareLocsToo) {
