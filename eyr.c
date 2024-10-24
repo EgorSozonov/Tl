@@ -205,6 +205,7 @@ private void parseErrorBareAtom(Token tok, TOKS, CM);
 private void pScope(Token tok, TOKS, CM);
 private void pExpr(Token tok, TOKS, CM);
 private void pAssignment(Token tok, TOKS, CM);
+private void pDef(Token tok, TOKS, CM);
 private void pMisc(Token tok, TOKS, CM);
 private void pAlias(Token tok, TOKS, CM);
 private void parseAssert(Token tok, TOKS, CM);
@@ -629,7 +630,7 @@ addMultiAssocList(Int newKey, Int newVal, Int listInd, MultiAssocList* ml) {
             ml->cont[freeInd] = listLen;
             memcpy(ml->cont + freeInd + 2, ml->cont + listInd + 2, listLen);
             newListInd = freeInd;
-        } else if (ml->len + neededCap + 2 < ml->cap) {
+        } ei (ml->len + neededCap + 2 < ml->cap) {
             newListInd = ml->len;
             multiListReallocToEnd(listInd, listLen, neededCap, ml);
         } else {
@@ -769,7 +770,7 @@ endsWith(String a, String b) { //:endsWith
 // Does string "a" end with string "b"?
     if (a.len < b.len) {
         return false;
-    } else if (b.len == 0) {
+    } ei (b.len == 0) {
         return true;
     }
 
@@ -876,6 +877,7 @@ createIntMap(int initSize, Arena* a) { //:createIntMap
         d[i] = null;
     }
     result->dictSize = realInitSize;
+    print("in create int map %d", realInitSize); 
     result->dict = dict;
 
     return result;
@@ -1260,7 +1262,7 @@ binarySearch(Int key, Int start, Int end, Arr(Int) arr) { //:binarySearch
     Int j = end - 1;
     if (arr[start] == key) {
         return i;
-    } else if (arr[j] == key) {
+    } ei (arr[j] == key) {
         return j;
     }
 
@@ -1272,7 +1274,7 @@ binarySearch(Int key, Int start, Int end, Arr(Int) arr) { //:binarySearch
         Int mid = arr[midInd];
         if (mid > key) {
             j = midInd;
-        } else if (mid < key) {
+        } ei (mid < key) {
             i = midInd;
         } else {
             return midInd;
@@ -1772,11 +1774,11 @@ hexNumber(Arr(char const) source, LX) { //:hexNumber
         Byte cByte = source[j];
         if (isDigit(cByte)) {
             pushInnumeric(cByte - aDigit0, lx);
-        } else if ((cByte >= aALower && cByte <= aFLower)) {
+        } ei ((cByte >= aALower && cByte <= aFLower)) {
             pushInnumeric(cByte - aALower + 10, lx);
-        } else if ((cByte >= aAUpper && cByte <= aFUpper)) {
+        } ei ((cByte >= aAUpper && cByte <= aFUpper)) {
             pushInnumeric(cByte - aAUpper + 10, lx);
-        } else if (cByte == aUnderscore
+        } ei (cByte == aUnderscore
                     && (j == lx->stats.inpLength - 1 || isHexDigit(source[j + 1]))) {
             throwExcLexer(errNumericEndUnderscore);
         } else {
@@ -1876,17 +1878,17 @@ decNumber(bool isNegative, SRC, LX) { //:decNumber
         if (isDigit(cByte)) {
             if (metNonzero) {
                 pushInnumeric(cByte - aDigit0, lx);
-            } else if (cByte != aDigit0) {
+            } ei (cByte != aDigit0) {
                 metNonzero = true;
                 pushInnumeric(cByte - aDigit0, lx);
             }
             if (metDot) {
                 digitsAfterDot += 1;
             }
-        } else if (cByte == aUnderscore) {
+        } ei (cByte == aUnderscore) {
             VALIDATEL(j != (lx->stats.inpLength - 1) && isDigit(source[j + 1]),
                       errNumericEndUnderscore)
-        } else if (cByte == aDot) {
+        } ei (cByte == aDot) {
             VALIDATEL(!metDot, errNumericMultipleDots)
             metDot = true;
         } else {
@@ -1977,11 +1979,11 @@ lexProcessSyntaxForm(Unt reservedWordType, Int startBt, SRC, LX) { //:lexProcess
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= tokIf && reservedWordType <= tokElse) {
         lexIf(reservedWordType, startBt, source, lx);
-    } else if (reservedWordType == tokDef) {
+    } ei (reservedWordType == tokDef) {
         lexDef(startBt, source, lx);
-    } else if (reservedWordType == tokFor)  {
+    } ei (reservedWordType == tokFor)  {
         lexFor(startBt, source, lx);
-    } else if (reservedWordType >= firstScopeTokenType) {
+    } ei (reservedWordType >= firstScopeTokenType) {
         // A reserved word must be the first inside parentheses, but parentheses are always
         // wrapped in statements, so we need to check the TWO last tokens and two top BtTokens
         VALIDATEL(bt->len >= 2 && peek(bt).tp == tokParens
@@ -1996,7 +1998,7 @@ lexProcessSyntaxForm(Unt reservedWordType, Int startBt, SRC, LX) { //:lexProcess
         bt->cont[bt->len - 2].spanLevel = slScope;
         bt->len -= 1;
         skipSpaces(source, lx);
-    } else if (reservedWordType >= firstSpanTokenType) {
+    } ei (reservedWordType >= firstSpanTokenType) {
         VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
         addStatementSpan(reservedWordType, startBt, lx);
     }
@@ -2075,16 +2077,6 @@ tryOpenAccessor(SRC, LX) { //:tryOpenAccessor
 }
 
 private void
-tryChangeParensToTypeCall(LX) {
-    if (!hasValues(lx->lexBtrack) || peek(lx->lexBtrack).tp != tokParens
-            || lx->tokens.cont[lx->tokens.len - 1].tp != tokParens) {
-        return;
-    }
-    lx->lexBtrack->cont[lx->lexBtrack->len - 1].tp = tokTypeCall;
-    lx->tokens.cont[lx->tokens.len - 1].tp = tokTypeCall;
-}
-
-private void
 wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
            Bool wasCapitalized, SRC, LX) { //:wordNormal
     Int lenBts = lx->i - realStartBt;
@@ -2093,9 +2085,10 @@ wordNormal(Unt wordType, Int uniqueStringId, Int startBt, Int realStartBt,
     if (wordType == tokWord) {
         wrapInAStatementStarting(startBt, source, lx);
         if (wasCapitalized) {
-            tryChangeParensToTypeCall(lx);
             newToken.tp = tokTypeName;
         }
+    } ei (wordType == tokTypeVar) {
+        wrapInAStatementStarting(startBt, source, lx);
     }
     pushIntokens(newToken, lx);
 
@@ -2112,16 +2105,16 @@ wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt,
         if (keywordTp == keywTrue) {
             wrapInAStatementStarting(startBt, source, lx);
             pushIntokens((Token){.tp=tokBool, .pl2=1, .startBt=realStartBt, .lenBts=4}, lx);
-        } else if (keywordTp == keywFalse) {
+        } ei (keywordTp == keywFalse) {
             //VALIDATEL(!hasValues(bt) || peek(bt).spanLevel == slScope, errCoreNotInsideStmt)
             wrapInAStatementStarting(startBt, source, lx);
             pushIntokens((Token){.tp=tokBool, .pl2=0, .startBt=realStartBt, .lenBts=5}, lx);
-        } else if (keywordTp == keywBreak) {
+        } ei (keywordTp == keywBreak) {
 
             push(((BtToken){ .tp = tokBreakCont, .tokenInd = lx->tokens.len, .spanLevel = slStmt}),
                     lx->lexBtrack);
             pushIntokens((Token) {.tp = tokBreakCont, .pl1 = 0, .startBt = realStartBt }, lx);
-        } else if (keywordTp == keywContinue) {
+        } ei (keywordTp == keywContinue) {
             push(((BtToken){ .tp = tokBreakCont, .tokenInd = lx->tokens.len, .spanLevel = slStmt}),
                     lx->lexBtrack);
             pushIntokens((Token) {.tp = tokBreakCont, .pl1 = 1, .startBt = realStartBt }, lx);
@@ -2210,7 +2203,6 @@ lexAssignment(Int const opType, LX) { //:lexAssignment
         }
     }
 
-
     openPunctuation(tokAssignRight, slStmt, lx->i, lx);
     if (opType > -1) {
         // -2 because we've already opened the right side span
@@ -2226,9 +2218,9 @@ lexAssignment(Int const opType, LX) { //:lexAssignment
 }
 
 private void
-lexAtSign(SRC, LX) { //:lexAtSign
+lexDollar(SRC, LX) { //:lexCaret
     VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT), errUnexpectedToken)
-    lx->i += 1; // CONSUME the "'"
+    lx->i += 1; // CONSUME the "$"
     wordInternal(tokTypeVar, source, lx);
 }
 
@@ -2276,7 +2268,7 @@ lexOperator(SRC, LX) { //:lexOperator
         if (opByte == sentinel)  {
             opType = k;
             break;
-        } else if (*opByte != secondSymbol) {
+        } ei (*opByte != secondSymbol) {
             k += 1;
             continue;
         }
@@ -2284,7 +2276,7 @@ lexOperator(SRC, LX) { //:lexOperator
         if (opByte == sentinel)  {
             opType = k;
             break;
-        } else if (*opByte != thirdSymbol) {
+        } ei (*opByte != thirdSymbol) {
             k += 1;
             continue;
         }
@@ -2373,9 +2365,10 @@ lexMinus(SRC, LX) { //:lexMinus
             wrapInAStatement(source, lx);
             decNumber(true, source, lx);
             lx->numeric.len = 0;
-        } else if (nextBt == aGT)  {
+        } ei (nextBt == aGT)  {
             wrapInAStatement(source, lx);
-            pushIntokens((Token){ .tp = tokMisc, .pl1 = miscArrow, .startBt = lx->i, .lenBts = 2 }, lx);
+            pushIntokens((Token){ .tp = tokMisc, .pl1 = miscArrow,
+                                  .startBt = lx->i, .lenBts = 2 }, lx);
             lx->i += 2;  // CONSUME the arrow "->"
         } else {
             lexOperator(source, lx);
@@ -2454,14 +2447,14 @@ lexCurlyLeft(SRC, LX) { //:lexCurlyLeft
             lx->lexBtrack->cont[len - 2].spanLevel = slScope;
             lx->tokens.cont[second.tokenInd].pl1 = slScope;
             goto consumption;
-        } else if (top.tp == tokElse) {
+        } ei (top.tp == tokElse) {
             goto consumption;
-        } else if (top.tp == tokFor) {
+        } ei (top.tp == tokFor) {
             if (top.spanLevel == slUnbraced) {
                 // the first curly brace inside "for" (for init, cond, step)
                 lx->lexBtrack->cont[lx->lexBtrack->len - 1].spanLevel = slSingleBraced;
                 lx->tokens.cont[top.tokenInd].pl1 = slSingleBraced;
-            } else if (top.spanLevel == slSingleBraced) {
+            } ei (top.spanLevel == slSingleBraced) {
                 // the second curly brace inside "for" (for body)
                 lx->lexBtrack->cont[lx->lexBtrack->len - 1].spanLevel = slScope;
                 lx->tokens.cont[top.tokenInd].pl1 = slScope;
@@ -2580,7 +2573,7 @@ tabulateLexer() { //:tabulateLexer
     p[aBracketRight] = &lexBracketRight;
     p[aPipe] = &lexPipe;
     p[aDivBy] = &lexDivBy; // to handle the comments "//"
-    p[aAt] = &lexAtSign; // to handle type variables "@a"
+    p[aDollar] = &lexDollar; // to handle type variables "$a"
     p[aSemicolon] = &lexSemicolon; // the statement terminator
     p[aTilde] = &lexTilde;
 
@@ -2920,6 +2913,8 @@ pAssignmentRight(TypeId leftType, Token rightTk, Int sentinel, TOKS, CM) {
 
 private void
 pAssignment(Token tok, TOKS, CM) { //:pAssignment
+// Parses both assignments and compile-time defs
+    Unt const tp = (tok.tp == tokDef) ? nodDef : nodAssignment;
     if (tok.pl1 == assiType) {
         pTypeDef(toks, cm);
         return;
@@ -2941,9 +2936,9 @@ pAssignment(Token tok, TOKS, CM) { //:pAssignment
 
     EntityId entityId = -1;
     Int const assignmentNodeInd = cm->nodes.len;
-    push(((ParseFrame){.tp = nodAssignment, .startNodeInd = assignmentNodeInd,
+    push(((ParseFrame){.tp = tp, .startNodeInd = assignmentNodeInd,
                        .sentinel = sentinel}), cm->backtrack);
-    addNode((Node){ .tp = nodAssignment}, locOf(tok), cm);
+    addNode((Node){ .tp = tp}, locOf(tok), cm);
     if (countLeftSide == 1)  {
         Token nameTk = toks[cm->i];
         NameId newName = (Unt)nameTk.pl1;
@@ -2959,7 +2954,7 @@ pAssignment(Token tok, TOKS, CM) { //:pAssignment
             );
         }
         addNode((Node){ .tp = nodBinding, .pl1 = entityId, .pl2 = 0 }, locOf(nameTk), cm);
-    } else if (countLeftSide > 1) {
+    } ei (countLeftSide > 1) {
         leftType = assignmentComplexLeftSide(cm->i + countLeftSide, toks, cm);
     }
 
@@ -2974,7 +2969,7 @@ pAssignment(Token tok, TOKS, CM) { //:pAssignment
 
     if (entityId > -1 && rightType > -1 && leftType == -1) {
         cm->entities.cont[entityId].typeId = rightType; // inferring the type of left binding
-    } else if (leftType > -1 && rightType > -1) {
+    } ei (leftType > -1 && rightType > -1) {
         VALIDATEP(leftType == rightType, errTypeMismatch)
     }
 
@@ -3141,13 +3136,13 @@ exprSingleItem(Token tk, CM) { //:exprSingleItem
         Int varId = getActiveVar(tk.pl1, cm);
         typeId = getTypeOfVar(varId, cm);
         addNode((Node){.tp = nodId, .pl1 = varId, .pl2 = tk.pl1}, locOf(tk), cm);
-    } else if (tk.tp == tokOperator) {
+    } ei (tk.tp == tokOperator) {
         Int operBindingId = tk.pl1;
         OpDef operDefinition = OPERATORS[operBindingId];
         VALIDATEP(operDefinition.arity == 1, errOperatorWrongArity)
         addNode((Node){ .tp = nodId, .pl1 = operBindingId}, locOf(tk), cm);
         // TODO add the type when we support first-class functions
-    } else if (tk.tp <= topVerbatimType) {
+    } ei (tk.tp <= topVerbatimType) {
         addNode((Node){.tp = tk.tp, .pl1 = tk.pl1, .pl2 = tk.pl2}, locOf(tk), cm);
         typeId = tk.tp;
     } else {
@@ -3240,9 +3235,9 @@ eClose(StateForExprs* stEx, CM) { //:eClose
 
             push(call, scr);
             push(pop(stEx->locsCalls), stEx->locsScr);
-        } else if (frame.tp == exfrDataAlloc)  {
+        } ei (frame.tp == exfrDataAlloc)  {
             subexDataAllocation(frame, stEx, cm);
-        } else if (frame.tp == exfrParen) {
+        } ei (frame.tp == exfrParen) {
             ePopUnaryCalls(stEx);
             if (stEx->frames->len > 0) {
                 eBumpArgCount(stEx);
@@ -3321,13 +3316,13 @@ eLinearize(Int sentinel, TOKS, CM) { //:eLinearize
             EntityId varId = getActiveVar(cTk.pl1, cm);
             push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl1 }), scr);
             push(locOf(cTk), locsScr);
-        } else if (tokType == tokAccessor) {
+        } ei (tokType == tokAccessor) {
             // accessor like `a[i]`, now we parse the `[i]`
             Int const accSentinel = calcSentinel(cTk, cm->i);
             pAddAccessorCall(accSentinel, loc, stEx);
-        } else if ((tokType == tokWord || tokType == tokOperator) && parent.tp == exfrParen) {
+        } ei ((tokType == tokWord || tokType == tokOperator) && parent.tp == exfrParen) {
             pAddFunctionCall(cTk, parent.sentinel, stEx);
-        } else if (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
+        } ei (tokType <= topVerbatimTokenVariant || tokType == tokWord) {
             if (tokType == tokWord) {
                 EntityId varId = getActiveVar(cTk.pl1, cm);
                 push(((Node){ .tp = nodId, .pl1 = varId, .pl2 = cTk.pl1 }), scr);
@@ -3337,7 +3332,7 @@ eLinearize(Int sentinel, TOKS, CM) { //:eLinearize
             push(loc, locsScr);
             ePopUnaryCalls(stEx);
             eBumpArgCount(stEx);
-        } else if (tokType == tokParens) {
+        } ei (tokType == tokParens) {
             Int parensSentinel = calcSentinel(cTk, cm->i);
             push(((ExprFrame){
                     .tp = exfrParen, .startNode = scr->len, .sentinel = parensSentinel }), frames);
@@ -3347,7 +3342,7 @@ eLinearize(Int sentinel, TOKS, CM) { //:eLinearize
                 push(((Node){ .tp = nodExpr, .pl1 = 0 }), scr);
                 push(loc, locsScr);
             }
-        } else if (tokType == tokOperator) {
+        } ei (tokType == tokOperator) {
             if (OPERATORS[cTk.pl1].arity == 1) {
                 pAddUnaryCall(cTk, stEx);
             } else {
@@ -3356,7 +3351,7 @@ eLinearize(Int sentinel, TOKS, CM) { //:eLinearize
                 eBumpArgCount(stEx);
                 ePopUnaryCalls(stEx);
             }
-        } else if (tokType == tokData) {
+        } ei (tokType == tokData) {
             stEx->metAnAllocation = true;
             eBumpArgCount(stEx);
             push(((ExprFrame) { .tp = exfrDataAlloc, .startNode = scr->len,
@@ -3680,7 +3675,7 @@ copyStringDict(StringDict* from, Arena* a) { //:copyStringDict
             dict[i] = new;
         }
     }
-    result->dictSize = from->dictSize;
+    result->dictSize = dictSize;
     result->dict = dict;
     return result;
 }
@@ -3856,7 +3851,7 @@ resizeScopeArrayIfNecessary(Int initLength, ScopeStackFrame* topScope,
             memcpy(topScope->bindings, newContent, initLength*4);
             topScope->bindings = newContent;
         }
-    } else if (newLength == 256) {
+    } ei (newLength == 256) {
         longjmp(excBuf, 1);
     }
 }
@@ -4169,13 +4164,13 @@ createBuiltins(CM) { //:createBuiltins
 
 private void
 importPrelude(CM) { //:importPrelude
-// Imports the standard, Prelude kind of stuff into the compiler immediately after the lexing phase
+// Imports the standard, Prelude stuff into the compiler immediately after the lexing phase
     buildPreludeTypes(cm);
-    TypeId strToVoid = addConcrFnType(1, (Int[]){ tokString, tokMisc }, cm);
-    TypeId intToVoid = addConcrFnType(1, (Int[]){ tokInt, tokMisc }, cm);
-    TypeId dblToVoid = addConcrFnType(1, (Int[]){ tokDouble, tokMisc }, cm);
-//    TypeId intToDoub = addConcrFnType(1, (Int[]){ tokInt, tokDouble}, cm);
-//    TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
+    TypeId const strToVoid = addConcrFnType(1, (Int[]){ tokString, tokMisc }, cm);
+    TypeId const intToVoid = addConcrFnType(1, (Int[]){ tokInt, tokMisc }, cm);
+    TypeId const dblToVoid = addConcrFnType(1, (Int[]){ tokDouble, tokMisc }, cm);
+    //TypeId intToDoub = addConcrFnType(1, (Int[]){ tokInt, tokDouble}, cm);
+    //TypeId doubToInt = addConcrFnType(1, (Int[]){ tokDouble, tokInt}, cm);
     Entity imports[6] =  {
         (Entity){ .name = nameOfStandard(strMathPi), .typeId = tokDouble, .class = classPubImmut
         },
@@ -4277,10 +4272,10 @@ initializeParser(Compiler* lx, Arena* a) { //:initializeParser
     cm->entities.len = PROTO.entities.len;
     cm->entities.cap = PROTO.entities.cap;
 
-    cm->types.cont = allocateArray(PROTO.types.cap, Int, a);
+    cm->types.cap = PROTO.types.cap*2;
+    cm->types.cont = allocateArray(cm->types.cap, Int, a);
     memcpy(cm->types.cont, PROTO.types.cont, PROTO.types.len*4);
     cm->types.len = PROTO.types.len;
-    cm->types.cap = PROTO.types.cap*2;
 
     cm->typesDict = copyStringDict(PROTO.typesDict, a);
 
@@ -4417,6 +4412,20 @@ createOverloads(CM) { //:createOverloads
     }
 }
 
+private Bool //:determineIfFnDef
+determineIfFnDef(Int tokInd, Int const sentinel, TOKS, CM, OUT Int* indRight) {
+// Determines if a toplevel definition is a function definition (true ret value) or value (false)
+    for (*indRight = cm->i;
+         *indRight < sentinel && toks[*indRight].tp != tokAssignRight;
+         *indRight += 1) {}
+
+#ifdef SAFETY
+    print("ind Right %d sentinel %d", *indRight, sentinel);
+    VALIDATEI((*indRight < sentinel && toks[*indRight].pl2 > 0), iErrorInconsistentSpans);
+#endif
+    return (toks[(*indRight) + 1].tp == tokFn);
+}
+
 private void
 pToplevelTypes(CM) { //:pToplevelTypes
 // Parses top-level types but not functions. Writes them to the types table and adds
@@ -4426,8 +4435,8 @@ pToplevelTypes(CM) { //:pToplevelTypes
     Int const len = cm->tokens.len;
     while (cm->i < len) {
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignment && toks[cm->i + 1].tp == tokTypeName) {
-            cm->i += 1; // CONSUME the assignment token
+        if (tok.tp == tokDef && tok.pl1 == assiType) {
+            cm->i += 1; // CONSUME the def token
             pTypeDef(toks, cm);
         } else {
             cm->i += (tok.pl2 + 1);
@@ -4442,16 +4451,17 @@ pToplevelConstants(CM) { //:pToplevelConstants
     Arr(Token) toks = cm->tokens.cont;
     Int const len = cm->tokens.len;
     while (cm->i < len) {
+    print("const %d", cm->i) ; 
         Token tok = toks[cm->i];
-        if (tok.tp == tokAssignment) {
-            Token rightTk = toks[cm->i + 3]; // 3 to skip the binding, tokAssignRight and tokFn
-            if (rightTk.tp != tokFn) {
-                cm->i += 1; // CONSUME the left and right assignment
-                pAssignment(tok, toks, cm);
-                //parseUpTo(cm->i + toks[cm->i + 1].pl2 + 1, toks, cm);
-            } else {
+        if (tok.tp == tokDef) {
+            Int indRight;
+            if (determineIfFnDef(cm->i, calcSentinel(tok, cm->i), toks, cm, OUT &indRight)) {
                 cm->i = calcSentinel(tok, cm->i); // CONSUME the top-level assignment
+                continue;
             }
+            
+            cm->i += 1; // CONSUME the left and right assignment
+            pAssignment(tok, toks, cm);
         } else {
             cm->i = calcSentinel(tok, cm->i);
         }
@@ -4497,15 +4507,11 @@ validateOverloadsFull(CM) {
 #endif
 
 testable void
-pFnSignature(Token fnDef, bool isToplevel, NameId nameId, Int voidToVoid, CM) { //:pFnSignature
+pFnSignature(Toplevel newFn, Int voidToVoid, TOKS, CM) { //:pFnSignature
 // Parses a function signature. Emits no nodes, adds data to @toplevels, @functions, @overloads.
 // Pre-condition: we are 1 token past the tokFn
-    Int fnStartTokenId = cm->i - 1;
-    Int fnSentinelToken = calcSentinel(fnDef, fnStartTokenId);
-
     pushIntypes(0, cm); // will overwrite it with the type's length once we know it
 
-    Arr(Token) toks = cm->tokens.cont;
     TypeId newFnTypeId = voidToVoid; // default for nullary functions
     StateForTypes* st = cm->stateForTypes;
     if (toks[cm->i].tp == tokFnParams) {
@@ -4519,9 +4525,9 @@ pFnSignature(Token fnDef, bool isToplevel, NameId nameId, Int voidToVoid, CM) { 
 
     EntityId newFnEntityId = cm->entities.len;
     pushInentities(((Entity){ .class = classImmut, .typeId = newFnTypeId }), cm);
-    addRawOverload(nameId, newFnTypeId, newFnEntityId, cm);
-    pushIntoplevels((Toplevel){.tokenInd = fnStartTokenId, .sentinelToken = fnSentinelToken,
-            .nameId = nameId, .entityId = newFnEntityId }, cm);
+    addRawOverload(newFn.nameId, newFnTypeId, newFnEntityId, cm);
+    newFn.entityId = newFnEntityId;
+    pushIntoplevels(newFn, cm);
 }
 
 private void
@@ -4579,49 +4585,56 @@ pFunctionBodies(TOKS, CM) { //:pFunctionBodies
 }
 
 private void
-pToplevelSignatures(CM) { //:pToplevelSignatures
+pToplevelSignatures(TOKS, CM) { //:pToplevelSignatures
 // Walks the top-level functions' signatures (but not bodies). Increments counts of overloads
 // Result: the overload counts and the list of toplevel functions to parse. No nodes emitted
     cm->i = 0;
-    Arr(Token) toks = cm->tokens.cont;
     Int len = cm->tokens.len;
 
     Int voidToVoid = addConcrFnType(1, (Int[]){ tokMisc, tokMisc}, cm);
+    
     Int nextI = cm->i;
     for (Token tok = toks[cm->i]; cm->i < len; cm->i = nextI, tok = toks[nextI]) {
         nextI = calcSentinel(tok, cm->i);
-        if (tok.tp != tokAssignment || tok.pl2 <= 3) { // toplevel func has at least 4 tokens
+        if (tok.tp != tokDef) {
             continue;
         }
-        Token nameTk = toks[cm->i + 1];
-        VALIDATEP(nameTk.tp == tokWord && nameTk.pl2 == 0, errAssignmentToplevelFn)
-        Token rightTk = toks[cm->i + 2]; // the token after tokAssignRight
-        Int const fnInd = cm->i + 3; // skipping the name & the tokAssignRight
-        if (rightTk.tp != tokAssignRight || toks[fnInd].tp != tokFn) {
+        Int indRight;
+        if (!determineIfFnDef(cm->i, nextI, toks, cm, OUT &indRight)) {
             continue;
         }
 
-        // since this is an immutable definition tokAssignment, its pl1 is the nameId and
-        // its bytes are same as the var name in source code
+        Token nameTk = toks[cm->i + 1];
+        VALIDATEP(nameTk.tp == tokWord && nameTk.pl2 == 0, errAssignmentToplevelFn)
+        Int const fnInd = indRight + 1;
+
+        // since this is an immutable definition tokDef, its pl1 is the nameId
         NameId name = (Unt)nameTk.pl1;
         cm->i = fnInd + 1; // CONSUME the left side, tokAssignmentRight and tokFn
-        pFnSignature(toks[fnInd], true, name, voidToVoid, cm);
+        
+        Toplevel newFn = (Toplevel){
+            .tokenInd = cm->i, .rightTokenInd = indRight,
+            .sentinelToken = nextI, .isFunction = true, .nameId = name
+        };        
+        
+        pFnSignature(newFn, voidToVoid, toks, cm);
     }
 }
 
 testable Compiler*
 parseMain(CM, Arena* a) { //:parseMain
     if (setjmp(excBuf) == 0) {
+        Arr(Token) toks = cm->tokens.cont;
         pToplevelTypes(cm);
         // This gives the complete overloads & overloadIds tables + list of toplevel functions
-        pToplevelSignatures(cm);
+        pToplevelSignatures(toks, cm);
         createOverloads(cm);
         pToplevelConstants(cm);
 #ifdef SAFETY
         validateOverloadsFull(cm);
 #endif
         // The main parse (all top-level function bodies)
-        pFunctionBodies(cm->tokens.cont, cm);
+        pFunctionBodies(toks, cm);
     }
     clearArena(cm->aTmp);
     return cm;
@@ -4684,7 +4697,7 @@ typeGetOuter(FirstArgTypeId typeId, CM) { //:typeGetOuter
     TypeHeader hdr = typeReadHeader(typeId, cm);
     if (hdr.sort <= sorFunction) {
         return typeId;
-    } else if (hdr.sort == sorTypeCall) {
+    } ei (hdr.sort == sorTypeCall) {
         return hdr.nameAndLen;
     } else {
         return cm->types.cont[typeId + hdr.tyrity + TYPE_PREFIX_LEN] & LOWER24BITS;
@@ -4774,7 +4787,7 @@ typeParamBinarySearch(Int nameIdToFind, CM) { //:typeParamBinarySearch
     Int j = params->len - 2;
     if (st[i] == nameIdToFind) {
         return i;
-    } else if (st[j] == nameIdToFind) {
+    } ei (st[j] == nameIdToFind) {
         return j;
     }
 
@@ -4789,7 +4802,7 @@ typeParamBinarySearch(Int nameIdToFind, CM) { //:typeParamBinarySearch
         Int mid = st[midInd];
         if (mid > nameIdToFind) {
             j = midInd;
-        } else if (mid < nameIdToFind) {
+        } ei (mid < nameIdToFind) {
             i = midInd;
         } else {
             return midInd;
@@ -4997,10 +5010,10 @@ teClose(StateForTypes* st, CM) { //:teClose
         Int newTypeId = -1;
         if (frame.tp == sorFunction) {
             newTypeId = tCreateFnSignature(st, startInd, -1, cm);
-        } else if (frame.tp == sorRecord) {
+        } ei (frame.tp == sorRecord) {
             throwExcParser(errTemp);
             //typeCreateRecord(st, startInd, -1, cm);
-        } else if (frame.tp == sorTypeCall) {
+        } ei (frame.tp == sorTypeCall) {
             newTypeId = tCreateTypeCall(st, startInd, frame, cm);
         } else { // tyeParamCall, a call of a type which is a parameter
             // TODO
@@ -5046,7 +5059,7 @@ tDefinition(StateForTypes* st, Int sentinel, CM) { //:tDefinition
             VALIDATEP(nextTk.tp == tokTypeName || nextTk.tp == tokTypeCall, errTypeDefError)
             push(cTk.pl1, st->names);
             continue;
-        } else if (cTk.tp == tokMisc) { // "->", function return type marker
+        } ei (cTk.tp == tokMisc) { // "->", function return type marker
             VALIDATEP(cTk.pl1 == miscArrow && peek(frames).tp == sorFunction, errTypeDefError);
             VALIDATEP(!metArrow, errTypeFnSingleReturnType)
             metArrow = true;
@@ -5072,7 +5085,7 @@ tDefinition(StateForTypes* st, Int sentinel, CM) { //:tDefinition
             } else {
                 push(-mbParamId - 1, exp); // index of this param in @params
             }
-        } else if (cTk.tp == tokTypeCall) {
+        } ei (cTk.tp == tokTypeCall) {
             VALIDATEP(cm->i < sentinel, errTypeDefError)
             Token typeFuncTk = cm->tokens.cont[cm->i];
 
@@ -5085,7 +5098,7 @@ tDefinition(StateForTypes* st, Int sentinel, CM) { //:tDefinition
             if (mbParamId == -1) {
                 if (nameId == nameOfStandard(strF)) { // F(...)
                     push(((TypeFrame){ .tp = sorFunction, .sentinel = newSent}), frames);
-                } else if (nameId == nameOfStandard(strRec)) { // inline types  `(id Int name String)`
+                } ei (nameId == nameOfStandard(strRec)) { // inline types  `(id Int name String)`
                     push(((TypeFrame){ .tp = sorRecord, .sentinel = newSent}), frames);
                 } else { // ordinary type call
                     Int typeId = cm->activeBindings[nameId];
@@ -5175,7 +5188,7 @@ isFunctionWithParams(TypeId typeId, CM) { //:isFunctionWithParams
 }
 
 testable bool
-findOverload(FirstArgTypeId typeId, Int ovInd, OUT EntityId* entityId, CM) {
+findOverload(FirstArgTypeId typeId, Int ovInd, CM, OUT EntityId* entityId) {
 //:findOverload Params: typeId = type of the first function parameter, or -1 if it's 0-arity
 //         ovInd = ind in [overloads], which is found via [activeBindings]
 //         entityId = address where to store the result, if successful
@@ -5270,7 +5283,7 @@ populateExp(Int indExpr, Int sentinelNode, CM) {
         Node nd = cm->nodes.cont[j];
         if (nd.tp <= tokString) {
             push((Int)nd.tp, exp);
-        } else if (nd.tp == nodCall) {
+        } ei (nd.tp == nodCall) {
             if (nd.pl1 == opGetElem)  { // accessors are handled specially
                 push(2*BIG, exp);
             } else {
@@ -5279,7 +5292,7 @@ populateExp(Int indExpr, Int sentinelNode, CM) {
                 // index into overloadIds, or, for 0-arity fns, entityId directly
                 push((argCount > 0 ? -nd.pl1 - 2 : nd.pl1), exp);
             }
-        } else if (nd.pl1 > -1) { // entityId
+        } ei (nd.pl1 > -1) { // entityId
             push(cm->entities.cont[nd.pl1].typeId, exp);
         } else { // overloadId
             push(nd.pl1, exp); // overloadId
@@ -5303,7 +5316,7 @@ typeReduceExpr(StackInt* exp, Int indExpr, CM) {
         if (cont[j] < BIG) { // it's not a function call because function call indicators
                              // have BIG in them
             continue;
-        } else if (cont[j] == 2*BIG) { // a list accessor
+        } ei (cont[j] == 2*BIG) { // a list accessor
             TypeId type1 = cont[j - 2];
             TypeId outer1 = typeGetOuter(type1, cm);
             VALIDATEP(outer1 == listType, errTypeOfNotList)
@@ -5329,7 +5342,7 @@ typeReduceExpr(StackInt* exp, Int indExpr, CM) {
 
             Int entityId;
             Int indOverl = -cm->activeBindings[o] - 2;
-            bool ovFound = findOverload(-1, indOverl, &entityId, cm);
+            bool ovFound = findOverload(-1, indOverl, cm, OUT &entityId);
 
 #if defined(DEBUG) && defined(TEST) //{{{
             if (!ovFound) {
@@ -5351,7 +5364,7 @@ typeReduceExpr(StackInt* exp, Int indExpr, CM) {
             VALIDATEP(tpFstArg > -1, errTypeUnknownFirstArg)
             Int entityId;
             Int indOverl = -cm->activeBindings[-o - 2] - 2;
-            Bool const ovFound = findOverload(tpFstArg, indOverl, &entityId, cm);
+            Bool const ovFound = findOverload(tpFstArg, indOverl, cm, OUT &entityId);
 #if defined(DEBUG) && defined(TEST) //{{{
             if (!ovFound) {
                 printStackInt(exp);
@@ -5412,7 +5425,7 @@ typecheckAndProcessListElt(Int* j, CM) { //:typecheckAndProcessListElt
     if (nd.tp <= topVerbatimTokenVariant) {
         *j += 1;
         return nd.tp;
-    } else if (nd.tp == nodId) {
+    } ei (nd.tp == nodId) {
         *j += 1;
         return cm->entities.cont[nd.pl1].typeId;
     } else {
@@ -5709,6 +5722,7 @@ initCompiler() { //:initCompiler
 // This function should only be called once, at compiler init.
 // Its results are global shared const.
     static_assert(sizeof(CallHeader) == 12, "CallHeader should be 12 bytes to align right");
+    static_assert(sizeof(TypeHeader) == 8, "Sizeof TypeHeader must be 8");
     if (_wasInit) {
         return;
     }
@@ -5881,8 +5895,8 @@ char const* nodeNames[] = {
     "Int", "Long", "Double", "Bool", "String", "_", "misc",
     "id", "call", "binding", ".fld", "GEP", "GElem",
     "(do", "Expr", "=", "[]",
-    "alias", "assert", "breakCont", "catch", "defer",
-    "import", "(\\ fn)", "trait", "return", "try",
+    "assert", "breakCont", "catch", "import",
+    "{{ fn }}", "value def", "trait", "return", "try",
     "for", "if", "eif", "impl", "match"
 };
 
@@ -5912,7 +5926,7 @@ void printParser(CM, Arena* a) { //:printParser
         if (nod.tp == nodCall) {
             printf("call %d [%d; %d] type = \n", nod.pl1, startBt, loc.lenBts);
             //printType(cm->entities.cont[nod.pl1].typeId, cm);
-        } else if (nod.pl1 != 0 || nod.pl2 != 0) {
+        } ei (nod.pl1 != 0 || nod.pl2 != 0) {
             if (nod.pl3 != 0)  {
                 printf("%s %d %d %d [%d; %d]\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.pl3,
                         startBt, loc.lenBts);
@@ -5947,7 +5961,7 @@ private void dbgStackNode(StackNode* st, Arena* a) { //:dbgStackNode
         }
         if (nod.tp == nodCall) {
             printf("call %d type = \n", nod.pl1);
-        } else if (nod.pl1 != 0 || nod.pl2 != 0) {
+        } ei (nod.pl1 != 0 || nod.pl2 != 0) {
             if (nod.pl3 != 0)  {
                 printf("%s %d %d %d\n", nodeNames[nod.tp], nod.pl1, nod.pl2, nod.pl3);
             } else {
@@ -5970,9 +5984,9 @@ private void dbgExprFrames(StateForExprs* st) { //:dbgExprFrames
         ExprFrame fr = st->frames->cont[j];
         if (fr.tp == exfrCall) {
             printf("Call argc");
-        } else if (fr.tp == exfrDataAlloc) {
+        } ei (fr.tp == exfrDataAlloc) {
             printf("DataAlloc");
-        } else if (fr.tp == exfrParen) {
+        } ei (fr.tp == exfrParen) {
             printf("Paren");
         }
         printf(" %d %d; ", fr.argCount, fr.sentinel);
@@ -5989,7 +6003,7 @@ dbgTypeGenElt(Int v) { //:dbgTypeGenElt
     Int lower = v & LOWER24BITS;
     if (upper == 0) {
         printf("Type %d, ", lower);
-    } else if (upper == 255) {
+    } ei (upper == 255) {
         Int arity = lower & 0xFF;
         if (arity > 0) {
             printf("ParamCall %d arity = %d, ", (lower >> 8) & 0xFF, lower & 0xFF);
@@ -6016,7 +6030,7 @@ dbgTypeOuter(TypeId currT, CM) { //:dbgTypeOuter
     TypeHeader currHdr = typeReadHeader(currT, cm);
     if (currHdr.sort == sorFunction) {
         printf("[F ");
-    } else if (currHdr.sort == sorTypeCall) {
+    } ei (currHdr.sort == sorTypeCall) {
         TypeId const genericTypeId = currHdr.nameAndLen;
         TypeHeader const genericHdr = typeReadHeader(genericTypeId, cm);
         printf("(");
@@ -6080,7 +6094,7 @@ dbgTypeFrames(StackTypeFrame* st) { //:dbgTypeFrames
         TypeFrame fr = st->cont[j];
         if (fr.tp == sorFunction) {
             printf("Func ");
-        } else if (fr.tp == sorTypeCall) {
+        } ei (fr.tp == sorTypeCall) {
             printf("TypeCall ");
         }
         printf("countArgs %d ", fr.countArgs);

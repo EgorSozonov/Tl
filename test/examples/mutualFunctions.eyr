@@ -1,14 +1,13 @@
-foo = {{ s Str flag Bool -> Int }
-    {if flag: return $s;
-     else: return getLength s
-    }
+def foo Int = {{ s Str; flag Bool }
+    if flag {return $s;}
+    else {return getLength s;}
 }
 
-getLength = {{ s Str -> Int }
+def getLength = {{ s Str -> Int }
     return foo s true
 }
 
-main = {{}
+def main = {{}
     result = foo `Hello world` false;
-    print `Result is ` $result
+    print `Result is ` $result;
 }

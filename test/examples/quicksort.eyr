@@ -1,33 +1,32 @@
-swap = {{ E: i Int, j Int, arr L E }
+def swap = {{ i Int; j Int; arr L @E; }
     tmp = arr[i];
     arr[i] = arr[j];
-    arr[j] = tmp
+    arr[j] = tmp;
 }
 
-quickSort = {{ E: arr L E }
+def quickSort = {{ arr L @E; }
     stack L Int = [];
     i = 0;
     j = ##arr;
-    {for {i = 0; j~ = ##arr; i < j}
-        {if arr[i] < arr[j]:
-         ei arr[i] > arr[j]:
-         else  ...
-        }
+    for {i = 0; j~ = ##arr; i < j}{
+        if arr[i] < arr[j] {}
+         ei arr[i] > arr[j] {}
+         else  {}
     } 
 }
 
-print = {{ lst L Int }
+def print = {{ lst L Int; }
     printNoLn `[`;
-    {for {i = 0; i < ##lst}
+    for {i = 0; i < ##lst}{
         printNoLn arr[i];
-        printNoLn ` `
+        printNoLn ` `;
     } 
-    printNoLn `]`
+    printNoLn `]`;
 }
 
-main = {{}
+def main = {{}
     leArray = [Array 5 1 2 4 3];
     quickSort leArray;
-    print leArray
+    print leArray;
 }
 

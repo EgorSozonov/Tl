@@ -40,6 +40,7 @@
 #define MAXTOKENLEN 67108864 // 2^26
 #define SIXTEENPLUSONE 65537 // 2^16 + 1
 #define LEXER_INIT_SIZE 1000
+#define ei else if
 #define print(...) \
   printf(__VA_ARGS__);\
   printf("\n");
@@ -257,12 +258,12 @@ DEFINE_STACK_HEADER(Token)
 
 // Statement or subexpr span types. pl2 = count of inner tokens
 #define tokStmt        12  // firstSpanTokenType
-#define tokDef         13  // Compile-time known constant's definition
+#define tokDef         13  // Compile-time known constant's definition. pl1 == 2 iff type def
 #define tokParens      14  // subexpressions and struct/sum type instances
 #define tokTypeCall    15  // `(Tu Int Str)`
 #define tokData        16  // []
 #define tokAccessor    17  // x[]
-#define tokAssignment  18  // pl1 == 2 iff type assignment
+#define tokAssignment  18 
 #define tokAssignRight 19  // Right-hand side of assignment
 #define tokAlias       20
 #define tokAssert      21
@@ -326,24 +327,23 @@ DEFINE_STACK_HEADER(Token)
                            // right side, which is always a literal, nodExpr or a nodDataAlloc
 #define nodDataAlloc   16  // pl1 = typeId, pl3 = count of elements
 
-#define nodAlias       17
-#define nodAssert      18  // pl1 = 1 iff it's a debug assert
-#define nodBreakCont   19  // pl1 = number of label to break or continue to, -1 if none needed
+#define nodAssert      17  // pl1 = 1 iff it's a debug assert
+#define nodBreakCont   18  // pl1 = number of label to break or continue to, -1 if none needed
                            // It's a continue iff it's >= BIG
-#define nodCatch       20  // `(catch e `
-#define nodDefer       21
-#define nodImport      22  // This is for test files only, no need to import anything in main
-#define nodFnDef       23  // pl1 = entityId, pl3 = nameId
-#define nodTrait       24
-#define nodReturn      25
-#define nodTry         26
-#define nodFor         27  // pl1 = id of loop (unique within a function) if it needs to
+#define nodCatch       19  // `(catch e `
+#define nodImport      20  // This is for test files only, no need to import anything in main
+#define nodFnDef       21  // pl1 = entityId, pl3 = nameId
+#define nodDef         22  // pl1 = entityId, pl3 = nameId. For non-function compile-time consts
+#define nodTrait       23
+#define nodReturn      24
+#define nodTry         25
+#define nodFor         26  // pl1 = id of loop (unique within a function) if it needs to
                            // have a label in codegen; pl3 = number of nodes to skip to get to body
 
-#define nodIf          28  // pl3 = length till the next elseif/else, or 0 if there are none
-#define nodElseIf      29
-#define nodImpl        30
-#define nodMatch       31  // pattern matching on sum type tag
+#define nodIf          27  // pl3 = length till the next elseif/else, or 0 if there are none
+#define nodElseIf      28
+#define nodImpl        29
+#define nodMatch       30  // pattern matching on sum type tag
 
 #define countSpanForms (nodMatch - nodScope + 1)
 
@@ -467,10 +467,11 @@ typedef struct { //:Entity
 
 typedef struct { //:Toplevel
 // Toplevel definitions (functions, variables, types) for parsing order and name searchability
-    Int tokenInd;
+    Int tokenInd;      // index of the tokDef
+    Int rightTokenInd; // index of the tokAssignRight
     Int sentinelToken;
     NameId nameId;
-    EntityId entityId; // if n < 0 => -n - 1 is an index into [functions], otherwise n => [entities]
+    EntityId entityId; // if n < 0 => -n - 1 is an index into @functions, otherwise n => @entities
     bool isFunction;
     Int nodeInd;
 } Toplevel;

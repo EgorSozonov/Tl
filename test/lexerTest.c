@@ -1024,7 +1024,7 @@ LexerTestSet* typeTests(Arena* a) {
                  (Token){ .tp = tokTypeName, .pl1 = 2,   .startBt = 8, .lenBts = 3 }
          }))},
          (LexerTest) { .name = s("Generic function signature"),
-             .input = s("{{lst L @v; w @w;} print w;}"),
+             .input = s("{{lst L $W; w $W;} print w;}"),
              .expectedOutput = expect(((Token[]) {
                  (Token){ .tp = tokFn, .pl1 = slScope, .pl2 = 11,    .lenBts = 28 },
 
@@ -1034,10 +1034,10 @@ LexerTestSet* typeTests(Arena* a) {
                  (Token){ .tp = tokStmt,           .pl2 = 3, .startBt = 2, .lenBts = 9 },
                  (Token){ .tp = tokWord, .pl1 = 0,         .startBt = 2, .lenBts = 3 }, //lst
                  (Token){ .tp = tokTypeName, .pl1 = strL + S, .startBt = 6, .lenBts = 1 },
-                 (Token){ .tp = tokTypeVar,         .pl1 = 1, .startBt = 8, .lenBts = 2 }, // @v
+                 (Token){ .tp = tokTypeVar,         .pl1 = 1, .startBt = 8, .lenBts = 2 }, // $W
                  (Token){ .tp = tokStmt,          .pl2 = 2, .startBt = 12, .lenBts = 5 },
                  (Token){ .tp = tokWord,         .pl1 = 2,     .startBt = 12, .lenBts = 1 }, // w
-                 (Token){ .tp = tokTypeVar,     .pl1 = 2,     .startBt = 14, .lenBts = 2 }, // @w
+                 (Token){ .tp = tokTypeVar,     .pl1 = 2,     .startBt = 14, .lenBts = 2 }, // $W
 
                  (Token){ .tp = tokStmt,         .pl2 = 2,     .startBt = 19, .lenBts = 8 },
                  (Token){ .tp = tokWord,  .pl1 = strPrint + S, .startBt = 19, .lenBts = 5 },

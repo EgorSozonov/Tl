@@ -8,7 +8,7 @@ void deleteArena(Arena* ar);
 //~DEFINE_INTERNAL_LIST_HEADER(nodes, Node)
 //~DEFINE_INTERNAL_LIST_HEADER(entities, Entity)
 //~DEFINE_INTERNAL_LIST_HEADER(overloads, Int)
-//~DEFINE_INTERNAL_LIST_HEADER(types, Int)
+DEFINE_INTERNAL_LIST_HEADER(types, Int)
 //~DEFINE_INTERNAL_LIST_HEADER(overloadIds, uint32_t)
 //~DEFINE_INTERNAL_LIST_HEADER(imports, Entity)
 Bool equal(String a, String b);
@@ -93,10 +93,10 @@ void createCompiler(Compiler* lx, Arena* a);
 void parseMain(Compiler* cm, Arena* a);
 Int mergeType(Int startInd, Compiler* cm);
 void printParser(Compiler* cm, Arena* a);
-bool findOverload(Int typeId, Int ovInd, Int* entityId, Compiler* cm);
+bool findOverload(Int typeId, Int ovInd, Compiler* restrict cm, Int* entityId);
 Int addStringDict(Byte* text, Int startBt, Int lenBts, Stackint32_t* stringTable, StringDict* hm);
 Arr(Int) createOverloads(Compiler* cm);
-void typeAddHeader(TypeHeader hdr, Compiler* cm);
+void typeAddHeader(TypeHeader hdr, Compiler* restrict cm);
 
 extern char const errBareAtom[];
 extern char const errImportsNonUnique[];
