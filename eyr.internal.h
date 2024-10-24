@@ -623,10 +623,11 @@ struct Compiler { // :Compiler
 
 
 // Span levels, must all be more than 0
-#define slScope       1 // scopes (denoted by brackets): newlines and commas have no effect there
-#define slStmt        2 // single-line statements: newlines and semicolons break 'em
-#define slSubexpr     3 // parenthesized forms: newlines have no effect, semi-colons error out
-#define slUnbraced    4 // A scope that hasn't met its first brace, like an "if" before its "{"
+#define slScope        1 // scopes (denoted by brackets): newlines and commas have no effect there
+#define slStmt         2 // single-line statements: newlines and semicolons break 'em
+#define slSubexpr      3 // parenthesized forms: newlines have no effect, semi-colons error out
+#define slUnbraced     4 // A scope that hasn't met its first brace, like an "if" before its "{"
+#define slSingleBraced 5 // A "for" scope that has met exactly 1 curly brace
 
 
 //}}}

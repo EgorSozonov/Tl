@@ -1399,6 +1399,7 @@ char const errOperatorUnknown[]            = "Unknown operator";
 char const errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name(s) or l-value!";
 char const errToplevelAssignment[]         = "Toplevel assignments must have only single word on the left!";
 char const errOperatorTypeDeclPunct[]      = "Incorrect type declaration operator placement: must be the first in a statement!";
+char const errOperatorMutationInDef[]      = "Mutation (e.g. `+=`) is not allowed for defs which signify compile-time known constants";
 char const errCoreNotInsideStmt[]          = "Core form must be directly inside statement";
 char const errCoreMisplacedElse[]          = "The else statement must be inside an if, ifEq, ifPr or match form";
 char const errCoreMissingParen[]           = "Core form requires opening parenthesis/curly brace immediately after keyword!";
@@ -1964,15 +1965,22 @@ lexDef(Int startBt, SRC, LX) { //:lexDef
 }
 
 private void
-lexSyntaxForm(Unt reservedWordType, Int startBt,
-                           SRC, LX) { //:lexSyntaxForm
+lexFor(Int startBt, SRC, LX) { //:lexFor
+    openPunctuation(tokFor, slUnbraced, startBt, lx);
+}
+
+private void
+lexProcessSyntaxForm(Unt reservedWordType, Int startBt, SRC, LX) { //:lexProcessSyntaxForm
 // Lexer action for a paren-type or statement-type syntax form.
 // Precondition: we are looking at the character immediately after the keyword
+// We must NOT consume any characters here - that's been done in {{wordInternal}}
     StackBtToken* bt = lx->lexBtrack;
     if (reservedWordType >= tokIf && reservedWordType <= tokElse) {
         lexIf(reservedWordType, startBt, source, lx);
     } else if (reservedWordType == tokDef) {
         lexDef(startBt, source, lx);
+    } else if (reservedWordType == tokFor)  {
+        lexFor(startBt, source, lx);
     } else if (reservedWordType >= firstScopeTokenType) {
         // A reserved word must be the first inside parentheses, but parentheses are always
         // wrapped in statements, so we need to check the TWO last tokens and two top BtTokens
@@ -2021,7 +2029,8 @@ mbCloseAssignRight(BtToken* top, CM) { //:mbCloseAssignRight
     }
     setStmtSpanLength(top->tokenInd, cm);
 #ifdef SAFETY
-    VALIDATEI(hasValues(cm->lexBtrack) && peek(cm->lexBtrack).tp == tokAssignment,
+    VALIDATEI(hasValues(cm->lexBtrack) && (
+            peek(cm->lexBtrack).tp == tokAssignment || peek(cm->lexBtrack).tp == tokDef),
                 iErrorInconsistentSpans)
 #endif
     *top = pop(cm->lexBtrack);
@@ -2118,7 +2127,7 @@ wordReserved(Unt wordType, Int wordId, Int startBt, Int realStartBt,
             pushIntokens((Token) {.tp = tokBreakCont, .pl1 = 1, .startBt = realStartBt }, lx);
         }
     } else {
-        lexSyntaxForm(keywordTp, realStartBt, source, lx);
+        lexProcessSyntaxForm(keywordTp, realStartBt, source, lx);
     }
 }
 
@@ -2186,16 +2195,21 @@ lexAssignment(Int const opType, LX) { //:lexAssignment
 // tokens from the left side). Changes existing stmt token into tokAssignment and opens up a new
 // tokAssignRight span. Doesn't consume anything
     BtToken currSpan = peek(lx->lexBtrack);
-    VALIDATEL(currSpan.tp == tokStmt, errOperatorAssignmentPunct);
+    VALIDATEL(currSpan.tp == tokStmt || currSpan.tp == tokDef, errOperatorAssignmentPunct);
 
     Int assignmentStartInd = currSpan.tokenInd;
     Token* tok = (lx->tokens.cont + assignmentStartInd);
-    tok->tp = tokAssignment;
-    lx->lexBtrack->cont[lx->lexBtrack->len - 1].tp = tokAssignment;
-
-    if (opType == -1 && lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){ // type assign
-        tok->pl1 = assiType;
+    if (currSpan.tp == tokStmt) {
+        tok->tp = tokAssignment;
+        lx->lexBtrack->cont[lx->lexBtrack->len - 1].tp = tokAssignment;
+    } else {
+        VALIDATEL(opType == -1, errOperatorMutationInDef)
+        if (lx->tokens.cont[assignmentStartInd + 1].tp == tokTypeName){
+            // type definition
+            tok->pl1 = assiType;
+        }
     }
+
 
     openPunctuation(tokAssignRight, slStmt, lx->i, lx);
     if (opType > -1) {
@@ -2424,29 +2438,40 @@ lexCurlyLeft(SRC, LX) { //:lexCurlyLeft
 // Handles scope openings and decorative braces in "if" and "for" forms
     if (NEXT_BT == aCurlyLeft) {
         lexFn(source, lx);
-    } else {
-        if (hasValues(lx->lexBtrack)) {
-            BtToken const top = peek(lx->lexBtrack);
-            if (top.spanLevel == slStmt) {
-                // process the first curly brace in an "if ... {" form. If all is right,
-                // updates its span level to slScope, so further curly braces work as usual
-                Int const len = lx->lexBtrack->len;
-                VALIDATEL(len > 1 && lx->lexBtrack->cont[len - 2].spanLevel == slUnbraced,
-                          errPunctuationScope) 
-                pop(lx->lexBtrack); // pop the top statement (if cond) because it's over
-                setStmtSpanLength(top.tokenInd, lx);
-                BtToken const second = peek(lx->lexBtrack);
-                lx->lexBtrack->cont[len - 2].spanLevel = slScope;
-                lx->tokens.cont[second.tokenInd].pl1 = slScope;
-                goto consumption;
-            } else if (top.tp == tokElse) {
+        return;
+    }
+    if (hasValues(lx->lexBtrack)) {
+        BtToken const top = peek(lx->lexBtrack);
+        if (top.spanLevel == slStmt) {
+            // process the first curly brace in an "if ... {" form. If all is right,
+            // updates its span level to slScope, so further curly braces work as usual
+            Int const len = lx->lexBtrack->len;
+            VALIDATEL(len > 1 && lx->lexBtrack->cont[len - 2].spanLevel == slUnbraced,
+                      errPunctuationScope) 
+            pop(lx->lexBtrack); // pop the top statement (if cond) because it's over
+            setStmtSpanLength(top.tokenInd, lx);
+            BtToken const second = peek(lx->lexBtrack);
+            lx->lexBtrack->cont[len - 2].spanLevel = slScope;
+            lx->tokens.cont[second.tokenInd].pl1 = slScope;
+            goto consumption;
+        } else if (top.tp == tokElse) {
+            goto consumption;
+        } else if (top.tp == tokFor) {
+            if (top.spanLevel == slUnbraced) {
+                // the first curly brace inside "for" (for init, cond, step)
+                lx->lexBtrack->cont[lx->lexBtrack->len - 1].spanLevel = slSingleBraced;
+                lx->tokens.cont[top.tokenInd].pl1 = slSingleBraced;
+            } else if (top.spanLevel == slSingleBraced) {
+                // the second curly brace inside "for" (for body)
+                lx->lexBtrack->cont[lx->lexBtrack->len - 1].spanLevel = slScope;
+                lx->tokens.cont[top.tokenInd].pl1 = slScope;
                 goto consumption;
             }
         }
-        openPunctuation(tokScope, slScope, lx->i, lx);
-        consumption:
-        lx->i += 1; // CONSUME the "{"
     }
+    openPunctuation(tokScope, slScope, lx->i, lx);
+    consumption:
+    lx->i += 1; // CONSUME the "{"
 }
 
 private void
@@ -5746,7 +5771,7 @@ char const* tokNames[] = {
     "=", "=...", "alias", "assert", "breakCont",
     "trait", "import", "return",
     "{", "if...", "eif ...", "else {", "match", "{{fn", "{fn params}",
-    "{try", "{catch", "impl", "{for", "{each"
+    "try{", "{catch", "impl", "for{", "{each"
 };
 
 Int

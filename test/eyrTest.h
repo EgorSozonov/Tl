@@ -74,8 +74,9 @@ extern char const errPunctuationScope[];
 
 extern char const errOperatorUnknown[];
 extern char const errOperatorAssignmentPunct[];
-extern char const errOperatorTypeDefPunct[];
-extern char const errOperatorMutableDef[];
+extern char const errToplevelAssignment[];
+extern char const errOperatorTypeDeclPunct[];
+extern char const errOperatorMutationInDef[];
 extern char const errCoreNotInsideStmt[];
 extern char const errCoreMisplacedElse[];
 extern char const errCoreMissingParen[];
