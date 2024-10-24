@@ -71,7 +71,6 @@ extern char const errPunctuationOnlyInMultiline[];
 extern char const errPunctuationFnNotInStmt[];
 extern char const errPunctuationUnmatched[];
 extern char const errPunctuationScope[];
-extern char const errColonNotInStmt[];
 
 extern char const errOperatorUnknown[];
 extern char const errOperatorAssignmentPunct[];

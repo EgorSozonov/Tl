@@ -11,6 +11,7 @@
 #define StackUnt Stackuint32_t
 #define InListUlong InListuint64_t
 #define InListUns InListuint32_t
+#define Any void
 #define private static
 #define Byte uint8_t
 #define Bool bool
@@ -256,10 +257,9 @@ DEFINE_STACK_HEADER(Token)
 
 // Statement or subexpr span types. pl2 = count of inner tokens
 #define tokStmt        12  // firstSpanTokenType
-#define tokParens      13  // subexpressions and struct/sum type instances
-#define tokTypeCall    14  // `(Tu Int Str)`
-#define tokIntro       15  // Introduction to a syntax form, like an if condition
-                           // pl1 = original tp of this token before it was converted to tokIntro
+#define tokDef         13  // Compile-time known constant's definition
+#define tokParens      14  // subexpressions and struct/sum type instances
+#define tokTypeCall    15  // `(Tu Int Str)`
 #define tokData        16  // []
 #define tokAccessor    17  // x[]
 #define tokAssignment  18  // pl1 == 2 iff type assignment
@@ -273,14 +273,14 @@ DEFINE_STACK_HEADER(Token)
 
 // Bracketed (multi-statement) token types. pl1 = spanLevel, see the "sl" constants
 #define tokScope       26  // `(do ...)` firstScopeTokenType
-#define tokFn          27  // `{{ a Int -> Str } body)`. pl1 = entityId
-#define tokFnParams    28  //  `{ a Int -> Str }`. pl1 = entityId
-#define tokTry         29  // `(try`
-#define tokCatch       30  // `(catch e MyExc:`
-#define tokIf          31  // `(if ... `
-#define tokMatch       32  // `(match ... ` pattern matching on sum type tag
-#define tokElseIf      33  // `ei ... `
-#define tokElse        34  // `else: `
+#define tokIf          27  // `if ... { `. The If, ElseIf and Else tokens must be in that order
+#define tokElseIf      28  // `eif ... {`
+#define tokElse        29  // `else { `
+#define tokMatch       30  // `(match ... ` pattern matching on sum type tag
+#define tokFn          31  // `{{ a Int -> Str } body)`. pl1 = entityId
+#define tokFnParams    32  //  `{ a Int -> Str }`. pl1 = entityId
+#define tokTry         33  // `(try`
+#define tokCatch       34  // `(catch e MyExc:`
 #define tokImpl        35
 #define tokFor         36
 #define tokEach        37
@@ -561,7 +561,6 @@ typedef struct { // :StateForTypes
 
 typedef struct { // :CompStats
     Int inpLength;
-    Int lastClosingPunctInd;
     Bool wasLexerError;
 
     Int countNonparsedEntities;
@@ -627,6 +626,7 @@ struct Compiler { // :Compiler
 #define slScope       1 // scopes (denoted by brackets): newlines and commas have no effect there
 #define slStmt        2 // single-line statements: newlines and semicolons break 'em
 #define slSubexpr     3 // parenthesized forms: newlines have no effect, semi-colons error out
+#define slUnbraced    4 // A scope that hasn't met its first brace, like an "if" before its "{"
 
 
 //}}}

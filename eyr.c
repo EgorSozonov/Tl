@@ -81,7 +81,7 @@ Byte const maximumPreciselyRepresentedFloatingInt[16] = {
 
 
 char const standardText[] = "!.!=##$%&&.*:+:-:/:/|<<.<=><0===0>=<>>.>0?:@^.||."
-                            "aliasassertbreakcatchcontinuedoeacheifelsefalsefor"
+                            "aliasassertbreakcatchcontinuedefeacheifelsefalsefor"
                             "ifimplimportmatchpubreturntraittruetry"
                             // reserved words end here; what follows may have arbitrary order
                             "IntLongDoubleBoolStrVoidFLArrayDRecEnumTuPromiselencapf1f2print"
@@ -99,7 +99,7 @@ Int const standardOperatorsLength = 49; // length of the operator part above
 
 Byte const standardStringLens[] = {
      5, 6, 5, 5, 8,
-     2, 4, 3, 4, 5,
+     3, 4, 3, 4, 5,
      3, 2, 4, 6, 5,
      3, 6, 5, 4, 3,
      // reserved words end here
@@ -116,10 +116,10 @@ Byte const standardStringLens[] = {
 static Int standardOffsets[sizeof(standardStringLens)]; // filled in by "populateStandardOffsets"
 
 Int const standardKeywords[] = {
-    tokAlias,     tokAssert,  keywBreak,  tokCatch,   keywContinue,
-    tokScope,     tokEach,    tokElseIf,  tokElse,    keywFalse,
-    tokFor,       tokIf,      tokImpl,    tokImport,  tokMatch,
-    tokMisc,      tokReturn,  tokTrait,   keywTrue,   tokTry
+    tokAlias,     tokAssert,  keywBreak,   tokCatch,   keywContinue,
+    tokDef,       tokEach,    tokElseIf,   tokElse,    keywFalse,
+    tokFor,       tokIf,      tokImpl,     tokImport,  tokMatch,
+    tokMisc,      tokReturn,  tokTrait,    keywTrue,   tokTry
 };
 
 
@@ -199,7 +199,7 @@ Int const operatorStartSymbols[13] = {
 //}}}
 //{{{ Syntactical structure
 
-#define TOKS Arr(Token) toks  // tokens that are used as input to the parser
+#define TOKS Arr(Token) restrict toks  // tokens that are used as input to the parser
 #define CM Compiler* restrict cm // compiler during parsing
 private void parseErrorBareAtom(Token tok, TOKS, CM);
 private void pScope(Token tok, TOKS, CM);
@@ -370,7 +370,7 @@ calculateChunkSize(size_t allocSize) { //:calculateChunkSize
     return mallocMemory - 32;
 }
 
-testable void*
+testable Any*
 allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
 // Allocate memory in the arena, malloc'ing a new chunk if needed
     if ((size_t)a->currInd + allocSize >= a->currChunk->size) {
@@ -397,13 +397,16 @@ allocateOnArena(size_t allocSize, Arena* a) { //:allocateOnArena
         }
 
     }
-    void* result = (void*)(a->currChunk->memory + (a->currInd));
+    Any* result = (Any*)(a->currChunk->memory + (a->currInd));
     a->currInd += allocSize;
     if (allocSize % 4 != 0)  {
         a->currInd += (4 - (allocSize % 4));
     }
     return result;
 }
+
+#define allocate(T, a) (T*)allocateOnArena(sizeof(T), a)
+#define allocateArray(cap, T, a) (T*)allocateOnArena(cap*sizeof(T), a)
 
 testable void
 deleteArena(Arena* ar) { //:deleteArena
@@ -430,11 +433,11 @@ clearArena(Arena* a) { //:clearArena
 #define DEFINE_STACK(T)\
     testable Stack##T * createStack##T (int initCapacity, Arena* a) {\
         int capacity = initCapacity < 4 ? 4 : initCapacity;\
-        Stack##T * result = allocateOnArena(sizeof(Stack##T), a);\
+        Stack##T * result = allocate(Stack##T, a);\
         result->cap = capacity;\
         result->len = 0;\
         result->arena = a;\
-        T* arr = allocateOnArena(capacity*sizeof(T), a);\
+        T* arr = allocateArray(capacity, T, a);\
         result->cont = arr;\
         return result;\
     }\
@@ -452,7 +455,7 @@ clearArena(Arena* a) { //:clearArena
         if (st->len < st->cap) {\
             memcpy((T*)(st->cont) + (st->len), &newItem, sizeof(T));\
         } else {\
-            T* newContent = allocateOnArena(2*(st->cap)*sizeof(T), st->arena);\
+            T* newContent = allocateArray(2*(st->cap), T, st->arena);\
             memcpy(newContent, st->cont, st->len*sizeof(T));\
             memcpy((T*)(newContent) + (st->len), &newItem, sizeof(T));\
             st->cap *= 2;\
@@ -480,7 +483,7 @@ saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //
                 pushCount*sizeof(SourceLoc));
     } else {
         Int newCap = 2*(cm->nodes.cap) + pushCount;
-        Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
+        Arr(Node) newContent = allocateArray(newCap, Node, cm->a);
         memcpy(newContent, cm->nodes.cont + startInd, cm->nodes.len*sizeof(Node));
         memcpy((Node*)(newContent) + (cm->nodes.len),
                 scr->cont + startInd,
@@ -488,7 +491,7 @@ saveNodes(Int startInd, StackNode* scr, StackSourceLoc* locs, Compiler* cm) { //
         cm->nodes.cap = newCap;
         cm->nodes.cont = newContent;
 
-        Arr(SourceLoc) newLocs = allocateOnArena(newCap*sizeof(SourceLoc), cm->a);
+        Arr(SourceLoc) newLocs = allocateArray(newCap, SourceLoc, cm->a);
         memcpy(newLocs, cm->sourceLocs->cont + startInd, pushCount*sizeof(SourceLoc));
         memcpy((SourceLoc*)(newLocs) + (cm->sourceLocs->len), locs->cont + startInd,
                 pushCount*sizeof(SourceLoc));
@@ -504,7 +507,7 @@ ensureCapacityTokenBuf(Int neededSpace, StackToken* st, Compiler* cm) {
 //:ensureCapacityTokenBuf Reserve space in the temp buffer used to shuffle tokens
     st->len = 0;
     if (neededSpace >= st->cap) {
-        Arr(Token) newContent = allocateOnArena(2*(st->cap)*sizeof(Token), cm->a);
+        Arr(Token) newContent = allocateArray(2*(st->cap), Token, cm->a);
         st->cap *= 2;
         st->cont = newContent;
     }
@@ -517,7 +520,7 @@ ensureCapacityTokens(Int neededSpace, Compiler* cm) {
         Int const newCap = (2*(cm->tokens.cap) > cm->tokens.cap + neededSpace)
             ? 2*cm->tokens.cap
             : cm->tokens.cap + neededSpace;
-        Arr(Token) newContent = allocateOnArena(newCap*sizeof(Token), cm->a);
+        Arr(Token) newContent = allocateArray(newCap, Token, cm->a);
         memcpy(newContent, cm->tokens.cont, cm->tokens.len*sizeof(Token));
         cm->tokens.cap = newCap;
         cm->tokens.cont = newContent;
@@ -530,7 +533,7 @@ ensureCapacityTokens(Int neededSpace, Compiler* cm) {
 #define DEFINE_INTERNAL_LIST_CONSTRUCTOR(T)                 \
 testable InList##T createInList##T(Int initCap, Arena* a) { \
     return (InList##T){                                     \
-        .cont = allocateOnArena(initCap*sizeof(T), a),   \
+        .cont = allocateArray(initCap, T, a),   \
         .len = 0, .cap = initCap };                 \
 }
 
@@ -539,7 +542,7 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
         if (cm->fieldName.len < cm->fieldName.cap) {\
             memcpy((T*)(cm->fieldName.cont) + (cm->fieldName.len), &newItem, sizeof(T));\
         } else {\
-            T* newContent = allocateOnArena(2*(cm->fieldName.cap)*sizeof(T), cm->aName);\
+            T* newContent = allocateArray(2*(cm->fieldName.cap), T, cm->aName);\
             memcpy(newContent, cm->fieldName.cont, cm->fieldName.len*sizeof(T));\
             memcpy((T*)(newContent) + (cm->fieldName.len), &newItem, sizeof(T));\
             cm->fieldName.cap *= 2;\
@@ -554,8 +557,8 @@ void dbgType(TypeId typeId, Compiler* cm);
 
 MultiAssocList*
 createMultiAssocList(Arena* a) { //:createMultiAssocList
-    MultiAssocList* ml = allocateOnArena(sizeof(MultiAssocList), a);
-    Arr(Int) content = allocateOnArena(12*4, a);
+    MultiAssocList* ml = allocate(MultiAssocList, a);
+    Arr(Int) content = allocateArray(12, Int, a);
     (*ml) = (MultiAssocList) {
         .len = 0,
         .cap = 12,
@@ -601,7 +604,7 @@ private void
 multiListDoubleCap(MultiAssocList* ml) {
 //:multiListDoubleCap
     Int newMultiCap = ml->cap*2;
-    Arr(Int) newAlloc = allocateOnArena(newMultiCap*4, ml->a);
+    Arr(Int) newAlloc = allocateArray(newMultiCap, Int, ml->a);
     memcpy(newAlloc, ml->cont, ml->len*4);
     ml->cap = newMultiCap;
     ml->cont = newAlloc;
@@ -680,8 +683,8 @@ testable Int searchMultiAssocList(Int searchKey, Int listInd, MultiAssocList* ml
 
 private MultiAssocList*
 copyMultiAssocList(MultiAssocList* ml, Arena* a) { //:copyMultiAssocList
-    MultiAssocList* result = allocateOnArena(sizeof(MultiAssocList), a);
-    Arr(Int) cont = allocateOnArena(4*ml->cap, a);
+    MultiAssocList* result = allocate(MultiAssocList, a);
+    Arr(Int) cont = allocateArray(ml->cap, Int, a);
     memcpy(cont, ml->cont, 4*ml->cap);
     (*result) = (MultiAssocList){
         .len = ml->len, .cap = ml->cap, .freeList = ml->freeList, .cont = cont, .a = a
@@ -861,9 +864,9 @@ private bool isSpace(Byte a) { //:isSpace
 
 testable IntMap*
 createIntMap(int initSize, Arena* a) { //:createIntMap
-    IntMap* result = allocateOnArena(sizeof(IntMap), a);
+    IntMap* result = allocate(IntMap, a);
     int realInitSize = (initSize >= 4 && initSize < 1024) ? initSize : (initSize >= 4 ? 1024 : 4);
-    Arr(int*) dict = allocateOnArena(sizeof(int*)*realInitSize, a);
+    Arr(Int*) dict = allocateArray(realInitSize, Int*, a);
 
     result->a = a;
 
@@ -884,7 +887,7 @@ addIntMap(int key, int value, IntMap* hm) { //:addIntMap
 
     int hash = key % (hm->dictSize);
     if (*(hm->dict + hash) == null) {
-        Arr(int) newBucket = allocateOnArena(9*sizeof(int), hm->a);
+        Arr(Int) newBucket = allocateArray(9, Int, hm->a);
         newBucket[0] = (8 << 16) + 1; // left u16 = capacity, right u16 = length
         newBucket[1] = key;
         newBucket[2] = value;
@@ -904,7 +907,7 @@ addIntMap(int key, int value, IntMap* hm) { //:addIntMap
             p[0] = (capacity << 16) + (maxInd + 1)/2;
         } else {
             // TODO handle the case where we've overflowing the 16 bits of capacity
-            Arr(int) newBucket = allocateOnArena((4*capacity + 1)*sizeof(int), hm->a);
+            Arr(Int) newBucket = allocateArray((4*capacity + 1), Int, hm->a);
             memcpy(newBucket + 1, p + 1, capacity*2*sizeof(int));
             newBucket[0] = ((2*capacity) << 16) + capacity;
             newBucket[2*capacity + 1] = key;
@@ -979,11 +982,11 @@ hasKeyValueIntMap(int key, int value, IntMap* hm) { //:hasKeyValueIntMap
 
 private StringDict*
 createStringDict(int initSize, Arena* a) {
-    StringDict* result = allocateOnArena(sizeof(StringDict), a);
+    StringDict* result = allocate(StringDict, a);
     int realInitSize = (initSize >= initBucketSize && initSize < 2048)
         ? initSize
         : (initSize >= initBucketSize ? 2048 : initBucketSize);
-    Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*realInitSize, a);
+    Arr(Bucket*) dict = allocateArray(realInitSize, Bucket*, a);
 
     result->a = a;
 
@@ -1388,11 +1391,10 @@ char const errNumericMultipleDots[]        = "Multiple dots in numeric literals 
 char const errNumericIntWidthExceeded[]    = "Integer literals must be within the range [-9,223,372,036,854,775,808; 9,223,372,036,854,775,807]!";
 char const errPunctuationExtraOpening[]    = "Extra opening punctuation";
 char const errPunctuationExtraClosing[]    = "Extra closing punctuation";
-char const errPunctuationOnlyInMultiline[] = "The statement separator is not allowed inside expressions!";
+char const errPunctuationOnlyInMultiline[] = "The statement separator is not allowed inside subexpressions!";
 char const errPunctuationFnNotInStmt[]     = "Function definitions must be directly in a statement";
 char const errPunctuationUnmatched[]       = "Unmatched closing punctuation";
-char const errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms";
-char const errColonNotInStmt[]             = "The colon separator mey only be present in statements";
+char const errPunctuationScope[]           = "Scopes may only be opened in multi-line syntax forms or in `for`, `if` forms";
 char const errOperatorUnknown[]            = "Unknown operator";
 char const errOperatorAssignmentPunct[]    = "Incorrect assignment operator: must be directly inside an ordinary statement, after the binding name(s) or l-value!";
 char const errToplevelAssignment[]         = "Toplevel assignments must have only single word on the left!";
@@ -1669,20 +1671,10 @@ getLexContext(LX) { //:getLexContext
 }
 
 private void
-setStmtSpanLength(Int tokenInd, LX) { //:setStmtSpanLength
+setStmtSpanLength(Int spanInd, LX) { //:setStmtSpanLength
 // Correctly calculates the lenBts for a single-line, statement-type span.
-// This is for correctly calculating lengths of statements when they are ended by parens in
-// case of a gap before ")", for example:
-//  ` (do asdf    <- statement actually ended here
-//    )`        <- but we are in this position now
-//  Does not consume any characters.
-    Token lastToken = lx->tokens.cont[lx->tokens.len - 1];
-    Int byteAfterLastToken = lastToken.startBt + lastToken.lenBts;
-    Int byteAfterLastPunct = lx->stats.lastClosingPunctInd + 1;
-    Int lenBts = (byteAfterLastPunct > byteAfterLastToken ? byteAfterLastPunct : byteAfterLastToken)
-                    - lx->tokens.cont[tokenInd].startBt;
-    lx->tokens.cont[tokenInd].lenBts = lenBts;
-    lx->tokens.cont[tokenInd].pl2 = lx->tokens.len - tokenInd - 1;
+    lx->tokens.cont[spanInd].lenBts = lx->i - lx->tokens.cont[spanInd].startBt;
+    lx->tokens.cont[spanInd].pl2 = lx->tokens.len - spanInd - 1;
 }
 
 private void
@@ -1707,7 +1699,8 @@ wrapInAStatementStarting(Int startBt, Arr(char const) source, LX) {
 private void
 wrapInAStatement(Arr(char const) source, LX) { //:wrapInAStatement
     if (hasValues(lx->lexBtrack)) {
-        if (peek(lx->lexBtrack).spanLevel == slScope) {
+        auto spanLevel = peek(lx->lexBtrack).spanLevel;
+        if (spanLevel == slScope || spanLevel == slUnbraced) {
             addStatementSpan(tokStmt, lx->i, lx);
         }
     } else {
@@ -1957,25 +1950,17 @@ openPunctuation(Unt tType, Unt spanLevel, Int startBt, LX) {
 }
 
 private void
-lexElseElseIf(Unt reservedWordType, Int startBt,
-                           SRC, LX) { //:lexElseElseIf
-    StackBtToken* bt = lx->lexBtrack;
-    VALIDATEL(bt->len >= 1, errCoreFormInappropriate)
-    if (peek(bt).tp != tokIf) {
-        // if not directly inside "if", then we may be only be in:
-        // [If], [If stmt], [ElseIf] or [ElseIf stmt]
-        VALIDATEL(bt->len > 1, errCoreFormInappropriate)
-        if (peek(bt).spanLevel == slStmt) {
-            closeStatement(lx);
-        }
-        VALIDATEL(bt->len > 0, errCoreFormInappropriate)
-        BtToken top = peek(bt);
-        if (top.tp == tokElseIf) {
-            setStmtSpanLength(top.tokenInd, lx);
-            pop(lx->lexBtrack);
-        }
+lexIf(Unt reservedWordType, Int startBt, SRC, LX) { //:lexIf
+    if (reservedWordType == tokElse) {
+        openPunctuation(tokElse, slScope, startBt, lx);
+    } else {
+        openPunctuation(reservedWordType, slUnbraced, startBt, lx);
     }
-    openPunctuation(reservedWordType, slScope, startBt, lx);
+}
+
+private void
+lexDef(Int startBt, SRC, LX) { //:lexDef
+    openPunctuation(tokDef, slStmt, startBt, lx);
 }
 
 private void
@@ -1984,11 +1969,13 @@ lexSyntaxForm(Unt reservedWordType, Int startBt,
 // Lexer action for a paren-type or statement-type syntax form.
 // Precondition: we are looking at the character immediately after the keyword
     StackBtToken* bt = lx->lexBtrack;
-    if (reservedWordType == tokElseIf || reservedWordType == tokElse) {
-        lexElseElseIf(reservedWordType, startBt, source, lx);
+    if (reservedWordType >= tokIf && reservedWordType <= tokElse) {
+        lexIf(reservedWordType, startBt, source, lx);
+    } else if (reservedWordType == tokDef) {
+        lexDef(startBt, source, lx);
     } else if (reservedWordType >= firstScopeTokenType) {
-        // A reserved word must be the first inside parentheses, but parentheses are always wrapped
-        // in statements, so we need to check the TWO last tokens and two top BtTokens
+        // A reserved word must be the first inside parentheses, but parentheses are always
+        // wrapped in statements, so we need to check the TWO last tokens and two top BtTokens
         VALIDATEL(bt->len >= 2 && peek(bt).tp == tokParens
           && bt->cont[bt->len - 2].tp == tokStmt, errCoreFormInappropriate)
         Int const indLastToken = lx->tokens.len - 1;
@@ -2063,12 +2050,10 @@ private void
 closeStatement(LX) { //:closeStatement
 // Closes the current statement. Consumes no tokens
     BtToken top = peek(lx->lexBtrack);
-    VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline)
-    if (top.spanLevel == slStmt) {
-        setStmtSpanLength(top.tokenInd, lx);
-        pop(lx->lexBtrack);
-        mbCloseAssignRight(&top, lx);
-    }
+    VALIDATEL(top.spanLevel == slStmt, errPunctuationExtraOpening)
+    setStmtSpanLength(top.tokenInd, lx);
+    pop(lx->lexBtrack);
+    mbCloseAssignRight(&top, lx);
 }
 
 private void
@@ -2227,31 +2212,7 @@ lexAssignment(Int const opType, LX) { //:lexAssignment
 }
 
 private void
-lexColon(SRC, LX) { //:lexColon
-// Handles keyword arguments ":asdf" and intros like if conds "x > 5: ..."
-    if (lx->i < lx->stats.inpLength - 1 && isLowercaseLetter(NEXT_BT)) {
-        lx->i += 1; // CONSUME the ":"
-        wordInternal(tokKwArg, source, lx);
-    } else {
-        VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
-        BtToken top = peek(lx->lexBtrack);
-        VALIDATEL(top.spanLevel == slStmt, errColonNotInStmt)
-
-        lx->stats.lastClosingPunctInd = lx->i;
-        setStmtSpanLength(top.tokenInd, lx);
-        pop(lx->lexBtrack);
-        mbCloseAssignRight(&top, lx); // TODO is it really necessary here?
-
-        Token* tok = lx->tokens.cont + top.tokenInd;
-        tok->pl1 = tok->tp;
-        tok->tp = tokIntro;
-
-        lx->i += 1; // CONSUME the ":"
-    }
-}
-
-private void
-lexApostrophe(SRC, LX) { //:lexApostrophe
+lexAtSign(SRC, LX) { //:lexAtSign
     VALIDATEL(lx->i < lx->stats.inpLength - 1 && isLetter(NEXT_BT), errUnexpectedToken)
     lx->i += 1; // CONSUME the "'"
     wordInternal(tokTypeVar, source, lx);
@@ -2259,17 +2220,15 @@ lexApostrophe(SRC, LX) { //:lexApostrophe
 
 private void
 lexSemicolon(SRC, LX) { //:lexSemicolon
-    VALIDATEL(hasValues(lx->lexBtrack), errPunctuationOnlyInMultiline)
+    lx->i += 1;  // CONSUME the ";". Doing it at the start so that span will calc len right
+    if (!hasValues(lx->lexBtrack)) {
+        return;
+    }
     BtToken top = peek(lx->lexBtrack);
     VALIDATEL(top.spanLevel != slSubexpr, errPunctuationOnlyInMultiline);
-    lx->stats.lastClosingPunctInd = lx->i;
-    if (top.spanLevel == slScope) {
-        pushIntokens((Token){ .tp = tokStmt, .pl1 = 0, .pl2 = 0, .startBt = lx->i, .lenBts = 1 },
-                        lx);
-    } else {
+    if (top.spanLevel == slStmt) {
         closeStatement(lx);
     }
-    lx->i += 1;  // CONSUME the ";"
 }
 
 private void
@@ -2436,29 +2395,12 @@ lexParenRight(SRC, LX) { //:lexParenRight
 // 2. [coreForm stmt] - eg. if it's closing the function body
 // 3. [if else/elseIf stmt]
 // 4. [if else/elseIf ]
-    Int const startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
-
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
 
+    VALIDATEL(top.spanLevel == slSubexpr, errPunctuationUnmatched)
     mbCloseAssignRight(&top, lx);
-
-    lx->stats.lastClosingPunctInd = startInd; // this must be here, after possible statement close
-    if (top.tp == tokFn
-            && lx->i + 1 < lx->stats.inpLength && NEXT_BT == aParenRight) {
-        lx->stats.lastClosingPunctInd += 1;
-        lxCloseFnDef(&top, lx);
-        lx->i += 2; // CONSUME the closing "))"
-        return;
-    }
-
-    if (hasValues(bt) && (top.tp == tokElse || top.tp == tokElseIf)) {
-        setStmtSpanLength(top.tokenInd, lx);
-        top = pop(bt);
-    }
-
-    VALIDATEL(top.spanLevel == slSubexpr || top.spanLevel == slScope, errPunctuationParamListh)
 
     setSpanLengthLexer(top.tokenInd, lx);
     lx->i += 1; // CONSUME the closing ")"
@@ -2467,76 +2409,80 @@ lexParenRight(SRC, LX) { //:lexParenRight
 
 private void
 lexFn(SRC, LX) { //:lexFn
-    VALIDATEL(hasValues(lx->lexBtrack), errUnexpectedToken)
-    BtToken top = peek(lx->lexBtrack);
-    VALIDATEL(top.spanLevel == slStmt, errPunctuationFnNotInStmt)
+    if (hasValues(lx->lexBtrack)) {
+        BtToken top = peek(lx->lexBtrack);
+        VALIDATEL(top.spanLevel == slStmt, errPunctuationFnNotInStmt)
+    }
     
     openPunctuation(tokFn, slScope, lx->i, lx);
-    openPunctuation(tokFnParams, slStmt, lx->i, lx);
+    openPunctuation(tokFnParams, slScope, lx->i + 1, lx);
     lx->i += 2; // CONSUME the "{{"
 }
 
 private void
 lexCurlyLeft(SRC, LX) { //:lexCurlyLeft
-// Handles objects/maps/sets "{}"
-    Int j = lx->i + 1;
-
+// Handles scope openings and decorative braces in "if" and "for" forms
     if (NEXT_BT == aCurlyLeft) {
-        lx->i += 2; // CONSUME the "{{"
-    } else {
         lexFn(source, lx);
+    } else {
+        if (hasValues(lx->lexBtrack)) {
+            BtToken const top = peek(lx->lexBtrack);
+            if (top.spanLevel == slStmt) {
+                // process the first curly brace in an "if ... {" form. If all is right,
+                // updates its span level to slScope, so further curly braces work as usual
+                Int const len = lx->lexBtrack->len;
+                VALIDATEL(len > 1 && lx->lexBtrack->cont[len - 2].spanLevel == slUnbraced,
+                          errPunctuationScope) 
+                pop(lx->lexBtrack); // pop the top statement (if cond) because it's over
+                setStmtSpanLength(top.tokenInd, lx);
+                BtToken const second = peek(lx->lexBtrack);
+                lx->lexBtrack->cont[len - 2].spanLevel = slScope;
+                lx->tokens.cont[second.tokenInd].pl1 = slScope;
+                goto consumption;
+            } else if (top.tp == tokElse) {
+                goto consumption;
+            }
+        }
+        openPunctuation(tokScope, slScope, lx->i, lx);
+        consumption:
+        lx->i += 1; // CONSUME the "{"
     }
 }
 
 private void
 lexCurlyRight(SRC, LX) { //:lexCurlyRight
-    Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
     
-    VALIDATEL(top.tp == tokFnParams || top.spanLevel == slScope, errPunctuationUnmatched)
-
-    // since a closing brace may be closing something with statements inside it, like a lex scope
-    // or a function, we need to close that statement before closing its parent
-    if (top.spanLevel == slStmt) {
-        VALIDATEL(hasValues(bt) && bt->cont[bt->len - 1].spanLevel == slScope,
-                  errPunctuationUnmatched);
-        setStmtSpanLength(top.tokenInd, lx);
-        top = pop(bt);
-    }
-
+    VALIDATEL(top.spanLevel == slScope, errPunctuationUnmatched)
     setSpanLengthLexer(top.tokenInd, lx);
-    if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
     lx->i += 1; // CONSUME the "}"
 }
 
 private void
 lexBracketLeft(SRC, LX) { //:lexBracketLeft
     wrapInAStatement(source, lx);
-    openPunctuation(tokDataList, slSubexpr, lx->i, lx);
+    openPunctuation(tokData, slSubexpr, lx->i, lx);
     lx->i += 1; // CONSUME the `[`
 }
 
 private void
 lexBracketRight(SRC, LX) { //:lexBracketRight
-    Int startInd = lx->i;
     StackBtToken* bt = lx->lexBtrack;
     VALIDATEL(hasValues(bt), errPunctuationExtraClosing)
     BtToken top = pop(bt);
-    VALIDATEL(top.tp == tokDataList || top.tp == tokAccessor, errPunctuationParamListh)
+    VALIDATEL(top.tp == tokData || top.tp == tokAccessor, errPunctuationUnmatched)
 
     setSpanLengthLexer(top.tokenInd, lx);
 
-    if (hasValues(bt)) { lx->stats.lastClosingPunctInd = startInd; }
     lx->i += 1; // CONSUME the closing "]"
-
     tryOpenAccessor(source, lx);
 }
 
 private void
 lexPipe(SRC, LX) { //:lexPipe
-// Closes the current statement and changes its type to tokIntro
+// Closes the current statement and changes its type to tokFnParams
     Int j = lx->i + 1;
     if (j < lx->stats.inpLength && NEXT_BT == aPipe) {
         lexOperator(source, lx);
@@ -2609,8 +2555,7 @@ tabulateLexer() { //:tabulateLexer
     p[aBracketRight] = &lexBracketRight;
     p[aPipe] = &lexPipe;
     p[aDivBy] = &lexDivBy; // to handle the comments "//"
-    p[aColon] = &lexColon; // to handle keyword args ":a"
-    p[aApostrophe] = &lexApostrophe; // to handle type variables "'a"
+    p[aAt] = &lexAtSign; // to handle type variables "@a"
     p[aSemicolon] = &lexSemicolon; // the statement terminator
     p[aTilde] = &lexTilde;
 
@@ -2792,11 +2737,11 @@ parseTry(Token tok, TOKS, CM) {
 
 
 private void ifFindNextClause(Int start, Int sentinel, OUT Int* nextTokenInd, OUT Int* lastLastByte,
-                              Arr(Token) toks) { //:ifFindNextClause
+                              TOKS) { //:ifFindNextClause
 // Finds the next clause inside an "if" syntax form. Returns the index of that clause's first token
 // and the last byte (of course exclusive, so the byte after) of the last token/span before that
 // clause. Returns 0s if there is no next clause.
-// Precondition: we are 1 token past the tokIntro span
+// Precondition: we are 1 token past the tokIfClause span
     if (start >= sentinel)  {
         *nextTokenInd = 0;
         *lastLastByte = 0;
@@ -2824,7 +2769,7 @@ private void
 ifCondition(Token tok, TOKS, CM) { //:ifCondition
 // Precondition: we are 1 past the "stmt" token, which is the first parameter
     Int leftSentinel = calcSentinel(tok, cm->i - 1);
-    VALIDATEP(tok.tp == tokIntro, errIfLeft)
+    VALIDATEP(tok.tp == tokElseIf, errIfLeft)
     VALIDATEP(leftSentinel + 1 < cm->stats.inpLength, errPrematureEndOfTokens)
 
     TypeId typeLeft = pExprWorker(tok, toks, cm);
@@ -3012,9 +2957,9 @@ pAssignment(Token tok, TOKS, CM) { //:pAssignment
 }
 
 private void
-preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
-            TOKS, CM) { //:preambleFor
-// Pre-processes a "for" loop and finds its key tokens: the loop condition and the intro
+preambleFor(Int sentinel, TOKS, CM, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd) {
+//:preambleFor Pre-processes a "for" loop and finds its key tokens: the loop condition and the 
+// intro.
 // Every out index is either positive or 0 for "not found".
 // One of "stepInd" and "bodyInd" is guaranteed to be found & positive. If they are both present,
 // this function performs important token twiddling: it reorders the step to be after the body.
@@ -3027,12 +2972,12 @@ preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
 // unidirectional way: t'would be hard to make it jump back to parse a couple of stmts. This is why
 // this function reorders the tokens:
 //
-// [inits | cond | tokStmt tokIntro | tokBody1 ... tokBodyN]
+// [[tokScope inits | cond | tokStmt tokStmt] tokBody1 ... tokBodyN]
 //                 ^ step1 ^ step2    ^ loop body
 //
 //   |    |    |    |    |    |    |    |    |
 //   v    v    v    v    v    v    v    v    v
-// [inits | cond | tokBody1 ... tokBodyN tokStep1 tokStep2 ] <- restores original tp of tokIntro
+// [          inits | cond | tokBody1 ... tokBodyN tokStep1 tokStep2 ]
     VALIDATEP(cm->i < sentinel, errLoopEmptyStepBody)
     Int j = cm->i;
     for (Token currTok = toks[j];
@@ -3042,17 +2987,16 @@ preambleFor(Int sentinel, OUT Int* condInd, OUT Int* stepInd, OUT Int* bodyInd,
         VALIDATEP(j < sentinel, errLoopEmptyStepBody)
     }
     Token condTok = toks[j];
-    VALIDATEP((condTok.tp == tokStmt || condTok.tp == tokIntro) && condTok.pl2 > 0,
-              errLoopNoCondition)
+    VALIDATEP((condTok.tp == tokStmt) && condTok.pl2 > 0, errLoopNoCondition)
     *condInd = j;
 
-    if (condTok.tp == tokIntro)  {
+    if (condTok.tp == tokStmt) {
         VALIDATEP(condTok.pl1 == tokStmt, errLoopNoCondition) // a cond must be an expression
         *stepInd = 0;
     } else {
         j = calcSentinel(condTok, j); // skipping the cond
         *stepInd = j;
-        for (Token currTok = toks[j]; j < sentinel && currTok.tp != tokIntro; currTok = toks[j]) {
+        for (Token currTok = toks[j]; j < sentinel && currTok.tp != tokStmt; currTok = toks[j]) {
             j = calcSentinel(currTok, j);
         }
         VALIDATEP(j < sentinel, errLoopSyntaxError)
@@ -3096,7 +3040,7 @@ pFor(Token forTk, TOKS, CM) { //:pFor
     Int stepInd; // index of iteration stepping code
     Int bodyInd; // index of loop body
     Int const forNodeInd = cm->nodes.len;
-    preambleFor(sentinel, OUT &condInd, OUT &stepInd, OUT &bodyInd, toks, cm);
+    preambleFor(sentinel, toks, cm, OUT &condInd, OUT &stepInd, OUT &bodyInd);
 
     push(((ParseFrame){ .tp = nodFor, .startNodeInd = cm->nodes.len, .sentinel = sentinel,
                         .typeId = cm->stats.loopCounter }), cm->backtrack);
@@ -3302,13 +3246,13 @@ exprCopyFromScratch(Int startNodeInd, CM) { //:exprCopyFromScratch
 
     } else {
         Int newCap = 2*(cm->nodes.cap) + scr->len;
-        Arr(Node) newContent = allocateOnArena(newCap*sizeof(Node), cm->a);
+        Arr(Node) newContent = allocateArray(newCap, Node, cm->a);
         memcpy(newContent, cm->nodes.cont, cm->nodes.len*sizeof(Node));
         memcpy((Node*)(newContent) + (cm->nodes.len), scr->cont, scr->len*sizeof(Node));
         cm->nodes.cap = newCap;
         cm->nodes.cont = newContent;
 
-        Arr(SourceLoc) newLocs = allocateOnArena(newCap*sizeof(SourceLoc), cm->a);
+        Arr(SourceLoc) newLocs = allocateArray(newCap, SourceLoc, cm->a);
         memcpy(newLocs, cm->sourceLocs->cont, cm->sourceLocs->len*sizeof(SourceLoc));
         memcpy((SourceLoc*)(newLocs) + (cm->sourceLocs->len), locs->cont,
                 locs->len*sizeof(SourceLoc));
@@ -3387,7 +3331,7 @@ eLinearize(Int sentinel, TOKS, CM) { //:eLinearize
                 eBumpArgCount(stEx);
                 ePopUnaryCalls(stEx);
             }
-        } else if (tokType == tokDataList) {
+        } else if (tokType == tokData) {
             stEx->metAnAllocation = true;
             eBumpArgCount(stEx);
             push(((ExprFrame) { .tp = exfrDataAlloc, .startNode = scr->len,
@@ -3464,7 +3408,7 @@ private Int
 pExprWorker(Token tok, TOKS, CM) { //:pExprWorker
 // Precondition: we are looking 1 past the first token of expr, which is the first parameter.
 // Consumes 1 or more tokens. Handles single items also Returns the type of parsed expression
-    if (tok.tp == tokStmt || tok.tp == tokParens || tok.tp == tokIntro) {
+    if (tok.tp == tokStmt || tok.tp == tokParens) {
         if (tok.pl2 == 1) {
             Token singleToken = toks[cm->i];
             if (singleToken.tp <= topVerbatimTokenVariant || singleToken.tp == tokWord) {
@@ -3693,9 +3637,9 @@ copyStringTable(StackUnt* table, Arena* a) { //:copyStringTable
 
 private StringDict*
 copyStringDict(StringDict* from, Arena* a) { //:copyStringDict
-    StringDict* result = allocateOnArena(sizeof(StringDict), a);
+    StringDict* result = allocate(StringDict, a);
     Int const dictSize = from->dictSize;
-    Arr(Bucket*) dict = allocateOnArena(sizeof(Bucket*)*dictSize, a);
+    Arr(Bucket*) dict = allocateArray(dictSize, Bucket*, a);
 
     result->a = a;
     for (int i = 0; i < dictSize; i++) {
@@ -3729,7 +3673,7 @@ createProtoCompiler(OUT Compiler* proto, Arena* a) { //:createProtoCompiler
         .sourceCode = str(standardText),
         .stringTable = st, .stringDict = createStringDict(128, a),
         .types = createInListInt(64, a), .typesDict = createStringDict(128, a),
-        .activeBindings = allocateOnArena(4*countOperators, a),
+        .activeBindings = allocateArray(countOperators, Int, a),
         .rawOverloads = createMultiAssocList(a),
         .a = a
     };
@@ -4238,7 +4182,7 @@ createLexer(String sourceCode, Arena* a) {
     if (!_wasInit) {
         initCompiler();
     }
-    Compiler* lx = allocateOnArena(sizeof(Compiler), a);
+    Compiler* lx = allocate(Compiler, a);
     Arena* aTmp = createArena();
 
     (*lx) = (Compiler){
@@ -4280,7 +4224,7 @@ initializeParser(Compiler* lx, Arena* a) { //:initializeParser
     cm->monoCode = createInListNode(initNodeCap, a);
     cm->monoIds = createMultiAssocList(a);
 
-    StateForExprs* stForExprs = allocateOnArena(sizeof(StateForExprs), a);
+    StateForExprs* stForExprs = allocate(StateForExprs, a);
     (*stForExprs) = (StateForExprs) {
         .exp = createStackint32_t(16, cm->aTmp),
         .frames = createStackExprFrame(16*sizeof(ExprFrame), a),
@@ -4295,7 +4239,7 @@ initializeParser(Compiler* lx, Arena* a) { //:initializeParser
     cm->rawOverloads = copyMultiAssocList(PROTO.rawOverloads, cm->aTmp);
     cm->overloads = (InListInt){.len = 0, .cont = null};
 
-    cm->activeBindings = allocateOnArena(4*lx->stringTable->len, lx->aTmp);
+    cm->activeBindings = allocateArray(lx->stringTable->len, Int, lx->aTmp);
     memcpy(cm->activeBindings, PROTO.activeBindings, 4*countOperators); // operators only
 
     Int extraActive = lx->stringTable->len - countOperators;
@@ -4308,7 +4252,7 @@ initializeParser(Compiler* lx, Arena* a) { //:initializeParser
     cm->entities.len = PROTO.entities.len;
     cm->entities.cap = PROTO.entities.cap;
 
-    cm->types.cont = allocateOnArena(PROTO.types.cap*8, a);
+    cm->types.cont = allocateArray(PROTO.types.cap, Int, a);
     memcpy(cm->types.cont, PROTO.types.cont, PROTO.types.len*4);
     cm->types.len = PROTO.types.len;
     cm->types.cap = PROTO.types.cap*2;
@@ -4320,7 +4264,7 @@ initializeParser(Compiler* lx, Arena* a) { //:initializeParser
 
     cm->scopeStack = createScopeStack();
 
-    cm->stateForTypes = allocateOnArena(sizeof(StateForTypes), a);
+    cm->stateForTypes = allocate(StateForTypes, a);
     (*cm->stateForTypes) = (StateForTypes) {
         .exp = createStackint32_t(16, cm->aTmp),
         .frames = createStackTypeFrame(16*sizeof(TypeFrame), cm->aTmp),
@@ -4539,7 +4483,7 @@ pFnSignature(Token fnDef, bool isToplevel, NameId nameId, Int voidToVoid, CM) { 
     Arr(Token) toks = cm->tokens.cont;
     TypeId newFnTypeId = voidToVoid; // default for nullary functions
     StateForTypes* st = cm->stateForTypes;
-    if (toks[cm->i].tp == tokIntro) {
+    if (toks[cm->i].tp == tokFnParams) {
         Token paramListTk = toks[cm->i];
         Int sentinel = calcSentinel(paramListTk, cm->i);
         cm->i += 1; // CONSUME the paramList
@@ -4556,7 +4500,7 @@ pFnSignature(Token fnDef, bool isToplevel, NameId nameId, Int voidToVoid, CM) { 
 }
 
 private void
-pToplevelBody(Int indToplevel, Arr(Token) toks, CM) {
+pToplevelBody(Int indToplevel, TOKS, CM) {
 //:pToplevelBody Parses a top-level function. The result is the AST
 //[ FnDef ParamList body... ]
     Toplevel toplevelSignature = cm->toplevels.cont[indToplevel];
@@ -4574,9 +4518,9 @@ pToplevelBody(Int indToplevel, Arr(Token) toks, CM) {
 
     cm->i += 1; // CONSUME the tokFn token
     Token mbParamsTk = toks[cm->i];
-    if (mbParamsTk.tp == tokIntro) {
+    if (mbParamsTk.tp == tokFnParams) {
         Int const paramsSentinel = cm->i + mbParamsTk.pl2 + 1;
-        cm->i += 1; // CONSUME the tokIntro
+        cm->i += 1; // CONSUME the tokFnParams
         TypeId paramTypeInd = tGetIndexOfFnFirstParam(fnType, cm);
         while (cm->i < paramsSentinel) {
             // need to get params type from the function type we got, not
@@ -4844,7 +4788,7 @@ tSubexValidateNamesUnique(StateForTypes* st, Int start, CM) { //:tSubexValidateN
     StackInt* tmp = st->tmp;
     // copy from names to tmp
     if (tmp->cap < names->len) {
-        Arr(Int) arr = allocateOnArena(names->len*4, cm->aTmp);
+        Arr(Int) arr = allocateArray(names->len, Int, cm->aTmp);
         tmp->cont = arr;
         tmp->cap = names->len;
     }
@@ -5159,7 +5103,7 @@ pTypeDef(TOKS, CM) { //:pTypeDef
 // Produces no AST nodes, but potentially lots of new types
 // Consumes the whole type assignment right side, or the whole function signature
 // Data format: see "Type expression data format"
-// Precondition: we are 1 past the tokAssignmentRight token, or tokIntro token
+// Precondition: we are 1 past the tokAssignmentRight token, or tokFnParams token
     VALIDATEP(toks[cm->i + 1].tp == tokAssignRight, errAssignmentLeftSide)
     cm->stateForTypes->frames->len = 0;
 
@@ -5717,8 +5661,8 @@ private void
 initInterpreter(CM, OUT Interpreter* rt) { //:initInterpreter
     Arena* a = cm->a;
     (*rt) = (Interpreter)  {
-        .memory = (Arr(Unt))allocateOnArena(1000000, a),
-        .fns = allocateOnArena(4, a),
+        .memory = allocateArray(1000000, Unt, a),
+        .fns = allocateArray(100, Int, a),
         .heapTop = 50000,  // skipped the 200k of stack space
         .currFrame = 0,
         .textStart = 0,
@@ -5797,24 +5741,19 @@ void printName(NameId nameId, CM) { //:printName
 // Must agree in order with token types in eyr.internal.h
 char const* tokNames[] = {
     "Int", "Long", "Double", "Bool", "String", "misc",
-    "word", "Type", "'var", ":kwarg", "operator", ".field",
-    "stmt", "()", "(T ...)", "intro:", "[]", "{}", "a[]",
+    "word", "Type", "@TVar", ":kwarg", "operator", ".field",
+    "stmt", "def", "()", "(T ...)", "[]", "a[]",
     "=", "=...", "alias", "assert", "breakCont",
     "trait", "import", "return",
-    "{do", "{{fn", "{fn params}", "{try", "{catch",
-    "Pif", "match{", "elseIf", "else", "{impl", "{for", "{each"
+    "{", "if...", "eif ...", "else {", "match", "{{fn", "{fn params}",
+    "{try", "{catch", "impl", "{for", "{each"
 };
 
+Int
+pos(LX) { return lx->i - sizeof(standardText) + 1; }
 
 Int
-pos(LX) {
-    return lx->i - sizeof(standardText) + 1;
-}
-
-Int
-posInd(Int ind) {
-    return ind - sizeof(standardText) + 1;
-}
+posInd(Int ind) { return ind - sizeof(standardText) + 1; }
 
 void
 dbgLexBtrack(LX) { //:dbgLexBtrack
