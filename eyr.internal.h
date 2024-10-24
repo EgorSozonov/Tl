@@ -1,7 +1,7 @@
-#ifndef ORS_INTERNAL_H
-#define ORS_INTERNAL_H
-//CUTSTART
+#ifndef EYR_INTERNAL_H
+#define EYR_INTERNAL_H
 //{{{ Utils
+
 #define Int int32_t
 #define Long int64_t
 #define Ulong uint64_t
@@ -29,7 +29,7 @@
 #else
     #define testable static
 #endif
-#define OUT // the "out" parameters in functions
+#define OUT // the "out" parameters and args in functions
 #define BIG 70000000
 #define LOWER24BITS 0x00FFFFFF
 #define LOWER26BITS 0x03FFFFFF
@@ -50,66 +50,11 @@
   printf("\n");
 
 typedef struct ArenaChunk ArenaChunk;
+typedef struct Arena Arena;
 
-//CUTEND
-struct ArenaChunk { // :ArenaChunk
-    size_t size;
-    ArenaChunk* next;
-    char memory[]; // flexible array member
-};
-
-typedef struct { // :Arena
-    ArenaChunk* firstChunk;
-    ArenaChunk* currChunk;
-    int currInd;
-} Arena;
-
-#define DEFINE_STACK_HEADER(T) \
-    typedef struct {\
-        Int cap;\
-        Int len;\
-        Arena* arena;\
-        T* cont;\
-    } Stack##T;\
-    testable Stack ## T * createStack ## T (Int initCapacity, Arena* a);\
-    testable Bool hasValues ## T (Stack ## T * st);\
-    testable T pop ## T (Stack ## T * st);\
-    testable T peek ## T(Stack ## T * st);\
-    testable void push ## T (T newItem, Stack ## T * st);
-
-#define DEFINE_INTERNAL_LIST_TYPE(T)\
-typedef struct {\
-    Int len;\
-    Int cap;\
-    Arr(T) cont;\
-} InList##T;
-
-#define DEFINE_INTERNAL_LIST_HEADER(fieldName, T)\
-    InList##T createInList ## T (Int initCapacity, Arena* a);\
-    void pushIn ## fieldName (T newItem, Compiler* cm);
-
-
-// A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse
-// old allocations via an intrusive free list.
-// Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
-// Units of measurement of len and cap are 1's. I.e. len can never be = 1, it starts with 2
-typedef struct { // :MultiAssocList
-    Int len;
-    Int cap;
-    Int freeList;
-    Arr(Int) cont;
-    Arena* a;
-} MultiAssocList;
-
-typedef struct { // :StringBuilder
-    Arr(char) cont;
-    Int len;
-    Int cap;
-} StringBuilder;
 
 testable void printStringNoLn(String s);
 testable void printString(String s);
-//extern String empty;
 
 constexpr String empty = {.cont = null, .len = 0};
 testable String str(const char* content);
@@ -117,113 +62,8 @@ testable Bool endsWith(String a, String b);
 
 #define s(lit) str(lit)
 
-typedef struct {
-    Int len; // length of standardText
-    Int firstParsed; // the name index for the first parsed word
-    Int firstBuiltin; // the nameId for the first built-in word in standardStrings
-} StandardText;
-
-//}}}
-//{{{ Int Hashmap
-
-DEFINE_STACK_HEADER(int32_t)
-DEFINE_STACK_HEADER(uint32_t)
-typedef struct {
-    Arr(int*) dict;
-    int dictSize;
-    int len;
-    Arena* a;
-} IntMap;
-
-//}}}
-//{{{ String Hashmap
-
-// Reference to first occurrence of a string identifier within input text
-typedef struct { //:StringValue
-    Unt hash;
-    Int indString;
-} StringValue;
-
-
-typedef struct { //:Bucket
-    Unt capAndLen;
-    StringValue cont[];
-} Bucket;
-
-// Hash map of all words/identifiers encountered in a source module
-typedef struct { //:StringDict
-    Arr(Bucket*) dict;
-    int dictSize;
-    int len;
-    Arena* a;
-} StringDict;
-
 //}}}
 //{{{ Lexer
-
-//{{{ Standard strings :standardStr
-
-#define strAlias      0
-#define strAssert     1
-#define strBreak      2
-#define strCatch      3
-#define strContinue   4
-#define strDo         5
-#define strEach       6
-#define strElseIf     7
-#define strElse       8
-#define strFalse      9
-#define strFor       10
-#define strIf        11
-#define strImpl      12
-#define strImport    13
-#define strMatch     14
-#define strPub       15
-#define strReturn    16
-#define strTrait     17
-#define strTrue      18
-#define strTry       19
-#define strFirstNonReserved 20
-#define strInt       strFirstNonReserved // types must come first here?, see "buildPreludeTypes"
-#define strLong      21
-#define strDouble    22
-#define strBool      23
-#define strString    24
-#define strVoid      25
-#define strF         26 // F(unction type)
-#define strL         27 // L(ist)
-#define strArray     28
-#define strD         29 // D(ictionary)
-#define strRec       30 // Record
-#define strEnum      31 // Enum
-#define strTu        32 // Tu(ple)
-#define strPromise   33 // Promise
-#define strLen       34
-#define strCap       35
-#define strF1        36
-#define strF2        37
-#define strPrint     38
-#define strPrintErr  39
-#define strMathPi    40
-#define strMathE     41
-#define strTypeVarT  42
-#define strTypeVarU  43
-#ifndef TEST
-#define strSentinel  44
-#else
-#define strSentinel  47
-#endif
-
-//}}}
-
-// Backtrack token, used during lexing to keep track of all the nested stuff
-typedef struct { // :BtToken
-    Unt tp : 6;
-    Int tokenInd;
-    Unt spanLevel : 3;
-} BtToken;
-
-DEFINE_STACK_HEADER(BtToken)
 
 typedef struct { // :Token
     Unt tp : 6;
@@ -233,9 +73,7 @@ typedef struct { // :Token
     Unt pl2;
 } Token;
 
-
 DEFINE_STACK_HEADER(Token)
-#define maxWordLength 255
 
 // Atomic (leaf) Token types
 // The following group of variants are transferred to the AST byte for byte, with no analysis
@@ -352,27 +190,6 @@ DEFINE_STACK_HEADER(Token)
 
 #define countAstForms (nodMatch + 1)
 
-// There is a closed set of operators in the language.
-//
-// For added flexibility, some operators may be extended into another variant,
-// e.g. (+) may be extended into (+.), while (/) may be extended into (/.).
-// These extended operators are declared but not defined by the language, and may be defined
-// for any type by the user, with the return type being arbitrary.
-// For example, the type of 3D vectors may have two different multiplication
-// operators: *. for vector product and * for scalar product.
-//
-// Plus, many have automatic assignment counterparts.
-// For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
-typedef struct { // :OpDef
-    char firstSymbol;
-    Int arity;
-    // Whether this operator permits defining overloads as well as extended operators (e.g. +.= )
-    bool overloadable;
-    bool assignable;
-    bool isTypelevel;
-    NameLoc name;
-} OpDef;
-
 // :OperatorType
 // Values must exactly agree in order with the operatorSymbols array in the tl.c file.
 // The order is defined by ASCII. Operator is bitwise <=> it ends wih dot
@@ -422,13 +239,7 @@ typedef struct { // :OpDef
 #define countOperators     41
 #define countRealOperators 39 // The "unreal" ones, like "a[..]", have a separate syntax
 
-
 typedef struct Compiler Compiler;
-
-
-typedef void (*LexerFn)(const Arr(char), Compiler* restrict); // LexerFunc = &(Lexer* => void)
-typedef void (*ParserFn)(Token, Arr(Token), Compiler* restrict);
-
 
 typedef struct { // :Node
     Unt tp : 6;
@@ -455,6 +266,7 @@ typedef struct { //:Entity
     Byte class; // mutable or immutable, public or private
 } Entity;
 
+typedef struct StandardText StandardText;
 
 typedef struct ScopeStackFrame ScopeStackFrame;
 typedef struct ScopeChunk ScopeChunk;
@@ -472,176 +284,12 @@ typedef struct { // :CompStats
     Int loopCounter;
     Bool wasError;
     String errMsg;
+    
+    Int standardTextLen; // length of standardText
+    Int firstParsed; // the name index for the first parsed word
+    Int firstBuiltin; // the nameId for the first built-in word in standardStrings
 } CompStats;
 
-DEFINE_STACK_HEADER(Node)
-DEFINE_STACK_HEADER(SourceLoc)
-
-DEFINE_INTERNAL_LIST_TYPE(Token) //:InListToken
-DEFINE_INTERNAL_LIST_TYPE(Node)
-
-DEFINE_INTERNAL_LIST_TYPE(Entity)
-
-DEFINE_INTERNAL_LIST_TYPE(Int)
-
-DEFINE_INTERNAL_LIST_TYPE(uint32_t)
-DEFINE_INTERNAL_LIST_TYPE(uint64_t)
-
-
-
 //}}}
-//{{{ Types
 
-// see the Type layout chapter in the docs
-#define sorRecord       1 // Used for records and for primitive types
-#define sorEnum         2
-#define sorFunction     3
-#define sorTypeCall     4 // Partially (or completely) applied generic record/enum like L(Int)
-#define sorMaxType      sorTypeCall
-// the following constants must not clash with the "sor" constants
-// Type expression data format: First element is the tag (one of the following
-// constants), second is payload. Used in @expStack
-#define tyeParam        5 // payload: paramId
-
-
-typedef struct { // :TypeHeader
-    Byte sort;
-    Byte tyrity; // "tyrity" = type arity, the number of type parameters
-    Byte arity;  // for function types, equals arity. For structs, number of fields
-    Unt nameAndLen; // startBt and lenBts
-} TypeHeader;
-
-//}}}
-//{{{ Interpreter
-
-// Function layout (all instructions are 8-byte sized):
-// length
-// actual code
-
-#define EyrPtr uint32_t //:Ptr Pointers are aligned to 4 bytes
-#define StackAddr int16_t //:StackAddr Offset from "currFrame". Negative values mean previous stack frame
-
-
-typedef struct {    //:Interpreter
-    Unt ip; // current instruction pointer
-    Arr(Ulong) code;
-    Arr(Int) fns;   // indices into @code
-    // global static string
-    char* textStart;
-
-    EyrPtr currFrame;
-    EyrPtr topOfFrame;
-    Arr(Unt) memory;
-    StackAddr stackTop;
-    EyrPtr heapTop; // index into @memory
-    String errMsg;
-} Interpreter;
-
-typedef struct { //:CallHeader
-    EyrPtr prevFrame;
-    Unt ip;        // Unt index into @Interpreter.code
-    Unt fnId;     // Index into @Interpreter.fns
-} CallHeader;
-
-#define stackFrameStart 2 // Skipped the 2 ints
-
-typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter* restrict);
-typedef void (*BuiltinFn)(Interpreter*);
-
-// Instructions (opcodes)
-// An instruction is 8 byte long and consists of 6-bit opcode and some data
-// Notation: [A] is a 2-byte stack address, it's signed and is measured relative to currFrame
-//           [~A] is a 3-byte constant or offset
-//           {A} is a 4-byte constant or address
-//           {{A}} is an 8-byte constant (i.e. it takes up a whole second instruction slot)
-#define iPlus              0 // [Dest] [Operand1] [Operand2]
-#define iMinus             1
-#define iTimes             2
-#define iDivBy             3
-#define iPlusFl            4
-#define iMinusFl           5
-#define iTimesFl           6
-#define iDivByFl           7 // /end
-#define iPlusConst         8 // [Src=Dest] {Increment}
-#define iMinusConst        9
-#define iTimesConst       10
-#define iDivByConst       11 // /end
-#define iPlusFlConst      12 // [Src=Dest] {{Double constant}}
-#define iMinusFlConst     13
-#define iTimesFlConst     14
-#define iDivByFlConst     15 // /end
-#define iConcatStrs       16 // [Dest] [Operand1] [Operand2]
-#define iNewstring        17 // [Dest] [Start] [~Len]
-#define iSubstring        18 // [Dest] [Src] {{ {Start} {Len}  }}
-#define iReverseString    19 // [Dest] [Src]
-#define iIndexOfSubstring 20 // [Dest] [String] [Substring]
-#define iGetFld           21 // [Dest] [Obj] [~Offset]
-#define iNewList          22 // [Dest] {Capacity}
-#define iGetElemPtr       23 // [Dest] [ArrAddress] {{ {0} {Elem index} }}
-#define iAddToList        24 // [List] {Value or reference}
-#define iRemoveFromList   25 // [List] {Elem Index}
-#define iSwap             26 // [List] {{ {Index1} {Index2} }}
-#define iConcatLists      27 // [Dest] [Operand1] [Operand2]
-#define iJump             28 // { Code pointer }
-#define iBranchLt         29 // [Operand] { Code pointer }
-#define iBranchEq         30
-#define iBranchGt         31 // /end
-#define iShortCircuit     32 // if [B] == [C] then [A] = [B] else ip += 1
-#define iCall             33 // [New frame pointer] { New instruction pointer }
-#define iBuiltinCall      34 // [Builtin index]
-#define iReturn           35 // [Size of return value = 0, 1 or 2]
-#define iSetLocal         36 // [Dest] {Value}
-#define iSetBigLocal      37 // [Dest] {{Value}}
-#define iPrint            38 // [String]
-#define iPrintErr         39 // [String]
-
-#define countInstructions (iPrint + 1)
-
-//}}}
-//{{{ Generics
-
-#define pop(X) _Generic((X),\
-    StackBtToken*: popBtToken,\
-    StackParseFrame*: popParseFrame,\
-    StackExprFrame*: popExprFrame,\
-    StackTypeFrame*: popTypeFrame,\
-    Stackint32_t*: popint32_t,\
-    StackNode*: popNode,\
-    StackSourceLoc*: popSourceLoc,\
-    StackBtCodegen*: popBtCodegen\
-    )(X)
-
-#define peek(X) _Generic((X),\
-    StackBtToken*: peekBtToken,\
-    StackParseFrame*: peekParseFrame,\
-    StackExprFrame*: peekExprFrame,\
-    StackTypeFrame*: peekTypeFrame,\
-    Stackint32_t*: peekint32_t,\
-    StackNode*: peekNode,\
-    StackBtCodegen*: peekBtCodegen\
-    )(X)
-
-#define push(A, X) _Generic((X),\
-    StackBtToken*: pushBtToken,\
-    StackParseFrame*: pushParseFrame,\
-    StackExprFrame*: pushExprFrame,\
-    StackTypeFrame*: pushTypeFrame,\
-    Stackint32_t*: pushint32_t,\
-    Stackuint32_t*: pushuint32_t,\
-    StackNode*: pushNode,\
-    StackSourceLoc*: pushSourceLoc,\
-    StackBtCodegen*: pushBtCodegen\
-    )(A, X)
-
-#define hasValues(X) _Generic((X),\
-    StackBtToken*: hasValuesBtToken,\
-    StackParseFrame*: hasValuesParseFrame,\
-    StackTypeFrame*: hasValuesTypeFrame,\
-    Stackint32_t*:  hasValuesint32_t,\
-    StackNode*: hasValuesNode,\
-    StackBtCodegen*: hasValuesBtCodegen\
-    )(X)
-//:pop :peek :push :hasValues
-
-//}}}
 #endif

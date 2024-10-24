@@ -138,7 +138,6 @@ private ParserTest createTest0(String name, String sourceCode, Arr(Node) nodes, 
     Arr(TypeId) typeIds = importTypes(types, countTypes, control, a);
     importTypes(types, countTypes, test, a);
 
-    StandardText stText = getStandardTextLength();
     if (countImports > 0) {
         Arr(Entity) importsForControl = allocateOnArena(countImports*sizeof(Entity), a);
         Arr(Entity) importsForTest = allocateOnArena(countImports*sizeof(Entity), a);
@@ -166,10 +165,10 @@ private ParserTest createTest0(String name, String sourceCode, Arr(Node) nodes, 
         }
         // transform pl2/pl3 if it holds NameId
         if (nodeType == nodId && nd.pl2 != -1)  {
-            nd.pl2 += stText.firstParsed;
+            nd.pl2 += controlStats.firstParsed;
         }
         if (nodeType == nodFnDef && nd.pl3 != -1)  {
-            nd.pl3 += stText.firstParsed;
+            nd.pl3 += controlStats.firstParsed;
         }
         addNode(nd, (SourceLoc){.startBt = 0, .lenBts = 0}, control);
     }

@@ -13,156 +13,6 @@
 #include "eyr.internal.h"
 
 //}}}
-//{{{ Internal types
-
-typedef struct { // :ParseFrame
-    Unt tp : 6;
-    Int startNodeInd;
-    Int sentinel;    // sentinel token
-    Int typeId;      // valid only for fnDef, if, loopCond and the like.
-                     // For nodFor, contains the loop depth
-} ParseFrame;
-
-DEFINE_STACK_HEADER(ParseFrame)
-
-struct ScopeChunk { //:ScopeChunk
-    ScopeChunk *next;
-    int len; // length is divisible by 4
-    Int cont[];
-};
-
-
-typedef struct { // :ScopeStack
-    // Either currChunk->next == NULL or currChunk->next->next == NULL
-    ScopeChunk* firstChunk;
-    ScopeChunk* currChunk;
-    ScopeChunk* lastChunk;
-    ScopeStackFrame* topScope;
-    Int len;
-    int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
-} ScopeStack;
-
-
-typedef struct {  // :ExprFrame
-    Byte tp;      // "exfr" constants below
-    Int sentinel; // token sentinel
-    Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
-    Int startNode; // used for all?
-} ExprFrame;
-
-#define exfrParen      1
-#define exfrCall       2
-#define exfrUnaryCall  3
-#define exfrDataAlloc  4
-#define exfrAccessor   5
-
-DEFINE_STACK_HEADER(ExprFrame)
-
-typedef struct { // :StateForExprs
-    StackInt* exp;   // [aTmp]
-    StackExprFrame* frames;
-    StackNode* scr;
-    StackSourceLoc* locsScr;
-    StackNode* calls;
-    StackSourceLoc* locsCalls;
-    Bool metAnAllocation;
-    StackToken* reorderBuf;
-} StateForExprs;
-
-typedef struct {   // :TypeFrame
-    Byte tp;       // "sor" and "tye" constants
-    Int sentinel;  // token id sentinel
-    Int countArgs; // accumulated number of type arguments
-    NameId nameId;
-} TypeFrame;
-
-DEFINE_STACK_HEADER(TypeFrame)
-
-typedef struct { // :StateForTypes
-    StackInt* exp;   // [aTmp] Higher 8 bits are the "sor"/"tye" sorts, lower 24 bits are TypeId
-    StackInt* params;  // [aTmp] Params of a whole type expression
-    StackInt* subParams;  // [aTmp] Type params of a subexpression
-    StackInt* paramRenumberings;  // [aTmp]
-    StackTypeFrame* frames;  // [aTmp]
-    StackInt* names; // [aTmp]
-    StackInt* tmp; // [aTmp]
-} StateForTypes;
-
-
-typedef struct { //:Assignment
-// Toplevel definitions (functions, variables, types) for parsing order and name searchability
-    Int tokenInd;      // index of the tokDef
-    Int rightTokenInd; // index of the tokAssignRight
-    Int sentinel;
-    NameId nameId;
-    EntityId entityId; // if n < 0 => -n - 1 is an index into @functions, otherwise n => @entities
-    bool isFunction;
-    Int nodeInd;
-} Assignment;
-
-
-DEFINE_INTERNAL_LIST_TYPE(Assignment)
-
-
-typedef struct { //:BtCodegen Backtrack for generating code
-    Byte tp; // instructions, i.e. the "i*" constants
-    Int startInstr; // index of starting instruction
-    Int sentinel; // sentinel node of current function
-} BtCodegen;
-
-DEFINE_STACK_HEADER(BtCodegen)
-
-// Span levels, must all be more than 0
-#define slScope        1 // scopes (denoted by brackets): newlines and commas have no effect there
-#define slStmt         2 // single-line statements: newlines and semicolons break 'em
-#define slSubexpr      3 // parenthesized forms: newlines have no effect, semi-colons error out
-#define slUnbraced     4 // A scope that hasn't met its first brace, like an "if" before its "{"
-#define slSingleBraced 5 // A "for" scope that has met exactly 1 curly brace
-
-
-struct Compiler { // :Compiler
-    // LEXING
-    String sourceCode;
-    InListToken tokens;
-    InListToken metas; // TODO - metas with links back into parent span tokens
-    InListInt newlines;
-    StackSourceLoc* sourceLocs;
-    InListInt numeric;          // [aTmp]
-    StackBtToken* lexBtrack;    // [aTmp]
-    Stackuint32_t* stringTable;  // Operators, then standard strings, then imported ones, then
-                                 // parsed. Contains NameLoc pointing into @sourceCode
-    StringDict* stringDict;
-
-    // PARSING
-    InListToplevel toplevels;
-    InListInt importNames;
-    StackParseFrame* backtrack; // [aTmp]
-    ScopeStack* scopeStack;
-    StateForExprs* stateForExprs; // [aTmp]
-    Arr(Int) activeBindings;    // [aTmp]
-    InListNode nodes;
-    InListNode monoCode; // ASTs for monorphizations of generic functions
-    MultiAssocList* monoIds;
-    InListEntity entities;
-    MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
-    InListInt overloads;
-    InListInt types;
-    StringDict* typesDict;
-    StateForTypes* stateForTypes; // [aTmp]
-
-    // CODEGEN
-    StackBtCodegen* cgBtrack;    // [aTmp]
-    InListUlong bytecode;
-
-    // GENERAL STATE
-    Int i;
-    Arena* a;
-    Arena* aTmp;
-    CompStats stats;
-};
-
-
-//}}}
 //{{{ Language definition
 //{{{ Lexical structure
 
@@ -216,7 +66,7 @@ struct Compiler { // :Compiler
 #define aLT           60
 #define aGT           62
 
-
+typedef void (*LexerFn)(const Arr(char), Compiler* restrict); // LexerFunc = &(Lexer* => void)
 private LexerFn LEX_TABLE[256]; // filled in by "tabulateLexer"
 
 Byte const maxInt[19] = {
@@ -272,11 +122,32 @@ Int const standardKeywords[] = {
     tokMisc,      tokReturn,  tokTrait,    keywTrue,   tokTry
 };
 
-
 //}}}
 //{{{ Operators
 
 #define nameLoc(start, len) ((len << 24) + start)
+
+// There is a closed set of operators in the language.
+//
+// For added flexibility, some operators may be extended into another variant,
+// e.g. (+) may be extended into (+.), while (/) may be extended into (/.).
+// These extended operators are declared but not defined by the language, and may be defined
+// for any type by the user, with the return type being arbitrary.
+// For example, the type of 3D vectors may have two different multiplication
+// operators: *. for vector product and * for scalar product.
+//
+// Plus, many have automatic assignment counterparts.
+// For example, "a &&.= b" means "a = a &&. b" for whatever "&&." means.
+typedef struct { // :OpDef
+    char firstSymbol;
+    Int arity;
+    // Whether this operator permits defining overloads as well as extended operators (e.g. +.= )
+    bool overloadable;
+    bool assignable;
+    bool isTypelevel;
+    NameLoc name;
+} OpDef;
+
 
 private OpDef OPERATORS[countOperators] = {
     { .arity=1, .name = nameLoc(0, 2), .firstSymbol = '!' },   // !.
@@ -351,6 +222,8 @@ Int const operatorStartSymbols[13] = {
 
 #define TOKS Arr(Token) restrict toks  // tokens that are used as input to the parser
 #define CM Compiler* restrict cm // compiler during parsing
+typedef void (*ParserFn)(Token, Arr(Token), Compiler* restrict);
+
 private void parseErrorBareAtom(Token tok, TOKS, CM);
 private void pScope(Token tok, TOKS, CM);
 private void pExpr(Token tok, TOKS, CM);
@@ -479,9 +352,32 @@ BuiltinFn BUILTINS_TABLE[countBuiltins]; // filled in by "tabulateBuiltins"
 
 jmp_buf excBuf;
 
+//{{{ General
+
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
+
+
+
+
+//}}}
 //{{{ Arena
 
 #define CHUNK_QUANT 32768
+
+
+struct ArenaChunk { // :ArenaChunk
+    size_t size;
+    ArenaChunk* next;
+    char memory[]; // flexible array member
+};
+
+typedef struct { // :Arena
+    ArenaChunk* firstChunk;
+    ArenaChunk* currChunk;
+    int currInd;
+} Arena;
+
 
 private size_t
 minChunkSize(void) {
@@ -580,6 +476,19 @@ clearArena(Arena* a) { //:clearArena
 
 //}}}
 //{{{ Stack
+
+#define DEFINE_STACK_HEADER(T) \
+    typedef struct {\
+        Int cap;\
+        Int len;\
+        Arena* arena;\
+        T* cont;\
+    } Stack##T;\
+    testable Stack ## T * createStack ## T (Int initCapacity, Arena* a);\
+    testable Bool hasValues ## T (Stack ## T * st);\
+    testable T pop ## T (Stack ## T * st);\
+    testable T peek ## T(Stack ## T * st);\
+    testable void push ## T (T newItem, Stack ## T * st);
 
 #define DEFINE_STACK(T)\
     testable Stack##T * createStack##T (int initCapacity, Arena* a) {\
@@ -681,6 +590,18 @@ ensureCapacityTokens(Int neededSpace, Compiler* cm) {
 //}}}
 //{{{ Internal list
 
+#define DEFINE_INTERNAL_LIST_TYPE(T)\
+typedef struct {\
+    Int len;\
+    Int cap;\
+    Arr(T) cont;\
+} InList##T;
+
+#define DEFINE_INTERNAL_LIST_HEADER(fieldName, T)\
+    InList##T createInList ## T (Int initCapacity, Arena* a);\
+    void pushIn ## fieldName (T newItem, Compiler* cm);
+
+
 #define DEFINE_INTERNAL_LIST_CONSTRUCTOR(T)                 \
 testable InList##T createInList##T(Int initCap, Arena* a) { \
     return (InList##T){                                     \
@@ -701,8 +622,21 @@ testable InList##T createInList##T(Int initCap, Arena* a) { \
         }\
         cm->fieldName.len += 1;\
     }
+    
 //}}}
 //{{{ AssocList
+
+// A growable list of growable lists of pairs of non-negative Ints. Is smart enough to reuse
+// old allocations via an intrusive free list.
+// Internal lists have the structure [len cap ...data...] or [nextFree cap ...] for the free sectors
+// Units of measurement of len and cap are 1's. I.e. len can never be = 1, it starts with 2
+typedef struct { // :MultiAssocList
+    Int len;
+    Int cap;
+    Int freeList;
+    Arr(Int) cont;
+    Arena* a;
+} MultiAssocList;
 
 void dbgType(TypeId typeId, Compiler* cm);
 
@@ -901,8 +835,12 @@ DEFINE_INTERNAL_LIST(bytecode, Ulong, a) //:pushInbytecode
 //}}}
 //{{{ Strings
 
-#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
-#define MAX(X, Y) (((X) > (Y)) ? (X) : (Y))
+typedef struct { // :StringBuilder
+    Arr(char) cont;
+    Int len;
+    Int cap;
+} StringBuilder;
+
 
 testable String
 str(char const* content) { //:str
@@ -1012,6 +950,17 @@ private bool isSpace(Byte a) { //:isSpace
 
 //}}}
 //{{{ Int Hashmap
+
+DEFINE_STACK_HEADER(int32_t)
+DEFINE_STACK_HEADER(uint32_t)
+
+typedef struct {
+    Arr(int*) dict;
+    int dictSize;
+    int len;
+    Arena* a;
+} IntMap;
+
 
 testable IntMap*
 createIntMap(int initSize, Arena* a) { //:createIntMap
@@ -1131,6 +1080,27 @@ hasKeyValueIntMap(int key, int value, IntMap* hm) { //:hasKeyValueIntMap
 //{{{ String Hashmap
 
 #define initBucketSize 8
+
+// Reference to first occurrence of a string identifier within input text
+typedef struct { //:StringValue
+    Unt hash;
+    Int indString;
+} StringValue;
+
+
+typedef struct { //:Bucket
+    Unt capAndLen;
+    StringValue cont[];
+} Bucket;
+
+// Hash map of all words/identifiers encountered in a source module
+typedef struct { //:StringDict
+    Arr(Bucket*) dict;
+    int dictSize;
+    int len;
+    Arena* a;
+} StringDict;
+
 
 private StringDict*
 createStringDict(int initSize, Arena* a) {
@@ -1496,6 +1466,319 @@ minPositiveOf(Int count, ...) { //:minPositiveOf
 
 //}}}
 //}}}
+//{{{ Internal types
+
+typedef struct { // :ParseFrame
+    Unt tp : 6;
+    Int startNodeInd;
+    Int sentinel;    // sentinel token
+    Int typeId;      // valid only for fnDef, if, loopCond and the like.
+                     // For nodFor, contains the loop depth
+} ParseFrame;
+
+DEFINE_STACK_HEADER(ParseFrame)
+
+struct ScopeChunk { //:ScopeChunk
+    ScopeChunk *next;
+    int len; // length is divisible by 4
+    Int cont[];
+};
+
+
+typedef struct { // :ScopeStack
+    // Either currChunk->next == NULL or currChunk->next->next == NULL
+    ScopeChunk* firstChunk;
+    ScopeChunk* currChunk;
+    ScopeChunk* lastChunk;
+    ScopeStackFrame* topScope;
+    Int len;
+    int nextInd; // next ind inside currChunk, unit of measurement is 4 Bytes
+} ScopeStack;
+
+
+typedef struct {  // :ExprFrame
+    Byte tp;      // "exfr" constants below
+    Int sentinel; // token sentinel
+    Int argCount; // accumulated number of arguments. Used for exfrCall & exfrDataAlloc only
+    Int startNode; // used for all?
+} ExprFrame;
+
+#define exfrParen      1
+#define exfrCall       2
+#define exfrUnaryCall  3
+#define exfrDataAlloc  4
+#define exfrAccessor   5
+
+DEFINE_STACK_HEADER(ExprFrame)
+
+typedef struct { // :StateForExprs
+    StackInt* exp;   // [aTmp]
+    StackExprFrame* frames;
+    StackNode* scr;
+    StackSourceLoc* locsScr;
+    StackNode* calls;
+    StackSourceLoc* locsCalls;
+    Bool metAnAllocation;
+    StackToken* reorderBuf;
+} StateForExprs;
+
+typedef struct {   // :TypeFrame
+    Byte tp;       // "sor" and "tye" constants
+    Int sentinel;  // token id sentinel
+    Int countArgs; // accumulated number of type arguments
+    NameId nameId;
+} TypeFrame;
+
+DEFINE_STACK_HEADER(TypeFrame)
+
+typedef struct { // :StateForTypes
+    StackInt* exp;   // [aTmp] Higher 8 bits are the "sor"/"tye" sorts, lower 24 bits are TypeId
+    StackInt* params;  // [aTmp] Params of a whole type expression
+    StackInt* subParams;  // [aTmp] Type params of a subexpression
+    StackInt* paramRenumberings;  // [aTmp]
+    StackTypeFrame* frames;  // [aTmp]
+    StackInt* names; // [aTmp]
+    StackInt* tmp; // [aTmp]
+} StateForTypes;
+
+
+typedef struct { //:Assignment
+// Toplevel definitions (functions, variables, types) for parsing order and name searchability
+    Int tokenInd;      // index of the tokDef
+    Int rightTokenInd; // index of the tokAssignRight
+    Int sentinel;
+    NameId nameId;
+    EntityId entityId; // if n < 0 => -n - 1 is an index into @functions, otherwise n => @entities
+    bool isFunction;
+    Int nodeInd;
+} Assignment;
+
+
+DEFINE_STACK_HEADER(Node)
+DEFINE_STACK_HEADER(SourceLoc)
+
+DEFINE_INTERNAL_LIST_TYPE(Token) //:InListToken
+DEFINE_INTERNAL_LIST_TYPE(Node)
+
+DEFINE_INTERNAL_LIST_TYPE(Entity)
+
+DEFINE_INTERNAL_LIST_TYPE(Int)
+
+DEFINE_INTERNAL_LIST_TYPE(uint32_t)
+DEFINE_INTERNAL_LIST_TYPE(uint64_t)
+
+DEFINE_INTERNAL_LIST_TYPE(Assignment)
+
+typedef struct { //:BtCodegen Backtrack for generating code
+    Byte tp; // instructions, i.e. the "i*" constants
+    Int startInstr; // index of starting instruction
+    Int sentinel; // sentinel node of current function
+} BtCodegen;
+
+DEFINE_STACK_HEADER(BtCodegen)
+
+// Span levels, must all be more than 0
+#define slScope        1 // scopes (denoted by brackets): newlines and commas have no effect there
+#define slStmt         2 // single-line statements: newlines and semicolons break 'em
+#define slSubexpr      3 // parenthesized forms: newlines have no effect, semi-colons error out
+#define slUnbraced     4 // A scope that hasn't met its first brace, like an "if" before its "{"
+#define slSingleBraced 5 // A "for" scope that has met exactly 1 curly brace
+
+struct Compiler { // :Compiler
+    // LEXING
+    String sourceCode;
+    InListToken tokens;
+    InListToken metas; // TODO - metas with links back into parent span tokens
+    InListInt newlines;
+    StackSourceLoc* sourceLocs;
+    InListInt numeric;          // [aTmp]
+    StackBtToken* lexBtrack;    // [aTmp]
+    Stackuint32_t* stringTable;  // Operators, then standard strings, then imported ones, then
+                                 // parsed. Contains NameLoc pointing into @sourceCode
+    StringDict* stringDict;
+
+    // PARSING
+    InListToplevel toplevels;
+    InListInt importNames;
+    StackParseFrame* backtrack; // [aTmp]
+    ScopeStack* scopeStack;
+    StateForExprs* stateForExprs; // [aTmp]
+    Arr(Int) activeBindings;    // [aTmp]
+    InListNode nodes;
+    InListNode monoCode; // ASTs for monorphizations of generic functions
+    MultiAssocList* monoIds;
+    InListEntity entities;
+    MultiAssocList* rawOverloads; // [aTmp] (firstParamTypeId entityId)
+    InListInt overloads;
+    InListInt types;
+    StringDict* typesDict;
+    StateForTypes* stateForTypes; // [aTmp]
+
+    // CODEGEN
+    StackBtCodegen* cgBtrack;    // [aTmp]
+    InListUlong bytecode;
+
+    // GENERAL STATE
+    Int i;
+    Arena* a;
+    Arena* aTmp;
+    CompStats stats;
+};
+
+
+// see the Type layout chapter in the docs
+#define sorRecord       1 // Used for records and for primitive types
+#define sorEnum         2
+#define sorFunction     3
+#define sorTypeCall     4 // Partially (or completely) applied generic record/enum like L(Int)
+#define sorMaxType      sorTypeCall
+// the following constants must not clash with the "sor" constants
+// Type expression data format: First element is the tag (one of the following
+// constants), second is payload. Used in @expStack
+#define tyeParam        5 // payload: paramId
+
+
+typedef struct { // :TypeHeader
+    Byte sort;
+    Byte tyrity; // "tyrity" = type arity, the number of type parameters
+    Byte arity;  // for function types, equals arity. For structs, number of fields
+    Unt nameAndLen; // startBt and lenBts
+} TypeHeader;
+
+
+//{{{ Interpreter
+
+// Function layout (all instructions are 8-byte sized):
+// length
+// actual code
+
+#define EyrPtr uint32_t //:Ptr Pointers are aligned to 4 bytes
+#define StackAddr int16_t //:StackAddr Offset from "currFrame". Negative values mean previous stack frame
+
+
+typedef struct {    //:Interpreter
+    Unt ip; // current instruction pointer
+    Arr(Ulong) code;
+    Arr(Int) fns;   // indices into @code
+    // global static string
+    char* textStart;
+
+    EyrPtr currFrame;
+    EyrPtr topOfFrame;
+    Arr(Unt) memory;
+    StackAddr stackTop;
+    EyrPtr heapTop; // index into @memory
+    String errMsg;
+} Interpreter;
+
+typedef struct { //:CallHeader
+    EyrPtr prevFrame;
+    Unt ip;        // Unt index into @Interpreter.code
+    Unt fnId;     // Index into @Interpreter.fns
+} CallHeader;
+
+#define stackFrameStart 2 // Skipped the 2 ints
+
+typedef Unt (*InterpreterFn)(Ulong, Unt, Interpreter* restrict);
+typedef void (*BuiltinFn)(Interpreter*);
+
+// Instructions (opcodes)
+// An instruction is 8 byte long and consists of 6-bit opcode and some data
+// Notation: [A] is a 2-byte stack address, it's signed and is measured relative to currFrame
+//           [~A] is a 3-byte constant or offset
+//           {A} is a 4-byte constant or address
+//           {{A}} is an 8-byte constant (i.e. it takes up a whole second instruction slot)
+#define iPlus              0 // [Dest] [Operand1] [Operand2]
+#define iMinus             1
+#define iTimes             2
+#define iDivBy             3
+#define iPlusFl            4
+#define iMinusFl           5
+#define iTimesFl           6
+#define iDivByFl           7 // /end
+#define iPlusConst         8 // [Src=Dest] {Increment}
+#define iMinusConst        9
+#define iTimesConst       10
+#define iDivByConst       11 // /end
+#define iPlusFlConst      12 // [Src=Dest] {{Double constant}}
+#define iMinusFlConst     13
+#define iTimesFlConst     14
+#define iDivByFlConst     15 // /end
+#define iConcatStrs       16 // [Dest] [Operand1] [Operand2]
+#define iNewstring        17 // [Dest] [Start] [~Len]
+#define iSubstring        18 // [Dest] [Src] {{ {Start} {Len}  }}
+#define iReverseString    19 // [Dest] [Src]
+#define iIndexOfSubstring 20 // [Dest] [String] [Substring]
+#define iGetFld           21 // [Dest] [Obj] [~Offset]
+#define iNewList          22 // [Dest] {Capacity}
+#define iGetElemPtr       23 // [Dest] [ArrAddress] {{ {0} {Elem index} }}
+#define iAddToList        24 // [List] {Value or reference}
+#define iRemoveFromList   25 // [List] {Elem Index}
+#define iSwap             26 // [List] {{ {Index1} {Index2} }}
+#define iConcatLists      27 // [Dest] [Operand1] [Operand2]
+#define iJump             28 // { Code pointer }
+#define iBranchLt         29 // [Operand] { Code pointer }
+#define iBranchEq         30
+#define iBranchGt         31 // /end
+#define iShortCircuit     32 // if [B] == [C] then [A] = [B] else ip += 1
+#define iCall             33 // [New frame pointer] { New instruction pointer }
+#define iBuiltinCall      34 // [Builtin index]
+#define iReturn           35 // [Size of return value = 0, 1 or 2]
+#define iSetLocal         36 // [Dest] {Value}
+#define iSetBigLocal      37 // [Dest] {{Value}}
+#define iPrint            38 // [String]
+#define iPrintErr         39 // [String]
+
+#define countInstructions (iPrint + 1)
+
+//}}}
+//}}}
+//{{{ Generics
+
+#define pop(X) _Generic((X),\
+    StackBtToken*: popBtToken,\
+    StackParseFrame*: popParseFrame,\
+    StackExprFrame*: popExprFrame,\
+    StackTypeFrame*: popTypeFrame,\
+    Stackint32_t*: popint32_t,\
+    StackNode*: popNode,\
+    StackSourceLoc*: popSourceLoc,\
+    StackBtCodegen*: popBtCodegen\
+    )(X)
+
+#define peek(X) _Generic((X),\
+    StackBtToken*: peekBtToken,\
+    StackParseFrame*: peekParseFrame,\
+    StackExprFrame*: peekExprFrame,\
+    StackTypeFrame*: peekTypeFrame,\
+    Stackint32_t*: peekint32_t,\
+    StackNode*: peekNode,\
+    StackBtCodegen*: peekBtCodegen\
+    )(X)
+
+#define push(A, X) _Generic((X),\
+    StackBtToken*: pushBtToken,\
+    StackParseFrame*: pushParseFrame,\
+    StackExprFrame*: pushExprFrame,\
+    StackTypeFrame*: pushTypeFrame,\
+    Stackint32_t*: pushint32_t,\
+    Stackuint32_t*: pushuint32_t,\
+    StackNode*: pushNode,\
+    StackSourceLoc*: pushSourceLoc,\
+    StackBtCodegen*: pushBtCodegen\
+    )(A, X)
+
+#define hasValues(X) _Generic((X),\
+    StackBtToken*: hasValuesBtToken,\
+    StackParseFrame*: hasValuesParseFrame,\
+    StackTypeFrame*: hasValuesTypeFrame,\
+    Stackint32_t*:  hasValuesint32_t,\
+    StackNode*: hasValuesNode,\
+    StackBtCodegen*: hasValuesBtCodegen\
+    )(X)
+//:pop :peek :push :hasValues
+
+//}}}
 //{{{ Errors
 
 //{{{ Internal errors
@@ -1674,6 +1957,73 @@ getStandardTextLength(void) { //:getStandardTextLength
         .firstParsed = (strSentinel + countOperators),
         .firstBuiltin = countOperators };
 }
+
+//{{{ Standard strings :standardStr
+
+#define strAlias      0
+#define strAssert     1
+#define strBreak      2
+#define strCatch      3
+#define strContinue   4
+#define strDo         5
+#define strEach       6
+#define strElseIf     7
+#define strElse       8
+#define strFalse      9
+#define strFor       10
+#define strIf        11
+#define strImpl      12
+#define strImport    13
+#define strMatch     14
+#define strPub       15
+#define strReturn    16
+#define strTrait     17
+#define strTrue      18
+#define strTry       19
+#define strFirstNonReserved 20
+#define strInt       strFirstNonReserved // types must come first here?, see "buildPreludeTypes"
+#define strLong      21
+#define strDouble    22
+#define strBool      23
+#define strString    24
+#define strVoid      25
+#define strF         26 // F(unction type)
+#define strL         27 // L(ist)
+#define strArray     28
+#define strD         29 // D(ictionary)
+#define strRec       30 // Record
+#define strEnum      31 // Enum
+#define strTu        32 // Tu(ple)
+#define strPromise   33 // Promise
+#define strLen       34
+#define strCap       35
+#define strF1        36
+#define strF2        37
+#define strPrint     38
+#define strPrintErr  39
+#define strMathPi    40
+#define strMathE     41
+#define strTypeVarT  42
+#define strTypeVarU  43
+#ifndef TEST
+#define strSentinel  44
+#else
+#define strSentinel  47
+#endif
+
+//}}}
+
+
+// Backtrack token, used during lexing to keep track of all the nested stuff
+typedef struct { // :BtToken
+    Unt tp : 6;
+    Int tokenInd;
+    Unt spanLevel : 3;
+} BtToken;
+
+DEFINE_STACK_HEADER(BtToken)
+
+#define maxWordLength 255
 
 //}}}
 //{{{ LexerUtils
@@ -4381,7 +4731,12 @@ initializeParser(Compiler* lx, Arena* a) { //:initializeParser
     cm->scopeStack = createScopeStack();
     cm->backtrack = createStackParseFrame(16, lx->aTmp);
     cm->i = 0;
-    cm->stats.loopCounter = 0;
+    cm->stats = (CompStats){
+        .loopCounter = 0,
+        .len = sizeof(standardText) - 1,
+        .firstParsed = (strSentinel + countOperators),
+        .firstBuiltin = countOperators
+    }; 
     cm->nodes = createInListNode(initNodeCap, a);
     cm->sourceLocs = createStackSourceLoc(initNodeCap, a);
     cm->monoCode = createInListNode(initNodeCap, a);
